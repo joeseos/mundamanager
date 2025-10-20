@@ -355,7 +355,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
             <div className="space-y-4">
               <p>Are you sure you want to delete <strong>{deleteModalData.territory_name}</strong>?</p>
               <p className="text-sm text-red-600">
-                <strong>Warning:</strong> This territory will be removed from all campaigns that currently use it.
+                <strong>Warning:</strong> This territory will be removed from your assets, but any Territory already assigned in a campaign will not be affected.
               </p>
             </div>
           }

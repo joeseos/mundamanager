@@ -4,7 +4,6 @@ import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { useRouter } from 'next/navigation';
 import { 
   addFighterInjury, 
   deleteFighterInjury 
@@ -42,7 +41,6 @@ export function InjuriesList({
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
 
   const fetchAvailableInjuries = useCallback(async () => {
     if (isLoadingInjuries) return;
@@ -126,7 +124,9 @@ export function InjuriesList({
       return false;
     } else {
       // Directly add the injury without asking for status changes
-      return await proceedWithAddingInjury(false, false);
+      // Close immediately by returning true; run mutation in background
+      void proceedWithAddingInjury(false, false);
+      return true;
     }
   };
 
@@ -140,6 +140,17 @@ export function InjuriesList({
     }
 
     try {
+      // Optimistic: add a temporary injury entry if we have the selected injury details
+      const tempInjury: FighterEffect | null = selectedInjury ? {
+        ...(selectedInjury as any),
+        id: `temp-${Date.now()}`,
+        created_at: new Date().toISOString(),
+      } : null;
+
+      if (onInjuryUpdate && tempInjury) {
+        onInjuryUpdate([...(injuries || []), tempInjury], sendToRecovery ? true : undefined);
+      }
+
       const result = await addFighterInjury({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
@@ -151,7 +162,13 @@ export function InjuriesList({
         throw new Error(result.error || 'Failed to add lasting injury');
       }
 
-      const statusMessage = [];
+      // Reconcile with server result — replace temp with real injury
+      if (onInjuryUpdate && result.injury) {
+        const withoutTemp = (injuries || []).filter(i => !String(i.id).startsWith('temp-'));
+        onInjuryUpdate([...withoutTemp, result.injury], result.recovery_status);
+      }
+
+      const statusMessage: string[] = [];
       if (sendToRecovery) statusMessage.push('fighter sent to Recovery');
       if (setCaptured) statusMessage.push('fighter marked as Captured');
       
@@ -165,11 +182,12 @@ export function InjuriesList({
       setIsRecoveryModalOpen(false);
       setIsCapturedModalOpen(false);
       
-      // Refresh the page to get updated data
-      router.refresh();
-      
       return true;
     } catch (error) {
+      // Rollback — restore original list
+      if (onInjuryUpdate) {
+        onInjuryUpdate([...(injuries || [])]);
+      }
       console.error('Error adding lasting injury:', error);
       toast({
         description: `Failed to add lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -182,7 +200,12 @@ export function InjuriesList({
   const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
     try {
       setIsDeleting(injuryId);
-      
+      // Optimistic remove
+      if (onInjuryUpdate) {
+        const optimistic = (injuries || []).filter(i => i.id !== injuryId);
+        onInjuryUpdate(optimistic);
+      }
+
       const result = await deleteFighterInjury({
         fighter_id: fighterId,
         injury_id: injuryId
@@ -196,9 +219,6 @@ export function InjuriesList({
         description: `${injuryName} removed successfully`,
         variant: "default"
       });
-      
-      // Refresh the page to get updated data
-      router.refresh();
       
       return true;
     } catch (error) {
@@ -439,13 +459,13 @@ export function InjuriesList({
                 Cancel
               </button>
               <button
-                onClick={() => proceedWithAddingInjury(false, false)}
+                onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(false, false); }}
                 className="px-4 py-2 border rounded hover:bg-muted"
               >
                 No
               </button>
               <button
-                onClick={() => proceedWithAddingInjury(true, false)}
+                onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(true, false); }}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
               >
                 Yes
@@ -501,13 +521,13 @@ export function InjuriesList({
                 Cancel
               </button>
               <button
-                onClick={() => proceedWithAddingInjury(false, false)}
+                onClick={() => { setIsCapturedModalOpen(false); void proceedWithAddingInjury(false, false); }}
                 className="px-4 py-2 border rounded hover:bg-muted"
               >
                 No
               </button>
               <button
-                onClick={() => proceedWithAddingInjury(false, true)}
+                onClick={() => { setIsCapturedModalOpen(false); void proceedWithAddingInjury(false, true); }}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
               >
                 Yes
@@ -530,7 +550,7 @@ export function InjuriesList({
             </div>
           }
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteInjury(deleteModalData.id, deleteModalData.name)}
+          onConfirm={() => { void handleDeleteInjury(deleteModalData.id, deleteModalData.name); return true; }}
         />
       )}
     </>

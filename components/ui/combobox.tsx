@@ -26,7 +26,8 @@ import { cn } from "@/app/lib/utils"
 interface ComboboxProps {
   options: Array<{
     value: string
-    label: string
+    label: string | React.ReactNode
+    displayValue?: string // For search/filter purposes when label is ReactNode
   }>
   value?: string
   onValueChange?: (value: string) => void
@@ -58,9 +59,12 @@ export function Combobox({
   const filteredOptions = React.useMemo(() => {
     if (!searchValue) return options
     
-    return options.filter(option =>
-      option.label.toLowerCase().includes(searchValue.toLowerCase())
-    )
+    return options.filter(option => {
+      const searchText = typeof option.label === 'string' 
+        ? option.label 
+        : (option.displayValue || '');
+      return searchText.toLowerCase().includes(searchValue.toLowerCase())
+    })
   }, [options, searchValue])
 
   // Handle option selection
@@ -130,15 +134,31 @@ export function Combobox({
             "flex h-10 w-full rounded-md border border-border bg-muted px-3 py-2 text-sm",
             "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "pr-10"
+            "pr-10",
+            selectedOption && typeof selectedOption.label !== 'string' && !open && "text-transparent placeholder:text-transparent"
           )}
-          placeholder={selectedOption ? selectedOption.label : placeholder}
+          placeholder={
+            selectedOption && typeof selectedOption.label !== 'string' && !open
+              ? ""
+              : selectedOption 
+                ? (typeof selectedOption.label === 'string' 
+                    ? selectedOption.label 
+                    : (selectedOption.displayValue || placeholder))
+                : placeholder
+          }
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => setOpen(true)}
           disabled={disabled}
         />
+        {selectedOption && typeof selectedOption.label !== 'string' && !open && (
+          <div className="absolute inset-0 flex items-center px-3 py-2 pointer-events-none">
+            <span className="flex items-center gap-1 text-sm">
+              {selectedOption.label}
+            </span>
+          </div>
+        )}
         <button
           type="button"
           className="absolute right-0 top-0 h-full px-3 flex items-center justify-center hover:bg-primary/30 rounded-r-md"
@@ -164,7 +184,7 @@ export function Combobox({
                   )}
                   onClick={() => handleSelect(option.value)}
                 >
-                  <span>{option.label}</span>
+                  <span className="flex items-center gap-1">{option.label}</span>
                   {value === option.value && (
                     <Check className="h-4 w-4" />
                   )}

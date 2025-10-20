@@ -20,14 +20,14 @@ interface PatreonMember {
   type: 'member';
   attributes: {
     full_name: string;
-    email: string;
-    patron_status: 'active_patron' | 'former_patron' | 'declined_patron';
+    email?: string; // Email requires special scope and may not be present
+    patron_status: 'active_patron' | 'former_patron' | 'declined_patron' | null;
   };
   relationships: {
-    currently_entitled_tiers: {
+    currently_entitled_tiers?: {
       data: Array<{ id: string; type: 'tier' }>;
     };
-    user: {
+    user?: {
       data: { id: string; type: 'user' };
     };
   };
@@ -213,24 +213,30 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
   const member = webhookData.data;
   const tiers = webhookData.included?.filter(item => item.type === 'tier') || [];
 
+  // Validate required relationship data
+  if (!member.relationships?.user?.data?.id) {
+    console.error('Webhook missing required user relationship data');
+    return true; // Don't fail webhook - data might be from a delete event
+  }
+
   // Extract member data
-  const patreonEmail = member.attributes.email;
+  const patreonEmail = member.attributes.email || '';
   const patreonUserId = member.relationships.user.data.id;
   const patronStatus = member.attributes.patron_status;
 
   // Find matching user
   const user = await matchPatreonToUser(patreonEmail, patreonUserId);
   if (!user) {
-    console.log(`No matching user found for Patreon email: ${patreonEmail}, user ID: ${patreonUserId}`);
+    console.log(`No matching user found for Patreon email: ${patreonEmail || 'N/A'}, user ID: ${patreonUserId}`);
     return true;
   }
 
-  console.log(`Processing webhook for user ${user.id}, Patreon email: ${patreonEmail}, user ID: ${patreonUserId}`);
+  console.log(`Processing webhook for user ${user.id}, patron_status: ${patronStatus}`);
 
-  // Handle different patron statuses
+  // Handle active patrons
   if (patronStatus === 'active_patron') {
-    // Get current tier information
-    const currentTierIds = member.relationships.currently_entitled_tiers.data.map(t => t.id);
+    // Get current tier information - safely handle missing currently_entitled_tiers
+    const currentTierIds = member.relationships.currently_entitled_tiers?.data?.map(t => t.id) || [];
     const currentTier = tiers.find(tier => currentTierIds.includes(tier.id));
 
     const patreonData: DatabaseUserData = {
@@ -241,20 +247,71 @@ async function processPatreonWebhook(webhookData: PatreonWebhookPayload): Promis
       discordRoles: currentTier?.attributes.discord_role_ids || null
     };
 
-    console.log(`Updating active patron data for user ${user.id}:`, {
-      tierTitle: patreonData.tierTitle,
-      tierId: patreonData.tierId,
-      patronStatus: patreonData.patronStatus
-    });
-
     return await updateUserPatreonData(user.id, patreonData);
-  } else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
-    // Clear tier data but keep the status for record keeping
-    console.log(`Clearing patron data for user ${user.id}, new status: ${patronStatus}`);
+  }
+
+  // Handle former/declined patrons
+  else if (patronStatus === 'former_patron' || patronStatus === 'declined_patron') {
     return await clearUserPatreonData(user.id, patronStatus);
   }
 
-  return false;
+  // Handle followers (null status - never pledged)
+  else if (patronStatus === null) {
+    console.log(`User ${user.id} is a follower (never pledged) - no patron data to update`);
+    return true; // Success - followers don't need patron data
+  }
+
+  // This should never happen based on Patreon's API, but handle gracefully
+  else {
+    console.warn(`Unexpected patron_status '${patronStatus}' for user ${user.id}`);
+    return true; // Don't fail the webhook for unexpected future values
+  }
+}
+
+/**
+ * Process member deletion webhook
+ * When a membership is deleted, clear their Patreon data but keep their profile
+ * @param patreonUserId - Patreon user ID
+ * @returns boolean indicating success
+ */
+async function processMemberDeletion(patreonUserId: string): Promise<boolean> {
+  const supabase = createServiceRoleClient();
+
+  // Find user by Patreon user ID
+  const { data: profile, error: findError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('patreon_user_id', patreonUserId)
+    .single();
+
+  if (findError || !profile) {
+    console.log(`No profile found for deleted Patreon user ID: ${patreonUserId}`);
+    return true; // Not an error - user may not have linked account
+  }
+
+  console.log(`Processing member deletion for user ${profile.id}`);
+
+  // Clear all Patreon data when membership is deleted
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({
+      patron_status: null,
+      patreon_tier_title: null,
+      patreon_tier_id: null,
+      patreon_discord_role_ids: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', profile.id);
+
+  if (updateError) {
+    console.error('Error clearing Patreon data for deleted member:', updateError);
+    return false;
+  }
+
+  // Invalidate the Patreon supporters cache
+  invalidatePatreonSupporters();
+
+  return true;
 }
 
 /**
@@ -287,12 +344,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate required fields
-    if (!webhookData.data || !webhookData.data.attributes) {
-      console.error('Invalid webhook payload structure');
+    if (!webhookData.data) {
+      console.error('Invalid webhook payload structure - missing data');
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
-    // Process the webhook
+    // Handle members:delete events differently - they may have minimal data
+    const eventType = request.headers.get('X-Patreon-Event');
+    if (eventType === 'members:delete') {
+      console.log('Processing members:delete event');
+
+      // For delete events, we need at least the user relationship to identify who was deleted
+      const userId = webhookData.data.relationships?.user?.data?.id;
+      if (!userId) {
+        console.error('members:delete event missing user ID');
+        return NextResponse.json({ error: 'Invalid delete payload' }, { status: 400 });
+      }
+
+      const success = await processMemberDeletion(userId);
+      if (!success) {
+        return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // For create/update events, validate attributes exist
+    if (!webhookData.data.attributes) {
+      console.error('Invalid webhook payload structure - missing attributes');
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    // Process standard member create/update webhooks
     const success = await processPatreonWebhook(webhookData);
 
     if (!success) {

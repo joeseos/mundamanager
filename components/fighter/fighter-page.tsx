@@ -4,7 +4,7 @@ import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -21,8 +21,14 @@ import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
-import { updateFighterDetails } from "@/app/actions/edit-fighter";
 import { FighterActions } from "@/components/fighter/fighter-actions";
+import { Combobox } from "@/components/ui/combobox";
+import { IoSkull } from "react-icons/io5";
+import { MdChair } from "react-icons/md";
+import { GiCrossedChains } from "react-icons/gi";
+import { TbMeatOff } from "react-icons/tb";
+import { FaMedkit } from "react-icons/fa";
+import { GiHandcuffs } from "react-icons/gi";
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -31,6 +37,12 @@ interface FighterPageProps {
     fighter_name: string;
     fighter_type: string;
     xp: number | null;
+    killed?: boolean;
+    retired?: boolean;
+    enslaved?: boolean;
+    starved?: boolean;
+    recovery?: boolean;
+    captured?: boolean;
   }>;
   userPermissions: UserPermissions;
   fighterId: string;
@@ -125,6 +137,12 @@ interface FighterPageState {
     fighter_name: string;
     fighter_type: string;
     xp: number | null;
+    killed?: boolean;
+    retired?: boolean;
+    enslaved?: boolean;
+    starved?: boolean;
+    recovery?: boolean;
+    captured?: boolean;
   }[];
 }
 
@@ -269,6 +287,8 @@ export default function FighterPage({
   const { toast } = useToast();
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
+  const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
+  const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
 
   // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
@@ -499,10 +519,6 @@ export default function FighterPage({
 
   // Gang fighters are already provided in initialGangFighters, no need to fetch them again
 
-  const handleFighterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    router.push(`/fighter/${e.target.value}`);
-  };
-
   const handleNameUpdate = useCallback((newName: string) => {
     setFighterData(prev => ({
       ...prev,
@@ -589,32 +605,53 @@ export default function FighterPage({
 
   const vehicle = fighterData.fighter?.vehicles?.[0];
 
+  // Prepare options for Combobox
+  const fighterOptions = [...fighterData.gangFighters]
+    .sort((a, b) => {
+      const positioning = fighterData.gang?.positioning || {};
+      const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+      const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+      const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+      const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+      return posA - posB;
+    })
+    .map((f) => {
+      const statusIcons = [];
+      if (f.killed) statusIcons.push(<IoSkull className="text-gray-400 w-4 h-4" key="killed" />);
+      if (f.retired) statusIcons.push(<MdChair className="text-muted-foreground w-4 h-4" key="retired" />);
+      if (f.enslaved) statusIcons.push(<GiCrossedChains className="text-sky-200 w-4 h-4" key="enslaved" />);
+      if (f.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
+      if (f.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
+      if (f.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
+      
+      const displayText = `${f.fighter_name} - ${f.fighter_type}${f.xp !== undefined ? ` (${f.xp} XP)` : ''}`;
+      
+      return {
+        value: f.id,
+        displayValue: displayText,
+        label: (
+          <span className="flex items-center gap-1">
+            <span>{displayText}</span>
+            {statusIcons.length > 0 && <span className="flex items-center gap-0.5">{statusIcons}</span>}
+          </span>
+        )
+      };
+    });
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4">
           <div className="mb-4">
-            <select
+            <Combobox
+              options={fighterOptions}
               value={fighterId}
-              onChange={handleFighterChange}
-              className="w-full p-2 border rounded"
-            >
-            {[...fighterData.gangFighters]
-              .sort((a, b) => {
-                const positioning = fighterData.gang?.positioning || {};
-                const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-                const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-                const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-                const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-                return posA - posB;
-              })
-              .map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.fighter_name} - {f.fighter_type} {f.xp !== undefined ? `(${f.xp} XP)` : ''}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => router.push(`/fighter/${value}`)}
+              placeholder="Select a fighter..."
+              className="w-full"
+            />
           </div>
+          
           <FighterDetailsCard
             id={fighterData.fighter?.id || ''}
             name={fighterData.fighter?.fighter_name || ''}
@@ -714,6 +751,7 @@ export default function FighterPage({
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
               vehicleEffects={vehicle.effects}
+              onRegisterPurchase={(fn) => { vehiclePurchaseHandlerRef.current = fn; }}
             />
           )}
 
@@ -726,6 +764,7 @@ export default function FighterPage({
             equipment={fighterData.equipment}
             onAddEquipment={() => handleModalToggle('addWeapon', true)}
             userPermissions={userPermissions}
+            onRegisterPurchase={(fn) => { purchaseHandlerRef.current = fn; }}
           />
 
           <SkillsList
@@ -796,6 +835,19 @@ export default function FighterPage({
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
+            onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  recovery: recoveryStatus !== undefined ? recoveryStatus : (prev.fighter.recovery),
+                  effects: {
+                    ...prev.fighter.effects,
+                    injuries: updatedInjuries
+                  }
+                } : null
+              }));
+            }}
           />
 
           {/* Vehicle Lasting Damage Section - only show if fighter has a vehicle */}
@@ -879,7 +931,24 @@ export default function FighterPage({
             gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '' }}
             fighterId={fighterId}
             userPermissions={userPermissions}
-            onFighterUpdate={() => router.refresh()}
+            onFighterUpdate={() => {}}
+            onStatusMutate={(optimistic, gangCreditsDelta) => {
+              const snapshot = structuredClone(fighterData);
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? { ...prev.fighter, ...optimistic } : null,
+                gang: typeof gangCreditsDelta === 'number' && prev.gang
+                  ? { ...prev.gang, credits: prev.gang.credits + gangCreditsDelta }
+                  : prev.gang
+              }));
+              return snapshot;
+            }}
+            onStatusError={(snapshot) => {
+              if (snapshot) setFighterData(snapshot);
+            }}
+            onStatusSuccess={() => {
+              // No-op: server-side tags will reconcile authoritative state
+            }}
           />
 
 
@@ -909,35 +978,41 @@ export default function FighterPage({
               gangTypeId={fighterData.gang?.gang_type_id || ''}
               preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
-              onSubmit={async (values) => {
-                try {
-                  // Use server action instead of direct API call
-                  const result = await updateFighterDetails({
-                    fighter_id: fighterId,
-                    fighter_name: values.name,
-                    label: values.label,
-                    kills: values.kills,
-                    cost_adjustment: parseInt(values.costAdjustment) || 0,
-                    special_rules: values.special_rules,
-                    fighter_class: values.fighter_class,
-                    fighter_class_id: values.fighter_class_id,
-                    fighter_type: values.fighter_type,
-                    fighter_type_id: values.fighter_type_id,
-                    fighter_sub_type: values.fighter_sub_type,
-                    fighter_sub_type_id: values.fighter_sub_type_id,
-                    fighter_gang_legacy_id: values.fighter_gang_legacy_id,
-                  });
-
-                  if (!result.success) {
-                    throw new Error(result.error || 'Failed to update fighter');
-                  }
-
-                  // Refresh fighter data after successful update
-                  router.refresh();
-                  return true;
-                } catch (error) {
-                  console.error('Error updating fighter:', error);
-                  return false;
+              onEditMutate={(optimistic) => {
+                const snapshot = structuredClone(fighterData);
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    ...optimistic,
+                    // Ensure type shape matches `Fighter` interface
+                    fighter_type: optimistic?.fighter_type ? (optimistic.fighter_type as any) : prev.fighter.fighter_type,
+                    fighter_sub_type: optimistic?.fighter_sub_type ? (optimistic.fighter_sub_type as any) : prev.fighter.fighter_sub_type,
+                    // Optimistically adjust credits if cost_adjustment changes
+                    credits: (() => {
+                      const newAdj = (optimistic as any)?.cost_adjustment;
+                      if (typeof newAdj === 'number') {
+                        const prevAdj = prev.fighter?.cost_adjustment || 0;
+                        const prevBase = (prev.fighter?.credits || 0) - prevAdj;
+                        return prevBase + newAdj;
+                      }
+                      return prev.fighter.credits;
+                    })()
+                  } : null
+                }));
+                return snapshot;
+              }}
+              onEditError={(snapshot) => {
+                setFighterData(snapshot);
+              }}
+              onEditSuccess={(serverFighter) => {
+                // Keep optimistic effect overlay until server revalidation replaces state;
+                // just merge returned fighter fields (serverFighter usually doesn't include effects)
+                if (serverFighter) {
+                  setFighterData(prev => ({
+                    ...prev,
+                    fighter: prev.fighter ? { ...prev.fighter, ...serverFighter } : null
+                  }));
                 }
               }}
             />
@@ -964,9 +1039,7 @@ export default function FighterPage({
                 fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
                 fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
                 isCustomFighter={Boolean((fighterData as any)?.fighter?.custom_fighter_type_id)}
-                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) =>
-                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, false)
-                }
+                onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
               />
             )
           )}
@@ -993,9 +1066,7 @@ export default function FighterPage({
                 vehicleTypeId={vehicle.vehicle_type_id}
                 isVehicleEquipment={true}
                 allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-                onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => 
-                  handleEquipmentBought(newFighterCredits, newGangCredits, boughtEquipment, true)
-                }
+                onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
               />
             )
           )}

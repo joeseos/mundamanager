@@ -7,7 +7,7 @@ import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
-import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter, buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
@@ -23,6 +23,7 @@ interface WeaponListProps {
   equipment?: Equipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
+  onRegisterPurchase?: (fn: (payload: { params: any; item: Equipment }) => void) => void;
 }
 
 interface SellModalProps {
@@ -85,7 +86,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
         </div>
       }
       onClose={onClose}
-      onConfirm={() => onConfirm(Math.max(5, Number(manualCost) || 0))}
+      onConfirm={() => { onConfirm(Math.max(5, Number(manualCost) || 0)); return true; }}
     />
   );
 }
@@ -98,7 +99,8 @@ export function WeaponList({
   onEquipmentUpdate,
   equipment = [],
   onAddEquipment,
-  userPermissions
+  userPermissions,
+  onRegisterPurchase
 }: WeaponListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -106,16 +108,106 @@ export function WeaponList({
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
 
+  // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
+  const purchaseMutation = {
+    mutate: async ({ params, item }: { params: any; item: Equipment }) => {
+      // Snapshot state for rollback
+      const previousEquipment = [...equipment];
+      const previousFighterCredits = fighterCredits;
+      const previousGangCredits = gangCredits;
+
+      // Compute optimistic rating cost guess
+      const isWeapon = item.equipment_type === 'weapon';
+      const isMaster = Boolean(params.master_crafted && isWeapon);
+      const useBaseForRating = Boolean(params.use_base_cost_for_rating);
+      const baseForRating = item.adjusted_cost ?? item.cost ?? 0;
+      const appliedRatingCost = useBaseForRating ? baseForRating : (params.manual_cost || baseForRating);
+      const ratingCostGuess = isMaster
+        ? Math.ceil((appliedRatingCost * 1.25) / 5) * 5
+        : appliedRatingCost;
+
+      // Apply optimistic UI update: add temp item and adjust credits
+      const tempId = `temp-${Date.now()}`;
+      const optimisticEquipment: Equipment = {
+        ...item,
+        fighter_equipment_id: tempId,
+        cost: ratingCostGuess,
+        is_master_crafted: isMaster ? true : item.is_master_crafted,
+      } as Equipment;
+
+      try {
+        // Optimistically update UI
+        onEquipmentUpdate(
+          [...previousEquipment, optimisticEquipment],
+          previousFighterCredits + ratingCostGuess,
+          previousGangCredits - (params.manual_cost || 0)
+        );
+
+        // Execute server action (authoritative; triggers server cache-tags)
+        const result = await buyEquipmentForFighter(params);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to buy equipment');
+        }
+
+        const data = result.data;
+        const newGangCredits = data?.updategangsCollection?.records?.[0]?.credits ?? previousGangCredits;
+        const serverRatingCost = data?.rating_cost ?? ratingCostGuess;
+        const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
+
+        // Replace temp with real item and reconcile credits
+        const updated = [...previousEquipment, {
+          ...item,
+          fighter_equipment_id: newEquipmentId || tempId,
+          cost: serverRatingCost,
+          is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
+          equipment_effect: data?.equipment_effect
+        } as Equipment];
+
+        onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
+
+        toast({
+          title: 'Equipment purchased',
+          description: `Successfully bought ${item.equipment_name} for ${params.manual_cost || serverRatingCost} credits`,
+          variant: 'default'
+        });
+      } catch (err) {
+        // Rollback
+        onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Failed to buy equipment',
+          variant: 'destructive'
+        });
+      }
+    }
+  };
+
+  // Register purchase handler for parent (so ItemModal can delegate and close immediately)
+  useEffect(() => {
+    if (onRegisterPurchase) {
+      onRegisterPurchase((payload) => purchaseMutation.mutate(payload));
+    }
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits]);
+
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
+    // Snapshot for rollback
+    const previousEquipment = [...equipment];
+    const previousFighterCredits = fighterCredits;
+    const previousGangCredits = gangCredits;
+
     try {
-      // Find the equipment cost before deleting
+      // Find the equipment before deleting
       const equipmentToDelete = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
       if (!equipmentToDelete) {
         throw new Error('Equipment not found');
       }
 
-      // Use server action instead of direct API call
+      // Optimistic UI: remove item and adjust fighter credits
+      const optimisticEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
+      const optimisticFighterCredits = previousFighterCredits - (equipmentToDelete.cost ?? 0);
+      onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
+
+      // Execute server action
       const result = await deleteEquipmentFromFighter({
         fighter_equipment_id: fighterEquipmentId,
         gang_id: gangId,
@@ -125,37 +217,52 @@ export function WeaponList({
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete equipment');
       }
-      
-      const updatedEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      // Use purchase_cost for calculating credit adjustments as this is what affects the rating
-      // The cost field should already be set to purchase_cost from the backend
-      const newFighterCredits = fighterCredits - (equipmentToDelete.cost ?? 0);
-      
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
-      
+
+      // Reconcile with server-provided fighter total cost if available
+      const serverFighterTotal = result.data?.updatedFighterTotalCost as number | null | undefined;
+      const finalFighterCredits = typeof serverFighterTotal === 'number' 
+        ? serverFighterTotal 
+        : optimisticFighterCredits;
+
+      onEquipmentUpdate(optimisticEquipment, finalFighterCredits, previousGangCredits);
+
       toast({
         description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
         variant: "default"
       });
       setDeleteModalData(null);
     } catch (error) {
+      // Rollback
+      onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error deleting equipment:', error);
       toast({
         description: 'Failed to delete equipment. Please try again.',
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleSellEquipment = async (fighterEquipmentId: string, equipmentId: string, manualCost: number) => {
+    // Snapshot for rollback
+    const previousEquipment = [...equipment];
+    const previousFighterCredits = fighterCredits;
+    const previousGangCredits = gangCredits;
+
     try {
       const equipmentToSell = equipment.find(
         item => item.fighter_equipment_id === fighterEquipmentId
       );
-      if (!equipmentToSell) return;
+      if (!equipmentToSell) throw new Error('Equipment not found');
 
+      // Optimistic UI: remove item, adjust fighter and gang credits
+      const optimisticEquipment = equipment.filter(
+        item => item.fighter_equipment_id !== fighterEquipmentId
+      );
+      const optimisticFighterCredits = previousFighterCredits - (equipmentToSell.cost ?? 0);
+      const optimisticGangCredits = previousGangCredits + Math.max(5, manualCost || 0);
+      onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, optimisticGangCredits);
+
+      // Server action
       const result = await sellEquipmentFromFighter({
         fighter_equipment_id: fighterEquipmentId,
         manual_cost: manualCost
@@ -165,21 +272,16 @@ export function WeaponList({
         throw new Error(result.error || 'Failed to sell equipment');
       }
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const newGangCredits = result.data?.gang.credits || gangCredits;
-      // When selling, we need to subtract the rating cost (purchase_cost) from fighter's credits
-      // The cost field should already be set to purchase_cost from the backend
-      const newFighterCredits = fighterCredits - equipmentToSell.cost;
-
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, newGangCredits);
+      const reconciledGangCredits = result.data?.gang?.credits ?? optimisticGangCredits;
+      onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, reconciledGangCredits);
       
       toast({
         title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost} credits`,
+        description: `Sold ${equipmentToSell.equipment_name} for ${Math.max(5, manualCost || 0)} credits`,
       });
     } catch (error) {
+      // Rollback
+      onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error selling equipment:', error);
       toast({
         title: "Error",
@@ -187,27 +289,31 @@ export function WeaponList({
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
       setSellModalData(null);
     }
   };
 
   const handleStashEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
-    setIsLoading(true);
+    // Snapshot for rollback
+    const previousEquipment = [...equipment];
+    const previousFighterCredits = fighterCredits;
+    const previousGangCredits = gangCredits;
+
     try {
-      // Find the equipment cost before moving to stash
+      // Find the equipment before moving to stash
       const equipmentToStash = equipment.find(e => e.fighter_equipment_id === fighterEquipmentId);
       if (!equipmentToStash) {
         throw new Error('Equipment not found');
       }
 
-      // Use server action instead of direct API call
-      console.log('Moving equipment to stash:', { 
-        fighterEquipmentId, 
-        equipmentId, 
-        equipmentToStash: equipmentToStash 
-      });
-      
+      // Optimistic UI: remove item and adjust fighter credits (gang credits unchanged)
+      const optimisticEquipment = equipment.filter(
+        item => item.fighter_equipment_id !== fighterEquipmentId
+      );
+      const optimisticFighterCredits = previousFighterCredits - (equipmentToStash.cost ?? 0);
+      onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
+
+      // Server action
       const result = await moveEquipmentToStash({
         fighter_equipment_id: fighterEquipmentId
       });
@@ -216,21 +322,13 @@ export function WeaponList({
         throw new Error(result.error || 'Failed to move equipment to stash');
       }
 
-      const updatedEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      
-      // Adjust fighter credits using the purchase_cost (rating value)
-      // The cost field should already be set to purchase_cost from the backend
-      const newFighterCredits = fighterCredits - (equipmentToStash.cost ?? 0);
-
-      onEquipmentUpdate(updatedEquipment, newFighterCredits, gangCredits);
-      
       toast({
         title: "Success",
         description: `${equipmentToStash.equipment_name} moved to gang stash`,
       });
     } catch (error) {
+      // Rollback on error
+      onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error moving equipment to stash:', error);
       toast({
         title: "Error",
@@ -238,7 +336,6 @@ export function WeaponList({
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
       setStashModalData(null);
     }
   };
@@ -401,7 +498,7 @@ export function WeaponList({
             </div>
           }
           onClose={() => setDeleteModalData(null)}
-          onConfirm={() => handleDeleteEquipment(deleteModalData.id, deleteModalData.equipmentId)}
+          onConfirm={() => { void handleDeleteEquipment(deleteModalData.id, deleteModalData.equipmentId); return true; }}
         />
       )}
 
@@ -409,11 +506,11 @@ export function WeaponList({
         <SellModal
           item={sellModalData}
           onClose={() => setSellModalData(null)}
-          onConfirm={(manualCost) => handleSellEquipment(
+          onConfirm={(manualCost) => { void handleSellEquipment(
             sellModalData.fighter_equipment_id,
             sellModalData.equipment_id,
             manualCost
-          )}
+          ); }}
         />
       )}
 
@@ -422,10 +519,10 @@ export function WeaponList({
           title="Move to Gang Stash"
           content={`Are you sure you want to move ${stashModalData.equipment_name} to the gang stash?`}
           onClose={() => setStashModalData(null)}
-          onConfirm={() => handleStashEquipment(
+          onConfirm={() => { void handleStashEquipment(
             stashModalData.fighter_equipment_id,
             stashModalData.equipment_id
-          )}
+          ); return true; }}
         />
       )}
     </>

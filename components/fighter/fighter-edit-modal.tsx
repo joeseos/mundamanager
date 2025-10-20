@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
@@ -52,6 +54,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
   const injuryEffects = useMemo(() => calculateEffectsForCategory('injuries'), [calculateEffectsForCategory]);
   const advancementEffects = useMemo(() => calculateEffectsForCategory('advancements'), [calculateEffectsForCategory]);
   const userEffects = useMemo(() => calculateEffectsForCategory('user'), [calculateEffectsForCategory]);
+  const userHasNonZero = useMemo(() => Object.values(userEffects).some(v => (v || 0) !== 0), [userEffects]);
   const bionicsEffects = useMemo(() => calculateEffectsForCategory('bionics'), [calculateEffectsForCategory]);
   const geneSmithingEffects = useMemo(() => calculateEffectsForCategory('gene-smithing'), [calculateEffectsForCategory]);
   const rigGlitchesEffects = useMemo(() => calculateEffectsForCategory('rig-glitches'), [calculateEffectsForCategory]);
@@ -124,8 +127,8 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
             </tr>
           )}
           
-          {/* User row - only show if fighter has user effects */}
-          {fighter.effects?.user && fighter.effects.user.length > 0 && (
+          {/* User row - only show if user effects result in any non-zero modifier */}
+          {userHasNonZero && (
             <tr className="bg-green-50 dark:bg-green-950">
               <td className="px-1 py-1 font-medium text-xs">User</td>
               {stats.map(stat => (
@@ -377,23 +380,12 @@ function CharacterStatsModal({
   };
   
   const handleSave = () => {
-    // Only include stats that have been adjusted
     const updatedStats: Record<string, number> = {};
-    
-    Object.entries(adjustments).forEach(([propName, adjustment]) => {
-      if (adjustment !== 0) {
-        // IMPORTANT: We're sending the adjustment directly, NOT the new base value
-        // This ensures we're creating user effects, not modifying base stats
-        updatedStats[propName] = adjustment;
-      }
-    });
-    
-    // Only call if there are actual changes
-    if (Object.keys(updatedStats).length > 0) {
-      onUpdateStats(updatedStats);
-    } else {
-      onClose();
+    for (const [propName, adjustment] of Object.entries(adjustments)) {
+      if (adjustment !== 0) updatedStats[propName] = adjustment;
     }
+    onUpdateStats(updatedStats); // emit draft only (no server call)
+    onClose();
   };
 
   return (
@@ -519,7 +511,7 @@ interface EditFighterModalProps {
     available_legacies?: Array<{id: string; name: string}>;
   }>;
   onClose: () => void;
-  onSubmit: (values: {
+  onSubmit?: (values: {
     name: string;
     label: string;
     kills: number;
@@ -535,6 +527,10 @@ interface EditFighterModalProps {
     fighter_gang_legacy_id?: string | null;
   }) => Promise<boolean>;
   onStatsUpdate?: (updatedFighter: Fighter) => void;
+  // New optional lifecycle callbacks for optimistic editing
+  onEditMutate?: (optimistic: Partial<Fighter>) => any;
+  onEditError?: (snapshot: any) => void;
+  onEditSuccess?: (serverFighter: any, optimistic: Partial<Fighter>, snapshot: any) => void;
 }
 
 export function EditFighterModal({
@@ -546,7 +542,10 @@ export function EditFighterModal({
   preFetchedFighterTypes,
   onClose,
   onSubmit,
-  onStatsUpdate
+  onStatsUpdate,
+  onEditMutate,
+  onEditError,
+  onEditSuccess
 }: EditFighterModalProps) {
   // Update form state to include fighter type fields
   const [formValues, setFormValues] = useState({
@@ -609,6 +608,106 @@ export function EditFighterModal({
   
   // Track if fighter type has been explicitly selected in this session
   const [hasExplicitlySelectedType, setHasExplicitlySelectedType] = useState(false);
+
+  // Pending stat adjustments (draft only, persisted on main confirm)
+  const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
+
+  // TanStack mutation for editing fighter details
+  const mutation = useMutation({
+    mutationFn: async (submit: {
+      name: string;
+      label: string;
+      kills: number;
+      costAdjustment: string;
+      fighter_class?: string;
+      fighter_class_id?: string;
+      fighter_type?: string;
+      fighter_type_id?: string;
+      special_rules?: string[];
+      fighter_sub_type?: string | null;
+      fighter_sub_type_id?: string | null;
+      fighter_gang_legacy_id?: string | null;
+    }) => {
+      const result = await updateFighterDetails({
+        fighter_id: fighter.id,
+        fighter_name: submit.name,
+        label: submit.label,
+        kills: submit.kills,
+        cost_adjustment: parseInt(submit.costAdjustment) || 0,
+        special_rules: submit.special_rules,
+        fighter_class: submit.fighter_class,
+        fighter_class_id: submit.fighter_class_id,
+        fighter_type: submit.fighter_type,
+        fighter_type_id: submit.fighter_type_id,
+        fighter_sub_type: submit.fighter_sub_type,
+        fighter_sub_type_id: submit.fighter_sub_type_id,
+        fighter_gang_legacy_id: submit.fighter_gang_legacy_id,
+        stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to update fighter');
+      return result.data?.fighter;
+    },
+    onMutate: (submit) => {
+      // Build optimistic user-effect overlay from pendingStatAdjustments
+      const optimisticModifiers = Object.entries(pendingStatAdjustments || {})
+        .filter(([, delta]) => typeof delta === 'number' && delta !== 0)
+        .map(([prop, delta]) => ({
+          id: `optimistic-${prop}`,
+          fighter_effect_id: 'optimistic-user',
+          stat_name: prop,
+          numeric_value: delta,
+        }));
+
+      const optimisticEffectsOverlay = optimisticModifiers.length > 0
+        ? {
+            effects: {
+              ...currentFighter.effects,
+              user: [
+                ...((currentFighter.effects && currentFighter.effects.user) ? currentFighter.effects.user : []),
+                {
+                  id: 'optimistic-user',
+                  effect_name: 'User Adjustment',
+                  fighter_effect_modifiers: optimisticModifiers,
+                } as any,
+              ],
+            },
+          }
+        : {};
+
+      const optimistic: any = {
+        fighter_name: submit.name,
+        label: submit.label,
+        kills: submit.kills,
+        cost_adjustment: parseInt(submit.costAdjustment) || 0,
+        ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
+        ...(submit.fighter_type && submit.fighter_type_id
+          ? { fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id } as any }
+          : {}),
+        ...(submit.fighter_sub_type && submit.fighter_sub_type_id
+          ? { fighter_sub_type: { fighter_sub_type: submit.fighter_sub_type, fighter_sub_type_id: submit.fighter_sub_type_id } as any }
+          : {}),
+        ...(submit.fighter_gang_legacy_id !== undefined
+          ? { fighter_gang_legacy_id: submit.fighter_gang_legacy_id as any }
+          : {}),
+        // Include optimistic effects overlay so UI updates instantly
+        ...optimisticEffectsOverlay,
+      };
+      const snapshot = onEditMutate?.(optimistic);
+      return { snapshot, optimistic } as const;
+    },
+    onError: (err: unknown, _submit, ctx) => {
+      if (ctx && 'snapshot' in (ctx as any)) {
+        onEditError?.((ctx as any).snapshot);
+      }
+      toast({ variant: 'destructive', description: err instanceof Error ? err.message : 'Failed to update fighter' });
+    },
+    onSuccess: (serverFighter, _submit, ctx) => {
+      if (ctx && 'optimistic' in (ctx as any) && 'snapshot' in (ctx as any)) {
+        onEditSuccess?.(serverFighter, (ctx as any).optimistic, (ctx as any).snapshot);
+      }
+      toast({ description: 'Fighter updated successfully' });
+    }
+  });
 
   // Use pre-fetched fighter types or fetch them when modal opens
   useEffect(() => {
@@ -953,79 +1052,30 @@ export function EditFighterModal({
     }));
   };
 
+  // Receive draft adjustments from stats modal; preview only
   const handleUpdateStats = async (stats: Record<string, number>) => {
-    if (Object.keys(stats).length === 0) {
-      setShowStatsModal(false);
-      return;
-    }
-    
-    try {
-      setIsSavingStats(true);
-      
-      // Make a clean copy of the fighter BEFORE any adjustments
-      const cleanFighter = { ...currentFighter };
-      
-      // Send the update to the server with the correct sign (positive or negative)
-      const response = await fetch('/api/fighters/effects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fighter_id: fighter.id,
-          stats // This should already include negative values when decreasing
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save stat changes');
-      }
-      
-      // Process the server response
-      const result = await response.json();
-      
-      // Update with the actual server data including any new effects
-      const serverUpdatedFighter = {
-        ...cleanFighter, // Use the clean fighter as the base
-        effects: {
-          ...cleanFighter.effects,
-          injuries: cleanFighter.effects?.injuries || [],
-          advancements: cleanFighter.effects?.advancements || [],
-          bionics: cleanFighter.effects?.bionics || [],
-          cyberteknika: cleanFighter.effects?.cyberteknika || [],
-          user: result.effects || []
-        }
-      };
-      
-      // Update local state with server data
-      setCurrentFighter(serverUpdatedFighter);
-      
-      // Notify parent component with the fully updated fighter
-      if (onStatsUpdate) {
-        onStatsUpdate(serverUpdatedFighter);
-      }
-      
-      // Show success toast message with proper formatting
-      toast({
-        description: "Fighter characteristics updated successfully",
-        variant: "default",
-      });
-      
-      // Close the modal only after successful update
-      setShowStatsModal(false);
-      
-    } catch (error) {
-      console.error('Error saving stats:', error);
-      
-      // Show error toast message with proper formatting
-      toast({
-        description: error instanceof Error ? error.message : "Failed to update fighter characteristics",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingStats(false);
-    }
+    setPendingStatAdjustments(stats);
+    setShowStatsModal(false);
   };
+
+  // Compose preview fighter by overlaying a synthetic user effect from pendingStatAdjustments
+  const previewFighter: Fighter = useMemo(() => {
+    if (!pendingStatAdjustments || Object.keys(pendingStatAdjustments).length === 0) return currentFighter;
+    const modifiers = Object.entries(pendingStatAdjustments).map(([prop, delta]) => ({
+      id: `preview-${prop}`,
+      fighter_effect_id: 'preview',
+      stat_name: prop,
+      numeric_value: delta,
+    }));
+    const previewEffect = { id: 'preview-user', effect_name: 'Preview', fighter_effect_modifiers: modifiers } as any;
+    return {
+      ...currentFighter,
+      effects: {
+        ...currentFighter.effects,
+        user: [...(currentFighter.effects?.user || []), previewEffect]
+      }
+    } as Fighter;
+  }, [currentFighter, pendingStatAdjustments]);
 
   // Update the handleConfirm function
   const handleConfirm = async () => {
@@ -1127,13 +1177,25 @@ export function EditFighterModal({
         fighter_gang_legacy_id: selectedGangLegacyId || null
       };
       
-      await onSubmit(submitData);
-      toast({
-        description: 'Fighter updated successfully',
-        variant: "default"
-      });
-      onClose();
-      return true;
+      // If lifecycle callbacks are provided, use TanStack mutation and close immediately
+      if (onEditMutate || onEditError || onEditSuccess) {
+        mutation.mutate(submitData);
+        return true; // close immediately
+      }
+
+      // Fallback to legacy onSubmit path if provided
+      if (onSubmit) {
+        const ok = await onSubmit(submitData);
+        if (ok) {
+          toast({ description: 'Fighter updated successfully', variant: 'default' });
+          onClose();
+        }
+        return ok;
+      }
+
+      // If no path available, prevent close
+      toast({ description: 'No submit handler provided', variant: 'destructive' });
+      return false;
     } catch (error) {
       console.error('Error updating fighter:', error);
       toast({
@@ -1421,7 +1483,8 @@ export function EditFighterModal({
             {/* Characteristics */}
             <div>
               <h3 className="text-sm font-medium mb-2">Characteristics</h3>
-              <FighterCharacteristicTable fighter={currentFighter} />
+              {/* Preview pending adjustments in the table by overlaying a synthetic user effect */}
+              <FighterCharacteristicTable fighter={previewFighter} />
               <Button 
                 onClick={() => setShowStatsModal(true)} 
                 className="w-full mt-2"
