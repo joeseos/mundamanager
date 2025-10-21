@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ImInfo } from "react-icons/im";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { buyEquipmentForFighter, applyEquipmentEffect } from '@/app/actions/equipment';
+import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Tooltip } from 'react-tooltip';
 import FighterEffectSelection from './fighter-effect-selection';
 
@@ -26,7 +26,7 @@ interface ItemModalProps {
   gangId: string;
   gangTypeId: string;
   fighterId: string;
-  fighterTypeId: string;
+  fighterTypeId?: string;
   gangAffiliationId?: string | null;
   fighterCredits: number;
   fighterHasLegacy?: boolean;
@@ -423,7 +423,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const mountedRef = useRef(true);
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
     isStashMode || isCustomFighter ? "fighters-tradingpost" : "fighters-list"
   );
@@ -445,12 +444,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [minAvailability, setMinAvailability] = useState(6);
   const [maxAvailability, setMaxAvailability] = useState(12);
 
-  // Target selection modal state for equipment-to-equipment upgrades
-  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
-  const [targetSelectionOpen, setTargetSelectionOpen] = useState(false);
-  const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
-  const [targetSelectionCtx, setTargetSelectionCtx] = useState<{ modifier_equipment_id: string; effect_type_id: string } | null>(null);
-
   useEffect(() => {
     // Debug: snapshot key props on mount
     return () => {
@@ -466,35 +459,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     };
     getSession();
   }, []);
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      if (!session) return;
-
-      try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/equipment_categories?select=id,category_name&order=category_name`,
-          {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch categories');
-        const data = await response.json();
-        setCategories(data);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        setError('Failed to load categories');
-      }
-    };
-
-    if (session) {
-      fetchCategories();
-    }
-  }, [session]);
 
   useEffect(() => {
     const fetchVehicleTypeId = async () => {
@@ -540,8 +504,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
     const isGangLevelAccess = !fighterId || fighterId === '';
     const skipFighterTypeValidation = isGangLevelAccess || isCustomFighter;
 
-    // Attempt to resolve missing fighterTypeId from fighterId before failing
+    // Fallback: resolve missing fighterTypeId from fighterId (should rarely be needed)
     if (!resolvedTypeId && !isVehicleEquipment && !skipFighterTypeValidation && fighterId) {
+      console.warn('fighterTypeId not provided - fetching from database. Consider passing it from parent component.');
       try {
         const resp = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighters?select=fighter_type_id&id=eq.${fighterId}`,
@@ -558,10 +523,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
           if (fetchedTypeId) {
             resolvedTypeId = fetchedTypeId;
           } else {
+            console.error('Fighter type ID not found for fighter:', fighterId);
           }
         } else {
+          console.error('Failed to fetch fighter type ID:', resp.status);
         }
       } catch (e) {
+        console.error('Error fetching fighter type ID:', e);
       }
     }
 
@@ -728,14 +696,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
     const matching = new Set<string>();
 
-    for (const category of categories) {
-      const items = equipment[category.category_name] || [];
+    // Search through all equipment categories
+    for (const categoryName of Object.keys(equipment)) {
+      const items = equipment[categoryName] || [];
       const match = items.some(item =>
         item.equipment_name.toLowerCase().includes(searchQuery)
       );
       if (match) {
-        matching.add(category.category_name);
-        // No need to fetch individual categories anymore - all equipment is loaded at once
+        matching.add(categoryName);
       }
     }
 
@@ -744,7 +712,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       matching.forEach(cat => updated.add(cat));
       return updated;
     });
-  }, [searchQuery, categories, equipment]);
+  }, [searchQuery, equipment]);
 
   const handleOverlayClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -798,14 +766,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data = result.data;
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
-      
-      // Handle different response structures for gang stash vs fighter equipment
-      let equipmentRecord;
-      if (isGangStashPurchase) {
-        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
-      } else {
-        equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
-      }
+
+      // Get equipment record from response (same structure for both stash and fighter purchases)
+      const equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
 
       if (!equipmentRecord) {
         throw new Error('Failed to get equipment ID from response');
@@ -931,7 +894,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
       const availabilityStr = item.availability || '0';
       let availability = 0;
-      
+
       if (availabilityStr === 'C' || availabilityStr === 'E') {
         availability = 0;
       } else if (/^[RIS]\d+$/.test(availabilityStr)) {
@@ -942,14 +905,31 @@ const ItemModal: React.FC<ItemModalProps> = ({
         // Invalid format - log warning and default to 0
         availability = 0;
       }
-      
+
       const costInRange = cost >= costRange[0] && cost <= costRange[1];
-      const availabilityInRange = availability >= availabilityRange[0] && 
+      const availabilityInRange = availability >= availabilityRange[0] &&
         availability <= availabilityRange[1];
-      
-      return costInRange && availabilityInRange && 
+
+      return costInRange && availabilityInRange &&
         item.equipment_name.toLowerCase().includes(searchQuery);
     });
+  };
+
+  // Derive categories from available category names (no separate fetch needed)
+  const categories: Category[] = availableCategories.map(name => ({
+    id: name,
+    category_name: name
+  }));
+
+  // Helper function to check if weapon profile has meaningful data
+  const hasProfileData = (profile: WeaponProfile): boolean => {
+    return !!(
+      profile.range_short || profile.range_long ||
+      profile.acc_short || profile.acc_long ||
+      profile.strength || profile.ap ||
+      profile.damage || profile.ammo ||
+      profile.traits
+    );
   };
 
   const modalContent = (
@@ -1147,15 +1127,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         return (a.profile_name || '').localeCompare(b.profile_name || '');
                                       });
                                       // Check if any profile has meaningful data beyond just the name
-                                      const hasProfileData = sortedProfiles.some(profile => 
-                                        profile.range_short || profile.range_long || 
-                                        profile.acc_short || profile.acc_long ||
-                                        profile.strength || profile.ap || 
-                                        profile.damage || profile.ammo || 
-                                        profile.traits
-                                      );
+                                      const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
                                       // If no meaningful data, just show profile names
-                                      if (!hasProfileData) {
+                                      if (!hasAnyProfileData) {
                                         return sortedProfiles.map(profile => profile.profile_name).join('\n');
                                       }
                                       let html = '<div style="font-size: 12px;">';
@@ -1186,11 +1160,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       html += '</thead><tbody>';
                                       sortedProfiles.forEach(profile => {
                                         // Check if this profile has any meaningful data
-                                        const profileHasData = profile.range_short || profile.range_long || 
-                                                             profile.acc_short || profile.acc_long ||
-                                                             profile.strength || profile.ap || 
-                                                             profile.damage || profile.ammo || 
-                                                             profile.traits;
+                                        const profileHasData = hasProfileData(profile);
                                         html += '<tr style="border-bottom: 1px solid #555;">';
                                         html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
                                         if (profileHasData) {
@@ -1309,52 +1279,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
         </div>
       </div>
       {/* Weapon Profile Tooltip */}
-      {targetSelectionOpen && targetSelectionCtx && (
-        <Modal
-          title="Select Target Weapon"
-          content={
-            <FighterEffectSelection
-              equipmentId={''}
-              effectTypes={[]}
-              targetSelectionOnly
-              fighterId={fighterId}
-              modifierEquipmentId={targetSelectionCtx.modifier_equipment_id}
-              effectTypeId={targetSelectionCtx.effect_type_id}
-              fighterWeapons={fighterWeapons}
-              onApplyToTarget={async (targetEquipmentId) => {
-                const res = await applyEquipmentEffect({
-                  modifier_equipment_id: targetSelectionCtx.modifier_equipment_id,
-                  target_equipment_id: targetEquipmentId,
-                  effect_type_id: targetSelectionCtx.effect_type_id,
-                  fighter_id: fighterId,
-                  gang_id: gangId
-                });
-                if (!res.success) throw new Error(res.error || 'Failed to apply upgrade');
-              }}
-              onSelectionComplete={() => {
-                setTargetSelectionOpen(false);
-                setTargetSelectionCtx(null);
-              }}
-              onCancel={() => {
-                setTargetSelectionOpen(false);
-                setTargetSelectionCtx(null);
-              }}
-              onValidityChange={setIsTargetSelectionValid}
-              ref={effectSelectionRef}
-            />
-          }
-          onClose={() => {
-            setTargetSelectionOpen(false);
-            setTargetSelectionCtx(null);
-          }}
-          onConfirm={async () => {
-            return await effectSelectionRef.current?.handleConfirm() || false;
-          }}
-          confirmText="Apply"
-          confirmDisabled={!isTargetSelectionValid}
-          width="lg"
-        />
-      )}
       <Tooltip
         id="weapon-profile-tooltip"
         place="top-start"

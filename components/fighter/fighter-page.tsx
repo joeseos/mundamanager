@@ -196,7 +196,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       fighter_class: fighterData.fighter.fighter_class,
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
-        fighter_type_id: fighterData.fighter.fighter_type.id
+        fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id
       },
       fighter_sub_type: fighterData.fighter.fighter_sub_type ? {
         fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
