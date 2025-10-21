@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 
@@ -28,6 +29,7 @@ interface ComboboxProps {
     value: string
     label: string | React.ReactNode
     displayValue?: string // For search/filter purposes when label is ReactNode
+    disabled?: boolean // For non-selectable items like section headers
   }>
   value?: string
   onValueChange?: (value: string) => void
@@ -51,6 +53,8 @@ export function Combobox({
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
   const [inputValue, setInputValue] = React.useState("")
+  const [position, setPosition] = React.useState({ top: 0, left: 0, width: 0 })
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
   // Find the selected option
   const selectedOption = options.find(option => option.value === value)
@@ -60,6 +64,9 @@ export function Combobox({
     if (!searchValue) return options
     
     return options.filter(option => {
+      // Always include disabled options (headers)
+      if (option.disabled) return true
+      
       const searchText = typeof option.label === 'string' 
         ? option.label 
         : (option.displayValue || '');
@@ -68,7 +75,8 @@ export function Combobox({
   }, [options, searchValue])
 
   // Handle option selection
-  const handleSelect = (optionValue: string) => {
+  const handleSelect = (optionValue: string, isDisabled?: boolean) => {
+    if (isDisabled) return
     onValueChange?.(optionValue)
     setOpen(false)
     setSearchValue("")
@@ -108,11 +116,36 @@ export function Combobox({
     }
   }
 
+  // Update position when dropdown opens or scrolls
+  const updatePosition = React.useCallback(() => {
+    if (open && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setPosition({
+        top: rect.bottom,
+        left: rect.left,
+        width: rect.width
+      })
+    }
+  }, [open])
+
+  React.useEffect(() => {
+    updatePosition()
+  }, [open, updatePosition])
+
+  // Update position on scroll
+  React.useEffect(() => {
+    if (open) {
+      window.addEventListener('scroll', updatePosition, true)
+      return () => window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open, updatePosition])
+
   // Handle click outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element
-      if (!target.closest('[data-combobox]')) {
+      // Check if click is outside both the combobox container and the dropdown portal
+      if (!target.closest('[data-combobox]') && !target.closest('[data-combobox-dropdown]')) {
         setOpen(false)
         setSearchValue("")
         setInputValue("")
@@ -129,6 +162,7 @@ export function Combobox({
     <div className={cn("relative", className)} data-combobox>
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           className={cn(
             "flex h-10 w-full rounded-md border border-border bg-muted px-3 py-2 text-sm",
@@ -169,23 +203,34 @@ export function Combobox({
         </button>
       </div>
 
-      {open && (
-        <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+      {open && createPortal(
+        <div 
+          data-combobox-dropdown
+          className="fixed z-[110] bg-card border border-border rounded-md shadow-lg max-h-60 overflow-auto"
+          style={{
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+            width: `${position.width}px`
+          }}
+        >
           {filteredOptions.length > 0 ? (
             <div className="py-1">
               {filteredOptions.map((option) => (
                 <button
                   key={option.value}
                   type="button"
+                  disabled={option.disabled}
                   className={cn(
-                    "w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none",
-                    "flex items-center justify-between",
-                    value === option.value && "bg-muted"
+                    "w-full px-3 py-2 text-left text-sm flex items-center justify-between",
+                    option.disabled 
+                      ? "cursor-default bg-muted" 
+                      : "hover:bg-muted focus:bg-muted focus:outline-none cursor-pointer",
+                    value === option.value && !option.disabled && "bg-muted"
                   )}
-                  onClick={() => handleSelect(option.value)}
+                  onClick={() => handleSelect(option.value, option.disabled)}
                 >
                   <span className="flex items-center gap-1">{option.label}</span>
-                  {value === option.value && (
+                  {value === option.value && !option.disabled && (
                     <Check className="h-4 w-4" />
                   )}
                 </button>
@@ -208,7 +253,8 @@ export function Combobox({
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

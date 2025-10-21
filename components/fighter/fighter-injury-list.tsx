@@ -10,9 +10,10 @@ import {
 } from '@/app/actions/fighter-injury';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
-import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew } from '@/utils/dice';
+import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
+import { Combobox } from '@/components/ui/combobox';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -41,6 +42,18 @@ export function InjuriesList({
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const { toast } = useToast();
+
+  // Helper function to format the range display
+  const formatInjuryRange = (injuryName: string): string => {
+    const range = fighter_class === 'Crew' 
+      ? resolveInjuryRangeFromUtilByNameCrew(injuryName)
+      : resolveInjuryRangeFromUtilByName(injuryName);
+    
+    if (!range) return '';
+    
+    const [min, max] = range;
+    return min === max ? `${min}` : `${min}-${max}`;
+  };
 
   const fetchAvailableInjuries = useCallback(async () => {
     if (isLoadingInjuries) return;
@@ -234,18 +247,6 @@ export function InjuriesList({
     }
   };
 
-  const handleInjuryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value;
-    setSelectedInjuryId(id);
-    
-    if (id) {
-      const selectedInjury = localAvailableInjuries.find(injury => injury.id === id);
-      setSelectedInjury(selectedInjury || null);
-    } else {
-      setSelectedInjury(null);
-    }
-  };
-
   return (
     <>
       <List
@@ -350,21 +351,23 @@ export function InjuriesList({
                 <label htmlFor="injurySelect" className="text-sm font-medium">
                   Lasting Injuries
                 </label>
-                <select
-                  id="injurySelect"
+                <Combobox
                   value={selectedInjuryId}
-                  onChange={handleInjuryChange}
-                  className="w-full p-2 border rounded-md"
-                  disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
-                >
-                  <option value="">
-                    {isLoadingInjuries && localAvailableInjuries.length === 0
-                      ? "Loading injuries..."
-                      : "Select a Lasting Injury"
+                  onValueChange={(value) => {
+                    setSelectedInjuryId(value);
+                    if (value) {
+                      const selectedInjury = localAvailableInjuries.find(injury => injury.id === value);
+                      setSelectedInjury(selectedInjury || null);
+                    } else {
+                      setSelectedInjury(null);
                     }
-                  </option>
-                
-                  {Object.entries(
+                  }}
+                  placeholder={isLoadingInjuries && localAvailableInjuries.length === 0
+                    ? "Loading injuries..."
+                    : "Select a Lasting Injury"
+                  }
+                  disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
+                  options={Object.entries(
                     localAvailableInjuries
                       .slice()
                       .filter(injury => {
@@ -376,10 +379,18 @@ export function InjuriesList({
                         return true;
                       })
                       .sort((a, b) => {
-                        const rankMap = fighter_class === 'Crew' ? lastingInjuryCrewRank : lastingInjuryRank;
-                        const rankA = rankMap[a.effect_name] ?? Infinity;
-                        const rankB = rankMap[b.effect_name] ?? Infinity;
-                        return rankA - rankB;
+                        // Sort by dice range (minimum value of the range)
+                        const rangeA = formatInjuryRange(a.effect_name);
+                        const rangeB = formatInjuryRange(b.effect_name);
+                        
+                        if (!rangeA && !rangeB) return 0;
+                        if (!rangeA) return 1;
+                        if (!rangeB) return -1;
+                        
+                        // Extract the minimum value from the range
+                        const minA = parseInt(rangeA.split('-')[0]);
+                        const minB = parseInt(rangeB.split('-')[0]);
+                        return minA - minB;
                       })
                       .reduce((groups, injury) => {
                         const rankMap = fighter_class === 'Crew' ? lastingInjuryCrewRank : lastingInjuryRank;
@@ -393,16 +404,30 @@ export function InjuriesList({
                         groups[groupLabel].push(injury);
                         return groups;
                       }, {} as Record<string, typeof localAvailableInjuries>)
-                  ).map(([groupLabel, injuries]) => (
-                    <optgroup key={groupLabel} label={groupLabel}>
-                      {injuries.map((injury) => (
-                        <option key={injury.id} value={injury.id}>
-                          {injury.effect_name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  ).flatMap(([groupLabel, injuries]) => [
+                    // Add a header option for the group
+                    {
+                      value: `__header_${groupLabel}`,
+                      label: <span className="font-bold text-sm">{groupLabel}</span>,
+                      displayValue: groupLabel,
+                      disabled: true
+                    },
+                    // Add the injuries in this group
+                    ...injuries.map((injury) => {
+                      const range = formatInjuryRange(injury.effect_name);
+                      const displayText = range ? `${range} ${injury.effect_name}` : injury.effect_name;
+                      return {
+                        value: injury.id,
+                        label: range ? (
+                          <>
+                            <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{injury.effect_name}
+                          </>
+                        ) : injury.effect_name,
+                        displayValue: displayText
+                      };
+                    })
+                  ])}
+                />
               </div>
             </div>
           }
