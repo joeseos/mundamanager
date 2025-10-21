@@ -114,6 +114,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_fed': 'Fighter fed',
       'fighter_captured': 'Fighter captured',
       'fighter_released': 'Fighter released',
+      'fighter_copied': 'Fighter copied',
       'campaign_joined': 'Campaign joined',
       'campaign_left': 'Campaign left',
       'battle_won': 'Battle won',
