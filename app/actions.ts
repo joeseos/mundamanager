@@ -100,20 +100,25 @@ export const signInAction = async (formData: FormData) => {
   const turnstileToken = formData.get("cf-turnstile-response") as string;
   const nextParam = formData.get('next') as string | undefined;
 
+  // Check if Turnstile is configured
+  const hasTurnstileConfig = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY;
+
   if (process.env.NODE_ENV === "development") {
     console.log("Skipping Turnstile verification in development mode.");
   }
-  else {
+  else if (hasTurnstileConfig) {
     if (!turnstileToken) {
-      return { error: "Please complete the Turnstile challenge" };
+      return { error: "Please complete the security verification challenge" };
     }
 
     // Verify Turnstile token
     const turnstileVerification = await verifyTurnstileToken(turnstileToken);
     if (!turnstileVerification.success) {
       console.error('Turnstile verification failed:', turnstileVerification);
-      return { error: "Security check failed. Please try again." };
+      return { error: "Security verification failed. Please try again." };
     }
+  } else {
+    console.warn('Turnstile not configured - proceeding without verification');
   }
 
   const supabase = await createClient();
