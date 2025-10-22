@@ -107,7 +107,7 @@ export function WeaponList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
-
+  
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
   const purchaseMutation = {
     mutate: async ({ params, item }: { params: any; item: Equipment }) => {
@@ -133,6 +133,7 @@ export function WeaponList({
         fighter_equipment_id: tempId,
         cost: ratingCostGuess,
         is_master_crafted: isMaster ? true : item.is_master_crafted,
+        target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
       } as Equipment;
 
       try {
@@ -160,7 +161,8 @@ export function WeaponList({
           fighter_equipment_id: newEquipmentId || tempId,
           cost: serverRatingCost,
           is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
-          equipment_effect: data?.equipment_effect
+          equipment_effect: data?.equipment_effect,
+          target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
         } as Equipment];
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
@@ -170,6 +172,8 @@ export function WeaponList({
           description: `Successfully bought ${item.equipment_name} for ${params.manual_cost || serverRatingCost} credits`,
           variant: 'default'
         });
+
+        // Target selection handled pre-purchase via the existing purchase modal flow
       } catch (err) {
         // Rollback
         onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
@@ -340,28 +344,48 @@ export function WeaponList({
     }
   };
 
-  // Sort equipment: core equipment first, then by name
-  const sortedEquipment = [...equipment].sort((a, b) => {
+  // Separate equipment into parent items (equipment that targets fighters/vehicles) and child items (equipment targeting other equipment)
+  const parentEquipment = equipment.filter(item => !item.target_equipment_id);
+  const childEquipment = equipment.filter(item => item.target_equipment_id);
+
+  // Sort parent equipment: core equipment first, then by name
+  const sortedParentEquipment = [...parentEquipment].sort((a, b) => {
     if (a.core_equipment && !b.core_equipment) return -1;
     if (!a.core_equipment && b.core_equipment) return 1;
     return a.equipment_name.localeCompare(b.equipment_name);
   });
 
-  // Filter equipment by type
-  const weapons = sortedEquipment.filter(item => item.equipment_type === 'weapon');
-  const wargear = sortedEquipment.filter(item => item.equipment_type === 'wargear');
-  const vehicleUpgrades = sortedEquipment.filter(item => item.equipment_type === 'vehicle_upgrade');
+  // Build a tree structure: map parent equipment IDs to their child equipment
+  const equipmentTree = new Map<string, Equipment[]>();
+  childEquipment.forEach(child => {
+    const parentId = child.target_equipment_id!;
+    if (!equipmentTree.has(parentId)) {
+      equipmentTree.set(parentId, []);
+    }
+    equipmentTree.get(parentId)!.push(child);
+  });
 
-  const renderRow = (item: Equipment) => (
+  // Sort children within each parent group
+  equipmentTree.forEach((children) => {
+    children.sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+  });
+
+  // Filter parent equipment by type
+  const weapons = sortedParentEquipment.filter(item => item.equipment_type === 'weapon');
+  const wargear = sortedParentEquipment.filter(item => item.equipment_type === 'wargear');
+  const vehicleUpgrades = sortedParentEquipment.filter(item => item.equipment_type === 'vehicle_upgrade');
+
+  const renderRow = (item: Equipment, isChild: boolean = false) => (
     <tr
       key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
-      className="border-b"
+      className={isChild ? "border-b bg-muted/20" : "border-b"}
     >
       <td className="px-1 py-1">
-        {item.equipment_name}
+        {isChild && <span className="text-muted-foreground mr-2">↳</span>}
+        <span className={isChild ? "text-sm pl-2" : ""}>{item.equipment_name}</span>
       </td>
       <td className="px-1 py-1 text-right">
-        {item.cost ?? '-'}
+        <span className={isChild ? "text-sm" : ""}>{item.cost ?? '-'}</span>
       </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
@@ -371,10 +395,7 @@ export function WeaponList({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
-                  if (equipment) {
-                    setStashModalData(equipment);
-                  }
+                  setStashModalData(item);
                 }}
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
@@ -386,10 +407,7 @@ export function WeaponList({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const equipment = sortedEquipment.find(e => e.fighter_equipment_id === item.fighter_equipment_id);
-                  if (equipment) {
-                    setSellModalData(equipment);
-                  }
+                  setSellModalData(item);
                 }}
                 disabled={isLoading || !userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
@@ -417,6 +435,17 @@ export function WeaponList({
       </td>
     </tr>
   );
+
+  // Helper to render a parent item and its children
+  const renderItemWithChildren = (item: Equipment) => {
+    const children = equipmentTree.get(item.fighter_equipment_id) || [];
+    return (
+      <React.Fragment key={item.fighter_equipment_id}>
+        {renderRow(item, false)}
+        {children.map(child => renderRow(child, true))}
+      </React.Fragment>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -465,19 +494,19 @@ export function WeaponList({
                 </tr>
               ) : (
                 <>
-                  {weapons.map(renderRow)}
+                  {weapons.map(renderItemWithChildren)}
                   {vehicleUpgrades.length > 0 && weapons.length > 0 && (
                     <tr>
                       <td colSpan={3} className="p-0 border-t-8 border-muted" />
                     </tr>
                   )}
-                  {vehicleUpgrades.map(renderRow)}
+                  {vehicleUpgrades.map(renderItemWithChildren)}
                   {wargear.length > 0 && (weapons.length > 0 || vehicleUpgrades.length > 0) && (
                     <tr>
                       <td colSpan={3} className="p-0 border-t-8 border-muted" />
                     </tr>
                   )}
-                  {wargear.map(renderRow)}
+                  {wargear.map(renderItemWithChildren)}
                 </>
               )}
             </tbody>

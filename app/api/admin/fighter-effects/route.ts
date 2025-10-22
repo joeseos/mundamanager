@@ -316,7 +316,8 @@ export async function POST(request: NextRequest) {
           .insert({
             fighter_effect_type_id: body.fighter_effect_type_id,
             stat_name: body.stat_name,
-            default_numeric_value: body.default_numeric_value
+            default_numeric_value: body.default_numeric_value,
+            operation: body.operation || 'add'
           })
           .select()
           .single();
@@ -346,8 +347,9 @@ export async function POST(request: NextRequest) {
     let typeSpecificData = null;
     if (body.type_specific_data) {
       if (typeof body.type_specific_data === 'object') {
-        // If it's already an object, ensure equipment_id is a string
+        // If it's already an object, ensure equipment_id is a string and preserve all other fields
         typeSpecificData = {
+          ...body.type_specific_data,
           equipment_id: String(body.type_specific_data.equipment_id)
         };
       } else if (typeof body.type_specific_data === 'string') {
@@ -355,6 +357,7 @@ export async function POST(request: NextRequest) {
         try {
           const parsed = JSON.parse(body.type_specific_data);
           typeSpecificData = {
+            ...parsed,
             equipment_id: String(parsed.equipment_id)
           };
         } catch (e) {

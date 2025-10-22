@@ -4,7 +4,7 @@ import WeaponTable from './fighter-card-weapon-table';
 import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
-import { calculateAdjustedStats } from '@/utils/stats';
+import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";

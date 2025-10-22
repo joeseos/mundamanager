@@ -35,25 +35,73 @@ interface FighterEffectSelectionProps {
   onSelectionComplete: (selectedEffectIds: string[]) => void;
   onCancel: () => void;
   onValidityChange?: (isValid: boolean) => void;
+  // Target weapon selection mode (equipment-to-equipment upgrades)
+  targetSelectionOnly?: boolean;
+  fighterId?: string;
+  modifierEquipmentId?: string;
+  effectTypeId?: string;
+  onApplyToTarget?: (targetEquipmentId: string) => Promise<void>;
+  fighterWeapons?: { id: string; name: string }[];
 }
 
 const FighterEffectSelection = React.forwardRef<
-  { handleConfirm: () => boolean; isValid: () => boolean },
+  { handleConfirm: () => Promise<boolean>; isValid: () => boolean },
   FighterEffectSelectionProps
->(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange }, ref) => {
+>(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
+  const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const weaponsFetchedRef = React.useRef(false);
 
-  // Auto-select fixed effects when component mounts
+  // Load initial state based on mode
   useEffect(() => {
-    const fixedEffects = effectTypes
-      .filter(effect => 
-        effect.type_specific_data?.effect_selection === 'fixed' || 
-        !effect.type_specific_data?.effect_selection
-      )
-      .map(effect => effect.id);
-    
-    setSelectedEffects(fixedEffects);
-  }, [effectTypes]);
+    if (targetSelectionOnly) {
+      // Prefer passed-in weapons to avoid client-side fetch
+      if (Array.isArray(fighterWeapons) && fighterWeapons.length > 0) {
+        const filtered = modifierEquipmentId
+          ? fighterWeapons.filter(w => w.id !== modifierEquipmentId)
+          : fighterWeapons;
+        setTargetableWeapons(filtered);
+        weaponsFetchedRef.current = true;
+        return;
+      }
+
+      // Fallback: fetch if not provided (only once)
+      if (!fighterId || weaponsFetchedRef.current) return;
+
+      weaponsFetchedRef.current = true;
+      const supabase = createClient();
+
+      (async () => {
+        const { data } = await supabase
+          .from('fighter_equipment')
+          .select(`
+            id,
+            equipment:equipment_id(equipment_name, equipment_type),
+            custom_equipment:custom_equipment_id(equipment_name, equipment_type)
+          `)
+          .eq('fighter_id', fighterId)
+          .is('vehicle_id', null);
+        const weapons = (data || []).filter((row: any) => {
+          const type = (row.equipment as any)?.equipment_type || (row.custom_equipment as any)?.equipment_type;
+          return type === 'weapon' && row.id !== modifierEquipmentId;
+        }).map((row: any) => ({
+          id: row.id,
+          name: (row.equipment as any)?.equipment_name || (row.custom_equipment as any)?.equipment_name || 'Weapon'
+        }));
+        setTargetableWeapons(weapons);
+      })();
+    } else {
+      // Auto-select fixed effects when component mounts
+      const fixedEffects = effectTypes
+        .filter(effect =>
+          effect.type_specific_data?.effect_selection === 'fixed' ||
+          !effect.type_specific_data?.effect_selection
+        )
+        .map(effect => effect.id);
+      setSelectedEffects(fixedEffects);
+    }
+  }, [effectTypes, targetSelectionOnly, fighterId, modifierEquipmentId, fighterWeapons]);
 
   const handleEffectToggle = (effectId: string, effectType: FighterEffectType) => {
     const selectionType = effectType.type_specific_data?.effect_selection;
@@ -194,8 +242,22 @@ const FighterEffectSelection = React.forwardRef<
     return true;
   };
 
-  const handleConfirm = () => {
-    // Validation is already done by isValid(), so just proceed
+  const handleConfirm = async () => {
+    if (targetSelectionOnly) {
+      if (!selectedTargetId || !onApplyToTarget) return false;
+
+      try {
+        // Wait for the async operation to complete
+        await onApplyToTarget(selectedTargetId);
+        onSelectionComplete([]);
+        return true;
+      } catch (error) {
+        // Log error for debugging
+        console.error('Error applying effect to target:', error);
+        // Return false to keep modal open and allow retry
+        return false;
+      }
+    }
     onSelectionComplete(selectedEffects);
     return true;
   };
@@ -209,9 +271,13 @@ const FighterEffectSelection = React.forwardRef<
   // Notify parent when validity changes
   useEffect(() => {
     if (onValidityChange) {
-      onValidityChange(isValid());
+      if (targetSelectionOnly) {
+        onValidityChange(Boolean(selectedTargetId));
+      } else {
+        onValidityChange(isValid());
+      }
     }
-  }, [selectedEffects, effectTypes, onValidityChange]);
+  }, [selectedEffects, effectTypes, onValidityChange, targetSelectionOnly, selectedTargetId]);
 
   const renderEffectModifiers = (modifiers: FighterEffectModifier[]) => {
     return modifiers.map(modifier => {
@@ -246,8 +312,7 @@ const FighterEffectSelection = React.forwardRef<
 
 
 
-  if (effectTypes.length === 0) {
-    // No effects for this equipment, proceed directly
+  if (!targetSelectionOnly && effectTypes.length === 0) {
     onSelectionComplete([]);
     return null;
   }
@@ -266,6 +331,30 @@ const FighterEffectSelection = React.forwardRef<
   const hasSelectableEffects = effectTypes.some(et => 
     et.type_specific_data?.effect_selection !== 'fixed'
   );
+
+  if (targetSelectionOnly) {
+    return (
+      <div className="p-4 max-h-96 overflow-y-auto">
+        <p className="text-sm text-muted-foreground mb-4">Select a weapon to apply this upgrade to:</p>
+        <div className="space-y-2">
+          {targetableWeapons.map(w => (
+            <label key={w.id} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="target-weapon"
+                checked={selectedTargetId === w.id}
+                onChange={() => setSelectedTargetId(w.id)}
+              />
+              <span>{w.name}</span>
+            </label>
+          ))}
+          {targetableWeapons.length === 0 && (
+            <p className="text-sm text-muted-foreground">No weapons available.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 max-h-96 overflow-y-auto">

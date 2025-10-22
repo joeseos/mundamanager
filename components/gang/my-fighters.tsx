@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect } from 'react';
 import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
-import { calculateAdjustedStats } from '@/utils/stats';
+import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { SortableFighter } from './sortable-fighter';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { UserPermissions } from '@/types/user-permissions';

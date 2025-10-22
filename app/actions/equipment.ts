@@ -26,6 +26,8 @@ interface BuyEquipmentParams {
   use_base_cost_for_rating?: boolean;
   buy_for_gang_stash?: boolean;
   selected_effect_ids?: string[];
+  equipment_target?: { target_equipment_id: string; effect_type_id: string };
+  target_equipment_id?: string; // existing purchase flow carries the chosen target
 }
 
 interface DeleteEquipmentParams {
@@ -50,6 +52,129 @@ interface StashActionResult {
   success: boolean;
   data?: any;
   error?: string;
+}
+
+/**
+ * Helper function to insert a fighter effect with its modifiers
+ * Consolidates effect insertion logic used across multiple code paths
+ * EXPORTED for use in move-from-stash.ts to avoid duplication
+ */
+export async function insertEffectWithModifiers(
+  supabase: any,
+  params: {
+    fighter_id: string | null;
+    vehicle_id: string | null;
+    fighter_equipment_id: string;
+    target_equipment_id?: string | null;
+    effect_type_id: string;
+    user_id: string;
+  },
+  options?: {
+    checkDuplicate?: boolean;
+    includeOperation?: boolean;
+  }
+): Promise<{ success: boolean; effect_id?: string; effect_data?: any; error?: string }> {
+  try {
+    // Fetch effect type with modifiers
+    const selectFields = options?.includeOperation
+      ? `
+          id,
+          effect_name,
+          type_specific_data,
+          fighter_effect_type_modifiers (
+            stat_name,
+            default_numeric_value,
+            operation
+          )
+        `
+      : `
+          id,
+          effect_name,
+          type_specific_data,
+          fighter_effect_type_modifiers (
+            stat_name,
+            default_numeric_value
+          )
+        `;
+
+    const { data: effectType, error: typeErr } = await supabase
+      .from('fighter_effect_types')
+      .select(selectFields)
+      .eq('id', params.effect_type_id)
+      .single();
+
+    if (typeErr || !effectType) {
+      return { success: false, error: 'Effect type not found' };
+    }
+
+    // Optional duplicate check
+    if (options?.checkDuplicate) {
+      const query = supabase
+        .from('fighter_effects')
+        .select('id')
+        .eq('fighter_equipment_id', params.fighter_equipment_id)
+        .eq('fighter_effect_type_id', params.effect_type_id)
+        .limit(1);
+
+      if (params.target_equipment_id) {
+        query.eq('target_equipment_id', params.target_equipment_id);
+      }
+
+      const { data: existing } = await query;
+      if ((existing?.length || 0) > 0) {
+        return { success: false, error: 'Effect already exists' };
+      }
+    }
+
+    // Insert effect
+    const { data: newEffect, error: effectErr } = await supabase
+      .from('fighter_effects')
+      .insert({
+        fighter_id: params.fighter_id,
+        vehicle_id: params.vehicle_id,
+        fighter_equipment_id: params.fighter_equipment_id,
+        target_equipment_id: params.target_equipment_id || null,
+        fighter_effect_type_id: effectType.id,
+        effect_name: effectType.effect_name,
+        type_specific_data: effectType.type_specific_data,
+        user_id: params.user_id
+      })
+      .select('id')
+      .single();
+
+    if (effectErr || !newEffect) {
+      return { success: false, error: effectErr?.message || 'Failed to create effect' };
+    }
+
+    // Insert modifiers
+    if (effectType.fighter_effect_type_modifiers?.length > 0) {
+      const modifiers = effectType.fighter_effect_type_modifiers.map((m: any) => ({
+        fighter_effect_id: newEffect.id,
+        stat_name: m.stat_name,
+        numeric_value: m.default_numeric_value,
+        operation: m.operation || 'add'
+      }));
+
+      const { error: modErr } = await supabase
+        .from('fighter_effect_modifiers')
+        .insert(modifiers);
+
+      if (modErr) {
+        return { success: false, error: modErr.message };
+      }
+    }
+
+    return {
+      success: true,
+      effect_id: newEffect.id,
+      effect_data: effectType
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 }
 
 export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
@@ -319,12 +444,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // BATCH: Handle fighter effects with direct database operations
+    // BATCH: Handle fighter effects using helper function
     let appliedEffects: any[] = [];
-    
+
     if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
       try {
-        // Get all effect type data in one query
+        // Fetch effect type metadata for rating calculation
         const { data: effectTypes } = await supabase
           .from('fighter_effect_types')
           .select(`
@@ -334,90 +459,44 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             fighter_effect_categories (
               id,
               category_name
-            ),
-            fighter_effect_type_modifiers (
-              stat_name,
-              default_numeric_value
             )
           `)
           .in('id', params.selected_effect_ids);
 
         if (effectTypes && effectTypes.length > 0) {
-          // Batch insert all effects
-          const effectsToInsert = effectTypes.map(effectType => ({
-            fighter_id: params.fighter_id || null,
-            vehicle_id: params.vehicle_id || null,
-            fighter_effect_type_id: effectType.id,
-            effect_name: effectType.effect_name,
-            type_specific_data: effectType.type_specific_data,
-            fighter_equipment_id: newEquipmentId,
-            user_id: user.id
-          }));
+          // Insert each effect using helper function
+          for (const effectType of effectTypes) {
+            const result = await insertEffectWithModifiers(
+              supabase,
+              {
+                fighter_id: params.fighter_id || null,
+                vehicle_id: params.vehicle_id || null,
+                fighter_equipment_id: newEquipmentId,
+                target_equipment_id: null,
+                effect_type_id: effectType.id,
+                user_id: user.id
+              },
+              { includeOperation: true }
+            );
 
-          const { data: insertedEffects, error: effectsError } = await supabase
-            .from('fighter_effects')
-            .insert(effectsToInsert)
-            .select('id, fighter_effect_type_id');
+            if (result.success && result.effect_id) {
+              appliedEffects.push({
+                id: result.effect_id,
+                effect_name: effectType.effect_name,
+                type_specific_data: effectType.type_specific_data,
+                created_at: new Date().toISOString(),
+                category_name: (effectType.fighter_effect_categories as any)?.category_name,
+                fighter_effect_modifiers: [] // Could fetch if needed
+              });
 
-          if (effectsError) {
-            throw new Error(`Failed to insert effects: ${effectsError.message}`);
-          }
-
-          if (insertedEffects && insertedEffects.length > 0) {
-            // Batch insert all modifiers
-            const allModifiers: any[] = [];
-            effectTypes.forEach((effectType, index) => {
-              const effectId = insertedEffects[index].id;
-              if (effectType.fighter_effect_type_modifiers) {
-                effectType.fighter_effect_type_modifiers.forEach(modifier => {
-                  allModifiers.push({
-                    fighter_effect_id: effectId,
-                    stat_name: modifier.stat_name,
-                    numeric_value: modifier.default_numeric_value
-                  });
-                });
+              // Rating delta calculation
+              const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
+              if (params.fighter_id) {
+                ratingDelta += creditsIncrease;
+              } else if (params.vehicle_id && vehicleAssignedFighterId) {
+                ratingDelta += creditsIncrease;
               }
-            });
-
-            if (allModifiers.length > 0) {
-              await supabase.from('fighter_effect_modifiers').insert(allModifiers);
             }
-
-            // Fetch actual inserted modifiers to match RPC response format
-            let actualModifiers: any[] = [];
-            if (allModifiers.length > 0) {
-              const { data } = await supabase
-                .from('fighter_effect_modifiers')
-                .select('id, fighter_effect_id, stat_name, numeric_value')
-                .in('fighter_effect_id', insertedEffects.map(effect => effect.id));
-              actualModifiers = data || [];
-            }
-
-            // Build applied effects response and calculate rating delta
-            effectTypes.forEach((effectType, index) => {
-              const insertedEffect = insertedEffects[index];
-              if (insertedEffect) {
-                // Get modifiers for this specific effect
-                const effectModifiers = actualModifiers?.filter(mod => mod.fighter_effect_id === insertedEffect.id) || [];
-                
-                appliedEffects.push({
-                  id: insertedEffect.id,
-                  effect_name: effectType.effect_name,
-                  type_specific_data: effectType.type_specific_data,
-                  created_at: new Date().toISOString(),
-                  category_name: (effectType.fighter_effect_categories as any)?.category_name,
-                  fighter_effect_modifiers: effectModifiers
-                });
-
-                // Rating delta calculation
-                const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
-                if (params.fighter_id) {
-                  ratingDelta += creditsIncrease;
-                } else if (params.vehicle_id && vehicleAssignedFighterId) {
-                  ratingDelta += creditsIncrease;
-                }
-              }
-            });
           }
         }
       } catch (effectError) {
@@ -756,6 +835,48 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           };
         }
       }
+
+      // If client already provided a target, apply effect now (purchase + attach in one go)
+      const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
+      const chosenEffectTypeId = params.equipment_target?.effect_type_id;
+
+      if (
+        !params.buy_for_gang_stash &&
+        params.equipment_id &&
+        chosenTargetId &&
+        chosenEffectTypeId
+      ) {
+        try {
+          // Insert equipment-to-equipment effect using helper function
+          const result = await insertEffectWithModifiers(
+            supabase,
+            {
+              fighter_id: params.fighter_id || null,
+              vehicle_id: null,
+              fighter_equipment_id: newEquipmentId,
+              target_equipment_id: chosenTargetId,
+              effect_type_id: chosenEffectTypeId,
+              user_id: user.id
+            },
+            {
+              checkDuplicate: true,
+              includeOperation: true
+            }
+          );
+
+          if (result.success && params.fighter_id) {
+            // Invalidate fighter caches so modified weapon profiles re-render
+            try {
+              invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
+            } catch {}
+          }
+        } catch (e) {
+          console.error('Failed to attach equipment upgrade during purchase:', e);
+        }
+      }
+
+      // Note: Post-purchase upgrade detection removed - now handled pre-purchase in PurchaseModal
+      // Equipment-to-equipment upgrades are detected before purchase and target is selected atomically
     }
 
     // Add beast info if created (custom addition beyond RPC)
@@ -985,6 +1106,111 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       success: false, 
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
+  }
+}
+
+export async function applyEquipmentEffect(params: {
+  modifier_equipment_id: string;
+  target_equipment_id: string;
+  effect_type_id: string;
+  fighter_id: string;
+  gang_id: string;
+}): Promise<EquipmentActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    // 1) Validate ownership and equipment compatibility
+    const { data: equipRows, error: equipErr } = await supabase
+      .from('fighter_equipment')
+      .select(`
+        id,
+        fighter_id,
+        gang_id,
+        equipment:equipment_id(equipment_type),
+        custom_equipment:custom_equipment_id(equipment_type)
+      `)
+      .in('id', [params.modifier_equipment_id, params.target_equipment_id] as any);
+
+    if (equipErr || !equipRows || equipRows.length < 2) {
+      return { success: false, error: 'Equipment not found' };
+    }
+
+    const modifierRow = equipRows.find((r: any) => r.id === params.modifier_equipment_id);
+    const targetRow = equipRows.find((r: any) => r.id === params.target_equipment_id);
+
+    if (!modifierRow || !targetRow) {
+      return { success: false, error: 'Equipment not found' };
+    }
+
+    if (modifierRow.fighter_id !== targetRow.fighter_id || modifierRow.fighter_id !== params.fighter_id) {
+      return { success: false, error: 'Mismatched ownership' };
+    }
+
+    // 2) Fetch effect type to check if it requires weapon target
+    const { data: effectType, error: typeErr } = await supabase
+      .from('fighter_effect_types')
+      .select(`
+        id,
+        fighter_effect_type_modifiers (
+          stat_name
+        )
+      `)
+      .eq('id', params.effect_type_id)
+      .single();
+
+    if (typeErr || !effectType) {
+      return { success: false, error: 'Effect type not found' };
+    }
+
+    // 3) If equipment field modifiers are used, ensure target is a weapon
+    const usesWeaponFields = (effectType.fighter_effect_type_modifiers || []).some((m: any) => (
+      m.stat_name === 'range_short' ||
+      m.stat_name === 'range_long' ||
+      m.stat_name === 'acc_short' ||
+      m.stat_name === 'acc_long' ||
+      m.stat_name === 'strength' ||
+      m.stat_name === 'ap' ||
+      m.stat_name === 'damage' ||
+      m.stat_name === 'ammo'
+    ));
+
+    if (usesWeaponFields) {
+      const targetType = (targetRow.equipment as any)?.equipment_type || (targetRow.custom_equipment as any)?.equipment_type;
+      if (targetType !== 'weapon') {
+        return { success: false, error: 'Selected target is not a weapon' };
+      }
+    }
+
+    // 4) Insert effect using helper function (includes duplicate check)
+    const result = await insertEffectWithModifiers(
+      supabase,
+      {
+        fighter_id: params.fighter_id,
+        vehicle_id: null,
+        fighter_equipment_id: params.modifier_equipment_id,
+        target_equipment_id: params.target_equipment_id,
+        effect_type_id: params.effect_type_id,
+        user_id: user.id
+      },
+      {
+        checkDuplicate: true,
+        includeOperation: true
+      }
+    );
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    // 5) Invalidate caches
+    try {
+      invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
+    } catch {}
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 }
 

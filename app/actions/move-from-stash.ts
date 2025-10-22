@@ -20,12 +20,14 @@ import {
   type CreatedBeast 
 } from '@/app/lib/exotic-beasts';
 import { logEquipmentAction } from './logs/equipment-logs';
+import { insertEffectWithModifiers } from './equipment';
 
 interface MoveFromStashParams {
   stash_id: string;
   fighter_id?: string;
   vehicle_id?: string;
   selected_effect_ids?: string[];
+  equipment_target?: { target_equipment_id: string; effect_type_id: string };
 }
 
 interface MoveFromStashResult {
@@ -264,6 +266,47 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         }
       } catch (error) {
         // Silently continue if effects fetching fails
+      }
+    }
+
+    // Handle equipment-to-equipment upgrades (weapon accessories)
+    if (params.equipment_target && params.fighter_id) {
+      try {
+        const { target_equipment_id, effect_type_id } = params.equipment_target;
+
+        // Use shared helper to insert effect (same logic as equipment purchase)
+        const result = await insertEffectWithModifiers(
+          supabase,
+          {
+            fighter_id: params.fighter_id,
+            vehicle_id: null,
+            fighter_equipment_id: equipmentData.id,
+            target_equipment_id: target_equipment_id,
+            effect_type_id: effect_type_id,
+            user_id: user.id
+          },
+          { checkDuplicate: true, includeOperation: true }
+        );
+
+        if (result.success && result.effect_data) {
+          // Add to appliedEffects so cache invalidation triggers
+          const modifiers = result.effect_data.fighter_effect_type_modifiers || [];
+          const modifiersWithOperation = modifiers.map((m: any) => ({
+            stat_name: m.stat_name,
+            numeric_value: m.default_numeric_value,
+            operation: m.operation || 'add'
+          }));
+
+          appliedEffects.push({
+            id: result.effect_id!,
+            effect_name: result.effect_data.effect_name,
+            fighter_effect_modifiers: modifiersWithOperation,
+            target_equipment_id: target_equipment_id  // Flag to identify equipment effects
+          });
+        }
+      } catch (error) {
+        console.error('Failed to apply equipment upgrade effect:', error);
+        // Continue anyway - don't block the move
       }
     }
 
