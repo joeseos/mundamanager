@@ -1212,7 +1212,8 @@ export async function PATCH(request: Request) {
               const modifiersToCreate = effect.modifiers.map((modifier: any) => ({
                 fighter_effect_type_id: newEffect.id,
                 stat_name: modifier.stat_name,
-                default_numeric_value: modifier.default_numeric_value
+                default_numeric_value: modifier.default_numeric_value,
+                operation: modifier.operation || 'add'
               }));
               
               const { error: createModifiersError } = await supabase
@@ -1290,7 +1291,8 @@ export async function PATCH(request: Request) {
                     .insert({
                       fighter_effect_type_id: effect.id,
                       stat_name: modifier.stat_name,
-                      default_numeric_value: modifier.default_numeric_value
+                      default_numeric_value: modifier.default_numeric_value,
+                      operation: modifier.operation || 'add'
                     });
                   
                   if (createModifierError) {
@@ -1302,7 +1304,8 @@ export async function PATCH(request: Request) {
                     .from('fighter_effect_type_modifiers')
                     .update({
                       stat_name: modifier.stat_name,
-                      default_numeric_value: modifier.default_numeric_value
+                      default_numeric_value: modifier.default_numeric_value,
+                      operation: modifier.operation || 'add'
                     })
                     .eq('id', modifier.id);
                   
