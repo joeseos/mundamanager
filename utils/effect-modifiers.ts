@@ -33,6 +33,9 @@ interface Effect {
 /**
  * Core function to apply numeric modifiers with add/set operations
  * SAFE: Defaults to 'add' operation for backward compatibility
+ *
+ * Design: Parse → Accumulate → Apply → Format (single pass, no early returns)
+ * Handles unparseable values ("-", "N/A", null) gracefully via null semantics
  */
 function applyNumericModifiers(
   baseValue: number | string,
@@ -42,51 +45,75 @@ function applyNumericModifiers(
     addSuffix?: string;      // '+' for ammo field
   } = {}
 ): number | string {
-  // Parse base value
-  let baseNum: number;
-  if (typeof baseValue === 'string') {
-    if (options.parseStrings) {
-      // Weapon stats: parse strings like "6+" → 6
-      baseNum = parseInt(baseValue.replace('+', ''), 10);
-      if (!Number.isFinite(baseNum)) {
-        return baseValue;  // Return unchanged if unparseable
-      }
+  // =============================================
+  // STEP 1: Parse base value (with safe defaults)
+  // =============================================
+  let parsedBase: number | null = null;
+
+  if (typeof baseValue === 'number') {
+    parsedBase = baseValue;
+  } else if (typeof baseValue === 'string' && options.parseStrings) {
+    // Remove common formatting characters
+    const cleaned = baseValue.replace(/[+\-\s]/g, '').trim();
+
+    if (cleaned === '' || cleaned === 'N/A') {
+      // Unparseable values like "-", "N/A", etc.
+      parsedBase = null;  // Will be overridden by SET or default to base
     } else {
-      // Fighter stats: strings are not expected
-      return baseValue;
+      const parsed = parseInt(cleaned, 10);
+      parsedBase = Number.isFinite(parsed) ? parsed : null;
     }
-  } else {
-    baseNum = baseValue;
+  } else if (typeof baseValue === 'string') {
+    // Fighter stats: strings are not expected
+    return baseValue;
   }
 
-  // Accumulate operations
-  let sumAdds = 0;
-  let setLatest: number | undefined = undefined;
+  // =============================================
+  // STEP 2: Accumulate modifiers (single pass)
+  // =============================================
+  let additionSum = 0;
+  let finalSetValue: number | null = null;
 
   modifiers.forEach(m => {
-    const op = m.operation || 'add';  // DEFAULT TO 'add' FOR SAFETY
-    const val = Number(m.numeric_value);
-    if (!Number.isFinite(val)) return;
+    const operation = m.operation || 'add';  // DEFAULT TO 'add' FOR SAFETY
+    const value = Number(m.numeric_value);
 
-    if (op === 'add') {
-      sumAdds += val;
-    } else if (op === 'set') {
-      setLatest = val;  // Last set wins
+    if (!Number.isFinite(value)) return;
+
+    if (operation === 'add') {
+      additionSum += value;
+    } else if (operation === 'set') {
+      finalSetValue = value;  // Last SET wins
     }
   });
 
-  // Apply operations: set overrides, then add
+  // =============================================
+  // STEP 3: Apply operations (clear precedence)
+  // =============================================
   let result: number;
-  if (setLatest !== undefined) {
-    result = setLatest;  // Set operation overrides base
+
+  if (finalSetValue !== null) {
+    // SET operation: completely overrides base value
+    result = finalSetValue;
+  } else if (parsedBase !== null) {
+    // ADD operation: add to parsed base
+    result = parsedBase + additionSum;
+  } else if (additionSum !== 0) {
+    // Edge case: unparseable base + additions
+    // Treat unparseable as 0 for additions
+    result = additionSum;
   } else {
-    result = baseNum + sumAdds;  // Add to base
+    // Nothing to do, return original
+    return baseValue;
   }
 
-  // Format output
-  if (options.parseStrings && options.addSuffix) {
+  // =============================================
+  // STEP 4: Format output (context-aware)
+  // =============================================
+  if (options.addSuffix) {
     return `${result}${options.addSuffix}`;
   }
+
   return result;
 }
 
