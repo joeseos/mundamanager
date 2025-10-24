@@ -76,6 +76,11 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignBattles(params.id)
     ]);
 
+    // Check if campaign exists
+    if (!campaignBasic) {
+      notFound();
+    }
+
     // 🚀 PARALLEL DATA FETCHING - Reference data for territory components
     const [
       campaignTriumphs,
