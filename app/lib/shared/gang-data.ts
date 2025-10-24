@@ -156,7 +156,7 @@ export interface GangFighter {
  * Get gang basic information (name, type, reputation, etc. - excludes credits)
  * Cache: BASE_GANG_BASIC
  */
-export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic> => {
+export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -204,7 +204,11 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
         .eq('id', gangId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Return null for not found errors or invalid UUID format
+        if (error.code === 'PGRST116' || error.code === '22P02') return null;
+        throw error;
+      }
       return data;
     },
     [`gang-basic-${gangId}`],
@@ -645,6 +649,11 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           getFighterVehicles(fighterId, supabase),   // Uses BASE_FIGHTER_VEHICLES(fighterId)
           getFighterOwnedBeastsCost(fighterId, supabase)  // Get beast costs for calculation
         ]);
+
+        // Skip if fighter not found
+        if (!fighterBasic) {
+          return null;
+        }
 
         // Get fighter type and sub-type info using cached helpers
         const [fighterTypeInfo, fighterSubTypeInfo] = await Promise.all([

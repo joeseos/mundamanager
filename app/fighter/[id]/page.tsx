@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
@@ -42,7 +42,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const fighterBasic = await getFighterBasic(id, supabase);
 
     if (!fighterBasic) {
-      redirect("/gang");
+      notFound();
     }
 
     // Fetch ALL data in parallel after we have fighterBasic
@@ -139,6 +139,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
           .single() :
         Promise.resolve({ data: null, error: null })
     ]);
+
+    // Check if gang exists (shouldn't happen but handle gracefully)
+    if (!gangBasic) {
+      notFound();
+    }
 
     // Process campaign data
     const campaigns: any[] = [];
@@ -317,6 +322,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     );
 
   } catch (error) {
-    redirect("/gang");
+    console.error('Error in FighterPage:', error);
+    throw error;
   }
 }

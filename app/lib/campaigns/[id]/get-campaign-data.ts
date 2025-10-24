@@ -117,7 +117,11 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
     .eq('id', campaignId)
     .single();
 
-  if (campaignError) throw campaignError;
+  if (campaignError) {
+    // Return null for not found errors or invalid UUID format
+    if (campaignError.code === 'PGRST116' || campaignError.code === '22P02') return null;
+    throw campaignError;
+  }
 
   let campaignTypeName = '';
   let campaignTypeImageUrl = '';

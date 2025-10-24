@@ -113,7 +113,7 @@ export interface FighterEffect {
  * Get fighter basic information (stats, name, type, etc.)
  * Cache: BASE_FIGHTER_BASIC
  */
-export const getFighterBasic = async (fighterId: string, supabase: any): Promise<FighterBasic> => {
+export const getFighterBasic = async (fighterId: string, supabase: any): Promise<FighterBasic | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -168,7 +168,11 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
         .eq('id', fighterId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Return null for not found errors or invalid UUID format
+        if (error.code === 'PGRST116' || error.code === '22P02') return null;
+        throw error;
+      }
       return data;
     },
     [`fighter-basic-${fighterId}`],
@@ -585,6 +589,11 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
         getFighterVehicles(fighterId, supabase),
         getFighterOwnedBeastsCost(fighterId, supabase)
       ]);
+
+      // Return 0 if fighter not found
+      if (!fighterBasic) {
+        return 0;
+      }
 
       // Check if this fighter is owned by another fighter (exotic beast)
       let isOwnedBeast = false;
