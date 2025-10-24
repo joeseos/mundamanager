@@ -1162,20 +1162,24 @@ export function EditFighterModal({
       }
       
       // Call onSubmit with all values, including sub-type fields
-      const submitData = {
+      const submitData: any = {
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
         costAdjustment: formValues.costAdjustment,
-        fighter_class: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.fighter_class : undefined,
-        fighter_class_id: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.fighter_class_id : undefined,
-        fighter_type: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.fighter_type : undefined,
-        fighter_type_id: shouldUpdateFighterType && fighterTypeToUse ? fighterTypeToUse.id : (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id,
         special_rules: formValues.special_rules,
-        fighter_sub_type: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null,
-        fighter_sub_type_id: selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null,
         fighter_gang_legacy_id: selectedGangLegacyId || null
       };
+
+      // Only include fighter type fields if we're actually updating the fighter type
+      if (shouldUpdateFighterType && fighterTypeToUse) {
+        submitData.fighter_class = fighterTypeToUse.fighter_class;
+        submitData.fighter_class_id = fighterTypeToUse.fighter_class_id;
+        submitData.fighter_type = fighterTypeToUse.fighter_type;
+        submitData.fighter_type_id = fighterTypeToUse.id;
+        submitData.fighter_sub_type = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null;
+        submitData.fighter_sub_type_id = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null;
+      }
       
       // If lifecycle callbacks are provided, use TanStack mutation and close immediately
       if (onEditMutate || onEditError || onEditSuccess) {
