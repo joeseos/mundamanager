@@ -418,6 +418,11 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 getFighterTotalCost(beastId, supabase)
               ]);
 
+              // Skip if beast not found
+              if (!fighterBasic) {
+                continue;
+              }
+
               // Get fighter type info
               const { data: fighterTypeData } = await supabase
                 .from('fighter_types')

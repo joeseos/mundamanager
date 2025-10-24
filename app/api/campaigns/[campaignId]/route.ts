@@ -39,6 +39,14 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       getCampaignBattles(campaignId)
     ]);
 
+    // Return 404 if campaign not found
+    if (!campaignBasic) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      );
+    }
+
     // Combine the data in the same format as the page
     const campaignData = {
       id: campaignBasic.id,
