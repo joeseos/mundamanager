@@ -751,7 +751,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, cost_adjustment, killed, retired, enslaved')
+      .select('id, gang_id, cost_adjustment, killed, retired, enslaved, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -927,7 +927,23 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Invalidate cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
-    
+
+    // If fighter name changed, invalidate ownership info for any beasts owned by this fighter
+    if (params.fighter_name !== undefined && params.fighter_name.trimEnd() !== fighter.fighter_name) {
+      // Only query if the name actually changed
+      const { data: ownedBeasts } = await supabase
+        .from('fighter_exotic_beasts')
+        .select('id')
+        .eq('fighter_owner_id', params.fighter_id);
+
+      // Only invalidate if this fighter actually owns exotic beasts
+      if (ownedBeasts && ownedBeasts.length > 0) {
+        ownedBeasts.forEach(beast => {
+          revalidateTag(`fighter-exotic-beast-${beast.id}`);
+        });
+      }
+    }
+
     // Additional cache invalidation for notes
     if (params.note !== undefined || params.note_backstory !== undefined) {
       // Invalidate fighter basic data (includes notes)
