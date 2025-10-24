@@ -460,7 +460,6 @@ export async function POST(request: NextRequest) {
     } else {
       // Check for basic auth (username/password) or bearer token
       const authHeader = request.headers.get('authorization');
-      let supabase;
       let user;
 
       if (authHeader?.startsWith('Basic ')) {
@@ -473,7 +472,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Invalid basic auth format' }, { status: 401 });
         }
 
-        supabase = createServiceRoleClient();
+        const supabase = createServiceRoleClient();
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email,
           password
@@ -486,7 +485,7 @@ export async function POST(request: NextRequest) {
       } else if (authHeader?.startsWith('Bearer ')) {
         // Handle bearer token
         const bearerToken = authHeader.replace('Bearer ', '');
-        supabase = createClient(
+        const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
           {
@@ -504,7 +503,7 @@ export async function POST(request: NextRequest) {
         user = tokenUser;
       } else {
         // Fallback to cookie-based auth
-        supabase = await createAuthClient();
+        const supabase = await createAuthClient();
         const { data: { user: cookieUser } } = await supabase.auth.getUser();
         if (!cookieUser) {
           return NextResponse.json({ error: 'Unauthorized - No valid auth method found' }, { status: 401 });
@@ -512,9 +511,15 @@ export async function POST(request: NextRequest) {
         user = cookieUser;
       }
 
-      // Check admin role
-      const isAdmin = await checkAdmin(supabase);
-      if (!isAdmin) {
+      // Check admin role by querying profile directly (works for all auth methods)
+      const serviceSupabase = createServiceRoleClient();
+      const { data: profile } = await serviceSupabase
+        .from('profiles')
+        .select('user_role')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.user_role !== 'admin') {
         return NextResponse.json({ error: 'Unauthorized - Admin role required' }, { status: 401 });
       }
 
