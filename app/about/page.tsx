@@ -3,9 +3,6 @@ import { unstable_cache } from "next/cache";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 
-// Make the page static
-export const dynamic = 'force-static';
-
 export default async function AboutPage() {
   // Fetch Patreon supporters with cache tag
   const getCachedPatreonSupporters = unstable_cache(
