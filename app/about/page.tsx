@@ -10,10 +10,10 @@ export default async function AboutPage() {
   // Fetch Patreon supporters with cache tag
   const getCachedPatreonSupporters = unstable_cache(
     async () => {
-      // Use service role client for static generation
+      // Use anon key for static generation (RLS controls access)
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
       
       const { data: patreonSupporters } = await supabase
