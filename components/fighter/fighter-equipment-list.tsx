@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
+import { TbCornerLeftUp } from 'react-icons/tb';
 import { rollD6 } from '@/utils/dice';
 
 interface WeaponListProps {
@@ -381,8 +382,8 @@ export function WeaponList({
       className={isChild ? "border-b bg-muted/20" : "border-b"}
     >
       <td className="px-1 py-1">
-        {isChild && <span className="text-muted-foreground mr-2">↳</span>}
-        <span className={isChild ? "text-sm pl-2" : ""}>{item.equipment_name}</span>
+        {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
+        <span className={isChild ? "text-sm" : ""}>{item.equipment_name}</span>
       </td>
       <td className="px-1 py-1 text-right">
         <span className={isChild ? "text-sm" : ""}>{item.cost ?? '-'}</span>
