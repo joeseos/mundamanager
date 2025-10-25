@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
 
   // Only update session for non-skip paths
   let res = skipSessionPaths.includes(request.nextUrl.pathname)
-    ? NextResponse.next()
+    ? NextResponse.next({ request })
     : await updateSession(request);
 
   // Create a Supabase client bound to the incoming request/response (Edge-safe)
@@ -57,7 +57,7 @@ export async function middleware(request: NextRequest) {
 
   // Allow access to public paths and password reset flow
   if (publicPaths.includes(request.nextUrl.pathname) || isPasswordResetFlow) {
-    return NextResponse.next();
+    return NextResponse.next({ request });
   }
 
   // Redirect to sign-in if user is not authenticated
