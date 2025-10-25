@@ -132,7 +132,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
     setManualCost(String(newCost));
   }, [isMasterCrafted, item]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const parsedCost = Number(manualCost);
 
     if (isNaN(parsedCost)) {
@@ -144,7 +144,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
     }
 
     setCreditError(null);
-    
+
     // If buying to stash, skip effect selection entirely
     if (isStashPurchase) {
       onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, []);
@@ -153,63 +153,61 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
 
     // Pre-check: fetch all effects for this equipment (both equipment upgrades and fighter effects)
     if (!item.is_custom && !showTargetSelection && !showEffectSelection) {
-      const checkAllEffects = async () => {
-        try {
-          // Fetch all effect types for this equipment (single API call)
-          const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
+      try {
+        // Fetch all effect types for this equipment (single API call)
+        const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
 
-          if (!response.ok) {
-            throw new Error('Failed to fetch fighter effects');
-          }
-
-          const fetchedEffectTypes = await response.json();
-
-          // Separate equipment upgrades from fighter effects
-          const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
-            effect.type_specific_data?.applies_to === 'equipment'
-          );
-
-          const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
-            effect.type_specific_data?.applies_to !== 'equipment'
-          );
-
-          // Priority 1: Check for equipment upgrade (applies_to=equipment)
-          if (equipmentUpgrade) {
-            setUpgradeEffectTypeId(equipmentUpgrade.id);
-            setShowTargetSelection(true);
-            return;
-          }
-
-          // Priority 2: Check for selectable fighter effects
-          const hasSelectableEffects = fighterEffects?.some((effect: any) =>
-            effect.type_specific_data?.effect_selection === 'single_select' ||
-            effect.type_specific_data?.effect_selection === 'multiple_select'
-          );
-
-          if (hasSelectableEffects) {
-            setEffectTypes(fighterEffects);
-            setShowEffectSelection(true);
-            setIsEffectSelectionValid(false);
-          } else {
-            // All effects are fixed, collect them and proceed directly with purchase
-            const fixedEffects = fighterEffects
-              ?.filter((effect: any) =>
-                effect.type_specific_data?.effect_selection === 'fixed' ||
-                !effect.type_specific_data?.effect_selection
-              )
-              .map((effect: any) => effect.id) || [];
-
-            onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
-          }
-        } catch (error) {
-          console.error('Error checking effects:', error);
-          // On error, proceed with purchase to avoid blocking the user
-          onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
+        if (!response.ok) {
+          throw new Error('Failed to fetch fighter effects');
         }
-      };
 
-      checkAllEffects();
-      return false;
+        const fetchedEffectTypes = await response.json();
+
+        // Separate equipment upgrades from fighter effects
+        const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
+          effect.type_specific_data?.applies_to === 'equipment'
+        );
+
+        const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
+          effect.type_specific_data?.applies_to !== 'equipment'
+        );
+
+        // Priority 1: Check for equipment upgrade (applies_to=equipment)
+        if (equipmentUpgrade) {
+          setUpgradeEffectTypeId(equipmentUpgrade.id);
+          setShowTargetSelection(true);
+          return false;
+        }
+
+        // Priority 2: Check for selectable fighter effects
+        const hasSelectableEffects = fighterEffects?.some((effect: any) =>
+          effect.type_specific_data?.effect_selection === 'single_select' ||
+          effect.type_specific_data?.effect_selection === 'multiple_select'
+        );
+
+        if (hasSelectableEffects) {
+          setEffectTypes(fighterEffects);
+          setShowEffectSelection(true);
+          setIsEffectSelectionValid(false);
+          return false;
+        } else {
+          // All effects are fixed, collect them and proceed directly with purchase
+          const fixedEffects = fighterEffects
+            ?.filter((effect: any) =>
+              effect.type_specific_data?.effect_selection === 'fixed' ||
+              !effect.type_specific_data?.effect_selection
+            )
+            .map((effect: any) => effect.id) || [];
+
+          onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
+          return true;
+        }
+      } catch (error) {
+        console.error('Error checking effects:', error);
+        // On error, proceed with purchase to avoid blocking the user
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
+        return true;
+      }
     }
 
     // Note: showTargetSelection and showEffectSelection are handled by separate modal render paths
