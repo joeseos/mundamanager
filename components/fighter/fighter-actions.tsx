@@ -133,8 +133,6 @@ export function FighterActions({
       router.refresh();
       onFighterUpdate?.();
 
-      let successMessage = '';
-      switch (action) {
       const prev = (ctx as any)?.prevFlags as {
         killed: boolean; retired: boolean; enslaved: boolean; starved: boolean; recovery: boolean; captured: boolean;
       } | undefined;
