@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { copyFighter } from '@/app/actions/copy-fighter';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
+import { ImInfo } from 'react-icons/im';
 
 interface CopyFighterModalProps {
   fighterId: string;
@@ -148,9 +149,15 @@ export default function CopyFighterModal({
               checked={copyAsExperienced}
               onCheckedChange={(checked) => setCopyAsExperienced(checked === true)}
             />
-            <label htmlFor="copyAsExperienced" className="text-sm font-medium cursor-pointer">
-              Copy as experienced fighter (includes XP, advancements, and lasting injuries)
+            <label htmlFor="copyAsExperienced" className="text-sm font-medium text-muted-foreground cursor-pointer">
+              Copy as experienced fighter
             </label>
+            <div className="relative group">
+              <ImInfo />
+              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                Includes XP, advancements, and lasting injuries
+              </div>
+            </div>
           </div>
 
           <div className="text-xs text-muted-foreground ml-6">
@@ -169,7 +176,7 @@ export default function CopyFighterModal({
                 checked={addToRating}
                 onCheckedChange={(checked) => setAddToRating(checked === true)}
               />
-              <label htmlFor="addToRating" className="text-sm font-medium cursor-pointer">
+              <label htmlFor="addToRating" className="text-sm font-medium text-muted-foreground cursor-pointer">
                 Add fighter cost to gang rating ({calculatedCost} credits)
               </label>
             </div>
@@ -180,7 +187,7 @@ export default function CopyFighterModal({
                 checked={deductCredits}
                 onCheckedChange={(checked) => setDeductCredits(checked === true)}
               />
-              <label htmlFor="deductCredits" className="text-sm font-medium cursor-pointer">
+              <label htmlFor="deductCredits" className="text-sm font-medium text-muted-foreground cursor-pointer">
                 Deduct fighter cost from gang credits ({calculatedCost} credits)
               </label>
             </div>
