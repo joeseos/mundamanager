@@ -9,12 +9,14 @@ export interface FighterLogParams {
   fighter_name: string;
   action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_enslaved' | 
               'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_cost_adjusted' |
-              'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released';
+              'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied';
   user_id?: string;
   old_value?: number | string;
   new_value?: number | string;
   fighter_credits?: number;
   status_reason?: 'killed' | 'retired' | 'enslaved' | null;
+  source_fighter_name?: string;
+  copy_type?: 'base' | 'experienced';
 }
 
 export async function logFighterAction(params: FighterLogParams): Promise<GangLogActionResult> {
@@ -86,6 +88,11 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         break;
       case 'fighter_released':
         description = `Fighter "${params.fighter_name}" was released from captivity`;
+        break;
+      case 'fighter_copied':
+        const copyTypeLabel = params.copy_type === 'experienced' ? 'experienced fighter' : 'base fighter';
+        const sourceInfo = params.source_fighter_name ? ` from "${params.source_fighter_name}"` : '';
+        description = `Copied ${copyTypeLabel} "${params.fighter_name}"${sourceInfo} (${params.fighter_credits || 0} credits). New gang rating: ${newGangRating}`;
         break;
       default:
         throw new Error(`Unknown fighter action type: ${params.action_type}`);
