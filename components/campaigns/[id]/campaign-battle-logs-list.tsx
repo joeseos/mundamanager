@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { ChevronLeft, ChevronRight, Edit } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
-import { deleteBattleLog } from "@/app/lib/campaigns/[id]/battle-logs";
+import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import Modal from "@/components/ui/modal";
 import { LuTrash2 } from "react-icons/lu";
 
@@ -54,6 +54,9 @@ interface Battle {
   winner_id?: string;
   note?: string | null;
   participants?: BattleParticipant[] | string;
+  territory_id?: string | null;
+  custom_territory_id?: string | null;
+  territory_name?: string;
   attacker?: {
     gang_id?: string;
     gang_name: string;
@@ -177,10 +180,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal: () => {
-      console.log('openAddModal called in CampaignBattleLogsList');
       setSelectedBattle(null);
       setShowBattleModal(true);
-      console.log('showBattleModal set to true');
     }
   }));
 
@@ -412,9 +413,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log('Delete button clicked, prevented default', battle.id);
     }
-    
+
     setBattleToDelete(battle);
     setShowDeleteModal(true);
     return false; // Ensure no further action is taken
@@ -423,31 +423,28 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Confirm delete battle
   const confirmDeleteBattle = async () => {
     if (!battleToDelete) return false;
-    
-    console.log('Confirming delete for battle', battleToDelete.id);
+
     setIsDeleting(true);
-    
+
     try {
-      console.log('Calling deleteBattleLog server action');
       await deleteBattleLog(campaignId, battleToDelete.id);
-      console.log('Delete successful');
-      
+
       // Close modal
       setShowDeleteModal(false);
       setBattleToDelete(null);
-      
+
       // Delayed toast and refresh to avoid navigation conflicts
       setTimeout(() => {
         toast({
           description: "Battle report deleted successfully"
         });
-        
+
         // Add a small delay before refreshing to ensure the delete has been processed
         setTimeout(() => {
           onBattleAdd(); // Refresh the battle list
         }, 100);
       }, 0);
-      
+
       return true; // Return true for modal to close
     } catch (error) {
       console.error('Error deleting battle report:', error);
@@ -463,7 +460,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Handle modal close
   const handleModalClose = () => {
-    console.log('handleModalClose called, closing battle modal');
     setShowBattleModal(false);
     setSelectedBattle(null);
   };
@@ -514,6 +510,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             <tr className="bg-muted border-b">
               <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
               <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
+              <th className="px-2 py-2 text-left font-medium">Territory</th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner</th>
               <th className="px-2 py-2 text-left font-medium">Report</th>
@@ -523,7 +520,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <tbody>
             {battles.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 5 : 4} className="text-muted-foreground italic text-center">
+                <td colSpan={isAdmin ? 7 : 6} className="text-muted-foreground italic text-center">
                   No battles recorded yet.
                 </td>
               </tr>
@@ -536,6 +533,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
                   <td className="px-2 py-2 align-top max-w-[8rem]">
                     {battle.scenario || battle.scenario_name || 'N/A'}
+                  </td>
+
+                  <td className="px-2 py-2 align-top">
+                    {battle.territory_name || '-'}
                   </td>
 
                   <td className="px-2 py-2 align-top">

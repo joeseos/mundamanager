@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
-import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/lib/campaigns/[id]/battle-logs";
+import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 
 interface Scenario {
   id: string;
@@ -50,6 +50,9 @@ interface Battle {
   winner_id?: string;
   note?: string | null;
   participants?: BattleParticipant[] | string;
+  territory_id?: string | null;
+  custom_territory_id?: string | null;
+  territory_name?: string;
   attacker?: {
     gang_id?: string;
     gang_name: string;
@@ -296,6 +299,18 @@ const CampaignBattleLogModal = ({
     
     // Set notes
     setNotes(battleToEdit.note || "");
+
+    // Set territory if the battle has one
+    if (battleToEdit.territory_id || battleToEdit.custom_territory_id) {
+      const matchedTerritory = territories.find(t =>
+        (battleToEdit.territory_id && t.territory_id === battleToEdit.territory_id) ||
+        (battleToEdit.custom_territory_id && t.custom_territory_id === battleToEdit.custom_territory_id)
+      );
+
+      if (matchedTerritory) {
+        setSelectedTerritory(matchedTerritory.id);
+      }
+    }
   };
 
   // Update available territories when winner changes
@@ -308,20 +323,10 @@ const CampaignBattleLogModal = ({
 
     // Define what the new available territories should be
     let newAvailableTerritories: Territory[] = [];
-    
-    if (winner && winner !== "draw") {
-      // Find territories controlled by losing gangs
-      const losingGangIds = gangsInBattle
-        .filter(gang => gang.gangId && gang.gangId !== winner)
-        .map(gang => gang.gangId);
 
-      newAvailableTerritories = territories.filter(
-        territory => 
-          // Include territories controlled by losing gangs
-          (territory.controlled_by && losingGangIds.includes(territory.controlled_by)) ||
-          // Include territories not controlled by anyone
-          !territory.controlled_by
-      );
+    if (winner && winner !== "draw") {
+      // Show ALL territories - players can challenge over any territory
+      newAvailableTerritories = territories;
     }
     
     // Compare by value using JSON.stringify to avoid infinite loops
@@ -330,9 +335,9 @@ const CampaignBattleLogModal = ({
     
     if (currentTerritoriesJSON !== newTerritoriesJSON) {
       setAvailableTerritories(newAvailableTerritories);
-      
-      // Clear selected territory if none are available
-      if (newAvailableTerritories.length === 0 && selectedTerritory) {
+
+      // Don't clear selected territory in edit mode (preserve what was claimed)
+      if (newAvailableTerritories.length === 0 && selectedTerritory && !isEditMode) {
         setSelectedTerritory('');
       }
     }
@@ -467,23 +472,10 @@ const CampaignBattleLogModal = ({
         winner_id: winner === "draw" ? null : winner,
         note: notes || null,
         participants: participants,
-        claimed_territories: selectedTerritory 
-          ? [(() => {
-              const territory = availableTerritories.find(t => t.id === selectedTerritory);
-              console.log('🏛️ Territory claiming debug:', {
-                selectedTerritory,
-                territory,
-                is_custom: territory?.is_custom,
-                custom_territory_id: territory?.custom_territory_id,
-                territory_id: territory?.territory_id
-              });
-              
-              const claimData = {
-                campaign_territory_id: selectedTerritory
-              };
-              console.log('🎯 Claiming territory:', claimData);
-              return claimData;
-            })()] 
+        claimed_territories: selectedTerritory
+          ? [{
+              campaign_territory_id: selectedTerritory
+            }]
           : []
       };
 

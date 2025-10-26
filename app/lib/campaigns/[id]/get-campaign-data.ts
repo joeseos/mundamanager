@@ -414,7 +414,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       winner_id,
       note,
       participants,
-      scenario_id
+      scenario_id,
+      territory_id,
+      custom_territory_id
     `)
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
@@ -456,8 +458,32 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
   const gangMap = new Map(gangsData.map(gang => [gang.id, gang]));
   const scenarioMap = new Map(scenariosData.map(scenario => [scenario.id, scenario]));
 
+  // Fetch territory names from campaign_territories
+  const territoryIds = data?.map(b => b.territory_id || b.custom_territory_id).filter(Boolean) || [];
+  let territoriesMap = new Map<string, string>();
+
+  if (territoryIds.length > 0) {
+    const { data: territories } = await supabase
+      .from('campaign_territories')
+      .select('territory_id, custom_territory_id, territory_name')
+      .eq('campaign_id', campaignId)
+      .or(`territory_id.in.(${territoryIds.join(',')}),custom_territory_id.in.(${territoryIds.join(',')})`);
+
+    if (territories) {
+      territories.forEach(t => {
+        const key = t.territory_id || t.custom_territory_id;
+        if (key) {
+          territoriesMap.set(key, t.territory_name);
+        }
+      });
+    }
+  }
+
   return data?.map(battle => {
     const scenarioDetails = scenarioMap.get(battle.scenario_id);
+    const territoryKey = battle.territory_id || battle.custom_territory_id;
+    const territoryName = territoryKey ? territoriesMap.get(territoryKey) : undefined;
+
     return {
       id: battle.id,
       created_at: battle.created_at,
@@ -470,6 +496,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
+      territory_id: battle.territory_id,
+      custom_territory_id: battle.custom_territory_id,
+      territory_name: territoryName,
       attacker: battle.attacker_id ? {
         gang_id: battle.attacker_id,
         gang_name: gangMap.get(battle.attacker_id)?.name || 'Unknown'
