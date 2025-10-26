@@ -25,8 +25,7 @@ export default async function AboutPage() {
     },
     ['global-patreon-supporters'],
     {
-      tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()],
-      revalidate: 3600 // Cache for 1 hour
+      tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()]
     }
   );
 
