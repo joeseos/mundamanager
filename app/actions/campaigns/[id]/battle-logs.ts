@@ -3,7 +3,7 @@
 // Battle log API operations
 import { createClient } from "@/utils/supabase/server";
 import { cache } from 'react';
-import { logBattleResult, logTerritoryClaimed } from "../../../actions/logs/gang-campaign-logs";
+import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 
 /**
  * Type definition for battle participant
@@ -32,6 +32,8 @@ export interface BattleLogParams {
   participants: BattleParticipant[];
   claimed_territories?: TerritoryClaimRequest[];
   created_at?: string;
+  territory_id?: string | null;
+  custom_territory_id?: string | null;
 }
 
 /**
@@ -52,11 +54,22 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       created_at
     } = params;
 
-    console.log('🆕 Creating battle log with params:', { 
-      campaignId, 
-      claimed_territories,
-      winner_id 
-    });
+    // Get territory IDs if a territory is being claimed
+    let territory_id: string | null = null;
+    let custom_territory_id: string | null = null;
+
+    if (claimed_territories.length > 0) {
+      const { data: territoryData } = await supabase
+        .from('campaign_territories')
+        .select('territory_id, custom_territory_id')
+        .eq('id', claimed_territories[0].campaign_territory_id)
+        .single();
+
+      if (territoryData) {
+        territory_id = territoryData.territory_id;
+        custom_territory_id = territoryData.custom_territory_id;
+      }
+    }
 
     // First, create the battle record
     const { data: battle, error: battleError } = await supabase
@@ -70,7 +83,9 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           winner_id,
           note,
           participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-          created_at: created_at ?? new Date().toISOString()
+          created_at: created_at ?? new Date().toISOString(),
+          territory_id,
+          custom_territory_id
         }
       ])
       .select()
@@ -80,25 +95,15 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 
     // Process territory claims if any
     if (claimed_territories.length > 0 && winner_id) {
-      console.log('🏆 Processing territory claims:', { 
-        claimed_territories, 
-        winner_id, 
-        campaignId 
-      });
-      
       for (const territory of claimed_territories) {
-        console.log('🎯 Processing territory claim:', territory);
-        
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('campaign_territories')
           .update({ gang_id: winner_id })
           .eq('id', territory.campaign_territory_id)
           .eq('campaign_id', campaignId);
 
-        console.log('📊 Territory update result:', { data, error });
-        
         if (error) {
-          console.error('❌ Territory update failed:', error);
+          console.error('Territory update failed:', error);
         }
       }
     }
@@ -116,16 +121,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
     ]);
 
-    console.log('Battle participants:', { attacker, defender, winner, campaign });
-
     // Log battle results for both gangs
     if (attacker && defender && campaign) {
       try {
-        console.log('Logging battle results...');
-        
         // Log for attacker
         const attackerResult = winner_id === attacker_id ? 'won' : (winner_id === defender_id ? 'lost' : 'draw');
-        const attackerLog = await logBattleResult({
+        await logBattleResult({
           gang_id: attacker_id,
           gang_name: attacker.name,
           campaign_name: campaign.campaign_name,
@@ -134,11 +135,10 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           result: attackerResult,
           is_attacker: true
         });
-        console.log('Attacker log result:', attackerLog);
 
         // Log for defender
         const defenderResult = winner_id === defender_id ? 'won' : (winner_id === attacker_id ? 'lost' : 'draw');
-        const defenderLog = await logBattleResult({
+        await logBattleResult({
           gang_id: defender_id,
           gang_name: defender.name,
           campaign_name: campaign.campaign_name,
@@ -147,11 +147,9 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           result: defenderResult,
           is_attacker: false
         });
-        console.log('Defender log result:', defenderLog);
 
-        // 🎯 Log territory claims if any
+        // Log territory claims if any
         if (claimed_territories.length > 0 && winner_id && winner) {
-          console.log('Logging territory claims...');
           for (const territory of claimed_territories) {
             // Get territory data directly from campaign_territories table
             const { data: territoryData } = await supabase
@@ -164,14 +162,13 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
             const isCustom = !!territoryData?.custom_territory_id;
 
             if (territoryName) {
-              const territoryLog = await logTerritoryClaimed({
+              await logTerritoryClaimed({
                 gang_id: winner_id,
                 gang_name: winner.name,
                 territory_name: territoryName,
                 campaign_name: campaign.campaign_name,
                 is_custom: isCustom
               });
-              console.log('Territory claim log result:', territoryLog);
             }
           }
         }
@@ -179,8 +176,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         console.error('Error logging battle results:', logError);
         // Don't fail the main operation if logging fails
       }
-    } else {
-      console.log('Missing data for logging:', { attacker, defender, campaign });
     }
 
     // Transform the response to match the expected format
@@ -236,6 +231,23 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       throw new Error('Battle not found or access denied');
     }
 
+    // Get territory IDs if a territory is being claimed
+    let territory_id: string | null = null;
+    let custom_territory_id: string | null = null;
+
+    if (claimed_territories.length > 0) {
+      const { data: territoryData } = await supabase
+        .from('campaign_territories')
+        .select('territory_id, custom_territory_id')
+        .eq('id', claimed_territories[0].campaign_territory_id)
+        .single();
+
+      if (territoryData) {
+        territory_id = territoryData.territory_id;
+        custom_territory_id = territoryData.custom_territory_id;
+      }
+    }
+
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
       scenario,
@@ -244,7 +256,9 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       winner_id,
       note,
       participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      territory_id,
+      custom_territory_id
     };
     if (created_at) {
       updatePayload.created_at = created_at;
@@ -283,12 +297,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null }),
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
     ]);
-    console.log('attacker', attacker);
-    console.log('defender', defender);
-    console.log('winner', winner);
-    console.log('campaign', campaign);
 
-    // 🎯 Log battle results for both gangs
+    // Log battle results for both gangs
     if (attacker && defender && campaign) {
       try {
         // Log for attacker
@@ -305,7 +315,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
         // Log for defender
         const defenderResult = winner_id === defender_id ? 'won' : (winner_id === attacker_id ? 'lost' : 'draw');
-        const testing = await logBattleResult({
+        await logBattleResult({
           gang_id: defender_id,
           gang_name: defender.name,
           campaign_name: campaign.campaign_name,
@@ -314,8 +324,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
           result: defenderResult,
           is_attacker: false
         });
-        console.log('testing', testing);
-        // 🎯 Log territory claims if any
+
+        // Log territory claims if any
         if (claimed_territories.length > 0 && winner_id && winner) {
           for (const territory of claimed_territories) {
             // Get territory data directly from campaign_territories table
@@ -373,8 +383,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
  */
 export async function deleteBattleLog(campaignId: string, battleId: string): Promise<void> {
   'use server';
-  
-  console.log(`Server: Deleting battle log ${battleId} for campaign ${campaignId}`);
+
   try {
     const supabase = await createClient();
 
@@ -392,7 +401,6 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
     }
 
     // Delete the battle
-    console.log(`Server: Found battle ${battleId}, deleting...`);
     const { error: deleteError } = await supabase
       .from('campaign_battles')
       .delete()
@@ -402,12 +410,10 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
       console.error('Delete error:', deleteError);
       throw deleteError;
     }
-    
-    // 🎯 Invalidate battles cache
+
+    // Invalidate battles cache
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
-
-    console.log(`Server: Successfully deleted battle ${battleId}`);
   } catch (error) {
     console.error('Error deleting battle log:', error);
     throw error;
