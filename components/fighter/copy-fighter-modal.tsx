@@ -128,11 +128,13 @@ export default function CopyFighterModal({
       onConfirm={handleConfirm}
       confirmText={submitting ? 'Copying...' : 'Copy'}
       confirmDisabled={!name.trim() || submitting}
-      width="sm"
+      width="md"
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">New fighter name</label>
+          <label className="block text-sm font-medium text-muted-foreground">
+            New fighter name
+          </label>
           <Input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -170,7 +172,7 @@ export default function CopyFighterModal({
           <div className="border-t pt-3 mt-3">
             <div className="text-xs font-semibold text-muted-foreground mb-2">Credits & Rating</div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 mb-4">
               <Checkbox
                 id="addToRating"
                 checked={addToRating}
