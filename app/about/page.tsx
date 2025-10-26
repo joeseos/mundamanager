@@ -23,7 +23,7 @@ export default async function AboutPage() {
       
       return patreonSupporters;
     },
-    ['patreon-supporters'],
+    ['global-patreon-supporters'],
     {
       tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()],
       revalidate: 3600 // Cache for 1 hour
