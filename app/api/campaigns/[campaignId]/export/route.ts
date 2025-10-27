@@ -6,15 +6,56 @@ import {
   getCampaignBattles
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
+// Helper function to convert object to XML
+function objectToXml(obj: any, rootName: string = 'root'): string {
+  function buildXml(data: any, nodeName: string): string {
+    if (data === null || data === undefined) {
+      return `<${nodeName} />`;
+    }
+    
+    if (typeof data !== 'object') {
+      // Escape special XML characters
+      const escaped = String(data)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+      return `<${nodeName}>${escaped}</${nodeName}>`;
+    }
+    
+    if (Array.isArray(data)) {
+      return data.map(item => buildXml(item, nodeName.replace(/s$/, ''))).join('');
+    }
+    
+    const children = Object.entries(data)
+      .map(([key, value]) => buildXml(value, key))
+      .join('');
+    
+    return `<${nodeName}>${children}</${nodeName}>`;
+  }
+  
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
+}
+
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
   const { campaignId } = params;
+  
+  // Get format from query parameter (e.g., ?format=xml)
+  const url = new URL(request.url);
+  const format = url.searchParams.get('format') || 'json';
 
   if (!campaignId) {
-    return NextResponse.json(
-      { error: "Campaign ID is required" },
-      { status: 400 }
-    );
+    return format === 'xml'
+      ? new NextResponse(objectToXml({ error: "Campaign ID is required" }, 'error'), {
+          status: 400,
+          headers: { 'Content-Type': 'application/xml' }
+        })
+      : NextResponse.json(
+          { error: "Campaign ID is required" },
+          { status: 400 }
+        );
   }
 
   try {
@@ -34,10 +75,15 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
     // Return 404 if campaign not found
     if (!campaignBasic) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      );
+      return format === 'xml'
+        ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
+            status: 404,
+            headers: { 'Content-Type': 'application/xml' }
+          })
+        : NextResponse.json(
+            { error: 'Campaign not found' },
+            { status: 404 }
+          );
     }
 
     // Transform members data to include territories under their gangs
@@ -91,12 +137,29 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       battle_logs: campaignBattles
     };
 
+    // Return based on requested format
+    if (format === 'xml') {
+      const xmlContent = objectToXml(exportData, 'campaign_export');
+      return new NextResponse(xmlContent, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml',
+          'Content-Disposition': `inline; filename="campaign_${campaignId}.xml"`
+        }
+      });
+    }
+
     return NextResponse.json(exportData);
   } catch (error) {
     console.error('Error exporting campaign:', error);
-    return NextResponse.json(
-      { error: "Failed to export campaign data" },
-      { status: 500 }
-    );
+    return format === 'xml'
+      ? new NextResponse(objectToXml({ error: "Failed to export campaign data" }, 'error'), {
+          status: 500,
+          headers: { 'Content-Type': 'application/xml' }
+        })
+      : NextResponse.json(
+          { error: "Failed to export campaign data" },
+          { status: 500 }
+        );
   }
 }

@@ -4,6 +4,7 @@ import React, { useState, useRef, useTransition } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
 import Image from 'next/image';
@@ -11,7 +12,7 @@ import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-ima
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import { FiMap, FiCamera, FiShare2 } from "react-icons/fi";
+import { FiMap, FiCamera, FiShare2, FiDownload } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
 import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
@@ -165,6 +166,7 @@ export default function CampaignPageContent({
   const [isPending, startTransition] = useTransition();
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Helper for checking authentication
   const isAuthenticated = !!userId;
@@ -293,6 +295,18 @@ export default function CampaignPageContent({
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
+  };
+
+  // Handle campaign export
+  const handleExportCampaign = (format: 'json' | 'xml') => {
+    // Open the API endpoint directly in a new tab
+    window.open(`/api/campaigns/${campaignData.id}/export?format=${format}`, '_blank');
+    
+    toast({
+      description: `Campaign data opened in new tab (${format.toUpperCase()})`
+    });
+    
+    setShowExportModal(false);
   };
 
   // Screenshot with html2canvas
@@ -447,29 +461,42 @@ export default function CampaignPageContent({
                  </div>
                </div>
 
-               <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
-                 {/* Screenshot button */}
-                 <Button
-                   onClick={handleScreenshot}
-                   variant="ghost"
-                   size="icon"
-                   className="print:hidden"
-                   title="Take Screenshot"
-                 >
-                   <FiCamera className="w-5 h-5" />
-                 </Button>
+              <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
+                {/* Export button */}
+                {safePermissions.canEditCampaign && (
+                  <Button
+                    onClick={() => setShowExportModal(true)}
+                    variant="ghost"
+                    size="icon"
+                    className="print:hidden"
+                    title="Export Campaign"
+                  >
+                    <FiDownload className="w-5 h-5" />
+                  </Button>
+                )}
 
-                 {/* Share button */}
-                 <Button
-                   onClick={() => shareUrl(campaignData.campaign_name)}
-                   variant="ghost"
-                   size="icon"
-                   className="print:hidden"
-                   title="Share Campaign"
-                 >
-                   <FiShare2 className="w-5 h-5" />
-                 </Button>
-               </div>
+                {/* Screenshot button */}
+                <Button
+                  onClick={handleScreenshot}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Take Screenshot"
+                >
+                  <FiCamera className="w-5 h-5" />
+                </Button>
+
+                {/* Share button */}
+                <Button
+                  onClick={() => shareUrl(campaignData.campaign_name)}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Share Campaign"
+                >
+                  <FiShare2 className="w-5 h-5" />
+                </Button>
+              </div>
 
               <div className="text-muted-foreground text-sm mb-4">
                 <div className="flex flex-wrap gap-2 mb-1">
@@ -773,6 +800,34 @@ export default function CampaignPageContent({
           onTerritoryAdd={refreshData}
           isAdmin={!!safePermissions.canManageTerritories}
         />
+
+        {/* Campaign Export Modal */}
+        {showExportModal && (
+          <Modal
+            title="Export Campaign Data"
+            content={
+              <div className="space-y-4">
+                <p>Choose the format for exporting your campaign data:</p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={() => handleExportCampaign('json')}
+                    className="w-full"
+                  >
+                    Export as JSON
+                  </Button>
+                  <Button
+                    onClick={() => handleExportCampaign('xml')}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Export as XML
+                  </Button>
+                </div>
+              </div>
+            }
+            onClose={() => setShowExportModal(false)}
+          />
+        )}
 
       </div>
     </main>
