@@ -371,145 +371,147 @@ export function AdminFighterEffects({
   };
 
   return (
-    <div className="space-y-4 mt-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Effects</h3>
-        <Button
-          onClick={() => setShowAddEffectDialog(true)}
-          variant="outline"
-          size="sm"
-          disabled={isLoading}
-        >
-          Add Effect
-        </Button>
-      </div>
-
-      {/* List of Fighter Effect Types */}
-      {isLoading ? (
-        <div className="text-sm text-muted-foreground italic">Loading...</div>
-      ) : fighterEffectTypes.length === 0 ? (
-        <div className="text-sm text-muted-foreground italic py-4">
-          <p>No fighter effects associated with this equipment.</p>
+    <>
+      <div className="space-y-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Effects</h3>
+          <Button
+            onClick={() => setShowAddEffectDialog(true)}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+          >
+            Add Effect
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {fighterEffectTypes.map((effect) => {
-            const selectionType = effect.type_specific_data?.effect_selection || 'fixed';
-            
-            return (
-              <div key={effect.id} className="border rounded-md p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <Badge variant={getSelectionTypeBadgeVariant(effect.type_specific_data?.effect_selection || 'fixed')}>
-                        {getSelectionTypeLabel(effect.type_specific_data?.effect_selection || 'fixed')}
-                        {effect.type_specific_data?.effect_selection === 'multiple_select' &&
-                         effect.type_specific_data?.max_selections &&
-                         ` (max ${effect.type_specific_data.max_selections})`}
-                      </Badge>
 
-                      {effect.type_specific_data?.selection_group && (
-                        <Badge variant="outline">
-                          Group {effect.type_specific_data.selection_group}
-                        </Badge>
-                      )}
+        {/* List of Fighter Effect Types */}
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground italic">Loading...</div>
+        ) : fighterEffectTypes.length === 0 ? (
+          <div className="text-sm text-muted-foreground italic py-4">
+            <p>No fighter effects associated with this equipment.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {fighterEffectTypes.map((effect) => {
+              const selectionType = effect.type_specific_data?.effect_selection || 'fixed';
 
-                      {effect.type_specific_data?.applies_to === 'equipment' && (
-                        <Badge variant="outline" className="border-blue-500 text-blue-600">
-                          Equipment Modifier
+              return (
+                <div key={effect.id} className="border rounded-md p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge variant={getSelectionTypeBadgeVariant(effect.type_specific_data?.effect_selection || 'fixed')}>
+                          {getSelectionTypeLabel(effect.type_specific_data?.effect_selection || 'fixed')}
+                          {effect.type_specific_data?.effect_selection === 'multiple_select' &&
+                           effect.type_specific_data?.max_selections &&
+                           ` (max ${effect.type_specific_data.max_selections})`}
                         </Badge>
-                      )}
 
-                      {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
-                        <Badge variant="default" className="bg-green-600">
-                          Adds: {effect.type_specific_data.traits_to_add.join(', ')}
-                        </Badge>
-                      )}
+                        {effect.type_specific_data?.selection_group && (
+                          <Badge variant="outline">
+                            Group {effect.type_specific_data.selection_group}
+                          </Badge>
+                        )}
 
-                      {effect.type_specific_data?.traits_to_remove && effect.type_specific_data.traits_to_remove.length > 0 && (
-                        <Badge variant="destructive">
-                          Removes: {effect.type_specific_data.traits_to_remove.join(', ')}
-                        </Badge>
-                      )}
+                        {effect.type_specific_data?.applies_to === 'equipment' && (
+                          <Badge variant="outline" className="border-blue-500 text-blue-600">
+                            Equipment Modifier
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
+                          <Badge variant="default" className="bg-green-600">
+                            Adds: {effect.type_specific_data.traits_to_add.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.traits_to_remove && effect.type_specific_data.traits_to_remove.length > 0 && (
+                          <Badge variant="destructive">
+                            Removes: {effect.type_specific_data.traits_to_remove.join(', ')}
+                          </Badge>
+                        )}
+                      </div>
+                      <h4 className="font-medium">{effect.effect_name}</h4>
+                       <p className="text-sm text-muted-foreground">
+                        {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
+                      </p>
                     </div>
-                    <h4 className="font-medium">{effect.effect_name}</h4>
-                     <p className="text-sm text-muted-foreground">
-                      {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
-                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          setSelectedEffectTypeId(effect.id);
+                          setShowAddModifierDialog(true);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoading}
+                      >
+                        Add Modifier
+                      </Button>
+                      <Button
+                        onClick={() => handleDeleteEffect(effect.id)}
+                        variant="destructive"
+                        size="sm"
+                        disabled={isLoading}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => {
-                        setSelectedEffectTypeId(effect.id);
-                        setShowAddModifierDialog(true);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      disabled={isLoading}
-                    >
-                      Add Modifier
-                    </Button>
-                    <Button
-                      onClick={() => handleDeleteEffect(effect.id)}
-                      variant="destructive"
-                      size="sm"
-                      disabled={isLoading}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
 
-                {/* List of Modifiers */}
-                {effect.modifiers.length > 0 ? (
-                  <div className="mt-2">
-                    <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {effect.modifiers.map((modifier) => {
-                        const operation = modifier.operation || 'add';
-                        return (
-                          <div key={modifier.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                            <div>
-                              <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
-                              <span>
-                                {modifier.default_numeric_value !== null
-                                  ? (operation === 'add'
-                                      ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value
-                                      : `Set to ${modifier.default_numeric_value}`)
-                                  : 'N/A'}
-                               </span>
-                               {modifier.default_numeric_value !== null && (
-                                 <span className="text-sm text-muted-foreground ml-2">
-                                   {operation === 'add' ? (
-                                     `(eg. ${getShortName(modifier.stat_name)} 4${getValueSuffix(modifier.stat_name)} → ${getShortName(modifier.stat_name)} ${4 + modifier.default_numeric_value}${getValueSuffix(modifier.stat_name)})`
-                                   ) : (
-                                     `(eg. ${getShortName(modifier.stat_name)} 4${getValueSuffix(modifier.stat_name)} → ${getShortName(modifier.stat_name)} ${modifier.default_numeric_value}${getValueSuffix(modifier.stat_name)})`
-                                   )}
+                  {/* List of Modifiers */}
+                  {effect.modifiers.length > 0 ? (
+                    <div className="mt-2">
+                      <h5 className="text-sm font-medium mb-1">Modifiers:</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {effect.modifiers.map((modifier) => {
+                          const operation = modifier.operation || 'add';
+                          return (
+                            <div key={modifier.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                              <div>
+                                <span className="font-medium">{getDisplayName(modifier.stat_name)}: </span>
+                                <span>
+                                  {modifier.default_numeric_value !== null
+                                    ? (operation === 'add'
+                                        ? (modifier.default_numeric_value > 0 ? '+' : '') + modifier.default_numeric_value
+                                        : `Set to ${modifier.default_numeric_value}`)
+                                    : 'N/A'}
                                  </span>
-                               )}
+                                 {modifier.default_numeric_value !== null && (
+                                   <span className="text-sm text-muted-foreground ml-2">
+                                     {operation === 'add' ? (
+                                       `(eg. ${getShortName(modifier.stat_name)} 4${getValueSuffix(modifier.stat_name)} → ${getShortName(modifier.stat_name)} ${4 + modifier.default_numeric_value}${getValueSuffix(modifier.stat_name)})`
+                                     ) : (
+                                       `(eg. ${getShortName(modifier.stat_name)} 4${getValueSuffix(modifier.stat_name)} → ${getShortName(modifier.stat_name)} ${modifier.default_numeric_value}${getValueSuffix(modifier.stat_name)})`
+                                     )}
+                                   </span>
+                                 )}
+                              </div>
+                              <Button
+                                onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                disabled={isLoading}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <Button
-                              onClick={() => handleDeleteModifier(effect.id, modifier.id!)}
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              disabled={isLoading}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">No modifiers for this effect.</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No modifiers for this effect.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Add Effect Dialog */}
       {showAddEffectDialog && (
@@ -751,6 +753,6 @@ export function AdminFighterEffects({
           </div>
         </div>
       </Tooltip>
-    </div>
+    </>
   );
 } 
