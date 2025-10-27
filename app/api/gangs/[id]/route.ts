@@ -42,11 +42,11 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
           campaign_id,
           role,
           status,
-          has_meat,
-          has_exploration_points,
-          has_scavenging_rolls,
           campaign:campaign_id (
-            campaign_name
+            campaign_name,
+            has_meat,
+            has_exploration_points,
+            has_scavenging_rolls
           )
         `)
         .eq('gang_id', gangData.id);
@@ -57,9 +57,9 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
           campaign_name: (cg.campaign as any)?.campaign_name,
           role: cg.role,
           status: cg.status,
-          has_meat: cg.has_meat,
-          has_exploration_points: cg.has_exploration_points,
-          has_scavenging_rolls: cg.has_scavenging_rolls
+          has_meat: (cg.campaign as any)?.has_meat,
+          has_exploration_points: (cg.campaign as any)?.has_exploration_points,
+          has_scavenging_rolls: (cg.campaign as any)?.has_scavenging_rolls
         }));
       }
     }
