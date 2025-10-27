@@ -1,10 +1,54 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
 import {
   getCampaignBasic,
   getCampaignMembers,
   getCampaignTerritories,
   getCampaignBattles
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
+
+// Rate limiting storage
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+const exportRateLimitMap = new Map<string, RateLimitEntry>();
+
+/**
+ * Check rate limiting for export endpoint (10 requests per minute)
+ * @param userId - User ID for rate limiting
+ * @returns boolean indicating if request is allowed
+ */
+function checkExportRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 10;
+
+  const userLimit = exportRateLimitMap.get(userId);
+
+  if (!userLimit || now > userLimit.resetTime) {
+    // Reset or create new limit window
+    exportRateLimitMap.set(userId, { count: 1, resetTime: now + windowMs });
+    
+    // Cleanup old entries to prevent memory leak
+    const entries = Array.from(exportRateLimitMap.entries());
+    for (const [key, value] of entries) {
+      if (now > value.resetTime + windowMs) {
+        exportRateLimitMap.delete(key);
+      }
+    }
+    
+    return true;
+  }
+
+  if (userLimit.count >= maxRequests) {
+    return false;
+  }
+
+  userLimit.count++;
+  return true;
+}
 
 // Helper function to convert object to XML
 function objectToXml(obj: any, rootName: string = 'root'): string {
@@ -59,6 +103,39 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
+    // Get authenticated user for rate limiting
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return format === 'xml'
+        ? new NextResponse(objectToXml({ error: 'Unauthorized' }, 'error'), {
+            status: 401,
+            headers: { 'Content-Type': 'application/xml' }
+          })
+        : NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check rate limiting
+    if (!checkExportRateLimit(user.id)) {
+      const errorMessage = 'Rate limit exceeded. Maximum 10 exports per minute.';
+      return format === 'xml'
+        ? new NextResponse(objectToXml({ error: errorMessage }, 'error'), {
+            status: 429,
+            headers: { 
+              'Content-Type': 'application/xml',
+              'Retry-After': '60'
+            }
+          })
+        : NextResponse.json(
+            { error: errorMessage },
+            { 
+              status: 429,
+              headers: { 'Retry-After': '60' }
+            }
+          );
+    }
+
     // Fetch all campaign data using existing cached functions
     // Access control is handled by Supabase RLS policies
     const [
