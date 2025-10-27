@@ -38,10 +38,29 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     if (gangData.id) {
       const { data: campaignData, error: campaignError } = await supabase
         .from('campaign_gangs')
-        .select('campaign_id, campaign_name, role, status, has_meat, has_exploration_points, has_scavenging_rolls')
+        .select(`
+          campaign_id,
+          role,
+          status,
+          has_meat,
+          has_exploration_points,
+          has_scavenging_rolls,
+          campaign:campaign_id (
+            campaign_name
+          )
+        `)
         .eq('gang_id', gangData.id);
       if (!campaignError && campaignData) {
-        campaigns = campaignData;
+        // Flatten the nested campaign data
+        campaigns = campaignData.map(cg => ({
+          campaign_id: cg.campaign_id,
+          campaign_name: (cg.campaign as any)?.campaign_name,
+          role: cg.role,
+          status: cg.status,
+          has_meat: cg.has_meat,
+          has_exploration_points: cg.has_exploration_points,
+          has_scavenging_rolls: cg.has_scavenging_rolls
+        }));
       }
     }
 
