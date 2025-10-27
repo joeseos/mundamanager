@@ -84,6 +84,42 @@ export default function CampaignEditModal({
     return result;
   };
 
+  // Handle campaign export
+  const handleExportCampaign = async () => {
+    try {
+      const response = await fetch(`/api/campaigns/${campaignData.id}/export`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Export error:', errorData);
+        throw new Error(errorData.error || 'Failed to export campaign data');
+      }
+
+      const data = await response.json();
+
+      // Create a blob and download the file
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${campaignData.campaign_name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        description: "Campaign exported successfully"
+      });
+    } catch (error) {
+      console.error('Error exporting campaign:', error);
+      toast({
+        variant: "destructive",
+        description: "Failed to export campaign"
+      });
+    }
+  };
+
   // Handle campaign deletion
   const handleDeleteCampaign = async () => {
     setIsDeleting(true);
@@ -226,13 +262,22 @@ export default function CampaignEditModal({
             </div>
 
             {isOwner && (
-              <Button
-                variant="destructive"
-                onClick={() => setShowDeleteModal(true)}
-                className="w-full mt-2"
-              >
-                Delete Campaign
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  onClick={handleExportCampaign}
+                  className="w-full mt-2"
+                >
+                  Export to JSON
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="w-full"
+                >
+                  Delete Campaign
+                </Button>
+              </div>
             )}
           </div>
         }
