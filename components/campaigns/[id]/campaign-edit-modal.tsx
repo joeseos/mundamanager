@@ -84,16 +84,6 @@ export default function CampaignEditModal({
     return result;
   };
 
-  // Handle campaign export
-  const handleExportCampaign = () => {
-    // Open the API endpoint directly in a new tab
-    window.open(`/api/campaigns/${campaignData.id}/export`, '_blank');
-    
-    toast({
-      description: "Campaign data opened in new tab"
-    });
-  };
-
   // Handle campaign deletion
   const handleDeleteCampaign = async () => {
     setIsDeleting(true);
@@ -236,22 +226,13 @@ export default function CampaignEditModal({
             </div>
 
             {isOwner && (
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  onClick={handleExportCampaign}
-                  className="w-full mt-2"
-                >
-                  Export to JSON
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteModal(true)}
-                  className="w-full"
-                >
-                  Delete Campaign
-                </Button>
-              </div>
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteModal(true)}
+                className="w-full"
+              >
+                Delete Campaign
+              </Button>
             )}
           </div>
         }

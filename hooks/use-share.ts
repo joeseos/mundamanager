@@ -8,6 +8,10 @@ export function useShare() {
       try {
         await navigator.share({ title, url });
       } catch (error) {
+        // Ignore AbortError - user simply canceled the share dialog
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
         console.error("Sharing failed:", error);
       }
     } else if (navigator.clipboard?.writeText) {
