@@ -16,13 +16,342 @@ interface AdminEditVehicleTypeModalProps {
 const numericInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 const regularInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2";
 
+interface GangOriginEquipmentModalProps {
+  gangOrigins: Array<{ id: string; origin_name: string; category_name: string }>;
+  equipment: Array<{ id: string; equipment_name: string }>;
+  gangOriginEquipment: Array<{ id?: string; gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }>;
+  onAdd: (item: { gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }) => void;
+  onClose: () => void;
+}
+
+const GangOriginEquipmentModal: React.FC<GangOriginEquipmentModalProps> = ({
+  gangOrigins,
+  equipment,
+  gangOriginEquipment,
+  onAdd,
+  onClose,
+}) => {
+  const { toast } = useToast();
+  const [selectedOrigin, setSelectedOrigin] = useState("");
+  const [selectedEquipment, setSelectedEquipment] = useState("");
+
+  const groupedGangOrigins = useMemo(() => {
+    return Object.entries(
+      gangOrigins
+        .sort((a, b) => {
+          const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
+          const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
+          return rankA - rankB;
+        })
+        .reduce((groups, origin) => {
+          const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
+          let groupLabel = "Misc.";
+          if (rank <= 19) groupLabel = "Prefecture";
+          else if (rank <= 39) groupLabel = "Ancestry";
+          else if (rank <= 59) groupLabel = "Tribe";
+          if (!groups[groupLabel]) groups[groupLabel] = [];
+          groups[groupLabel].push(origin);
+          return groups;
+        }, {} as Record<string, typeof gangOrigins>)
+    );
+  }, [gangOrigins]);
+
+  const availableEquipment = useMemo(() => {
+    return equipment
+      .filter((item) =>
+        !gangOriginEquipment.some(
+          (existing) => existing.gang_origin_id === selectedOrigin && existing.equipment_id === item.id
+        )
+      )
+      .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+  }, [equipment, gangOriginEquipment, selectedOrigin]);
+
+  const handleSave = () => {
+    if (!selectedOrigin || !selectedEquipment) {
+      toast({
+        title: "Validation Error",
+        description: "Please select both a gang origin and equipment",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const origin = gangOrigins.find((o) => o.id === selectedOrigin);
+    const equipmentItem = equipment.find((e) => e.id === selectedEquipment);
+
+    if (!origin || !equipmentItem) {
+      toast({
+        title: "Error",
+        description: "Selected origin or equipment not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if this combination already exists
+    const exists = gangOriginEquipment.some(
+      (item) => item.gang_origin_id === selectedOrigin && item.equipment_id === selectedEquipment
+    );
+
+    if (exists) {
+      toast({
+        title: "Duplicate Entry",
+        description: "This gang origin and equipment combination already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onAdd({
+      gang_origin_id: selectedOrigin,
+      origin_name: origin.origin_name,
+      equipment_id: selectedEquipment,
+      equipment_name: equipmentItem.equipment_name,
+    });
+
+    // Reset local state and close
+    setSelectedOrigin("");
+    setSelectedEquipment("");
+    onClose();
+
+    toast({
+      title: "Success",
+      description: "Gang origin equipment added successfully",
+    });
+  };
+
+  return (
+    <Modal
+      title="Gang Origin Equipment"
+      content={
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Select Gang Origin
+            </label>
+            <select
+              value={selectedOrigin}
+              onChange={(e) => {
+                setSelectedOrigin(e.target.value);
+                setSelectedEquipment(""); // Reset equipment when origin changes
+              }}
+              className="w-full p-2 border rounded-md"
+            >
+              <option value="">Select a gang origin</option>
+              {groupedGangOrigins.map(([groupLabel, origins]) => (
+                <optgroup key={groupLabel} label={groupLabel}>
+                  {origins.map((origin) => (
+                    <option key={origin.id} value={origin.id}>
+                      {origin.origin_name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Select Equipment
+            </label>
+            <select
+              value={selectedEquipment}
+              onChange={(e) => setSelectedEquipment(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              disabled={!selectedOrigin}
+            >
+              <option value="">Select equipment</option>
+              {availableEquipment.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.equipment_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      }
+      onClose={() => {
+        setSelectedOrigin("");
+        setSelectedEquipment("");
+        onClose();
+      }}
+      confirmText="Save"
+      onConfirm={handleSave}
+      confirmDisabled={!selectedOrigin || !selectedEquipment}
+      hideCancel={false}
+      width="lg"
+    />
+  );
+};
+
+interface GangTypeEquipmentModalProps {
+  gangTypes: { gang_type_id: number; gang_type: string }[];
+  equipment: Array<{ id: string; equipment_name: string }>;
+  gangTypeEquipment: Array<{
+    id?: string;
+    gang_type_id: string;
+    gang_type_name: string;
+    equipment_id: string;
+    equipment_name: string;
+  }>;
+  onAdd: (item: {
+    gang_type_id: string;
+    gang_type_name: string;
+    equipment_id: string;
+    equipment_name: string;
+  }) => void;
+  onClose: () => void;
+}
+
+const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
+  gangTypes,
+  equipment,
+  gangTypeEquipment,
+  onAdd,
+  onClose,
+}) => {
+  const { toast } = useToast();
+  const [selectedGangType, setSelectedGangType] = useState("");
+  const [selectedEquipment, setSelectedEquipment] = useState("");
+
+  const sortedGangTypes = useMemo(
+    () => [...gangTypes].sort((a, b) => a.gang_type.localeCompare(b.gang_type)),
+    [gangTypes]
+  );
+
+  const availableEquipment = useMemo(() => {
+    return equipment
+      .filter((item) =>
+        !gangTypeEquipment.some(
+          (existing) => existing.gang_type_id.toString() === selectedGangType && existing.equipment_id === item.id
+        )
+      )
+      .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+  }, [equipment, gangTypeEquipment, selectedGangType]);
+
+  const handleSave = () => {
+    if (!selectedGangType || !selectedEquipment) {
+      toast({
+        title: "Validation Error",
+        description: "Please select both a gang type and equipment",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const gangType = gangTypes.find((g) => g.gang_type_id.toString() === selectedGangType);
+    const equipmentItem = equipment.find((e) => e.id === selectedEquipment);
+
+    if (!gangType || !equipmentItem) {
+      toast({
+        title: "Error",
+        description: "Selected gang type or equipment not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if this combination already exists
+    const exists = gangTypeEquipment.some(
+      (item) => item.gang_type_id.toString() === selectedGangType && item.equipment_id === selectedEquipment
+    );
+
+    if (exists) {
+      toast({
+        title: "Duplicate Entry",
+        description: "This gang type and equipment combination already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onAdd({
+      gang_type_id: selectedGangType,
+      gang_type_name: gangType.gang_type,
+      equipment_id: selectedEquipment,
+      equipment_name: equipmentItem.equipment_name,
+    });
+
+    // Reset local state and close
+    setSelectedGangType("");
+    setSelectedEquipment("");
+    onClose();
+
+    toast({
+      title: "Success",
+      description: "Gang type equipment added successfully",
+    });
+  };
+
+  return (
+    <Modal
+      title="Gang Type Equipment"
+      content={
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Select Gang Type
+            </label>
+            <select
+              value={selectedGangType}
+              onChange={(e) => {
+                setSelectedGangType(e.target.value);
+                setSelectedEquipment(""); // Reset equipment when gang type changes
+              }}
+              className="w-full p-2 border rounded-md"
+            >
+              <option value="">Select a gang type</option>
+              {sortedGangTypes.map((gangType) => (
+                <option key={gangType.gang_type_id} value={gangType.gang_type_id.toString()}>
+                  {gangType.gang_type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Select Equipment
+            </label>
+            <select
+              value={selectedEquipment}
+              onChange={(e) => setSelectedEquipment(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              disabled={!selectedGangType}
+            >
+              <option value="">Select equipment</option>
+              {availableEquipment.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.equipment_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      }
+      onClose={() => {
+        setSelectedGangType("");
+        setSelectedEquipment("");
+        onClose();
+      }}
+      confirmText="Save"
+      onConfirm={handleSave}
+      confirmDisabled={!selectedGangType || !selectedEquipment}
+      hideCancel={false}
+      width="lg"
+    />
+  );
+};
+
 export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicleTypeModalProps) {
   const { toast } = useToast();
   const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
+  const [gangTypesFetched, setGangTypesFetched] = useState(false);
   const [vehicleTypes, setVehicleTypes] = useState<{ id: number; vehicle_type: string }[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
+  const [equipmentSelectValue, setEquipmentSelectValue] = useState("");
   const [gangOrigins, setGangOrigins] = useState<Array<{ id: string; origin_name: string; category_name: string }>>([]);
   const [gangOriginEquipment, setGangOriginEquipment] = useState<Array<{ id?: string; gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangOriginModal, setShowGangOriginModal] = useState(false);
@@ -59,8 +388,14 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
       if (!response.ok) throw new Error('Failed to fetch gang types');
       const data = await response.json();
       setGangTypes(data);
+      setGangTypesFetched(true);
     } catch (error) {
       console.error('Error fetching gang types:', error);
+      setGangTypesFetched(true);
+      toast({
+        description: 'Failed to load gang types',
+        variant: "destructive"
+      });
     }
   };
 
@@ -72,6 +407,10 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
       setVehicleTypes(data);
     } catch (error) {
       console.error('Error fetching vehicle types:', error);
+      toast({
+        description: 'Failed to load vehicle types',
+        variant: "destructive"
+      });
     }
   };
 
@@ -107,11 +446,14 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
 
   const fetchVehicleDetails = async (vehicleId: string) => {
     try {
-      // First fetch gang types
-      const gangResponse = await fetch('/api/admin/vehicles');
-      if (!gangResponse.ok) throw new Error('Failed to fetch gang types');
-      const gangData = await gangResponse.json();
-      setGangTypes(gangData);
+      // First fetch gang types if not already loaded
+      if (!gangTypesFetched) {
+        const gangResponse = await fetch('/api/admin/vehicles');
+        if (!gangResponse.ok) throw new Error('Failed to fetch gang types');
+        const gangData = await gangResponse.json();
+        setGangTypes(gangData);
+        setGangTypesFetched(true);
+      }
 
       // Then fetch vehicle details
       const vehicleResponse = await fetch(`/api/admin/vehicles?vehicle_id=${vehicleId}`);
@@ -183,6 +525,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     });
     setSelectedVehicle('');
     setEquipmentListSelections([]);
+    setEquipmentSelectValue("");
     setGangOriginEquipment([]);
     setGangTypeEquipment([]);
   };
@@ -193,6 +536,18 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     fetchEquipment();
     fetchGangOrigins();
   }, []);
+
+  const handleAddGangOriginEquipment = (item: { gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }) => {
+    setGangOriginEquipment((prev) => [...prev, item]);
+  };
+
+  const handleCloseGangOriginModal = () => setShowGangOriginModal(false);
+
+  const handleAddGangTypeEquipment = (item: { gang_type_id: string; gang_type_name: string; equipment_id: string; equipment_name: string }) => {
+    setGangTypeEquipment((prev) => [...prev, item]);
+  };
+
+  const handleCloseGangTypeModal = () => setShowGangTypeModal(false);
 
   const handleSubmit = async () => {
     try {
@@ -247,309 +602,6 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
   const handleClose = () => {
     resetVehicleForm();
     onClose();
-  };
-
-  // Gang Origin Equipment Modal Component
-  const GangOriginEquipmentModal = () => {
-    const [selectedOrigin, setSelectedOrigin] = useState('');
-    const [selectedEquipment, setSelectedEquipment] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-
-    const handleSave = async () => {
-      if (!selectedOrigin || !selectedEquipment) {
-        toast({
-          title: "Validation Error",
-          description: "Please select both a gang origin and equipment",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const origin = gangOrigins.find(o => o.id === selectedOrigin);
-      const equipmentItem = equipment.find(e => e.id === selectedEquipment);
-      
-      if (!origin || !equipmentItem) {
-        toast({
-          title: "Error",
-          description: "Selected origin or equipment not found",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check if this combination already exists
-      const exists = gangOriginEquipment.some(
-        item => item.gang_origin_id === selectedOrigin && item.equipment_id === selectedEquipment
-      );
-
-      if (exists) {
-        toast({
-          title: "Duplicate Entry",
-          description: "This gang origin and equipment combination already exists",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setIsSaving(true);
-      try {
-        setGangOriginEquipment(prev => [...prev, {
-          gang_origin_id: selectedOrigin,
-          origin_name: origin.origin_name,
-          equipment_id: selectedEquipment,
-          equipment_name: equipmentItem.equipment_name
-        }]);
-
-        // Close modal and reset selections
-        setShowGangOriginModal(false);
-        setSelectedOrigin('');
-        setSelectedEquipment('');
-        
-        toast({
-          title: "Success",
-          description: "Gang origin equipment added successfully",
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to add gang origin equipment",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSaving(false);
-      }
-    };
-
-    return (
-      <Modal
-        title="Gang Origin Equipment"
-        content={
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Select Gang Origin
-              </label>
-              <select
-                value={selectedOrigin}
-                onChange={(e) => {
-                  setSelectedOrigin(e.target.value);
-                  setSelectedEquipment(''); // Reset equipment when origin changes
-                }}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Select a gang origin</option>
-                {Object.entries(
-                  gangOrigins
-                    .sort((a, b) => {
-                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
-                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
-                      return rankA - rankB;
-                    })
-                    .reduce((groups, origin) => {
-                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted origins
-
-                      if (rank <= 19) groupLabel = "Prefecture";
-                      else if (rank <= 39) groupLabel = "Ancestry";
-                      else if (rank <= 59) groupLabel = "Tribe";
-
-                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                      groups[groupLabel].push(origin);
-                      return groups;
-                    }, {} as Record<string, typeof gangOrigins>)
-                ).map(([groupLabel, origins]) => (
-                  <optgroup key={groupLabel} label={groupLabel}>
-                    {origins.map((origin) => (
-                      <option key={origin.id} value={origin.id}>
-                        {origin.origin_name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Select Equipment
-              </label>
-              <select
-                value={selectedEquipment}
-                onChange={(e) => setSelectedEquipment(e.target.value)}
-                className="w-full p-2 border rounded-md"
-                disabled={!selectedOrigin}
-              >
-                <option value="">Select equipment</option>
-                {equipment
-                  .filter(item => !gangOriginEquipment.some(
-                    existing => existing.gang_origin_id === selectedOrigin && existing.equipment_id === item.id
-                  ))
-                  .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.equipment_name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-          </div>
-        }
-        onClose={() => {
-          setShowGangOriginModal(false);
-          setSelectedOrigin('');
-          setSelectedEquipment('');
-        }}
-        confirmText={isSaving ? "Saving..." : "Save"}
-        onConfirm={handleSave}
-        confirmDisabled={!selectedOrigin || !selectedEquipment || isSaving}
-        hideCancel={false}
-        width="lg"
-      />
-    );
-  };
-
-  // Gang Type Equipment Modal Component
-  const GangTypeEquipmentModal = () => {
-    const [selectedGangType, setSelectedGangType] = useState('');
-    const [selectedEquipment, setSelectedEquipment] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-
-    // Memoize sorted gang types to prevent re-sorting on every render
-    const sortedGangTypes = useMemo(() =>
-      [...gangTypes].sort((a, b) => a.gang_type.localeCompare(b.gang_type)),
-      [gangTypes]
-    );
-
-    const handleSave = async () => {
-      if (!selectedGangType || !selectedEquipment) {
-        toast({
-          title: "Validation Error",
-          description: "Please select both a gang type and equipment",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const gangType = gangTypes.find(g => g.gang_type_id.toString() === selectedGangType);
-      const equipmentItem = equipment.find(e => e.id === selectedEquipment);
-
-      if (!gangType || !equipmentItem) {
-        toast({
-          title: "Error",
-          description: "Selected gang type or equipment not found",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check if this combination already exists
-      const exists = gangTypeEquipment.some(
-        item => item.gang_type_id === selectedGangType && item.equipment_id === selectedEquipment
-      );
-
-      if (exists) {
-        toast({
-          title: "Duplicate Entry",
-          description: "This gang type and equipment combination already exists",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setIsSaving(true);
-      try {
-        setGangTypeEquipment(prev => [...prev, {
-          gang_type_id: selectedGangType,
-          gang_type_name: gangType.gang_type,
-          equipment_id: selectedEquipment,
-          equipment_name: equipmentItem.equipment_name
-        }]);
-
-        // Close modal and reset selections
-        setShowGangTypeModal(false);
-        setSelectedGangType('');
-        setSelectedEquipment('');
-
-        toast({
-          title: "Success",
-          description: "Gang type equipment added successfully",
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to add gang type equipment",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSaving(false);
-      }
-    };
-
-    return (
-      <Modal
-        title="Gang Type Equipment"
-        content={
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Select Gang Type
-              </label>
-              <select
-                value={selectedGangType}
-                onChange={(e) => {
-                  setSelectedGangType(e.target.value);
-                  setSelectedEquipment(''); // Reset equipment when gang type changes
-                }}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Select a gang type</option>
-                {sortedGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id.toString()}>
-                    {gangType.gang_type}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Select Equipment
-              </label>
-              <select
-                value={selectedEquipment}
-                onChange={(e) => setSelectedEquipment(e.target.value)}
-                className="w-full p-2 border rounded-md"
-                disabled={!selectedGangType}
-              >
-                <option value="">Select equipment</option>
-                {equipment
-                  .filter(item => !gangTypeEquipment.some(
-                    existing => existing.gang_type_id === selectedGangType && existing.equipment_id === item.id
-                  ))
-                  .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.equipment_name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-          </div>
-        }
-        onClose={() => {
-          setShowGangTypeModal(false);
-          setSelectedGangType('');
-          setSelectedEquipment('');
-        }}
-        confirmText={isSaving ? "Saving..." : "Save"}
-        onConfirm={handleSave}
-        confirmDisabled={!selectedGangType || !selectedEquipment || isSaving}
-        hideCancel={false}
-        width="lg"
-      />
-    );
   };
 
   return (
@@ -810,13 +862,13 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                   Equipment List
                 </label>
                 <select
-                  value=""
+                  value={equipmentSelectValue}
                   onChange={(e) => {
                     const value = e.target.value;
                     if (value && !equipmentListSelections.includes(value)) {
                       setEquipmentListSelections(prev => [...prev, value]);
                     }
-                    e.target.value = "";
+                    setEquipmentSelectValue("");
                   }}
                   className="w-full p-2 border rounded-md"
                   disabled={!selectedVehicle}
@@ -978,8 +1030,24 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         confirmText="Update Vehicle Type"
       />
 
-      {showGangOriginModal && <GangOriginEquipmentModal />}
-      {showGangTypeModal && <GangTypeEquipmentModal />}
+      {showGangOriginModal && (
+        <GangOriginEquipmentModal
+          gangOrigins={gangOrigins}
+          equipment={equipment}
+          gangOriginEquipment={gangOriginEquipment}
+          onAdd={handleAddGangOriginEquipment}
+          onClose={handleCloseGangOriginModal}
+        />
+      )}
+      {showGangTypeModal && (
+        <GangTypeEquipmentModal
+          gangTypes={gangTypes}
+          equipment={equipment}
+          gangTypeEquipment={gangTypeEquipment}
+          onAdd={handleAddGangTypeEquipment}
+          onClose={handleCloseGangTypeModal}
+        />
+      )}
     </>
   );
 }
