@@ -1277,7 +1277,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value && !selectedEquipment.includes(value)) {
+                    if (value) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1287,7 +1287,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory)
                     .map((eq) => (
                       <option key={eq.id} value={eq.id}>
                         {eq.equipment_name}
@@ -1296,19 +1296,19 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipmentId) => {
+                  {selectedEquipment.map((equipmentId, index) => {
                     const eq = equipment.find(e => e.id === equipmentId);
                     if (!eq) return null;
 
                     return (
                       <div
-                        key={eq.id}
+                        key={index}
                         className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
                       >
                         <span>{eq.equipment_name}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== eq.id))}
+                          onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
                           className="hover:text-red-500 focus:outline-none"
                         >
                           <X className="h-4 w-4" />
@@ -1678,7 +1678,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value && !selectedEquipment.includes(value)) {
+                    if (value) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1688,7 +1688,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory)
                     .map((eq) => (
                       <option key={eq.id} value={eq.id}>
                         {eq.equipment_name}
@@ -1697,19 +1697,19 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedEquipment.map((equipmentId) => {
+                  {selectedEquipment.map((equipmentId, index) => {
                     const eq = equipment.find(e => e.id === equipmentId);
                     if (!eq) return null;
 
                     return (
                       <div
-                        key={eq.id}
+                        key={index}
                         className="flex items-center text-sm rounded-full px-3 py-1 bg-muted gap-2"
                       >
                         <span>{eq.equipment_name}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== eq.id))}
+                          onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
                           className="text-gray-500 hover:text-red-500 focus:outline-none"
                         >
                           <X size={14} />
