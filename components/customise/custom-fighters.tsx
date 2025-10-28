@@ -1209,7 +1209,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value && !selectedSkills.includes(value)) {
+                    if (value) {
                       setSelectedSkills([...selectedSkills, value]);
                     }
                     e.target.value = "";
@@ -1219,7 +1219,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select a skill to add</option>
                   {skills
-                    .filter(skill => !selectedSkills.includes(skill.id))
+                    .filter(skill => skill.skill_type_id === selectedSkillType)
                     .map((skill) => (
                       <option key={skill.id} value={skill.id}>
                         {skill.skill_name}
@@ -1228,20 +1228,20 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedSkills.map((skillId) => {
+                  {selectedSkills.map((skillId, index) => {
                     const skill = skills.find(s => s.id === skillId);
                     if (!skill) return null;
 
                     return (
                       <div
-                        key={skill.id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        key={index}
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       >
                         <span>{skill.skill_name}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
-                          className="hover:text-red-500 focus:outline-none"
+                          onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -1303,13 +1303,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                     return (
                       <div
                         key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100"
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       >
                         <span>{eq.equipment_name}</span>
                         <button
                           type="button"
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="hover:text-red-500 focus:outline-none"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -1610,7 +1610,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value && !selectedSkills.includes(value)) {
+                    if (value) {
                       setSelectedSkills([...selectedSkills, value]);
                     }
                     e.target.value = "";
@@ -1620,7 +1620,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select a skill to add</option>
                   {skills
-                    .filter(skill => !selectedSkills.includes(skill.id))
+                    .filter(skill => skill.skill_type_id === selectedSkillType)
                     .map((skill) => (
                       <option key={skill.id} value={skill.id}>
                         {skill.skill_name}
@@ -1629,20 +1629,20 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedSkills.map((skillId) => {
+                  {selectedSkills.map((skillId, index) => {
                     const skill = skills.find(s => s.id === skillId);
                     if (!skill) return null;
 
                     return (
                       <div
-                        key={skill.id}
-                        className="flex items-center text-sm rounded-full px-3 py-1 bg-muted gap-2"
+                        key={index}
+                        className="flex items-center text-sm rounded-full px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 gap-2"
                       >
                         <span>{skill.skill_name}</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
-                          className="text-gray-500 hover:text-red-500 focus:outline-none"
+                          onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
                           <X size={14} />
                         </button>
@@ -1704,13 +1704,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                     return (
                       <div
                         key={index}
-                        className="flex items-center text-sm rounded-full px-3 py-1 bg-muted gap-2"
+                        className="flex items-center text-sm rounded-full px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 gap-2"
                       >
                         <span>{eq.equipment_name}</span>
                         <button
                           type="button"
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="text-gray-500 hover:text-red-500 focus:outline-none"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
                           <X size={14} />
                         </button>
