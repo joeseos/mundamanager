@@ -283,7 +283,8 @@ export async function GET(request: Request) {
             fighter_effect_type_modifiers (
               id,
               stat_name,
-              default_numeric_value
+              default_numeric_value,
+              operation
             )
           `)
           .eq('type_specific_data->>equipment_id', id);
