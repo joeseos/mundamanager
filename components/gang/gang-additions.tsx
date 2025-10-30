@@ -1032,7 +1032,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           'rig-glitches': [] as FighterEffect[],
           augmentations: [] as FighterEffect[],
           equipment: [] as FighterEffect[],
-          user: [] as FighterEffect[]
+          user: [] as FighterEffect[],
+          skills: [] as FighterEffect[]
         },
         base_stats: {
           movement: data.stats.movement,
@@ -1138,7 +1139,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
               'rig-glitches': [] as FighterEffect[],
               augmentations: [] as FighterEffect[],
               equipment: [] as FighterEffect[],
-              user: [] as FighterEffect[]
+              user: [] as FighterEffect[],
+              skills: [] as FighterEffect[]
             },
             base_stats: {
               movement: beast.movement,

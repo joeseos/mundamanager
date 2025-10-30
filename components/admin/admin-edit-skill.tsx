@@ -6,6 +6,135 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
+import { AdminFighterEffects } from './admin-fighter-effects';
+
+enum OperationType {
+  POST = 'POST',
+  UPDATE = 'UPDATE',
+  DELETE = 'DELETE'
+}
+
+interface Skill {
+  id: string;
+  name: string;
+  gang_origin_id: string | null;
+  effects?: any[];
+}
+
+// Helper function to save skill effects and modifiers
+const saveSkillEffects = async (skillId: string, effects: any[], skillNameList: Skill[]) => {
+  try {
+    // Get existing effects from the original skill data
+    const originalSkill = skillNameList.find(s => s.id === skillId);
+    const originalEffects = originalSkill?.effects || [];
+
+    // Determine which effects to delete (exist in original but not in current)
+    const currentEffectIds = effects.map(e => e.id).filter(id => !id.startsWith('temp-'));
+    const effectsToDelete = originalEffects.filter(
+      (origEffect: any) => !currentEffectIds.includes(origEffect.id)
+    );
+
+    // Delete removed effects
+    for (const effect of effectsToDelete) {
+      await fetch(`/api/admin/skills?effect=true&id=${effect.id}`, {
+        method: 'DELETE'
+      });
+    }
+
+    // Process each effect
+    for (const effect of effects) {
+      const isNewEffect = effect.id.startsWith('temp-');
+
+      if (isNewEffect) {
+        // Create new effect
+        const response = await fetch('/api/admin/skills?effect=true', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            effect_name: effect.effect_name,
+            fighter_effect_category_id: effect.fighter_effect_category_id,
+            type_specific_data: effect.type_specific_data
+          })
+        });
+
+        if (!response.ok) throw new Error('Failed to create effect');
+        const createdEffect = await response.json();
+
+        // Create modifiers for this effect
+        for (const modifier of effect.modifiers || []) {
+          await fetch('/api/admin/skills?modifier=true', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fighter_effect_type_id: createdEffect.id,
+              stat_name: modifier.stat_name,
+              default_numeric_value: modifier.default_numeric_value,
+              operation: modifier.operation
+            })
+          });
+        }
+      } else {
+        // Update existing effect
+        await fetch(`/api/admin/skills?effect=true&id=${effect.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            effect_name: effect.effect_name,
+            fighter_effect_category_id: effect.fighter_effect_category_id,
+            type_specific_data: effect.type_specific_data
+          })
+        });
+
+        // Get original modifiers
+        const originalEffect = originalEffects.find((e: any) => e.id === effect.id);
+        const originalModifiers = originalEffect?.modifiers || [];
+
+        // Delete removed modifiers
+        const currentModifierIds = effect.modifiers.map((m: any) => m.id).filter((id: string) => !id.startsWith('temp-'));
+        const modifiersToDelete = originalModifiers.filter(
+          (origMod: any) => !currentModifierIds.includes(origMod.id)
+        );
+
+        for (const modifier of modifiersToDelete) {
+          await fetch(`/api/admin/skills?modifier=true&id=${modifier.id}`, {
+            method: 'DELETE'
+          });
+        }
+
+        // Create/update modifiers
+        for (const modifier of effect.modifiers || []) {
+          if (modifier.id.startsWith('temp-')) {
+            // Create new modifier
+            await fetch('/api/admin/skills?modifier=true', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fighter_effect_type_id: effect.id,
+                stat_name: modifier.stat_name,
+                default_numeric_value: modifier.default_numeric_value,
+                operation: modifier.operation
+              })
+            });
+          } else {
+            // Update existing modifier
+            await fetch(`/api/admin/skills?modifier=true&id=${modifier.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                stat_name: modifier.stat_name,
+                default_numeric_value: modifier.default_numeric_value,
+                operation: modifier.operation
+              })
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error saving skill effects:', error);
+    throw error; // Re-throw to let caller handle it
+  }
+};
 
 interface AdminEditSkillModalProps {
   onClose: () => void;
@@ -15,13 +144,16 @@ interface AdminEditSkillModalProps {
 export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
-  const [skillNameList, setSkillList] = useState<Array<{id: string, name: string, gang_origin_id: string | null}>>([]);
+  const [skillNameList, setSkillList] = useState<Skill[]>([]);
   const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
   const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
   const [gangOrigin, setGangOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [skillEffects, setSkillEffects] = useState<any[]>([]);
+  const [skillsCategoryId, setSkillsCategoryId] = useState('');
+  const [effectCategories, setEffectCategories] = useState<any[]>([]);
 
   const { toast } = useToast();
 
@@ -31,7 +163,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         const response = await fetch('/api/admin/skill-types');
         if (!response.ok) throw new Error('Failed to fetch skill sets');
         const data = await response.json();
-        console.log('Fetched skill sets:', data);
         setSkillTypes(data);
       } catch (error) {
         console.error('Error fetching skill sets:', error);
@@ -47,7 +178,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         const response = await fetch('/api/admin/gang-origins');
         if (!response.ok) throw new Error('Failed to fetch Gang Origins');
         const data = await response.json();
-        console.log('Fetched Gang Origins:', data);
         setGangOriginList(data);
       } catch (error) {
         console.error('Error fetching Gang Origins:', error);
@@ -61,6 +191,19 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     fetchSkillTypes();
     fetchGangOrigins();
   }, [toast]);
+
+
+  // Set skill effects when skill selected from dropdown
+  useEffect(() => {
+    if (skillId) {
+      const selectedSkill = skillNameList.find(s => s.id === skillId);
+      if (selectedSkill?.effects) {
+        setSkillEffects(selectedSkill.effects);
+      } else {
+        setSkillEffects([]);
+      }
+    }
+  }, [skillId, skillNameList]);
 
   const searchSkillType = async (skillTypeId: string) => {
     setIsLoading(true);
@@ -77,12 +220,33 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         throw new Error('Failed to fetch skills');
       }
       const data = await response.json();
-      console.log('Fetched skills list:', data);
-      setSkillList(data.map((skill: any) => ({
+
+      // Extract skills and categories from response
+      const skills = data.skills || data; // Support both new and old format
+      const categories = data.effect_categories || [];
+
+      // Set effect categories
+      if (categories.length > 0) {
+        setEffectCategories(categories);
+        const skillsCat = categories.find((c: any) => c.category_name === 'skills');
+        if (skillsCat) setSkillsCategoryId(skillsCat.id);
+      }
+
+      // Set skills list
+      setSkillList(skills.map((skill: any) => ({
         id: skill.id,
         name: skill.skill_name,
-        gang_origin_id: skill.gang_origin_id
+        gang_origin_id: skill.gang_origin_id,
+        effects: skill.effects || []
       })));
+
+      // If a skill is currently selected, set its effects immediately (FIX for race condition)
+      if (skillId) {
+        const selectedSkill = skills.find((s: any) => s.id === skillId);
+        if (selectedSkill?.effects) {
+          setSkillEffects(selectedSkill.effects);
+        }
+      }
     } catch (error) {
       console.error('Error fetching skills:', error);
     } finally {
@@ -162,12 +326,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   }
 };
 
-  enum OperationType {
-  POST = 'POST',
-  UPDATE = 'UPDATE',
-  DELETE = 'DELETE'
-}
-
 const handleSubmitSkill = async (operation: OperationType) => {
   // For POST and UPDATE operations, validate required fields.
   if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillName || !skillType)) {
@@ -220,6 +378,11 @@ const handleSubmitSkill = async (operation: OperationType) => {
 
     if (!response.ok) {
       throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+    }
+
+    // If UPDATE, save all effects and modifiers
+    if (operation === OperationType.UPDATE && skillId) {
+      await saveSkillEffects(skillId, skillEffects, skillNameList);
     }
 
     toast({
@@ -388,6 +551,31 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 ))}
               </select>
             </div>
+
+            {/* Skill Effects Section */}
+            {skillId && skillsCategoryId && (
+              <div className="mt-6 border-t pt-4">
+                <label className="block text-sm font-medium mb-1">
+                  Skill Effects
+                </label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  These effects will be automatically applied when a fighter acquires this skill
+                </p>
+                <AdminFighterEffects
+                  equipmentId={skillId}
+                  isSkill={true}
+                  fighterEffects={skillEffects}
+                  fighterEffectCategories={effectCategories.filter(c => c.category_name === 'skills')}
+                  onChange={(effects) => {
+                    setSkillEffects(effects);
+                  }}
+                  onUpdate={() => {
+                    // Effects are managed in local state, no need to refetch from API
+                    // They will be persisted when the skill itself is saved/updated
+                  }}
+                />
+              </div>
+            )}
 
             <div>
               {skillName == ''  && (

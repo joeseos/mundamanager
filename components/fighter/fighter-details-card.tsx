@@ -72,8 +72,8 @@ interface FighterDetailsCardProps {
   captured?: boolean;
   fighter_class?: string;
   kills: number;
-  effects?: { 
-    injuries: FighterEffect[]; 
+  effects?: {
+    injuries: FighterEffect[];
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
@@ -82,6 +82,7 @@ interface FighterDetailsCardProps {
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
     user: FighterEffect[];
+    skills: FighterEffect[];
   };
   vehicles?: Vehicle[];
   vehicleEquipment?: VehicleEquipment[];
@@ -289,7 +290,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       'rig-glitches': effects?.['rig-glitches'] || [],
       augmentations: effects?.augmentations || [],
       equipment: effects?.equipment || [],
-      user: effects?.user || []
+      user: effects?.user || [],
+      skills: effects?.skills || []
     },
     fighter_class,
     base_stats: {

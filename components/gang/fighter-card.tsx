@@ -31,8 +31,8 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   kills: number;
   skills?: FighterSkills;
   special_rules?: string[];
-  effects?: { 
-    injuries: FighterEffect[]; 
+  effects?: {
+    injuries: FighterEffect[];
     advancements: FighterEffect[];
     bionics: FighterEffect[];
     cyberteknika: FighterEffect[];
@@ -41,6 +41,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
     user: FighterEffect[];
+    skills: FighterEffect[];
   };
   note?: string;
   vehicle?: Vehicle;
@@ -254,7 +255,8 @@ const FighterCard = memo(function FighterCard({
         'rig-glitches': effects?.['rig-glitches'] || [],
         augmentations: effects?.augmentations || [],
         equipment: effects?.equipment || [],
-        user: effects?.user || []
+        user: effects?.user || [],
+        skills: effects?.skills || []
       },
       base_stats: {
         movement,

@@ -174,6 +174,7 @@ The fighter effects system manages all modifications to fighter statistics throu
 - Rig-glitches
 - Augmentations
 - Equipment
+- Skills
 - Vehicle Lasting Damages
 - User modifications
 
@@ -202,6 +203,7 @@ interface Fighter {
     'rig-glitches': FighterEffect[];
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
+    skills: FighterEffect[];
     vehicle_damages: FighterEffect[];
     user: FighterEffect[];
   }
@@ -229,7 +231,7 @@ interface Fighter {
      const adjustedStats = { ...fighter.base_stats };
 
      // Process all effect categories
-     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'augmentations', 'equipment', 'vehicle_damages', 'user'].forEach(category => {
+     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'augmentations', 'equipment', 'skills', 'vehicle_damages', 'user'].forEach(category => {
        fighter.effects[category]?.forEach(effect => {
          effect.fighter_effect_modifiers?.forEach(modifier => {
            const statName = modifier.stat_name.toLowerCase();
@@ -271,6 +273,58 @@ interface Fighter {
    );
    ```
 
+### Key Files for Effect Logic
+
+The fighter effects system is implemented across several key files:
+
+#### Core Effect Processing
+- **`utils/effect-modifiers.ts`**: Core logic for applying effect modifiers to fighter stats
+  - `calculateAdjustedStats()`: Main function that processes all effect categories
+  - `applyWeaponModifiers()`: Applies equipment-to-equipment effects on weapon profiles
+  - Supports both 'add' and 'set' operations for stat modifications
+
+#### Data Fetching
+- **`app/lib/shared/fighter-data.ts`**: Server-side functions for fetching fighter data
+  - `getFighterEffects()`: Queries and groups effects by category from database
+  - Returns effects organized by category: `{ injuries: [], equipment: [], skills: [], ... }`
+  - Uses caching with proper cache tags for performance
+
+#### Type Definitions
+- **`types/fighter.ts`**: TypeScript interfaces for fighter data
+  - `FighterEffect`: Interface for individual effects
+  - `FighterProps.effects`: Complete effects structure with all categories
+  - `EffectCategory`: Union type of all valid effect categories
+
+#### Frontend Components
+- **`components/fighter/fighter-details-card.tsx`**: Displays fighter stats with effects applied on the fighter detail page
+  - Receives effects from parent via props
+  - Constructs `fighterData` object with all effect categories (line 284-294)
+  - Calls `calculateAdjustedStats()` to compute modified stats (line 344-347)
+  - **IMPORTANT**: Must include all effect categories in the `fighterData.effects` object
+
+- **`components/gang/fighter-card.tsx`**: Displays fighter stats with effects applied on the gang roster
+  - Used in gang page to show fighter cards in the roster
+  - Constructs `fighterData` object with all effect categories (line 249-260)
+  - Calls `calculateAdjustedStats()` to compute modified stats (line 296)
+  - **IMPORTANT**: Must include all effect categories in the `fighterData.effects` object (same as fighter-details-card)
+
+- **`components/fighter/fighter-page.tsx`**: Main fighter page component
+  - Fetches initial fighter data including effects
+  - Transforms and passes effects to child components (line 215-226)
+  - Manages fighter state and updates
+
+#### Effect Application Logic
+- **`app/actions/equipment.ts`**: Handles equipment purchases and associated effects
+  - `buyEquipmentForFighter()`: Automatically creates fighter_effects when equipment with effects is purchased
+  - Queries `fighter_effect_types` to find effects associated with equipment
+  - Creates both `fighter_effects` and `fighter_effect_modifiers` records
+
+- **`app/actions/fighter-advancement.ts`**: Handles skill advancements and associated effects
+  - `addSkillAdvancement()`: Automatically creates fighter_effects when skills with effects are added (line 325-373)
+  - Queries `fighter_effect_types` where `type_specific_data->>'skill_id'` matches
+  - Creates both `fighter_effects` and `fighter_effect_modifiers` records
+  - Invalidates caches to trigger re-rendering
+
 ### Usage Examples
 
 1. **Adding an Injury**
@@ -311,7 +365,21 @@ interface Fighter {
    fighter.effects.equipment.push(equipmentEffect);
    ```
 
-4. **Adding a Vehicle Lasting Damage**
+4. **Adding Skill Effects**
+   ```typescript
+   const skillEffect: FighterEffect = {
+     effect_name: "Extra Appendages",
+     fighter_effect_modifiers: [
+       {
+         stat_name: "attacks",
+         numeric_value: 1
+       }
+     ]
+   };
+   fighter.effects.skills.push(skillEffect);
+   ```
+
+5. **Adding a Vehicle Lasting Damage**
    ```typescript
    const vehicleDamage: FighterEffect = {
      effect_name: "Loss of Power",
@@ -324,7 +392,7 @@ interface Fighter {
    fighter.effects.vehicle_damages.push(vehicleDamage);
    ```
 
-5. **User Modification**
+6. **User Modification**
    ```typescript
    const userMod: FighterEffect = {
      effect_name: "Custom Bonus",
