@@ -316,10 +316,60 @@ export async function addSkillAdvancement(
 
     if (insertError || !insertedSkill) {
       console.error('Database insert error:', insertError);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: insertError?.message || 'Failed to insert fighter skill'
       };
+    }
+
+    // Check for skill effect types and create them
+    const {data: skillEffectTypes} = await supabase
+      .from('fighter_effect_types')
+      .select(`
+        id,
+        effect_name,
+        type_specific_data,
+        fighter_effect_type_modifiers(stat_name, default_numeric_value, operation)
+      `)
+      .eq('type_specific_data->>skill_id', params.skill_id);
+
+    // Create fighter_effects for each effect type associated with this skill
+    if (skillEffectTypes && skillEffectTypes.length > 0) {
+      for (const effectType of skillEffectTypes) {
+        // Create fighter_effect
+        const {data: effect} = await supabase
+          .from('fighter_effects')
+          .insert({
+            fighter_id: params.fighter_id,
+            fighter_effect_type_id: effectType.id,
+            effect_name: effectType.effect_name,
+            type_specific_data: effectType.type_specific_data,
+            user_id: user.id
+          })
+          .select('id')
+          .single();
+
+        // Create effect modifiers if effect was created successfully
+        if (effect && effectType.fighter_effect_type_modifiers && effectType.fighter_effect_type_modifiers.length > 0) {
+          await supabase
+            .from('fighter_effect_modifiers')
+            .insert(
+              effectType.fighter_effect_type_modifiers.map((m: any) => ({
+                fighter_effect_id: effect.id,
+                stat_name: m.stat_name,
+                numeric_value: m.default_numeric_value,
+                operation: m.operation
+              }))
+            );
+        }
+      }
+
+      // Invalidate effect cache since we created new effects
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: fighter.gang_id,
+        advancementType: 'effect'
+      });
     }
 
     // Update fighter's XP and conditionally set free_skill to false
@@ -493,9 +543,30 @@ export async function deleteAdvancement(
         return { success: false, error: 'Fighter type not found' };
       }
 
-      const fighterType = Array.isArray(fighterTypeData.fighter_types) 
-        ? fighterTypeData.fighter_types[0] 
+      const fighterType = Array.isArray(fighterTypeData.fighter_types)
+        ? fighterTypeData.fighter_types[0]
         : fighterTypeData.fighter_types;
+
+      // Delete skill-created effects before deleting the skill
+      const {data: skillEffectTypes} = await supabase
+        .from('fighter_effect_types')
+        .select('id')
+        .eq('type_specific_data->>skill_id', skillData.skill_id);
+
+      if (skillEffectTypes && skillEffectTypes.length > 0) {
+        await supabase
+          .from('fighter_effects')
+          .delete()
+          .eq('fighter_id', params.fighter_id)
+          .in('fighter_effect_type_id', skillEffectTypes.map(t => t.id));
+
+        // Invalidate effect cache since we deleted effects
+        invalidateFighterAdvancement({
+          fighterId: params.fighter_id,
+          gangId: fighter.gang_id,
+          advancementType: 'effect'
+        });
+      }
 
       // Delete the skill
       const { error: deleteError } = await supabase

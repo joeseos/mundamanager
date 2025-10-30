@@ -105,6 +105,7 @@ interface Fighter {
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
     user: FighterEffect[];
+    skills: FighterEffect[];
   };
   vehicles?: Vehicle[];
   gang_id?: string;
@@ -220,7 +221,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     'rig-glitches': fighterData.fighter.effects?.['rig-glitches'] || [],
     augmentations: fighterData.fighter.effects?.augmentations || [],
     equipment: fighterData.fighter.effects?.equipment || [],
-    user: fighterData.fighter.effects?.user || []
+    user: fighterData.fighter.effects?.user || [],
+    skills: fighterData.fighter.effects?.skills || []
   };
 
   const effectsCost = Object.values(effects)
@@ -687,16 +689,17 @@ export default function FighterPage({
             captured={fighterData.fighter?.captured}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
-            effects={fighterData.fighter.effects || { 
-              injuries: [], 
-              advancements: [], 
-              bionics: [], 
-              cyberteknika: [], 
-              'gene-smithing': [], 
-              'rig-glitches': [], 
-              augmentations: [], 
-              equipment: [], 
-              user: [] 
+            effects={fighterData.fighter.effects || {
+              injuries: [],
+              advancements: [],
+              bionics: [],
+              cyberteknika: [],
+              'gene-smithing': [],
+              'rig-glitches': [],
+              augmentations: [],
+              equipment: [],
+              user: [],
+              skills: []
             }}
             vehicles={fighterData.fighter?.vehicles}
             gangId={fighterData.gang?.id}

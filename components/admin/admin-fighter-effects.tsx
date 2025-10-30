@@ -72,7 +72,8 @@ interface FighterEffectType {
   effect_name: string;
   fighter_effect_category_id: string | null;
   type_specific_data: {
-    equipment_id: string;
+    equipment_id?: string;
+    skill_id?: string;
     applies_to?: 'equipment';
     effect_selection?: "fixed" | "single_select" | "multiple_select";
     max_selections?: number;
@@ -90,23 +91,27 @@ interface FighterEffectCategory {
 
 interface AdminFighterEffectsProps {
   equipmentId: string;
+  isSkill?: boolean;
   fighterEffects?: FighterEffectType[];
   fighterEffectCategories?: FighterEffectCategory[];
   onUpdate?: () => void;
   onChange?: (effects: FighterEffectType[]) => void;
 }
 
-export function AdminFighterEffects({ 
-  equipmentId, 
-  fighterEffects = [], 
+export function AdminFighterEffects({
+  equipmentId,
+  isSkill = false,
+  fighterEffects = [],
   fighterEffectCategories = [],
-  onUpdate, 
+  onUpdate,
   onChange
 }: AdminFighterEffectsProps) {
   const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
   const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddEffectDialog, setShowAddEffectDialog] = useState(false);
+  const [showEditEffectDialog, setShowEditEffectDialog] = useState(false);
+  const [editingEffect, setEditingEffect] = useState<FighterEffectType | null>(null);
   const [showAddModifierDialog, setShowAddModifierDialog] = useState(false);
   const [selectedEffectTypeId, setSelectedEffectTypeId] = useState<string | null>(null);
   
@@ -138,13 +143,6 @@ export function AdminFighterEffects({
     setCategories(fighterEffectCategories);
   }, [fighterEffectCategories]);
 
-  // Update parent component when effects change
-  useEffect(() => {
-    if (onChange) {
-      onChange(fighterEffectTypes);
-    }
-  }, [fighterEffectTypes, onChange]);
-
   const handleAddEffect = async () => {
     if (!newEffect.effect_name) {
       toast({
@@ -162,19 +160,16 @@ export function AdminFighterEffects({
       return false;
     }
 
-    // Ensure we have a valid UUID for equipment_id
+    // Ensure we have a valid UUID
     if (!equipmentId || !isValidUUID(equipmentId)) {
       toast({
-        description: "Invalid equipment ID",
+        description: "Invalid ID",
         variant: "destructive"
       });
       return false;
     }
 
     try {
-      // Create a new fighter effect locally
-      const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
       // Parse traits from comma-separated strings to arrays
       const traitsToAdd = newEffect.traits_to_add
         ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
@@ -183,8 +178,8 @@ export function AdminFighterEffects({
         ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
         : [];
 
-      const typeSpecificData = {
-        equipment_id: equipmentId,
+      const typeSpecificData: any = {
+        ...(isSkill ? { skill_id: equipmentId } : { equipment_id: equipmentId }),
         ...(newEffect.applies_to && { applies_to: newEffect.applies_to }),
         effect_selection: newEffect.effect_selection,
         ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
@@ -192,6 +187,9 @@ export function AdminFighterEffects({
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove })
       };
+
+      // Create effect with temp ID - will be saved when parent saves
+      const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const newEffectType: FighterEffectType = {
         id: tempId,
         effect_name: newEffect.effect_name,
@@ -199,9 +197,15 @@ export function AdminFighterEffects({
         type_specific_data: typeSpecificData,
         modifiers: []
       };
-      
-      setFighterEffectTypes([...fighterEffectTypes, newEffectType]);
-      
+
+      const updatedEffects = [...fighterEffectTypes, newEffectType];
+      setFighterEffectTypes(updatedEffects);
+
+      // Notify parent of changes
+      if (onChange) {
+        onChange(updatedEffects);
+      }
+
       setShowAddEffectDialog(false);
       setNewEffect({
         effect_name: '',
@@ -213,11 +217,11 @@ export function AdminFighterEffects({
         traits_to_add: '',
         traits_to_remove: ''
       });
-      
+
       if (onUpdate) {
         onUpdate();
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error adding fighter effect:', error);
@@ -235,16 +239,130 @@ export function AdminFighterEffects({
     return regex.test(uuid);
   };
 
-  const handleDeleteEffect = async (effectId: string) => {
-    try {
-      // Simply remove the effect from the array
-      setFighterEffectTypes(fighterEffectTypes.filter(effect => effect.id !== effectId));
-      
+  const resetForm = () => {
+    setNewEffect({
+      effect_name: '',
+      fighter_effect_category_id: '',
+      applies_to: '',
+      effect_selection: 'fixed',
+      max_selections: 1,
+      selection_group: '',
+      traits_to_add: '',
+      traits_to_remove: ''
+    });
+  };
+
+  const handleEditEffect = (effect: FighterEffectType) => {
+    setEditingEffect(effect);
+    // Pre-populate form with current values
+    setNewEffect({
+      effect_name: effect.effect_name,
+      fighter_effect_category_id: effect.fighter_effect_category_id || '',
+      applies_to: effect.type_specific_data?.applies_to || '',
+      effect_selection: effect.type_specific_data?.effect_selection || 'fixed',
+      max_selections: effect.type_specific_data?.max_selections || 1,
+      selection_group: effect.type_specific_data?.selection_group || '',
+      traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
+      traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || ''
+    });
+    setShowEditEffectDialog(true);
+  };
+
+  const handleUpdateEffect = async () => {
+    if (!editingEffect) return false;
+
+    if (!newEffect.effect_name) {
       toast({
-        description: "Fighter effect removed",
+        description: "Effect name is required",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    try {
+      // Parse traits from comma-separated strings to arrays
+      const traitsToAdd = newEffect.traits_to_add
+        ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+      const traitsToRemove = newEffect.traits_to_remove
+        ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+
+      const typeSpecificData: any = {
+        ...editingEffect.type_specific_data,
+        ...(newEffect.applies_to && { applies_to: newEffect.applies_to }),
+        effect_selection: newEffect.effect_selection,
+        ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
+        ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
+        ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
+        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove })
+      };
+
+      // Call PATCH API
+      const response = await fetch(`/api/admin/fighter-effects?id=${editingEffect.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          effect_name: newEffect.effect_name,
+          fighter_effect_category_id: newEffect.fighter_effect_category_id || null,
+          type_specific_data: typeSpecificData
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update effect');
+      }
+
+      const updatedEffect = await response.json();
+
+      // Update local state
+      const updatedEffects = fighterEffectTypes.map(e =>
+        e.id === editingEffect.id ? { ...e, ...updatedEffect, modifiers: e.modifiers } : e
+      );
+      setFighterEffectTypes(updatedEffects);
+
+      if (onChange) {
+        onChange(updatedEffects);
+      }
+
+      toast({
+        description: "Effect updated successfully",
         variant: "default"
       });
-      
+
+      setShowEditEffectDialog(false);
+      setEditingEffect(null);
+      resetForm();
+
+      if (onUpdate) {
+        onUpdate();
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating effect:', error);
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to update effect',
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const handleDeleteEffect = async (effectId: string) => {
+    try {
+      // Remove the effect from local state (will be saved when parent saves)
+      const updatedEffects = fighterEffectTypes.filter(effect => effect.id !== effectId);
+      setFighterEffectTypes(updatedEffects);
+
+      // Notify parent of changes
+      if (onChange) {
+        onChange(updatedEffects);
+      }
+
       if (onUpdate) {
         onUpdate();
       }
@@ -265,7 +383,7 @@ export function AdminFighterEffects({
       });
       return false;
     }
-    
+
     if (!newModifierStatName) {
       toast({
         description: "Stat name is required",
@@ -273,12 +391,12 @@ export function AdminFighterEffects({
       });
       return false;
     }
-    
+
     try {
       // Convert modifier value to number if provided
-      const numericValue = newModifierValue ? parseFloat(newModifierValue) : null;
-      
-      // Create a new modifier
+      const numericValue = newModifierValue ? parseFloat(newModifierValue) : 0;
+
+      // Create modifier with temp ID - will be saved when parent saves
       const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const newModifier: FighterEffectTypeModifier = {
         id: tempId,
@@ -287,7 +405,7 @@ export function AdminFighterEffects({
         default_numeric_value: numericValue,
         operation: newModifierOperation
       };
-      
+
       // Find the effect type and add the new modifier to it
       const updatedEffectTypes = fighterEffectTypes.map(type => {
         if (type.id === selectedEffectTypeId) {
@@ -298,17 +416,23 @@ export function AdminFighterEffects({
         }
         return type;
       });
-      
+
       setFighterEffectTypes(updatedEffectTypes);
+
+      // Notify parent of changes
+      if (onChange) {
+        onChange(updatedEffectTypes);
+      }
+
       setShowAddModifierDialog(false);
       setNewModifierStatName('');
       setNewModifierValue('');
       setNewModifierOperation('add');
-      
+
       if (onUpdate) {
         onUpdate();
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error adding modifier:', error);
@@ -322,24 +446,24 @@ export function AdminFighterEffects({
 
   const handleDeleteModifier = async (effectId: string, modifierId: string) => {
     try {
-      // Simply remove the modifier from the effect
-      setFighterEffectTypes(prevEffects => {
-        return prevEffects.map(effect => {
-          if (effect.id === effectId) {
-            return {
-              ...effect,
-              modifiers: effect.modifiers.filter(mod => mod.id !== modifierId)
-            };
-          }
-          return effect;
-        });
+      // Remove the modifier from local state (will be saved when parent saves)
+      const updatedEffects = fighterEffectTypes.map(effect => {
+        if (effect.id === effectId) {
+          return {
+            ...effect,
+            modifiers: effect.modifiers.filter(mod => mod.id !== modifierId)
+          };
+        }
+        return effect;
       });
-      
-      toast({
-        description: "Modifier removed",
-        variant: "default"
-      });
-      
+
+      setFighterEffectTypes(updatedEffects);
+
+      // Notify parent of changes
+      if (onChange) {
+        onChange(updatedEffects);
+      }
+
       if (onUpdate) {
         onUpdate();
       }
@@ -451,6 +575,14 @@ export function AdminFighterEffects({
                         Add Modifier
                       </Button>
                       <Button
+                        onClick={() => handleEditEffect(effect)}
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoading}
+                      >
+                        Edit
+                      </Button>
+                      <Button
                         onClick={() => handleDeleteEffect(effect.id)}
                         variant="destructive"
                         size="sm"
@@ -514,24 +646,17 @@ export function AdminFighterEffects({
       </div>
 
       {/* Add Effect Dialog */}
-      {showAddEffectDialog && (
+      {(showAddEffectDialog || showEditEffectDialog) && (
         <Modal
-          title="Add Fighter Effect"
+          title={editingEffect ? "Edit Fighter Effect" : "Add Fighter Effect"}
           onClose={() => {
             setShowAddEffectDialog(false);
-            setNewEffect({
-              effect_name: '',
-              fighter_effect_category_id: '',
-              applies_to: '',
-              effect_selection: 'fixed',
-              max_selections: 1,
-              selection_group: '',
-              traits_to_add: '',
-              traits_to_remove: ''
-            });
+            setShowEditEffectDialog(false);
+            setEditingEffect(null);
+            resetForm();
           }}
-          onConfirm={handleAddEffect}
-          confirmText="Add Effect"
+          onConfirm={editingEffect ? handleUpdateEffect : handleAddEffect}
+          confirmText={editingEffect ? "Update Effect" : "Add Effect"}
           confirmDisabled={isLoading || !newEffect.effect_name}
         >
           <div className="space-y-4">
