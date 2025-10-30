@@ -94,7 +94,7 @@ export async function GET(request: Request) {
         .in('type_specific_data->>skill_id', skillIds);
 
       // Fetch modifiers for the effect types
-      let modifiers = [];
+      let modifiers: any[] = [];
       if (effectTypes && effectTypes.length > 0) {
         const effectTypeIds = effectTypes.map(et => et.id);
         const { data: modifiersData } = await supabase
