@@ -296,11 +296,17 @@ The fighter effects system is implemented across several key files:
   - `EffectCategory`: Union type of all valid effect categories
 
 #### Frontend Components
-- **`components/fighter/fighter-details-card.tsx`**: Displays fighter stats with effects applied
+- **`components/fighter/fighter-details-card.tsx`**: Displays fighter stats with effects applied on the fighter detail page
   - Receives effects from parent via props
   - Constructs `fighterData` object with all effect categories (line 284-294)
   - Calls `calculateAdjustedStats()` to compute modified stats (line 344-347)
   - **IMPORTANT**: Must include all effect categories in the `fighterData.effects` object
+
+- **`components/gang/fighter-card.tsx`**: Displays fighter stats with effects applied on the gang roster
+  - Used in gang page to show fighter cards in the roster
+  - Constructs `fighterData` object with all effect categories (line 249-260)
+  - Calls `calculateAdjustedStats()` to compute modified stats (line 296)
+  - **IMPORTANT**: Must include all effect categories in the `fighterData.effects` object (same as fighter-details-card)
 
 - **`components/fighter/fighter-page.tsx`**: Main fighter page component
   - Fetches initial fighter data including effects
