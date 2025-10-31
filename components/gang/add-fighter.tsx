@@ -1218,7 +1218,12 @@ export default function AddFighter({
                     return classRankA - classRankB;
                   }
 
-                  return a.cost - b.cost;
+                  if (a.cost !== b.cost) {
+                    return a.cost - b.cost;
+                  }
+
+                  // If class and cost are the same, sort alphabetically by fighter_type
+                  return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
                 });
 
               return fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
@@ -1243,7 +1248,12 @@ export default function AddFighter({
                     return classRankA - classRankB;
                   }
 
-                  return a.cost - b.cost;
+                  if (a.cost !== b.cost) {
+                    return a.cost - b.cost;
+                  }
+
+                  // If class and cost are the same, sort alphabetically by fighter_type
+                  return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
                 });
 
               return (
