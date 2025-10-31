@@ -3,8 +3,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
-import { 
-  invalidateFighterData, 
+import {
+  invalidateFighterData,
   invalidateFighterDataWithFinancials,
   invalidateFighterVehicleData,
   invalidateFighterEquipment,
@@ -12,7 +12,8 @@ import {
   invalidateFighterOwnedBeasts,
   invalidateGangStash,
   invalidateGangRating,
-  invalidateFighterAdvancement
+  invalidateFighterAdvancement,
+  invalidateVehicleData
 } from '@/utils/cache-tags';
 import { 
   createExoticBeastsForEquipment, 
@@ -625,7 +626,23 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         });
       }
     }
-    
+
+    // Invalidate equipment caches for the vehicle that received the equipment
+    if (params.vehicle_id) {
+      invalidateVehicleData(params.vehicle_id);
+
+      // Also invalidate the crew fighter's vehicle data cache
+      const { data: vehicle } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', params.vehicle_id)
+        .single();
+
+      if (vehicle?.fighter_id) {
+        invalidateFighterVehicleData(vehicle.fighter_id, stashData.gang_id);
+      }
+    }
+
     // Invalidate gang stash since equipment was moved
     invalidateGangStash({
       gangId: stashData.gang_id,
