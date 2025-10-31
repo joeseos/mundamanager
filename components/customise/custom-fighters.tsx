@@ -589,7 +589,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       const existingSkills = fighter.default_skills.map(skill => ({
         id: skill.skill_id,
         skill_name: skill.skill_name,
-        skill_type_id: '' // We don't have this from the server data, but it's not needed for display
+        skill_type_id: skill.skill_type_id
       }));
 
       setSkills(existingSkills);
@@ -650,7 +650,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       const existingSkills = fighter.default_skills.map(skill => ({
         id: skill.skill_id,
         skill_name: skill.skill_name,
-        skill_type_id: '' // We don't have this from the server data, but it's not needed for display
+        skill_type_id: skill.skill_type_id
       }));
 
       setSkills(existingSkills);
