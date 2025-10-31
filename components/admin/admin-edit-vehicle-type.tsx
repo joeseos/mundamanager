@@ -212,7 +212,8 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
 }) => {
   const { toast } = useToast();
   const [selectedGangType, setSelectedGangType] = useState("");
-  const [selectedEquipment, setSelectedEquipment] = useState("");
+  const [equipmentSelections, setEquipmentSelections] = useState<string[]>([]);
+  const [equipmentSelectValue, setEquipmentSelectValue] = useState("");
 
   const sortedGangTypes = useMemo(
     () => [...gangTypes].sort((a, b) => a.gang_type.localeCompare(b.gang_type)),
@@ -224,62 +225,71 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
       .filter((item) =>
         !gangTypeEquipment.some(
           (existing) => existing.gang_type_id.toString() === selectedGangType && existing.equipment_id === item.id
-        )
+        ) && !equipmentSelections.includes(item.id)
       )
       .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
-  }, [equipment, gangTypeEquipment, selectedGangType]);
+  }, [equipment, gangTypeEquipment, selectedGangType, equipmentSelections]);
 
   const handleSave = () => {
-    if (!selectedGangType || !selectedEquipment) {
+    if (!selectedGangType || equipmentSelections.length === 0) {
       toast({
         title: "Validation Error",
-        description: "Please select both a gang type and equipment",
+        description: "Please select a gang type and at least one equipment item",
         variant: "destructive",
       });
       return;
     }
 
     const gangType = gangTypes.find((g) => g.gang_type_id.toString() === selectedGangType);
-    const equipmentItem = equipment.find((e) => e.id === selectedEquipment);
 
-    if (!gangType || !equipmentItem) {
+    if (!gangType) {
       toast({
         title: "Error",
-        description: "Selected gang type or equipment not found",
+        description: "Selected gang type not found",
         variant: "destructive",
       });
       return;
     }
 
-    // Check if this combination already exists
-    const exists = gangTypeEquipment.some(
-      (item) => item.gang_type_id.toString() === selectedGangType && item.equipment_id === selectedEquipment
-    );
+    // Process each equipment selection
+    let addedCount = 0;
+    for (const equipmentId of equipmentSelections) {
+      const equipmentItem = equipment.find((e) => e.id === equipmentId);
 
-    if (exists) {
-      toast({
-        title: "Duplicate Entry",
-        description: "This gang type and equipment combination already exists",
-        variant: "destructive",
+      if (!equipmentItem) {
+        console.warn(`Equipment with ID ${equipmentId} not found`);
+        continue;
+      }
+
+      // Check if this combination already exists
+      const exists = gangTypeEquipment.some(
+        (item) => item.gang_type_id.toString() === selectedGangType && item.equipment_id === equipmentId
+      );
+
+      if (exists) {
+        console.warn(`Gang type ${gangType.gang_type} and equipment ${equipmentItem.equipment_name} combination already exists`);
+        continue;
+      }
+
+      onAdd({
+        gang_type_id: selectedGangType,
+        gang_type_name: gangType.gang_type,
+        equipment_id: equipmentId,
+        equipment_name: equipmentItem.equipment_name,
       });
-      return;
-    }
 
-    onAdd({
-      gang_type_id: selectedGangType,
-      gang_type_name: gangType.gang_type,
-      equipment_id: selectedEquipment,
-      equipment_name: equipmentItem.equipment_name,
-    });
+      addedCount++;
+    }
 
     // Reset local state and close
     setSelectedGangType("");
-    setSelectedEquipment("");
+    setEquipmentSelections([]);
+    setEquipmentSelectValue("");
     onClose();
 
     toast({
       title: "Success",
-      description: "Gang type equipment added successfully",
+      description: `${addedCount} equipment item${addedCount !== 1 ? 's' : ''} added successfully`,
     });
   };
 
@@ -296,7 +306,8 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
               value={selectedGangType}
               onChange={(e) => {
                 setSelectedGangType(e.target.value);
-                setSelectedEquipment(""); // Reset equipment when gang type changes
+                setEquipmentSelections([]); // Reset equipment selections when gang type changes
+                setEquipmentSelectValue("");
               }}
               className="w-full p-2 border rounded-md"
             >
@@ -314,8 +325,14 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
               Select Equipment
             </label>
             <select
-              value={selectedEquipment}
-              onChange={(e) => setSelectedEquipment(e.target.value)}
+              value={equipmentSelectValue}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value && !equipmentSelections.includes(value)) {
+                  setEquipmentSelections(prev => [...prev, value]);
+                }
+                setEquipmentSelectValue("");
+              }}
               className="w-full p-2 border rounded-md"
               disabled={!selectedGangType}
             >
@@ -326,17 +343,41 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
                 </option>
               ))}
             </select>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              {equipmentSelections.map((equipId, index) => {
+                const item = equipment.find(e => e.id === equipId);
+                if (!item) return null;
+
+                return (
+                  <div
+                    key={`${item.id}-${index}`}
+                    className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                  >
+                    <span>{item.equipment_name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEquipmentSelections(equipmentSelections.filter((_, i) => i !== index))}
+                      className="hover:text-red-500 focus:outline-none"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       }
       onClose={() => {
         setSelectedGangType("");
-        setSelectedEquipment("");
+        setEquipmentSelections([]);
+        setEquipmentSelectValue("");
         onClose();
       }}
-      confirmText="Save"
+      confirmText="Add"
       onConfirm={handleSave}
-      confirmDisabled={!selectedGangType || !selectedEquipment}
+      confirmDisabled={!selectedGangType || equipmentSelections.length === 0}
       hideCancel={false}
       width="lg"
     />
