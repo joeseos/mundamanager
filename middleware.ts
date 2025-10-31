@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/utils/supabase/middleware'
 import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(request: NextRequest) {
@@ -10,12 +9,9 @@ export async function middleware(request: NextRequest) {
     '/reset-password/update'
   ];
 
-  // Only update session for non-skip paths
-  let res = skipSessionPaths.includes(request.nextUrl.pathname)
-    ? NextResponse.next({ request })
-    : await updateSession(request);
-
-  // Create a Supabase client bound to the incoming request/response (Edge-safe)
+  // Create response and Supabase client bound to the incoming request/response (Edge-safe)
+  let response = NextResponse.next({ request });
+  
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,20 +21,22 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // reflect cookie changes on the request and response
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set({ name, value, ...options });
-            res = NextResponse.next({ request: { headers: request.headers } });
-            res.cookies.set({ name, value, ...options });
-          });
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
         },
       },
     }
   );
 
-  // Lightweight check for an authenticated user
-  const { data: userResult } = await supabase.auth.getUser();
-  const userId = userResult?.user?.id;
+  // Only check auth for non-skip paths
+  let userId: string | undefined;
+  if (!skipSessionPaths.includes(request.nextUrl.pathname)) {
+    const { data: userResult } = await supabase.auth.getUser();
+    userId = userResult?.user?.id;
+  }
   console.log("User authenticated:", !!userId);
 
   // List of paths that don't require authentication
@@ -57,7 +55,7 @@ export async function middleware(request: NextRequest) {
 
   // Allow access to public paths and password reset flow
   if (publicPaths.includes(request.nextUrl.pathname) || isPasswordResetFlow) {
-    return NextResponse.next({ request });
+    return response;
   }
 
   // Redirect to sign-in if user is not authenticated
@@ -79,21 +77,21 @@ export async function middleware(request: NextRequest) {
     redirectUrl.pathname = '/sign-in';
     redirectUrl.searchParams.set('next', redirectPath);
 
-    const response = NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
 
     // Also set short-lived cookie fallback
-    response.cookies.set('redirectPath', redirectPath, {
+    redirectResponse.cookies.set('redirectPath', redirectPath, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 60 * 5 // 5 minutes
     });
-    return response;
+    return redirectResponse;
   }
 
   console.log("Continuing to requested page");
 
-  return res;
+  return response;
 }
 
 export const config = {
