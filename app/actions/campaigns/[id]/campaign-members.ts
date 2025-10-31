@@ -73,13 +73,13 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
         .eq('user_id', userId);
 
       if (fetchError) throw fetchError;
-      
+
       if (!memberEntries || memberEntries.length === 0) {
         throw new Error('Campaign member not found');
       }
 
       targetMemberId = memberEntries[0].id;
-      
+
       const { error } = await supabase
         .from('campaign_gangs')
         .insert({
@@ -90,6 +90,19 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
         });
 
       if (error) throw error;
+    }
+
+    // Update joined_at timestamp when user adds their first gang to the campaign
+    // Only set it if it's currently NULL (don't overwrite if already set)
+    const { error: updateError } = await supabase
+      .from('campaign_members')
+      .update({ joined_at: new Date().toISOString() })
+      .eq('id', targetMemberId)
+      .is('joined_at', null);
+
+    // Don't throw on update error - gang was successfully added, this is just metadata
+    if (updateError) {
+      console.error('Error updating joined_at:', updateError);
     }
 
     try {
@@ -393,6 +406,7 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
         role: finalRole,
         invited_at: new Date().toISOString(),
         invited_by: invitedBy
+        // joined_at will be set when the user adds their gang via addGangToCampaign
       })
       .select()
       .single();
