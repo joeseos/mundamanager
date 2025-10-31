@@ -42,7 +42,8 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
       skill_id,
       skills (
         id,
-        name
+        name,
+        skill_type_id
       )
     `)
     .in('custom_fighter_type_id', fighterIds)
@@ -115,10 +116,11 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     }
     acc[row.custom_fighter_type_id].push({
       skill_id: row.skill_id,
-      skill_name: (row.skills as any)?.name || 'Unknown'
+      skill_name: (row.skills as any)?.name || 'Unknown',
+      skill_type_id: (row.skills as any)?.skill_type_id || ''
     });
     return acc;
-  }, {} as Record<string, { skill_id: string; skill_name: string }[]>);
+  }, {} as Record<string, { skill_id: string; skill_name: string; skill_type_id: string }[]>);
 
   // Group default equipment by custom fighter type ID (combine regular and custom equipment)
   const defaultEquipmentByFighter: Record<string, { equipment_id: string; equipment_name: string }[]> = {};
