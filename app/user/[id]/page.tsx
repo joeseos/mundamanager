@@ -230,27 +230,27 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 Campaigns {profile.username} is part of
               </p>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-1">
               {campaigns.map((campaign) => (
                 <Link
                   key={campaign.id}
                   href={`/campaigns/${campaign.campaign_id}`}
-                  className="block p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="block p-2 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
                       <h3 className="font-semibold">{campaign.campaign?.campaign_name || 'Unknown Campaign'}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Status: {campaign.campaign?.status || 'Unknown'}
-                      </p>
                     </div>
                     <div className="text-right">
                       <Badge variant={campaign.role === 'OWNER' ? 'default' : 'secondary'}>
                         {campaign.role}
                       </Badge>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Joined {campaign.joined_at ? new Date(campaign.joined_at).toISOString().split('T')[0] : 'Unknown'}
-                      </p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center justify-between w-full">
+                    <div>Status: {campaign.campaign?.status || 'Unknown'}</div>
+                    <div className="text-xs whitespace-nowrap">
+                      Joined {campaign.joined_at ? new Date(campaign.joined_at).toISOString().split('T')[0] : 'Unknown'}
                     </div>
                   </div>
                 </Link>
