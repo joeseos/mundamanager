@@ -107,6 +107,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       has_meat: campaignBasic.has_meat,
       has_exploration_points: campaignBasic.has_exploration_points,
       has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
+      has_power: campaignBasic.has_power,
+      has_sustenance: campaignBasic.has_sustenance,
+      has_salvage: campaignBasic.has_salvage,
       note: campaignBasic.note,
       members: campaignMembers,
       territories: campaignTerritories,
@@ -131,10 +134,18 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     );
   } catch (error) {
     console.error('Error in CampaignPage:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return (
       <main className="flex min-h-screen flex-col items-center">
         <div className="container mx-auto max-w-4xl w-full space-y-4">
           <div className="text-red-500">Error loading campaign data</div>
+          {error instanceof Error && (
+            <div className="text-sm text-muted-foreground">{error.message}</div>
+          )}
         </div>
       </main>
     );

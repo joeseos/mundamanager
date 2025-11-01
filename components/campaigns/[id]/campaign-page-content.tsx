@@ -110,6 +110,9 @@ interface CampaignPageContentProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    has_power: boolean;
+    has_sustenance: boolean;
+    has_salvage: boolean;
     battles: {
       id: string;
       created_at: string;
@@ -230,6 +233,9 @@ export default function CampaignPageContent({
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    has_power: boolean;
+    has_sustenance: boolean;
+    has_salvage: boolean;
     status: string;
   }) => {
     try {
@@ -240,6 +246,9 @@ export default function CampaignPageContent({
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
         has_scavenging_rolls: formValues.has_scavenging_rolls,
+        has_power: formValues.has_power,
+        has_sustenance: formValues.has_sustenance,
+        has_salvage: formValues.has_salvage,
         status: formValues.status
       });
 
@@ -257,6 +266,9 @@ export default function CampaignPageContent({
         has_meat: formValues.has_meat,
         has_exploration_points: formValues.has_exploration_points,
         has_scavenging_rolls: formValues.has_scavenging_rolls,
+        has_power: formValues.has_power,
+        has_sustenance: formValues.has_sustenance,
+        has_salvage: formValues.has_salvage,
         status: formValues.status,
         updated_at: now,
       }));
@@ -762,7 +774,7 @@ export default function CampaignPageContent({
 
 
         {/* Replace the inline modal with our new component */}
-        <CampaignEditModal 
+        <CampaignEditModal
           isOpen={showEditModal}
           campaignData={{
             id: campaignData.id,
@@ -771,6 +783,9 @@ export default function CampaignPageContent({
             has_meat: campaignData.has_meat,
             has_exploration_points: campaignData.has_exploration_points,
             has_scavenging_rolls: campaignData.has_scavenging_rolls,
+            has_power: campaignData.has_power,
+            has_sustenance: campaignData.has_sustenance,
+            has_salvage: campaignData.has_salvage,
             status: campaignData.status
           }}
           onClose={() => setShowEditModal(false)}

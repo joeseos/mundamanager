@@ -21,6 +21,9 @@ interface EditCampaignModalProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    has_power: boolean;
+    has_sustenance: boolean;
+    has_salvage: boolean;
     status: string | null;
   };
   onClose: () => void;
@@ -30,6 +33,9 @@ interface EditCampaignModalProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    has_power: boolean;
+    has_sustenance: boolean;
+    has_salvage: boolean;
     status: string;
   }) => Promise<boolean>;
   isOwner: boolean;
@@ -46,9 +52,12 @@ export default function CampaignEditModal({
   const [formValues, setFormValues] = useState({
     campaignName: campaignData.campaign_name,
     description: campaignData.description ?? '',
-    meatEnabled: campaignData.has_meat,
-    explorationEnabled: campaignData.has_exploration_points,
-    scavengingEnabled: campaignData.has_scavenging_rolls,
+    meatEnabled: campaignData.has_meat ?? false,
+    explorationEnabled: campaignData.has_exploration_points ?? false,
+    scavengingEnabled: campaignData.has_scavenging_rolls ?? false,
+    powerEnabled: campaignData.has_power ?? false,
+    sustenanceEnabled: campaignData.has_sustenance ?? false,
+    salvageEnabled: campaignData.has_salvage ?? false,
     status: campaignData.status || 'Active',
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -63,9 +72,12 @@ export default function CampaignEditModal({
     setFormValues({
       campaignName: campaignData.campaign_name,
       description: campaignData.description ?? '',
-      meatEnabled: campaignData.has_meat,
-      explorationEnabled: campaignData.has_exploration_points,
-      scavengingEnabled: campaignData.has_scavenging_rolls,
+      meatEnabled: campaignData.has_meat ?? false,
+      explorationEnabled: campaignData.has_exploration_points ?? false,
+      scavengingEnabled: campaignData.has_scavenging_rolls ?? false,
+      powerEnabled: campaignData.has_power ?? false,
+      sustenanceEnabled: campaignData.has_sustenance ?? false,
+      salvageEnabled: campaignData.has_salvage ?? false,
       status: campaignData.status || 'Active',
     });
     setCharCount((campaignData.description ?? '').length);
@@ -79,6 +91,9 @@ export default function CampaignEditModal({
       has_meat: formValues.meatEnabled,
       has_exploration_points: formValues.explorationEnabled,
       has_scavenging_rolls: formValues.scavengingEnabled,
+      has_power: formValues.powerEnabled,
+      has_sustenance: formValues.sustenanceEnabled,
+      has_salvage: formValues.salvageEnabled,
       status: formValues.status,
     });
     return result;
@@ -198,6 +213,39 @@ export default function CampaignEditModal({
                   }))}
                 />
                 <span>Scavenging Rolls</span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <Checkbox
+                  checked={formValues.powerEnabled}
+                  onCheckedChange={(checked) => setFormValues(prev => ({
+                    ...prev,
+                    powerEnabled: checked === true
+                  }))}
+                />
+                <span>Power</span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <Checkbox
+                  checked={formValues.sustenanceEnabled}
+                  onCheckedChange={(checked) => setFormValues(prev => ({
+                    ...prev,
+                    sustenanceEnabled: checked === true
+                  }))}
+                />
+                <span>Sustenance</span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <Checkbox
+                  checked={formValues.salvageEnabled}
+                  onCheckedChange={(checked) => setFormValues(prev => ({
+                    ...prev,
+                    salvageEnabled: checked === true
+                  }))}
+                />
+                <span>Salvage</span>
               </label>
             </div>
 
