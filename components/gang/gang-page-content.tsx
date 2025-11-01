@@ -36,6 +36,9 @@ interface GangDataState {
     meat: number;
     scavenging_rolls: number;
     exploration_points: number;
+    power: number;
+    sustenance: number;
+    salvage: number;
     rating: number;
     alignment: string;
     alliance_id: string;
