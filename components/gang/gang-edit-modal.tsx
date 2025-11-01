@@ -25,6 +25,12 @@ interface GangUpdates {
   scavenging_rolls_operation: 'add' | 'subtract';
   exploration_points: number;
   exploration_points_operation: 'add' | 'subtract';
+  power: number;
+  power_operation: 'add' | 'subtract';
+  sustenance: number;
+  sustenance_operation: 'add' | 'subtract';
+  salvage: number;
+  salvage_operation: 'add' | 'subtract';
   gang_variants: string[];
   gang_colour: string;
   gang_affiliation_id: string | null;
@@ -36,6 +42,9 @@ interface Campaign {
   has_meat: boolean;
   has_scavenging_rolls: boolean;
   has_exploration_points: boolean;
+  has_power: boolean;
+  has_sustenance: boolean;
+  has_salvage: boolean;
 }
 
 interface GangEditModalProps {
@@ -51,6 +60,9 @@ interface GangEditModalProps {
   meat: number;
   scavengingRolls: number;
   explorationPoints: number;
+  power: number;
+  sustenance: number;
+  salvage: number;
   alignment: string;
   allianceId: string | null;
   allianceName: string;
@@ -93,6 +105,9 @@ export default function GangEditModal({
   meat,
   scavengingRolls,
   explorationPoints,
+  power,
+  sustenance,
+  salvage,
   alignment,
   allianceId,
   allianceName,
@@ -118,6 +133,9 @@ export default function GangEditModal({
   const [editedMeat, setEditedMeat] = useState('');
   const [editedScavengingRolls, setEditedScavengingRolls] = useState('');
   const [editedExplorationPoints, setEditedExplorationPoints] = useState('');
+  const [editedPower, setEditedPower] = useState('');
+  const [editedSustenance, setEditedSustenance] = useState('');
+  const [editedSalvage, setEditedSalvage] = useState('');
   const [editedAlignment, setEditedAlignment] = useState(alignment);
   const [editedAllianceId, setEditedAllianceId] = useState(allianceId || '');
   const [editedGangColour, setEditedGangColour] = useState(gangColour);
@@ -150,6 +168,9 @@ export default function GangEditModal({
       setEditedMeat('');
       setEditedScavengingRolls('');
       setEditedExplorationPoints('');
+      setEditedPower('');
+      setEditedSustenance('');
+      setEditedSalvage('');
       setEditedAlignment(alignment);
       setEditedAllianceId(allianceId || '');
       setEditedGangColour(gangColour);
@@ -158,7 +179,7 @@ export default function GangEditModal({
       setEditedGangAffiliationId(gangAffiliationId || '');
       setEditedGangOriginId(gangOriginId || '');
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId]);
+  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId]);
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -252,6 +273,9 @@ export default function GangEditModal({
       const meatDifference = parseInt(editedMeat) || 0;
       const scavengingRollsDifference = parseInt(editedScavengingRolls) || 0;
       const explorationPointsDifference = parseInt(editedExplorationPoints) || 0;
+      const powerDifference = parseInt(editedPower) || 0;
+      const sustenanceDifference = parseInt(editedSustenance) || 0;
+      const salvageDifference = parseInt(editedSalvage) || 0;
 
       const updates: GangUpdates = {
         name: editedName,
@@ -267,6 +291,12 @@ export default function GangEditModal({
         scavenging_rolls_operation: scavengingRollsDifference >= 0 ? 'add' : 'subtract',
         exploration_points: Math.abs(explorationPointsDifference),
         exploration_points_operation: explorationPointsDifference >= 0 ? 'add' : 'subtract',
+        power: Math.abs(powerDifference),
+        power_operation: powerDifference >= 0 ? 'add' : 'subtract',
+        sustenance: Math.abs(sustenanceDifference),
+        sustenance_operation: sustenanceDifference >= 0 ? 'add' : 'subtract',
+        salvage: Math.abs(salvageDifference),
+        salvage_operation: salvageDifference >= 0 ? 'add' : 'subtract',
         gang_variants: editedGangVariants.map(v => v.id),
         gang_colour: editedGangColour,
         gang_affiliation_id: editedGangAffiliationId === '' ? null : editedGangAffiliationId,
@@ -289,6 +319,9 @@ export default function GangEditModal({
         setEditedMeat('');
         setEditedScavengingRolls('');
         setEditedExplorationPoints('');
+        setEditedPower('');
+        setEditedSustenance('');
+        setEditedSalvage('');
       }
     } catch (error) {
       console.error('Error updating gang:', error);
@@ -423,6 +456,57 @@ export default function GangEditModal({
             onChange={(e) => setEditedScavengingRolls(e.target.value)}
             className="flex-1"
             placeholder="Add or remove scavenging rolls (e.g. 1 or -2)"
+          />
+        </div>
+      )}
+
+      {campaigns?.[0]?.has_power && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Power
+          <span className="text-xs text-muted-foreground"> (Current: {power})</span>
+        </p>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedPower}
+            onChange={(e) => setEditedPower(e.target.value)}
+            className="flex-1"
+            placeholder="Add or remove power (e.g. 1 or -2)"
+          />
+        </div>
+      )}
+
+      {campaigns?.[0]?.has_sustenance && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Sustenance
+          <span className="text-xs text-muted-foreground"> (Current: {sustenance})</span>
+        </p>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedSustenance}
+            onChange={(e) => setEditedSustenance(e.target.value)}
+            className="flex-1"
+            placeholder="Add or remove sustenance (e.g. 1 or -2)"
+          />
+        </div>
+      )}
+
+      {campaigns?.[0]?.has_salvage && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Salvage
+          <span className="text-xs text-muted-foreground"> (Current: {salvage})</span>
+        </p>
+          <Input
+            type="tel"
+            inputMode="url"
+            pattern="-?[0-9]+"
+            value={editedSalvage}
+            onChange={(e) => setEditedSalvage(e.target.value)}
+            className="flex-1"
+            placeholder="Add or remove salvage (e.g. 1 or -2)"
           />
         </div>
       )}

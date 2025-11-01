@@ -63,6 +63,9 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       has_meat: campaignBasic.has_meat,
       has_exploration_points: campaignBasic.has_exploration_points,
       has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
+      has_power: campaignBasic.has_power,
+      has_sustenance: campaignBasic.has_sustenance,
+      has_salvage: campaignBasic.has_salvage,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles

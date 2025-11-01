@@ -46,7 +46,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
             campaign_name,
             has_meat,
             has_exploration_points,
-            has_scavenging_rolls
+            has_scavenging_rolls,
+            has_power,
+            has_sustenance,
+            has_salvage
           )
         `)
         .eq('gang_id', gangData.id);
@@ -59,7 +62,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
           status: cg.status,
           has_meat: (cg.campaign as any)?.has_meat,
           has_exploration_points: (cg.campaign as any)?.has_exploration_points,
-          has_scavenging_rolls: (cg.campaign as any)?.has_scavenging_rolls
+          has_scavenging_rolls: (cg.campaign as any)?.has_scavenging_rolls,
+          has_power: (cg.campaign as any)?.has_power,
+          has_sustenance: (cg.campaign as any)?.has_sustenance,
+          has_salvage: (cg.campaign as any)?.has_salvage
         }));
       }
     }
@@ -84,7 +90,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
-  const { 
+  const {
     name,
     operation,
     credits,
@@ -97,6 +103,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     meat,
     scavenging_rolls,
     exploration_points,
+    power,
+    sustenance,
+    salvage,
     note,
     note_backstory,
     vehicleId,
@@ -212,6 +221,21 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       updates.exploration_points = exploration_points;
     }
 
+    // Add power if provided
+    if (power !== undefined) {
+      updates.power = power;
+    }
+
+    // Add sustenance if provided
+    if (sustenance !== undefined) {
+      updates.sustenance = sustenance;
+    }
+
+    // Add salvage if provided
+    if (salvage !== undefined) {
+      updates.salvage = salvage;
+    }
+
     // Adjust credits and/or reputation if needed
     if (
       (credits !== undefined && credits_operation) ||
@@ -267,9 +291,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.id));
     }
 
-    // Invalidate resources if reputation, meat, scavenging_rolls, or exploration_points changed
+    // Invalidate resources if reputation, meat, scavenging_rolls, exploration_points, power, sustenance, or salvage changed
     if (reputation !== undefined || meat !== undefined ||
-        scavenging_rolls !== undefined || exploration_points !== undefined) {
+        scavenging_rolls !== undefined || exploration_points !== undefined ||
+        power !== undefined || sustenance !== undefined || salvage !== undefined) {
       revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.id));
     }
 

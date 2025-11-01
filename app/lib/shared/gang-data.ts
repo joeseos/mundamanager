@@ -27,6 +27,9 @@ export interface GangBasic {
   meat: number;
   scavenging_rolls: number;
   exploration_points: number;
+  power: number;
+  sustenance: number;
+  salvage: number;
   alignment: string;
   note?: string;
   note_backstory?: string;
@@ -93,6 +96,9 @@ export interface GangCampaign {
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
+  has_power: boolean;
+  has_sustenance: boolean;
+  has_salvage: boolean;
   territories: any[];
 }
 
@@ -171,6 +177,9 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           meat,
           scavenging_rolls,
           exploration_points,
+          power,
+          sustenance,
+          salvage,
           alignment,
           note,
           note_backstory,
@@ -276,12 +285,15 @@ export const getGangResources = async (gangId: string, supabase: any): Promise<{
   reputation: number;
   scavenging_rolls: number;
   exploration_points: number;
+  power: number;
+  sustenance: number;
+  salvage: number;
 }> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('gangs')
-        .select('meat, reputation, scavenging_rolls, exploration_points')
+        .select('meat, reputation, scavenging_rolls, exploration_points, power, sustenance, salvage')
         .eq('id', gangId)
         .single();
 
@@ -446,7 +458,10 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             campaign_name,
             has_meat,
             has_exploration_points,
-            has_scavenging_rolls
+            has_scavenging_rolls,
+            has_power,
+            has_sustenance,
+            has_salvage
           )
         `)
         .eq('gang_id', gangId);
@@ -481,6 +496,9 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_meat: (cg.campaign as any).has_meat,
             has_exploration_points: (cg.campaign as any).has_exploration_points,
             has_scavenging_rolls: (cg.campaign as any).has_scavenging_rolls,
+            has_power: (cg.campaign as any).has_power,
+            has_sustenance: (cg.campaign as any).has_sustenance,
+            has_salvage: (cg.campaign as any).has_salvage,
             territories: territories || []
           });
         }

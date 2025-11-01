@@ -46,6 +46,9 @@ interface GangProps {
   meat: number | null;
   scavenging_rolls: number | null;
   exploration_points: number | null;
+  power: number | null;
+  sustenance: number | null;
+  salvage: number | null;
   rating: number | null;
   alignment: string;
   alliance_id: string;
@@ -69,6 +72,9 @@ interface GangProps {
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
+    has_power: boolean;
+    has_sustenance: boolean;
+    has_salvage: boolean;
     territories: {
       id: string;
       created_at: string;
@@ -93,19 +99,22 @@ interface GangProps {
   user_id?: string;
 }
 
-export default function Gang({ 
-  id, 
-  name: initialName, 
+export default function Gang({
+  id,
+  name: initialName,
   gang_type_id,
   gang_type,
   gang_type_image_url,
   image_url,
   gang_colour: initialGangColour,
-  credits: initialCredits, 
+  credits: initialCredits,
   reputation: initialReputation,
   meat: initialMeat,
   scavenging_rolls: initialScavengingRolls,
   exploration_points: initialExplorationPoints,
+  power: initialPower,
+  sustenance: initialSustenance,
+  salvage: initialSalvage,
   rating: initialRating,
   alignment: initialAlignment,
   alliance_id: initialAllianceId,
@@ -148,6 +157,9 @@ export default function Gang({
   const [meat, setMeat] = useState(initialMeat ?? 0)
   const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
   const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
+  const [power, setPower] = useState(initialPower ?? 0)
+  const [sustenance, setSustenance] = useState(initialSustenance ?? 0)
+  const [salvage, setSalvage] = useState(initialSalvage ?? 0)
   const [rating, setRating] = useState<number>(initialRating ?? 0)
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
   const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
@@ -347,6 +359,9 @@ export default function Gang({
       const prevMeat = meat;
       const prevScavengingRolls = scavengingRolls;
       const prevExplorationPoints = explorationPoints;
+      const prevPower = power;
+      const prevSustenance = sustenance;
+      const prevSalvage = salvage;
       const prevGangVariants = [...gangVariants];
       const prevGangIsVariant = gangIsVariant;
       const prevGangColour = gangColour;
@@ -368,6 +383,9 @@ export default function Gang({
       setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
       setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
       setExplorationPoints(prevExplorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
+      setPower(prevPower + (updates.power_operation === 'add' ? updates.power : -updates.power));
+      setSustenance(prevSustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
+      setSalvage(prevSalvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
       setGangColour(updates.gang_colour);
       
       // Handle gang variants
@@ -401,6 +419,9 @@ export default function Gang({
         setMeat(prevMeat);
         setScavengingRolls(prevScavengingRolls);
         setExplorationPoints(prevExplorationPoints);
+        setPower(prevPower);
+        setSustenance(prevSustenance);
+        setSalvage(prevSalvage);
         setGangIsVariant(prevGangIsVariant);
         setGangVariants(prevGangVariants);
         setGangColour(prevGangColour);
@@ -848,6 +869,9 @@ export default function Gang({
             meat={meat}
             scavengingRolls={scavengingRolls}
             explorationPoints={explorationPoints}
+            power={power}
+            sustenance={sustenance}
+            salvage={salvage}
             alignment={alignment}
             allianceId={allianceId}
             allianceName={allianceName}

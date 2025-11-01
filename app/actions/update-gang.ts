@@ -23,6 +23,12 @@ interface UpdateGangParams {
   scavenging_rolls_operation?: 'add' | 'subtract';
   exploration_points?: number;
   exploration_points_operation?: 'add' | 'subtract';
+  power?: number;
+  power_operation?: 'add' | 'subtract';
+  sustenance?: number;
+  sustenance_operation?: 'add' | 'subtract';
+  salvage?: number;
+  salvage_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   note?: string;
 }
@@ -37,6 +43,9 @@ interface UpdateGangResult {
     meat: number;
     scavenging_rolls: number;
     exploration_points: number;
+    power: number;
+    sustenance: number;
+    salvage: number;
     alignment: string;
     alliance_id: string | null;
     alliance_name?: string;
@@ -61,7 +70,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation, meat, scavenging_rolls, exploration_points')
+      .select('id, user_id, credits, reputation, meat, scavenging_rolls, exploration_points, power, sustenance, salvage')
       .eq('id', params.gang_id)
       .single();
 
@@ -136,13 +145,37 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         : (gang.exploration_points || 0) - params.exploration_points;
     }
 
+    // Handle power changes
+    if (params.power !== undefined && params.power_operation) {
+      updates.power = params.power_operation === 'add'
+        ? (gang.power || 0) + params.power
+        : (gang.power || 0) - params.power;
+    }
+
+    // Handle sustenance changes
+    if (params.sustenance !== undefined && params.sustenance_operation) {
+      updates.sustenance = params.sustenance_operation === 'add'
+        ? (gang.sustenance || 0) + params.sustenance
+        : (gang.sustenance || 0) - params.sustenance;
+    }
+
+    // Handle salvage changes
+    if (params.salvage !== undefined && params.salvage_operation) {
+      updates.salvage = params.salvage_operation === 'add'
+        ? (gang.salvage || 0) + params.salvage
+        : (gang.salvage || 0) - params.salvage;
+    }
+
     // Handle credits and reputation changes
     if (
       (params.credits !== undefined && params.credits_operation) ||
       (params.reputation !== undefined && params.reputation_operation) ||
       (params.meat !== undefined && params.meat_operation) ||
       (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) ||
-      (params.exploration_points !== undefined && params.exploration_points_operation)
+      (params.exploration_points !== undefined && params.exploration_points_operation) ||
+      (params.power !== undefined && params.power_operation) ||
+      (params.sustenance !== undefined && params.sustenance_operation) ||
+      (params.salvage !== undefined && params.salvage_operation)
     ) {
       if (params.credits !== undefined && params.credits_operation) {
         updates.credits = params.credits_operation === 'add'
@@ -176,6 +209,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         meat,
         scavenging_rolls,
         exploration_points,
+        power,
+        sustenance,
+        salvage,
         alignment,
         alliance_id,
         gang_affiliation_id,
@@ -254,10 +290,13 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     }
     
     // Invalidate resources if changed
-    if (params.reputation !== undefined || 
-        (params.meat !== undefined && params.meat_operation) || 
-        (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) || 
-        (params.exploration_points !== undefined && params.exploration_points_operation)) {
+    if (params.reputation !== undefined ||
+        (params.meat !== undefined && params.meat_operation) ||
+        (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) ||
+        (params.exploration_points !== undefined && params.exploration_points_operation) ||
+        (params.power !== undefined && params.power_operation) ||
+        (params.sustenance !== undefined && params.sustenance_operation) ||
+        (params.salvage !== undefined && params.salvage_operation)) {
       revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gang_id));
     }
     
@@ -292,6 +331,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         meat: updatedGang.meat,
         scavenging_rolls: updatedGang.scavenging_rolls,
         exploration_points: updatedGang.exploration_points,
+        power: updatedGang.power,
+        sustenance: updatedGang.sustenance,
+        salvage: updatedGang.salvage,
         alignment: updatedGang.alignment,
         alliance_id: updatedGang.alliance_id,
         alliance_name: allianceName || undefined,

@@ -16,6 +16,9 @@ interface CampaignBasic {
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
+  has_power: boolean;
+  has_sustenance: boolean;
+  has_salvage: boolean;
   note: string;
   campaign_types: {
     campaign_type_name: string;
@@ -111,6 +114,9 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       has_meat,
       has_exploration_points,
       has_scavenging_rolls,
+      has_power,
+      has_sustenance,
+      has_salvage,
       note,
       image_url
     `)
@@ -210,6 +216,9 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         exploration_points,
         meat,
         scavenging_rolls,
+        power,
+        sustenance,
+        salvage,
         rating
       `)
       .in('id', gangIds);
@@ -317,6 +326,9 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         exploration_points: gangDetails?.exploration_points ?? null,
         meat: gangDetails?.meat ?? null,
         scavenging_rolls: gangDetails?.scavenging_rolls ?? null,
+        power: gangDetails?.power ?? null,
+        sustenance: gangDetails?.sustenance ?? null,
+        salvage: gangDetails?.salvage ?? null,
         territory_count: territoryCounts[cg.gang_id] || 0
       };
     });
