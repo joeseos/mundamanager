@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import {
   getCampaignBasic,
   getCampaignMembers,
@@ -48,6 +49,79 @@ function checkExportRateLimit(userId: string): boolean {
 
   userLimit.count++;
   return true;
+}
+
+/**
+ * Create service role Supabase client for admin operations
+ */
+function createServiceRoleClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  );
+}
+
+/**
+ * Authenticate user from various auth methods
+ * Supports: Basic auth, Bearer token, and cookie-based session
+ * @returns Authenticated user or null
+ */
+async function authenticateUser(request: Request): Promise<{ id: string; email?: string } | null> {
+  const authHeader = request.headers.get('authorization');
+
+  // Method 1: Basic Auth (email:password)
+  if (authHeader?.startsWith('Basic ')) {
+    const base64Credentials = authHeader.replace('Basic ', '');
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+    const [email, password] = credentials.split(':');
+
+    if (!email || !password) {
+      return null;
+    }
+
+    const supabase = createServiceRoleClient();
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (authError || !authData.user) {
+      return null;
+    }
+    return authData.user;
+  }
+
+  // Method 2: Bearer Token (JWT)
+  if (authHeader?.startsWith('Bearer ')) {
+    const bearerToken = authHeader.replace('Bearer ', '');
+    const supabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${bearerToken}`
+          }
+        }
+      }
+    );
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      return null;
+    }
+    return user;
+  }
+
+  // Method 3: Cookie-based session (default)
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
 }
 
 // Helper function to convert object to XML
@@ -103,17 +177,22 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
-    // Get authenticated user for rate limiting
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
+    // Get authenticated user (supports Basic auth, Bearer token, or cookies)
+    const user = await authenticateUser(request);
+
     if (!user) {
       return format === 'xml'
         ? new NextResponse(objectToXml({ error: 'Unauthorized' }, 'error'), {
             status: 401,
-            headers: { 'Content-Type': 'application/xml' }
+            headers: {
+              'Content-Type': 'application/xml',
+              'WWW-Authenticate': 'Basic realm="Campaign Export"'
+            }
           })
-        : NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        : NextResponse.json({ error: 'Unauthorized' }, {
+            status: 401,
+            headers: { 'WWW-Authenticate': 'Basic realm="Campaign Export"' }
+          });
     }
 
     // Check rate limiting
