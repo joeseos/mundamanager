@@ -609,7 +609,7 @@ export default function Gang({
 			        onClick={handleGangImageClick}
 			      >
               <Image
-                src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
+                src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
                 alt="Cogwheel"
                 width={250}
                 height={250}
