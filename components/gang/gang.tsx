@@ -97,6 +97,7 @@ interface GangProps {
   patreon_tier_title?: string;
   patron_status?: string;
   user_id?: string;
+  hidden: boolean;
 }
 
 export default function Gang({
@@ -145,6 +146,7 @@ export default function Gang({
   patreon_tier_title,
   patron_status,
   user_id,
+  hidden: initialHidden,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
   const { toast } = useToast();
@@ -172,6 +174,7 @@ export default function Gang({
   const [gangOriginId, setGangOriginId] = useState<string | null>(gang_origin_id || null);
   const [gangOriginName, setGangOriginName] = useState(gang_origin_name || '');
   const [gangOriginCategoryName, setGangOriginCategoryName] = useState(gang_origin_category_name || '');
+  const [hidden, setHidden] = useState(initialHidden);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
@@ -365,6 +368,7 @@ export default function Gang({
       const prevGangVariants = [...gangVariants];
       const prevGangIsVariant = gangIsVariant;
       const prevGangColour = gangColour;
+      const prevHidden = hidden;
 
       // Apply optimistic updates
       setName(updates.name);
@@ -387,9 +391,14 @@ export default function Gang({
       setSustenance(prevSustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
       setSalvage(prevSalvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
       setGangColour(updates.gang_colour);
-      
+
+      // Update hidden if provided
+      if (updates.hidden !== undefined) {
+        setHidden(updates.hidden);
+      }
+
       // Handle gang variants
-      const newVariants = updates.gang_variants.map((variantId: string) => 
+      const newVariants = updates.gang_variants.map((variantId: string) =>
         gangVariants.find(v => v.id === variantId) || { id: variantId, variant: 'Unknown' }
       );
       setGangVariants(newVariants);
@@ -425,6 +434,7 @@ export default function Gang({
         setGangIsVariant(prevGangIsVariant);
         setGangVariants(prevGangVariants);
         setGangColour(prevGangColour);
+        setHidden(prevHidden);
         
         throw new Error(result.error || 'Failed to update gang');
       }
@@ -885,6 +895,7 @@ export default function Gang({
             gangOriginName={gangOriginName}
             gangOriginCategoryName={gangOriginCategoryName}
             gangTypeHasOrigin={gang_type_has_origin || false}
+            hidden={hidden}
             campaigns={campaigns}
             onSave={handleGangUpdate}
           />
