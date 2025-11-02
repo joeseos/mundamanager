@@ -400,7 +400,7 @@ const FighterCard = memo(function FighterCard({
           <div
             className={`absolute inset-0 bg-no-repeat bg-cover print:!bg-none ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
             style={{
-              backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+              backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
               height: '65px',
               zIndex: 0,

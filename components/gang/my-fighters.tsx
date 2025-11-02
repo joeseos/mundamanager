@@ -17,8 +17,8 @@ interface MyFightersProps {
 }
 
 
-// Optimize image URL with Cloudinary transformations
-const BACKGROUND_IMAGE_URL = "https://res.cloudinary.com/dle0tkpbl/image/upload/f_auto,q_auto:good,w_800,c_limit/v1732964932/light-texture-bg-sm_wqttn8.jpg";
+// Background image URL
+const BACKGROUND_IMAGE_URL = "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/light-texture-bg-sm_wqttn8.jpg";
 
 // Add proper image sizes
 const imageSizes = {

@@ -393,7 +393,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           <div
             className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
             style={{
-              backgroundImage: "url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1735986017/top-bar-stroke-v3_s97f2k.png')",
+              backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
               height: '65px',
               marginTop: '0px',
@@ -438,7 +438,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           {currentImageUrl ? (
             <img src={currentImageUrl} alt="Fighter" className="object-cover rounded-full" />
           ) : (
-            <img src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1754972459/unknown_cropped_web_foy9m7.avif" alt="Fighter" className="object-cover rounded-full" />
+            <img src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif" alt="Fighter" className="object-cover rounded-full" />
           )}
           </div>
           <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">

@@ -185,11 +185,11 @@
 
 /* Fighter card background images for light and dark themes */
 .fighter-card-bg {
-  background-image: url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1758130100/fighter-card-background-5-light_web_ynpbac.webp');
+  background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp');
 }
 
 .dark .fighter-card-bg {
-  background-image: url('https://res.cloudinary.com/dle0tkpbl/image/upload/v1758130100/fighter-card-background-5-dark_web_lhh1dn.webp');
+  background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-dark_web_lhh1dn.webp');
 }
 
 /* Prevent hover effects from sticking on touch devices */

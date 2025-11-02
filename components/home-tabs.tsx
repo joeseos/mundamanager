@@ -89,7 +89,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
                           </div>
                         )}
                         <Image
-                          src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
+                          src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
                           alt=""
                           width={80}
                           height={80}
@@ -146,7 +146,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
                             priority={false}
                             onError={(e) => {
                               console.error('Failed to load image:', e.currentTarget.src);
-                              e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1735682275/IMG_6113_odsp7l.jpg";
+                              e.currentTarget.src = "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/underhive-gang-badzone-enforcers_ntnpzu.jpg";
                             }}
                           />
                         ) : (
@@ -155,7 +155,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
                           </div>
                         )}
                         <Image
-                          src="https://res.cloudinary.com/dle0tkpbl/image/upload/v1747056786/cogwheel-gang-portrait_vbu4c5.webp"
+                          src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
                           alt=""
                           width={80}
                           height={80}
