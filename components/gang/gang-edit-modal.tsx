@@ -36,6 +36,7 @@ interface GangUpdates {
   gang_affiliation_id: string | null;
   gang_origin_id: string | null;
   gang_origin_name: string;
+  hidden?: boolean;
 }
 
 interface Campaign {
@@ -76,10 +77,11 @@ interface GangEditModalProps {
   gangOriginName: string;
   gangOriginCategoryName: string;
   gangTypeHasOrigin: boolean;
+  hidden: boolean;
 
   // Campaign features
   campaigns?: Campaign[];
-  
+
   // Callbacks
   onSave: (updates: GangUpdates) => Promise<boolean>;
 }
@@ -121,6 +123,7 @@ export default function GangEditModal({
   gangOriginName,
   gangOriginCategoryName,
   gangTypeHasOrigin,
+  hidden,
   campaigns,
   onSave
 }: GangEditModalProps) {
@@ -143,6 +146,7 @@ export default function GangEditModal({
   const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(gangVariants);
   const [editedGangAffiliationId, setEditedGangAffiliationId] = useState(gangAffiliationId || '');
   const [editedGangOriginId, setEditedGangOriginId] = useState(gangOriginId || '');
+  const [editedHidden, setEditedHidden] = useState(hidden);
 
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
@@ -178,8 +182,9 @@ export default function GangEditModal({
       setEditedGangVariants([...gangVariants]);
       setEditedGangAffiliationId(gangAffiliationId || '');
       setEditedGangOriginId(gangOriginId || '');
+      setEditedHidden(hidden);
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId]);
+  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden]);
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -303,6 +308,7 @@ export default function GangEditModal({
         gang_origin_id: editedGangOriginId === '' ? null : editedGangOriginId,
         gang_origin_name: editedGangOriginId === '' ? '' :
           originList.find(origin => origin.id === editedGangOriginId)?.origin_name || '',
+        hidden: editedHidden,
       };
 
       const success = await onSave(updates);
@@ -510,6 +516,20 @@ export default function GangEditModal({
           />
         </div>
       )}
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Gang Visibility</p>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="hidden"
+            checked={editedHidden}
+            onCheckedChange={setEditedHidden}
+          />
+          <label htmlFor="hidden" className="text-sm text-muted-foreground cursor-pointer">
+            Hide gang from public view (Only you, admins, and campaign owners/arbitrators can see it)
+          </label>
+        </div>
+      </div>
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>

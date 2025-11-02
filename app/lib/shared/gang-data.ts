@@ -59,6 +59,7 @@ export interface GangBasic {
     } | null;
   } | null;
   image_url?: string;
+  hidden: boolean;
 }
 
 export interface GangType {
@@ -208,7 +209,8 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
               category_name
             )
           ),
-          image_url
+          image_url,
+          hidden
         `)
         .eq('id', gangId)
         .single();

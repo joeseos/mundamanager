@@ -31,6 +31,7 @@ interface UpdateGangParams {
   salvage_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   note?: string;
+  hidden?: boolean;
 }
 
 interface UpdateGangResult {
@@ -122,6 +123,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Add gang_origin_id if provided
     if (params.gang_origin_id !== undefined) {
       updates.gang_origin_id = params.gang_origin_id;
+    }
+
+    // Add hidden if provided
+    if (params.hidden !== undefined) {
+      updates.hidden = params.hidden;
     }
 
     // Handle meat changes
@@ -279,7 +285,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Always invalidate basic gang data if gang settings changed
     if (params.name !== undefined || params.alignment !== undefined ||
         params.gang_colour !== undefined || params.alliance_id !== undefined ||
-        params.gang_affiliation_id !== undefined || params.gang_origin_id !== undefined) {
+        params.gang_affiliation_id !== undefined || params.gang_origin_id !== undefined ||
+        params.hidden !== undefined) {
       revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
       revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id));
     }

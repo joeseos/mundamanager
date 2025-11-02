@@ -148,21 +148,50 @@ export class PermissionService {
   }
 
   /**
+   * Check if a user can view a hidden gang
+   *
+   * Permission Logic:
+   * - Gang is not hidden: everyone can view
+   * - Gang is hidden: only owner, admin, or campaign owner/arbitrator can view
+   *
+   * @param userId - The current user's ID
+   * @param gangId - The gang's ID
+   * @param isHidden - Whether the gang is hidden
+   * @returns boolean indicating if user can view the hidden gang
+   */
+  async canViewHiddenGang(
+    userId: string,
+    gangId: string,
+    isHidden: boolean
+  ): Promise<boolean> {
+    // If gang is not hidden, everyone can view
+    if (!isHidden) {
+      return true;
+    }
+
+    // Get user permissions for this gang
+    const permissions = await this.getGangPermissions(userId, gangId);
+
+    // Allow viewing if user is owner, admin, or has campaign permissions
+    return permissions.isOwner || permissions.isAdmin || permissions.canEdit;
+  }
+
+  /**
    * Determines user permissions for a specific gang
-   * 
+   *
    * Permission Logic:
    * - isOwner: User created/owns this specific gang
    * - isAdmin: User has 'admin' role in their profile
    * - canEdit: User is either the gang owner OR an admin OR campaign owner/arbitrator
    * - canDelete: User is either the gang owner OR an admin OR campaign owner/arbitrator
    * - canView: Everyone can view gangs (set to true)
-   * 
-   * @param userId - The current user's ID  
+   *
+   * @param userId - The current user's ID
    * @param gangId - The gang's ID we're checking permissions for
    * @returns UserPermissions object with all permission flags
    */
   async getGangPermissions(
-    userId: string, 
+    userId: string,
     gangId: string
   ): Promise<UserPermissions> {
     // Get user profile, gang ownership, and campaign role in parallel (efficient single query approach)

@@ -97,6 +97,7 @@ interface GangProps {
   patreon_tier_title?: string;
   patron_status?: string;
   user_id?: string;
+  hidden: boolean;
 }
 
 export default function Gang({

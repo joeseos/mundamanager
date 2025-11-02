@@ -118,13 +118,24 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
 
     // Fetch basic gang data first to check if gang exists
     const gangBasic = await getGangBasic(params.id, supabase);
-    
+
     if (!gangBasic) {
       notFound();
     }
 
-    // Fetch all related data in parallel using granular functions
+    // Check if user can view hidden gang
     const permissionService = new PermissionService();
+    const canView = await permissionService.canViewHiddenGang(
+      user.id,
+      params.id,
+      gangBasic.hidden
+    );
+
+    if (!canView) {
+      notFound();
+    }
+
+    // Fetch all related data in parallel using granular functions
     const [
       gangPositioning,
       gangType,
@@ -208,7 +219,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       username: userProfile?.username,
       patreon_tier_id: userProfile?.patreon_tier_id,
       patreon_tier_title: userProfile?.patreon_tier_title,
-      patron_status: userProfile?.patron_status
+      patron_status: userProfile?.patron_status,
+      hidden: gangBasic.hidden
     };
 
     return (
