@@ -41,15 +41,16 @@ export async function saveCustomWeaponProfiles(
       throw new Error(`Failed to delete existing weapon profiles: ${deleteError.message}`);
     }
 
-    // Then, insert new profiles if any
-    if (profiles.length > 0) {
-      const profilesWithMetadata = profiles.map((profile, index) => {
-        // Validate that all required fields are present
-        if (!profile.range_short || !profile.range_long || !profile.acc_short || 
-            !profile.acc_long || !profile.strength || !profile.ap || 
-            !profile.damage || !profile.ammo) {
-          throw new Error('Missing required weapon profile fields');
-        }
+    // Filter out profiles without a name (only save profiles that have at least a name)
+    const completeProfiles = profiles.filter(profile => {
+      // A profile is considered valid if it has a profile_name
+      return profile.profile_name && profile.profile_name.trim() !== '';
+    });
+
+    // Then, insert new profiles if any complete profiles exist
+    if (completeProfiles.length > 0) {
+      const profilesWithMetadata = completeProfiles.map((profile, index) => {
+        // All profiles in this array are already validated by the filter above
 
         // Remove any existing id to let the database generate a new one
         // but preserve all other fields including profile_name
