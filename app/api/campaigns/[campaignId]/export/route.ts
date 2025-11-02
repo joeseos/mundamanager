@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import {
   getCampaignBasic,
   getCampaignMembers,
@@ -8,7 +7,7 @@ import {
   getCampaignBattles
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
-// Rate limiting storage
+// IP-based rate limiting storage
 interface RateLimitEntry {
   count: number;
   resetTime: number;
@@ -17,112 +16,86 @@ interface RateLimitEntry {
 const exportRateLimitMap = new Map<string, RateLimitEntry>();
 
 /**
- * Check rate limiting for export endpoint (10 requests per minute)
- * @param userId - User ID for rate limiting
- * @returns boolean indicating if request is allowed
+ * Extract client IP from Vercel request headers
+ * Vercel sets x-forwarded-for with the true client IP
  */
-function checkExportRateLimit(userId: string): boolean {
+function getClientIP(request: Request): string {
+  // Primary: x-forwarded-for (set by Vercel)
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    // Can be comma-separated list, take first IP
+    return forwarded.split(',')[0].trim();
+  }
+
+  // Fallback: x-real-ip
+  const realIP = request.headers.get("x-real-ip");
+  if (realIP) return realIP;
+
+  // Development fallback
+  return "127.0.0.1";
+}
+
+/**
+ * Check rate limiting for export endpoint (10 requests per minute per IP)
+ * @param ip - Client IP address
+ * @returns Rate limit status with details for response headers
+ */
+function checkExportRateLimit(ip: string): {
+  allowed: boolean;
+  remaining: number;
+  reset: number;
+  limit: number;
+} {
   const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute
+  const windowMs = 60 * 1000; // 1 minute window
   const maxRequests = 10;
 
-  const userLimit = exportRateLimitMap.get(userId);
+  const entry = exportRateLimitMap.get(ip);
 
-  if (!userLimit || now > userLimit.resetTime) {
-    // Reset or create new limit window
-    exportRateLimitMap.set(userId, { count: 1, resetTime: now + windowMs });
-    
-    // Cleanup old entries to prevent memory leak
+  // Create new window if doesn't exist or expired
+  if (!entry || now > entry.resetTime) {
+    exportRateLimitMap.set(ip, {
+      count: 1,
+      resetTime: now + windowMs
+    });
+
+    // Cleanup expired entries (memory leak prevention)
+    const expirationThreshold = now - windowMs;
     const entries = Array.from(exportRateLimitMap.entries());
     for (const [key, value] of entries) {
-      if (now > value.resetTime + windowMs) {
+      if (value.resetTime < expirationThreshold) {
         exportRateLimitMap.delete(key);
       }
     }
-    
-    return true;
+
+    return {
+      allowed: true,
+      remaining: maxRequests - 1,
+      reset: now + windowMs,
+      limit: maxRequests
+    };
   }
 
-  if (userLimit.count >= maxRequests) {
-    return false;
+  // Check if limit exceeded
+  if (entry.count >= maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      reset: entry.resetTime,
+      limit: maxRequests
+    };
   }
 
-  userLimit.count++;
-  return true;
+  // Increment counter
+  entry.count++;
+  return {
+    allowed: true,
+    remaining: maxRequests - entry.count,
+    reset: entry.resetTime,
+    limit: maxRequests
+  };
 }
 
-/**
- * Create service role Supabase client for admin operations
- */
-function createServiceRoleClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
-  );
-}
-
-/**
- * Authenticate user from various auth methods
- * Supports: Basic auth, Bearer token, and cookie-based session
- * @returns Authenticated user or null
- */
-async function authenticateUser(request: Request): Promise<{ id: string; email?: string } | null> {
-  const authHeader = request.headers.get('authorization');
-
-  // Method 1: Basic Auth (email:password)
-  if (authHeader?.startsWith('Basic ')) {
-    const base64Credentials = authHeader.replace('Basic ', '');
-    const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
-    const [email, password] = credentials.split(':');
-
-    if (!email || !password) {
-      return null;
-    }
-
-    const supabase = createServiceRoleClient();
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (authError || !authData.user) {
-      return null;
-    }
-    return authData.user;
-  }
-
-  // Method 2: Bearer Token (JWT)
-  if (authHeader?.startsWith('Bearer ')) {
-    const bearerToken = authHeader.replace('Bearer ', '');
-    const supabase = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${bearerToken}`
-          }
-        }
-      }
-    );
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) {
-      return null;
-    }
-    return user;
-  }
-
-  // Method 3: Cookie-based session (default)
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
 
 // Helper function to convert object to XML
 function objectToXml(obj: any, rootName: string = 'root'): string {
@@ -177,43 +150,40 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
-    // Get authenticated user (supports Basic auth, Bearer token, or cookies)
-    const user = await authenticateUser(request);
+    // Extract client IP from Vercel headers
+    const clientIP = getClientIP(request);
 
-    if (!user) {
-      return format === 'xml'
-        ? new NextResponse(objectToXml({ error: 'Unauthorized' }, 'error'), {
-            status: 401,
-            headers: {
-              'Content-Type': 'application/xml',
-              'WWW-Authenticate': 'Basic realm="Campaign Export"'
-            }
-          })
-        : NextResponse.json({ error: 'Unauthorized' }, {
-            status: 401,
-            headers: { 'WWW-Authenticate': 'Basic realm="Campaign Export"' }
-          });
-    }
+    // Apply rate limiting (10 requests per minute per IP)
+    const rateLimitResult = checkExportRateLimit(clientIP);
 
-    // Check rate limiting
-    if (!checkExportRateLimit(user.id)) {
-      const errorMessage = 'Rate limit exceeded. Maximum 10 exports per minute.';
+    if (!rateLimitResult.allowed) {
+      const resetSeconds = Math.ceil((rateLimitResult.reset - Date.now()) / 1000);
+      const errorMessage = `Rate limit exceeded. Maximum ${rateLimitResult.limit} requests per minute per IP. Retry in ${resetSeconds} seconds.`;
+
+      const rateLimitHeaders = {
+        'X-RateLimit-Limit': String(rateLimitResult.limit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
+        'Retry-After': String(resetSeconds),
+      };
+
       return format === 'xml'
         ? new NextResponse(objectToXml({ error: errorMessage }, 'error'), {
             status: 429,
-            headers: { 
-              'Content-Type': 'application/xml',
-              'Retry-After': '60'
-            }
+            headers: { ...rateLimitHeaders, 'Content-Type': 'application/xml' }
           })
-        : NextResponse.json(
-            { error: errorMessage },
-            { 
-              status: 429,
-              headers: { 'Retry-After': '60' }
-            }
-          );
+        : NextResponse.json({ error: errorMessage }, {
+            status: 429,
+            headers: rateLimitHeaders
+          });
     }
+
+    // Prepare rate limit headers for successful responses
+    const rateLimitHeaders = {
+      'X-RateLimit-Limit': String(rateLimitResult.limit),
+      'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+      'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
+    };
 
     // Fetch all campaign data using existing cached functions
     // Access control is handled by Supabase RLS policies
@@ -234,11 +204,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       return format === 'xml'
         ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
             status: 404,
-            headers: { 'Content-Type': 'application/xml' }
+            headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders }
           })
         : NextResponse.json(
             { error: 'Campaign not found' },
-            { status: 404 }
+            { status: 404, headers: rateLimitHeaders }
           );
     }
 
@@ -303,12 +273,13 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         status: 200,
         headers: {
           'Content-Type': 'application/xml',
-          'Content-Disposition': `inline; filename="campaign_${campaignId}.xml"`
+          'Content-Disposition': `inline; filename="campaign_${campaignId}.xml"`,
+          ...rateLimitHeaders
         }
       });
     }
 
-    return NextResponse.json(exportData);
+    return NextResponse.json(exportData, { headers: rateLimitHeaders });
   } catch (error) {
     console.error('Error exporting campaign:', error);
     return format === 'xml'
