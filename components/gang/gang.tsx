@@ -50,6 +50,7 @@ interface GangProps {
   sustenance: number | null;
   salvage: number | null;
   rating: number | null;
+  wealth?: number | null;
   alignment: string;
   alliance_id: string;
   alliance_name: string;
@@ -117,6 +118,7 @@ export default function Gang({
   sustenance: initialSustenance,
   salvage: initialSalvage,
   rating: initialRating,
+  wealth: initialWealth,
   alignment: initialAlignment,
   alliance_id: initialAllianceId,
   alliance_name: initialAllianceName,
@@ -163,6 +165,7 @@ export default function Gang({
   const [sustenance, setSustenance] = useState(initialSustenance ?? 0)
   const [salvage, setSalvage] = useState(initialSalvage ?? 0)
   const [rating, setRating] = useState<number>(initialRating ?? 0)
+  const [wealth, setWealth] = useState<number>(initialWealth ?? 0)
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
   const [gangColour, setGangColour] = useState<string>(initialGangColour ?? '')
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
@@ -351,6 +354,7 @@ export default function Gang({
       // Store previous values for optimistic updates
       const prevName = name;
       const prevCredits = credits;
+      const prevWealth = wealth;
       const prevAlignment = alignment;
       const prevAllianceId = allianceId;
       const prevAllianceName = allianceName;
@@ -372,8 +376,11 @@ export default function Gang({
 
       // Apply optimistic updates
       setName(updates.name);
-      const newCredits = prevCredits + (updates.credits_operation === 'add' ? updates.credits : -updates.credits);
+      const creditsDelta = updates.credits_operation === 'add' ? updates.credits : -updates.credits;
+      const newCredits = prevCredits + creditsDelta;
       setCredits(newCredits);
+      // Update wealth optimistically (wealth delta = credits delta since rating doesn't change)
+      setWealth(wealth + creditsDelta);
       // Update parent component's credits state
       onGangCreditsUpdate?.(newCredits);
       setAlignment(updates.alignment);
@@ -415,6 +422,7 @@ export default function Gang({
         // Revert optimistic updates if the request fails
         setName(prevName);
         setCredits(prevCredits);
+        setWealth(prevWealth);
         // Revert parent component's credits state
         onGangCreditsUpdate?.(prevCredits);
         setAlignment(prevAlignment);
@@ -793,7 +801,7 @@ export default function Gang({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Wealth:</span>
-                    <span className="font-semibold">{rating + credits + unassignedVehiclesValue + totalStashValue}</span>
+                    <span className="font-semibold">{wealth ?? 0}</span>
                   </div>
                 </div>
 

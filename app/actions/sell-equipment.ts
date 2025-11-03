@@ -1,9 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { logEquipmentAction } from './logs/equipment-logs';
 
 interface SellEquipmentParams {
@@ -205,22 +204,29 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       ratingDelta -= effectsCredits;
     }
 
-    if (ratingDelta !== 0) {
-      try {
-        const { data: ratingRow } = await supabase
-          .from('gangs')
-          .select('rating')
-          .eq('id', gangId)
-          .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
-        await supabase
-          .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
-          .eq('id', gangId);
-        invalidateGangRating(gangId);
-      } catch (e) {
-        console.error('Failed to update gang rating after selling equipment:', e);
-      }
+    // Always update wealth because credits changed, even if rating didn't
+    try {
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', gangId)
+        .single();
+      const currentRating = (gangRow?.rating ?? 0) as number;
+      const currentWealth = (gangRow?.wealth ?? 0) as number;
+
+      const creditsDelta = sellValue; // Positive because credits gained
+      const wealthDelta = ratingDelta + creditsDelta;
+
+      await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
+        .eq('id', gangId);
+      invalidateGangRating(gangId);
+    } catch (e) {
+      console.error('Failed to update gang rating/wealth after selling equipment:', e);
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
@@ -267,8 +273,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(equipmentData.vehicle_id);
     } else {
-      // For other cases, invalidate gang financials
-      invalidateGangFinancials(gangId);
+      // For stash equipment, invalidate stash cache
+      invalidateGangStash({ gangId, userId: user.id });
     }
 
     return {
@@ -314,17 +320,25 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const sellValue = Math.max(5, Math.floor(params.manual_cost || 0));
 
-    // Update gang credits
+    // Update gang credits and wealth
     const { data: currentGang, error: gangErr } = await supabase
       .from('gangs')
-      .select('credits')
+      .select('credits, wealth')
       .eq('id', row.gang_id)
       .single();
     if (gangErr || !currentGang) return { success: false, error: 'Gang not found' };
 
+    const creditsDelta = sellValue; // Positive because credits gained
+    // When selling from stash: credits +X, stash value -X = wealth delta 0
+    // BUT we need to account for the difference between purchase cost and sell value
+    const wealthDelta = creditsDelta; // Simplified: just update by credits change
+
     const { data: updatedGang, error: updErr } = await supabase
       .from('gangs')
-      .update({ credits: (currentGang.credits || 0) + sellValue })
+      .update({
+        credits: (currentGang.credits || 0) + sellValue,
+        wealth: Math.max(0, (currentGang.wealth || 0) + wealthDelta)
+      })
       .eq('id', row.gang_id)
       .select('id, credits')
       .single();

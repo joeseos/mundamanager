@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateGangCredits, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 interface UpdateGangParams {
@@ -291,9 +291,28 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id));
     }
     
-    // Invalidate credits if changed
+    // Invalidate credits if changed and update wealth
     if (creditsChanged) {
+      try {
+        const { data: gangRow } = await supabase
+          .from('gangs')
+          .select('wealth')
+          .eq('id', params.gang_id)
+          .single();
+
+        const creditsDelta = updates.credits - gang.credits;
+        const newWealth = Math.max(0, (gangRow?.wealth ?? 0) + creditsDelta);
+
+        await supabase
+          .from('gangs')
+          .update({ wealth: newWealth })
+          .eq('id', params.gang_id);
+      } catch (e) {
+        console.error('Failed to update wealth after credits change:', e);
+      }
       invalidateGangCredits(params.gang_id);
+      // Also invalidate rating cache since wealth uses the same cache tags
+      invalidateGangRating(params.gang_id);
     }
     
     // Invalidate resources if changed

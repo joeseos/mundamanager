@@ -648,16 +648,29 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // PARALLEL: Rating updates and cache invalidation data fetching
+    // PARALLEL: Rating/wealth updates and cache invalidation data fetching
     const finalOperations = [];
 
-    // Rating update if needed
+    // Rating and wealth update if needed
     if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
-      const newRating = Math.max(0, (gang.rating || 0) + ratingDelta + createdBeastsRatingDelta);
+      // Fetch current gang data for wealth calculation
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', params.gang_id)
+        .single();
+
+      const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
+      const creditsDelta = -finalPurchaseCost; // Negative because credits were spent
+      const wealthDelta = totalRatingDelta + creditsDelta;
+
+      const newRating = Math.max(0, (gangRow?.rating ?? 0) + totalRatingDelta);
+      const newWealth = Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta);
+
       finalOperations.push(
         supabase
           .from('gangs')
-          .update({ rating: newRating })
+          .update({ rating: newRating, wealth: newWealth })
           .eq('id', params.gang_id)
       );
     }

@@ -121,11 +121,26 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     const gangId = fighter.gang_id;
     const gangCredits = gang.credits;
 
-    // Helper to adjust rating by delta
-    const adjustRating = async (delta: number) => {
-      if (!delta) return;
-      const newRating = Math.max(0, (gang.rating || 0) + delta);
-      await supabase.from('gangs').update({ rating: newRating, last_updated: new Date().toISOString() }).eq('id', gangId);
+    // Helper to adjust rating and wealth by delta
+    const adjustRating = async (delta: number, creditsDelta: number = 0) => {
+      if (!delta && !creditsDelta) return;
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', gangId)
+        .single();
+
+      const newRating = Math.max(0, (gangRow?.rating ?? 0) + delta);
+      const newWealth = Math.max(0, (gangRow?.wealth ?? 0) + delta + creditsDelta);
+
+      await supabase
+        .from('gangs')
+        .update({
+          rating: newRating,
+          wealth: newWealth,
+          last_updated: new Date().toISOString()
+        })
+        .eq('id', gangId);
       invalidateGangRating(gangId);
     };
 
@@ -257,9 +272,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (fighterUpdateError) throw fighterUpdateError;
 
         // Update gang credits
-        const { data: updatedGang, error: gangUpdateError } = await supabase
+        const { data: updatedGang, error: gangUpdateError} = await supabase
           .from('gangs')
-          .update({ 
+          .update({
             credits: gangCredits + params.sell_value,
             last_updated: new Date().toISOString()
           })
@@ -269,7 +284,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (gangUpdateError) throw gangUpdateError;
 
-        await adjustRating(delta);
+        // Update rating and wealth (credits delta is positive for sell)
+        await adjustRating(delta, params.sell_value);
         invalidateFighterData(params.fighter_id, gangId);
         invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);

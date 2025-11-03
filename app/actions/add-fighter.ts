@@ -888,22 +888,31 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
     }
 
-    // NEW: Update gang rating by fighter rating cost
+    // NEW: Update gang rating and wealth by fighter rating cost
     try {
-      const { data: ratingRow } = await supabase
+      const { data: gangRow } = await supabase
         .from('gangs')
-        .select('rating')
+        .select('rating, wealth')
         .eq('id', params.gang_id)
         .single();
-      const currentRating = (ratingRow?.rating ?? 0) as number;
-      const newRating = Math.max(0, currentRating + ratingCost + totalBeastsRatingDelta);
+      const currentRating = (gangRow?.rating ?? 0) as number;
+      const currentWealth = (gangRow?.wealth ?? 0) as number;
+
+      const ratingDelta = ratingCost + totalBeastsRatingDelta;
+      const creditsDelta = -fighterCost; // Negative because credits were spent
+      const wealthDelta = ratingDelta + creditsDelta;
+
       await supabase
         .from('gangs')
-        .update({ rating: newRating, last_updated: new Date().toISOString() })
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta),
+          last_updated: new Date().toISOString()
+        })
         .eq('id', params.gang_id);
       invalidateGangRating(params.gang_id);
     } catch (e) {
-      console.error('Failed to update gang rating after fighter addition:', e);
+      console.error('Failed to update gang rating/wealth after fighter addition:', e);
     }
 
     // Use granular cache invalidation for fighter addition

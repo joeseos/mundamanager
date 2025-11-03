@@ -108,7 +108,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangStash,
       getGangCampaigns,
       getGangVariants,
-      getGangRating,
+      getGangRatingAndWealth,
       getGangCredits,
       getUserProfile
     } = await import('@/app/lib/shared/gang-data');
@@ -146,7 +146,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       campaigns,
       gangCredits,
       gangVariants,
-      gangRating,
+      gangRatingAndWealth,
       userProfile,
       userPermissions
     ] = await Promise.all([
@@ -159,7 +159,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangCampaigns(params.id, supabase),
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
-      getGangRating(params.id, supabase),
+      getGangRatingAndWealth(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
       permissionService.getGangPermissions(user.id, params.id)
     ]);
@@ -190,7 +190,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       power: gangBasic.power,
       sustenance: gangBasic.sustenance,
       salvage: gangBasic.salvage,
-      rating: gangRating,
+      rating: gangRatingAndWealth.rating,
+      wealth: gangRatingAndWealth.wealth,
       alignment: gangBasic.alignment,
       alliance_name: alliance?.alliance_name || "",
       gang_affiliation_id: gangBasic.gang_affiliation_id || null,

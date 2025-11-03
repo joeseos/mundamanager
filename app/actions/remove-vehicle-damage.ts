@@ -68,15 +68,21 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
         if (veh?.fighter_id) {
           const delta = -(effectRow?.type_specific_data?.credits_increase || 0);
           if (delta) {
-            const { data: ratingRow } = await supabase
+            const { data: gangRow } = await supabase
               .from('gangs')
-              .select('rating')
+              .select('rating, wealth')
               .eq('id', params.gangId)
               .single();
-            const currentRating = (ratingRow?.rating ?? 0) as number;
+            const currentRating = (gangRow?.rating ?? 0) as number;
+            const currentWealth = (gangRow?.wealth ?? 0) as number;
+
+            // Remove vehicle damage: rating delta = wealth delta (no credits change)
             await supabase
               .from('gangs')
-              .update({ rating: Math.max(0, currentRating + delta) })
+              .update({
+                rating: Math.max(0, currentRating + delta),
+                wealth: Math.max(0, currentWealth + delta)
+              })
               .eq('id', params.gangId);
             invalidateGangRating(params.gangId);
           }
