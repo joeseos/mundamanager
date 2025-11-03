@@ -204,7 +204,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       ratingDelta -= effectsCredits;
     }
 
-    // Always update wealth because credits changed, even if rating didn't
+    // Update rating and wealth
+    // Note: Credits were already updated above, so wealth delta should account for:
+    // - Rating decrease (equipment cost removed from gang)
+    // - Credits increase (sell value already added to credits above)
+    // Since credits were updated separately, wealthDelta = ratingDelta + sellValue
     try {
       const { data: gangRow } = await supabase
         .from('gangs')
@@ -214,8 +218,9 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       const currentRating = (gangRow?.rating ?? 0) as number;
       const currentWealth = (gangRow?.wealth ?? 0) as number;
 
-      const creditsDelta = sellValue; // Positive because credits gained
-      const wealthDelta = ratingDelta + creditsDelta;
+      // Wealth delta = rating change + credits change
+      // Rating decreases by purchase_cost, credits increase by sellValue
+      const wealthDelta = ratingDelta + sellValue;
 
       await supabase
         .from('gangs')
