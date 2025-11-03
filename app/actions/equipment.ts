@@ -1041,23 +1041,31 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // Don't fail the main operation for logging errors
     }
 
-    // Update rating if needed
+    // Update rating and wealth if needed
     if (ratingDelta !== 0) {
       try {
-        // Get current rating and update
+        // Get current rating and wealth and update
         const { data: curr } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', params.gang_id)
           .single();
         const currentRating = (curr?.rating ?? 0) as number;
+        const currentWealth = (curr?.wealth ?? 0) as number;
+
+        // Wealth delta = rating delta (no credits change on deletion)
+        const wealthDelta = ratingDelta;
+
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .update({
+            rating: Math.max(0, currentRating + ratingDelta),
+            wealth: Math.max(0, currentWealth + wealthDelta)
+          })
           .eq('id', params.gang_id);
         invalidateGangRating(params.gang_id);
       } catch (e) {
-        console.error('Failed to update gang rating after equipment deletion:', e);
+        console.error('Failed to update gang rating and wealth after equipment deletion:', e);
       }
     }
 
