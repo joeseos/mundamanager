@@ -29,7 +29,9 @@ interface GangVehiclesProps {
   userPermissions?: UserPermissions;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangRatingUpdate?: (newRating: number) => void;
+  onGangWealthUpdate?: (newWealth: number) => void;
   currentRating?: number;
+  currentWealth?: number;
 }
 
 // Update the type to match VehicleProps
@@ -48,7 +50,9 @@ export default function GangVehicles({
   userPermissions,
   onGangCreditsUpdate,
   onGangRatingUpdate,
-  currentRating
+  onGangWealthUpdate,
+  currentRating,
+  currentWealth
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -556,19 +560,25 @@ export default function GangVehicles({
     if (!deletingVehicle) return false;
 
     setIsDeleteLoading(true);
-    
+
     // Store original state for potential rollback
     const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
-    
+    const originalWealth = currentWealth || 0;
+
     try {
       // Check if this is an unassigned vehicle (for logging purposes)
       const isUnassigned = !deletingVehicle.assigned_to;
-      
+
+      // Calculate vehicle total value for wealth update
+      const vehicleTotalValue = calculateVehicleTotalValue(deletingVehicle);
+
       // OPTIMISTIC UPDATES - Update UI immediately
-      // For unassigned vehicles, removing from the vehicles list will update the wealth
-      // For assigned vehicles, updating the fighter will update the rating
-      
+      // Wealth decreases by vehicle total value (whether assigned or unassigned)
+      if (onGangWealthUpdate) {
+        onGangWealthUpdate(Math.max(0, originalWealth - vehicleTotalValue));
+      }
+
       // First, update the local vehicles list
       const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
       if (onVehicleUpdate) {
@@ -616,14 +626,18 @@ export default function GangVehicles({
       return true;
     } catch (error) {
       console.error('Error deleting vehicle:', error);
-      
+
       // ROLLBACK optimistic updates on error
+      if (onGangWealthUpdate) {
+        onGangWealthUpdate(originalWealth);
+      }
+
       if (onVehicleUpdate) {
         // Only rollback unassigned vehicles to prevent double-counting
         const unassignedOnly = originalVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
         onVehicleUpdate(unassignedOnly);
       }
-      
+
       // Rollback fighter updates if there were any
       if (deletingVehicle && deletingVehicle.assigned_to && onFighterUpdate) {
         const originalFighter = originalFighters.find(f => f.fighter_name === deletingVehicle.assigned_to);

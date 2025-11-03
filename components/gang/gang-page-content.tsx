@@ -40,6 +40,7 @@ interface GangDataState {
     sustenance: number;
     salvage: number;
     rating: number;
+    wealth: number;
     alignment: string;
     alliance_id: string;
     alliance_name: string;
@@ -122,6 +123,16 @@ export default function GangPageContent({
       processedData: {
         ...prev.processedData,
         rating: newRating
+      }
+    }));
+  }, []);
+
+  const handleGangWealthUpdate = useCallback((newWealth: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        wealth: newWealth
       }
     }));
   }, []);
@@ -345,7 +356,9 @@ export default function GangPageContent({
           userPermissions={userPermissions}
           onGangCreditsUpdate={handleGangCreditsUpdate}
           onGangRatingUpdate={handleGangRatingUpdate}
+          onGangWealthUpdate={handleGangWealthUpdate}
           currentRating={gangData.processedData.rating}
+          currentWealth={gangData.processedData.wealth}
         />
         <div className="bg-card shadow-md rounded-lg p-4">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>

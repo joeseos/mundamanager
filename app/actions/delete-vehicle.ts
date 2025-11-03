@@ -30,25 +30,23 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
       .eq('id', params.vehicleId)
       .single();
 
-    // Calculate vehicle cost BEFORE deletion (while the vehicle row still exists)
-    let vehicleCost = 0;
-    if (vehBefore?.fighter_id) {
-      const baseCost = vehBefore.cost || 0;
+    // Calculate vehicle total cost BEFORE deletion (assigned or unassigned)
+    const baseCost = vehBefore?.cost || 0;
 
-      const { data: equipmentData } = await supabase
-        .from('fighter_equipment')
-        .select('purchase_cost')
-        .eq('vehicle_id', params.vehicleId);
-      const equipmentCost = equipmentData?.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0) || 0;
+    const { data: equipmentData } = await supabase
+      .from('fighter_equipment')
+      .select('purchase_cost')
+      .eq('vehicle_id', params.vehicleId);
+    const equipmentCost = equipmentData?.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0) || 0;
 
-      const { data: effectsData } = await supabase
-        .from('fighter_effects')
-        .select('type_specific_data')
-        .eq('vehicle_id', params.vehicleId);
-      const effectsCost = effectsData?.reduce((s: number, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) || 0;
+    const { data: effectsData } = await supabase
+      .from('fighter_effects')
+      .select('type_specific_data')
+      .eq('vehicle_id', params.vehicleId);
+    const effectsCost = effectsData?.reduce((s: number, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) || 0;
 
-      vehicleCost = baseCost + equipmentCost + effectsCost;
-    }
+    const vehicleCost = baseCost + equipmentCost + effectsCost;
+    const wasAssigned = !!vehBefore?.fighter_id;
 
     // Delete related records first to avoid foreign key constraint issues
     // Delete fighter_equipment records
@@ -84,22 +82,36 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
       throw new Error(error.message || 'Failed to delete vehicle');
     }
 
-    // If assigned pre-delete, subtract its total cost from rating
-    if (vehBefore?.fighter_id && vehicleCost > 0) {
+    // Update rating and wealth after vehicle deletion
+    if (vehicleCost > 0) {
       try {
-        const { data: ratingRow } = await supabase
+        const { data: gangRow } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', params.gangId)
           .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
+        const currentRating = (gangRow?.rating ?? 0) as number;
+        const currentWealth = (gangRow?.wealth ?? 0) as number;
+
+        let ratingDelta = 0;
+        let wealthDelta = -vehicleCost; // Wealth always decreases by vehicle cost
+
+        if (wasAssigned) {
+          // Assigned vehicle: rating decreases by vehicle cost
+          ratingDelta = -vehicleCost;
+        }
+        // Unassigned vehicle: rating unchanged (ratingDelta = 0)
+
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating - vehicleCost) })
+          .update({
+            rating: Math.max(0, currentRating + ratingDelta),
+            wealth: Math.max(0, currentWealth + wealthDelta)
+          })
           .eq('id', params.gangId);
         invalidateGangRating(params.gangId);
       } catch (e) {
-        console.error('Failed to update gang rating after vehicle deletion:', e);
+        console.error('Failed to update gang rating/wealth after vehicle deletion:', e);
       }
     }
 
