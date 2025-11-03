@@ -235,24 +235,27 @@ export default function GangPageContent({
     setGangData((prev: GangDataState) => {
       // Add the new fighter to the fighters array
       const updatedFighters = [...prev.processedData.fighters, newFighter];
-      
+
       // Update gang credits by subtracting the cost
       const updatedCredits = prev.processedData.credits - cost;
-      
+
       // Update gang rating by adding the fighter's cost
       const updatedRating = prev.processedData.rating + newFighter.credits;
-      
+
+      // Update gang wealth: rating increases by newFighter.credits, credits decrease by cost
+      const updatedWealth = prev.processedData.wealth + newFighter.credits - cost;
+
       // Update positioning to include the new fighter
       const currentPositioning = prev.processedData.positioning;
-      const maxPosition = Object.keys(currentPositioning).length > 0 
-        ? Math.max(...Object.keys(currentPositioning).map(Number)) 
+      const maxPosition = Object.keys(currentPositioning).length > 0
+        ? Math.max(...Object.keys(currentPositioning).map(Number))
         : -1;
       const newPosition = maxPosition + 1;
       const updatedPositioning = {
         ...currentPositioning,
         [newPosition]: newFighter.id
       };
-      
+
       return {
         ...prev,
         processedData: {
@@ -260,6 +263,7 @@ export default function GangPageContent({
           fighters: updatedFighters,
           credits: updatedCredits,
           rating: updatedRating,
+          wealth: updatedWealth,
           positioning: updatedPositioning
         }
       };

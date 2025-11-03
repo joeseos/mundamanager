@@ -219,6 +219,10 @@ export default function Gang({
     setRating(initialRating ?? 0);
   }, [initialRating]);
 
+  // Sync wealth state with prop changes from parent
+  useEffect(() => {
+    setWealth(initialWealth ?? 0);
+  }, [initialWealth]);
 
   // Calculate the total value of unassigned vehicles including equipment
   const unassignedVehiclesValue = useMemo(() => {
