@@ -167,9 +167,6 @@ async function updateUserPatreonData(userId: string, patreonData: DatabaseUserDa
     return false;
   }
 
-  // Invalidate the Patreon supporters cache so the about page shows updated data
-  invalidatePatreonSupporters();
-
   return true;
 }
 
@@ -197,9 +194,6 @@ async function clearUserPatreonData(userId: string, patronStatus: string): Promi
     console.error('Error clearing user Patreon data:', error);
     return false;
   }
-
-  // Invalidate the Patreon supporters cache so the about page shows updated data
-  invalidatePatreonSupporters();
 
   return true;
 }
@@ -308,9 +302,6 @@ async function processMemberDeletion(patreonUserId: string): Promise<boolean> {
     return false;
   }
 
-  // Invalidate the Patreon supporters cache
-  invalidatePatreonSupporters();
-
   return true;
 }
 
@@ -366,6 +357,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
       }
 
+      // Invalidate the Patreon supporters cache so the about page shows updated data
+      invalidatePatreonSupporters();
+
       return NextResponse.json({ success: true });
     }
 
@@ -381,6 +375,9 @@ export async function POST(request: NextRequest) {
     if (!success) {
       return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
     }
+
+    // Invalidate the Patreon supporters cache so the about page shows updated data
+    invalidatePatreonSupporters();
 
     return NextResponse.json({ success: true });
 
