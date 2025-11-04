@@ -78,6 +78,7 @@ export interface FighterEquipment {
   is_master_crafted?: boolean;
   weapon_profiles?: any[];
   target_equipment_id?: string | null;
+  effect_names?: string[]; // Names of effects that target this weapon
 }
 
 export interface FighterSkill {
@@ -288,6 +289,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
               .select(`
                 id,
                 fighter_effect_type_id,
+                effect_name,
                 type_specific_data,
                 target_equipment_id,
                 fighter_effect_modifiers ( stat_name, numeric_value, operation )
@@ -319,11 +321,18 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
       });
 
       const targetingEffectsMap = new Map<string, any[]>();
+      const targetingEffectNamesMap = new Map<string, string[]>(); // Map of target_equipment_id -> effect_names[]
       (targetingEffectsData.data || []).forEach((effect: any) => {
         if (!targetingEffectsMap.has(effect.target_equipment_id)) {
           targetingEffectsMap.set(effect.target_equipment_id, []);
+          targetingEffectNamesMap.set(effect.target_equipment_id, []);
         }
         targetingEffectsMap.get(effect.target_equipment_id)!.push(effect);
+        // Collect unique effect names for this target equipment
+        const existingNames = targetingEffectNamesMap.get(effect.target_equipment_id)!;
+        if (effect.effect_name && !existingNames.includes(effect.effect_name)) {
+          existingNames.push(effect.effect_name);
+        }
       });
 
       // Process each equipment item and add weapon profiles + target equipment relationship
@@ -365,6 +374,9 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             }
           }
 
+          // Get effect names that target this weapon
+          const effectNames = targetingEffectNamesMap.get(fighterEquipmentId) || [];
+
           return {
             fighter_equipment_id: item.id,
             equipment_id: item.equipment_id || undefined,
@@ -376,7 +388,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             original_cost: item.original_cost,
             is_master_crafted: item.is_master_crafted || false,
             weapon_profiles: weaponProfiles,
-            target_equipment_id: targetEquipmentId
+            target_equipment_id: targetEquipmentId,
+            effect_names: effectNames.length > 0 ? effectNames : undefined
           };
         })
       );

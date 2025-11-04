@@ -19,4 +19,5 @@ export interface Weapon {
   weapon_id: string;
   weapon_name: string;
   weapon_profiles: WeaponProfile[];
+  effect_names?: string[]; // Names of effects that target this weapon
 }
