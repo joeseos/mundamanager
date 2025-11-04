@@ -894,7 +894,7 @@ export default function GangInventory({
       {/* Target weapon selection modal (for equipment upgrades) */}
       {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (
         <Modal
-          title="Select Target Weapon"
+          title="Select Weapon"
           content={
             <FighterEffectSelection
               equipmentId=""
@@ -932,7 +932,7 @@ export default function GangInventory({
           onConfirm={async () => {
             return await targetSelectionRef.current?.handleConfirm() || false;
           }}
-          confirmText="Confirm Target"
+          confirmText="Confirm"
           confirmDisabled={!isTargetSelectionValid}
           width="lg"
         />

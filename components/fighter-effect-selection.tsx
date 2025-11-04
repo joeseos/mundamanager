@@ -41,7 +41,7 @@ interface FighterEffectSelectionProps {
   modifierEquipmentId?: string;
   effectTypeId?: string;
   onApplyToTarget?: (targetEquipmentId: string) => Promise<void>;
-  fighterWeapons?: { id: string; name: string }[];
+  fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
 }
 
 const FighterEffectSelection = React.forwardRef<
@@ -49,9 +49,28 @@ const FighterEffectSelection = React.forwardRef<
   FighterEffectSelectionProps
 >(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
-  const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string }[]>([]);
+  const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string; equipment_category?: string }[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const [effectName, setEffectName] = useState<string | null>(null);
   const weaponsFetchedRef = React.useRef(false);
+
+  // Fetch effect name when effectTypeId is provided
+  useEffect(() => {
+    if (targetSelectionOnly && effectTypeId) {
+      const supabase = createClient();
+      (async () => {
+        const { data, error } = await supabase
+          .from('fighter_effect_types')
+          .select('effect_name')
+          .eq('id', effectTypeId)
+          .single();
+        
+        if (!error && data) {
+          setEffectName(data.effect_name);
+        }
+      })();
+    }
+  }, [targetSelectionOnly, effectTypeId]);
 
   // Load initial state based on mode
   useEffect(() => {
@@ -61,7 +80,9 @@ const FighterEffectSelection = React.forwardRef<
         const filtered = modifierEquipmentId
           ? fighterWeapons.filter(w => w.id !== modifierEquipmentId)
           : fighterWeapons;
-        setTargetableWeapons(filtered);
+        // Sort alphabetically by name
+        const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+        setTargetableWeapons(sorted);
         weaponsFetchedRef.current = true;
         return;
       }
@@ -77,8 +98,8 @@ const FighterEffectSelection = React.forwardRef<
           .from('fighter_equipment')
           .select(`
             id,
-            equipment:equipment_id(equipment_name, equipment_type),
-            custom_equipment:custom_equipment_id(equipment_name, equipment_type)
+            equipment:equipment_id(equipment_name, equipment_type, equipment_category),
+            custom_equipment:custom_equipment_id(equipment_name, equipment_type, equipment_category)
           `)
           .eq('fighter_id', fighterId)
           .is('vehicle_id', null);
@@ -87,8 +108,11 @@ const FighterEffectSelection = React.forwardRef<
           return type === 'weapon' && row.id !== modifierEquipmentId;
         }).map((row: any) => ({
           id: row.id,
-          name: (row.equipment as any)?.equipment_name || (row.custom_equipment as any)?.equipment_name || 'Weapon'
+          name: (row.equipment as any)?.equipment_name || (row.custom_equipment as any)?.equipment_name || 'Weapon',
+          equipment_category: (row.equipment as any)?.equipment_category || (row.custom_equipment as any)?.equipment_category || undefined
         }));
+        // Sort alphabetically by name
+        weapons.sort((a, b) => a.name.localeCompare(b.name));
         setTargetableWeapons(weapons);
       })();
     } else {
@@ -334,8 +358,10 @@ const FighterEffectSelection = React.forwardRef<
 
   if (targetSelectionOnly) {
     return (
-      <div className="p-4 max-h-96 overflow-y-auto">
-        <p className="text-sm text-muted-foreground mb-4">Select a weapon to apply this upgrade to:</p>
+      <div className="p-2 max-h-96 overflow-y-auto">
+        <p className="text-sm text-muted-foreground mb-4">
+          Select a weapon for the {effectName ? <span className="font-bold">{effectName}</span> : 'upgrade'}:
+        </p>
         <div className="space-y-2">
           {targetableWeapons.map(w => (
             <label key={w.id} className="flex items-center gap-2">
@@ -345,7 +371,12 @@ const FighterEffectSelection = React.forwardRef<
                 checked={selectedTargetId === w.id}
                 onChange={() => setSelectedTargetId(w.id)}
               />
-              <span>{w.name}</span>
+              <div className="flex flex-col">
+                <span>{w.name}</span>
+                {w.equipment_category && w.equipment_category !== 'unknown' && (
+                  <span className="text-xs text-muted-foreground">{w.equipment_category}</span>
+                )}
+              </div>
             </label>
           ))}
           {targetableWeapons.length === 0 && (

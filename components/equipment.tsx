@@ -41,7 +41,7 @@ interface ItemModalProps {
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
-  fighterWeapons?: { id: string; name: string }[];
+  fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
 }
 
 interface RawEquipmentData {
@@ -79,7 +79,7 @@ interface PurchaseModalProps {
   isStashPurchase?: boolean;
   fighterId?: string;
   gangId?: string;
-  fighterWeapons?: { id: string; name: string }[];
+  fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
 }
 
 interface Category {
@@ -239,7 +239,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
   if (showTargetSelection) {
     return (
       <Modal
-        title="Select Target Weapon"
+        title="Select Weapon"
         content={
           <FighterEffectSelection
             equipmentId={item.equipment_id}
@@ -272,7 +272,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
         onConfirm={async () => {
           return await effectSelectionRef.current?.handleConfirm() || false;
         }}
-        confirmText="Confirm Target"
+        confirmText="Confirm"
         confirmDisabled={!isEffectSelectionValid}
         width="lg"
       />
@@ -309,7 +309,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
       title="Confirm Purchase"
       content={
         <div className="space-y-4">
-          <p>Are you sure you want to buy {item.equipment_name}?</p>
+          <p>Are you sure you want to buy <strong>{item.equipment_name}</strong>?</p>
           <div className="space-y-2">
             <div className="flex items-center gap-4">
               <div className="flex-1">
