@@ -110,7 +110,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Get gang information
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, rating')
+      .select('id, user_id, credits, rating, wealth')
       .eq('id', fighter.gang_id)
       .single();
 
@@ -124,14 +124,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Helper to adjust rating and wealth by delta
     const adjustRating = async (delta: number, creditsDelta: number = 0) => {
       if (!delta && !creditsDelta) return;
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', gangId)
-        .single();
-
-      const newRating = Math.max(0, (gangRow?.rating ?? 0) + delta);
-      const newWealth = Math.max(0, (gangRow?.wealth ?? 0) + delta + creditsDelta);
+      const newRating = Math.max(0, (gang.rating || 0) + delta);
+      const newWealth = Math.max(0, (gang.wealth || 0) + delta + creditsDelta);
 
       await supabase
         .from('gangs')
