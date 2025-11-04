@@ -115,7 +115,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
-  const [upgradeEffectTypeId, setUpgradeEffectTypeId] = useState<string | null>(null);
+  const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -174,7 +174,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
 
         // Priority 1: Check for equipment upgrade (applies_to=equipment)
         if (equipmentUpgrade) {
-          setUpgradeEffectTypeId(equipmentUpgrade.id);
+          setUpgradeEffect({ id: equipmentUpgrade.id, name: equipmentUpgrade.effect_name });
           setShowTargetSelection(true);
           return false;
         }
@@ -247,13 +247,14 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
             targetSelectionOnly
             fighterId={fighterId}
             modifierEquipmentId={''}
-            effectTypeId={upgradeEffectTypeId || undefined}
+            effectTypeId={upgradeEffect?.id || undefined}
+            effectName={upgradeEffect?.name}
             fighterWeapons={fighterWeapons}
             onApplyToTarget={async (targetEquipmentId) => {
               // Execute purchase immediately with the chosen target
               const equipmentTargetData = {
                 target_equipment_id: targetEquipmentId,
-                effect_type_id: upgradeEffectTypeId as string
+                effect_type_id: upgradeEffect?.id as string
               };
               onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData);
             }}
@@ -262,7 +263,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
             }}
             onCancel={() => {
               setShowTargetSelection(false);
-              setUpgradeEffectTypeId(null);
+              setUpgradeEffect(null);
             }}
             onValidityChange={(isValid) => setIsEffectSelectionValid(isValid)}
             ref={effectSelectionRef}

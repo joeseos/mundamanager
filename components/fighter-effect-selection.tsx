@@ -42,35 +42,20 @@ interface FighterEffectSelectionProps {
   effectTypeId?: string;
   onApplyToTarget?: (targetEquipmentId: string) => Promise<void>;
   fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
+  effectName?: string;
 }
 
 const FighterEffectSelection = React.forwardRef<
   { handleConfirm: () => Promise<boolean>; isValid: () => boolean },
   FighterEffectSelectionProps
->(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons }, ref) => {
+>(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons, effectName: propEffectName }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
   const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string; equipment_category?: string }[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
-  const [effectName, setEffectName] = useState<string | null>(null);
+  const [effectName, setEffectName] = useState<string | null>(propEffectName || null);
   const weaponsFetchedRef = React.useRef(false);
 
-  // Fetch effect name when effectTypeId is provided
-  useEffect(() => {
-    if (targetSelectionOnly && effectTypeId) {
-      const supabase = createClient();
-      (async () => {
-        const { data, error } = await supabase
-          .from('fighter_effect_types')
-          .select('effect_name')
-          .eq('id', effectTypeId)
-          .single();
-        
-        if (!error && data) {
-          setEffectName(data.effect_name);
-        }
-      })();
-    }
-  }, [targetSelectionOnly, effectTypeId]);
+  // Effect name is provided by parent when in target selection mode
 
   // Load initial state based on mode
   useEffect(() => {
