@@ -40,44 +40,78 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
     return strength.toString();
   };
 
-  type VariantKey = string; // weapon_group_id|mc|reg
+  type VariantKey = string; // weapon_group_id|mc|reg|profileSignature
   interface VariantBlock {
     weaponName: string;
     isMasterCrafted: boolean;
     baseProfiles: WeaponProfile[];
     specials: Map<string, WeaponProfile>; // deduplicated by name
+    effectNames?: string[]; // Names of effects that target this weapon
   }
 
-  // First pass: collect all weapons and determine which groups are master-crafted
-  const weaponGroupMasterCraftedStatus = new Map<string, boolean>();
+  // Helper function to create a profile signature based on key stats
+  const createProfileSignature = (profile: WeaponProfile): string => {
+    const keyStats = [
+      profile.range_short,
+      profile.range_long,
+      profile.acc_short,
+      profile.acc_long,
+      profile.strength,
+      profile.ap,
+      profile.damage,
+      profile.ammo,
+      profile.traits
+    ].join('|');
+    return keyStats;
+  };
+
+  // Determine master-crafted status per weapon instance (not per group)
+  const weaponMasterCraftedStatus = new Map<string, boolean>();
   
   weapons.forEach((weapon) => {
-    weapon.weapon_profiles?.forEach((profile) => {
-      const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
-      
-      // If this profile or weapon is master-crafted, mark the entire group as master-crafted
-      if (profile.is_master_crafted || weapon.weapon_name.includes('Master-crafted') || weapon.weapon_name.includes('(MC)')) {
-        weaponGroupMasterCraftedStatus.set(groupId, true);
-      } else if (!weaponGroupMasterCraftedStatus.has(groupId)) {
-        weaponGroupMasterCraftedStatus.set(groupId, false);
-      }
-    });
+    // Check if this specific weapon instance is master-crafted
+    const isMasterCrafted = weapon.weapon_profiles?.some(p => p.is_master_crafted) 
+      || weapon.weapon_name.includes('Master-crafted') 
+      || weapon.weapon_name.includes('(MC)')
+      || (weapon as any).is_master_crafted;
+    
+    weaponMasterCraftedStatus.set(weapon.fighter_weapon_id, isMasterCrafted || false);
   });
 
   const variantMap: Record<VariantKey, VariantBlock> = {};
   weapons.forEach((weapon) => {
+    // Get all base profiles for this weapon (non-special profiles)
+    const baseProfilesForWeapon = weapon.weapon_profiles?.filter(p => !p.profile_name?.startsWith('-')) || [];
+    
+    // Create a signature for all base profiles combined (to detect if weapon has modified stats)
+    // This signature will be used for grouping - weapons with identical base profiles will be grouped together
+    const weaponProfileSignature = baseProfilesForWeapon
+      .map(p => createProfileSignature(p))
+      .sort()
+      .join('||');
+    
+    // Create an effect signature to differentiate weapons with different effects
+    // Weapons with different effects should not be grouped together, even if they have the same stats
+    const effectSignature = weapon.effect_names && weapon.effect_names.length > 0
+      ? weapon.effect_names.slice().sort().join(',')
+      : 'noeffects';
+    
+    // Get master-crafted status for this specific weapon instance
+    const isWeaponMasterCrafted = weaponMasterCraftedStatus.get(weapon.fighter_weapon_id) || false;
+    
     weapon.weapon_profiles?.forEach((profile) => {
       const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
-      // Use the group's master-crafted status, not the individual profile's status
-      const isGroupMasterCrafted = weaponGroupMasterCraftedStatus.get(groupId) || false;
-      const key: VariantKey = `${groupId}|${isGroupMasterCrafted ? 'mc' : 'reg'}`;
+      // Use the weapon's profile signature for all profiles (base and special) so they stay together
+      // Include weapon instance master-crafted status, profile signature, and effect signature to properly separate weapons
+      const key: VariantKey = `${groupId}|${isWeaponMasterCrafted ? 'mc' : 'reg'}|${weaponProfileSignature}|${effectSignature}`;
 
       if (!variantMap[key]) {
         variantMap[key] = {
           weaponName: profile.profile_name?.startsWith('-') ? '' : (profile.profile_name || ''),
-          isMasterCrafted: isGroupMasterCrafted,
+          isMasterCrafted: isWeaponMasterCrafted,
           baseProfiles: [],
           specials: new Map<string, WeaponProfile>(),
+          effectNames: weapon.effect_names && weapon.effect_names.length > 0 ? weapon.effect_names : undefined,
         };
       }
 
@@ -138,7 +172,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
         </thead>
         <tbody>
           {variantBlocks.map((block, blockIdx) => {
-            const { weaponName, isMasterCrafted, baseProfiles, specials } = block;
+            const { weaponName, isMasterCrafted, baseProfiles, specials, effectNames } = block;
 
             const baseGroups: Record<string, WeaponProfile[]> = {};
             baseProfiles.forEach((bp) => {
@@ -179,6 +213,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
                         <>
                           {weaponName}
                           {isMasterCrafted && ` (MC)`}
+                          {effectNames && effectNames.length > 0 && ` (${effectNames.join(', ')})`}
                           {!multipleBaseNames && duplicate > 1 && ` (x${duplicate})`}
                         </>
                       ) : (

@@ -47,6 +47,7 @@ export interface WeaponProps {
   cost: number;
   weapon_profiles: any[];
   is_master_crafted?: boolean;
+  effect_names?: string[]; // Names of effects that target this weapon
 }
 
 export interface FighterEffectCategory {
