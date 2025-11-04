@@ -475,9 +475,11 @@ export default function GangVehicles({
     // Store original state for potential rollback
     const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
+    const originalWealth = currentWealth || 0;
 
     try {
       const isAssigned = !!sellingVehicle.assigned_to;
+      const vehicleCost = calculateVehicleTotalValue(sellingVehicle);
 
       // OPTIMISTIC UPDATES
       if (!isAssigned && onVehicleUpdate) {
@@ -488,14 +490,24 @@ export default function GangVehicles({
       if (isAssigned && onFighterUpdate) {
         const fighter = fighters.find(f => f.fighter_name === sellingVehicle.assigned_to);
         if (fighter) {
-          const localVehicleCost = calculateVehicleTotalValue(sellingVehicle);
           const updatedFighter = {
             ...fighter,
             vehicles: [],
-            credits: Math.max(0, (fighter.credits || 0) - localVehicleCost)
+            credits: Math.max(0, (fighter.credits || 0) - vehicleCost)
           };
           onFighterUpdate(updatedFighter, true);
         }
+      }
+
+      // Update wealth optimistically
+      // Wealth = rating + credits + stash_value + unassigned_vehicles_value
+      // If assigned: rating decreases by vehicle cost, credits increase by sell value
+      //              wealthDelta = -vehicleCost + sellAmount
+      // If unassigned: rating unchanged, credits increase by sell value, unassigned vehicles value decreases by vehicle cost
+      //                wealthDelta = -vehicleCost + sellAmount
+      if (onGangWealthUpdate) {
+        const wealthDelta = -vehicleCost + sellAmount;
+        onGangWealthUpdate(Math.max(0, originalWealth + wealthDelta));
       }
 
       // Server call
@@ -513,9 +525,12 @@ export default function GangVehicles({
       if (typeof result.data?.gang?.credits === 'number' && onGangCreditsUpdate) {
         onGangCreditsUpdate(result.data.gang.credits);
       }
-      // Update gang rating immediately if provided
+      // Update gang rating and wealth immediately if provided
       if (typeof result.data?.updated_gang_rating === 'number' && onGangRatingUpdate) {
         onGangRatingUpdate(result.data.updated_gang_rating);
+      }
+      if (typeof result.data?.gang?.wealth === 'number' && onGangWealthUpdate) {
+        onGangWealthUpdate(result.data.gang.wealth);
       }
 
       toast({
@@ -538,6 +553,9 @@ export default function GangVehicles({
         if (originalFighter) {
           onFighterUpdate(originalFighter, true);
         }
+      }
+      if (onGangWealthUpdate) {
+        onGangWealthUpdate(originalWealth);
       }
 
       toast({
