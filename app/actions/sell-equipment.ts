@@ -37,7 +37,7 @@ interface StashSellParams {
 
 interface StashActionResult {
   success: boolean;
-  data?: { gang: { id: string; credits: number } };
+  data?: { gang: { id: string; credits: number; wealth: number } };
   error?: string;
 }
 
@@ -317,13 +317,14 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash')
+      .select('id, gang_id, gang_stash, purchase_cost')
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
     const sellValue = Math.max(5, Math.floor(params.manual_cost || 0));
+    const purchaseCost = row.purchase_cost || 0;
 
     // Update gang credits and wealth
     const { data: currentGang, error: gangErr } = await supabase
@@ -333,10 +334,13 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .single();
     if (gangErr || !currentGang) return { success: false, error: 'Gang not found' };
 
-    const creditsDelta = sellValue; // Positive because credits gained
-    // When selling from stash: credits +X, stash value -X = wealth delta 0
-    // BUT we need to account for the difference between purchase cost and sell value
-    const wealthDelta = creditsDelta; // Simplified: just update by credits change
+    // When selling from stash:
+    // - Credits increase by sellValue
+    // - Stash value decreases by purchaseCost (what was originally paid)
+    // - Wealth delta = creditsDelta - purchaseCost = sellValue - purchaseCost
+    const creditsDelta = sellValue;
+    const stashValueDelta = -purchaseCost;
+    const wealthDelta = creditsDelta + stashValueDelta;
 
     const { data: updatedGang, error: updErr } = await supabase
       .from('gangs')
@@ -345,7 +349,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
         wealth: Math.max(0, (currentGang.wealth || 0) + wealthDelta)
       })
       .eq('id', row.gang_id)
-      .select('id, credits')
+      .select('id, credits, wealth')
       .single();
     if (updErr || !updatedGang) return { success: false, error: 'Failed updating credits' };
 
@@ -359,7 +363,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     // Invalidate stash cache so UI refreshes
     invalidateGangStash({ gangId: row.gang_id, userId: user.id });
 
-    return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits } } };
+    return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits, wealth: updatedGang.wealth } } };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }

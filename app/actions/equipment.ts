@@ -200,7 +200,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // Gang info
       supabase
         .from('gangs')
-        .select('id, credits, gang_type_id, user_id, rating')
+        .select('id, credits, gang_type_id, user_id, rating, wealth')
         .eq('id', params.gang_id)
         .single(),
 
@@ -651,21 +651,18 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // PARALLEL: Rating/wealth updates and cache invalidation data fetching
     const finalOperations = [];
 
-    // Rating and wealth update if needed
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
-      // Fetch current gang data for wealth calculation
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', params.gang_id)
-        .single();
+    // Calculate rating and wealth updates
+    let newRating: number | undefined = undefined;
+    let newWealth: number | undefined = undefined;
 
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
+      // Use already-fetched gang values instead of re-querying
       const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
       const creditsDelta = -finalPurchaseCost; // Negative because credits were spent
       const wealthDelta = totalRatingDelta + creditsDelta;
 
-      const newRating = Math.max(0, (gangRow?.rating ?? 0) + totalRatingDelta);
-      const newWealth = Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta);
+      newRating = Math.max(0, (gang.rating || 0) + totalRatingDelta);
+      newWealth = Math.max(0, (gang.wealth || 0) + wealthDelta);
 
       finalOperations.push(
         supabase
@@ -754,7 +751,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         updategangsCollection: {
           records: [{
             id: params.gang_id,
-            credits: gang.credits - finalPurchaseCost
+            credits: gang.credits - finalPurchaseCost,
+            rating: newRating,
+            wealth: newWealth
           }]
         },
         insertIntofighter_equipmentCollection: {

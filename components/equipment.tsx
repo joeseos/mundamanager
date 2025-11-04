@@ -38,7 +38,7 @@ interface ItemModalProps {
   allowedCategories?: string[];
   isStashMode?: boolean;
   isCustomFighter?: boolean;
-  onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
+  onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
@@ -765,6 +765,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data = result.data;
       const newGangCredits = data.updategangsCollection?.records[0]?.credits;
+      const newGangRating = data.updategangsCollection?.records[0]?.rating;
+      const newGangWealth = data.updategangsCollection?.records[0]?.wealth;
 
       // Get equipment record from response (same structure for both stash and fighter purchases)
       const equipmentRecord = data.insertIntofighter_equipmentCollection?.records[0];
@@ -777,23 +779,23 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // This value will be the adjusted_cost when use_base_cost_for_rating is true
       // or the manual_cost when use_base_cost_for_rating is false
       const ratingCost = data.rating_cost;
-      
+
       // Calculate new fighter credits adding the rating cost, not the manual cost
       // This ensures the fighter's rating is correctly updated
       // For gang stash purchases, fighter credits don't change
       const newFighterCredits = isGangStashPurchase ? fighterCredits : fighterCredits + ratingCost;
-      
+
 
       onEquipmentBought?.(newFighterCredits, newGangCredits, {
         ...item,
         fighter_equipment_id: equipmentRecord.id,
         cost: ratingCost, // Use the rating cost value from the server
         is_master_crafted: equipmentRecord.is_master_crafted,
-        equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
-          ? `${item.equipment_name} (Master-crafted)` 
+        equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
+          ? `${item.equipment_name} (Master-crafted)`
           : item.equipment_name,
         equipment_effect: data.equipment_effect
-      });
+      }, newGangRating, newGangWealth);
 
       toast({
         title: "Equipment purchased",

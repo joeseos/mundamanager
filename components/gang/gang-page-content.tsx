@@ -338,7 +338,7 @@ export default function GangPageContent({
           />
         </div>
         <GangInventory
-          stash={gangData.stash} 
+          stash={gangData.stash}
           fighters={gangData.processedData.fighters}
           title="Stash"
           onStashUpdate={handleStashUpdate}
@@ -349,6 +349,7 @@ export default function GangPageContent({
           gangCredits={gangData.processedData.credits}
           onGangCreditsUpdate={handleGangCreditsUpdate}
           onGangRatingUpdate={handleGangRatingUpdate}
+          onGangWealthUpdate={handleGangWealthUpdate}
           userPermissions={userPermissions}
         />
         <GangVehicles
