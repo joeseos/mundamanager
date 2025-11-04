@@ -82,6 +82,7 @@ export default function GangInventory({
   // Target weapon selection modal state (for equipment upgrades)
   const [targetModalOpen, setTargetModalOpen] = useState(false);
   const [targetModalEffectTypeId, setTargetModalEffectTypeId] = useState<string | null>(null);
+  const [targetModalEffectName, setTargetModalEffectName] = useState<string | null>(null);
   const [targetModalStashIdx, setTargetModalStashIdx] = useState<number | null>(null);
   const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
@@ -141,8 +142,9 @@ export default function GangInventory({
   };
 
   // Prompt user to select target weapon; returns target equipment ID or null on cancel
-  const promptTargetSelection = (effectTypeId: string, stashIdx: number) => {
+  const promptTargetSelection = (effectTypeId: string, effectName: string | undefined, stashIdx: number) => {
     setTargetModalEffectTypeId(effectTypeId);
+    setTargetModalEffectName(effectName || null);
     setTargetModalStashIdx(stashIdx);
     setIsTargetSelectionValid(false);
     setTargetModalOpen(true);
@@ -203,7 +205,7 @@ export default function GangInventory({
 
               // Priority 1: Handle equipment upgrade (applies_to=equipment)
               if (equipmentUpgrade && !isVehicleTarget) {
-                const targetId = await promptTargetSelection(equipmentUpgrade.id, itemIndex);
+                const targetId = await promptTargetSelection(equipmentUpgrade.id, equipmentUpgrade.effect_name, itemIndex);
                 if (targetId) {
                   equipmentTarget = {
                     target_equipment_id: targetId,
@@ -894,7 +896,7 @@ export default function GangInventory({
       {/* Target weapon selection modal (for equipment upgrades) */}
       {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (
         <Modal
-          title="Select Target Weapon"
+          title="Select Weapon"
           content={
             <FighterEffectSelection
               equipmentId=""
@@ -903,11 +905,13 @@ export default function GangInventory({
               fighterId={selectedFighter?.startsWith('vehicle-') ? undefined : selectedFighter}
               modifierEquipmentId=""
               effectTypeId={targetModalEffectTypeId}
+              effectName={targetModalEffectName || undefined}
               onApplyToTarget={async (targetEquipmentId) => {
                 // Resolve promise with target ID
                 targetResolveRef.current?.(targetEquipmentId);
                 setTargetModalOpen(false);
                 setTargetModalEffectTypeId(null);
+                setTargetModalEffectName(null);
                 setTargetModalStashIdx(null);
               }}
               onSelectionComplete={() => {
@@ -917,6 +921,7 @@ export default function GangInventory({
                 targetResolveRef.current?.(null);
                 setTargetModalOpen(false);
                 setTargetModalEffectTypeId(null);
+                setTargetModalEffectName(null);
                 setTargetModalStashIdx(null);
               }}
               onValidityChange={setIsTargetSelectionValid}
@@ -927,12 +932,13 @@ export default function GangInventory({
             targetResolveRef.current?.(null);
             setTargetModalOpen(false);
             setTargetModalEffectTypeId(null);
+            setTargetModalEffectName(null);
             setTargetModalStashIdx(null);
           }}
           onConfirm={async () => {
             return await targetSelectionRef.current?.handleConfirm() || false;
           }}
-          confirmText="Confirm Target"
+          confirmText="Confirm"
           confirmDisabled={!isTargetSelectionValid}
           width="lg"
         />
