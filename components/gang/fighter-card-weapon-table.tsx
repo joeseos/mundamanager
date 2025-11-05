@@ -40,11 +40,11 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
     return strength.toString();
   };
 
-  type VariantKey = string; // weapon_group_id|mc|reg|profileSignature
+  type VariantKey = string; // weapon_group_id|mc|reg|profileSignature|effectSignature
   interface VariantBlock {
     weaponName: string;
     isMasterCrafted: boolean;
-    baseProfiles: WeaponProfile[];
+    baseProfiles: Array<{ profile: WeaponProfile; weaponId: string }>; // Track which weapon each profile comes from
     specials: Map<string, WeaponProfile>; // deduplicated by name
     effectNames?: string[]; // Names of effects that target this weapon
   }
@@ -120,7 +120,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       if (profile.profile_name?.startsWith('-')) {
         if (!block.specials.has(profile.profile_name)) block.specials.set(profile.profile_name, profile);
       } else {
-        block.baseProfiles.push(profile);
+        block.baseProfiles.push({ profile, weaponId: weapon.fighter_weapon_id });
         if (!block.weaponName) block.weaponName = profile.profile_name || '';
       }
     });
@@ -174,13 +174,26 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
           {variantBlocks.map((block, blockIdx) => {
             const { weaponName, isMasterCrafted, baseProfiles, specials, effectNames } = block;
 
-            const baseGroups: Record<string, WeaponProfile[]> = {};
-            baseProfiles.forEach((bp) => {
-              (baseGroups[bp.profile_name] = baseGroups[bp.profile_name] || []).push(bp);
+            // Group profiles by name AND weapon ID to count duplicates correctly
+            // Only count profiles as duplicates if they come from the same weapon instance
+            const baseGroups: Record<string, { profile: WeaponProfile; weaponIds: Set<string> }> = {};
+            baseProfiles.forEach(({ profile, weaponId }) => {
+              const profileKey = profile.profile_name || '';
+              if (!baseGroups[profileKey]) {
+                baseGroups[profileKey] = { profile, weaponIds: new Set() };
+              }
+              baseGroups[profileKey].weaponIds.add(weaponId);
             });
-            const baseDistinct = Object.keys(baseGroups).map((name) => baseGroups[name][0]);
-            const maxDuplicate = Math.max(...Object.values(baseGroups).map((arr) => arr.length));
+            
+            // Count total instances of each profile name (across all weapons in this variant block)
+            const baseDistinct = Object.keys(baseGroups).map((name) => baseGroups[name].profile);
             const multipleBaseNames = baseDistinct.length > 1;
+            
+            // Calculate duplicate count: sum of weapon IDs for each profile name
+            const duplicateCounts = Object.keys(baseGroups).map((name) => ({
+              profile: baseGroups[name].profile,
+              duplicate: baseGroups[name].weaponIds.size
+            }));
 
             const specialRows = Array.from(specials.values()).sort((a, b) => {
               const aOrder = (a as any).sort_order ?? 0;
@@ -189,7 +202,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
             });
 
             const rows: { profile: WeaponProfile; duplicate: number }[] = [
-              ...baseDistinct.map((p) => ({ profile: p, duplicate: baseGroups[p.profile_name].length })),
+              ...duplicateCounts,
               ...specialRows.map((p) => ({ profile: p, duplicate: 1 })),
             ];
 

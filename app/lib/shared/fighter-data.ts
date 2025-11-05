@@ -233,28 +233,61 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
           : Promise.resolve({ data: [] }),
 
         // Batch fetch standard weapon profiles
+        // Fetch profiles where weapon_id matches, and also profiles where weapon_group_id matches (for grouped weapons like smoke grenades)
         standardEquipmentIds.length > 0
-          ? supabase
-              .from('weapon_profiles')
-              .select(`
-                id,
-                profile_name,
-                range_short,
-                range_long,
-                acc_short,
-                acc_long,
-                strength,
-                ap,
-                damage,
-                ammo,
-                traits,
-                weapon_group_id,
-                weapon_id,
-                sort_order
-              `)
-              .in('weapon_id', standardEquipmentIds)
-              .order('sort_order', { nullsFirst: false })
-              .order('profile_name')
+          ? Promise.all([
+              supabase
+                .from('weapon_profiles')
+                .select(`
+                  id,
+                  profile_name,
+                  range_short,
+                  range_long,
+                  acc_short,
+                  acc_long,
+                  strength,
+                  ap,
+                  damage,
+                  ammo,
+                  traits,
+                  weapon_group_id,
+                  weapon_id,
+                  sort_order
+                `)
+                .in('weapon_id', standardEquipmentIds)
+                .order('sort_order', { nullsFirst: false })
+                .order('profile_name'),
+              supabase
+                .from('weapon_profiles')
+                .select(`
+                  id,
+                  profile_name,
+                  range_short,
+                  range_long,
+                  acc_short,
+                  acc_long,
+                  strength,
+                  ap,
+                  damage,
+                  ammo,
+                  traits,
+                  weapon_group_id,
+                  weapon_id,
+                  sort_order
+                `)
+                .in('weapon_group_id', standardEquipmentIds)
+                .order('sort_order', { nullsFirst: false })
+                .order('profile_name')
+            ]).then(([result1, result2]) => {
+              // Combine results and deduplicate by id
+              const profilesMap = new Map();
+              [...(result1.data || []), ...(result2.data || [])].forEach((profile: any) => {
+                if (!profilesMap.has(profile.id)) {
+                  profilesMap.set(profile.id, profile);
+                }
+              });
+              return { data: Array.from(profilesMap.values()), error: result1.error || result2.error };
+            })
           : Promise.resolve({ data: [] }),
 
         // Batch fetch custom weapon profiles
@@ -306,10 +339,20 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
 
       const standardProfilesMap = new Map<string, any[]>();
       (standardProfilesData.data || []).forEach((profile: any) => {
+        // Add profile to the map under its weapon_id (for direct matches)
         if (!standardProfilesMap.has(profile.weapon_id)) {
           standardProfilesMap.set(profile.weapon_id, []);
         }
         standardProfilesMap.get(profile.weapon_id)!.push(profile);
+        
+        // Also add profile to the map under weapon_group_id if it exists (for grouped weapons)
+        // But only if the fighter owns the weapon that owns this profile
+        if (profile.weapon_group_id && standardEquipmentIds.includes(profile.weapon_id)) {
+          if (!standardProfilesMap.has(profile.weapon_group_id)) {
+            standardProfilesMap.set(profile.weapon_group_id, []);
+          }
+          standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
+        }
       });
 
       const customProfilesMap = new Map<string, any[]>();
