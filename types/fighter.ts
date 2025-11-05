@@ -48,6 +48,7 @@ export interface WeaponProps {
   weapon_profiles: any[];
   is_master_crafted?: boolean;
   effect_names?: string[]; // Names of effects that target this weapon
+  equipment_category?: string; // Equipment category for the weapon
 }
 
 export interface FighterEffectCategory {

@@ -32,6 +32,7 @@ export interface Equipment {
   core_equipment?: boolean;
   vehicle_upgrade_slot?: string;
   target_equipment_id?: string | null; // For equipment-to-equipment upgrades
+  effect_names?: string[]; // Names of effects that target this equipment
 
   master_crafted?: boolean;
   is_master_crafted?: boolean;

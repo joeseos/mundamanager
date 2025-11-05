@@ -737,7 +737,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             cost: item.purchase_cost || 0,
             weapon_profiles: item.weapon_profiles || [],
             is_master_crafted: item.is_master_crafted || false,
-            effect_names: item.effect_names || undefined
+            effect_names: item.effect_names || undefined,
+            equipment_category: item.equipment_category || undefined
           }));
 
         const wargear: WargearItem[] = equipment
