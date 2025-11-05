@@ -194,7 +194,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     weapon_profiles: item.weapon_profiles,
     core_equipment: item.core_equipment,
     is_master_crafted: item.is_master_crafted,
-    target_equipment_id: item.target_equipment_id
+    target_equipment_id: item.target_equipment_id,
+    effect_names: item.effect_names
   }));
 
   // Transform vehicle equipment
@@ -1044,7 +1045,7 @@ export default function FighterPage({
                 fighterHasLegacy={Boolean((fighterData as any)?.fighter?.fighter_gang_legacy_id)}
                 fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
                 isCustomFighter={Boolean((fighterData as any)?.fighter?.custom_fighter_type_id)}
-                fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category }))}
+                fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category, effect_names: eq.effect_names }))}
                 onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
               />
             )

@@ -41,7 +41,7 @@ interface FighterEffectSelectionProps {
   modifierEquipmentId?: string;
   effectTypeId?: string;
   onApplyToTarget?: (targetEquipmentId: string) => Promise<void>;
-  fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
+  fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   effectName?: string;
 }
 
@@ -50,10 +50,10 @@ const FighterEffectSelection = React.forwardRef<
   FighterEffectSelectionProps
 >(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons, effectName: propEffectName }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
-  const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string; equipment_category?: string }[]>([]);
+  const [targetableWeapons, setTargetableWeapons] = useState<{ id: string; name: string; equipment_category?: string; effect_names?: string[] }[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [effectName, setEffectName] = useState<string | null>(propEffectName || null);
-  const weaponsFetchedRef = React.useRef(false);
+  const [weaponEffectsMap, setWeaponEffectsMap] = useState<Map<string, string[]>>(new Map());
 
   // Effect name is provided by parent when in target selection mode
 
@@ -68,38 +68,17 @@ const FighterEffectSelection = React.forwardRef<
         // Sort alphabetically by name
         const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
         setTargetableWeapons(sorted);
-        weaponsFetchedRef.current = true;
+        
+        // Extract effect names from passed-in weapons (always provided now)
+        const effectsMap = new Map<string, string[]>();
+        sorted.forEach(w => {
+          if (w.effect_names && w.effect_names.length > 0) {
+            effectsMap.set(w.id, w.effect_names);
+          }
+        });
+        setWeaponEffectsMap(effectsMap);
         return;
       }
-
-      // Fallback: fetch if not provided (only once)
-      if (!fighterId || weaponsFetchedRef.current) return;
-
-      weaponsFetchedRef.current = true;
-      const supabase = createClient();
-
-      (async () => {
-        const { data } = await supabase
-          .from('fighter_equipment')
-          .select(`
-            id,
-            equipment:equipment_id(equipment_name, equipment_type, equipment_category),
-            custom_equipment:custom_equipment_id(equipment_name, equipment_type, equipment_category)
-          `)
-          .eq('fighter_id', fighterId)
-          .is('vehicle_id', null);
-        const weapons = (data || []).filter((row: any) => {
-          const type = (row.equipment as any)?.equipment_type || (row.custom_equipment as any)?.equipment_type;
-          return type === 'weapon' && row.id !== modifierEquipmentId;
-        }).map((row: any) => ({
-          id: row.id,
-          name: (row.equipment as any)?.equipment_name || (row.custom_equipment as any)?.equipment_name || 'Weapon',
-          equipment_category: (row.equipment as any)?.equipment_category || (row.custom_equipment as any)?.equipment_category || undefined
-        }));
-        // Sort alphabetically by name
-        weapons.sort((a, b) => a.name.localeCompare(b.name));
-        setTargetableWeapons(weapons);
-      })();
     } else {
       // Auto-select fixed effects when component mounts
       const fixedEffects = effectTypes
@@ -357,7 +336,15 @@ const FighterEffectSelection = React.forwardRef<
                 onChange={() => setSelectedTargetId(w.id)}
               />
               <div className="flex flex-col">
-                <span>{w.name}</span>
+                <span>
+                  {w.name}
+                  {(() => {
+                    const effectNames = weaponEffectsMap.get(w.id) || w.effect_names || [];
+                    return effectNames.length > 0 ? (
+                      <span className="text-muted-foreground"> ({effectNames.join(', ')})</span>
+                    ) : null;
+                  })()}
+                </span>
                 {w.equipment_category && w.equipment_category !== 'unknown' && (
                   <span className="text-xs text-muted-foreground">{w.equipment_category}</span>
                 )}

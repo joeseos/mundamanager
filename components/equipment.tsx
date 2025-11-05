@@ -41,7 +41,7 @@ interface ItemModalProps {
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
-  fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
+  fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
 }
 
 interface RawEquipmentData {
@@ -79,7 +79,7 @@ interface PurchaseModalProps {
   isStashPurchase?: boolean;
   fighterId?: string;
   gangId?: string;
-  fighterWeapons?: { id: string; name: string; equipment_category?: string }[];
+  fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
 }
 
 interface Category {
