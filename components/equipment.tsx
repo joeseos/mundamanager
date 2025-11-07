@@ -138,7 +138,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
     if (isNaN(parsedCost)) {
       setCreditError(`Incorrect input, please update the input value`);
       return false; // Explicitly return false to prevent modal closure
-    } else if (parsedCost > gangCredits) {
+    } else if (parsedCost > 0 && parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
       return false; // Explicitly return false to prevent modal closure
     }
