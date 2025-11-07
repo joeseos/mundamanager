@@ -252,7 +252,7 @@ export function applyWeaponModifiers(
     const modified = { ...profile };
 
     // Apply numeric fields with add/set operations
-    const numericFields = ['strength', 'ap', 'damage', 'ammo'];
+    const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'ammo'];
 
     numericFields.forEach((fieldName) => {
       const baseValue = (modified as any)[fieldName];
