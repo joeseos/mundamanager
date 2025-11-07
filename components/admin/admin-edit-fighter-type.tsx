@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useTransition } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -89,7 +89,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [fighterSubTypes, setFighterSubTypes] = useState<FighterSubType[]>([]);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
   const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
-  
+  const [isPending, startTransition] = useTransition();
+
   const [movement, setMovement] = useState('');
   const [weaponSkill, setWeaponSkill] = useState('');
   const [ballisticSkill, setBallisticSkill] = useState('');
@@ -167,6 +168,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add a ref to track if a category was manually removed
   const userRemovedCategoryRef = useRef(false);
 
+  // Track which skill IDs we've already fetched details for
+  const fetchedSkillDetailsRef = useRef<Set<string>>(new Set());
+
   // When fighter type or subtype values change from API, update the refs
   useEffect(() => {
     if (fighterTypeInputRef.current) {
@@ -187,6 +191,40 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   }, [specialSkills]);
 
   const { toast } = useToast();
+
+  // Memoize filtered skills to avoid recalculating on every render
+  const availableSkills = useMemo(() => {
+    if (!Array.isArray(skills)) return [];
+    return skills.filter(skill => !selectedSkills.includes(skill.id));
+  }, [skills, selectedSkills]);
+
+  // Memoize grouped skill types to avoid expensive computation on every render
+  const groupedSkillTypes = useMemo(() => {
+    return Object.entries(
+      skillTypes
+        .sort((a, b) => {
+          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+          return rankA - rankB;
+        })
+        .reduce((groups, type) => {
+          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
+          let groupLabel = "Misc.";
+
+          if (rank <= 19) groupLabel = "Universal Skills";
+          else if (rank <= 39) groupLabel = "Gang-specific Skills";
+          else if (rank <= 59) groupLabel = "Wyrd Powers";
+          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
+          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
+          else if (rank <= 89) groupLabel = "Legendary Names";
+          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
+
+          if (!groups[groupLabel]) groups[groupLabel] = [];
+          groups[groupLabel].push(type);
+          return groups;
+        }, {} as Record<string, typeof skillTypes>)
+    );
+  }, [skillTypes]);
 
   // Preload equipment data when the component mounts
   useEffect(() => {
@@ -356,7 +394,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
         if (!response.ok) throw new Error('Failed to fetch skills');
         const data = await response.json();
-        setSkills(data);
+        // API returns {skills: [], effect_categories: []} when filtered by skill_type_id
+        const skillsArray = Array.isArray(data) ? data : data.skills || [];
+        setSkills(skillsArray);
       } catch (error) {
         console.error('Error fetching skills:', error);
         toast({
@@ -369,31 +409,41 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSkills();
   }, [selectedSkillType, toast]);
 
+  // Fetch full skill details for selected skills when loading a fighter type
   useEffect(() => {
-    const fetchSkillNames = async () => {
+    const fetchSelectedSkillDetails = async () => {
       if (!selectedSkills.length || !selectedFighterTypeId) return;
 
+      // Check which skills we haven't fetched yet
+      const missingSkillIds = selectedSkills.filter(
+        skillId => !fetchedSkillDetailsRef.current.has(skillId)
+      );
+
+      if (missingSkillIds.length === 0) return;
+
       try {
+        // Fetch all skills to get the names of selected skills
         const response = await fetch('/api/admin/skills');
         if (!response.ok) throw new Error('Failed to fetch skills');
         const allSkills = await response.json();
-        
-        const relevantSkills = allSkills.filter((skill: Skill) => selectedSkills.includes(skill.id));
-        setSkills(prevSkills => {
-          const existingSkills = prevSkills.filter(skill => !selectedSkills.includes(skill.id));
-          return [...existingSkills, ...relevantSkills];
-        });
+
+        // Add only the missing selected skills to our skills array
+        const missingSkills = allSkills.filter((skill: Skill) =>
+          missingSkillIds.includes(skill.id)
+        );
+
+        if (missingSkills.length > 0) {
+          setSkills(prevSkills => [...prevSkills, ...missingSkills]);
+          // Mark these skills as fetched
+          missingSkillIds.forEach(id => fetchedSkillDetailsRef.current.add(id));
+        }
       } catch (error) {
-        console.error('Error fetching skill names:', error);
-        toast({
-          description: 'Failed to load skill names',
-          variant: "destructive"
-        });
+        console.error('Error fetching selected skill details:', error);
       }
     };
 
-    fetchSkillNames();
-  }, [selectedSkills, toast, selectedFighterTypeId]);
+    fetchSelectedSkillDetails();
+  }, [selectedSkills, selectedFighterTypeId]);
 
   // Only fetch fighter sub-types when needed
   useEffect(() => {
@@ -469,6 +519,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setIsGangAddition(!!data.is_gang_addition);
       setSelectedEquipment(data.default_equipment || []);
       setSelectedSkills(data.default_skills || []);
+      // Reset fetched skills tracking when loading a new fighter type
+      fetchedSkillDetailsRef.current.clear();
       setEquipmentListSelections(data.equipment_list || []);
       setEquipmentDiscounts(data.equipment_discounts || []);
       setTradingPostEquipment(data.trading_post_equipment || []);
@@ -1488,7 +1540,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     className="w-full p-2 border rounded-md"
                   >
                     <option value="">Select fighter class</option>
-                    {(() => { console.log('Rendering fighter classes dropdown with options:', fighterClasses); return null; })()}
                     {fighterClasses.map((fighterClass) => (
                       <option key={fighterClass.id} value={fighterClass.class_name}>
                         {fighterClass.class_name}
@@ -1706,7 +1757,12 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 <div className="space-y-2">
                   <select
                     value={selectedSkillType}
-                    onChange={(e) => setSelectedSkillType(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      startTransition(() => {
+                        setSelectedSkillType(value);
+                      });
+                    }}
                     onFocus={() => {
                       // Load skill sets when the dropdown gets focus
                       if (!hasLoadedSkillTypesRef.current) {
@@ -1717,30 +1773,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   >
                     <option value="">Select a skill set</option>
 
-                    {Object.entries(
-                      skillTypes
-                        .sort((a, b) => {
-                          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
-                          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
-                          return rankA - rankB;
-                        })
-                        .reduce((groups, type) => {
-                          const rank = skillSetRank[type.skill_type.toLowerCase()] ?? Infinity;
-                          let groupLabel = "Misc."; // Default category for unlisted skills
-
-                          if (rank <= 19) groupLabel = "Universal Skills";
-                          else if (rank <= 39) groupLabel = "Gang-specific Skills";
-                          else if (rank <= 59) groupLabel = "Wyrd Powers";
-                          else if (rank <= 69) groupLabel = "Cult Wyrd Powers";
-                          else if (rank <= 79) groupLabel = "Psychoteric Whispers";
-                          else if (rank <= 89) groupLabel = "Legendary Names";
-                          else if (rank <= 99) groupLabel = "Ironhead Squat Mining Clans";
-
-                          if (!groups[groupLabel]) groups[groupLabel] = [];
-                          groups[groupLabel].push(type);
-                          return groups;
-                        }, {} as Record<string, typeof skillTypes>)
-                    ).map(([groupLabel, skillList]) => (
+                    {groupedSkillTypes.map(([groupLabel, skillList]) => (
                       <optgroup key={groupLabel} label={groupLabel}>
                         {skillList.map((type) => (
                           <option key={type.id} value={type.id}>
@@ -1764,13 +1797,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     disabled={!selectedSkillType || !selectedFighterTypeId}
                   >
                     <option value="">Select a skill to add</option>
-                    {skills
-                      .filter(skill => !selectedSkills.includes(skill.id))
-                      .map((skill) => (
-                        <option key={skill.id} value={skill.id}>
-                          {skill.skill_name}
-                        </option>
-                      ))}
+                    {availableSkills.map((skill) => (
+                      <option key={skill.id} value={skill.id}>
+                        {skill.skill_name}
+                      </option>
+                    ))}
                   </select>
 
                   <div className="mt-2 flex flex-wrap gap-2">
