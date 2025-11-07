@@ -21,9 +21,13 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       if (value === null || value === undefined) return '-';
       return value.toString();
     },
-    formatAccuracy: (value: number | null | undefined): string => {
+    formatAccuracy: (value: number | string | null | undefined): string => {
       if (value === null || value === undefined) return '-';
-      return value.toString();
+      const strValue = value.toString();
+      // If it's already formatted with a + or -, return as is
+      if (strValue.startsWith('+') || strValue.startsWith('-')) return strValue;
+      // Otherwise add a + prefix
+      return `+${strValue}`;
     },
     formatAp: (value: number | null | undefined): string => {
       if (value === null || value === undefined || value === 0) return '-';
