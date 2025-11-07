@@ -116,7 +116,16 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
     }
     
     if (Array.isArray(data)) {
-      return data.map(item => buildXml(item, nodeName.replace(/s$/, ''))).join('');
+      // Handle plural to singular conversion for XML node names
+      let singularName = nodeName;
+      if (nodeName.endsWith('ies')) {
+        // territories -> territory, categories -> category
+        singularName = nodeName.slice(0, -3) + 'y';
+      } else if (nodeName.endsWith('s')) {
+        // gangs -> gang, members -> member
+        singularName = nodeName.slice(0, -1);
+      }
+      return data.map(item => buildXml(item, singularName)).join('');
     }
     
     const children = Object.entries(data)
