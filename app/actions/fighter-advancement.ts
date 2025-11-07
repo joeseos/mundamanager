@@ -515,37 +515,43 @@ export async function deleteAdvancement(
       xpToRefund = skillData.xp_cost || 0;
       ratingDelta -= (skillData.credits_increase || 0);
 
-      // Get fighter type info
-      const { data: fighterTypeData, error: fighterTypeError } = await supabase
-        .from('fighters')
-        .select(`
-          fighter_type_id,
-          fighter_types!inner(id, free_skill)
-        `)
-        .eq('id', params.fighter_id)
-        .single();
-
+      // Get skill name for logging
       const { data: fighterSkillData } = await supabase
         .from('fighter_skills')
         .select(`
           skills!inner(name)
         `)
         .eq('id', params.advancement_id)
-        .single(); //why does this return an object randomly when normally its an array???
+        .single();
       if (fighterSkillData && fighterSkillData.skills) {
         const skills = Array.isArray(fighterSkillData.skills)
           ? fighterSkillData.skills
           : [fighterSkillData.skills];
         deletedSkillName = skills[0].name
-      } 
-
-      if (fighterTypeError || !fighterTypeData) {
-        return { success: false, error: 'Fighter type not found' };
       }
 
-      const fighterType = Array.isArray(fighterTypeData.fighter_types)
-        ? fighterTypeData.fighter_types[0]
-        : fighterTypeData.fighter_types;
+      // Get fighter type info - handle both regular and custom fighters
+      const { data: fighterTypeData } = await supabase
+        .from('fighters')
+        .select(`
+          fighter_type_id,
+          custom_fighter_type_id,
+          fighter_types(id, free_skill),
+          custom_fighter_types(id, free_skill)
+        `)
+        .eq('id', params.fighter_id)
+        .single();
+
+      let fighterType = null;
+      if (fighterTypeData?.fighter_types) {
+        fighterType = Array.isArray(fighterTypeData.fighter_types)
+          ? fighterTypeData.fighter_types[0]
+          : fighterTypeData.fighter_types;
+      } else if (fighterTypeData?.custom_fighter_types) {
+        fighterType = Array.isArray(fighterTypeData.custom_fighter_types)
+          ? fighterTypeData.custom_fighter_types[0]
+          : fighterTypeData.custom_fighter_types;
+      }
 
       // Delete skill-created effects before deleting the skill
       const {data: skillEffectTypes} = await supabase
@@ -578,31 +584,39 @@ export async function deleteAdvancement(
         return { success: false, error: 'Failed to delete skill' };
       }
 
-      // Count default skills for this fighter type
-      const { count: defaultSkillCount } = await supabase
-        .from('fighter_defaults')
-        .select('*', { count: 'exact', head: true })
-        .eq('fighter_type_id', fighterTypeData.fighter_type_id)
-        .not('skill_id', 'is', null);
+      // Update free_skill status for both standard and custom fighter types
+      if (fighterType) {
+        const isCustom = !fighterTypeData?.fighter_type_id && !!fighterTypeData?.custom_fighter_type_id;
+        const typeId = fighterTypeData?.fighter_type_id || fighterTypeData?.custom_fighter_type_id;
 
-      // Count remaining skills for this fighter
-      const { count: remainingSkillCount } = await supabase
-        .from('fighter_skills')
-        .select('*', { count: 'exact', head: true })
-        .eq('fighter_id', params.fighter_id);
+        if (typeId) {
+          // Count default skills for this fighter type
+          const { count: defaultSkillCount } = await supabase
+            .from('fighter_defaults')
+            .select('*', { count: 'exact', head: true })
+            .eq(isCustom ? 'custom_fighter_type_id' : 'fighter_type_id', typeId)
+            .not('skill_id', 'is', null);
 
-      // Check if deleted skill was a default skill
-      const { count: wasDefaultSkill } = await supabase
-        .from('fighter_defaults')
-        .select('*', { count: 'exact', head: true })
-        .eq('fighter_type_id', fighterTypeData.fighter_type_id)
-        .eq('skill_id', skillData.skill_id);
+          // Count remaining skills for this fighter
+          const { count: remainingSkillCount } = await supabase
+            .from('fighter_skills')
+            .select('*', { count: 'exact', head: true })
+            .eq('fighter_id', params.fighter_id);
 
-      // Determine free_skill status
-      // If fighter type has free_skill = true AND remaining skills <= default skills AND deleted skill was NOT default
-      newFreeSkillStatus = fighterType.free_skill && 
-                          (remainingSkillCount || 0) <= (defaultSkillCount || 0) && 
-                          (wasDefaultSkill || 0) === 0;
+          // Check if deleted skill was a default skill
+          const { count: wasDefaultSkill } = await supabase
+            .from('fighter_defaults')
+            .select('*', { count: 'exact', head: true })
+            .eq(isCustom ? 'custom_fighter_type_id' : 'fighter_type_id', typeId)
+            .eq('skill_id', skillData.skill_id);
+
+          // Determine free_skill status
+          // If fighter type has free_skill = true AND remaining skills <= default skills AND deleted skill was NOT default
+          newFreeSkillStatus = fighterType.free_skill &&
+                              (remainingSkillCount || 0) <= (defaultSkillCount || 0) &&
+                              (wasDefaultSkill || 0) === 0;
+        }
+      }
 
     } else {
       // Handle effect deletion
