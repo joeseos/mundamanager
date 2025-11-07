@@ -53,6 +53,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         positioning: sourceGang.positioning ?? null,
         image_url: sourceGang.image_url || null,
         rating: sourceGang.rating ?? 0,
+        gang_origin_id: sourceGang.gang_origin_id,
+        power: sourceGang.power,
+        sustenance: sourceGang.sustenance,
+        salvage: sourceGang.salvage,
         last_updated: new Date().toISOString(),
       })
       .select()
