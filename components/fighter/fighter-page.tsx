@@ -841,6 +841,7 @@ export default function FighterPage({
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
+            skills={fighterData.fighter?.skills || {}}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
               setFighterData(prev => ({
                 ...prev,
@@ -851,6 +852,15 @@ export default function FighterPage({
                     ...prev.fighter.effects,
                     injuries: updatedInjuries
                   }
+                } : null
+              }));
+            }}
+            onSkillsUpdate={(updatedSkills) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  skills: updatedSkills
                 } : null
               }));
             }}
