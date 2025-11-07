@@ -401,8 +401,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Calculate rating cost based on use_base_cost_for_rating setting
     const ratingCost = params.use_base_cost_for_rating ? (baseCost + totalEquipmentCost) : fighterCost;
 
-    // Check if gang has enough credits
-    if (gangData.credits < fighterCost) {
+    // Check if gang has enough credits (only if fighter cost > 0)
+    if (fighterCost > 0 && gangData.credits < fighterCost) {
       throw new Error('Not enough credits to add this fighter with equipment');
     }
 

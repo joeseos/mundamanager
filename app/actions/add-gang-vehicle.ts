@@ -66,8 +66,8 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     const vehicleCost = params.cost === 0 ? 0 : (params.cost || vehicleType.cost);
     const vehicleBaseCost = params.baseCost !== undefined ? params.baseCost : vehicleCost;
 
-    // Check if gang has enough credits
-    if (gang.credits < vehicleCost) {
+    // Check if gang has enough credits (only if vehicle cost > 0)
+    if (vehicleCost > 0 && gang.credits < vehicleCost) {
       return {
         success: false,
         error: 'Not enough credits'

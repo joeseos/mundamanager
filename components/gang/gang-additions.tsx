@@ -923,16 +923,24 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
     // Determine which fighter type ID to use
     const fighterTypeIdToUse = selectedSubTypeId || selectedGangAdditionTypeId;
-    
+
     if (!fighterTypeIdToUse) {
       setFetchError('Please select a fighter type');
       setIsAdding(false);
       return false;
     }
 
+    // Parse the fighter cost, defaulting to 0 if it's empty or NaN
+    const parsedCost = fighterCost === '' ? 0 : parseInt(fighterCost);
+
+    // Check if gang can afford this fighter (only if cost > 0)
+    if (parsedCost > 0 && initialCredits < parsedCost) {
+      setFetchError('Not enough credits to add this fighter');
+      setIsAdding(false);
+      return false;
+    }
+
     try {
-      // Parse the fighter cost, defaulting to 0 if it's empty or NaN
-      const parsedCost = fighterCost === '' ? 0 : parseInt(fighterCost);
       
 
       // Prepare default equipment from the selected gang addition type
