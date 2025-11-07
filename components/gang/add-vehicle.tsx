@@ -101,9 +101,15 @@ export default function AddVehicle({
     // Get the entered cost or use the base cost if none entered
     const paymentCost = vehicleCost ? parseInt(vehicleCost) : selectedVehicleType.cost;
     const name = (vehicleName || selectedVehicleType.vehicle_type).trimEnd();
-    
+
     // The cost for gang rating purposes
     const ratingCost = useBaseCost ? selectedVehicleType.cost : paymentCost;
+
+    // Check if gang can afford this vehicle (only if cost > 0)
+    if (paymentCost > 0 && initialCredits < paymentCost) {
+      setVehicleError('Not enough credits to add this vehicle');
+      return false;
+    }
 
     try {
       const result = await addGangVehicle({

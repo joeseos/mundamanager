@@ -823,15 +823,22 @@ export default function AddFighter({
 
     // Determine which fighter type ID to use
     const fighterTypeIdToUse = selectedSubTypeId || selectedFighterTypeId;
-    
+
     if (!fighterTypeIdToUse) {
       setFetchError('Please select a fighter type');
       return false;
     }
 
+    // Parse the cost from the input
+    const enteredCost = parseInt(fighterCost);
+
+    // Check if gang can afford this fighter (only if cost > 0)
+    if (enteredCost > 0 && initialCredits < enteredCost) {
+      setFetchError('Not enough credits to add this fighter');
+      return false;
+    }
+
     try {
-      // Parse the cost from the input
-      const enteredCost = parseInt(fighterCost);
       
       // Get the base cost of the fighter for optimistic update
       const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
