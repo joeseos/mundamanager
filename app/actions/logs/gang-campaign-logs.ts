@@ -26,7 +26,7 @@ interface BattleResultLogParams {
   opponent_name: string;
   scenario: string;
   result: 'won' | 'lost' | 'draw';
-  is_attacker: boolean;
+  is_attacker?: boolean;
 }
 
 interface TerritoryClaimedLogParams {
@@ -135,9 +135,17 @@ export async function logBattleResult(params: BattleResultLogParams): Promise<Ga
       };
     }
     
-    const roleText = params.is_attacker ? 'attacked' : 'defended against';
+    let roleText;
+    if (params.is_attacker) {
+      roleText = 'attacked';
+    } else if (params.is_attacker === false) {
+      roleText = 'defended against';
+    } else {
+      roleText = 'fought';
+    }
+
     let resultText;
-    
+
     switch (params.result) {
       case 'won':
         resultText = 'Victory!';
@@ -149,7 +157,7 @@ export async function logBattleResult(params: BattleResultLogParams): Promise<Ga
         resultText = 'Draw';
         break;
     }
-    
+
     const description = `Gang "${params.gang_name}" ${roleText} "${params.opponent_name}" in "${params.scenario}" (Campaign: ${params.campaign_name}). Result: ${resultText}`;
 
     return await createGangLog({

@@ -121,32 +121,67 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
     ]);
 
-    // Log battle results for both gangs
-    if (attacker && defender && campaign) {
+    // Log battle results for all participating gangs
+    if (campaign) {
       try {
-        // Log for attacker
-        const attackerResult = winner_id === attacker_id ? 'won' : (winner_id === defender_id ? 'lost' : 'draw');
-        await logBattleResult({
-          gang_id: attacker_id,
-          gang_name: attacker.name,
-          campaign_name: campaign.campaign_name,
-          opponent_name: defender.name,
-          scenario,
-          result: attackerResult,
-          is_attacker: true
-        });
+        // Parse participants if it's a JSON string
+        const parsedParticipants = typeof participants === 'string'
+          ? JSON.parse(participants)
+          : participants;
 
-        // Log for defender
-        const defenderResult = winner_id === defender_id ? 'won' : (winner_id === attacker_id ? 'lost' : 'draw');
-        await logBattleResult({
-          gang_id: defender_id,
-          gang_name: defender.name,
-          campaign_name: campaign.campaign_name,
-          opponent_name: attacker.name,
-          scenario,
-          result: defenderResult,
-          is_attacker: false
-        });
+        // Get all unique gang IDs from participants
+        const participantGangIds = Array.isArray(parsedParticipants)
+          ? parsedParticipants.map(p => p.gang_id).filter(Boolean)
+          : [];
+
+        // Log results for each participant
+        for (const participant of parsedParticipants) {
+          if (!participant.gang_id) continue;
+
+          // Fetch gang details
+          const { data: gangData } = await supabase
+            .from('gangs')
+            .select('name')
+            .eq('id', participant.gang_id)
+            .single();
+
+          if (!gangData) continue;
+
+          // Determine result for this gang
+          let result: 'won' | 'lost' | 'draw';
+          if (winner_id === null) {
+            result = 'draw';
+          } else if (winner_id === participant.gang_id) {
+            result = 'won';
+          } else {
+            result = 'lost';
+          }
+
+          // Get all other gang names in the battle
+          const otherParticipants = parsedParticipants.filter((p: BattleParticipant) => p.gang_id !== participant.gang_id);
+
+          const opponentNames = await Promise.all(
+            otherParticipants.map(async (p: BattleParticipant) => {
+              const { data } = await supabase
+                .from('gangs')
+                .select('name')
+                .eq('id', p.gang_id)
+                .single();
+              return data?.name;
+            })
+          );
+          const opponentName = opponentNames.filter(Boolean).join(', ') || 'Unknown';
+
+          await logBattleResult({
+            gang_id: participant.gang_id,
+            gang_name: gangData.name,
+            campaign_name: campaign.campaign_name,
+            opponent_name: opponentName,
+            scenario,
+            result,
+            is_attacker: participant.role === 'attacker' ? true : participant.role === 'defender' ? false : undefined
+          });
+        }
 
         // Log territory claims if any
         if (claimed_territories.length > 0 && winner_id && winner) {
@@ -298,32 +333,67 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
     ]);
 
-    // Log battle results for both gangs
-    if (attacker && defender && campaign) {
+    // Log battle results for all participating gangs
+    if (campaign) {
       try {
-        // Log for attacker
-        const attackerResult = winner_id === attacker_id ? 'won' : (winner_id === defender_id ? 'lost' : 'draw');
-        await logBattleResult({
-          gang_id: attacker_id,
-          gang_name: attacker.name,
-          campaign_name: campaign.campaign_name,
-          opponent_name: defender.name,
-          scenario,
-          result: attackerResult,
-          is_attacker: true
-        });
+        // Parse participants if it's a JSON string
+        const parsedParticipants = typeof participants === 'string'
+          ? JSON.parse(participants)
+          : participants;
 
-        // Log for defender
-        const defenderResult = winner_id === defender_id ? 'won' : (winner_id === attacker_id ? 'lost' : 'draw');
-        await logBattleResult({
-          gang_id: defender_id,
-          gang_name: defender.name,
-          campaign_name: campaign.campaign_name,
-          opponent_name: attacker.name,
-          scenario,
-          result: defenderResult,
-          is_attacker: false
-        });
+        // Get all unique gang IDs from participants
+        const participantGangIds = Array.isArray(parsedParticipants)
+          ? parsedParticipants.map(p => p.gang_id).filter(Boolean)
+          : [];
+
+        // Log results for each participant
+        for (const participant of parsedParticipants) {
+          if (!participant.gang_id) continue;
+
+          // Fetch gang details
+          const { data: gangData } = await supabase
+            .from('gangs')
+            .select('name')
+            .eq('id', participant.gang_id)
+            .single();
+
+          if (!gangData) continue;
+
+          // Determine result for this gang
+          let result: 'won' | 'lost' | 'draw';
+          if (winner_id === null) {
+            result = 'draw';
+          } else if (winner_id === participant.gang_id) {
+            result = 'won';
+          } else {
+            result = 'lost';
+          }
+
+          // Get all other gang names in the battle
+          const otherParticipants = parsedParticipants.filter((p: BattleParticipant) => p.gang_id !== participant.gang_id);
+
+          const opponentNames = await Promise.all(
+            otherParticipants.map(async (p: BattleParticipant) => {
+              const { data } = await supabase
+                .from('gangs')
+                .select('name')
+                .eq('id', p.gang_id)
+                .single();
+              return data?.name;
+            })
+          );
+          const opponentName = opponentNames.filter(Boolean).join(', ') || 'Unknown';
+
+          await logBattleResult({
+            gang_id: participant.gang_id,
+            gang_name: gangData.name,
+            campaign_name: campaign.campaign_name,
+            opponent_name: opponentName,
+            scenario,
+            result,
+            is_attacker: participant.role === 'attacker' ? true : participant.role === 'defender' ? false : undefined
+          });
+        }
 
         // Log territory claims if any
         if (claimed_territories.length > 0 && winner_id && winner) {
