@@ -16,7 +16,27 @@ export async function GET(request: Request) {
       .eq('fighter_effect_categories.category_name', 'injuries');
 
     if (effectsError) throw effectsError;
-    return NextResponse.json(effects || []);
+
+    // For injuries that grant skills, fetch the skill names
+    const effectsWithSkills = await Promise.all(
+      (effects || []).map(async (effect) => {
+        if (effect.type_specific_data?.skill_id) {
+          const { data: skill } = await supabase
+            .from('skills')
+            .select('id, name')
+            .eq('id', effect.type_specific_data.skill_id)
+            .single();
+
+          return {
+            ...effect,
+            granted_skill: skill || null
+          };
+        }
+        return effect;
+      })
+    );
+
+    return NextResponse.json(effectsWithSkills);
   } catch (error) {
     console.error('Error fetching injuries:', error);
     return NextResponse.json(

@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { FighterEffect } from '@/types/fighter';
+import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { 
-  addFighterInjury, 
-  deleteFighterInjury 
+import {
+  addFighterInjury,
+  deleteFighterInjury
 } from '@/app/actions/fighter-injury';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
@@ -14,25 +14,29 @@ import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjur
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { Combobox } from '@/components/ui/combobox';
+import { useMutation } from '@tanstack/react-query';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
   onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
+  onSkillsUpdate?: (updatedSkills: FighterSkills) => void;
+  skills?: FighterSkills;
   fighterId: string;
   fighterRecovery?: boolean;
   userPermissions: UserPermissions;
   fighter_class?: string;
 }
 
-export function InjuriesList({ 
+export function InjuriesList({
   injuries = [],
   onInjuryUpdate,
+  onSkillsUpdate,
+  skills = {},
   fighterId,
   fighterRecovery = false,
   userPermissions,
   fighter_class
 }: InjuriesListProps) {
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
@@ -41,7 +45,153 @@ export function InjuriesList({
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
-  const { toast } = useToast();
+  const { toast} = useToast();
+
+  // TanStack Query mutation for adding injuries
+  const addInjuryMutation = useMutation({
+    mutationFn: async (variables: { fighter_id: string; injury_type_id: string; send_to_recovery?: boolean; set_captured?: boolean }) => {
+      const result = await addFighterInjury(variables);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add lasting injury');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      if (!selectedInjury) return {};
+
+      // Store previous state for rollback
+      const previousInjuries = [...injuries];
+      const previousSkills = { ...skills };
+
+      // Optimistically add injury
+      const tempInjury: FighterEffect = {
+        ...(selectedInjury as any),
+        id: `optimistic-injury-${Date.now()}`,
+        created_at: new Date().toISOString(),
+      };
+
+      if (onInjuryUpdate) {
+        onInjuryUpdate([...injuries, tempInjury], variables.send_to_recovery ? true : undefined);
+      }
+
+      // Optimistically add skill if injury grants one
+      const grantedSkill = (selectedInjury as any)?.granted_skill;
+      let grantedSkillName: string | undefined;
+
+      if (onSkillsUpdate && grantedSkill) {
+        grantedSkillName = grantedSkill.name;
+        const updatedSkills = {
+          ...skills,
+          [grantedSkill.name]: {
+            id: `optimistic-skill-${Date.now()}`,
+            credits_increase: 0,
+            xp_cost: 0,
+            is_advance: false,
+            acquired_at: new Date().toISOString(),
+            fighter_injury_id: tempInjury.id,
+            injury_name: (selectedInjury as any)?.effect_name
+          }
+        };
+        onSkillsUpdate(updatedSkills);
+      }
+
+      return {
+        previousInjuries,
+        previousSkills,
+        grantedSkillName,
+        injuryName: (selectedInjury as any)?.effect_name
+      };
+    },
+    onSuccess: (result, variables, context) => {
+      const statusMessage: string[] = [];
+      if (variables.send_to_recovery) statusMessage.push('fighter sent to Recovery');
+      if (variables.set_captured) statusMessage.push('fighter marked as Captured');
+
+      toast({
+        description: `Lasting injury added successfully${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
+        variant: "default"
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic updates
+      if (context?.previousInjuries && onInjuryUpdate) {
+        onInjuryUpdate(context.previousInjuries);
+      }
+      if (context?.previousSkills && onSkillsUpdate) {
+        onSkillsUpdate(context.previousSkills);
+      }
+
+      toast({
+        description: `Failed to add lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // TanStack Query mutation for deleting injuries
+  const deleteInjuryMutation = useMutation({
+    mutationFn: async (variables: { fighter_id: string; injury_id: string }) => {
+      const result = await deleteFighterInjury(variables);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete lasting injury');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Find the injury being deleted
+      const injuryToDelete = injuries.find(i => i.id === variables.injury_id);
+      if (!injuryToDelete) return {};
+
+      // Store previous state for rollback
+      const previousInjuries = [...injuries];
+      const previousSkills = { ...skills };
+
+      // Optimistically remove injury
+      if (onInjuryUpdate) {
+        const updatedInjuries = injuries.filter(i => i.id !== variables.injury_id);
+        onInjuryUpdate(updatedInjuries);
+      }
+
+      // Optimistically remove skill if injury granted one
+      const injuryName = injuryToDelete.effect_name;
+      if (onSkillsUpdate) {
+        const updatedSkills = { ...skills };
+        Object.keys(updatedSkills).forEach(skillName => {
+          const skill = updatedSkills[skillName];
+          if (skill.injury_name === injuryName) {
+            delete updatedSkills[skillName];
+          }
+        });
+        onSkillsUpdate(updatedSkills);
+      }
+
+      return {
+        previousInjuries,
+        previousSkills,
+        injuryName
+      };
+    },
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: `${context?.injuryName || 'Injury'} removed successfully`,
+        variant: "default"
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic updates
+      if (context?.previousInjuries && onInjuryUpdate) {
+        onInjuryUpdate(context.previousInjuries);
+      }
+      if (context?.previousSkills && onSkillsUpdate) {
+        onSkillsUpdate(context.previousSkills);
+      }
+
+      toast({
+        description: `Failed to delete lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  });
 
   // Helper function to format the range display
   const formatInjuryRange = (injuryName: string): string => {
@@ -116,7 +266,7 @@ export function InjuriesList({
       });
       return false;
     }
-    
+
     setSelectedInjury(injury);
 
     // Check if the injury requires Recovery or Captured status
@@ -137,114 +287,49 @@ export function InjuriesList({
       return false;
     } else {
       // Directly add the injury without asking for status changes
-      // Close immediately by returning true; run mutation in background
-      void proceedWithAddingInjury(false, false);
+      // Close modal immediately and trigger mutation
+      setIsAddModalOpen(false);
+      addInjuryMutation.mutate({
+        fighter_id: fighterId,
+        injury_type_id: selectedInjuryId,
+        send_to_recovery: false,
+        set_captured: false
+      });
       return true;
     }
   };
 
-  const proceedWithAddingInjury = async (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
+  const proceedWithAddingInjury = (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
     if (!selectedInjuryId) {
       toast({
         description: "Please select a lasting injury",
         variant: "destructive"
       });
-      return false;
+      return;
     }
 
-    try {
-      // Optimistic: add a temporary injury entry if we have the selected injury details
-      const tempInjury: FighterEffect | null = selectedInjury ? {
-        ...(selectedInjury as any),
-        id: `temp-${Date.now()}`,
-        created_at: new Date().toISOString(),
-      } : null;
+    // Close modals immediately
+    setIsRecoveryModalOpen(false);
+    setIsCapturedModalOpen(false);
 
-      if (onInjuryUpdate && tempInjury) {
-        onInjuryUpdate([...(injuries || []), tempInjury], sendToRecovery ? true : undefined);
-      }
-
-      const result = await addFighterInjury({
-        fighter_id: fighterId,
-        injury_type_id: selectedInjuryId,
-        send_to_recovery: sendToRecovery,
-        set_captured: setCaptured
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add lasting injury');
-      }
-
-      // Reconcile with server result — replace temp with real injury
-      if (onInjuryUpdate && result.injury) {
-        const withoutTemp = (injuries || []).filter(i => !String(i.id).startsWith('temp-'));
-        onInjuryUpdate([...withoutTemp, result.injury], result.recovery_status);
-      }
-
-      const statusMessage: string[] = [];
-      if (sendToRecovery) statusMessage.push('fighter sent to Recovery');
-      if (setCaptured) statusMessage.push('fighter marked as Captured');
-      
-      toast({
-        description: `Lasting injury added successfully${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
-        variant: "default"
-      });
-
-      setSelectedInjuryId('');
-      setSelectedInjury(null);
-      setIsRecoveryModalOpen(false);
-      setIsCapturedModalOpen(false);
-      
-      return true;
-    } catch (error) {
-      // Rollback — restore original list
-      if (onInjuryUpdate) {
-        onInjuryUpdate([...(injuries || [])]);
-      }
-      console.error('Error adding lasting injury:', error);
-      toast({
-        description: `Failed to add lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-      return false;
-    }
+    // Trigger mutation
+    addInjuryMutation.mutate({
+      fighter_id: fighterId,
+      injury_type_id: selectedInjuryId,
+      send_to_recovery: sendToRecovery,
+      set_captured: setCaptured
+    });
   };
 
-  const handleDeleteInjury = async (injuryId: string, injuryName: string) => {
-    try {
-      setIsDeleting(injuryId);
-      // Optimistic remove
-      if (onInjuryUpdate) {
-        const optimistic = (injuries || []).filter(i => i.id !== injuryId);
-        onInjuryUpdate(optimistic);
-      }
+  const handleDeleteInjury = (injuryId: string, injuryName: string) => {
+    // Close modal immediately
+    setDeleteModalData(null);
 
-      const result = await deleteFighterInjury({
-        fighter_id: fighterId,
-        injury_id: injuryId
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete lasting injury');
-      }
-      
-      toast({
-        description: `${injuryName} removed successfully`,
-        variant: "default"
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error deleting lasting injury:', error);
-      toast({
-        description: `Failed to delete lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-      return false;
-    } finally {
-      setIsDeleting(null);
-      setDeleteModalData(null);
-    }
+    // Trigger mutation
+    deleteInjuryMutation.mutate({
+      fighter_id: fighterId,
+      injury_id: injuryId
+    });
   };
 
   return (
@@ -279,7 +364,7 @@ export function InjuriesList({
               id: item.injury_id,
               name: item.name
             }),
-            disabled: (item) => isDeleting === item.injury_id || !userPermissions.canEdit
+            disabled: () => deleteInjuryMutation.isPending || !userPermissions.canEdit
           }
         ]}
         onAdd={handleOpenModal}
@@ -434,7 +519,7 @@ export function InjuriesList({
           onClose={handleCloseModal}
           onConfirm={handleAddInjury}
           confirmText="Add Lasting Injury"
-          confirmDisabled={!selectedInjuryId}
+          confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending}
         />
       )}
 
