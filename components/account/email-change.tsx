@@ -134,7 +134,7 @@ export default function EmailChange({ currentEmail }: EmailChangeProps) {
           </div>
           <Button
             onClick={() => setIsEditing(true)}
-            className="bg-neutral-900 hover:bg-gray-800 text-white shrink-0"
+            className="bg-neutral-900 hover:bg-gray-800 text-white shrink-0 w-full sm:w-auto"
             size="sm"
           >
             Change Email
