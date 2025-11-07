@@ -144,6 +144,11 @@ export async function addFighterInjury(
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
 
+    // If injury grants a skill, invalidate skills cache
+    if (injuryData?.type_specific_data?.skill_id) {
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id));
+    }
+
     return {
       success: true,
       injury: {
@@ -201,6 +206,22 @@ export async function deleteFighterInjury(
       return { success: false, error: 'Injury not found or does not belong to this fighter' };
     }
 
+    // Delete any skills granted by this injury before deleting the injury
+    const { data: relatedSkills } = await supabase
+      .from('fighter_effect_skills')
+      .select('fighter_skill_id')
+      .eq('fighter_effect_id', params.injury_id);
+
+    let hasRelatedSkills = false;
+    if (relatedSkills && relatedSkills.length > 0) {
+      hasRelatedSkills = true;
+      const skillIds = relatedSkills.map(rs => rs.fighter_skill_id);
+      await supabase
+        .from('fighter_skills')
+        .delete()
+        .in('id', skillIds);
+    }
+
     // Delete the injury (this will cascade delete the modifiers)
     const { error: deleteError } = await supabase
       .from('fighter_effects')
@@ -249,6 +270,11 @@ export async function deleteFighterInjury(
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+
+    // If injury had related skills, invalidate skills cache
+    if (hasRelatedSkills) {
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id));
+    }
 
     return { success: true };
 
