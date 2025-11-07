@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import PasswordChange from "@/components/password-change";
 import EmailChange from "@/components/account/email-change";
+import UsernameChange from "@/components/account/username-change";
 import { NotificationsSection } from "@/components/settings-modal";
 import FriendsSearchBar from "@/components/account/friends";
 import { getFriendsAndRequests } from "@/app/lib/friends";
@@ -43,9 +44,10 @@ export default async function AccountPage() {
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Username
               </label>
-              <div className="text-foreground text-neutral-500 bg-muted rounded-md px-3 py-2">
-                {profile?.username || 'Not set'}
-              </div>
+              <UsernameChange
+                currentUsername={profile?.username || ''}
+                userId={user.id}
+              />
             </div>
 
             {/* Patreon Status */}
