@@ -467,8 +467,8 @@ const CampaignBattleLogModal = ({
       // Prepare battle data for API
       const battleData: BattleLogParams = {
         scenario: scenarioName,
-        attacker_id: attackers.length > 0 ? attackers[0].gangId : firstGangId,
-        defender_id: defenders.length > 0 ? defenders[0].gangId : firstGangId,
+        attacker_id: attackers.length > 0 ? attackers[0].gangId : (gangsInBattle[0]?.gangId || firstGangId),
+        defender_id: defenders.length > 0 ? defenders[0].gangId : (gangsInBattle[1]?.gangId || gangsInBattle[0]?.gangId || firstGangId),
         winner_id: winner === "draw" ? null : winner,
         note: notes || null,
         participants: participants,
