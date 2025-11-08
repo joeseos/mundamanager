@@ -50,7 +50,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         gang_variants: sourceGang.gang_variants,
         note: sourceGang.note,
         note_backstory: sourceGang.note_backstory,
-        positioning: sourceGang.positioning ?? null,
+        positioning: null, // Will be updated after fighters are copied
         image_url: sourceGang.image_url || null,
         rating: sourceGang.rating ?? 0,
         gang_origin_id: sourceGang.gang_origin_id,
@@ -295,6 +295,33 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         if (insertSkillsError) {
           await cleanupOnError(new Error(`Failed to insert fighter skills: ${insertSkillsError.message}`));
         }
+      }
+    }
+
+    // 8.5) Update positioning to use new fighter IDs
+    if (sourceGang.positioning && typeof sourceGang.positioning === 'object') {
+      const updatedPositioning: Record<string, string> = {};
+
+      for (const [positionSlot, oldFighterId] of Object.entries(sourceGang.positioning)) {
+        if (typeof oldFighterId === 'string') {
+          const newFighterId = fighterIdMap.get(oldFighterId);
+          if (newFighterId) {
+            updatedPositioning[positionSlot] = newFighterId;
+          }
+          // Position slot omitted if fighter wasn't copied
+        }
+      }
+
+      // Update with new positioning or keep null if no valid fighters
+      const { error: updatePositioningError } = await supabase
+        .from('gangs')
+        .update({
+          positioning: Object.keys(updatedPositioning).length > 0 ? updatedPositioning : null
+        })
+        .eq('id', newGangId);
+
+      if (updatePositioningError) {
+        await cleanupOnError(new Error(`Failed to update gang positioning: ${updatePositioningError.message}`));
       }
     }
 
