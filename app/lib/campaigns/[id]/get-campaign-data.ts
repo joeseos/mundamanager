@@ -219,7 +219,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         power,
         sustenance,
         salvage,
-        rating
+        rating,
+        wealth
       `)
       .in('id', gangIds);
 
@@ -321,6 +322,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         gang_colour: gangDetails?.gang_colour || '#000000',
         status: cg.status,
         rating: gangDetails?.rating || 0,
+        wealth: gangDetails?.wealth || 0,
         reputation: gangDetails?.reputation || 0,
         campaign_member_id: cg.campaign_member_id,
         exploration_points: gangDetails?.exploration_points ?? null,
