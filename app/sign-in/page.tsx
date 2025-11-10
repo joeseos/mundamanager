@@ -153,26 +153,51 @@ export default function SignIn() {
             {/* Turnstile Widget */}
             <div className="mt-2">
               {siteKey ? (
-                <Turnstile
-                  ref={turnstileRef}
-                  siteKey={siteKey}
-                  options={{ theme: "dark" }}
-                  onSuccess={(token) => {
-                    setTurnstileStatus("success");
-                    setTurnstileToken(token);
-                    setErrorMessage(null);
-                  }}
-                  onError={() => {
-                    setTurnstileStatus("error");
-                    setErrorMessage("Security verification failed. Please refresh the page.");
-                  }}
-                  onExpire={() => {
-                    setTurnstileStatus("expired");
-                    setTurnstileToken("");
-                    // Auto-reset on expire (natural token lifecycle)
-                    turnstileRef.current?.reset();
-                  }}
-                />
+                <div>
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={siteKey}
+                    options={{ theme: "dark" }}
+                    onSuccess={(token) => {
+                      setTurnstileStatus("success");
+                      setTurnstileToken(token);
+                      setErrorMessage(null);
+                    }}
+                    onError={() => {
+                      setTurnstileStatus("error");
+                      setErrorMessage("Security verification failed. Please refresh the page.");
+                    }}
+                    onExpire={() => {
+                      setTurnstileStatus("expired");
+                      setTurnstileToken("");
+                      turnstileRef.current?.reset();
+                    }}
+                  />
+
+                  {/* Error State */}
+                  {turnstileStatus === "error" && (
+                    <div className="p-4 border border-red-300 rounded-md bg-red-50 dark:bg-red-900/20 dark:border-red-600 mt-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="text-red-600 dark:text-red-400">⚠️</div>
+                        <div className="text-sm text-red-600 dark:text-red-400">
+                          Security verification failed to load. Please refresh the page and try again.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expired State */}
+                  {turnstileStatus === "expired" && (
+                    <div className="p-4 border border-amber-300 rounded-md bg-amber-50 dark:bg-amber-900/20 dark:border-amber-600 mt-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="text-amber-600 dark:text-amber-400">⏱️</div>
+                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                          Security verification expired. Please complete it again.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 process.env.NODE_ENV === 'development' && (
                   <div className="text-amber-500 text-sm">
