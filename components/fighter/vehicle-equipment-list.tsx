@@ -230,7 +230,7 @@ export function VehicleEquipmentList({
         item => item.fighter_equipment_id !== fighterEquipmentId
       );
       const optimisticFighterCredits = previousFighterCredits - (equipmentToSell.cost ?? 0);
-      const optimisticGangCredits = previousGangCredits + Math.max(5, manualCost || 0);
+      const optimisticGangCredits = previousGangCredits + (manualCost || 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, optimisticGangCredits);
 
       const result = await sellEquipmentFromFighter({
@@ -247,7 +247,7 @@ export function VehicleEquipmentList({
       
       toast({
         title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${Math.max(5, manualCost || 0)} credits`,
+        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits`,
       });
       setSellModalData(null);
     } catch (error) {

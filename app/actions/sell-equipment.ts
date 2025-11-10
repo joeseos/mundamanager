@@ -1,9 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterDataWithFinancials, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { logEquipmentAction } from './logs/equipment-logs';
 
 interface SellEquipmentParams {
@@ -38,7 +37,7 @@ interface StashSellParams {
 
 interface StashActionResult {
   success: boolean;
-  data?: { gang: { id: string; credits: number } };
+  data?: { gang: { id: string; credits: number; wealth: number } };
   error?: string;
 }
 
@@ -205,22 +204,34 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       ratingDelta -= effectsCredits;
     }
 
-    if (ratingDelta !== 0) {
-      try {
-        const { data: ratingRow } = await supabase
-          .from('gangs')
-          .select('rating')
-          .eq('id', gangId)
-          .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
-        await supabase
-          .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
-          .eq('id', gangId);
-        invalidateGangRating(gangId);
-      } catch (e) {
-        console.error('Failed to update gang rating after selling equipment:', e);
-      }
+    // Update rating and wealth
+    // Note: Credits were already updated above, so wealth delta should account for:
+    // - Rating decrease (equipment cost removed from gang)
+    // - Credits increase (sell value already added to credits above)
+    // Since credits were updated separately, wealthDelta = ratingDelta + sellValue
+    try {
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', gangId)
+        .single();
+      const currentRating = (gangRow?.rating ?? 0) as number;
+      const currentWealth = (gangRow?.wealth ?? 0) as number;
+
+      // Wealth delta = rating change + credits change
+      // Rating decreases by purchase_cost, credits increase by sellValue
+      const wealthDelta = ratingDelta + sellValue;
+
+      await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
+        .eq('id', gangId);
+      invalidateGangRating(gangId);
+    } catch (e) {
+      console.error('Failed to update gang rating/wealth after selling equipment:', e);
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
@@ -267,8 +278,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Also invalidate vehicle-specific cache tags
       invalidateVehicleData(equipmentData.vehicle_id);
     } else {
-      // For other cases, invalidate gang financials
-      invalidateGangFinancials(gangId);
+      // For stash equipment, invalidate stash cache
+      invalidateGangStash({ gangId, userId: user.id });
     }
 
     return {
@@ -306,27 +317,39 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash')
+      .select('id, gang_id, gang_stash, purchase_cost')
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
-    const sellValue = Math.max(5, Math.floor(params.manual_cost || 0));
+    const sellValue = Math.floor(params.manual_cost || 0);
+    const purchaseCost = row.purchase_cost || 0;
 
-    // Update gang credits
+    // Update gang credits and wealth
     const { data: currentGang, error: gangErr } = await supabase
       .from('gangs')
-      .select('credits')
+      .select('credits, wealth')
       .eq('id', row.gang_id)
       .single();
     if (gangErr || !currentGang) return { success: false, error: 'Gang not found' };
 
+    // When selling from stash:
+    // - Credits increase by sellValue
+    // - Stash value decreases by purchaseCost (what was originally paid)
+    // - Wealth delta = creditsDelta - purchaseCost = sellValue - purchaseCost
+    const creditsDelta = sellValue;
+    const stashValueDelta = -purchaseCost;
+    const wealthDelta = creditsDelta + stashValueDelta;
+
     const { data: updatedGang, error: updErr } = await supabase
       .from('gangs')
-      .update({ credits: (currentGang.credits || 0) + sellValue })
+      .update({
+        credits: (currentGang.credits || 0) + sellValue,
+        wealth: Math.max(0, (currentGang.wealth || 0) + wealthDelta)
+      })
       .eq('id', row.gang_id)
-      .select('id, credits')
+      .select('id, credits, wealth')
       .single();
     if (updErr || !updatedGang) return { success: false, error: 'Failed updating credits' };
 
@@ -340,7 +363,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     // Invalidate stash cache so UI refreshes
     invalidateGangStash({ gangId: row.gang_id, userId: user.id });
 
-    return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits } } };
+    return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits, wealth: updatedGang.wealth } } };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }

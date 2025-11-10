@@ -13,7 +13,7 @@ interface SellVehicleParams {
 interface SellVehicleResult {
   success: boolean;
   data?: {
-    gang: { id: string; credits: number };
+    gang: { id: string; credits: number; wealth?: number };
     vehicle_cost?: number;
     updated_gang_rating?: number;
   };
@@ -44,7 +44,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     // Permission: ensure current user owns the gang
     const { data: gangRow, error: gangFetchError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, rating')
+      .select('id, user_id, credits, rating, wealth')
       .eq('id', gangId)
       .single();
 
@@ -98,25 +98,46 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
       throw new Error(`Failed to update gang credits: ${gangUpdateError?.message}`);
     }
 
-    // If it was assigned to a fighter, subtract its total cost from gang rating
+    // Update wealth regardless of assignment status
+    // For assigned vehicles: rating decreases, credits increase
+    // For unassigned vehicles: unassigned_vehicles_value decreases, credits increase
+    // In both cases: wealthDelta = -vehicleCost + sellValue
     let updatedGangRating: number | undefined = undefined;
-    if (isAssigned && vehicleCost > 0) {
-      try {
-        const { data: ratingRow } = await supabase
-          .from('gangs')
-          .select('rating')
-          .eq('id', gangId)
-          .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
-        updatedGangRating = Math.max(0, currentRating - vehicleCost);
+    let updatedWealth: number | undefined = undefined;
+
+    try {
+      if (isAssigned && vehicleCost > 0) {
+        // Rating decreases by vehicleCost, credits already increased by sellValue above
+        const ratingDelta = -vehicleCost;
+        const creditsDelta = sellValue;
+        const wealthDelta = ratingDelta + creditsDelta;
+
+        updatedGangRating = Math.max(0, (gangRow.rating || 0) + ratingDelta);
+        updatedWealth = Math.max(0, (gangRow.wealth || 0) + wealthDelta);
+
         await supabase
           .from('gangs')
-          .update({ rating: updatedGangRating })
+          .update({
+            rating: updatedGangRating,
+            wealth: updatedWealth
+          })
           .eq('id', gangId);
         invalidateGangRating(gangId);
-      } catch (e) {
-        console.error('Failed to update gang rating after selling vehicle:', e);
+      } else {
+        // Unassigned vehicle: rating unchanged, wealth still changes
+        const wealthDelta = -vehicleCost + sellValue;
+        updatedWealth = Math.max(0, (gangRow.wealth || 0) + wealthDelta);
+
+        await supabase
+          .from('gangs')
+          .update({
+            wealth: updatedWealth
+          })
+          .eq('id', gangId);
+        invalidateGangRating(gangId);
       }
+    } catch (e) {
+      console.error('Failed to update gang rating/wealth after selling vehicle:', e);
     }
 
     // Invalidate caches (credits + rating + fighter vehicles if assigned)
@@ -128,7 +149,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     return {
       success: true,
       data: {
-        gang: { id: updatedGang.id, credits: updatedGang.credits },
+        gang: { id: updatedGang.id, credits: updatedGang.credits, wealth: updatedWealth },
         vehicle_cost: vehicleCost,
         updated_gang_rating: updatedGangRating
       }

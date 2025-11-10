@@ -200,7 +200,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // Gang info
       supabase
         .from('gangs')
-        .select('id, credits, gang_type_id, user_id, rating')
+        .select('id, credits, gang_type_id, user_id, rating, wealth')
         .eq('id', params.gang_id)
         .single(),
 
@@ -648,16 +648,33 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // PARALLEL: Rating updates and cache invalidation data fetching
+    // PARALLEL: Rating/wealth updates and cache invalidation data fetching
     const finalOperations = [];
 
-    // Rating update if needed
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
-      const newRating = Math.max(0, (gang.rating || 0) + ratingDelta + createdBeastsRatingDelta);
+    // Calculate rating and wealth updates
+    let newRating: number | undefined = undefined;
+    let newWealth: number | undefined = undefined;
+
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0 || finalPurchaseCost > 0 || (params.buy_for_gang_stash && ratingCost > 0)) {
+      // Use already-fetched gang values instead of re-querying
+      const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
+      const creditsDelta = -finalPurchaseCost; // Negative because credits were spent
+
+      // When buying for stash, wealth includes stash value increase
+      // Wealth = Rating + Credits + Stash Value
+      // Stash value uses ratingCost (respects user's "Use Listed Cost for Rating" choice)
+      // For stash: wealthDelta = ratingDelta (0) + creditsDelta (-manual_cost) + stashValueDelta (+ratingCost)
+      // For fighter/vehicle: wealthDelta = ratingDelta (+ratingCost) + creditsDelta (-manual_cost)
+      const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
+      const wealthDelta = totalRatingDelta + creditsDelta + stashValueDelta;
+
+      newRating = Math.max(0, (gang.rating || 0) + totalRatingDelta);
+      newWealth = Math.max(0, (gang.wealth || 0) + wealthDelta);
+
       finalOperations.push(
         supabase
           .from('gangs')
-          .update({ rating: newRating })
+          .update({ rating: newRating, wealth: newWealth })
           .eq('id', params.gang_id)
       );
     }
@@ -676,8 +693,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Execute final operations in parallel
     const finalResults = await Promise.all(finalOperations);
 
-    // Handle rating update result
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
+    // Handle rating/wealth update result
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0 || finalPurchaseCost > 0 || (params.buy_for_gang_stash && ratingCost > 0)) {
       try {
         invalidateGangRating(params.gang_id);
       } catch (e) {
@@ -741,7 +758,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         updategangsCollection: {
           records: [{
             id: params.gang_id,
-            credits: gang.credits - finalPurchaseCost
+            credits: gang.credits - finalPurchaseCost,
+            rating: newRating,
+            wealth: newWealth
           }]
         },
         insertIntofighter_equipmentCollection: {
@@ -1028,23 +1047,31 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // Don't fail the main operation for logging errors
     }
 
-    // Update rating if needed
+    // Update rating and wealth if needed
     if (ratingDelta !== 0) {
       try {
-        // Get current rating and update
+        // Get current rating and wealth and update
         const { data: curr } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', params.gang_id)
           .single();
         const currentRating = (curr?.rating ?? 0) as number;
+        const currentWealth = (curr?.wealth ?? 0) as number;
+
+        // Wealth delta = rating delta (no credits change on deletion)
+        const wealthDelta = ratingDelta;
+
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .update({
+            rating: Math.max(0, currentRating + ratingDelta),
+            wealth: Math.max(0, currentWealth + wealthDelta)
+          })
           .eq('id', params.gang_id);
         invalidateGangRating(params.gang_id);
       } catch (e) {
-        console.error('Failed to update gang rating after equipment deletion:', e);
+        console.error('Failed to update gang rating and wealth after equipment deletion:', e);
       }
     }
 

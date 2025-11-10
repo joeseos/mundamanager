@@ -39,11 +39,12 @@ interface GangInventoryProps {
   gangCredits: number;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangRatingUpdate?: (newRating: number) => void;
+  onGangWealthUpdate?: (newWealth: number) => void;
   userPermissions?: UserPermissions;
 }
 
-export default function GangInventory({ 
-  stash: initialStash, 
+export default function GangInventory({
+  stash: initialStash,
   fighters: initialFighters,
   title = 'Gang Stash',
   onStashUpdate,
@@ -55,6 +56,7 @@ export default function GangInventory({
   gangCredits,
   onGangCreditsUpdate,
   onGangRatingUpdate,
+  onGangWealthUpdate,
   userPermissions
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -856,9 +858,9 @@ export default function GangInventory({
           fighterTypeId=""
           fighterCredits={0}
           isStashMode={true}
-          onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment) => {
+          onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
             // Handle equipment bought for stash - perform optimistic updates
-            
+
             // Create new stash item from the purchased equipment
             const newStashItem: StashItem = {
               id: boughtEquipment.fighter_equipment_id, // This will be the gang_stash ID from the API response
@@ -883,6 +885,16 @@ export default function GangInventory({
             // Update gang credits in parent component if provided
             if (onGangCreditsUpdate && newGangCredits !== undefined) {
               onGangCreditsUpdate(newGangCredits);
+            }
+
+            // Update gang rating if provided
+            if (onGangRatingUpdate && newGangRating !== undefined) {
+              onGangRatingUpdate(newGangRating);
+            }
+
+            // Update gang wealth if provided
+            if (onGangWealthUpdate && newGangWealth !== undefined) {
+              onGangWealthUpdate(newGangWealth);
             }
 
             toast({
@@ -1041,15 +1053,18 @@ export default function GangInventory({
           onConfirm={async () => {
             const idx = sellModalItemIdx!;
             const item = stash[idx];
-            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: Math.max(5, sellManualCost || 0) });
+            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: sellManualCost || 0 });
             if (res.success) {
               const newStash = stash.filter((_, i) => i !== idx);
               setStash(newStash);
               onStashUpdate?.(newStash);
-              toast({ description: `Sold ${getItemName(item)} for ${Math.max(5, sellManualCost || 0)} credits` });
-              // Optimistically update gang credits using server-returned value
+              toast({ description: `Sold ${getItemName(item)} for ${sellManualCost || 0} credits` });
+              // Update gang credits and wealth using server-returned values
               if (res.data?.gang?.credits !== undefined) {
                 onGangCreditsUpdate?.(res.data.gang.credits);
+              }
+              if (res.data?.gang?.wealth !== undefined) {
+                onGangWealthUpdate?.(res.data.gang.wealth);
               }
             } else {
               toast({ description: res.error || 'Failed to sell item', variant: 'destructive' });

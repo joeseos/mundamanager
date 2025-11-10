@@ -110,12 +110,25 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
-    // Update gang credits
+    // Update gang credits and wealth
     const newCredits = gang.credits - vehicleCost;
+
+    // Fetch current wealth for update
+    const { data: gangRow } = await supabase
+      .from('gangs')
+      .select('wealth')
+      .eq('id', params.gangId)
+      .single();
+
+    const creditsDelta = -vehicleCost; // Negative because credits were spent
+    // For unassigned vehicles, wealth delta includes vehicle cost offset
+    const wealthDelta = creditsDelta + vehicleBaseCost; // Credits -X, unassigned vehicles +X = net 0
+
     const { error: gangUpdateError } = await supabase
       .from('gangs')
-      .update({ 
+      .update({
         credits: newCredits,
+        wealth: Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta),
         last_updated: new Date().toISOString()
       })
       .eq('id', params.gangId);

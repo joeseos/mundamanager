@@ -29,7 +29,9 @@ interface GangVehiclesProps {
   userPermissions?: UserPermissions;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangRatingUpdate?: (newRating: number) => void;
+  onGangWealthUpdate?: (newWealth: number) => void;
   currentRating?: number;
+  currentWealth?: number;
 }
 
 // Update the type to match VehicleProps
@@ -48,7 +50,9 @@ export default function GangVehicles({
   userPermissions,
   onGangCreditsUpdate,
   onGangRatingUpdate,
-  currentRating
+  onGangWealthUpdate,
+  currentRating,
+  currentWealth
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -471,9 +475,11 @@ export default function GangVehicles({
     // Store original state for potential rollback
     const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
+    const originalWealth = currentWealth || 0;
 
     try {
       const isAssigned = !!sellingVehicle.assigned_to;
+      const vehicleCost = calculateVehicleTotalValue(sellingVehicle);
 
       // OPTIMISTIC UPDATES
       if (!isAssigned && onVehicleUpdate) {
@@ -484,14 +490,24 @@ export default function GangVehicles({
       if (isAssigned && onFighterUpdate) {
         const fighter = fighters.find(f => f.fighter_name === sellingVehicle.assigned_to);
         if (fighter) {
-          const localVehicleCost = calculateVehicleTotalValue(sellingVehicle);
           const updatedFighter = {
             ...fighter,
             vehicles: [],
-            credits: Math.max(0, (fighter.credits || 0) - localVehicleCost)
+            credits: Math.max(0, (fighter.credits || 0) - vehicleCost)
           };
           onFighterUpdate(updatedFighter, true);
         }
+      }
+
+      // Update wealth optimistically
+      // Wealth = rating + credits + stash_value + unassigned_vehicles_value
+      // If assigned: rating decreases by vehicle cost, credits increase by sell value
+      //              wealthDelta = -vehicleCost + sellAmount
+      // If unassigned: rating unchanged, credits increase by sell value, unassigned vehicles value decreases by vehicle cost
+      //                wealthDelta = -vehicleCost + sellAmount
+      if (onGangWealthUpdate) {
+        const wealthDelta = -vehicleCost + sellAmount;
+        onGangWealthUpdate(Math.max(0, originalWealth + wealthDelta));
       }
 
       // Server call
@@ -509,9 +525,12 @@ export default function GangVehicles({
       if (typeof result.data?.gang?.credits === 'number' && onGangCreditsUpdate) {
         onGangCreditsUpdate(result.data.gang.credits);
       }
-      // Update gang rating immediately if provided
+      // Update gang rating and wealth immediately if provided
       if (typeof result.data?.updated_gang_rating === 'number' && onGangRatingUpdate) {
         onGangRatingUpdate(result.data.updated_gang_rating);
+      }
+      if (typeof result.data?.gang?.wealth === 'number' && onGangWealthUpdate) {
+        onGangWealthUpdate(result.data.gang.wealth);
       }
 
       toast({
@@ -535,6 +554,9 @@ export default function GangVehicles({
           onFighterUpdate(originalFighter, true);
         }
       }
+      if (onGangWealthUpdate) {
+        onGangWealthUpdate(originalWealth);
+      }
 
       toast({
         title: 'Error',
@@ -556,19 +578,25 @@ export default function GangVehicles({
     if (!deletingVehicle) return false;
 
     setIsDeleteLoading(true);
-    
+
     // Store original state for potential rollback
     const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
-    
+    const originalWealth = currentWealth || 0;
+
     try {
       // Check if this is an unassigned vehicle (for logging purposes)
       const isUnassigned = !deletingVehicle.assigned_to;
-      
+
+      // Calculate vehicle total value for wealth update
+      const vehicleTotalValue = calculateVehicleTotalValue(deletingVehicle);
+
       // OPTIMISTIC UPDATES - Update UI immediately
-      // For unassigned vehicles, removing from the vehicles list will update the wealth
-      // For assigned vehicles, updating the fighter will update the rating
-      
+      // Wealth decreases by vehicle total value (whether assigned or unassigned)
+      if (onGangWealthUpdate) {
+        onGangWealthUpdate(Math.max(0, originalWealth - vehicleTotalValue));
+      }
+
       // First, update the local vehicles list
       const updatedVehicles = vehicles.filter(v => v.id !== deletingVehicle.id);
       if (onVehicleUpdate) {
@@ -616,14 +644,18 @@ export default function GangVehicles({
       return true;
     } catch (error) {
       console.error('Error deleting vehicle:', error);
-      
+
       // ROLLBACK optimistic updates on error
+      if (onGangWealthUpdate) {
+        onGangWealthUpdate(originalWealth);
+      }
+
       if (onVehicleUpdate) {
         // Only rollback unassigned vehicles to prevent double-counting
         const unassignedOnly = originalVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
         onVehicleUpdate(unassignedOnly);
       }
-      
+
       // Rollback fighter updates if there were any
       if (deletingVehicle && deletingVehicle.assigned_to && onFighterUpdate) {
         const originalFighter = originalFighters.find(f => f.fighter_name === deletingVehicle.assigned_to);

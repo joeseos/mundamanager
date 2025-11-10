@@ -39,6 +39,8 @@ export async function createGang({
         name: name.trimEnd(),
         credits: credits.toString(),
         reputation: "1",
+        rating: 0,
+        wealth: credits,
         user_id: user.id,
         gang_type_id: gangTypeId,
         gang_type: gangType,

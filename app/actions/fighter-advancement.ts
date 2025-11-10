@@ -190,21 +190,27 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Failed to update fighter XP' };
     }
 
-    // Update gang rating (+credits_increase)
+    // Update gang rating and wealth (+credits_increase)
     try {
-      const { data: ratingRow } = await supabase
+      const { data: gangRow } = await supabase
         .from('gangs')
-        .select('rating')
+        .select('rating, wealth')
         .eq('id', fighter.gang_id)
         .single();
-      const currentRating = (ratingRow?.rating ?? 0) as number;
+      const currentRating = (gangRow?.rating ?? 0) as number;
+      const currentWealth = (gangRow?.wealth ?? 0) as number;
+      const ratingDelta = params.credits_increase || 0;
+      const wealthDelta = ratingDelta; // No credits change, only rating increases
       await supabase
         .from('gangs')
-        .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
         .eq('id', fighter.gang_id);
       invalidateGangRating(fighter.gang_id);
     } catch (e) {
-      console.error('Failed to update gang rating after characteristic advancement:', e);
+      console.error('Failed to update gang rating and wealth after characteristic advancement:', e);
     }
 
     // Invalidate fighter cache
@@ -345,21 +351,27 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Update gang rating (+credits_increase)
+    // Update gang rating and wealth (+credits_increase)
     try {
-      const { data: ratingRow } = await supabase
+      const { data: gangRow } = await supabase
         .from('gangs')
-        .select('rating')
+        .select('rating, wealth')
         .eq('id', fighter.gang_id)
         .single();
-      const currentRating = (ratingRow?.rating ?? 0) as number;
+      const currentRating = (gangRow?.rating ?? 0) as number;
+      const currentWealth = (gangRow?.wealth ?? 0) as number;
+      const ratingDelta = params.credits_increase || 0;
+      const wealthDelta = ratingDelta; // No credits change, only rating increases
       await supabase
         .from('gangs')
-        .update({ rating: Math.max(0, currentRating + (params.credits_increase || 0)) })
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
         .eq('id', fighter.gang_id);
       invalidateGangRating(fighter.gang_id);
     } catch (e) {
-      console.error('Failed to update gang rating after skill advancement:', e);
+      console.error('Failed to update gang rating and wealth after skill advancement:', e);
     }
 
     // Invalidate fighter cache
@@ -641,22 +653,27 @@ export async function deleteAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Update gang rating (apply ratingDelta which is negative when deleting)
+    // Update gang rating and wealth (apply ratingDelta which is negative when deleting)
     if (ratingDelta !== 0) {
       try {
-        const { data: ratingRow } = await supabase
+        const { data: gangRow } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', fighter.gang_id)
           .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
+        const currentRating = (gangRow?.rating ?? 0) as number;
+        const currentWealth = (gangRow?.wealth ?? 0) as number;
+        const wealthDelta = ratingDelta; // No credits change, wealth mirrors rating change
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .update({
+            rating: Math.max(0, currentRating + ratingDelta),
+            wealth: Math.max(0, currentWealth + wealthDelta)
+          })
           .eq('id', fighter.gang_id);
         invalidateGangRating(fighter.gang_id);
       } catch (e) {
-        console.error('Failed to update gang rating after advancement deletion:', e);
+        console.error('Failed to update gang rating and wealth after advancement deletion:', e);
       }
     }
 

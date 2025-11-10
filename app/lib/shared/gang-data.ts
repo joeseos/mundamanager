@@ -521,22 +521,25 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 // =============================================================================
 
 /**
- * Get stored gang rating from column (gangs.rating)
+ * Get stored gang rating and wealth from columns (gangs.rating, gangs.wealth)
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  */
-export const getGangRating = async (gangId: string, supabase: any): Promise<number> => {
+export const getGangRatingAndWealth = async (gangId: string, supabase: any): Promise<{ rating: number; wealth: number }> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('gangs')
-        .select('rating')
+        .select('rating, wealth')
         .eq('id', gangId)
         .single();
 
       if (error) throw error;
-      return (data?.rating ?? 0) as number;
+      return {
+        rating: (data?.rating ?? 0) as number,
+        wealth: (data?.wealth ?? 0) as number
+      };
     },
-    [`gang-rating-${gangId}`],
+    [`gang-rating-wealth-${gangId}`],
     {
       tags: [
         CACHE_TAGS.COMPUTED_GANG_RATING(gangId),
@@ -545,6 +548,26 @@ export const getGangRating = async (gangId: string, supabase: any): Promise<numb
       revalidate: false
     }
   )();
+};
+
+/**
+ * Get stored gang rating from column (gangs.rating)
+ * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
+ * @deprecated Use getGangRatingAndWealth() for better performance (single query)
+ */
+export const getGangRating = async (gangId: string, supabase: any): Promise<number> => {
+  const { rating } = await getGangRatingAndWealth(gangId, supabase);
+  return rating;
+};
+
+/**
+ * Get stored gang wealth from column (gangs.wealth)
+ * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
+ * @deprecated Use getGangRatingAndWealth() for better performance (single query)
+ */
+export const getGangWealth = async (gangId: string, supabase: any): Promise<number> => {
+  const { wealth } = await getGangRatingAndWealth(gangId, supabase);
+  return wealth;
 };
 
 /**

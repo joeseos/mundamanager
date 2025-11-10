@@ -41,6 +41,7 @@ interface Member {
     gang_colour: string;
     status: string | null;
     rating?: number;
+    wealth?: number;
     reputation?: number;
     exploration_points?: number;
     meat?: number;
@@ -184,6 +185,10 @@ export default function MembersTable({
           aValue = a.gangs[0]?.rating ?? -1;
           bValue = b.gangs[0]?.rating ?? -1;
           break;
+        case 'wealth':
+          aValue = a.gangs[0]?.wealth ?? -1;
+          bValue = b.gangs[0]?.wealth ?? -1;
+          break;
         case 'reputation':
           aValue = a.gangs[0]?.reputation ?? -1;
           bValue = b.gangs[0]?.reputation ?? -1;
@@ -228,7 +233,7 @@ export default function MembersTable({
     } else {
       setSortField(field);
       // Set default direction based on field type
-      const numericalFields = ['rating', 'reputation', 'exploration_points', 'meat', 'scavenging_rolls', 'territory_count'];
+      const numericalFields = ['rating', 'wealth', 'reputation', 'exploration_points', 'meat', 'scavenging_rolls', 'territory_count'];
       setSortDirection(numericalFields.includes(field) ? 'desc' : 'asc');
     }
   };
@@ -566,7 +571,7 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
-              <th 
+              <th
                 className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('rating')}
               >
@@ -579,7 +584,20 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
-              <th 
+              <th
+                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                onClick={() => handleSort('wealth')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  Wealth
+                  {sortField === 'wealth' && (
+                    <span className="text-muted-foreground">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th
                 className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('reputation')}
                 title="Reputation"
@@ -743,6 +761,11 @@ export default function MembersTable({
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
+                <td className="px-2 py-2 text-right max-w-[2rem]">
+                  <span className="text-muted-foreground">
+                    {member.gangs[0]?.wealth || "-"}
+                  </span>
+                </td>
                 <td className="px-2 py-2 text-right max-w-[3rem]">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.reputation ?? "-"}
@@ -888,6 +911,12 @@ export default function MembersTable({
               <span className="text-sm text-muted-foreground">Rating</span>
               <span className="text-sm text-muted-foreground">
                 {member.gangs[0]?.rating || "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Wealth</span>
+              <span className="text-sm text-muted-foreground">
+                {member.gangs[0]?.wealth || "-"}
               </span>
             </div>
 
