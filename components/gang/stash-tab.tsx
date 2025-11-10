@@ -1053,12 +1053,12 @@ export default function GangInventory({
           onConfirm={async () => {
             const idx = sellModalItemIdx!;
             const item = stash[idx];
-            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: Math.max(5, sellManualCost || 0) });
+            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: sellManualCost || 0 });
             if (res.success) {
               const newStash = stash.filter((_, i) => i !== idx);
               setStash(newStash);
               onStashUpdate?.(newStash);
-              toast({ description: `Sold ${getItemName(item)} for ${Math.max(5, sellManualCost || 0)} credits` });
+              toast({ description: `Sold ${getItemName(item)} for ${sellManualCost || 0} credits` });
               // Update gang credits and wealth using server-returned values
               if (res.data?.gang?.credits !== undefined) {
                 onGangCreditsUpdate?.(res.data.gang.credits);

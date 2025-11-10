@@ -323,7 +323,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
-    const sellValue = Math.max(5, Math.floor(params.manual_cost || 0));
+    const sellValue = Math.floor(params.manual_cost || 0);
     const purchaseCost = row.purchase_cost || 0;
 
     // Update gang credits and wealth

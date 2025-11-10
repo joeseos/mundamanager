@@ -43,7 +43,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
     const r = rollD6();
     setLastRoll(r);
     const deduction = r * 10;
-    const final = Math.max(5, originalCost - deduction);
+    const final = Math.max(0, originalCost - deduction);
     setManualCost(final);
     toast({ description: `Roll ${r}: -${deduction} → ${final} credits` });
   };
@@ -64,7 +64,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
             </button>
             {lastRoll !== null && (
               <div className="text-sm">
-                {`Roll ${lastRoll}: -${lastRoll * 10} → ${Math.max(5, originalCost - lastRoll * 10)} credits`}
+                {`Roll ${lastRoll}: -${lastRoll * 10} → ${Math.max(0, originalCost - lastRoll * 10)} credits`}
               </div>
             )}
           </div>
@@ -81,13 +81,12 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
                 className="w-full p-2 border rounded-md"
                 min={0}
               />
-              <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
             </div>
           </div>
         </div>
       }
       onClose={onClose}
-      onConfirm={() => { onConfirm(Math.max(5, Number(manualCost) || 0)); return true; }}
+      onConfirm={() => { onConfirm(Number(manualCost) || 0); return true; }}
     />
   );
 }
@@ -264,7 +263,7 @@ export function WeaponList({
         item => item.fighter_equipment_id !== fighterEquipmentId
       );
       const optimisticFighterCredits = previousFighterCredits - (equipmentToSell.cost ?? 0);
-      const optimisticGangCredits = previousGangCredits + Math.max(5, manualCost || 0);
+      const optimisticGangCredits = previousGangCredits + (manualCost || 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, optimisticGangCredits);
 
       // Server action
@@ -282,7 +281,7 @@ export function WeaponList({
       
       toast({
         title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${Math.max(5, manualCost || 0)} credits`,
+        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits`,
       });
     } catch (error) {
       // Rollback
