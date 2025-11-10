@@ -655,11 +655,18 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     let newRating: number | undefined = undefined;
     let newWealth: number | undefined = undefined;
 
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0 || finalPurchaseCost > 0 || (params.buy_for_gang_stash && ratingCost > 0)) {
       // Use already-fetched gang values instead of re-querying
       const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
       const creditsDelta = -finalPurchaseCost; // Negative because credits were spent
-      const wealthDelta = totalRatingDelta + creditsDelta;
+
+      // When buying for stash, wealth includes stash value increase
+      // Wealth = Rating + Credits + Stash Value
+      // Stash value uses ratingCost (respects user's "Use Listed Cost for Rating" choice)
+      // For stash: wealthDelta = ratingDelta (0) + creditsDelta (-manual_cost) + stashValueDelta (+ratingCost)
+      // For fighter/vehicle: wealthDelta = ratingDelta (+ratingCost) + creditsDelta (-manual_cost)
+      const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
+      const wealthDelta = totalRatingDelta + creditsDelta + stashValueDelta;
 
       newRating = Math.max(0, (gang.rating || 0) + totalRatingDelta);
       newWealth = Math.max(0, (gang.wealth || 0) + wealthDelta);
@@ -686,8 +693,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Execute final operations in parallel
     const finalResults = await Promise.all(finalOperations);
 
-    // Handle rating update result
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0) {
+    // Handle rating/wealth update result
+    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0 || finalPurchaseCost > 0 || (params.buy_for_gang_stash && ratingCost > 0)) {
       try {
         invalidateGangRating(params.gang_id);
       } catch (e) {
