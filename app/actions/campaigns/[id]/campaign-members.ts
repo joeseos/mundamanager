@@ -196,24 +196,23 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     if (memberGangs && memberGangs.length > 0) {
       const gangIds = memberGangs.map(g => g.gang_id);
-      
-      // Clear gang_id from territories for this member's gangs
-      const { error: territoryError } = await supabase
-        .from('campaign_territories')
-        .update({ gang_id: null })
-        .eq('campaign_id', campaignId)
-        .in('gang_id', gangIds);
-        
-      if (territoryError) throw territoryError;
-      
-      // Delete the campaign gangs for this member
-      const { error: gangError } = await supabase
-        .from('campaign_gangs')
-        .delete()
-        .eq('campaign_id', campaignId)
-        .eq('campaign_member_id', targetMemberId);
-        
-      if (gangError) throw gangError;
+
+      // Run territory update and gang deletion in parallel for better performance
+      const [territoryResult, gangResult] = await Promise.all([
+        supabase
+          .from('campaign_territories')
+          .update({ gang_id: null })
+          .eq('campaign_id', campaignId)
+          .in('gang_id', gangIds),
+        supabase
+          .from('campaign_gangs')
+          .delete()
+          .eq('campaign_id', campaignId)
+          .eq('campaign_member_id', targetMemberId)
+      ]);
+
+      if (territoryResult.error) throw territoryResult.error;
+      if (gangResult.error) throw gangResult.error;
     }
 
     // Finally delete the campaign member
