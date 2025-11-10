@@ -101,9 +101,9 @@ function checkExportRateLimit(ip: string): {
 function objectToXml(obj: any, rootName: string = 'root'): string {
   function buildXml(data: any, nodeName: string): string {
     if (data === null || data === undefined) {
-      return `<${nodeName} />`;
+      return ''; // Return empty string to omit undefined/null fields
     }
-    
+
     if (typeof data !== 'object') {
       // Escape special XML characters
       const escaped = String(data)
@@ -114,8 +114,13 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
         .replace(/'/g, '&apos;');
       return `<${nodeName}>${escaped}</${nodeName}>`;
     }
-    
+
     if (Array.isArray(data)) {
+      // Empty arrays return self-closing tag
+      if (data.length === 0) {
+        return `<${nodeName} />`; // Self-closing tag for empty arrays
+      }
+
       // Handle plural to singular conversion for XML node names
       let singularName = nodeName;
       if (nodeName.endsWith('ies')) {
@@ -125,16 +130,25 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
         // gangs -> gang, members -> member
         singularName = nodeName.slice(0, -1);
       }
-      return data.map(item => buildXml(item, singularName)).join('');
+
+      // Wrap array items in the plural parent tag to maintain grouping
+      const items = data.map(item => buildXml(item, singularName)).join('');
+      return `<${nodeName}>${items}</${nodeName}>`;
     }
-    
+
     const children = Object.entries(data)
       .map(([key, value]) => buildXml(value, key))
+      .filter(xml => xml !== '') // Filter out empty strings from undefined/null values
       .join('');
-    
+
+    // If no children after filtering, return self-closing tag
+    if (children === '') {
+      return `<${nodeName} />`;
+    }
+
     return `<${nodeName}>${children}</${nodeName}>`;
   }
-  
+
   return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
 }
 
