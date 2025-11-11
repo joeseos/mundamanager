@@ -81,19 +81,18 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  html {
     background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif');
     background-size: cover;
     background-position: center;
-    background-attachment: scroll;
+    background-attachment: fixed;
     background-repeat: no-repeat;
   }
 
-  @media (min-width: 768px) {
-    body {
-      background-attachment: fixed;
-    }
+  body {
+    @apply bg-background text-foreground;
+    background-color: transparent;
   }
   img {
     @apply inline-block;
