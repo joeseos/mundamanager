@@ -156,7 +156,7 @@ export default async function RootLayout({
           />
         )}
       </head>
-      <body className="bg-background text-foreground" suppressHydrationWarning>
+      <body className="text-foreground" suppressHydrationWarning>
         <ClientThemeProvider
           attribute="class"
           defaultTheme="system"
