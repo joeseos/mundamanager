@@ -835,6 +835,24 @@ export default function Gang({
                       <span className="font-semibold">{scavengingRolls != null ? scavengingRolls : 0}</span>
                     </div>
                   )}
+                  {campaigns?.[0]?.has_power && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Power:</span>
+                      <span className="font-semibold">{power != null ? power : 0}</span>
+                    </div>
+                  )}
+                  {campaigns?.[0]?.has_sustenance && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Sustenance:</span>
+                      <span className="font-semibold">{sustenance != null ? sustenance : 0}</span>
+                    </div>
+                  )}
+                  {campaigns?.[0]?.has_salvage && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Salvage:</span>
+                      <span className="font-semibold">{salvage != null ? salvage : 0}</span>
+                    </div>
+                  )}
                   {/* Gang Composition */}
                   <div
                     className="flex justify-between cursor-help"
