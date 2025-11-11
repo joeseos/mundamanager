@@ -1,6 +1,6 @@
 'use client';
 
-import { signUpAction } from "@/app/actions";
+import { signUpAction } from "@/app/actions/auth";
 import { FormMessage, Message } from "@/components/form-message";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
