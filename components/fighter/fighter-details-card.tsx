@@ -121,9 +121,9 @@ const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | Ve
     engine_slots: baseStats.engine_slots || 0,
   };
   
-  // Apply modifiers from vehicle effects (both lasting damages and vehicle upgrades)
+  // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
   if (baseStats.effects) {
-    const effectCategories = ["lasting damages", "vehicle upgrades"];
+    const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
     effectCategories.forEach(categoryName => {
       if (baseStats.effects && baseStats.effects[categoryName]) {
         baseStats.effects[categoryName].forEach((effect: FighterEffect) => {

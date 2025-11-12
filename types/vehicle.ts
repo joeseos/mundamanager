@@ -1,6 +1,32 @@
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
 
+export interface VehicleEffectModifier {
+  id: string;
+  fighter_effect_id: string;
+  stat_name: string;
+  numeric_value: number;
+}
+
+export interface VehicleEffect {
+  id: string;
+  effect_name: string;
+  type_specific_data?: {
+    credits_increase?: number;
+    [key: string]: any;
+  };
+  created_at?: string;
+  updated_at?: string;
+  fighter_effect_modifiers?: VehicleEffectModifier[];
+}
+
+export interface VehicleEffects {
+  'lasting damages'?: VehicleEffect[];
+  'vehicle upgrades'?: VehicleEffect[];
+  user?: VehicleEffect[];
+  [key: string]: VehicleEffect[] | undefined;
+}
+
 export interface VehicleProps {
   id: string;
   gang_id: string;
@@ -26,4 +52,5 @@ export interface VehicleProps {
   created_at: string;
   fighter_id?: string | null;
   equipment: Array<Equipment & Partial<VehicleEquipment>>;
+  effects?: VehicleEffects;
 } 

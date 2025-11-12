@@ -372,25 +372,54 @@ export default function GangVehicles({
     setSellAmount(calculateVehicleTotalValue(vehicle));
   };
 
-  const handleSaveVehicle = async (vehicleId: string, vehicleName: string, specialRules: string[]) => {
+  const handleSaveVehicle = async (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>) => {
     if (!editingVehicle) return true;
-    
+
     setIsEditLoading(true);
-    
+
     // Store original state for potential rollback
     const originalVehicles = [...allVehicles];
     const originalFighters = [...fighters];
-    
+
     try {
       // OPTIMISTIC UPDATES - Update UI immediately
-      
+
+      // Create synthetic user effects from stat adjustments for optimistic update
+      const createOptimisticEffects = (adjustments?: Record<string, number>) => {
+        if (!adjustments || Object.keys(adjustments).length === 0) return undefined;
+
+        const userEffects = Object.entries(adjustments).map(([statName, value]) => ({
+          id: `optimistic-${statName}`,
+          effect_name: statName.charAt(0).toUpperCase() + statName.slice(1),
+          fighter_effect_modifiers: [{
+            id: `optimistic-modifier-${statName}`,
+            fighter_effect_id: `optimistic-${statName}`,
+            stat_name: statName,
+            numeric_value: value
+          }]
+        }));
+
+        return userEffects;
+      };
+
+      const optimisticUserEffects = createOptimisticEffects(statAdjustments);
+
       // Update both the vehicles list and any fighter that has this vehicle
       if (onVehicleUpdate) {
-        const updatedVehicles = allVehicles.map(v =>
-          v.id === vehicleId
-            ? { ...v, vehicle_name: vehicleName, special_rules: specialRules }
-            : v
-        );
+        const updatedVehicles = allVehicles.map(v => {
+          if (v.id === vehicleId) {
+            const updated = { ...v, vehicle_name: vehicleName, special_rules: specialRules };
+            // Add optimistic user effects if stat adjustments exist
+            if (optimisticUserEffects) {
+              updated.effects = {
+                ...updated.effects,
+                user: [...(updated.effects?.user || []), ...optimisticUserEffects]
+              };
+            }
+            return updated;
+          }
+          return v;
+        });
         // Only pass unassigned vehicles to parent - assigned vehicles are handled via fighter updates
         const unassignedOnly = updatedVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
         onVehicleUpdate(unassignedOnly);
@@ -400,13 +429,23 @@ export default function GangVehicles({
       if (editingVehicle.assigned_to && onFighterUpdate) {
         const fighter = fighters.find(f => f.fighter_name === editingVehicle.assigned_to);
         if (fighter && fighter.vehicles?.[0]) {
+          const updatedVehicle = {
+            ...fighter.vehicles[0],
+            vehicle_name: vehicleName,
+            special_rules: specialRules
+          };
+
+          // Add optimistic user effects if stat adjustments exist
+          if (optimisticUserEffects) {
+            updatedVehicle.effects = {
+              ...updatedVehicle.effects,
+              user: [...(updatedVehicle.effects?.user || []), ...optimisticUserEffects]
+            };
+          }
+
           const updatedFighter = {
             ...fighter,
-            vehicles: [{
-              ...fighter.vehicles[0],
-              vehicle_name: vehicleName,
-              special_rules: specialRules
-            }]
+            vehicles: [updatedVehicle]
           };
           onFighterUpdate(updatedFighter);
         }
@@ -419,35 +458,36 @@ export default function GangVehicles({
       });
 
       // NOW make the API call using server action
-      const assignedFighter = editingVehicle.assigned_to ? 
+      const assignedFighter = editingVehicle.assigned_to ?
         fighters.find(f => f.fighter_name === editingVehicle.assigned_to) : undefined;
-      
+
       const result = await updateVehicle({
         vehicleId: vehicleId,
         vehicleName: vehicleName,
         specialRules: specialRules,
         gangId: gangId,
-        assignedFighterId: assignedFighter?.id
+        assignedFighterId: assignedFighter?.id,
+        statAdjustments: statAdjustments
       });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to update vehicle');
       }
-      
+
 
       // Cache invalidation is handled in the server action
-      
+
       return true;
     } catch (error) {
       console.error('Error updating vehicle:', error);
-      
+
       // ROLLBACK optimistic updates on error
       if (onVehicleUpdate) {
         // Only rollback unassigned vehicles to prevent double-counting
         const unassignedOnly = originalVehicles.filter(v => !(v as any).assigned_to && !v.fighter_id);
         onVehicleUpdate(unassignedOnly);
       }
-      
+
       // Rollback fighter updates if there were any
       if (editingVehicle.assigned_to && onFighterUpdate) {
         const originalFighter = originalFighters.find(f => f.fighter_name === editingVehicle.assigned_to);
