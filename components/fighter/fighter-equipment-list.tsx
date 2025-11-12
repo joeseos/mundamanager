@@ -415,7 +415,8 @@ export function WeaponList({
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
-              <Button
+              
+              {/* <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => setDeleteModalData({
@@ -427,8 +428,8 @@ export function WeaponList({
                 className="text-xs px-1.5 h-6"
                 title="Delete"
               >
-                <LuTrash2 className="h-4 w-4" /> {/* Delete */}
-              </Button>
+                <LuTrash2 className="h-4 w-4" />
+              </Button> */}
             </>
           )}
         </div>
