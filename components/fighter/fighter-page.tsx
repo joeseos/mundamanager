@@ -533,18 +533,19 @@ export default function FighterPage({
     }));
   }, []);
 
-  const handleXpUpdated = useCallback((newXp: number, newTotalXp: number, newKills: number) => {
+  const handleXpUpdated = useCallback((newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => {
     setFighterData(prev => ({
       ...prev,
       fighter: prev.fighter ? {
         ...prev.fighter,
         xp: newXp,
         total_xp: newTotalXp,
-        kills: newKills // Use absolute kills value from modal
+        kills: newKills, // Use absolute kills value from modal
+        kill_count: newKillCount !== undefined ? newKillCount : prev.fighter.kill_count
       } : null,
       // Update gang fighters list for dropdown
-      gangFighters: prev.gangFighters.map(fighter => 
-        fighter.id === fighterId 
+      gangFighters: prev.gangFighters.map(fighter =>
+        fighter.id === fighterId
           ? { ...fighter, xp: newXp }
           : fighter
       )
@@ -993,6 +994,8 @@ export default function FighterPage({
               currentXp={fighterData.fighter.xp ?? 0}
               currentTotalXp={fighterData.fighter.total_xp ?? 0}
               currentKills={fighterData.fighter.kills ?? 0}
+              currentKillCount={fighterData.fighter.kill_count ?? 0}
+              is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('addXp', false)}
               onXpUpdated={handleXpUpdated}
             />

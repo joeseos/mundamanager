@@ -672,7 +672,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, fighter_name')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type_id, fighter_types!inner(is_spyrer)')
       .eq('id', params.fighter_id)
       .single();
 
@@ -683,17 +683,25 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Calculate new values
     const newXp = fighter.xp + params.xp_to_add;
     const newKills = fighter.kills + (params.ooa_count || 0);
+    const isSpyrer = (fighter.fighter_types as any)?.is_spyrer || false;
+    const newKillCount = isSpyrer ? (fighter.kill_count || 0) + (params.ooa_count || 0) : fighter.kill_count;
 
-    // Update XP and kills
+    // Update XP, kills, and kill_count
+    const updateData: any = {
+      xp: newXp,
+      kills: newKills,
+      updated_at: new Date().toISOString()
+    };
+
+    if (newKillCount !== undefined) {
+      updateData.kill_count = newKillCount;
+    }
+
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
-        xp: newXp,
-        kills: newKills,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, xp, kills')
+      .select('id, xp, kills, kill_count')
       .single();
 
     if (updateError) throw updateError;
@@ -742,7 +750,8 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
         fighter: updatedFighter,
         xp: updatedFighter.xp,
         total_xp: updatedFighter.xp,
-        kills: updatedFighter.kills
+        kills: updatedFighter.kills,
+        kill_count: updatedFighter.kill_count
       }
     };
   } catch (error) {
