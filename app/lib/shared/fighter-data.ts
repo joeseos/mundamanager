@@ -52,7 +52,6 @@ export interface FighterBasic {
   fighter_pet_id?: string;
   image_url?: string;
   position?: string;
-  is_spyrer?: boolean;
 }
 
 export interface FighterType {
@@ -165,8 +164,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           gang_id,
           fighter_pet_id,
           image_url,
-          position,
-          is_spyrer
+          position
         `)
         .eq('id', fighterId)
         .single();

@@ -109,8 +109,9 @@ export function InjuriesList({
       if (variables.send_to_recovery) statusMessage.push('fighter sent to Recovery');
       if (variables.set_captured) statusMessage.push('fighter marked as Captured');
 
+      const successText = is_spyrer ? 'Rig glitch added successfully' : 'Lasting injury added successfully';
       toast({
-        description: `Lasting injury added successfully${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
+        description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
         variant: "default"
       });
     },
@@ -123,8 +124,9 @@ export function InjuriesList({
         onSkillsUpdate(context.previousSkills);
       }
 
+      const errorText = is_spyrer ? 'Failed to add rig glitch' : 'Failed to add lasting injury';
       toast({
-        description: `Failed to add lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     }
@@ -188,8 +190,9 @@ export function InjuriesList({
         onSkillsUpdate(context.previousSkills);
       }
 
+      const errorText = is_spyrer ? 'Failed to delete rig glitch' : 'Failed to delete lasting injury';
       toast({
-        description: `Failed to delete lasting injury: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     }
@@ -658,7 +661,7 @@ export function InjuriesList({
 
       {deleteModalData && (
         <Modal
-          title="Delete Lasting Injury"
+          title={is_spyrer ? "Delete Rig Glitch" : "Delete Lasting Injury"}
           content={
             <div>
               <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>

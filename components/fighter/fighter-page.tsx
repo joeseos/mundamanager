@@ -837,7 +837,10 @@ export default function FighterPage({
           />
 
           <InjuriesList
-            injuries={fighterData.fighter?.effects?.injuries || []}
+            injuries={[
+              ...(fighterData.fighter?.effects?.injuries || []),
+              ...(fighterData.fighter?.effects?.['rig-glitches'] || [])
+            ]}
             fighterId={fighterData.fighter?.id || ''}
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
@@ -845,17 +848,26 @@ export default function FighterPage({
             is_spyrer={fighterData.fighter?.is_spyrer}
             skills={fighterData.fighter?.skills || {}}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  recovery: recoveryStatus !== undefined ? recoveryStatus : (prev.fighter.recovery),
-                  effects: {
-                    ...prev.fighter.effects,
-                    injuries: updatedInjuries
+              setFighterData(prev => {
+                if (!prev.fighter) return prev;
+
+                // Separate injuries and rig-glitches based on whether fighter is a Spyrer
+                // For Spyrers, all go to rig-glitches; for others, all go to injuries
+                const isSpyrer = prev.fighter.is_spyrer;
+
+                return {
+                  ...prev,
+                  fighter: {
+                    ...prev.fighter,
+                    recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
+                    effects: {
+                      ...prev.fighter.effects,
+                      injuries: isSpyrer ? [] : updatedInjuries,
+                      'rig-glitches': isSpyrer ? updatedInjuries : []
+                    }
                   }
-                } : null
-              }));
+                };
+              });
             }}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
