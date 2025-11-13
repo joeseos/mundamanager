@@ -75,7 +75,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       fighterBasic.fighter_type_id ?
         supabase
           .from('fighter_types')
-          .select('id, fighter_type, alliance_crew_name')
+          .select('id, fighter_type, alliance_crew_name, is_spyrer')
           .eq('id', fighterBasic.fighter_type_id)
           .single() :
         Promise.resolve({ data: null, error: null }),
@@ -259,6 +259,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         ...fighterBasic,
         credits: totalCost,
         alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
+        is_spyrer: fighterTypeData?.data?.is_spyrer || false,
         fighter_type: {
           fighter_type_id: fighterTypeData?.data?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.data?.fighter_type || 'Unknown',

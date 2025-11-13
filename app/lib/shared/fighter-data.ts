@@ -48,6 +48,7 @@ export interface FighterBasic {
   captured?: boolean;
   free_skill?: boolean;
   kills?: number;
+  kill_count?: number;
   gang_id: string;
   fighter_pet_id?: string;
   image_url?: string;
@@ -161,6 +162,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           captured,
           free_skill,
           kills,
+          kill_count,
           gang_id,
           fighter_pet_id,
           image_url,

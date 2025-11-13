@@ -23,7 +23,7 @@ export interface ListAction {
 }
 
 export interface ListProps<T = any> {
-  title: string;
+  title: React.ReactNode;
   items: T[];
   columns: ListColumn[];
   actions?: ListAction[];

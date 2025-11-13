@@ -85,6 +85,7 @@ interface Fighter {
   captured?: boolean;
   free_skill?: boolean;
   kills: number;
+  kill_count?: number;
   advancements?: {
     characteristics: Record<string, any>;
     skills: Record<string, any>;
@@ -116,6 +117,7 @@ interface Fighter {
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
   base_credits?: number;
+  is_spyrer?: boolean;
 }
 
 interface Gang {
@@ -531,18 +533,19 @@ export default function FighterPage({
     }));
   }, []);
 
-  const handleXpUpdated = useCallback((newXp: number, newTotalXp: number, newKills: number) => {
+  const handleXpUpdated = useCallback((newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => {
     setFighterData(prev => ({
       ...prev,
       fighter: prev.fighter ? {
         ...prev.fighter,
         xp: newXp,
         total_xp: newTotalXp,
-        kills: newKills // Use absolute kills value from modal
+        kills: newKills, // Use absolute kills value from modal
+        kill_count: newKillCount !== undefined ? newKillCount : prev.fighter.kill_count
       } : null,
       // Update gang fighters list for dropdown
-      gangFighters: prev.gangFighters.map(fighter => 
-        fighter.id === fighterId 
+      gangFighters: prev.gangFighters.map(fighter =>
+        fighter.id === fighterId
           ? { ...fighter, xp: newXp }
           : fighter
       )
@@ -691,6 +694,8 @@ export default function FighterPage({
             captured={fighterData.fighter?.captured}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
+            kill_count={fighterData.fighter?.kill_count}
+            is_spyrer={fighterData.fighter?.is_spyrer}
             effects={fighterData.fighter.effects || {
               injuries: [],
               advancements: [],
@@ -836,24 +841,38 @@ export default function FighterPage({
           />
 
           <InjuriesList
-            injuries={fighterData.fighter?.effects?.injuries || []}
+            injuries={[
+              ...(fighterData.fighter?.effects?.injuries || []),
+              ...(fighterData.fighter?.effects?.['rig-glitches'] || [])
+            ]}
             fighterId={fighterData.fighter?.id || ''}
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
+            is_spyrer={fighterData.fighter?.is_spyrer}
+            kill_count={fighterData.fighter?.kill_count ?? 0}
             skills={fighterData.fighter?.skills || {}}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  recovery: recoveryStatus !== undefined ? recoveryStatus : (prev.fighter.recovery),
-                  effects: {
-                    ...prev.fighter.effects,
-                    injuries: updatedInjuries
+              setFighterData(prev => {
+                if (!prev.fighter) return prev;
+
+                // Separate injuries and rig-glitches based on whether fighter is a Spyrer
+                // For Spyrers, all go to rig-glitches; for others, all go to injuries
+                const isSpyrer = prev.fighter.is_spyrer;
+
+                return {
+                  ...prev,
+                  fighter: {
+                    ...prev.fighter,
+                    recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
+                    effects: {
+                      ...prev.fighter.effects,
+                      injuries: isSpyrer ? [] : updatedInjuries,
+                      'rig-glitches': isSpyrer ? updatedInjuries : []
+                    }
                   }
-                } : null
-              }));
+                };
+              });
             }}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
@@ -861,6 +880,15 @@ export default function FighterPage({
                 fighter: prev.fighter ? {
                   ...prev.fighter,
                   skills: updatedSkills
+                } : null
+              }));
+            }}
+            onKillCountUpdate={(newKillCount) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  kill_count: newKillCount
                 } : null
               }));
             }}
@@ -942,6 +970,7 @@ export default function FighterPage({
               credits: fighterData.fighter.credits || 0,
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: (fighterData.fighter as any).base_credits || 0,
+              is_spyrer: fighterData.fighter.is_spyrer,
               campaigns: fighterData.fighter?.campaigns
             }}
             gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '' }}
@@ -975,6 +1004,8 @@ export default function FighterPage({
               currentXp={fighterData.fighter.xp ?? 0}
               currentTotalXp={fighterData.fighter.total_xp ?? 0}
               currentKills={fighterData.fighter.kills ?? 0}
+              currentKillCount={fighterData.fighter.kill_count ?? 0}
+              is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('addXp', false)}
               onXpUpdated={handleXpUpdated}
             />
@@ -988,10 +1019,12 @@ export default function FighterPage({
                 name: fighterData.fighter.fighter_name,
                 label: fighterData.fighter.label || '',
                 kills: fighterData.fighter.kills || 0,
+                kill_count: fighterData.fighter.kill_count,
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
               gangId={fighterData.gang?.id || ''}
               gangTypeId={fighterData.gang?.gang_type_id || ''}
+              is_spyrer={fighterData.fighter.is_spyrer}
               preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {

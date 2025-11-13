@@ -491,10 +491,12 @@ interface EditFighterModalProps {
     name: string;
     label: string;
     kills: number;
+    kill_count?: number;
     costAdjustment: string;
   };
   gangId: string;
   gangTypeId: string;
+  is_spyrer?: boolean;
   preFetchedFighterTypes?: Array<{
     id: string;
     fighter_type: string;
@@ -545,13 +547,15 @@ export function EditFighterModal({
   onStatsUpdate,
   onEditMutate,
   onEditError,
-  onEditSuccess
+  onEditSuccess,
+  is_spyrer = false
 }: EditFighterModalProps) {
   // Update form state to include fighter type fields
   const [formValues, setFormValues] = useState({
     name: initialValues.name,
     label: initialValues.label,
     kills: initialValues.kills,
+    kill_count: initialValues.kill_count || 0,
     costAdjustment: initialValues.costAdjustment,
     fighter_class: fighter.fighter_class || '',
     fighter_class_id: (fighter as any).fighter_class_id || '',
@@ -618,6 +622,7 @@ export function EditFighterModal({
       name: string;
       label: string;
       kills: number;
+      kill_count?: number;
       costAdjustment: string;
       fighter_class?: string;
       fighter_class_id?: string;
@@ -633,6 +638,7 @@ export function EditFighterModal({
         fighter_name: submit.name,
         label: submit.label,
         kills: submit.kills,
+        kill_count: submit.kill_count,
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
         special_rules: submit.special_rules,
         fighter_class: submit.fighter_class,
@@ -678,6 +684,7 @@ export function EditFighterModal({
         fighter_name: submit.name,
         label: submit.label,
         kills: submit.kills,
+        kill_count: submit.kill_count,
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
         ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
         ...(submit.fighter_type && submit.fighter_type_id
@@ -1166,6 +1173,7 @@ export function EditFighterModal({
         name: formValues.name,
         label: formValues.label,
         kills: formValues.kills,
+        kill_count: formValues.kill_count,
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         fighter_gang_legacy_id: selectedGangLegacyId || null
@@ -1233,8 +1241,8 @@ export function EditFighterModal({
               />
             </div>
             
-            {/* Label, Cost Adjustment and Kills */}
-            <div className="grid grid-cols-3 gap-4">
+            {/* Label, Cost Adjustment, Kills and Kill Count */}
+            <div className={`grid ${is_spyrer ? 'grid-cols-4' : 'grid-cols-3'} gap-3`}>
               <div>
                 <label htmlFor="label" className="block text-sm font-medium mb-1">
                   Label
@@ -1250,9 +1258,9 @@ export function EditFighterModal({
                 />
               </div>
               <div>
-                <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1">
-                  <span className="hidden sm:inline">Cost Adjustment</span>
-                  <span className="inline sm:hidden">Cost Adj.</span>
+                <label htmlFor="costAdjustment" className="block text-sm font-medium mb-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                  <span className="hidden lg:inline">Cost Adjustment</span>
+                  <span className="inline lg:hidden">Cost Adj.</span>
                 </label>
                 <Input
                   id="costAdjustment"
@@ -1274,6 +1282,20 @@ export function EditFighterModal({
                   className="w-full"
                 />
               </div>
+              {is_spyrer && (
+                <div>
+                  <label htmlFor="kill_count" className="block text-sm font-medium mb-1">
+                    Kills
+                  </label>
+                  <Input
+                    id="kill_count"
+                    type="number"
+                    value={formValues.kill_count}
+                    onChange={(e) => handleChange('kill_count', e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              )}
             </div>
             
             {/* Fighter Type Dropdown */}

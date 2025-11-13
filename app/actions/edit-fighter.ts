@@ -39,6 +39,7 @@ export interface UpdateFighterDetailsParams {
   fighter_name?: string;
   label?: string;
   kills?: number;
+  kill_count?: number;
   cost_adjustment?: number;
   special_rules?: string[];
   fighter_class?: string;
@@ -66,6 +67,7 @@ interface EditFighterResult {
     xp?: number;
     total_xp?: number;
     kills?: number;
+    kill_count?: number;
   };
   error?: string;
   fighter?: {
@@ -73,6 +75,7 @@ interface EditFighterResult {
     fighter_name: string;
     label?: string;
     kills?: number;
+    kill_count?: number;
     cost_adjustment?: number;
   };
 }
@@ -669,7 +672,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, fighter_name')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type_id, fighter_types!inner(is_spyrer)')
       .eq('id', params.fighter_id)
       .single();
 
@@ -677,20 +680,34 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       throw new Error('Fighter not found');
     }
 
+    // Type-safe access to fighter_types
+    const fighterTypes = fighter.fighter_types;
+    if (!fighterTypes || typeof fighterTypes !== 'object' || !('is_spyrer' in fighterTypes)) {
+      throw new Error('Fighter type data is missing or invalid');
+    }
+
     // Calculate new values
     const newXp = fighter.xp + params.xp_to_add;
     const newKills = fighter.kills + (params.ooa_count || 0);
+    const isSpyrer = fighterTypes.is_spyrer || false;
+    const newKillCount = isSpyrer ? (fighter.kill_count || 0) + (params.ooa_count || 0) : fighter.kill_count;
 
-    // Update XP and kills
+    // Update XP, kills, and kill_count
+    const updateData: any = {
+      xp: newXp,
+      kills: newKills,
+      updated_at: new Date().toISOString()
+    };
+
+    if (newKillCount !== undefined) {
+      updateData.kill_count = newKillCount;
+    }
+
     const { data: updatedFighter, error: updateError } = await supabase
       .from('fighters')
-      .update({ 
-        xp: newXp,
-        kills: newKills,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, xp, kills')
+      .select('id, xp, kills, kill_count')
       .single();
 
     if (updateError) throw updateError;
@@ -739,7 +756,8 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
         fighter: updatedFighter,
         xp: updatedFighter.xp,
         total_xp: updatedFighter.xp,
-        kills: updatedFighter.kills
+        kills: updatedFighter.kills,
+        kill_count: updatedFighter.kill_count
       }
     };
   } catch (error) {
@@ -780,6 +798,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name.trimEnd();
     if (params.label !== undefined) updateData.label = params.label;
     if (params.kills !== undefined) updateData.kills = params.kills;
+    if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
     if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
@@ -798,7 +817,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, cost_adjustment')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment')
       .single();
 
     if (updateError) throw updateError;

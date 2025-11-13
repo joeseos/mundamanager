@@ -23,8 +23,10 @@ interface FighterXpModalProps {
   currentXp: number;
   currentTotalXp: number;
   currentKills: number;
+  currentKillCount?: number;
+  is_spyrer?: boolean;
   onClose: () => void;
-  onXpUpdated: (newXp: number, newTotalXp: number, newKills: number) => void;
+  onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
 
 export function FighterXpModal({
@@ -33,6 +35,8 @@ export function FighterXpModal({
   currentXp,
   currentTotalXp,
   currentKills,
+  currentKillCount = 0,
+  is_spyrer = false,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -157,9 +161,10 @@ export function FighterXpModal({
     const optimisticXp = currentXp + amount;
     const optimisticTotalXp = currentTotalXp + amount;
     const optimisticKills = currentKills + (ooaCount || 0);
+    const optimisticKillCount = is_spyrer ? currentKillCount + (ooaCount || 0) : currentKillCount;
 
     // Update parent immediately with optimistic values
-    onXpUpdated(optimisticXp, optimisticTotalXp, optimisticKills);
+    onXpUpdated(optimisticXp, optimisticTotalXp, optimisticKills, optimisticKillCount);
 
     // Close modal immediately for instant UX
     handleModalClose();
@@ -178,16 +183,21 @@ export function FighterXpModal({
       const serverXp = result.data?.xp || optimisticXp;
       const serverTotalXp = result.data?.total_xp || optimisticTotalXp;
       const serverKills = result.data?.kills || optimisticKills;
-      
+      const serverKillCount = result.data?.kill_count !== undefined ? result.data.kill_count : optimisticKillCount;
+
       // Update parent with server values if different
-      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp || serverKills !== optimisticKills) {
-        onXpUpdated(serverXp, serverTotalXp, serverKills);
+      if (serverXp !== optimisticXp || serverTotalXp !== optimisticTotalXp || serverKills !== optimisticKills || serverKillCount !== optimisticKillCount) {
+        onXpUpdated(serverXp, serverTotalXp, serverKills, serverKillCount);
       }
 
       // Create success message
       let successMessage = `Successfully added ${amount} XP`;
       if (ooaCount && ooaCount > 0) {
-        successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
+        if (is_spyrer) {
+          successMessage += `, ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}, and ${ooaCount} Kill${ooaCount > 1 ? 's' : ''}`;
+        } else {
+          successMessage += ` and ${ooaCount} OOA${ooaCount > 1 ? 's' : ''}`;
+        }
       }
 
       toast({
@@ -198,7 +208,7 @@ export function FighterXpModal({
       console.error('Error adding XP:', error);
       
       // Rollback optimistic updates by reverting to original values
-      onXpUpdated(currentXp, currentTotalXp, currentKills);
+      onXpUpdated(currentXp, currentTotalXp, currentKills, currentKillCount);
 
       toast({
         description: error instanceof Error ? error.message : 'Failed to add XP',

@@ -72,6 +72,8 @@ interface FighterDetailsCardProps {
   captured?: boolean;
   fighter_class?: string;
   kills: number;
+  kill_count?: number;
+  is_spyrer?: boolean;
   effects?: {
     injuries: FighterEffect[];
     advancements: FighterEffect[];
@@ -242,6 +244,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   captured,
   fighter_class,
   kills,
+  kill_count,
+  is_spyrer,
   effects,
   vehicles,
   vehicleEquipment = [],
@@ -449,8 +453,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       </div>
 
       <div className="flex flex-wrap justify-between items-center">
-        <div className="text-base text-muted-foreground">
+        <div className="text-base text-muted-foreground flex gap-2">
           <div>OOA: {kills}</div>
+          {is_spyrer && <div>Kills: {kill_count ?? 0}</div>}
         </div>
 
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
