@@ -30,6 +30,7 @@ export interface FighterType {
   special_rules?: string[];
   free_skill: boolean;
   default_equipment?: string[];
+  is_spyrer?: boolean;
 }
 
 export interface WargearItem {
@@ -193,6 +194,7 @@ export interface FighterProps {
     skills: FighterEffect[];
   };
   vehicles?: Vehicle[];
+  is_spyrer?: boolean;
   
   // Base stats (original values)
   base_stats: {
