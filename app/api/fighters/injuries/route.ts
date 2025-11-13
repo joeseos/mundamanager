@@ -4,6 +4,10 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const supabase = await createClient();
   try {
+    const url = new URL(request.url);
+    const isSpyrer = url.searchParams.get('is_spyrer') === 'true';
+    const categoryName = isSpyrer ? 'rig-glitches' : 'injuries';
+
     const { data: effects, error: effectsError } = await supabase
       .from('fighter_effect_types')
       .select(`
@@ -13,7 +17,7 @@ export async function GET(request: Request) {
           *
         )
       `)
-      .eq('fighter_effect_categories.category_name', 'injuries');
+      .eq('fighter_effect_categories.category_name', categoryName);
 
     if (effectsError) throw effectsError;
 

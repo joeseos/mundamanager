@@ -79,6 +79,46 @@ export const resolveInjuryRangeFromUtilByNameCrew = (
 };
 
 // ============================================================================
+// Rig Glitches for Spyrers - D66 table and resolver
+// ============================================================================
+
+// D66 table for Rig Glitches (Spyrers)
+export const RIG_GLITCH_TABLE: TableEntry[] = [
+  { range: [11, 11], name: 'Lesson Learned' },
+  { range: [12, 26], name: 'Superficial Damage' },
+  { range: [31, 36], name: 'Convalescence' },
+  { range: [41, 41], name: 'Humbled' },
+  { range: [42, 42], name: 'Anxiety Suppression Damaged' },
+  { range: [43, 43], name: 'Neural Feedback' },
+  { range: [44, 44], name: 'Vox Ghosts' },
+  { range: [45, 45], name: 'Weakened Polymers' },
+  { range: [46, 46], name: 'Gyroscopic Destabilisation' },
+  { range: [51, 51], name: 'Jammed Articulation' },
+  { range: [52, 52], name: 'Disrupted Ammo Cables' },
+  { range: [53, 53], name: 'System Downgrade' },
+  { range: [54, 54], name: 'Cracked Power Cell' },
+  { range: [55, 55], name: 'Reduced Power Distribution' },
+  { range: [56, 56], name: 'Seized Locomotors' },
+  { range: [61, 61], name: 'Targeting Uplink Disruption' },
+  { range: [62, 62], name: 'Stuttering Servos' },
+  { range: [63, 63], name: 'Damaged Musculature' },
+  { range: [64, 64], name: 'Reduced Plate Density' },
+  { range: [65, 65], name: 'Multiple Glitches' },
+  { range: [66, 66], name: 'Critical Overload' },
+];
+
+export const resolveRigGlitchFromUtil = (roll: number): TableEntry | undefined =>
+  RIG_GLITCH_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+// Keeping resolve by name for optional diagnostics/UI usage
+export const resolveRigGlitchRangeFromUtilByName = (
+  name: string,
+): [number, number] | undefined => {
+  const entry = RIG_GLITCH_TABLE.find((e) => e.name === name);
+  return entry?.range;
+};
+
+// ============================================================================
 // Vehicle Lasting Damage - D6 table and resolver
 // ============================================================================
 

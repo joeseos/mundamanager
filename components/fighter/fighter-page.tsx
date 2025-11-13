@@ -116,6 +116,7 @@ interface Fighter {
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
   base_credits?: number;
+  is_spyrer?: boolean;
 }
 
 interface Gang {
@@ -841,6 +842,7 @@ export default function FighterPage({
             fighterRecovery={fighterData.fighter?.recovery}
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
+            is_spyrer={fighterData.fighter?.is_spyrer}
             skills={fighterData.fighter?.skills || {}}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
               setFighterData(prev => ({

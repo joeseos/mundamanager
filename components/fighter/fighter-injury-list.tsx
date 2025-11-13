@@ -10,7 +10,7 @@ import {
 } from '@/app/actions/fighter-injury';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
-import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew } from '@/utils/dice';
+import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew, resolveRigGlitchFromUtil, resolveRigGlitchRangeFromUtilByName } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { Combobox } from '@/components/ui/combobox';
@@ -25,6 +25,7 @@ interface InjuriesListProps {
   fighterRecovery?: boolean;
   userPermissions: UserPermissions;
   fighter_class?: string;
+  is_spyrer?: boolean;
 }
 
 export function InjuriesList({
@@ -35,7 +36,8 @@ export function InjuriesList({
   fighterId,
   fighterRecovery = false,
   userPermissions,
-  fighter_class
+  fighter_class,
+  is_spyrer = false
 }: InjuriesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -195,23 +197,25 @@ export function InjuriesList({
 
   // Helper function to format the range display
   const formatInjuryRange = (injuryName: string): string => {
-    const range = fighter_class === 'Crew' 
-      ? resolveInjuryRangeFromUtilByNameCrew(injuryName)
-      : resolveInjuryRangeFromUtilByName(injuryName);
-    
+    const range = is_spyrer
+      ? resolveRigGlitchRangeFromUtilByName(injuryName)
+      : (fighter_class === 'Crew'
+        ? resolveInjuryRangeFromUtilByNameCrew(injuryName)
+        : resolveInjuryRangeFromUtilByName(injuryName));
+
     if (!range) return '';
-    
+
     const [min, max] = range;
     return min === max ? `${min}` : `${min}-${max}`;
   };
 
   const fetchAvailableInjuries = useCallback(async () => {
     if (isLoadingInjuries) return;
-    
+
     try {
       setIsLoadingInjuries(true);
       const response = await fetch(
-        `/api/fighters/injuries`,
+        `/api/fighters/injuries?is_spyrer=${is_spyrer}`,
         {
           method: 'GET',
           headers: {
@@ -219,21 +223,21 @@ export function InjuriesList({
           }
         }
       );
-      
-      if (!response.ok) throw new Error('Failed to fetch lasting injuries');
+
+      if (!response.ok) throw new Error(is_spyrer ? 'Failed to fetch rig glitches' : 'Failed to fetch lasting injuries');
       const data: FighterEffect[] = await response.json();
-      
+
       setLocalAvailableInjuries(data);
     } catch (error) {
-      console.error('Error fetching lasting injuries:', error);
+      console.error(is_spyrer ? 'Error fetching rig glitches:' : 'Error fetching lasting injuries:', error);
       toast({
-        description: 'Failed to load lasting injury types',
+        description: is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types',
         variant: "destructive"
       });
     } finally {
       setIsLoadingInjuries(false);
     }
-  }, [isLoadingInjuries, toast]);
+  }, [isLoadingInjuries, is_spyrer, toast]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -335,7 +339,7 @@ export function InjuriesList({
   return (
     <>
       <List
-        title="Lasting Injuries"
+        title={is_spyrer ? "Rig Glitches" : "Lasting Injuries"}
         items={injuries
           .sort((a, b) => {
             const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -370,12 +374,12 @@ export function InjuriesList({
         onAdd={handleOpenModal}
         addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
-        emptyMessage="No lasting injuries yet."
+        emptyMessage={is_spyrer ? "No rig glitches yet." : "No lasting injuries yet."}
       />
 
       {isAddModalOpen && (
         <Modal
-          title="Lasting Injuries"
+          title={is_spyrer ? "Rig Glitches" : "Lasting Injuries"}
           content={
             <div className="space-y-4">
               <div>
@@ -393,14 +397,14 @@ export function InjuriesList({
                    inline
                    rollFn={rollD66}
                    resolveNameForRoll={(r) => {
-                     const resolver = fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil;
+                     const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
                      return resolver(r)?.name;
                    }}
                    onRolled={(rolled) => {
                      if (rolled.length > 0) {
                        const roll = rolled[0].roll;
                        // Prefer DB ranges; if not available, fallback to util by name
-                       const resolver = fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil;
+                       const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
                        const util = resolver(roll);
                        let match: any = null;
                        if (util) {
@@ -417,7 +421,7 @@ export function InjuriesList({
                      }
                    }}
                    onRoll={(roll) => {
-                     const resolver = fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil;
+                     const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
                      const util = resolver(roll);
                      if (!util) return;
                      const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
@@ -434,7 +438,7 @@ export function InjuriesList({
 
               <div className="space-y-2 pt-3 border-t">
                 <label htmlFor="injurySelect" className="text-sm font-medium">
-                  Lasting Injuries
+                  {is_spyrer ? "Rig Glitches" : "Lasting Injuries"}
                 </label>
                 <Combobox
                   value={selectedInjuryId}
@@ -449,7 +453,7 @@ export function InjuriesList({
                   }}
                   placeholder={isLoadingInjuries && localAvailableInjuries.length === 0
                     ? "Loading injuries..."
-                    : "Select a Lasting Injury"
+                    : is_spyrer ? "Select a Rig Glitch" : "Select a Lasting Injury"
                   }
                   disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
                   options={Object.entries(
@@ -481,9 +485,14 @@ export function InjuriesList({
                         const rankMap = fighter_class === 'Crew' ? lastingInjuryCrewRank : lastingInjuryRank;
                         const rank = rankMap[injury.effect_name] ?? Infinity;
                         let groupLabel = "Other Injuries";
-                
-                        if (rank <= 29) groupLabel = "Lasting Injuries";
-                        else if (rank >= 30) groupLabel = "Mutations / Festering Injuries";
+
+                        if (is_spyrer) {
+                          groupLabel = "Rig Glitches";
+                        } else if (rank <= 29) {
+                          groupLabel = "Lasting Injuries";
+                        } else if (rank >= 30) {
+                          groupLabel = "Mutations / Festering Injuries";
+                        }
                 
                         if (!groups[groupLabel]) groups[groupLabel] = [];
                         groups[groupLabel].push(injury);
@@ -518,7 +527,7 @@ export function InjuriesList({
           }
           onClose={handleCloseModal}
           onConfirm={handleAddInjury}
-          confirmText="Add Lasting Injury"
+          confirmText={is_spyrer ? "Add Rig Glitch" : "Add Lasting Injury"}
           confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending}
         />
       )}
