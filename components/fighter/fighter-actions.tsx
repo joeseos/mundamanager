@@ -228,15 +228,17 @@ export function FighterActions({
               {fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
             </Button>
           )}
-          <Button
-            variant={fighter?.captured ? 'success' : 'default'}
-            className="flex-1"
-            onClick={() => handleModalToggle('captured', true)}
-            disabled={!userPermissions.canEdit}
-          >
-            {fighter?.captured ? 'Rescue Fighter' : 'Capture Fighter'}
-          </Button>
-          
+          {!fighter?.is_spyrer && (
+            <Button
+              variant={fighter?.captured ? 'success' : 'default'}
+              className="flex-1"
+              onClick={() => handleModalToggle('captured', true)}
+              disabled={!userPermissions.canEdit}
+            >
+              {fighter?.captured ? 'Rescue Fighter' : 'Capture Fighter'}
+            </Button>
+          )}
+
           <Button
             variant="default"
             className="flex-1"
