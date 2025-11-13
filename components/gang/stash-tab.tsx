@@ -662,6 +662,7 @@ export default function GangInventory({
                         >
                           <MdCurrencyExchange className="h-4 w-4" />
                         </Button>
+                        {/* Delete Action Removed - Not needed for now
                         <Button
                           variant="destructive"
                           size="sm"
@@ -673,6 +674,7 @@ export default function GangInventory({
                         >
                           <LuTrash2 className="h-4 w-4" />
                         </Button>
+                        */}
                       </div>
                       <span className="w-20 text-right">{item.cost}</span>
                     </label>
