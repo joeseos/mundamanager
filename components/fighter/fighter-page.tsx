@@ -692,6 +692,8 @@ export default function FighterPage({
             captured={fighterData.fighter?.captured}
             fighter_class={fighterData.fighter?.fighter_class}
             kills={fighterData.fighter?.kills || 0}
+            kill_count={fighterData.fighter?.kill_count}
+            is_spyrer={fighterData.fighter?.is_spyrer}
             effects={fighterData.fighter.effects || {
               injuries: [],
               advancements: [],

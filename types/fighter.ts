@@ -163,6 +163,7 @@ export interface FighterProps {
   intelligence: number;
   xp: number;
   kills: number;
+  kill_count?: number;
   gang_id?: string;
   advancements: {
     characteristics: Record<string, any>;
