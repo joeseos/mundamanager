@@ -39,6 +39,7 @@ export interface UpdateFighterDetailsParams {
   fighter_name?: string;
   label?: string;
   kills?: number;
+  kill_count?: number;
   cost_adjustment?: number;
   special_rules?: string[];
   fighter_class?: string;
@@ -66,6 +67,7 @@ interface EditFighterResult {
     xp?: number;
     total_xp?: number;
     kills?: number;
+    kill_count?: number;
   };
   error?: string;
   fighter?: {
@@ -73,6 +75,7 @@ interface EditFighterResult {
     fighter_name: string;
     label?: string;
     kills?: number;
+    kill_count?: number;
     cost_adjustment?: number;
   };
 }
@@ -780,6 +783,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_name !== undefined) updateData.fighter_name = params.fighter_name.trimEnd();
     if (params.label !== undefined) updateData.label = params.label;
     if (params.kills !== undefined) updateData.kills = params.kills;
+    if (params.kill_count !== undefined) updateData.kill_count = params.kill_count;
     if (params.cost_adjustment !== undefined) updateData.cost_adjustment = params.cost_adjustment;
     if (params.special_rules !== undefined) updateData.special_rules = params.special_rules;
     if (params.fighter_class !== undefined) updateData.fighter_class = params.fighter_class;
@@ -798,7 +802,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       .from('fighters')
       .update(updateData)
       .eq('id', params.fighter_id)
-      .select('id, fighter_name, label, kills, cost_adjustment')
+      .select('id, fighter_name, label, kills, kill_count, cost_adjustment')
       .single();
 
     if (updateError) throw updateError;

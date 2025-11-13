@@ -85,6 +85,7 @@ interface Fighter {
   captured?: boolean;
   free_skill?: boolean;
   kills: number;
+  kill_count?: number;
   advancements?: {
     characteristics: Record<string, any>;
     skills: Record<string, any>;
@@ -1005,10 +1006,12 @@ export default function FighterPage({
                 name: fighterData.fighter.fighter_name,
                 label: fighterData.fighter.label || '',
                 kills: fighterData.fighter.kills || 0,
+                kill_count: fighterData.fighter.kill_count,
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
               gangId={fighterData.gang?.id || ''}
               gangTypeId={fighterData.gang?.gang_type_id || ''}
+              is_spyrer={fighterData.fighter.is_spyrer}
               preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {
