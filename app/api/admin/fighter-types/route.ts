@@ -64,6 +64,7 @@ export async function GET(request: Request) {
           special_rules,
           free_skill,
           is_gang_addition,
+          is_spyrer,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost

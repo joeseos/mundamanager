@@ -1,13 +1,18 @@
+'use client';
+
 import React, { useState, useCallback } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { UserPermissions } from '@/types/user-permissions';
 import {
   addFighterInjury,
   deleteFighterInjury
 } from '@/app/actions/fighter-injury';
+import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew, resolveRigGlitchFromUtil, resolveRigGlitchRangeFromUtilByName } from '@/utils/dice';
@@ -20,29 +25,35 @@ interface InjuriesListProps {
   injuries: Array<FighterEffect>;
   onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   onSkillsUpdate?: (updatedSkills: FighterSkills) => void;
+  onKillCountUpdate?: (newKillCount: number) => void;
   skills?: FighterSkills;
   fighterId: string;
   fighterRecovery?: boolean;
   userPermissions: UserPermissions;
   fighter_class?: string;
   is_spyrer?: boolean;
+  kill_count?: number;
 }
 
 export function InjuriesList({
   injuries = [],
   onInjuryUpdate,
   onSkillsUpdate,
+  onKillCountUpdate,
   skills = {},
   fighterId,
   fighterRecovery = false,
   userPermissions,
   fighter_class,
-  is_spyrer = false
+  is_spyrer = false,
+  kill_count = 0
 }: InjuriesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [isCapturedModalOpen, setIsCapturedModalOpen] = useState(false);
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
+  const [clearAllKillCost, setClearAllKillCost] = useState<number>(4);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
@@ -198,6 +209,84 @@ export function InjuriesList({
     }
   });
 
+  // TanStack Query mutation for clearing all glitches
+  const clearAllGlitchesMutation = useMutation({
+    mutationFn: async (params: { currentKillCount: number; glitches: FighterEffect[]; costInKills: number }) => {
+      // Check if fighter has enough kills
+      if (params.currentKillCount < params.costInKills) {
+        throw new Error(`Not enough kills. Required: ${params.costInKills}, Available: ${params.currentKillCount}`);
+      }
+
+      // Delete all glitches
+      let deletedCount = 0;
+      for (const injury of params.glitches) {
+        const result = await deleteFighterInjury({
+          fighter_id: fighterId,
+          injury_id: injury.id
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to delete glitch');
+        }
+        deletedCount++;
+      }
+
+      // Deduct kills from kill_count
+      const newKillCount = params.currentKillCount - params.costInKills;
+      const updateResult = await updateFighterDetails({
+        fighter_id: fighterId,
+        kill_count: newKillCount
+      });
+
+      if (!updateResult.success) {
+        throw new Error('Failed to update kill count');
+      }
+
+      return { clearedCount: deletedCount, newKillCount };
+    },
+    onMutate: async (params) => {
+      // Store previous state for rollback
+      const previousInjuries = [...injuries];
+      const previousKillCount = params.currentKillCount;
+
+      // Optimistically clear all injuries
+      if (onInjuryUpdate) {
+        onInjuryUpdate([]);
+      }
+
+      // Optimistically update kill count
+      if (onKillCountUpdate) {
+        onKillCountUpdate(params.currentKillCount - params.costInKills);
+      }
+
+      return {
+        previousInjuries,
+        previousKillCount
+      };
+    },
+    onSuccess: (result) => {
+      toast({
+        description: `Successfully cleared ${result.clearedCount} rig glitches. New kill count: ${result.newKillCount}`,
+        variant: "default"
+      });
+      setIsClearAllModalOpen(false);
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic updates
+      if (context?.previousInjuries && onInjuryUpdate) {
+        onInjuryUpdate(context.previousInjuries);
+      }
+      if (context?.previousKillCount !== undefined && onKillCountUpdate) {
+        onKillCountUpdate(context.previousKillCount);
+      }
+
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to clear rig glitches',
+        variant: "destructive"
+      });
+    }
+  });
+
   // Helper function to format the range display
   const formatInjuryRange = (injuryName: string): string => {
     const range = is_spyrer
@@ -339,46 +428,148 @@ export function InjuriesList({
     });
   };
 
+  const glitchCount = is_spyrer ? injuries.length : 0;
+  const title = is_spyrer
+    ? (
+        <>
+          Rig Glitches <span className="text-sm">(Glitch count: {glitchCount})</span>
+        </>
+      )
+    : "Lasting Injuries";
+
+  // Handler for clearing all glitches
+  const handleClearAllGlitches = () => {
+    clearAllGlitchesMutation.mutate({
+      currentKillCount: kill_count,
+      glitches: injuries,
+      costInKills: clearAllKillCost
+    });
+    return true;
+  };
+
+  // Reset cost when modal opens
+  const handleOpenClearAllModal = () => {
+    setClearAllKillCost(4);
+    setIsClearAllModalOpen(true);
+  };
+
   return (
     <>
-      <List
-        title={is_spyrer ? "Rig Glitches" : "Lasting Injuries"}
-        items={injuries
-          .sort((a, b) => {
-            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return dateA - dateB;
-          })
-          .map((injury) => ({
-            id: injury.id,
-            name: injury.effect_name,
-            injury_id: injury.id
-          }))
-        }
-        columns={[
-          {
-            key: 'name',
-            label: 'Name',
-            width: '75%'
+      {is_spyrer ? (
+        <div className="mt-6">
+          <div className="flex flex-wrap justify-between items-center mb-2">
+            <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleOpenClearAllModal}
+                className="bg-card hover:bg-muted text-foreground border border-border"
+                disabled={injuries.length === 0 || !userPermissions.canEdit || kill_count < 1 || clearAllGlitchesMutation.isPending}
+              >
+                Clear all
+              </Button>
+              <Button
+                onClick={handleOpenModal}
+                className="bg-neutral-900 hover:bg-gray-800 text-white"
+                disabled={!userPermissions.canEdit}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full table-auto">
+                {injuries.length > 0 && (
+                  <thead>
+                    <tr className="bg-muted">
+                      <th className="px-1 py-1 text-left" style={{ width: '75%' }}>Name</th>
+                      <th className="px-1 py-1 text-right">Action</th>
+                    </tr>
+                  </thead>
+                )}
+                <tbody>
+                  {injuries.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="text-muted-foreground italic text-center py-4">
+                        No rig glitches yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    injuries
+                      .sort((a, b) => {
+                        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                        return dateA - dateB;
+                      })
+                      .map((injury) => (
+                        <tr key={injury.id} className="border-t">
+                          <td className="px-1 py-1">{injury.effect_name}</td>
+                          <td className="px-1 py-1">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setDeleteModalData({
+                                  id: injury.id,
+                                  name: injury.effect_name
+                                })}
+                                disabled={deleteInjuryMutation.isPending || !userPermissions.canEdit}
+                                className="text-xs px-1.5 h-6"
+                                title="Delete"
+                              >
+                                <LuTrash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <List
+          title={title}
+          items={injuries
+            .sort((a, b) => {
+              const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+              const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+              return dateA - dateB;
+            })
+            .map((injury) => ({
+              id: injury.id,
+              name: injury.effect_name,
+              injury_id: injury.id
+            }))
           }
-        ]}
-        actions={[
-          {
-            icon: <LuTrash2 className="h-4 w-4" />,
-            title: "Delete",
-            variant: 'destructive',
-            onClick: (item) => setDeleteModalData({
-              id: item.injury_id,
-              name: item.name
-            }),
-            disabled: () => deleteInjuryMutation.isPending || !userPermissions.canEdit
-          }
-        ]}
-        onAdd={handleOpenModal}
-        addButtonDisabled={!userPermissions.canEdit}
-        addButtonText="Add"
-        emptyMessage={is_spyrer ? "No rig glitches yet." : "No lasting injuries yet."}
-      />
+          columns={[
+            {
+              key: 'name',
+              label: 'Name',
+              width: '75%'
+            }
+          ]}
+          actions={[
+            {
+              icon: <LuTrash2 className="h-4 w-4" />,
+              title: "Delete",
+              variant: 'destructive',
+              onClick: (item) => setDeleteModalData({
+                id: item.injury_id,
+                name: item.name
+              }),
+              disabled: () => deleteInjuryMutation.isPending || !userPermissions.canEdit
+            }
+          ]}
+          onAdd={handleOpenModal}
+          addButtonDisabled={!userPermissions.canEdit}
+          addButtonText="Add"
+          emptyMessage={is_spyrer ? "No rig glitches yet." : "No lasting injuries yet."}
+        />
+      )}
 
       {isAddModalOpen && (
         <Modal
@@ -673,6 +864,51 @@ export function InjuriesList({
           }
           onClose={() => setDeleteModalData(null)}
           onConfirm={() => { void handleDeleteInjury(deleteModalData.id, deleteModalData.name); return true; }}
+        />
+      )}
+
+      {isClearAllModalOpen && (
+        <Modal
+          title="Clear All Rig Glitches"
+          content={
+            <div className="space-y-4">
+              <div>
+                <p className="mb-4">The following rig glitches will be cleared:</p>
+                <ul className="divide-y divide-gray-200 mb-4">
+                  {injuries.map((injury: FighterEffect) => (
+                    <li key={injury.id} className="flex items-center justify-between py-2">
+                      <div>
+                        <span className="text-base">{injury.effect_name}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="pt-3 border-t space-y-3">
+                <div>
+                  <label htmlFor="killCost" className="text-sm font-medium block mb-2">
+                    Kill Cost
+                  </label>
+                  <Input
+                    id="killCost"
+                    type="number"
+                    min="1"
+                    max={kill_count}
+                    value={clearAllKillCost}
+                    onChange={(e) => setClearAllKillCost(Math.max(1, Math.min(kill_count, parseInt(e.target.value) || 4)))}
+                    className="w-32"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Current kills: <strong>{kill_count}</strong> → New kills: <strong>{kill_count - clearAllKillCost}</strong>
+                </p>
+              </div>
+            </div>
+          }
+          onClose={() => setIsClearAllModalOpen(false)}
+          onConfirm={handleClearAllGlitches}
+          confirmText="Clear All"
+          confirmDisabled={injuries.length === 0 || clearAllGlitchesMutation.isPending || clearAllKillCost < 1 || clearAllKillCost > kill_count}
         />
       )}
     </>

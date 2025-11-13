@@ -850,6 +850,7 @@ export default function FighterPage({
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
             is_spyrer={fighterData.fighter?.is_spyrer}
+            kill_count={fighterData.fighter?.kill_count ?? 0}
             skills={fighterData.fighter?.skills || {}}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
               setFighterData(prev => {
@@ -879,6 +880,15 @@ export default function FighterPage({
                 fighter: prev.fighter ? {
                   ...prev.fighter,
                   skills: updatedSkills
+                } : null
+              }));
+            }}
+            onKillCountUpdate={(newKillCount) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  kill_count: newKillCount
                 } : null
               }));
             }}

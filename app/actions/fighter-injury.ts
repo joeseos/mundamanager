@@ -280,9 +280,9 @@ export async function deleteFighterInjury(
 
   } catch (error) {
     console.error('Error deleting fighter injury:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 } 
