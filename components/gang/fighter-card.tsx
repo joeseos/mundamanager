@@ -653,6 +653,29 @@ const FighterCard = memo(function FighterCard({
               </>
             )}
 
+            {effects && effects['rig-glitches'] && effects['rig-glitches'].length > 0 && (
+              <>
+                <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Rig Glitches</div>
+                <div className="min-w-[0px] text-sm break-words">
+                  {Object.entries(
+                    effects['rig-glitches']
+                      .slice()
+                      .sort((a, b) => {
+                        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                        return dateA - dateB;
+                      })
+                      .reduce<Record<string, number>>((acc, glitch) => {
+                        acc[glitch.effect_name] = (acc[glitch.effect_name] || 0) + 1;
+                        return acc;
+                      }, {})
+                  )
+                    .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
+                    .join(', ')}
+                </div>
+              </>
+            )}
+
             {note && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Notes</div>

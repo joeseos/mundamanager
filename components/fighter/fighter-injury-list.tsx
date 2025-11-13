@@ -869,7 +869,7 @@ export function InjuriesList({
 
       {isClearAllModalOpen && (
         <Modal
-          title="Clear All Rig Glitches"
+          title="Clear Rig Glitches"
           content={
             <div className="space-y-4">
               <div>
