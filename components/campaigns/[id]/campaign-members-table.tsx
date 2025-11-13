@@ -761,9 +761,9 @@ export default function MembersTable({
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2 text-right max-w-[2rem]">
+                <td className="px-2 py-2 text-right max-w-[3rem]">
                   <span className="text-muted-foreground">
-                    {member.gangs[0]?.wealth || "-"}
+                    {member.gangs[0]?.wealth ?? "-"}
                   </span>
                 </td>
                 <td className="px-2 py-2 text-right max-w-[3rem]">
@@ -916,7 +916,7 @@ export default function MembersTable({
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Wealth</span>
               <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.wealth || "-"}
+                {member.gangs[0]?.wealth ?? "-"}
               </span>
             </div>
 
