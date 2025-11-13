@@ -23,6 +23,7 @@ interface Fighter {
   credits: number;
   cost_adjustment?: number;
   base_credits?: number;
+  is_spyrer?: boolean;
   campaigns?: Array<{
     has_meat: boolean;
   }>;
@@ -217,14 +218,16 @@ export function FighterActions({
               {fighter?.starved ? 'Feed Fighter' : 'Starve Fighter'}
             </Button>
           )}
-          <Button
-            variant={fighter?.recovery ? 'success' : 'default'}
-            className="flex-1"
-            onClick={() => handleModalToggle('recovery', true)}
-            disabled={!userPermissions.canEdit}
-          >
-            {fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
-          </Button>
+          {!fighter?.is_spyrer && (
+            <Button
+              variant={fighter?.recovery ? 'success' : 'default'}
+              className="flex-1"
+              onClick={() => handleModalToggle('recovery', true)}
+              disabled={!userPermissions.canEdit}
+            >
+              {fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
+            </Button>
+          )}
           <Button
             variant={fighter?.captured ? 'success' : 'default'}
             className="flex-1"

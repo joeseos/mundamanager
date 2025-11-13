@@ -956,6 +956,7 @@ export default function FighterPage({
               credits: fighterData.fighter.credits || 0,
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: (fighterData.fighter as any).base_credits || 0,
+              is_spyrer: fighterData.fighter.is_spyrer,
               campaigns: fighterData.fighter?.campaigns
             }}
             gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '' }}
