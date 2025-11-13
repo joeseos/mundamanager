@@ -680,10 +680,16 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       throw new Error('Fighter not found');
     }
 
+    // Type-safe access to fighter_types
+    const fighterTypes = fighter.fighter_types;
+    if (!fighterTypes || typeof fighterTypes !== 'object' || !('is_spyrer' in fighterTypes)) {
+      throw new Error('Fighter type data is missing or invalid');
+    }
+
     // Calculate new values
     const newXp = fighter.xp + params.xp_to_add;
     const newKills = fighter.kills + (params.ooa_count || 0);
-    const isSpyrer = (fighter.fighter_types as any)?.is_spyrer || false;
+    const isSpyrer = fighterTypes.is_spyrer || false;
     const newKillCount = isSpyrer ? (fighter.kill_count || 0) + (params.ooa_count || 0) : fighter.kill_count;
 
     // Update XP, kills, and kill_count

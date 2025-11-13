@@ -65,8 +65,7 @@ BEGIN
     
     -- Validate that the effect type belongs to the injuries or rig-glitches category
     IF effect_type_record.fighter_effect_category_id NOT IN (
-        '1cc0f7d5-3c5b-4098-9892-bcd4843f69b6',  -- injuries
-        '135359ae-ccda-4a35-a855-962f9801f8d5'   -- rig-glitches
+        SELECT id FROM fighter_effect_categories WHERE category_name IN ('injuries', 'rig-glitches')
     ) THEN
         RAISE EXCEPTION 'The provided fighter effect type is not an injury or rig glitch';
     END IF;
