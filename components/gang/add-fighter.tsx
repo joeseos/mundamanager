@@ -1332,6 +1332,26 @@ export default function AddFighter({
         </div>
       )}
 
+      <div className="flex items-center space-x-2 mb-4">
+        <Checkbox
+          id="include-custom-fighters"
+          checked={includeCustomFighters}
+          onCheckedChange={(checked) => setIncludeCustomFighters(checked as boolean)}
+        />
+        <label
+          htmlFor="include-custom-fighters"
+          className="text-sm font-medium text-muted-foreground cursor-pointer"
+        >
+          Include Custom Fighter Types
+        </label>
+        <div className="relative group">
+          <ImInfo />
+          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
+          </div>
+        </div>
+      </div>
+
       {/* Gang Legacy Selection */}
       {(() => {
         // Get the current fighter type (sub-type if selected, otherwise main type)
@@ -1389,26 +1409,6 @@ export default function AddFighter({
           <ImInfo />
           <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
             When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-2 mb-4">
-        <Checkbox
-          id="include-custom-fighters"
-          checked={includeCustomFighters}
-          onCheckedChange={(checked) => setIncludeCustomFighters(checked as boolean)}
-        />
-        <label
-          htmlFor="include-custom-fighters"
-          className="text-sm font-medium text-muted-foreground cursor-pointer"
-        >
-          Include Custom Fighter Types
-        </label>
-        <div className="relative group">
-          <ImInfo />
-          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-            When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
           </div>
         </div>
       </div>
