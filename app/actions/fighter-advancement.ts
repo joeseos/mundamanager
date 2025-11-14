@@ -730,6 +730,8 @@ export interface AddPowerBoostParams {
   fighter_id: string;
   power_boost_type_id: string;
   kill_cost: number;
+  selected_effect_ids?: string[];
+  selected_modifier_ids?: string[];
 }
 
 export async function addPowerBoost(
@@ -795,22 +797,80 @@ export async function addPowerBoost(
     // Get modifiers for this power boost type and insert them
     const { data: modifierTemplates, error: modifierError } = await supabase
       .from('fighter_effect_type_modifiers')
-      .select('stat_name, default_numeric_value')
+      .select('id, stat_name, default_numeric_value')
       .eq('fighter_effect_type_id', params.power_boost_type_id);
 
     if (modifierTemplates && modifierTemplates.length > 0) {
-      const modifiersToInsert = modifierTemplates.map(template => ({
-        fighter_effect_id: insertedEffect.id,
-        stat_name: template.stat_name,
-        numeric_value: template.default_numeric_value
-      }));
+      // Filter by selected_modifier_ids if provided
+      const modifiersToCreate = params.selected_modifier_ids && params.selected_modifier_ids.length > 0
+        ? modifierTemplates.filter(m => params.selected_modifier_ids!.includes(m.id))
+        : modifierTemplates;
 
-      const { error: modifierInsertError } = await supabase
-        .from('fighter_effect_modifiers')
-        .insert(modifiersToInsert);
+      if (modifiersToCreate.length > 0) {
+        const modifiersToInsert = modifiersToCreate.map(template => ({
+          fighter_effect_id: insertedEffect.id,
+          stat_name: template.stat_name,
+          numeric_value: template.default_numeric_value
+        }));
 
-      if (modifierInsertError) {
-        return { success: false, error: 'Failed to insert power boost modifiers' };
+        const { error: modifierInsertError } = await supabase
+          .from('fighter_effect_modifiers')
+          .insert(modifiersToInsert);
+
+        if (modifierInsertError) {
+          return { success: false, error: 'Failed to insert power boost modifiers' };
+        }
+      }
+    }
+
+    // If there are selected effect types (child effects), create them as well
+    if (params.selected_effect_ids && params.selected_effect_ids.length > 0) {
+      for (const effectTypeId of params.selected_effect_ids) {
+        // Get the effect type details
+        const { data: childEffectType, error: childEffectTypeError } = await supabase
+          .from('fighter_effect_types')
+          .select('id, effect_name, type_specific_data')
+          .eq('id', effectTypeId)
+          .single();
+
+        if (childEffectTypeError || !childEffectType) {
+          continue; // Skip if effect type not found
+        }
+
+        // Insert the child effect
+        const { data: childEffect, error: childEffectError } = await supabase
+          .from('fighter_effects')
+          .insert({
+            fighter_id: params.fighter_id,
+            fighter_effect_type_id: effectTypeId,
+            effect_name: childEffectType.effect_name,
+            type_specific_data: childEffectType.type_specific_data,
+            user_id: user.id
+          })
+          .select('id')
+          .single();
+
+        if (childEffectError || !childEffect) {
+          continue; // Skip if failed to insert
+        }
+
+        // Get modifiers for this child effect type
+        const { data: childModifiers } = await supabase
+          .from('fighter_effect_type_modifiers')
+          .select('stat_name, default_numeric_value')
+          .eq('fighter_effect_type_id', effectTypeId);
+
+        if (childModifiers && childModifiers.length > 0) {
+          const childModifiersToInsert = childModifiers.map(template => ({
+            fighter_effect_id: childEffect.id,
+            stat_name: template.stat_name,
+            numeric_value: template.default_numeric_value
+          }));
+
+          await supabase
+            .from('fighter_effect_modifiers')
+            .insert(childModifiersToInsert);
+        }
       }
     }
 

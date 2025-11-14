@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/ui/modal";
@@ -13,6 +13,7 @@ import { Combobox } from '@/components/ui/combobox';
 import DiceRoller from '@/components/dice-roller';
 import { resolvePowerBoostFromUtil, resolvePowerBoostRangeFromUtilByName, rollD6 } from '@/utils/dice';
 import { addPowerBoost, deletePowerBoost } from '@/app/actions/fighter-advancement';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
 
 // Utility function to parse type_specific_data safely
 function parseTypeSpecificData(data: unknown): Record<string, unknown> {
@@ -59,11 +60,16 @@ export function PowerBoostsList({
   const [isLoadingPowerBoosts, setIsLoadingPowerBoosts] = useState(false);
   const [editableKillCost, setEditableKillCost] = useState<number>(4);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
+  const [showEffectSelection, setShowEffectSelection] = useState(false);
+  const [effectTypes, setEffectTypes] = useState<any[]>([]);
+  const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
+  const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const { toast } = useToast();
 
   // TanStack Query mutation for adding power boosts
   const addPowerBoostMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; power_boost_type_id: string; kill_cost: number; boost_name: string; credits_increase: number }) => {
+    mutationFn: async (variables: { fighter_id: string; power_boost_type_id: string; kill_cost: number; boost_name: string; credits_increase: number; selected_effect_ids?: string[]; selected_modifier_ids?: string[] }) => {
       const result = await addPowerBoost(variables);
       if (!result.success) {
         throw new Error(result.error || 'Failed to add power boost');
@@ -208,7 +214,10 @@ export function PowerBoostsList({
 
       const { data, error } = await supabase
         .from('fighter_effect_types')
-        .select('*')
+        .select(`
+          *,
+          fighter_effect_type_modifiers(*)
+        `)
         .eq('fighter_effect_category_id', '047d6547-ab52-485e-afaa-b570d8a7d8b8')
         .order('effect_name', { ascending: true });
 
@@ -240,6 +249,10 @@ export function PowerBoostsList({
     setSelectedPowerBoostId('');
     setEditableKillCost(4);
     setEditableCreditsIncrease(0);
+    setShowEffectSelection(false);
+    setEffectTypes([]);
+    setSelectedEffectIds([]);
+    setIsEffectSelectionValid(false);
   }, []);
 
   // Helper function to format the range display
@@ -289,13 +302,79 @@ export function PowerBoostsList({
       return false;
     }
 
-    // Use the editable kill cost
+    // Check kill cost before proceeding
     if (currentKillCount < editableKillCost) {
       toast({
         description: `Not enough kills. This power boost costs ${editableKillCost} kills but you only have ${currentKillCount}.`,
         variant: "destructive"
       });
       return false;
+    }
+
+    // Check if this power boost has effect_selection (modifier selection on parent)
+    const specificData = parseTypeSpecificData(boost.type_specific_data);
+    const hasModifierSelection = specificData.effect_selection === 'single_select' || specificData.effect_selection === 'multiple_select';
+
+    // If parent has modifier selection, use the already-fetched modifiers and show selection UI
+    if (hasModifierSelection && effectTypes.length === 0 && !showEffectSelection) {
+      const modifiers = (boost as any).fighter_effect_type_modifiers || [];
+
+      if (modifiers.length > 1) {
+        // Convert modifiers to effect type format for FighterEffectSelection
+        const modifierAsEffectTypes = modifiers.map((mod: any) => ({
+          id: mod.id,
+          effect_name: `${mod.stat_name.replace(/_/g, ' ').split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}: ${mod.default_numeric_value > 0 ? '+' : ''}${mod.default_numeric_value}`,
+          type_specific_data: {
+            effect_selection: specificData.effect_selection,
+            selection_group: 'modifiers'
+          },
+          modifiers: [mod]
+        }));
+
+        setEffectTypes(modifierAsEffectTypes);
+        setShowEffectSelection(true);
+        setIsEffectSelectionValid(false);
+        return false; // Keep modal open, show selection
+      }
+    }
+
+    // Pre-check: fetch child effect types for this power boost (if any)
+    if (!hasModifierSelection && !showEffectSelection && effectTypes.length === 0) {
+      try {
+        const response = await fetch(`/api/fighter-effects?powerBoostTypeId=${selectedPowerBoostId}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch fighter effects');
+        }
+
+        const fetchedEffectTypes = await response.json();
+
+        // Check if there are any selectable effects
+        const hasSelectableEffects = fetchedEffectTypes?.some((effect: any) =>
+          effect.type_specific_data?.effect_selection === 'single_select' ||
+          effect.type_specific_data?.effect_selection === 'multiple_select'
+        );
+
+        if (hasSelectableEffects) {
+          setEffectTypes(fetchedEffectTypes);
+          setShowEffectSelection(true);
+          setIsEffectSelectionValid(false);
+          return false; // Keep modal open, show effect selection
+        } else {
+          // All effects are fixed, collect them and proceed directly
+          const fixedEffects = fetchedEffectTypes
+            ?.filter((effect: any) =>
+              effect.type_specific_data?.effect_selection === 'fixed' ||
+              !effect.type_specific_data?.effect_selection
+            )
+            .map((effect: any) => effect.id) || [];
+
+          setSelectedEffectIds(fixedEffects);
+        }
+      } catch (error) {
+        console.error('Error checking effects:', error);
+        // On error, proceed with power boost to avoid blocking the user
+      }
     }
 
     // Close modal
@@ -307,7 +386,8 @@ export function PowerBoostsList({
       power_boost_type_id: selectedPowerBoostId,
       kill_cost: editableKillCost,
       boost_name: boost.effect_name,
-      credits_increase: editableCreditsIncrease
+      credits_increase: editableCreditsIncrease,
+      selected_effect_ids: selectedEffectIds.length > 0 ? selectedEffectIds : undefined
     });
 
     return true;
@@ -319,6 +399,43 @@ export function PowerBoostsList({
 
   const handleCreditsIncreaseChange = (value: number) => {
     setEditableCreditsIncrease(value);
+  };
+
+  const handleEffectSelectionComplete = (effectIds: string[]) => {
+    setSelectedEffectIds(effectIds);
+    setShowEffectSelection(false);
+    setEffectTypes([]);
+
+    // Proceed with adding power boost with selected effects
+    const boost = availablePowerBoosts.find(b => b.id === selectedPowerBoostId);
+    if (boost) {
+      // Check if these are modifier IDs or effect type IDs
+      const specificData = parseTypeSpecificData(boost.type_specific_data);
+      const hasModifierSelection = specificData.effect_selection === 'single_select' || specificData.effect_selection === 'multiple_select';
+
+      // Close the add power boost modal
+      handleCloseModal();
+
+      addPowerBoostMutation.mutate({
+        fighter_id: fighterId,
+        power_boost_type_id: selectedPowerBoostId,
+        kill_cost: editableKillCost,
+        boost_name: boost.effect_name,
+        credits_increase: editableCreditsIncrease,
+        // Pass as selected_modifier_ids if parent has modifier selection, otherwise as selected_effect_ids
+        ...(hasModifierSelection
+          ? { selected_modifier_ids: effectIds }
+          : { selected_effect_ids: effectIds }
+        )
+      });
+    }
+  };
+
+  const handleEffectSelectionCancel = () => {
+    setShowEffectSelection(false);
+    setSelectedEffectIds([]);
+    setIsEffectSelectionValid(false);
+    setEffectTypes([]);
   };
 
   const handleDeletePowerBoost = (boostId: string, boostName: string) => {
@@ -422,7 +539,7 @@ export function PowerBoostsList({
                   Power Boosts
                 </label>
                 <Combobox
-                  placeholder="Select power boost..."
+                  placeholder="Select power boost"
                   options={availablePowerBoosts
                   .sort((a, b) => {
                     const rankA = powerBoostRank[a.effect_name] ?? 999;
@@ -498,6 +615,30 @@ export function PowerBoostsList({
           onConfirm={handleAddPowerBoost}
           confirmText="Add Power Boost"
           confirmDisabled={!selectedPowerBoostId || addPowerBoostMutation.isPending}
+        />
+      )}
+
+      {/* Effect Selection Modal */}
+      {showEffectSelection && (
+        <Modal
+          title="Power Boost Effects"
+          content={
+            <FighterEffectSelection
+              equipmentId={selectedPowerBoostId}
+              effectTypes={effectTypes}
+              onSelectionComplete={handleEffectSelectionComplete}
+              onCancel={handleEffectSelectionCancel}
+              onValidityChange={setIsEffectSelectionValid}
+              ref={effectSelectionRef}
+            />
+          }
+          onClose={handleEffectSelectionCancel}
+          onConfirm={async () => {
+            return await effectSelectionRef.current?.handleConfirm() || false;
+          }}
+          confirmText="Confirm Selection"
+          confirmDisabled={!isEffectSelectionValid}
+          width="lg"
         />
       )}
 

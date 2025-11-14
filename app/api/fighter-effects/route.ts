@@ -13,20 +13,24 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const equipmentId = searchParams.get('equipmentId');
-    
-    console.log('GET request params:', { equipmentId });
-    
-    // This route is specifically for equipment filtering
-    if (!equipmentId) {
-      return NextResponse.json({ error: 'Equipment ID is required' }, { status: 400 });
+    const powerBoostTypeId = searchParams.get('powerBoostTypeId');
+
+    console.log('GET request params:', { equipmentId, powerBoostTypeId });
+
+    // This route supports both equipment and power boost filtering
+    if (!equipmentId && !powerBoostTypeId) {
+      return NextResponse.json({ error: 'Equipment ID or Power Boost Type ID is required' }, { status: 400 });
     }
-    
-    console.log('Trying to find fighter effects for equipment ID:', equipmentId);
-    console.log('Equipment ID type:', typeof equipmentId);
-    
+
+    const filterField = equipmentId ? 'equipment_id' : 'power_boost_type_id';
+    const filterValue = equipmentId || powerBoostTypeId;
+
+    console.log('Trying to find fighter effects for', filterField, ':', filterValue);
+    console.log('Filter value type:', typeof filterValue);
+
     // Try a raw SQL query approach for JSONB filtering
     try {
-      // Execute a raw SQL query to properly filter by equipment_id in the JSONB
+      // Execute a raw SQL query to properly filter by equipment_id or power_boost_type_id in the JSONB
       const { data, error } = await supabase.from('fighter_effect_types')
         .select(`
           id,
@@ -35,14 +39,14 @@ export async function GET(request: NextRequest) {
           type_specific_data,
           fighter_effect_categories(id, category_name)
         `)
-        .eq('type_specific_data->>equipment_id', equipmentId);
+        .eq(`type_specific_data->>${filterField}`, filterValue);
       
       if (error) {
         console.error('Error with SQL query:', error);
       } else {
         console.log('Found fighter effects with SQL query:', data?.length || 0);
-        console.log('Equipment ID being searched:', equipmentId);
-        console.log('Effect types found:', data?.map(d => ({ id: d.id, name: d.effect_name, equipment_id: d.type_specific_data?.equipment_id })));
+        console.log(`${filterField} being searched:`, filterValue);
+        console.log('Effect types found:', data?.map(d => ({ id: d.id, name: d.effect_name, filter_value: d.type_specific_data?.[filterField] })));
         
         // If we have effect types, get the modifiers for each
         if (data && data.length > 0) {
@@ -96,11 +100,11 @@ export async function GET(request: NextRequest) {
         const filteredData = data.filter(item => {
           try {
             const typeSpecificData = item.type_specific_data;
-            const matches = typeSpecificData && 
-                   typeSpecificData.equipment_id && 
-                   typeSpecificData.equipment_id === equipmentId;
+            const matches = typeSpecificData &&
+                   typeSpecificData[filterField] &&
+                   typeSpecificData[filterField] === filterValue;
             if (matches) {
-              console.log('Found matching effect:', item.effect_name, 'for equipment:', equipmentId);
+              console.log('Found matching effect:', item.effect_name, 'for', filterField, ':', filterValue);
             }
             return matches;
           } catch (e) {
