@@ -38,6 +38,8 @@ interface ItemModalProps {
   allowedCategories?: string[];
   isStashMode?: boolean;
   isCustomFighter?: boolean;
+  campaignTradingPostIds?: string[];
+  campaignTradingPostNames?: string[];
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
@@ -408,6 +410,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   allowedCategories,
   isStashMode,
   isCustomFighter = false,
+  campaignTradingPostIds,
+  campaignTradingPostNames,
   onEquipmentBought,
   onPurchaseRequest,
   fighterWeapons
@@ -458,6 +462,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     };
     getSession();
   }, []);
+
 
   useEffect(() => {
     const fetchVehicleTypeId = async () => {
@@ -1066,6 +1071,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 />
               )}
             </div>
+            
+            {/* Display trading post names when Trading Post is selected and gang is in a campaign */}
+            {equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds !== undefined && (
+              <div className="mt-2 px-4">
+                <p className="text-xs text-muted-foreground text-center">
+                  Authorised Trading Posts: {(campaignTradingPostNames && campaignTradingPostNames.length > 0) ? campaignTradingPostNames.join(', ') : 'None'}
+                </p>
+              </div>
+            )}
           </div>
 
           <div>

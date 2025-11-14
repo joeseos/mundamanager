@@ -5,12 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from "@/components/ui/modal";
-import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
 import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
+import { tradingPostRank } from "@/utils/tradingPostRank";
+
+interface TradingPostType {
+  id: string;
+  trading_post_name: string;
+}
 
 interface EditCampaignModalProps {
   isOpen: boolean;
@@ -25,6 +30,7 @@ interface EditCampaignModalProps {
     has_sustenance: boolean;
     has_salvage: boolean;
     status: string | null;
+    trading_posts: string[];
   };
   onClose: () => void;
   onSave: (updatedData: {
@@ -36,9 +42,11 @@ interface EditCampaignModalProps {
     has_power: boolean;
     has_sustenance: boolean;
     has_salvage: boolean;
+    trading_posts: string[];
     status: string;
   }) => Promise<boolean>;
   isOwner: boolean;
+  tradingPostTypes?: TradingPostType[];
 }
 
 export default function CampaignEditModal({
@@ -47,6 +55,7 @@ export default function CampaignEditModal({
   onClose,
   onSave,
   isOwner,
+  tradingPostTypes = [],
 }: EditCampaignModalProps) {
   // Local state for form values - initialized from props
   const [formValues, setFormValues] = useState({
@@ -59,12 +68,12 @@ export default function CampaignEditModal({
     sustenanceEnabled: campaignData.has_sustenance ?? false,
     salvageEnabled: campaignData.has_salvage ?? false,
     status: campaignData.status || 'Active',
+    tradingPosts: campaignData.trading_posts || [],
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const { toast } = useToast();
-  const supabase = createClient();
   const router = useRouter();
 
   // Reset form values when campaign data changes or when modal opens
@@ -79,9 +88,11 @@ export default function CampaignEditModal({
       sustenanceEnabled: campaignData.has_sustenance ?? false,
       salvageEnabled: campaignData.has_salvage ?? false,
       status: campaignData.status || 'Active',
+      tradingPosts: campaignData.trading_posts || [],
     });
     setCharCount((campaignData.description ?? '').length);
   }, [campaignData]);
+
 
   // Handler for form submission
   const handleSubmit = async () => {
@@ -94,9 +105,27 @@ export default function CampaignEditModal({
       has_power: formValues.powerEnabled,
       has_sustenance: formValues.sustenanceEnabled,
       has_salvage: formValues.salvageEnabled,
+      trading_posts: formValues.tradingPosts,
       status: formValues.status,
     });
     return result;
+  };
+
+  const handleTradingPostToggle = (tradingPostId: string, enabled: boolean) => {
+    setFormValues(prev => {
+      const current = prev.tradingPosts || [];
+      if (enabled) {
+        if (current.includes(tradingPostId)) return prev;
+        return {
+          ...prev,
+          tradingPosts: [...current, tradingPostId]
+        };
+      }
+      return {
+        ...prev,
+        tradingPosts: current.filter(id => id !== tradingPostId)
+      };
+    });
   };
 
   // Handle campaign deletion
@@ -171,16 +200,16 @@ export default function CampaignEditModal({
             {/* Resources */}
             <div className="space-y-2 text-sm font-medium mb-1">
               <div className="flex items-center space-x-2">
-              <span>Resources</span>
-              <span
-                className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                data-tooltip-id="resources-tooltip"
-                data-tooltip-html={
-                  'Exploration Points: Underhells campaign.<br/>Meat and Scavenging Rolls: Uprising campaign.'
-                }
-              >
-                <ImInfo />
-              </span>
+                <span>Resources</span>
+                <span
+                  className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                  data-tooltip-id="resources-tooltip"
+                  data-tooltip-html={
+                    'Exploration Points: Underhells campaign.<br/>Meat and Scavenging Rolls: Uprising campaign.'
+                  }
+                >
+                  <ImInfo />
+                </span>
               </div>
               <label className="flex items-center space-x-2">
                 <Checkbox
@@ -247,6 +276,69 @@ export default function CampaignEditModal({
                 />
                 <span>Salvage</span>
               </label>
+            </div>
+
+            {/* Trading Posts */}
+            <div className="space-y-2 text-sm font-medium mb-1">
+              <label className="flex items-center justify-between text-sm font-medium">
+                <div className="flex items-center space-x-2">
+                  <span>Authorised Trading Posts</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html={
+                      'Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {formValues.tradingPosts.length} selected
+                </span>
+              </label>
+              {tradingPostTypes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No trading posts available. Add trading post types in the admin section first.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {tradingPostTypes
+                    .sort((a, b) => {
+                      const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
+                      const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
+                      return rankA - rankB;
+                    })
+                    .map((type, index, arr) => {
+                      const currentRank = tradingPostRank[type.trading_post_name.toLowerCase()] ?? Infinity;
+                      const prevRank = index > 0 
+                        ? (tradingPostRank[arr[index - 1].trading_post_name.toLowerCase()] ?? Infinity)
+                        : null;
+                      
+                      // Add divider between rank <= 2 and rank >= 11
+                      const shouldAddDivider = prevRank !== null && prevRank <= 2 && currentRank >= 11;
+                      
+                      return (
+                        <React.Fragment key={type.id}>
+                          {shouldAddDivider && (
+                            <div className="col-span-full border-t border-border" />
+                          )}
+                          <label 
+                            htmlFor={`trading-post-${type.id}`} 
+                            className="flex items-center space-x-2 cursor-pointer"
+                          >
+                            <Checkbox
+                              id={`trading-post-${type.id}`}
+                              checked={formValues.tradingPosts.includes(type.id)}
+                              onCheckedChange={(checked) => handleTradingPostToggle(type.id, checked === true)}
+                            />
+                            <span className="text-xs">{type.trading_post_name}</span>
+                          </label>
+                        </React.Fragment>
+                      );
+                    })}
+                </div>
+              )}
             </div>
 
             {/* Description */}

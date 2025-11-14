@@ -351,6 +351,12 @@ export default function GangPageContent({
           onGangRatingUpdate={handleGangRatingUpdate}
           onGangWealthUpdate={handleGangWealthUpdate}
           userPermissions={userPermissions}
+          campaignTradingPostIds={(gangData.processedData.campaigns || []).length > 0 
+            ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_posts || [])
+            : undefined}
+          campaignTradingPostNames={(gangData.processedData.campaigns || []).length > 0 
+            ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
+            : undefined}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}

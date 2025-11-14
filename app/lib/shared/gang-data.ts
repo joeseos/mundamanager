@@ -100,6 +100,8 @@ export interface GangCampaign {
   has_power: boolean;
   has_sustenance: boolean;
   has_salvage: boolean;
+  trading_posts?: string[] | null;
+  trading_post_names?: string[];
   territories: any[];
 }
 
@@ -463,7 +465,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_scavenging_rolls,
             has_power,
             has_sustenance,
-            has_salvage
+            has_salvage,
+            trading_posts
           )
         `)
         .eq('gang_id', gangId);
@@ -501,6 +504,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_power: (cg.campaign as any).has_power,
             has_sustenance: (cg.campaign as any).has_sustenance,
             has_salvage: (cg.campaign as any).has_salvage,
+            trading_posts: (cg.campaign as any).trading_posts || [],
             territories: territories || []
           });
         }

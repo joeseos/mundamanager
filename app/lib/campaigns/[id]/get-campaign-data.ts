@@ -19,6 +19,7 @@ interface CampaignBasic {
   has_power: boolean;
   has_sustenance: boolean;
   has_salvage: boolean;
+  trading_posts: string[] | null;
   note: string;
   campaign_types: {
     campaign_type_name: string;
@@ -117,6 +118,7 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       has_power,
       has_sustenance,
       has_salvage,
+      trading_posts,
       note,
       image_url
     `)

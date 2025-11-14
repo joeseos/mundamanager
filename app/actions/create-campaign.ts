@@ -6,13 +6,14 @@ import { getAuthenticatedUser } from "@/utils/auth";
 interface CreateCampaignParams {
   name: string;
   campaignTypeId: string;
+  trading_posts?: string[];
 }
 
 type CreateCampaignResult =
   | { success: true; data: { id: string; campaign_name: string; campaign_type_id: string; created_at: string } }
   | { success: false; error: string };
 
-export async function createCampaign({ name, campaignTypeId }: CreateCampaignParams): Promise<CreateCampaignResult> {
+export async function createCampaign({ name, campaignTypeId, trading_posts }: CreateCampaignParams): Promise<CreateCampaignResult> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -24,6 +25,7 @@ export async function createCampaign({ name, campaignTypeId }: CreateCampaignPar
           campaign_type_id: campaignTypeId,
           campaign_name: name.trimEnd(),
           status: 'Active',
+          trading_posts: trading_posts || [],
         },
       ])
       .select()
