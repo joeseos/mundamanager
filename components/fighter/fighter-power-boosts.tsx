@@ -14,6 +14,18 @@ import DiceRoller from '@/components/dice-roller';
 import { resolvePowerBoostFromUtil, resolvePowerBoostRangeFromUtilByName, rollD6 } from '@/utils/dice';
 import { addPowerBoost, deletePowerBoost } from '@/app/actions/fighter-advancement';
 
+// Utility function to parse type_specific_data safely
+function parseTypeSpecificData(data: unknown): Record<string, unknown> {
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return {};
+    }
+  }
+  return (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
+}
+
 // Power boost ranking for sorting
 const powerBoostRank: { [key: string]: number } = {
   "Combat Neuroware": 1,
@@ -43,19 +55,15 @@ export function PowerBoostsList({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [selectedPowerBoostId, setSelectedPowerBoostId] = useState<string>('');
-  const [selectedPowerBoost, setSelectedPowerBoost] = useState<FighterEffectType | null>(null);
   const [availablePowerBoosts, setAvailablePowerBoosts] = useState<FighterEffectType[]>([]);
   const [isLoadingPowerBoosts, setIsLoadingPowerBoosts] = useState(false);
   const [editableKillCost, setEditableKillCost] = useState<number>(4);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
   const { toast } = useToast();
 
-  // Store boost info for mutation context
-  const [boostToAdd, setBoostToAdd] = useState<{ boost: FighterEffectType; killCost: number; creditsIncrease: number } | null>(null);
-
   // TanStack Query mutation for adding power boosts
   const addPowerBoostMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; power_boost_type_id: string; kill_cost: number }) => {
+    mutationFn: async (variables: { fighter_id: string; power_boost_type_id: string; kill_cost: number; boost_name: string; credits_increase: number }) => {
       const result = await addPowerBoost(variables);
       if (!result.success) {
         throw new Error(result.error || 'Failed to add power boost');
@@ -63,22 +71,20 @@ export function PowerBoostsList({
       return result;
     },
     onMutate: async (variables) => {
-      if (!boostToAdd) return {};
-
       // Snapshot the previous values for rollback
       const previousPowerBoosts = [...powerBoosts];
       const previousKillCount = currentKillCount;
 
-      // Create optimistic power boost
+      // Create optimistic power boost using variables directly
       const optimisticId = `optimistic-boost-${Date.now()}`;
       const optimisticPowerBoost: FighterEffectType = {
         id: optimisticId,
-        effect_name: boostToAdd.boost.effect_name,
+        effect_name: variables.boost_name,
         created_at: new Date().toISOString(),
         fighter_effect_modifiers: [],
         type_specific_data: {
-          kill_cost: boostToAdd.killCost,
-          credits_increase: boostToAdd.creditsIncrease
+          kill_cost: variables.kill_cost,
+          credits_increase: variables.credits_increase
         }
       };
 
@@ -88,15 +94,15 @@ export function PowerBoostsList({
 
       // Update kill_count and credits immediately
       if (onKillsCreditsUpdate) {
-        onKillsCreditsUpdate(-boostToAdd.killCost, boostToAdd.creditsIncrease);
+        onKillsCreditsUpdate(-variables.kill_cost, variables.credits_increase);
       }
 
       return {
         previousPowerBoosts,
         previousKillCount,
-        killCost: boostToAdd.killCost,
-        creditsIncrease: boostToAdd.creditsIncrease,
-        boostName: boostToAdd.boost.effect_name
+        killCost: variables.kill_cost,
+        creditsIncrease: variables.credits_increase,
+        boostName: variables.boost_name
       };
     },
     onSuccess: (result, variables, context) => {
@@ -104,7 +110,6 @@ export function PowerBoostsList({
         title: "Success!",
         description: `Successfully added ${context?.boostName || 'power boost'}`
       });
-      setBoostToAdd(null); // Clear after success
     },
     onError: (error, variables, context) => {
       // Rollback optimistic power boost update
@@ -123,7 +128,6 @@ export function PowerBoostsList({
         description: error instanceof Error ? error.message : 'Failed to add power boost',
         variant: "destructive"
       });
-      setBoostToAdd(null); // Clear after error
     }
   });
 
@@ -142,9 +146,7 @@ export function PowerBoostsList({
       if (!boostToDelete) return {};
 
       // Extract kill cost and credits from type_specific_data
-      const specificData = typeof boostToDelete.type_specific_data === 'string'
-        ? JSON.parse(boostToDelete.type_specific_data || '{}')
-        : (boostToDelete.type_specific_data || {});
+      const specificData = parseTypeSpecificData(boostToDelete.type_specific_data);
       const killCost = specificData.kill_cost || 0;
       const creditsIncrease = specificData.credits_increase || 0;
 
@@ -236,7 +238,6 @@ export function PowerBoostsList({
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
     setSelectedPowerBoostId('');
-    setSelectedPowerBoost(null);
     setEditableKillCost(4);
     setEditableCreditsIncrease(0);
   }, []);
@@ -258,9 +259,7 @@ export function PowerBoostsList({
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       })
       .map((boost) => {
-        const specificData = typeof boost.type_specific_data === 'string'
-          ? JSON.parse(boost.type_specific_data || '{}')
-          : (boost.type_specific_data || {});
+        const specificData = parseTypeSpecificData(boost.type_specific_data);
 
         return {
           id: boost.id || `temp-${Math.random()}`,
@@ -299,21 +298,16 @@ export function PowerBoostsList({
       return false;
     }
 
-    // Set boostToAdd state BEFORE closing modal and calling mutation
-    setBoostToAdd({
-      boost: boost,
-      killCost: editableKillCost,
-      creditsIncrease: editableCreditsIncrease
-    });
-
     // Close modal
     handleCloseModal();
 
-    // Trigger mutation (onMutate defined in mutation will have access to boostToAdd)
+    // Trigger mutation with all data passed directly through variables
     addPowerBoostMutation.mutate({
       fighter_id: fighterId,
       power_boost_type_id: selectedPowerBoostId,
-      kill_cost: editableKillCost
+      kill_cost: editableKillCost,
+      boost_name: boost.effect_name,
+      credits_increase: editableCreditsIncrease
     });
 
     return true;
@@ -455,11 +449,8 @@ export function PowerBoostsList({
                     if (value) {
                       const boost = availablePowerBoosts.find(b => b.id === value);
                       if (boost) {
-                        setSelectedPowerBoost(boost);
                         // Set default values from type_specific_data
-                        const specificData = typeof boost.type_specific_data === 'string'
-                          ? JSON.parse(boost.type_specific_data || '{}')
-                          : (boost.type_specific_data || {});
+                        const specificData = parseTypeSpecificData(boost.type_specific_data);
                         setEditableKillCost(specificData.kill_cost || 4);
                         setEditableCreditsIncrease(specificData.credits_increase || 0);
                       }
@@ -506,7 +497,7 @@ export function PowerBoostsList({
           onClose={handleCloseModal}
           onConfirm={handleAddPowerBoost}
           confirmText="Add Power Boost"
-          confirmDisabled={!selectedPowerBoostId}
+          confirmDisabled={!selectedPowerBoostId || addPowerBoostMutation.isPending}
         />
       )}
 

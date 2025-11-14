@@ -10,6 +10,12 @@ import {
   logSkillAdvancementDeletion 
 } from './logs/gang-fighter-logs';
 
+// Type for power boost type_specific_data
+interface PowerBoostTypeData {
+  kill_cost?: number;
+  credits_increase?: number;
+}
+
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
   // Check if this fighter is an exotic beast owned by another fighter
@@ -18,7 +24,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .select('fighter_owner_id')
     .eq('fighter_pet_id', fighterId)
     .single();
-    
+
   if (ownerData) {
     // Invalidate the owner's cache since their total cost changed
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
@@ -811,7 +817,7 @@ export async function addPowerBoost(
     // Extract credits_increase from type_specific_data for gang rating
     let creditsIncrease = 0;
     if (effectType.type_specific_data && typeof effectType.type_specific_data === 'object') {
-      const typeData = effectType.type_specific_data as any;
+      const typeData = effectType.type_specific_data as PowerBoostTypeData;
       creditsIncrease = typeData.credits_increase || 0;
     }
 
@@ -834,25 +840,31 @@ export async function addPowerBoost(
 
     // Update gang rating and wealth (+credits_increase)
     if (creditsIncrease > 0) {
-      try {
-        const { data: gangRow } = await supabase
-          .from('gangs')
-          .select('rating, wealth')
-          .eq('id', fighter.gang_id)
-          .single();
-        const currentRating = (gangRow?.rating ?? 0) as number;
-        const currentWealth = (gangRow?.wealth ?? 0) as number;
-        const ratingDelta = creditsIncrease;
-        const wealthDelta = ratingDelta;
-        await supabase
-          .from('gangs')
-          .update({
-            rating: Math.max(0, currentRating + ratingDelta),
-            wealth: Math.max(0, currentWealth + wealthDelta)
-          })
-          .eq('id', fighter.gang_id);
-      } catch (error) {
-        console.error('Failed to update gang rating/wealth:', error);
+      const { data: gangRow, error: gangSelectError } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangSelectError || !gangRow) {
+        return { success: false, error: 'Failed to fetch gang data for rating update' };
+      }
+
+      const currentRating = (gangRow.rating ?? 0) as number;
+      const currentWealth = (gangRow.wealth ?? 0) as number;
+      const ratingDelta = creditsIncrease;
+      const wealthDelta = ratingDelta;
+
+      const { error: gangUpdateError } = await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
+        .eq('id', fighter.gang_id);
+
+      if (gangUpdateError) {
+        return { success: false, error: 'Failed to update gang rating/wealth: ' + gangUpdateError.message };
       }
     }
 
@@ -949,7 +961,7 @@ export async function deletePowerBoost(
     let killCostToRefund = 0;
     let creditsToDeduct = 0;
     if (effectData.type_specific_data && typeof effectData.type_specific_data === 'object') {
-      const typeData = effectData.type_specific_data as any;
+      const typeData = effectData.type_specific_data as PowerBoostTypeData;
       killCostToRefund = typeData.kill_cost || 0;
       creditsToDeduct = typeData.credits_increase || 0;
     }
@@ -983,25 +995,31 @@ export async function deletePowerBoost(
 
     // Update gang rating and wealth (-credits_increase)
     if (creditsToDeduct > 0) {
-      try {
-        const { data: gangRow } = await supabase
-          .from('gangs')
-          .select('rating, wealth')
-          .eq('id', fighter.gang_id)
-          .single();
-        const currentRating = (gangRow?.rating ?? 0) as number;
-        const currentWealth = (gangRow?.wealth ?? 0) as number;
-        const ratingDelta = -creditsToDeduct;
-        const wealthDelta = ratingDelta;
-        await supabase
-          .from('gangs')
-          .update({
-            rating: Math.max(0, currentRating + ratingDelta),
-            wealth: Math.max(0, currentWealth + wealthDelta)
-          })
-          .eq('id', fighter.gang_id);
-      } catch (error) {
-        console.error('Failed to update gang rating/wealth:', error);
+      const { data: gangRow, error: gangSelectError } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangSelectError || !gangRow) {
+        return { success: false, error: 'Failed to fetch gang data for rating update' };
+      }
+
+      const currentRating = (gangRow.rating ?? 0) as number;
+      const currentWealth = (gangRow.wealth ?? 0) as number;
+      const ratingDelta = -creditsToDeduct;
+      const wealthDelta = ratingDelta;
+
+      const { error: gangUpdateError } = await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
+        .eq('id', fighter.gang_id);
+
+      if (gangUpdateError) {
+        return { success: false, error: 'Failed to update gang rating/wealth: ' + gangUpdateError.message };
       }
     }
 
