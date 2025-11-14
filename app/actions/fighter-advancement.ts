@@ -730,7 +730,9 @@ export interface AddPowerBoostParams {
   fighter_id: string;
   power_boost_type_id: string;
   kill_cost: number;
+  /** Child effect type IDs selected by user (used when power boost has separate child effect types) */
   selected_effect_ids?: string[];
+  /** Modifier IDs selected by user (used when parent power boost has effect_selection and multiple modifiers) */
   selected_modifier_ids?: string[];
 }
 
@@ -825,6 +827,8 @@ export async function addPowerBoost(
 
     // If there are selected effect types (child effects), create them as well
     if (params.selected_effect_ids && params.selected_effect_ids.length > 0) {
+      const failedEffects: string[] = [];
+
       for (const effectTypeId of params.selected_effect_ids) {
         // Get the effect type details
         const { data: childEffectType, error: childEffectTypeError } = await supabase
@@ -834,7 +838,8 @@ export async function addPowerBoost(
           .single();
 
         if (childEffectTypeError || !childEffectType) {
-          continue; // Skip if effect type not found
+          failedEffects.push(effectTypeId);
+          continue;
         }
 
         // Insert the child effect
@@ -851,14 +856,20 @@ export async function addPowerBoost(
           .single();
 
         if (childEffectError || !childEffect) {
-          continue; // Skip if failed to insert
+          failedEffects.push(effectTypeId);
+          continue;
         }
 
         // Get modifiers for this child effect type
-        const { data: childModifiers } = await supabase
+        const { data: childModifiers, error: childModifiersError } = await supabase
           .from('fighter_effect_type_modifiers')
           .select('stat_name, default_numeric_value')
           .eq('fighter_effect_type_id', effectTypeId);
+
+        if (childModifiersError) {
+          failedEffects.push(effectTypeId);
+          continue;
+        }
 
         if (childModifiers && childModifiers.length > 0) {
           const childModifiersToInsert = childModifiers.map(template => ({
@@ -867,10 +878,23 @@ export async function addPowerBoost(
             numeric_value: template.default_numeric_value
           }));
 
-          await supabase
+          const { error: insertModifiersError } = await supabase
             .from('fighter_effect_modifiers')
             .insert(childModifiersToInsert);
+
+          if (insertModifiersError) {
+            failedEffects.push(effectTypeId);
+            continue;
+          }
         }
+      }
+
+      // If any effects failed, fail the entire operation
+      if (failedEffects.length > 0) {
+        return {
+          success: false,
+          error: `Failed to add ${failedEffects.length} of ${params.selected_effect_ids.length} selected effect(s)`
+        };
       }
     }
 
