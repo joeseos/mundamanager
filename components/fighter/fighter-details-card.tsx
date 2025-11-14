@@ -81,6 +81,7 @@ interface FighterDetailsCardProps {
     cyberteknika: FighterEffect[];
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
+    'power-boosts': FighterEffect[];
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
     user: FighterEffect[];
@@ -292,6 +293,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       cyberteknika: effects?.cyberteknika || [],
       'gene-smithing': effects?.['gene-smithing'] || [],
       'rig-glitches': effects?.['rig-glitches'] || [],
+      'power-boosts': effects?.['power-boosts'] || [],
       augmentations: effects?.augmentations || [],
       equipment: effects?.equipment || [],
       user: effects?.user || [],
