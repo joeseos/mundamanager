@@ -57,6 +57,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         power: sourceGang.power,
         sustenance: sourceGang.sustenance,
         salvage: sourceGang.salvage,
+        wealth: sourceGang.wealth,
         last_updated: new Date().toISOString(),
       })
       .select()
