@@ -147,8 +147,8 @@ export function PowerBoostsList({
 
       // Extract kill cost and credits from type_specific_data
       const specificData = parseTypeSpecificData(boostToDelete.type_specific_data);
-      const killCost = specificData.kill_cost || 0;
-      const creditsIncrease = specificData.credits_increase || 0;
+      const killCost = (specificData.kill_cost as number) || 0;
+      const creditsIncrease = (specificData.credits_increase as number) || 0;
 
       // Snapshot the previous values for rollback
       const previousPowerBoosts = [...powerBoosts];
@@ -264,8 +264,8 @@ export function PowerBoostsList({
         return {
           id: boost.id || `temp-${Math.random()}`,
           name: boost.effect_name,
-          kill_cost: specificData.kill_cost || 0,
-          credits_increase: specificData.credits_increase || 0,
+          kill_cost: (specificData.kill_cost as number) || 0,
+          credits_increase: (specificData.credits_increase as number) || 0,
           boost_id: boost.id
         };
       });
@@ -451,8 +451,8 @@ export function PowerBoostsList({
                       if (boost) {
                         // Set default values from type_specific_data
                         const specificData = parseTypeSpecificData(boost.type_specific_data);
-                        setEditableKillCost(specificData.kill_cost || 4);
-                        setEditableCreditsIncrease(specificData.credits_increase || 0);
+                        setEditableKillCost((specificData.kill_cost as number) || 4);
+                        setEditableCreditsIncrease((specificData.credits_increase as number) || 0);
                       }
                     }
                   }}
