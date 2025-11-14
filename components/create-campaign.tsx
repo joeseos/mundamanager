@@ -3,24 +3,36 @@
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { createCampaign } from "@/app/actions/create-campaign"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
+import { tradingPostRank } from "@/utils/tradingPostRank"
+import { ImInfo } from "react-icons/im"
+import { Tooltip } from 'react-tooltip'
+import React from "react"
 
 interface CampaignType {
   id: string;
   campaign_type_name: string;
+  trading_posts?: string[] | null;
+}
+
+interface TradingPostType {
+  id: string;
+  trading_post_name: string;
 }
 
 interface CreateCampaignModalProps {
   onClose: () => void;
   initialCampaignTypes: CampaignType[] | null;
+  initialTradingPostTypes: TradingPostType[] | null;
   userId?: string;
 }
 
 // Button component that opens the modal
-export function CreateCampaignButton({ initialCampaignTypes, userId }: { initialCampaignTypes: CampaignType[] | null; userId?: string }) {
+export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostTypes, userId }: { initialCampaignTypes: CampaignType[] | null; initialTradingPostTypes: TradingPostType[] | null; userId?: string }) {
   const [showModal, setShowModal] = useState(false);
 
   const handleClose = () => {
@@ -40,6 +52,7 @@ export function CreateCampaignButton({ initialCampaignTypes, userId }: { initial
         <CreateCampaignModal
           onClose={handleClose}
           initialCampaignTypes={initialCampaignTypes}
+          initialTradingPostTypes={initialTradingPostTypes}
           userId={userId}
         />
       )}
@@ -48,7 +61,7 @@ export function CreateCampaignButton({ initialCampaignTypes, userId }: { initial
 }
 
 // Modal component
-export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTradingPostTypes, userId }: CreateCampaignModalProps) {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,6 +70,8 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
+  const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
+  const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
@@ -85,6 +100,30 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose, campaignName, campaignType, isLoading]);
 
+  // Auto-select default trading posts when campaign type changes
+  useEffect(() => {
+    if (campaignType) {
+      const selectedCampaignType = campaignTypes.find(type => type.id === campaignType);
+      if (selectedCampaignType?.trading_posts && Array.isArray(selectedCampaignType.trading_posts)) {
+        setSelectedTradingPosts(selectedCampaignType.trading_posts);
+      } else {
+        setSelectedTradingPosts([]);
+      }
+    } else {
+      setSelectedTradingPosts([]);
+    }
+  }, [campaignType, campaignTypes]);
+
+  const handleTradingPostToggle = (tradingPostId: string, enabled: boolean) => {
+    setSelectedTradingPosts(prev => {
+      if (enabled) {
+        if (prev.includes(tradingPostId)) return prev;
+        return [...prev, tradingPostId];
+      }
+      return prev.filter(id => id !== tradingPostId);
+    });
+  };
+
   const handleCreateCampaign = async () => {
     if (!campaignName || !campaignType) {
       setError('Campaign name and type are required')
@@ -102,6 +141,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
       const result = await createCampaign({
         name: campaignName.trimEnd(),
         campaignTypeId: campaignType,
+        trading_posts: selectedTradingPosts,
       })
 
       if (!result.success) {
@@ -113,6 +153,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
       // Reset form and close modal first for better UX
       setCampaignName("")
       setCampaignType("")
+      setSelectedTradingPosts([])
       onClose()
       
       // Check if we're currently on the campaigns tab, if not redirect to it
@@ -184,6 +225,66 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
               ))}
             </select>
           </div>
+
+          {/* Trading Posts */}
+          {tradingPostTypes.length > 0 && (
+            <div className="space-y-2 text-sm font-medium mb-1">
+              <label className="flex items-center justify-between text-sm font-medium">
+                <div className="flex items-center space-x-2">
+                  <span>Authorised Trading Posts</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="trading-posts-tooltip"
+                    data-tooltip-html={
+                      'Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {selectedTradingPosts.length} selected
+                </span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {tradingPostTypes
+                  .sort((a, b) => {
+                    const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
+                    const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
+                    return rankA - rankB;
+                  })
+                  .map((type, index, arr) => {
+                    const currentRank = tradingPostRank[type.trading_post_name.toLowerCase()] ?? Infinity;
+                    const prevRank = index > 0 
+                      ? (tradingPostRank[arr[index - 1].trading_post_name.toLowerCase()] ?? Infinity)
+                      : null;
+                    
+                    // Add divider between rank <= 2 and rank >= 11
+                    const shouldAddDivider = prevRank !== null && prevRank <= 2 && currentRank >= 11;
+                    
+                    return (
+                      <React.Fragment key={type.id}>
+                        {shouldAddDivider && (
+                          <div className="col-span-full border-t border-border" />
+                        )}
+                        <label 
+                          htmlFor={`trading-post-${type.id}`} 
+                          className="flex items-center space-x-2 cursor-pointer"
+                        >
+                          <Checkbox
+                            id={`trading-post-${type.id}`}
+                            checked={selectedTradingPosts.includes(type.id)}
+                            onCheckedChange={(checked) => handleTradingPostToggle(type.id, checked === true)}
+                          />
+                          <span className="text-xs">{type.trading_post_name}</span>
+                        </label>
+                      </React.Fragment>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           <div>
             <label htmlFor="campaign-name" className="block text-sm font-medium text-muted-foreground mb-1">
               Campaign Name *
@@ -196,6 +297,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
               onChange={(e) => setCampaignName(e.target.value)}
             />
           </div>
+
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <SubmitButton 
             onClick={handleCreateCampaign} 
@@ -207,6 +309,19 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, userId }: C
           </SubmitButton>
         </div>
       </div>
+      <Tooltip
+        id="trading-posts-tooltip"
+        place="top"
+        className="!bg-primary !text-white !text-xs !z-[2000]"
+        style={{
+          backgroundColor: '#000',
+          color: 'white',
+          padding: '6px',
+          fontSize: '12px',
+          maxWidth: '20rem',
+          zIndex: 2000
+        }}
+      />
     </div>
   )
 }

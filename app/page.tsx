@@ -29,13 +29,25 @@ export default async function Home() {
     getUserCampaigns()
   ]);
   
-  // Fetch campaign types for the create campaign modal
-  const { data: campaignTypes, error } = await supabase
-    .from('campaign_types')
-    .select('id, campaign_type_name');
+  // Fetch campaign types and trading post types for the create campaign modal
+  const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
+    supabase
+      .from('campaign_types')
+      .select('id, campaign_type_name, trading_posts'),
+    supabase
+      .from('trading_post_types')
+      .select('id, trading_post_name')
+      .order('trading_post_name')
+  ]);
 
-  if (error) {
-    console.error('Error fetching campaign types:', error);
+  const campaignTypes = campaignTypesResult.data;
+  const tradingPostTypes = tradingPostTypesResult.data;
+
+  if (campaignTypesResult.error) {
+    console.error('Error fetching campaign types:', campaignTypesResult.error);
+  }
+  if (tradingPostTypesResult.error) {
+    console.error('Error fetching trading post types:', tradingPostTypesResult.error);
   }
 
   return (
@@ -69,7 +81,7 @@ export default async function Home() {
                   <CreateGangButton />
                 </div>
                 <div className="flex-1 min-w-[135px] sm:w-auto w-full">
-                  <CreateCampaignButton initialCampaignTypes={campaignTypes} userId={user.id} />
+                  <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={user.id} />
                 </div>
               </div>
             </div>

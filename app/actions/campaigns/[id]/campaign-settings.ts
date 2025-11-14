@@ -15,6 +15,7 @@ export interface UpdateCampaignSettingsParams {
   has_power?: boolean;
   has_sustenance?: boolean;
   has_salvage?: boolean;
+  trading_posts?: string[];
   note?: string;
   status?: string;
 }
@@ -38,6 +39,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       has_power,
       has_sustenance,
       has_salvage,
+      trading_posts,
       note,
       status
     } = params;
@@ -52,6 +54,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (has_power !== undefined) updateData.has_power = has_power;
     if (has_sustenance !== undefined) updateData.has_sustenance = has_sustenance;
     if (has_salvage !== undefined) updateData.has_salvage = has_salvage;
+    if (trading_posts !== undefined) updateData.trading_posts = trading_posts;
     if (note !== undefined) updateData.note = note;
     if (status !== undefined) updateData.status = status;
 

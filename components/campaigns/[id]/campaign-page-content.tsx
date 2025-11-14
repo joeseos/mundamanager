@@ -113,6 +113,7 @@ interface CampaignPageContentProps {
     has_power: boolean;
     has_sustenance: boolean;
     has_salvage: boolean;
+    trading_posts: string[];
     battles: {
       id: string;
       created_at: string;
@@ -144,6 +145,7 @@ interface CampaignPageContentProps {
   permissions: CampaignPermissions | null;
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
+  tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -157,7 +159,8 @@ export default function CampaignPageContent({
   userId, 
   permissions, 
   campaignTypes, 
-  allTerritories
+  allTerritories,
+  tradingPostTypes
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -237,6 +240,7 @@ export default function CampaignPageContent({
     has_sustenance: boolean;
     has_salvage: boolean;
     status: string;
+    trading_posts: string[];
   }) => {
     try {
       const result = await updateCampaignSettings({
@@ -249,6 +253,7 @@ export default function CampaignPageContent({
         has_power: formValues.has_power,
         has_sustenance: formValues.has_sustenance,
         has_salvage: formValues.has_salvage,
+        trading_posts: formValues.trading_posts,
         status: formValues.status
       });
 
@@ -269,6 +274,7 @@ export default function CampaignPageContent({
         has_power: formValues.has_power,
         has_sustenance: formValues.has_sustenance,
         has_salvage: formValues.has_salvage,
+        trading_posts: formValues.trading_posts,
         status: formValues.status,
         updated_at: now,
       }));
@@ -786,8 +792,10 @@ export default function CampaignPageContent({
             has_power: campaignData.has_power,
             has_sustenance: campaignData.has_sustenance,
             has_salvage: campaignData.has_salvage,
-            status: campaignData.status
+          trading_posts: campaignData.trading_posts || [],
+          status: campaignData.status
           }}
+          tradingPostTypes={tradingPostTypes || []}
           onClose={() => setShowEditModal(false)}
           onSave={handleSave}
           isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}

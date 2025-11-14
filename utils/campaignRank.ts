@@ -1,4 +1,5 @@
 export const campaignRank: { [key: string]: number } = {
+  "custom": 0,
   "dominion campaign": 1,
   "law and misrule campaign": 2,
   "uprising campaign": 3,

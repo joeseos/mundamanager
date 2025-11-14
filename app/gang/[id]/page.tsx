@@ -172,6 +172,39 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       supabase
     );
 
+    // Fetch trading post names for campaigns that have trading posts
+    const allTradingPostIds = campaigns
+      .map((c: any) => c.trading_posts)
+      .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
+      .flat();
+    
+    let tradingPostNamesMap: Record<string, string> = {};
+    if (allTradingPostIds.length > 0) {
+      const uniqueIds = Array.from(new Set(allTradingPostIds));
+      const { data: tradingPostTypes } = await supabase
+        .from('trading_post_types')
+        .select('id, trading_post_name')
+        .in('id', uniqueIds);
+      
+      if (tradingPostTypes) {
+        tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
+          acc[tp.id] = tp.trading_post_name;
+          return acc;
+        }, {});
+      }
+    }
+
+    // Add trading post names to campaigns
+    campaigns.forEach((campaign: any) => {
+      if (campaign.trading_posts && Array.isArray(campaign.trading_posts) && campaign.trading_posts.length > 0) {
+        campaign.trading_post_names = campaign.trading_posts
+          .map((id: string) => tradingPostNamesMap[id])
+          .filter(Boolean);
+      } else {
+        campaign.trading_post_names = [];
+      }
+    });
+
     // Assemble the gang data structure for client
     // NOTE: fighters are already fully processed from getGangFightersList with shared cache tags
     const gangDataForClient = {

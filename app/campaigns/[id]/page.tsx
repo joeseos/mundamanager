@@ -85,12 +85,19 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     const [
       campaignTriumphs,
       campaignTypes,
-      allTerritories
+      allTerritories,
+      tradingPostTypesResult
     ] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
-      userId ? getAllTerritoriesWithCustom(userId) : getAllTerritories()
+      userId ? getAllTerritoriesWithCustom(userId) : getAllTerritories(),
+      supabase
+        .from('trading_post_types')
+        .select('id, trading_post_name')
+        .order('trading_post_name')
     ]);
+
+    const tradingPostTypes = tradingPostTypesResult.data || [];
 
     // Combine the data
     const campaignData = {
@@ -110,6 +117,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       has_power: campaignBasic.has_power,
       has_sustenance: campaignBasic.has_sustenance,
       has_salvage: campaignBasic.has_salvage,
+      trading_posts: campaignBasic.trading_posts || [],
       note: campaignBasic.note,
       members: campaignMembers,
       territories: campaignTerritories,
@@ -129,6 +137,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
           permissions={permissions}
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
+          tradingPostTypes={tradingPostTypes}
         />
       </CampaignErrorBoundary>
     );
