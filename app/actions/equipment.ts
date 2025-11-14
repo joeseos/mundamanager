@@ -1249,11 +1249,13 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash')
+      .select('id, gang_id, gang_stash, purchase_cost')
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
+
+    const purchaseCost = row.purchase_cost || 0;
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
     const { error: delErr } = await supabase
@@ -1261,6 +1263,28 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .delete()
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
+
+    // Update wealth (stash value decreases, so wealth decreases)
+    if (purchaseCost !== 0) {
+      try {
+        const { data: curr } = await supabase
+          .from('gangs')
+          .select('wealth')
+          .eq('id', row.gang_id)
+          .single();
+        const currentWealth = (curr?.wealth ?? 0) as number;
+
+        await supabase
+          .from('gangs')
+          .update({
+            wealth: Math.max(0, currentWealth - purchaseCost)
+          })
+          .eq('id', row.gang_id);
+        invalidateGangRating(row.gang_id);
+      } catch (e) {
+        console.error('Failed to update gang wealth after stash deletion:', e);
+      }
+    }
 
     invalidateGangStash({ gangId: row.gang_id, userId: user.id });
     return { success: true };
