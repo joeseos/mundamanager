@@ -44,7 +44,6 @@ interface EquipmentAvailability {
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
   const [equipmentName, setEquipmentName] = useState('');
-  const [tradingPostCategory, setTradingPostCategory] = useState('');
   const [availability, setAvailability] = useState('');
   const [cost, setCost] = useState('');
   const [faction, setFaction] = useState('');
@@ -218,7 +217,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         },
         body: JSON.stringify({
           equipment_name: equipmentName,
-          trading_post_category: tradingPostCategory || null,
           availability: availability || null,
           cost: parseInt(cost),
           faction: faction || null,

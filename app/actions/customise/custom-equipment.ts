@@ -137,7 +137,6 @@ export async function createCustomEquipment(data: {
     .insert({
       user_id: user.id,
       equipment_name: data.equipment_name.trimEnd(),
-      trading_post_category: 'Custom',
       availability: data.availability,
       cost: data.cost,
       equipment_category: categoryData.category_name,
