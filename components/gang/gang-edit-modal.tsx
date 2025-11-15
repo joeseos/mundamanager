@@ -12,30 +12,30 @@ import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 
 interface GangUpdates {
-  name: string;
-  credits: number;
-  credits_operation: 'add' | 'subtract';
-  alignment: string;
-  alliance_id: string | null;
-  reputation: number;
-  reputation_operation: 'add' | 'subtract';
-  meat: number;
-  meat_operation: 'add' | 'subtract';
-  scavenging_rolls: number;
-  scavenging_rolls_operation: 'add' | 'subtract';
-  exploration_points: number;
-  exploration_points_operation: 'add' | 'subtract';
-  power: number;
-  power_operation: 'add' | 'subtract';
-  sustenance: number;
-  sustenance_operation: 'add' | 'subtract';
-  salvage: number;
-  salvage_operation: 'add' | 'subtract';
-  gang_variants: string[];
-  gang_colour: string;
-  gang_affiliation_id: string | null;
-  gang_origin_id: string | null;
-  gang_origin_name: string;
+  name?: string;
+  credits?: number;
+  credits_operation?: 'add' | 'subtract';
+  alignment?: string;
+  alliance_id?: string | null;
+  reputation?: number;
+  reputation_operation?: 'add' | 'subtract';
+  meat?: number;
+  meat_operation?: 'add' | 'subtract';
+  scavenging_rolls?: number;
+  scavenging_rolls_operation?: 'add' | 'subtract';
+  exploration_points?: number;
+  exploration_points_operation?: 'add' | 'subtract';
+  power?: number;
+  power_operation?: 'add' | 'subtract';
+  sustenance?: number;
+  sustenance_operation?: 'add' | 'subtract';
+  salvage?: number;
+  salvage_operation?: 'add' | 'subtract';
+  gang_variants?: string[];
+  gang_colour?: string;
+  gang_affiliation_id?: string | null;
+  gang_origin_id?: string | null;
+  gang_origin_name?: string;
   hidden?: boolean;
 }
 
@@ -209,7 +209,7 @@ export default function GangEditModal({
         allianceId: allianceId || '',
         gangColour: gangColour,
         gangIsVariant: gangVariants.length > 0,
-        gangVariants: [...gangVariants],
+        gangVariants: gangVariants,
         gangAffiliationId: gangAffiliationId || '',
         gangOriginId: gangOriginId || '',
         hidden: hidden
@@ -309,7 +309,7 @@ export default function GangEditModal({
 
   const handleSave = async () => {
     try {
-      const updates: Partial<GangUpdates> = {};
+      const updates: GangUpdates = {};
       const initial = initialValuesRef.current;
 
       // Only include name if changed
@@ -349,9 +349,10 @@ export default function GangEditModal({
         updates.hidden = formState.hidden;
       }
 
-      // Only include gang variants if changed
+      // Only include gang variants if changed (bidirectional check)
       const variantsChanged = formState.gangVariants.length !== initial.gangVariants.length ||
-        formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id));
+        formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id)) ||
+        initial.gangVariants.some(v => !formState.gangVariants.some(fv => fv.id === v.id));
       if (variantsChanged) {
         updates.gang_variants = formState.gangVariants.map(v => v.id);
       }
@@ -405,7 +406,7 @@ export default function GangEditModal({
         updates.salvage_operation = salvageDifference >= 0 ? 'add' : 'subtract';
       }
 
-      const success = await onSave(updates as GangUpdates);
+      const success = await onSave(updates);
       
       if (success) {
         toast({

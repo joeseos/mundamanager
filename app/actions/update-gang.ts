@@ -373,7 +373,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
           power: updatedGang.power,
           sustenance: updatedGang.sustenance,
           salvage: updatedGang.salvage
-        }
+        },
+        user_id: user.id
       });
     } catch (logError) {
       // Log the error but don't fail the update

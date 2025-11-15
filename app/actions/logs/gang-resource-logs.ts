@@ -46,11 +46,14 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log reputation changes
     if (oldState.reputation !== undefined && newState.reputation !== undefined && 
         oldState.reputation !== newState.reputation) {
-      const description = `Reputation changed from ${oldState.reputation} to ${newState.reputation}`;
+      const actionType = newState.reputation > oldState.reputation ? 'Reputation gained' : 'Reputation lost';
+      const description = newState.reputation > oldState.reputation
+        ? `Reputation increased from ${oldState.reputation} to ${newState.reputation}`
+        : `Reputation decreased from ${oldState.reputation} to ${newState.reputation}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Reputation changed',
+        action_type: actionType,
         description,
         user_id
       }));
@@ -59,11 +62,14 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log meat changes
     if (oldState.meat !== undefined && newState.meat !== undefined && 
         oldState.meat !== newState.meat) {
-      const description = `Meat changed from ${oldState.meat} to ${newState.meat}`;
+      const actionType = newState.meat > oldState.meat ? 'Meat gained' : 'Meat consumed';
+      const description = newState.meat > oldState.meat
+        ? `Meat increased from ${oldState.meat} to ${newState.meat}`
+        : `Meat decreased from ${oldState.meat} to ${newState.meat}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Meat changed',
+        action_type: actionType,
         description,
         user_id
       }));
@@ -72,11 +78,16 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log scavenging rolls changes
     if (oldState.scavenging_rolls !== undefined && newState.scavenging_rolls !== undefined && 
         oldState.scavenging_rolls !== newState.scavenging_rolls) {
-      const description = `Scavenging rolls changed from ${oldState.scavenging_rolls} to ${newState.scavenging_rolls}`;
+      const actionType = newState.scavenging_rolls > oldState.scavenging_rolls 
+        ? 'Scavenging rolls gained' 
+        : 'Scavenging rolls spent';
+      const description = newState.scavenging_rolls > oldState.scavenging_rolls
+        ? `Scavenging rolls increased from ${oldState.scavenging_rolls} to ${newState.scavenging_rolls}`
+        : `Scavenging rolls decreased from ${oldState.scavenging_rolls} to ${newState.scavenging_rolls}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Scavenging rolls changed',
+        action_type: actionType,
         description,
         user_id
       }));
@@ -85,11 +96,16 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log exploration points changes
     if (oldState.exploration_points !== undefined && newState.exploration_points !== undefined && 
         oldState.exploration_points !== newState.exploration_points) {
-      const description = `Exploration points changed from ${oldState.exploration_points} to ${newState.exploration_points}`;
+      const actionType = newState.exploration_points > oldState.exploration_points 
+        ? 'Exploration points gained' 
+        : 'Exploration points spent';
+      const description = newState.exploration_points > oldState.exploration_points
+        ? `Exploration points increased from ${oldState.exploration_points} to ${newState.exploration_points}`
+        : `Exploration points decreased from ${oldState.exploration_points} to ${newState.exploration_points}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Exploration points changed',
+        action_type: actionType,
         description,
         user_id
       }));
@@ -98,11 +114,14 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log power changes
     if (oldState.power !== undefined && newState.power !== undefined && 
         oldState.power !== newState.power) {
-      const description = `Power changed from ${oldState.power} to ${newState.power}`;
+      const actionType = newState.power > oldState.power ? 'Power gained' : 'Power spent';
+      const description = newState.power > oldState.power
+        ? `Power increased from ${oldState.power} to ${newState.power}`
+        : `Power decreased from ${oldState.power} to ${newState.power}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Power changed',
+        action_type: actionType,
         description,
         user_id
       }));
@@ -111,11 +130,14 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log sustenance changes
     if (oldState.sustenance !== undefined && newState.sustenance !== undefined && 
         oldState.sustenance !== newState.sustenance) {
-      const description = `Sustenance changed from ${oldState.sustenance} to ${newState.sustenance}`;
+      const actionType = newState.sustenance > oldState.sustenance ? 'Sustenance gained' : 'Sustenance spent';
+      const description = newState.sustenance > oldState.sustenance
+        ? `Sustenance increased from ${oldState.sustenance} to ${newState.sustenance}`
+        : `Sustenance decreased from ${oldState.sustenance} to ${newState.sustenance}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Sustenance changed',
+        action_type: actionType,
         description,
         user_id
       }));
@@ -124,11 +146,14 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     // Log salvage changes
     if (oldState.salvage !== undefined && newState.salvage !== undefined && 
         oldState.salvage !== newState.salvage) {
-      const description = `Salvage changed from ${oldState.salvage} to ${newState.salvage}`;
+      const actionType = newState.salvage > oldState.salvage ? 'Salvage gained' : 'Salvage spent';
+      const description = newState.salvage > oldState.salvage
+        ? `Salvage increased from ${oldState.salvage} to ${newState.salvage}`
+        : `Salvage decreased from ${oldState.salvage} to ${newState.salvage}`;
       
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'Salvage changed',
+        action_type: actionType,
         description,
         user_id
       }));
