@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { useToast } from "@/components/ui/use-toast";
 import { deleteGang } from '@/app/actions/delete-gang';
@@ -14,6 +15,7 @@ interface DeleteGangButtonProps {
 export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
   const router = useRouter();
   const { toast } = useToast();
 
@@ -48,6 +50,7 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
     } finally {
       setIsDeleting(false);
       setShowModal(false);
+      setConfirmText('');
     }
   };
 
@@ -68,16 +71,31 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
         <Modal
           title="Delete Gang"
           content={
-            <div>
+            <div className="space-y-4">
               <p>Are you sure you want to delete this gang?</p>
-              <br />
               <p className="text-sm text-red-600">
                 This action cannot be undone.
               </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Type <span className="font-bold">DELETE</span> to confirm:
+                </p>
+                <Input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full"
+                />
+              </div>
             </div>
           }
-          onClose={() => setShowModal(false)}
+          onClose={() => {
+            setShowModal(false);
+            setConfirmText('');
+          }}
           onConfirm={handleDelete}
+          confirmDisabled={confirmText !== 'DELETE'}
         />
       )}
     </>
