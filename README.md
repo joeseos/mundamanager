@@ -172,6 +172,7 @@ The fighter effects system manages all modifications to fighter statistics throu
 - Cyberteknika
 - Gene-smithing
 - Rig-glitches
+- Power-boosts (Spyrer enhancements)
 - Augmentations
 - Equipment
 - Skills
@@ -201,6 +202,7 @@ interface Fighter {
     cyberteknika: FighterEffect[];
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
+    'power-boosts': FighterEffect[];
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
     skills: FighterEffect[];
@@ -231,7 +233,7 @@ interface Fighter {
      const adjustedStats = { ...fighter.base_stats };
 
      // Process all effect categories
-     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'augmentations', 'equipment', 'skills', 'vehicle_damages', 'user'].forEach(category => {
+     ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'power-boosts', 'augmentations', 'equipment', 'skills', 'vehicle_damages', 'user'].forEach(category => {
        fighter.effects[category]?.forEach(effect => {
          effect.fighter_effect_modifiers?.forEach(modifier => {
            const statName = modifier.stat_name.toLowerCase();
@@ -379,7 +381,23 @@ The fighter effects system is implemented across several key files:
    fighter.effects.skills.push(skillEffect);
    ```
 
-5. **Adding a Vehicle Lasting Damage**
+5. **Adding a Power Boost (Spyrer)**
+   ```typescript
+   const powerBoost: FighterEffect = {
+     effect_name: "Improved Motive Power",
+     fighter_effect_modifiers: [{
+       stat_name: "movement",
+       numeric_value: 1
+     }],
+     type_specific_data: {
+       kill_cost: 4,
+       credits_increase: 10
+     }
+   };
+   fighter.effects['power-boosts'].push(powerBoost);
+   ```
+
+6. **Adding a Vehicle Lasting Damage**
    ```typescript
    const vehicleDamage: FighterEffect = {
      effect_name: "Loss of Power",
@@ -392,7 +410,7 @@ The fighter effects system is implemented across several key files:
    fighter.effects.vehicle_damages.push(vehicleDamage);
    ```
 
-6. **User Modification**
+7. **User Modification**
    ```typescript
    const userMod: FighterEffect = {
      effect_name: "Custom Bonus",
