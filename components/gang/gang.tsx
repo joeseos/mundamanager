@@ -378,42 +378,85 @@ export default function Gang({
       const prevGangColour = gangColour;
       const prevHidden = hidden;
 
-      // Apply optimistic updates
-      setName(updates.name);
-      const creditsDelta = updates.credits_operation === 'add' ? updates.credits : -updates.credits;
-      const newCredits = prevCredits + creditsDelta;
-      setCredits(newCredits);
-      // Update wealth optimistically (wealth delta = credits delta since rating doesn't change)
-      setWealth(wealth + creditsDelta);
-      // Update parent component's credits state
-      onGangCreditsUpdate?.(newCredits);
-      setAlignment(updates.alignment);
-      setAllianceId(updates.alliance_id);
-      setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
-      setGangAffiliationId(updates.gang_affiliation_id);
-      // Gang affiliation name will be updated from server response if needed
-      setGangOriginId(updates.gang_origin_id);
-      setGangOriginName(updates.gang_origin_name || '');
-      setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
-      setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
-      setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
-      setExplorationPoints(prevExplorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
-      setPower(prevPower + (updates.power_operation === 'add' ? updates.power : -updates.power));
-      setSustenance(prevSustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
-      setSalvage(prevSalvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
-      setGangColour(updates.gang_colour);
+      // Apply optimistic updates (only for changed fields)
+      if (updates.name !== undefined) {
+        setName(updates.name);
+      }
+      
+      if (updates.credits !== undefined && updates.credits_operation) {
+        const creditsDelta = updates.credits_operation === 'add' ? updates.credits : -updates.credits;
+        const newCredits = prevCredits + creditsDelta;
+        setCredits(newCredits);
+        // Update wealth optimistically (wealth delta = credits delta since rating doesn't change)
+        setWealth(wealth + creditsDelta);
+        // Update parent component's credits state
+        onGangCreditsUpdate?.(newCredits);
+      }
+      
+      if (updates.alignment !== undefined) {
+        setAlignment(updates.alignment);
+      }
+      
+      if (updates.alliance_id !== undefined) {
+        setAllianceId(updates.alliance_id);
+        setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
+      }
+      
+      if (updates.gang_affiliation_id !== undefined) {
+        setGangAffiliationId(updates.gang_affiliation_id);
+        // Gang affiliation name will be updated from server response if needed
+      }
+      
+      if (updates.gang_origin_id !== undefined) {
+        setGangOriginId(updates.gang_origin_id);
+        setGangOriginName(updates.gang_origin_name || '');
+      }
+      
+      if (updates.reputation !== undefined && updates.reputation_operation) {
+        setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
+      }
+      
+      if (updates.meat !== undefined && updates.meat_operation) {
+        setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
+      }
+      
+      if (updates.scavenging_rolls !== undefined && updates.scavenging_rolls_operation) {
+        setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
+      }
+      
+      if (updates.exploration_points !== undefined && updates.exploration_points_operation) {
+        setExplorationPoints(prevExplorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
+      }
+      
+      if (updates.power !== undefined && updates.power_operation) {
+        setPower(prevPower + (updates.power_operation === 'add' ? updates.power : -updates.power));
+      }
+      
+      if (updates.sustenance !== undefined && updates.sustenance_operation) {
+        setSustenance(prevSustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
+      }
+      
+      if (updates.salvage !== undefined && updates.salvage_operation) {
+        setSalvage(prevSalvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
+      }
+      
+      if (updates.gang_colour !== undefined) {
+        setGangColour(updates.gang_colour);
+      }
 
       // Update hidden if provided
       if (updates.hidden !== undefined) {
         setHidden(updates.hidden);
       }
 
-      // Handle gang variants
-      const newVariants = updates.gang_variants.map((variantId: string) =>
-        gangVariants.find(v => v.id === variantId) || { id: variantId, variant: 'Unknown' }
-      );
-      setGangVariants(newVariants);
-      setGangIsVariant(newVariants.length > 0);
+      // Handle gang variants only if provided
+      if (updates.gang_variants !== undefined) {
+        const newVariants = updates.gang_variants.map((variantId: string) =>
+          gangVariants.find(v => v.id === variantId) || { id: variantId, variant: 'Unknown' }
+        );
+        setGangVariants(newVariants);
+        setGangIsVariant(newVariants.length > 0);
+      }
 
       // Use server action instead of fetch
       const { updateGang } = await import('@/app/actions/update-gang');

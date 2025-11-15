@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS, invalidateGangCredits, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logGangResourceChanges } from './logs/gang-resource-logs';
 
 interface UpdateGangParams {
   gang_id: string;
@@ -345,6 +346,39 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
         revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(campaignId));
       }
+    }
+
+    // Log resource changes (don't fail the update if logging fails)
+    try {
+      await logGangResourceChanges({
+        gang_id: params.gang_id,
+        oldState: {
+          gang_id: params.gang_id,
+          credits: gang.credits,
+          reputation: gang.reputation,
+          meat: gang.meat,
+          scavenging_rolls: gang.scavenging_rolls,
+          exploration_points: gang.exploration_points,
+          power: gang.power,
+          sustenance: gang.sustenance,
+          salvage: gang.salvage
+        },
+        newState: {
+          gang_id: params.gang_id,
+          credits: updatedGang.credits,
+          reputation: updatedGang.reputation,
+          meat: updatedGang.meat,
+          scavenging_rolls: updatedGang.scavenging_rolls,
+          exploration_points: updatedGang.exploration_points,
+          power: updatedGang.power,
+          sustenance: updatedGang.sustenance,
+          salvage: updatedGang.salvage
+        },
+        user_id: user.id
+      });
+    } catch (logError) {
+      // Log the error but don't fail the update
+      console.error('Failed to log gang resource changes:', logError);
     }
 
     return {
