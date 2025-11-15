@@ -1296,15 +1296,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
       <Tooltip
         id="weapon-profile-tooltip"
         place="top-start"
-        className="!bg-gray-900 !text-white !text-xs !z-[60]"
+        className="!bg-neutral-900 !text-white !text-xs !z-[60]"
         style={{
-          backgroundColor: '#1f2937',
-          color: 'white',
           padding: '6px',
-          fontSize: '12px',
           maxWidth: '97vw',
-          marginLeft: '-10px',
-          zIndex: 60
+          marginLeft: '-10px'
         }}
       />
     </>

@@ -1032,12 +1032,8 @@ export default function Gang({
             delayHide={100}
             clickable={true}
             style={{
-              backgroundColor: '#000',
-              color: 'white',
               padding: '6px',
-              fontSize: '12px',
-              maxWidth: '24rem',
-              zIndex: 2000
+              maxWidth: '24rem'
             }}
           />
         </div>
