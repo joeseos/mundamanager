@@ -90,7 +90,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
                         )}
                         <Image
                           src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                          alt=""
+                          alt="Decorative cogwheel overlay"
                           width={80}
                           height={80}
                           className="absolute z-20 scale-110"
@@ -156,7 +156,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
                         )}
                         <Image
                           src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                          alt=""
+                          alt="Decorative cogwheel overlay"
                           width={80}
                           height={80}
                           className="absolute z-20 scale-110"

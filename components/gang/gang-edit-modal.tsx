@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -129,24 +129,39 @@ export default function GangEditModal({
 }: GangEditModalProps) {
   const { toast } = useToast();
   
-  // Internal modal state
-  const [editedName, setEditedName] = useState(gangName);
-  const [editedCredits, setEditedCredits] = useState('');
-  const [editedReputation, setEditedReputation] = useState('');
-  const [editedMeat, setEditedMeat] = useState('');
-  const [editedScavengingRolls, setEditedScavengingRolls] = useState('');
-  const [editedExplorationPoints, setEditedExplorationPoints] = useState('');
-  const [editedPower, setEditedPower] = useState('');
-  const [editedSustenance, setEditedSustenance] = useState('');
-  const [editedSalvage, setEditedSalvage] = useState('');
-  const [editedAlignment, setEditedAlignment] = useState(alignment);
-  const [editedAllianceId, setEditedAllianceId] = useState(allianceId || '');
-  const [editedGangColour, setEditedGangColour] = useState(gangColour);
-  const [editedGangIsVariant, setEditedGangIsVariant] = useState(gangVariants.length > 0);
-  const [editedGangVariants, setEditedGangVariants] = useState<Array<{id: string, variant: string}>>(gangVariants);
-  const [editedGangAffiliationId, setEditedGangAffiliationId] = useState(gangAffiliationId || '');
-  const [editedGangOriginId, setEditedGangOriginId] = useState(gangOriginId || '');
-  const [editedHidden, setEditedHidden] = useState(hidden);
+  // Store initial values in ref (doesn't trigger re-renders)
+  const initialValuesRef = useRef({
+    name: gangName,
+    alignment: alignment,
+    allianceId: allianceId || '',
+    gangColour: gangColour,
+    gangIsVariant: gangVariants.length > 0,
+    gangVariants: gangVariants,
+    gangAffiliationId: gangAffiliationId || '',
+    gangOriginId: gangOriginId || '',
+    hidden: hidden
+  });
+
+  // Single form state object instead of multiple individual states
+  const [formState, setFormState] = useState({
+    name: gangName,
+    credits: '',  // delta inputs start empty
+    reputation: '',
+    meat: '',
+    scavengingRolls: '',
+    explorationPoints: '',
+    power: '',
+    sustenance: '',
+    salvage: '',
+    alignment: alignment,
+    allianceId: allianceId || '',
+    gangColour: gangColour,
+    gangIsVariant: gangVariants.length > 0,
+    gangVariants: gangVariants,
+    gangAffiliationId: gangAffiliationId || '',
+    gangOriginId: gangOriginId || '',
+    hidden: hidden
+  });
 
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
@@ -166,23 +181,39 @@ export default function GangEditModal({
   // Initialize form data when modal opens
   useEffect(() => {
     if (isOpen) {
-      setEditedName(gangName);
-      setEditedCredits('');
-      setEditedReputation('');
-      setEditedMeat('');
-      setEditedScavengingRolls('');
-      setEditedExplorationPoints('');
-      setEditedPower('');
-      setEditedSustenance('');
-      setEditedSalvage('');
-      setEditedAlignment(alignment);
-      setEditedAllianceId(allianceId || '');
-      setEditedGangColour(gangColour);
-      setEditedGangIsVariant(gangVariants.length > 0);
-      setEditedGangVariants([...gangVariants]);
-      setEditedGangAffiliationId(gangAffiliationId || '');
-      setEditedGangOriginId(gangOriginId || '');
-      setEditedHidden(hidden);
+      // Update ref with current props
+      initialValuesRef.current = {
+        name: gangName,
+        alignment: alignment,
+        allianceId: allianceId || '',
+        gangColour: gangColour,
+        gangIsVariant: gangVariants.length > 0,
+        gangVariants: gangVariants,
+        gangAffiliationId: gangAffiliationId || '',
+        gangOriginId: gangOriginId || '',
+        hidden: hidden
+      };
+      
+      // Reset form state
+      setFormState({
+        name: gangName,
+        credits: '',
+        reputation: '',
+        meat: '',
+        scavengingRolls: '',
+        explorationPoints: '',
+        power: '',
+        sustenance: '',
+        salvage: '',
+        alignment: alignment,
+        allianceId: allianceId || '',
+        gangColour: gangColour,
+        gangIsVariant: gangVariants.length > 0,
+        gangVariants: [...gangVariants],
+        gangAffiliationId: gangAffiliationId || '',
+        gangOriginId: gangOriginId || '',
+        hidden: hidden
+      });
     }
   }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden]);
 
@@ -255,63 +286,126 @@ export default function GangEditModal({
     }
   };
 
-  const syncGangVariantsWithAlignment = (newAlignment: string) => {
+  const syncGangVariantsWithAlignment = (newAlignment: string, currentVariants: Array<{id: string, variant: string}>) => {
     const outlaw = availableVariants.find(v => v.variant === 'Outlaw');
-    const hasOutlaw = editedGangVariants.some(v => v.variant === 'Outlaw');
+    const hasOutlaw = currentVariants.some(v => v.variant === 'Outlaw');
 
     if (newAlignment === 'Outlaw' && outlaw && !hasOutlaw) {
-      setEditedGangVariants(prev => [...prev, outlaw]);
+      return [...currentVariants, outlaw];
     } else if (newAlignment === 'Law Abiding' && hasOutlaw) {
-      setEditedGangVariants(prev => prev.filter(v => v.variant !== 'Outlaw'));
+      return currentVariants.filter(v => v.variant !== 'Outlaw');
     }
+    return currentVariants;
   };
 
   const handleAlignmentChange = (value: string) => {
-    setEditedAlignment(value);
-    syncGangVariantsWithAlignment(value);
+    const newVariants = syncGangVariantsWithAlignment(value, formState.gangVariants);
+    setFormState(prev => ({
+      ...prev,
+      alignment: value,
+      gangVariants: newVariants
+    }));
   };
 
   const handleSave = async () => {
     try {
-      const creditsDifference = parseInt(editedCredits) || 0;
-      const reputationDifference = parseInt(editedReputation) || 0;
-      const meatDifference = parseInt(editedMeat) || 0;
-      const scavengingRollsDifference = parseInt(editedScavengingRolls) || 0;
-      const explorationPointsDifference = parseInt(editedExplorationPoints) || 0;
-      const powerDifference = parseInt(editedPower) || 0;
-      const sustenanceDifference = parseInt(editedSustenance) || 0;
-      const salvageDifference = parseInt(editedSalvage) || 0;
+      const updates: Partial<GangUpdates> = {};
+      const initial = initialValuesRef.current;
 
-      const updates: GangUpdates = {
-        name: editedName,
-        credits: Math.abs(creditsDifference),
-        credits_operation: creditsDifference >= 0 ? 'add' : 'subtract',
-        alignment: editedAlignment,
-        alliance_id: editedAllianceId === '' ? null : editedAllianceId,
-        reputation: Math.abs(reputationDifference),
-        reputation_operation: reputationDifference >= 0 ? 'add' : 'subtract',
-        meat: Math.abs(meatDifference),
-        meat_operation: meatDifference >= 0 ? 'add' : 'subtract',
-        scavenging_rolls: Math.abs(scavengingRollsDifference),
-        scavenging_rolls_operation: scavengingRollsDifference >= 0 ? 'add' : 'subtract',
-        exploration_points: Math.abs(explorationPointsDifference),
-        exploration_points_operation: explorationPointsDifference >= 0 ? 'add' : 'subtract',
-        power: Math.abs(powerDifference),
-        power_operation: powerDifference >= 0 ? 'add' : 'subtract',
-        sustenance: Math.abs(sustenanceDifference),
-        sustenance_operation: sustenanceDifference >= 0 ? 'add' : 'subtract',
-        salvage: Math.abs(salvageDifference),
-        salvage_operation: salvageDifference >= 0 ? 'add' : 'subtract',
-        gang_variants: editedGangVariants.map(v => v.id),
-        gang_colour: editedGangColour,
-        gang_affiliation_id: editedGangAffiliationId === '' ? null : editedGangAffiliationId,
-        gang_origin_id: editedGangOriginId === '' ? null : editedGangOriginId,
-        gang_origin_name: editedGangOriginId === '' ? '' :
-          originList.find(origin => origin.id === editedGangOriginId)?.origin_name || '',
-        hidden: editedHidden,
-      };
+      // Only include name if changed
+      if (formState.name !== initial.name) {
+        updates.name = formState.name;
+      }
 
-      const success = await onSave(updates);
+      // Only include alignment if changed
+      if (formState.alignment !== initial.alignment) {
+        updates.alignment = formState.alignment;
+      }
+
+      // Only include alliance if changed
+      if (formState.allianceId !== initial.allianceId) {
+        updates.alliance_id = formState.allianceId === '' ? null : formState.allianceId;
+      }
+
+      // Only include gang colour if changed
+      if (formState.gangColour !== initial.gangColour) {
+        updates.gang_colour = formState.gangColour;
+      }
+
+      // Only include gang affiliation if changed
+      if (formState.gangAffiliationId !== initial.gangAffiliationId) {
+        updates.gang_affiliation_id = formState.gangAffiliationId === '' ? null : formState.gangAffiliationId;
+      }
+
+      // Only include gang origin if changed
+      if (formState.gangOriginId !== initial.gangOriginId) {
+        updates.gang_origin_id = formState.gangOriginId === '' ? null : formState.gangOriginId;
+        updates.gang_origin_name = formState.gangOriginId === '' ? '' :
+          originList.find(origin => origin.id === formState.gangOriginId)?.origin_name || '';
+      }
+
+      // Only include hidden if changed
+      if (formState.hidden !== initial.hidden) {
+        updates.hidden = formState.hidden;
+      }
+
+      // Only include gang variants if changed
+      const variantsChanged = formState.gangVariants.length !== initial.gangVariants.length ||
+        formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id));
+      if (variantsChanged) {
+        updates.gang_variants = formState.gangVariants.map(v => v.id);
+      }
+
+      // Handle resource deltas - only include if non-empty and non-zero
+      const creditsDifference = parseInt(formState.credits) || 0;
+      if (creditsDifference !== 0) {
+        updates.credits = Math.abs(creditsDifference);
+        updates.credits_operation = creditsDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const reputationDifference = parseInt(formState.reputation) || 0;
+      if (reputationDifference !== 0) {
+        updates.reputation = Math.abs(reputationDifference);
+        updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const meatDifference = parseInt(formState.meat) || 0;
+      if (meatDifference !== 0) {
+        updates.meat = Math.abs(meatDifference);
+        updates.meat_operation = meatDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const scavengingRollsDifference = parseInt(formState.scavengingRolls) || 0;
+      if (scavengingRollsDifference !== 0) {
+        updates.scavenging_rolls = Math.abs(scavengingRollsDifference);
+        updates.scavenging_rolls_operation = scavengingRollsDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const explorationPointsDifference = parseInt(formState.explorationPoints) || 0;
+      if (explorationPointsDifference !== 0) {
+        updates.exploration_points = Math.abs(explorationPointsDifference);
+        updates.exploration_points_operation = explorationPointsDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const powerDifference = parseInt(formState.power) || 0;
+      if (powerDifference !== 0) {
+        updates.power = Math.abs(powerDifference);
+        updates.power_operation = powerDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const sustenanceDifference = parseInt(formState.sustenance) || 0;
+      if (sustenanceDifference !== 0) {
+        updates.sustenance = Math.abs(sustenanceDifference);
+        updates.sustenance_operation = sustenanceDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const salvageDifference = parseInt(formState.salvage) || 0;
+      if (salvageDifference !== 0) {
+        updates.salvage = Math.abs(salvageDifference);
+        updates.salvage_operation = salvageDifference >= 0 ? 'add' : 'subtract';
+      }
+
+      const success = await onSave(updates as GangUpdates);
       
       if (success) {
         toast({
@@ -320,14 +414,6 @@ export default function GangEditModal({
         });
         
         onClose();
-        setEditedCredits('');
-        setEditedReputation('');
-        setEditedMeat('');
-        setEditedScavengingRolls('');
-        setEditedExplorationPoints('');
-        setEditedPower('');
-        setEditedSustenance('');
-        setEditedSalvage('');
       }
     } catch (error) {
       console.error('Error updating gang:', error);
@@ -345,8 +431,8 @@ export default function GangEditModal({
         <p className="text-sm font-medium">Gang Name</p>
         <Input
           type="text"
-          value={editedName}
-          onChange={(e) => setEditedName(e.target.value)}
+          value={formState.name}
+          onChange={(e) => setFormState(prev => ({ ...prev, name: e.target.value }))}
           className="w-full"
           placeholder="Gang name"
         />
@@ -357,7 +443,7 @@ export default function GangEditModal({
         <div className="flex-1 space-y-2">
           <p className="text-sm font-medium">Alignment</p>
           <select
-            value={editedAlignment || ''}
+            value={formState.alignment || ''}
             onChange={(e) => handleAlignmentChange(e.target.value)}
             className="w-full p-2 border rounded"
           >
@@ -373,7 +459,7 @@ export default function GangEditModal({
             <p className="text-sm font-medium">Gang Colour</p>
             <div
               className="w-8 h-8 rounded-full border border-neutral-900 border-2 cursor-pointer"
-              style={{ backgroundColor: editedGangColour }}
+              style={{ backgroundColor: formState.gangColour }}
               title="Click to change colour"
               onClick={() => setShowColourPickerModal(true)}
             />
@@ -389,11 +475,8 @@ export default function GangEditModal({
           type="tel"
           inputMode="url"
           pattern="-?[0-9]+"
-          value={editedCredits}
-          onChange={(e) => {
-            const value = e.target.value;
-            setEditedCredits(value);
-          }}
+          value={formState.credits}
+          onChange={(e) => setFormState(prev => ({ ...prev, credits: e.target.value }))}
           className="flex-1"
           placeholder="Add or remove credits (e.g. 25 or -50)"
         />
@@ -408,8 +491,8 @@ export default function GangEditModal({
           type="tel"
           inputMode="url"
           pattern="-?[0-9]+"
-          value={editedReputation}
-          onChange={(e) => setEditedReputation(e.target.value)}
+          value={formState.reputation}
+          onChange={(e) => setFormState(prev => ({ ...prev, reputation: e.target.value }))}
           className="flex-1"
           placeholder="Add or remove reputation (e.g. 1 or -2)"
         />
@@ -424,8 +507,8 @@ export default function GangEditModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={editedExplorationPoints}
-            onChange={(e) => setEditedExplorationPoints(e.target.value)}
+            value={formState.explorationPoints}
+            onChange={(e) => setFormState(prev => ({ ...prev, explorationPoints: e.target.value }))}
             className="flex-1"
             placeholder="Add or remove exploration points (e.g. 1 or -2)"
           />
@@ -441,8 +524,8 @@ export default function GangEditModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={editedMeat}
-            onChange={(e) => setEditedMeat(e.target.value)}
+            value={formState.meat}
+            onChange={(e) => setFormState(prev => ({ ...prev, meat: e.target.value }))}
             className="flex-1"
             placeholder="Add or remove meat (e.g. 1 or -2)"
           />
@@ -458,8 +541,8 @@ export default function GangEditModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={editedScavengingRolls}
-            onChange={(e) => setEditedScavengingRolls(e.target.value)}
+            value={formState.scavengingRolls}
+            onChange={(e) => setFormState(prev => ({ ...prev, scavengingRolls: e.target.value }))}
             className="flex-1"
             placeholder="Add or remove scavenging rolls (e.g. 1 or -2)"
           />
@@ -475,8 +558,8 @@ export default function GangEditModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={editedPower}
-            onChange={(e) => setEditedPower(e.target.value)}
+            value={formState.power}
+            onChange={(e) => setFormState(prev => ({ ...prev, power: e.target.value }))}
             className="flex-1"
             placeholder="Add or remove power (e.g. 1 or -2)"
           />
@@ -492,8 +575,8 @@ export default function GangEditModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={editedSustenance}
-            onChange={(e) => setEditedSustenance(e.target.value)}
+            value={formState.sustenance}
+            onChange={(e) => setFormState(prev => ({ ...prev, sustenance: e.target.value }))}
             className="flex-1"
             placeholder="Add or remove sustenance (e.g. 1 or -2)"
           />
@@ -509,8 +592,8 @@ export default function GangEditModal({
             type="tel"
             inputMode="url"
             pattern="-?[0-9]+"
-            value={editedSalvage}
-            onChange={(e) => setEditedSalvage(e.target.value)}
+            value={formState.salvage}
+            onChange={(e) => setFormState(prev => ({ ...prev, salvage: e.target.value }))}
             className="flex-1"
             placeholder="Add or remove salvage (e.g. 1 or -2)"
           />
@@ -522,8 +605,8 @@ export default function GangEditModal({
         <div className="flex items-center space-x-2">
           <Switch
             id="hidden"
-            checked={editedHidden}
-            onCheckedChange={setEditedHidden}
+            checked={formState.hidden}
+            onCheckedChange={(checked) => setFormState(prev => ({ ...prev, hidden: checked }))}
           />
           <label htmlFor="hidden" className="text-sm text-muted-foreground cursor-pointer">
             Hide gang from public view (Only you, admins, and campaign owners/arbitrators can see it)
@@ -534,8 +617,8 @@ export default function GangEditModal({
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
         <select
-          value={editedAllianceId || ""}
-          onChange={(e) => setEditedAllianceId(e.target.value)}
+          value={formState.allianceId || ""}
+          onChange={(e) => setFormState(prev => ({ ...prev, allianceId: e.target.value }))}
           onFocus={fetchAlliances}
           className="w-full p-2 border rounded-md"
         >
@@ -586,8 +669,8 @@ export default function GangEditModal({
         <div className="space-y-2">
           <p className="text-sm font-medium">Gang Affiliation</p>
           <select
-            value={editedGangAffiliationId || ""}
-            onChange={(e) => setEditedGangAffiliationId(e.target.value)}
+            value={formState.gangAffiliationId || ""}
+            onChange={(e) => setFormState(prev => ({ ...prev, gangAffiliationId: e.target.value }))}
             onFocus={fetchAffiliations}
             className="w-full p-2 border rounded-md"
           >
@@ -616,8 +699,8 @@ export default function GangEditModal({
         <div className="space-y-2">
           <p className="text-sm font-medium">{gangOriginCategoryName || 'Gang Origin'}</p>
           <select
-            value={editedGangOriginId || ""}
-            onChange={(e) => setEditedGangOriginId(e.target.value)}
+            value={formState.gangOriginId || ""}
+            onChange={(e) => setFormState(prev => ({ ...prev, gangOriginId: e.target.value }))}
             onFocus={fetchAffiliations}
             className="w-full p-2 border rounded-md"
           >
@@ -647,12 +730,12 @@ export default function GangEditModal({
           </label>
           <Switch
             id="variant-toggle"
-            checked={editedGangIsVariant}
-            onCheckedChange={setEditedGangIsVariant}
+            checked={formState.gangIsVariant}
+            onCheckedChange={(checked) => setFormState(prev => ({ ...prev, gangIsVariant: checked }))}
           />
         </div>
 
-        {editedGangIsVariant && (
+        {formState.gangIsVariant && (
           <div className="grid grid-cols-2 gap-4 ">
             {/* Unaffiliated variants */}
             <div>
@@ -673,13 +756,14 @@ export default function GangEditModal({
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`variant-${variant.id}`}
-                          checked={editedGangVariants.some(v => v.id === variant.id)}
+                          checked={formState.gangVariants.some(v => v.id === variant.id)}
                           onCheckedChange={(checked) => {
-                            if (checked) {
-                              setEditedGangVariants(prev => [...prev, variant]);
-                            } else {
-                              setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
-                            }
+                            setFormState(prev => ({
+                              ...prev,
+                              gangVariants: checked
+                                ? [...prev.gangVariants, variant]
+                                : prev.gangVariants.filter(v => v.id !== variant.id)
+                            }));
                           }}
                         />
                         <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
@@ -705,13 +789,14 @@ export default function GangEditModal({
                     <div key={variant.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={`variant-${variant.id}`}
-                        checked={editedGangVariants.some(v => v.id === variant.id)}
+                        checked={formState.gangVariants.some(v => v.id === variant.id)}
                         onCheckedChange={(checked) => {
-                          if (checked) {
-                            setEditedGangVariants(prev => [...prev, variant]);
-                          } else {
-                            setEditedGangVariants(prev => prev.filter(v => v.id !== variant.id));
-                          }
+                          setFormState(prev => ({
+                            ...prev,
+                            gangVariants: checked
+                              ? [...prev.gangVariants, variant]
+                              : prev.gangVariants.filter(v => v.id !== variant.id)
+                          }));
                         }}
                       />
                       <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
@@ -735,10 +820,7 @@ export default function GangEditModal({
         <Modal
           title="Edit Gang"
           content={editModalContent}
-          onClose={() => {
-            onClose();
-            setEditedCredits('');
-          }}
+          onClose={onClose}
           onConfirm={handleSave}
           confirmText="Save Changes"
         />
@@ -754,17 +836,20 @@ export default function GangEditModal({
           content={
             <div className="space-y-4">
               <div className="flex justify-center">
-                <HexColorPicker color={editedGangColour} onChange={setEditedGangColour} />
+                <HexColorPicker 
+                  color={formState.gangColour} 
+                  onChange={(color) => setFormState(prev => ({ ...prev, gangColour: color }))} 
+                />
               </div>
               <div className="flex justify-center">
                 <input
                   type="text"
-                  value={editedGangColour}
+                  value={formState.gangColour}
                   onChange={(e) => {
                     const val = e.target.value;
                     // Allow only valid 7-character hex strings starting with "#"
                     if (/^#([0-9A-Fa-f]{0,6})$/.test(val)) {
-                      setEditedGangColour(val);
+                      setFormState(prev => ({ ...prev, gangColour: val }));
                     }
                   }}
                   className="w-32 text-center font-mono border rounded p-1 text-sm"
@@ -778,7 +863,7 @@ export default function GangEditModal({
                   <div className="p-3 bg-white rounded-lg border border-neutral-200 shadow-sm">
                     <span
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
-                      style={{ color: editedGangColour }}
+                      style={{ color: formState.gangColour }}
                     >
                       {gangName}
                     </span>
@@ -791,7 +876,7 @@ export default function GangEditModal({
                   <div className="p-3 bg-black rounded-lg border border-neutral-800 shadow-sm">
                     <span
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-800"
-                      style={{ color: editedGangColour }}
+                      style={{ color: formState.gangColour }}
                     >
                       {gangName}
                     </span>
