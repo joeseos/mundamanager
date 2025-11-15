@@ -510,12 +510,24 @@ export default function CampaignTerritoryList({
       <Tooltip 
         id="ruined-tooltip" 
         place="top" 
-        style={{ backgroundColor: '#374151', color: 'white', maxWidth: '300px' }}
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '20rem'
+        }}
       />
       <Tooltip 
         id="default-territory-tooltip" 
         place="top" 
-        style={{ backgroundColor: '#374151', color: 'white', maxWidth: '300px' }}
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '20rem'
+        }}
       />
     </>
   );

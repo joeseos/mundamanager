@@ -402,14 +402,12 @@ export default function CampaignEditModal({
       <Tooltip
         id="resources-tooltip"
         place="top"
-        className="!bg-primary !text-white !text-xs !z-[2000]"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
         style={{
-          backgroundColor: '#000',
-          color: 'white',
           padding: '6px',
-          fontSize: '12px',
-          maxWidth: '20rem',
-          zIndex: 2000
+          maxWidth: '20rem'
         }}
       />
     </div>
