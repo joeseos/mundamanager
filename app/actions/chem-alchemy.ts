@@ -56,7 +56,6 @@ export async function createChemAlchemy({
       .from('custom_equipment')
       .insert([{
         equipment_name: name.trimEnd(),
-        trading_post_category: 'Chem-Alchemy',
         availability: 'E',
         cost: useBaseCostForRating ? baseCost : totalCost,
         equipment_category: 'Chem-Alchemy',

@@ -49,7 +49,6 @@ interface ItemModalProps {
 interface RawEquipmentData {
   id: string;
   equipment_name: string;
-  trading_post_category: string;
   availability: string | null;
   base_cost: number;
   discounted_cost: number;

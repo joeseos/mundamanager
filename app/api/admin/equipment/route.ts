@@ -424,7 +424,6 @@ export async function POST(request: Request) {
     const data = await request.json();
     const {
       equipment_name,
-      trading_post_category,
       availability,
       cost,
       faction,
@@ -452,7 +451,6 @@ export async function POST(request: Request) {
       .from('equipment')
       .insert({
         equipment_name: equipment_name.trimEnd(),
-        trading_post_category,
         availability: availability.trimEnd(),
         cost,
         faction,
@@ -575,7 +573,6 @@ export async function PUT(request: Request) {
     const data = await request.json();
     const {
       equipment_name,
-      trading_post_category,
       availability,
       cost,
       faction,
@@ -594,7 +591,6 @@ export async function PUT(request: Request) {
       .from('equipment')
       .update({
         equipment_name: equipment_name.trimEnd(),
-        trading_post_category,
         availability: availability.trimEnd(),
         cost,
         faction,
@@ -783,7 +779,6 @@ export async function PATCH(request: Request) {
     const data = await request.json();
     const {
       equipment_name,
-      trading_post_category,
       availability,
       cost,
       faction,
@@ -806,7 +801,6 @@ export async function PATCH(request: Request) {
       .from('equipment')
       .update({
         equipment_name,
-        trading_post_category,
         availability,
         cost,
         faction,

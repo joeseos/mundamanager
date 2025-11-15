@@ -4,7 +4,6 @@ export interface CustomEquipment {
   id: string;
   user_id: string;
   equipment_name: string;
-  trading_post_category: string;
   availability: string;
   cost: number;
   faction?: string;

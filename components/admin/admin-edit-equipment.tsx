@@ -63,7 +63,6 @@ interface EquipmentOriginAvailability {
 interface Equipment {
   id: string;
   equipment_name: string;
-  trading_post_category: string;
   availability: string;
   cost: number;
   faction: string;
@@ -81,7 +80,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [equipmentName, setEquipmentName] = useState('');
-  const [tradingPostCategory, setTradingPostCategory] = useState('');
   const [availability, setAvailability] = useState('');
   const [cost, setCost] = useState('');
   const [faction, setFaction] = useState('');
@@ -189,7 +187,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     const fetchEquipmentDetails = async () => {
       if (!selectedEquipmentId) {
         setEquipmentName('');
-        setTradingPostCategory('');
         setAvailability('');
         setCost('');
         setFaction('');
@@ -229,7 +226,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
         // Set all form fields from fetched data
         setEquipmentName(data.equipment_name);
-        setTradingPostCategory(data.trading_post_category || '');
         setAvailability(data.availability || '');
         setCost(data.cost?.toString() || '');
         setFaction(data.faction || '');
@@ -480,7 +476,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       
       const requestBody = {
         equipment_name: equipmentName,
-        trading_post_category: tradingPostCategory,
         availability,
         cost: parseInt(cost),
         faction,
