@@ -1,4 +1,6 @@
-create or replace function get_vehicle_equipment_with_discounts(
+DROP FUNCTION IF EXISTS get_vehicle_equipment_with_discounts(uuid, text, uuid);
+
+CREATE OR REPLACE FUNCTION get_vehicle_equipment_with_discounts(
     "gang_type_id" uuid default null,
     "equipment_category" text default null,
     "fighter_type_id" uuid default null
@@ -6,7 +8,6 @@ create or replace function get_vehicle_equipment_with_discounts(
 returns table (
     id uuid,
     equipment_name text,
-    trading_post_category text,
     availability text,
     base_cost numeric,
     discounted_cost numeric,
@@ -23,7 +24,6 @@ as $$
     select 
         e.id,
         e.equipment_name,
-        e.trading_post_category,
         e.availability,
         e.cost::numeric as base_cost,
         case
