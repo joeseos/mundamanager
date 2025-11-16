@@ -1,4 +1,4 @@
-import { revalidateTag } from 'next/cache';
+import { revalidateTag, revalidatePath } from 'next/cache';
 
 /**
  * Hierarchical Cache Tag System for Necromunda Gang Manager
@@ -445,6 +445,8 @@ export const invalidateFighterVehicleData = (fighterId: string, gangId: string) 
   invalidateGangRating(gangId);
   // Fighter page data invalidated via granular tags
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  // Revalidate the fighter page path to ensure production cache is cleared
+  revalidatePath(`/fighter/${fighterId}`);
 };
 
 export const invalidateVehicleEffects = (vehicleId: string, fighterId: string, gangId: string) => {
@@ -454,6 +456,8 @@ export const invalidateVehicleEffects = (vehicleId: string, fighterId: string, g
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
   // Gang fighters list (shows vehicle data)
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  // Revalidate the fighter page path to ensure production cache is cleared
+  revalidatePath(`/fighter/${fighterId}`);
 };
 
 export const invalidateVehicleRepair = (vehicleId: string, fighterId: string, gangId: string) => {
