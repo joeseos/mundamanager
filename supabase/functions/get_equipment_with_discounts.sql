@@ -17,7 +17,6 @@ CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
 RETURNS TABLE (
     id uuid,
     equipment_name text,
-    trading_post_category text,
     availability text,
     base_cost numeric,
     discounted_cost numeric,
@@ -39,7 +38,6 @@ AS $$
     SELECT DISTINCT
         e.id,
         e.equipment_name,
-        e.trading_post_category,
         -- Natural NULL handling for availability - gang origin takes precedence when available
         COALESCE(
             (SELECT availability FROM equipment_availability WHERE gang_origin_id = gang_data.gang_origin_id AND equipment_id = e.id LIMIT 1),
@@ -292,7 +290,6 @@ AS $$
     SELECT 
         ce.id,
         ce.equipment_name,
-        'Custom' as trading_post_category,
         ce.availability as availability,
         ce.cost::numeric as base_cost,
         ce.cost::numeric as discounted_cost, -- No discounts for custom equipment
