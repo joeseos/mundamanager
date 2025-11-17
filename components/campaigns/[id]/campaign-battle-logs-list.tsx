@@ -7,9 +7,10 @@ import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { ChevronLeft, ChevronRight, Edit } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
-import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
+import { createBattleLog, updateBattleLog, deleteBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import Modal from "@/components/ui/modal";
 import { LuTrash2 } from "react-icons/lu";
+import { useMutation } from '@tanstack/react-query';
 
 interface Member {
   id?: string;
@@ -133,13 +134,21 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const { toast } = useToast();
-  
+
+  // Local state for optimistic updates
+  const [localBattles, setLocalBattles] = useState<Battle[]>(battles);
+
+  // Sync with props when they change (from server refresh)
+  useEffect(() => {
+    setLocalBattles(battles);
+  }, [battles]);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
-  // Calculate total pages
-  const totalPages = Math.ceil(battles.length / itemsPerPage);
+
+  // Calculate total pages - use localBattles for pagination
+  const totalPages = Math.ceil(localBattles.length / itemsPerPage);
 
   // Map of gang IDs to gang names for lookup
   const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
@@ -148,14 +157,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // State for the selected battle (will be used for edit functionality)
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Sort battles by date (newest first)
+  // Sort battles by date (newest first) - use localBattles
   const sortedBattles = useMemo(() => {
-    return [...battles].sort((a, b) => {
+    return [...localBattles].sort((a, b) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [battles]);
+  }, [localBattles]);
   
   // Get current battles for pagination
   const currentBattles = useMemo(() => {
@@ -175,6 +183,44 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
+  };
+
+  // TanStack Query mutation for deleting battles
+  const deleteBattleMutation = useMutation({
+    mutationFn: async (battleId: string) => {
+      await deleteBattleLog(campaignId, battleId);
+    },
+    onMutate: async (battleId) => {
+      // Store previous battles for rollback
+      const previousBattles = [...localBattles];
+
+      // Optimistically remove the battle
+      const updatedBattles = localBattles.filter(battle => battle.id !== battleId);
+      setLocalBattles(updatedBattles);
+
+      return { previousBattles };
+    },
+    onSuccess: () => {
+      toast({
+        description: "Battle report deleted successfully"
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousBattles) {
+        setLocalBattles(context.previousBattles);
+      }
+
+      toast({
+        variant: "destructive",
+        description: "Failed to delete battle report"
+      });
+    }
+  });
+
+  // Callback to handle battle updates from modal
+  const handleBattleUpdate = (updatedBattles: Battle[]) => {
+    setLocalBattles(updatedBattles);
   };
 
   // Expose the openAddModal function to parent components
@@ -424,38 +470,15 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const confirmDeleteBattle = async () => {
     if (!battleToDelete) return false;
 
-    setIsDeleting(true);
+    // Close modal immediately for instant UX
+    setShowDeleteModal(false);
+    const battleId = battleToDelete.id;
+    setBattleToDelete(null);
 
-    try {
-      await deleteBattleLog(campaignId, battleToDelete.id);
+    // Fire mutation with optimistic update
+    deleteBattleMutation.mutate(battleId);
 
-      // Close modal
-      setShowDeleteModal(false);
-      setBattleToDelete(null);
-
-      // Delayed toast and refresh to avoid navigation conflicts
-      setTimeout(() => {
-        toast({
-          description: "Battle report deleted successfully"
-        });
-
-        // Add a small delay before refreshing to ensure the delete has been processed
-        setTimeout(() => {
-          onBattleAdd(); // Refresh the battle list
-        }, 100);
-      }, 0);
-
-      return true; // Return true for modal to close
-    } catch (error) {
-      console.error('Error deleting battle report:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to delete battle report"
-      });
-      return false; // Return false to keep modal open
-    } finally {
-      setIsDeleting(false);
-    }
+    return true;
   };
 
   // Handle modal close
@@ -652,6 +675,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         isOpen={showBattleModal}
         onClose={handleModalClose}
         onSuccess={onBattleAdd}
+        onBattleUpdate={handleBattleUpdate}
+        localBattles={localBattles}
         battleToEdit={selectedBattle}
         userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
       />
@@ -676,8 +701,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           }
           onClose={handleDeleteModalClose}
           onConfirm={confirmDeleteBattle}
-          confirmText={isDeleting ? "Deleting..." : "Delete"}
-          confirmDisabled={isDeleting}
+          confirmText={deleteBattleMutation.isPending ? "Deleting..." : "Delete"}
+          confirmDisabled={deleteBattleMutation.isPending}
         />
       )}
       {showNoteModal && (
