@@ -316,15 +316,15 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       invalidateGangRating(params.gang_id);
     }
     
-    // Invalidate resources if changed
-    if (params.reputation !== undefined ||
+    // Invalidate resources if changed (reputation, meat, etc. are in BASE_GANG_BASIC)
+    if ((params.reputation !== undefined && params.reputation_operation) ||
         (params.meat !== undefined && params.meat_operation) ||
         (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) ||
         (params.exploration_points !== undefined && params.exploration_points_operation) ||
         (params.power !== undefined && params.power_operation) ||
         (params.sustenance !== undefined && params.sustenance_operation) ||
         (params.salvage !== undefined && params.salvage_operation)) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gang_id));
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
     }
     
     // If gang variants were updated, invalidate fighter types cache

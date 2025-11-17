@@ -292,10 +292,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     }
 
     // Invalidate resources if reputation, meat, scavenging_rolls, exploration_points, power, sustenance, or salvage changed
+    // Note: These are all in BASE_GANG_BASIC, already invalidated above if needed
     if (reputation !== undefined || meat !== undefined ||
         scavenging_rolls !== undefined || exploration_points !== undefined ||
         power !== undefined || sustenance !== undefined || salvage !== undefined) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.id));
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.id));
     }
 
     // Invalidate gang variants if changed

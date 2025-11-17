@@ -19,9 +19,9 @@ export const CACHE_TAGS = {
   // =============================================================================
   
   // Gang base data
-  BASE_GANG_BASIC: (id: string) => `base-gang-basic-${id}`,           // name, type, color, alignment
+  BASE_GANG_BASIC: (id: string) => `base-gang-basic-${id}`,           // name, type, color, alignment, reputation, meat, scavenging_rolls, etc.
   BASE_GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,       // credits only
-  BASE_GANG_RESOURCES: (id: string) => `base-gang-resources-${id}`,   // meat, reputation, scavenging_rolls
+  // BASE_GANG_RESOURCES: (id: string) => `base-gang-resources-${id}`,   // DEPRECATED - resources now in BASE_GANG_BASIC
   BASE_GANG_STASH: (id: string) => `base-gang-stash-${id}`,           // gang stash equipment
   BASE_GANG_VEHICLES: (id: string) => `base-gang-vehicles-${id}`,     // gang-owned vehicles
   BASE_GANG_POSITIONING: (id: string) => `base-gang-positioning-${id}`, // gang positioning data
@@ -269,7 +269,7 @@ export function invalidateGangCreation(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId));
   invalidateGangCredits(params.gangId);
-  revalidateTag(CACHE_TAGS.BASE_GANG_RESOURCES(params.gangId));
+  // Note: Resources (reputation, meat, etc.) are in BASE_GANG_BASIC, no separate cache needed
   
   // User-scoped changes
   revalidateTag(CACHE_TAGS.USER_GANGS(params.userId));
