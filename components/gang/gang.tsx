@@ -400,6 +400,10 @@ export default function Gang({
 
       if (updates.gang_affiliation_id !== undefined) {
         setGangAffiliationId(updates.gang_affiliation_id);
+        // Use provided affiliation name from modal for optimistic update
+        if (updates.gang_affiliation_name !== undefined) {
+          setGangAffiliationName(updates.gang_affiliation_name);
+        }
       }
 
       if (updates.gang_origin_id !== undefined) {
@@ -474,6 +478,14 @@ export default function Gang({
         setGangColour(s.gangColour);
         setHidden(s.hidden);
       }
+
+      // Show error toast
+      console.error('Error updating gang:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update gang';
+      toast({
+        variant: "destructive",
+        description: errorMessage
+      });
     },
     onSuccess: (result, variables) => {
       // Sync with server response
@@ -487,6 +499,11 @@ export default function Gang({
           setGangIsVariant(result.data.gang_variants.length > 0);
         }
       }
+
+      // Show success toast
+      toast({
+        description: "Gang updated successfully"
+      });
     }
   });
 

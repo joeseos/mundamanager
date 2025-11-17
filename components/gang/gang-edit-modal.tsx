@@ -35,6 +35,7 @@ interface GangUpdates {
   gang_variants?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
+  gang_affiliation_name?: string;
   gang_origin_id?: string | null;
   gang_origin_name?: string;
   hidden?: boolean;
@@ -342,6 +343,13 @@ export default function GangEditModal({
     // Only include gang affiliation if changed
     if (formState.gangAffiliationId !== initial.gangAffiliationId) {
       updates.gang_affiliation_id = formState.gangAffiliationId === '' ? null : formState.gangAffiliationId;
+      // Include affiliation name for optimistic update (server will also fetch it for validation)
+      if (formState.gangAffiliationId === '') {
+        updates.gang_affiliation_name = '';
+      } else {
+        const affiliation = affiliationList.find(a => a.id === formState.gangAffiliationId);
+        updates.gang_affiliation_name = affiliation?.name || '';
+      }
     }
 
     // Only include gang origin if changed
@@ -417,20 +425,8 @@ export default function GangEditModal({
     onClose();
 
     // Call onSave which triggers TanStack Query mutation with optimistic updates
-    try {
-      await onSave(updates);
-      toast({
-        description: "Gang updated successfully",
-        variant: "default"
-      });
-    } catch (error) {
-      console.error('Error updating gang:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update gang. Please try again.",
-        variant: "destructive"
-      });
-    }
+    // Toast notifications are handled by the mutation in gang.tsx
+    onSave(updates);
   };
 
   const editModalContent = (
