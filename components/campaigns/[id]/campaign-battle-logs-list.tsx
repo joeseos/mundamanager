@@ -11,89 +11,7 @@ import { createBattleLog, updateBattleLog, deleteBattleLog, BattleLogParams } fr
 import Modal from "@/components/ui/modal";
 import { LuTrash2 } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-
-interface Member {
-  id?: string;
-  user_id: string;
-  username: string;
-  role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
-  status: string | null;
-  invited_at: string;
-  joined_at: string | null;
-  invited_by: string;
-  profile: {
-    id: string;
-    username: string;
-    updated_at: string;
-    user_role: string;
-  };
-  gangs: {
-    id: string;
-    gang_id: string;
-    gang_name: string;
-    gang_colour?: string;
-    status: string | null;
-    rating?: number;
-    campaign_member_id?: string;
-  }[];
-}
-
-interface BattleParticipant {
-  role: 'attacker' | 'defender';
-  gang_id: string;
-}
-
-interface Battle {
-  id: string;
-  created_at: string;
-  updated_at?: string;
-  scenario_number?: number;
-  scenario_name?: string;
-  scenario?: string;
-  attacker_id?: string;
-  defender_id?: string;
-  winner_id?: string;
-  note?: string | null;
-  participants?: BattleParticipant[] | string;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
-  territory_name?: string;
-  attacker?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  defender?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  winner?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-}
-
-interface Scenario {
-  id: string;
-  scenario_name: string;
-  scenario_number: number | null;
-}
-
-interface CampaignGang {
-  id: string;
-  name: string;
-  campaign_member_id?: string;
-  user_id?: string;
-  owner_username?: string;
-}
-
-interface Territory {
-  id: string;
-  territory_name: string;
-  gang_id: string | null;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
-  is_custom?: boolean;
-}
+import { Battle, BattleParticipant, CampaignGang, Territory, Member, Scenario } from '@/types/campaign';
 
 interface CampaignBattleLogsListProps {
   campaignId: string;
@@ -313,7 +231,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
 
       participants = [...participants].sort((a, b) => {
-        const roleOrder = { attacker: 0, defender: 1 };
+        const roleOrder: Record<'attacker' | 'defender' | 'none', number> = { attacker: 0, defender: 1, none: 99 };
         const roleA = roleOrder[a.role] ?? 99;
         const roleB = roleOrder[b.role] ?? 99;
 

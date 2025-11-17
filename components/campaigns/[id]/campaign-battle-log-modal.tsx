@@ -10,63 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-
-interface Scenario {
-  id: string;
-  scenario_name: string;
-  scenario_number: number | null;
-}
-
-interface CampaignGang {
-  id: string;
-  name: string;
-  campaign_member_id?: string;
-  user_id?: string;
-  owner_username?: string;
-}
-
-interface Territory {
-  id: string;
-  name: string;
-  controlled_by?: string; // gang_id of controlling gang
-  is_custom?: boolean;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
-}
-
-interface BattleParticipant {
-  role: 'attacker' | 'defender';
-  gang_id: string;
-}
-
-interface Battle {
-  id: string;
-  created_at: string;
-  updated_at?: string;
-  scenario_number?: number;
-  scenario_name?: string;
-  scenario?: string;
-  attacker_id?: string;
-  defender_id?: string;
-  winner_id?: string;
-  note?: string | null;
-  participants?: BattleParticipant[] | string;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
-  territory_name?: string;
-  attacker?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  defender?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  winner?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-}
+import { Battle, BattleParticipant, CampaignGang, Territory, Scenario } from '@/types/campaign';
 
 interface CampaignBattleLogModalProps {
   campaignId: string;
