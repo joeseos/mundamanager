@@ -672,7 +672,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type_id, fighter_types!inner(is_spyrer)')
+      .select('id, gang_id, xp, kills, kill_count, fighter_name, fighter_type_id, fighter_types(is_spyrer)')
       .eq('id', params.fighter_id)
       .single();
 
@@ -680,16 +680,15 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       throw new Error('Fighter not found');
     }
 
-    // Type-safe access to fighter_types
+    // Type-safe access to fighter_types (may be null for custom fighters)
     const fighterTypes = fighter.fighter_types;
-    if (!fighterTypes || typeof fighterTypes !== 'object' || !('is_spyrer' in fighterTypes)) {
-      throw new Error('Fighter type data is missing or invalid');
-    }
+    const isSpyrer = fighterTypes && typeof fighterTypes === 'object' && 'is_spyrer' in fighterTypes
+      ? fighterTypes.is_spyrer || false
+      : false;
 
     // Calculate new values
     const newXp = fighter.xp + params.xp_to_add;
     const newKills = fighter.kills + (params.ooa_count || 0);
-    const isSpyrer = fighterTypes.is_spyrer || false;
     const newKillCount = isSpyrer ? (fighter.kill_count || 0) + (params.ooa_count || 0) : fighter.kill_count;
 
     // Update XP, kills, and kill_count
