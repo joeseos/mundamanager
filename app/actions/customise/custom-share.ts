@@ -54,7 +54,8 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
       }
     }
 
-    revalidatePath('/customise');
+    // Ensure the home page (customise tab) reflects new sharing state
+    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomFighter:', error);

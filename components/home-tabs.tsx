@@ -1,38 +1,95 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
+import type { CustomEquipment } from '@/app/lib/customise/custom-equipment'
+import type { CustomTerritory } from '@/app/lib/customise/custom-territories'
+import type { CustomFighterType } from '@/types/fighter'
+import { CustomiseEquipment } from '@/components/customise/custom-equipment'
+import { CustomiseTerritories } from '@/components/customise/custom-territories'
+import { CustomiseFighters } from '@/components/customise/custom-fighters'
 
-interface CampaignType {
+interface UserCampaign {
   id: string;
-  campaign_type_name: string;
+  campaign_name: string;
+  status: string | null;
 }
+
+type TabKey = 'gangs' | 'campaigns' | 'customassets'
+const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
 
 interface HomeTabsProps {
   gangs: Gang[];
   campaigns: Campaign[];
-  campaignTypes: CampaignType[] | null;
   userId: string;
+  customEquipment: CustomEquipment[];
+  customTerritories: CustomTerritory[];
+  customFighterTypes: CustomFighterType[];
+  userCampaigns: UserCampaign[];
 }
 
-export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: HomeTabsProps) {
+export default function HomeTabs({
+  gangs,
+  campaigns,
+  userId,
+  customEquipment,
+  customTerritories,
+  customFighterTypes,
+  userCampaigns
+}: HomeTabsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(0);
 
+  const updateUrlParam = useCallback((tab: TabKey) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('tab') === tab) return;
+    url.searchParams.set('tab', tab);
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  const handleTabChange = useCallback((tabIndex: number, syncUrl = true) => {
+    setActiveTab(tabIndex);
+    if (syncUrl) {
+      updateUrlParam(TAB_KEYS[tabIndex]);
+    }
+  }, [updateUrlParam]);
+
+  useEffect(() => {
+    const handleTabSwitch = (event: Event) => {
+      const customEvent = event as CustomEvent<TabKey>;
+      const tab = customEvent.detail;
+      if (!tab) return;
+
+      const tabIndex = TAB_KEYS.indexOf(tab);
+      if (tabIndex === -1) return;
+      handleTabChange(tabIndex);
+    };
+
+    window.addEventListener('homeTabSwitch', handleTabSwitch as EventListener);
+
+    return () => {
+      window.removeEventListener('homeTabSwitch', handleTabSwitch as EventListener);
+    };
+  }, [handleTabChange]);
+
   // Check for tab parameter in URL
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'campaigns') {
-      setActiveTab(1);
-    } else if (tabParam === 'gangs') {
-      setActiveTab(0);
-    }
-  }, [searchParams]);
+    const tabParam = searchParams.get('tab') as TabKey | null;
+    const tabIndex = tabParam ? TAB_KEYS.indexOf(tabParam) : -1;
 
-  const tabTitles = ['Your Gangs', 'Your Campaigns'];
+    if (tabIndex >= 0) {
+      handleTabChange(tabIndex, false);
+    } else {
+      handleTabChange(0, false);
+      updateUrlParam('gangs');
+    }
+  }, [searchParams, handleTabChange, updateUrlParam]);
+
+  const tabTitles = ['Gangs', 'Campaigns', 'Custom Assets'];
 
   return (
     <div className="w-full">
@@ -41,7 +98,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
         {tabTitles.map((title, index) => (
           <button
             key={index}
-            onClick={() => setActiveTab(index)}
+            onClick={() => handleTabChange(index)}
             className={`flex-1 py-4 text-center transition-colors ${
               activeTab === index
                 ? 'text-foreground font-medium border-b-0 border-primary'
@@ -57,7 +114,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
       <div className="space-y-4">
         {activeTab === 0 && (
           <div className="bg-card shadow-md rounded-lg p-4">
-            <h2 className="text-xl md:text-2xl font-bold mb-4">Your Gangs</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Gangs</h2>
             {gangs.length === 0 ? (
               <p className="text-center text-muted-foreground">No gangs created yet.</p>
             ) : (
@@ -123,7 +180,7 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
 
         {activeTab === 1 && (
           <div className="bg-card shadow-md rounded-lg p-4">
-            <h2 className="text-xl md:text-2xl font-bold mb-4">Your Campaigns</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Campaigns</h2>
             {campaigns.length === 0 ? (
               <p className="text-center text-muted-foreground">No campaigns created yet.</p>
             ) : (
@@ -187,6 +244,27 @@ export default function HomeTabs({ gangs, campaigns, campaignTypes, userId }: Ho
                 ))}
               </ul>
             )}
+          </div>
+        )}
+
+        {activeTab === 2 && (
+          <div className="bg-card shadow-md rounded-lg p-4 space-y-6">
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
+              <p className="text-muted-foreground">
+                Create your own Equipment, Fighters, and Territories for your gangs and campaigns.
+              </p>
+            </div>
+
+            <CustomiseEquipment initialEquipment={customEquipment} />
+
+            <CustomiseFighters
+              initialFighters={customFighterTypes}
+              userId={userId}
+              userCampaigns={userCampaigns}
+            />
+
+            <CustomiseTerritories initialTerritories={customTerritories} />
           </div>
         )}
       </div>

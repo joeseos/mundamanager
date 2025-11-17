@@ -12,6 +12,9 @@ import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { GrHelpBook } from "react-icons/gr";
 import { Button } from '@/components/ui/button';
+import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
+import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
+import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -23,10 +26,19 @@ export default async function Home() {
     redirect("/sign-in");
   }
 
-  // Single invocation that gets both gangs and campaigns
-  const [gangs, campaigns] = await Promise.all([
+  // Single invocation that gets gangs, campaigns, and customise data
+  const [
+    gangs,
+    campaigns,
+    customEquipment,
+    customTerritories,
+    customFighterTypes
+  ] = await Promise.all([
     getUserGangs(),
-    getUserCampaigns()
+    getUserCampaigns(),
+    getUserCustomEquipment(user.id),
+    getUserCustomTerritories(),
+    getUserCustomFighterTypes(user.id)
   ]);
   
   // Fetch campaign types and trading post types for the create campaign modal
@@ -42,6 +54,26 @@ export default async function Home() {
 
   const campaignTypes = campaignTypesResult.data;
   const tradingPostTypes = tradingPostTypesResult.data;
+
+  // Fetch user's campaigns for sharing (where user is owner or arbitrator)
+  const { data: campaignMembers } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .eq('user_id', user.id)
+    .in('role', ['OWNER', 'ARBITRATOR']);
+
+  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
+
+  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
+  if (campaignIds.length > 0) {
+    const { data: campaignsForShare } = await supabase
+      .from('campaigns')
+      .select('id, campaign_name, status')
+      .in('id', campaignIds)
+      .order('campaign_name');
+
+    userCampaigns = campaignsForShare || [];
+  }
 
   if (campaignTypesResult.error) {
     console.error('Error fetching campaign types:', campaignTypesResult.error);
@@ -91,8 +123,11 @@ export default async function Home() {
         <HomeTabs 
           gangs={gangs} 
           campaigns={campaigns} 
-          campaignTypes={campaignTypes}
           userId={user.id}
+          customEquipment={customEquipment}
+          customTerritories={customTerritories}
+          customFighterTypes={customFighterTypes}
+          userCampaigns={userCampaigns}
         />
       </div>
     </main>

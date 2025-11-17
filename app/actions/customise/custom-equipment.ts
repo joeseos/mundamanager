@@ -62,8 +62,8 @@ export async function updateCustomEquipment(
     throw new Error(`Failed to update equipment: ${error.message}`);
   }
 
-  // Revalidate the customize page to show updated data
-  revalidatePath('/customise');
+  // Revalidate the home page (customise tab) to show updated data
+  revalidatePath('/');
   
   return data;
 }
@@ -87,8 +87,8 @@ export async function deleteCustomEquipment(equipmentId: string) {
     throw new Error(`Failed to delete equipment: ${error.message}`);
   }
 
-  // Revalidate the customize page to show updated data
-  revalidatePath('/customise');
+  // Revalidate the home page (customise tab) to show updated data
+  revalidatePath('/');
   
   return { success: true };
 }
@@ -152,8 +152,8 @@ export async function createCustomEquipment(data: {
     throw new Error(`Failed to create equipment: ${error.message}`);
   }
 
-  // Revalidate the customize page to show new data
-  revalidatePath('/customise');
+  // Revalidate the home page (customise tab) to show new data
+  revalidatePath('/');
   
   return newEquipment;
 } 
