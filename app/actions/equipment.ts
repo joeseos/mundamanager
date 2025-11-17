@@ -719,10 +719,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         });
       }
     } else if (params.vehicle_id) {
-      // Use vehicle data from parallel query if available
-      const vehicleDataResult = finalOperations.length > 1 ? finalResults[1] : null;
+      // Find vehicle data - it could be at index 0 or 1 depending on whether gang update ran
+      const vehicleDataResult = finalOperations.length > 1 ? finalResults[1] : finalResults[0];
       const vehicleData = vehicleDataResult?.data;
-      
+
       if (vehicleData?.fighter_id) {
         invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
         invalidateFighterVehicleData(vehicleData.fighter_id, params.gang_id);

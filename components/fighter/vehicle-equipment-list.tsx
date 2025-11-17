@@ -91,7 +91,7 @@ export function VehicleEquipmentList({
 
       // rating cost guess (no master-crafted for vehicle upgrades)
       const baseForRating = item.adjusted_cost ?? item.cost ?? 0;
-      const appliedRatingCost = params.use_base_cost_for_rating ? baseForRating : (params.manual_cost || baseForRating);
+      const appliedRatingCost = params.use_base_cost_for_rating ? baseForRating : (params.manual_cost ?? baseForRating);
       const ratingCostGuess = appliedRatingCost;
 
       const tempId = `temp-${Date.now()}`;
