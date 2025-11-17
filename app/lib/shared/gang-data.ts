@@ -281,36 +281,37 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
 };
 
 /**
- * Get gang resources (meat, reputation, scavenging_rolls, exploration_points)
- * Cache: BASE_GANG_RESOURCES
+ * DEPRECATED: Get gang resources (meat, reputation, scavenging_rolls, exploration_points)
+ * Use getGangBasic() instead - it includes all these fields
+ * Cache: BASE_GANG_BASIC
  */
-export const getGangResources = async (gangId: string, supabase: any): Promise<{
-  meat: number;
-  reputation: number;
-  scavenging_rolls: number;
-  exploration_points: number;
-  power: number;
-  sustenance: number;
-  salvage: number;
-}> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('meat, reputation, scavenging_rolls, exploration_points, power, sustenance, salvage')
-        .eq('id', gangId)
-        .single();
+// export const getGangResources = async (gangId: string, supabase: any): Promise<{
+//   meat: number;
+//   reputation: number;
+//   scavenging_rolls: number;
+//   exploration_points: number;
+//   power: number;
+//   sustenance: number;
+//   salvage: number;
+// }> => {
+//   return unstable_cache(
+//     async () => {
+//       const { data, error } = await supabase
+//         .from('gangs')
+//         .select('meat, reputation, scavenging_rolls, exploration_points, power, sustenance, salvage')
+//         .eq('id', gangId)
+//         .single();
 
-      if (error) throw error;
-      return data;
-    },
-    [`gang-resources-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_RESOURCES(gangId)],
-      revalidate: false
-    }
-  )();
-};
+//       if (error) throw error;
+//       return data;
+//     },
+//     [`gang-resources-${gangId}`],
+//     {
+//       tags: [CACHE_TAGS.BASE_GANG_RESOURCES(gangId)],
+//       revalidate: false
+//     }
+//   )();
+// };
 
 /**
  * Get gang stash equipment
