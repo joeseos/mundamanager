@@ -9,63 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
-
-interface Scenario {
-  id: string;
-  scenario_name: string;
-  scenario_number: number | null;
-}
-
-interface CampaignGang {
-  id: string;
-  name: string;
-  campaign_member_id?: string;
-  user_id?: string;
-  owner_username?: string;
-}
-
-interface Territory {
-  id: string;
-  name: string;
-  controlled_by?: string; // gang_id of controlling gang
-  is_custom?: boolean;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
-}
-
-interface BattleParticipant {
-  role: 'attacker' | 'defender';
-  gang_id: string;
-}
-
-interface Battle {
-  id: string;
-  created_at: string;
-  updated_at?: string;
-  scenario_number?: number;
-  scenario_name?: string;
-  scenario?: string;
-  attacker_id?: string;
-  defender_id?: string;
-  winner_id?: string;
-  note?: string | null;
-  participants?: BattleParticipant[] | string;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
-  territory_name?: string;
-  attacker?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  defender?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  winner?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-}
+import { useMutation } from '@tanstack/react-query';
+import { Battle, BattleParticipant, CampaignGang, Territory, Scenario } from '@/types/campaign';
 
 interface CampaignBattleLogModalProps {
   campaignId: string;
@@ -74,6 +19,8 @@ interface CampaignBattleLogModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onBattleUpdate: (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => void;
+  localBattles: Battle[];
   battleToEdit?: Battle | null;
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
@@ -93,6 +40,8 @@ const CampaignBattleLogModal = ({
   isOpen,
   onClose,
   onSuccess,
+  onBattleUpdate,
+  localBattles,
   battleToEdit = null,
   userRole = 'MEMBER'
 }: CampaignBattleLogModalProps) => {
@@ -108,6 +57,7 @@ const CampaignBattleLogModal = ({
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
@@ -120,7 +70,190 @@ const CampaignBattleLogModal = ({
   
   // Check if the user has admin permissions (OWNER or ARBITRATOR)
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
-  
+
+  // Helper to get gang name by ID - extracted to avoid duplication
+  const getGangName = (gangId: string | null | undefined) => {
+    if (!gangId) return 'Unknown';
+    const gang = availableGangs.find(g => g.id === gangId);
+    return gang?.name || 'Unknown';
+  };
+
+  // Helper to get territory name - supports both name and territory_name
+  const getTerritoryName = (territoryId: string) => {
+    const territory = territories.find(t => t.id === territoryId);
+    return territory?.name || territory?.territory_name;
+  };
+
+  // TanStack Query mutations for create and update
+  const createBattleMutation = useMutation({
+    mutationFn: async (battleData: BattleLogParams) => {
+      const result = await createBattleLog(campaignId, battleData);
+      return result;
+    },
+    onMutate: async (battleData) => {
+      // Find territory name if selected
+      let territoryName: string | undefined = undefined;
+      if (battleData.claimed_territories && battleData.claimed_territories.length > 0) {
+        const territoryId = battleData.claimed_territories[0].campaign_territory_id;
+        territoryName = getTerritoryName(territoryId);
+      }
+
+      // Create optimistic battle entry with full gang data
+      const optimisticBattle: Battle = {
+        id: `optimistic-battle-${Date.now()}`,
+        created_at: battleData.created_at || new Date().toISOString(),
+        scenario: battleData.scenario,
+        scenario_name: battleData.scenario,
+        attacker_id: battleData.attacker_id,
+        defender_id: battleData.defender_id,
+        winner_id: battleData.winner_id,
+        note: battleData.note,
+        participants: battleData.participants,
+        territory_id: battleData.territory_id,
+        custom_territory_id: battleData.custom_territory_id,
+        territory_name: territoryName,
+        // Add full gang objects for display
+        attacker: battleData.attacker_id ? {
+          gang_id: battleData.attacker_id,
+          gang_name: getGangName(battleData.attacker_id)
+        } : undefined,
+        defender: battleData.defender_id ? {
+          gang_id: battleData.defender_id,
+          gang_name: getGangName(battleData.defender_id)
+        } : undefined,
+        winner: battleData.winner_id ? {
+          gang_id: battleData.winner_id,
+          gang_name: getGangName(battleData.winner_id)
+        } : undefined
+      };
+
+      // Store the optimistic ID for replacement later
+      const optimisticId = optimisticBattle.id;
+
+      // Optimistically add to battles list using functional update for fresh state
+      onBattleUpdate((currentBattles) => [...currentBattles, optimisticBattle]);
+
+      return { optimisticId };
+    },
+    onSuccess: (result, variables, context) => {
+      // Replace optimistic entry with real server data if available
+      if (result?.data && context?.optimisticId) {
+        onBattleUpdate((currentBattles) =>
+          currentBattles.map(b =>
+            b.id === context.optimisticId ? result.data : b
+          )
+        );
+      }
+
+      toast({
+        description: "Battle report added successfully"
+      });
+
+      // Call onSuccess to trigger server refresh after optimistic update is complete
+      onSuccess();
+    },
+    onError: (error, variables, context) => {
+      console.error('Battle creation failed:', error);
+
+      // Rollback optimistic update using functional update
+      if (context?.optimisticId) {
+        onBattleUpdate((currentBattles) =>
+          currentBattles.filter(b => b.id !== context.optimisticId)
+        );
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create battle report';
+      toast({
+        variant: "destructive",
+        description: errorMessage
+      });
+    }
+  });
+
+  const updateBattleMutation = useMutation({
+    mutationFn: async ({ battleId, battleData }: { battleId: string, battleData: BattleLogParams }) => {
+      const result = await updateBattleLog(campaignId, battleId, battleData);
+      return result;
+    },
+    onMutate: async ({ battleId, battleData }) => {
+      // Find territory name if selected
+      let territoryName: string | undefined = undefined;
+      if (battleData.claimed_territories && battleData.claimed_territories.length > 0) {
+        const territoryId = battleData.claimed_territories[0].campaign_territory_id;
+        territoryName = getTerritoryName(territoryId);
+      }
+
+      // Find and update the battle optimistically using functional update
+      onBattleUpdate((currentBattles) =>
+        currentBattles.map(battle => {
+          if (battle.id === battleId) {
+            return {
+              ...battle,
+              scenario: battleData.scenario,
+              scenario_name: battleData.scenario,
+              attacker_id: battleData.attacker_id,
+              defender_id: battleData.defender_id,
+              winner_id: battleData.winner_id,
+              note: battleData.note,
+              participants: battleData.participants,
+              territory_id: battleData.territory_id,
+              custom_territory_id: battleData.custom_territory_id,
+              territory_name: territoryName,
+              updated_at: new Date().toISOString(),
+              // Update full gang objects for display
+              attacker: battleData.attacker_id ? {
+                gang_id: battleData.attacker_id,
+                gang_name: getGangName(battleData.attacker_id)
+              } : undefined,
+              defender: battleData.defender_id ? {
+                gang_id: battleData.defender_id,
+                gang_name: getGangName(battleData.defender_id)
+              } : undefined,
+              winner: battleData.winner_id ? {
+                gang_id: battleData.winner_id,
+                gang_name: getGangName(battleData.winner_id)
+              } : undefined
+            };
+          }
+          return battle;
+        })
+      );
+
+      return { battleId };
+    },
+    onSuccess: (result, variables, context) => {
+      // Replace with real server data if available
+      if (result?.data && context?.battleId) {
+        onBattleUpdate((currentBattles) =>
+          currentBattles.map(b =>
+            b.id === context.battleId ? result.data : b
+          )
+        );
+      }
+
+      toast({
+        description: "Battle report updated successfully"
+      });
+
+      // Call onSuccess to trigger server refresh after optimistic update is complete
+      onSuccess();
+    },
+    onError: (error, variables, context) => {
+      console.error('Battle update failed:', error);
+
+      // For updates, we need to fetch the original data to rollback
+      // Since we used functional updates, the state should be consistent
+      // Just trigger a server refresh to get back to correct state
+      onSuccess();
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update battle report';
+      toast({
+        variant: "destructive",
+        description: errorMessage
+      });
+    }
+  });
+
   // If in edit mode and the user is not admin, show an error and close the modal
   useEffect(() => {
     if (isOpen && isEditMode && !isAdmin) {
@@ -367,12 +500,6 @@ const CampaignBattleLogModal = ({
     setGangsInBattle(gangsInBattle.filter((entry) => entry.id !== gangEntryId));
   };
 
-
-  const getGangName = (gangId: string): string => {
-    const gang = availableGangs.find(g => g.id === gangId);
-    return gang ? gang.name : '';
-  };
-
   // Get the list of gangs that are already selected in other entries
   const getSelectedGangs = (excludeEntryId: number): string[] => {
     return gangsInBattle
@@ -381,6 +508,9 @@ const CampaignBattleLogModal = ({
   };
 
   const handleSaveBattle = async () => {
+    // Guard against double-click
+    if (isSubmitting) return false;
+
     // Prevent non-admin users from updating existing battles
     if (isEditMode && !isAdmin) {
       toast({
@@ -389,7 +519,7 @@ const CampaignBattleLogModal = ({
       });
       return false;
     }
-    
+
     // Validate required fields
     if (selectedScenario === '') {
       toast({
@@ -441,68 +571,62 @@ const CampaignBattleLogModal = ({
       return false;
     }
 
-    try {
-      // Create a participants array for the new API structure
-      const participants = gangsInBattle
-        .filter(gang => gang.gangId)
-        .map(gang => ({ 
-          role: gang.role, 
-          gang_id: gang.gangId 
-        }));
+    // Create a participants array for the new API structure
+    const participants = gangsInBattle
+      .filter(gang => gang.gangId)
+      .map(gang => ({
+        role: gang.role,
+        gang_id: gang.gangId
+      }));
 
-      // Get the scenario name for the selected scenario
-      let scenarioName = '';
-      if (selectedScenario === 'custom') {
-        scenarioName = customScenario.trim();
-      } else {
-        const selectedScenarioObj = scenarios.find(s => s.id === selectedScenario);
-        scenarioName = selectedScenarioObj 
-          ? selectedScenarioObj.scenario_name
-          : '';
-      }
-
-      // Get a default attacker/defender if needed for the API
-      const firstGangId = gangsInBattle.find(g => g.gangId)?.gangId || '';
-
-      // Prepare battle data for API
-      const battleData: BattleLogParams = {
-        scenario: scenarioName,
-        attacker_id: attackers.length > 0 ? attackers[0].gangId : (gangsInBattle[0]?.gangId || firstGangId),
-        defender_id: defenders.length > 0 ? defenders[0].gangId : (gangsInBattle[1]?.gangId || gangsInBattle[0]?.gangId || firstGangId),
-        winner_id: winner === "draw" ? null : winner,
-        note: notes || null,
-        participants: participants,
-        claimed_territories: selectedTerritory
-          ? [{
-              campaign_territory_id: selectedTerritory
-            }]
-          : []
-      };
-
-      // Create or update battle based on mode
-      if (isEditMode && battleToEdit) {
-        await updateBattleLog(campaignId, battleToEdit.id, { ...battleData, created_at: new Date(battleDate + 'T00:00:00').toISOString() });
-        toast({
-          description: "Battle report updated successfully"
-        });
-      } else {
-        await createBattleLog(campaignId, { ...battleData, created_at: new Date(battleDate + 'T00:00:00').toISOString() });
-        toast({
-          description: "Battle report added successfully"
-        });
-      }
-
-      onSuccess();
-      resetForm();
-      return true;
-    } catch (error) {
-      console.error(isEditMode ? 'Error updating battle report:' : 'Error creating battle report:', error);
-      toast({
-        variant: "destructive",
-        description: isEditMode ? "Failed to update battle report" : "Failed to create battle report"
-      });
-      return false;
+    // Get the scenario name for the selected scenario
+    let scenarioName = '';
+    if (selectedScenario === 'custom') {
+      scenarioName = customScenario.trim();
+    } else {
+      const selectedScenarioObj = scenarios.find(s => s.id === selectedScenario);
+      scenarioName = selectedScenarioObj
+        ? selectedScenarioObj.scenario_name
+        : '';
     }
+
+    // Get a default attacker/defender if needed for the API
+    const firstGangId = gangsInBattle.find(g => g.gangId)?.gangId || '';
+
+    // Prepare battle data for API
+    const battleData: BattleLogParams = {
+      scenario: scenarioName,
+      attacker_id: attackers.length > 0 ? attackers[0].gangId : (gangsInBattle[0]?.gangId || firstGangId),
+      defender_id: defenders.length > 0 ? defenders[0].gangId : (gangsInBattle[1]?.gangId || gangsInBattle[0]?.gangId || firstGangId),
+      winner_id: winner === "draw" ? null : winner,
+      note: notes || null,
+      participants: participants,
+      claimed_territories: selectedTerritory
+        ? [{
+            campaign_territory_id: selectedTerritory
+          }]
+        : [],
+      created_at: new Date(battleDate + 'T00:00:00').toISOString()
+    };
+
+    // Set submitting flag to prevent double-click
+    setIsSubmitting(true);
+
+    // Close modal immediately for instant UX
+    onClose();
+    resetForm();
+
+    // Create or update battle based on mode using mutations
+    if (isEditMode && battleToEdit) {
+      updateBattleMutation.mutate({ battleId: battleToEdit.id, battleData });
+    } else {
+      createBattleMutation.mutate(battleData);
+    }
+
+    // Reset submitting flag after modal animation completes
+    setTimeout(() => setIsSubmitting(false), 500);
+
+    return true;
   };
 
   const resetForm = () => {
