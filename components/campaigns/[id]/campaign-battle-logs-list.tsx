@@ -109,36 +109,42 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       await deleteBattleLog(campaignId, battleId);
     },
     onMutate: async (battleId) => {
-      // Store previous battles for rollback
-      const previousBattles = [...localBattles];
+      // Optimistically remove the battle using functional update for fresh state
+      setLocalBattles((currentBattles) =>
+        currentBattles.filter(battle => battle.id !== battleId)
+      );
 
-      // Optimistically remove the battle
-      const updatedBattles = localBattles.filter(battle => battle.id !== battleId);
-      setLocalBattles(updatedBattles);
-
-      return { previousBattles };
+      return { battleId };
     },
     onSuccess: () => {
       toast({
         description: "Battle report deleted successfully"
       });
+
+      // Trigger server refresh after successful delete
+      onBattleAdd();
     },
     onError: (error, variables, context) => {
-      // Rollback optimistic update
-      if (context?.previousBattles) {
-        setLocalBattles(context.previousBattles);
-      }
+      console.error('Battle deletion failed:', error);
 
+      // Trigger server refresh to get correct state back
+      onBattleAdd();
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
       toast({
         variant: "destructive",
-        description: "Failed to delete battle report"
+        description: errorMessage
       });
     }
   });
 
-  // Callback to handle battle updates from modal
-  const handleBattleUpdate = (updatedBattles: Battle[]) => {
-    setLocalBattles(updatedBattles);
+  // Callback to handle battle updates from modal - supports both value and updater function
+  const handleBattleUpdate = (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => {
+    if (typeof updatedBattles === 'function') {
+      setLocalBattles(updatedBattles);
+    } else {
+      setLocalBattles(updatedBattles);
+    }
   };
 
   // Expose the openAddModal function to parent components
