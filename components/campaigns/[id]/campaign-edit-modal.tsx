@@ -12,6 +12,15 @@ import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
 import { tradingPostRank } from "@/utils/tradingPostRank";
 
+const RESOURCE_OPTIONS = [
+  { key: 'explorationEnabled', label: 'Exploration Points' },
+  { key: 'meatEnabled', label: 'Meat' },
+  { key: 'scavengingEnabled', label: 'Scavenging Rolls' },
+  { key: 'powerEnabled', label: 'Power' },
+  { key: 'sustenanceEnabled', label: 'Sustenance' },
+  { key: 'salvageEnabled', label: 'Salvage' },
+] as const;
+
 interface TradingPostType {
   id: string;
   trading_post_name: string;
@@ -198,7 +207,8 @@ export default function CampaignEditModal({
             </div>
 
             {/* Resources */}
-            <div className="space-y-2 text-sm font-medium mb-1">
+          <div className="space-y-2 text-sm font-medium mb-1">
+            <label className="flex items-center justify-between text-sm font-medium">
               <div className="flex items-center space-x-2">
                 <span>Resources</span>
                 <span
@@ -211,72 +221,33 @@ export default function CampaignEditModal({
                   <ImInfo />
                 </span>
               </div>
-              <label className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formValues.explorationEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    explorationEnabled: checked === true
-                  }))}
-                />
-                <span>Exploration Points</span>
-              </label>
-              
-              <label className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formValues.meatEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    meatEnabled: checked === true
-                  }))}
-                />
-                <span>Meat</span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formValues.scavengingEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    scavengingEnabled: checked === true
-                  }))}
-                />
-                <span>Scavenging Rolls</span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formValues.powerEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    powerEnabled: checked === true
-                  }))}
-                />
-                <span>Power</span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formValues.sustenanceEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    sustenanceEnabled: checked === true
-                  }))}
-                />
-                <span>Sustenance</span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <Checkbox
-                  checked={formValues.salvageEnabled}
-                  onCheckedChange={(checked) => setFormValues(prev => ({
-                    ...prev,
-                    salvageEnabled: checked === true
-                  }))}
-                />
-                <span>Salvage</span>
-              </label>
+              <span className="text-xs text-muted-foreground">
+                {RESOURCE_OPTIONS.reduce((count, option) => (
+                  formValues[option.key] ? count + 1 : count
+                ), 0)}{' '}
+                selected
+              </span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {RESOURCE_OPTIONS.map(option => (
+                <label
+                  key={option.key}
+                  htmlFor={`resource-${option.key}`}
+                  className="flex items-center space-x-2 cursor-pointer"
+                >
+                  <Checkbox
+                    id={`resource-${option.key}`}
+                    checked={formValues[option.key]}
+                    onCheckedChange={(checked) => setFormValues(prev => ({
+                      ...prev,
+                      [option.key]: checked === true
+                    }))}
+                  />
+                  <span className="text-xs">{option.label}</span>
+                </label>
+              ))}
             </div>
+          </div>
 
             {/* Trading Posts */}
             <div className="space-y-2 text-sm font-medium mb-1">
