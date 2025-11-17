@@ -692,13 +692,15 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                 <option
                   key="skill"
                   value="skill"
-                  disabled={fighterClass === 'Ganger'}
+                  disabled={fighterClass === 'Ganger' || fighterClass === 'Exotic Beast'}
                   style={{
-                    color: fighterClass === 'Ganger' ? '#9CA3AF' : 'inherit',
-                    fontStyle: fighterClass === 'Ganger' ? 'italic' : 'normal'
+                    color: (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') ? '#9CA3AF' : 'inherit',
+                    fontStyle: (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') ? 'italic' : 'normal'
                   }}
                 >
-                  Skill{fighterClass === 'Ganger' ? ' (Not available for Gangers)' : ''}
+                  Skill{(fighterClass === 'Ganger' || fighterClass === 'Exotic Beast')
+                    ? ` (Not available for ${fighterClass}s)`
+                    : ''}
                 </option>
               </select>
             </div>
