@@ -31,6 +31,7 @@ import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
+import { useMutation } from '@tanstack/react-query';
 
 
 interface GangProps {
@@ -353,168 +354,162 @@ export default function Gang({
 
 
   // Handle gang updates from the edit modal
-  const handleGangUpdate = async (updates: any): Promise<boolean> => {
-    try {
-      // Store previous values for optimistic updates
-      const prevName = name;
-      const prevCredits = credits;
-      const prevWealth = wealth;
-      const prevAlignment = alignment;
-      const prevAllianceId = allianceId;
-      const prevAllianceName = allianceName;
-      const prevGangAffiliationId = gangAffiliationId;
-      const prevGangAffiliationName = gangAffiliationName;
-      const prevGangOriginId = gangOriginId;
-      const prevGangOriginName = gangOriginName;
-      const prevReputation = reputation;
-      const prevMeat = meat;
-      const prevScavengingRolls = scavengingRolls;
-      const prevExplorationPoints = explorationPoints;
-      const prevPower = power;
-      const prevSustenance = sustenance;
-      const prevSalvage = salvage;
-      const prevGangVariants = [...gangVariants];
-      const prevGangIsVariant = gangIsVariant;
-      const prevGangColour = gangColour;
-      const prevHidden = hidden;
-
-      // Apply optimistic updates (only for changed fields)
-      if (updates.name !== undefined) {
-        setName(updates.name);
-      }
-      
-      if (updates.credits !== undefined && updates.credits_operation) {
-        const creditsDelta = updates.credits_operation === 'add' ? updates.credits : -updates.credits;
-        const newCredits = prevCredits + creditsDelta;
-        setCredits(newCredits);
-        // Update wealth optimistically (wealth delta = credits delta since rating doesn't change)
-        setWealth(wealth + creditsDelta);
-        // Update parent component's credits state
-        onGangCreditsUpdate?.(newCredits);
-      }
-      
-      if (updates.alignment !== undefined) {
-        setAlignment(updates.alignment);
-      }
-      
-      if (updates.alliance_id !== undefined) {
-        setAllianceId(updates.alliance_id);
-        setAllianceName(updates.alliance_id ? '' : ''); // Will be updated from response
-      }
-      
-      if (updates.gang_affiliation_id !== undefined) {
-        setGangAffiliationId(updates.gang_affiliation_id);
-        // Gang affiliation name will be updated from server response if needed
-      }
-      
-      if (updates.gang_origin_id !== undefined) {
-        setGangOriginId(updates.gang_origin_id);
-        setGangOriginName(updates.gang_origin_name || '');
-      }
-      
-      if (updates.reputation !== undefined && updates.reputation_operation) {
-        setReputation(prevReputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
-      }
-      
-      if (updates.meat !== undefined && updates.meat_operation) {
-        setMeat(prevMeat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
-      }
-      
-      if (updates.scavenging_rolls !== undefined && updates.scavenging_rolls_operation) {
-        setScavengingRolls(prevScavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
-      }
-      
-      if (updates.exploration_points !== undefined && updates.exploration_points_operation) {
-        setExplorationPoints(prevExplorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
-      }
-      
-      if (updates.power !== undefined && updates.power_operation) {
-        setPower(prevPower + (updates.power_operation === 'add' ? updates.power : -updates.power));
-      }
-      
-      if (updates.sustenance !== undefined && updates.sustenance_operation) {
-        setSustenance(prevSustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
-      }
-      
-      if (updates.salvage !== undefined && updates.salvage_operation) {
-        setSalvage(prevSalvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
-      }
-      
-      if (updates.gang_colour !== undefined) {
-        setGangColour(updates.gang_colour);
-      }
-
-      // Update hidden if provided
-      if (updates.hidden !== undefined) {
-        setHidden(updates.hidden);
-      }
-
-      // Handle gang variants only if provided
-      if (updates.gang_variants !== undefined) {
-        const newVariants = updates.gang_variants.map((variantId: string) =>
-          gangVariants.find(v => v.id === variantId) || { id: variantId, variant: 'Unknown' }
-        );
-        setGangVariants(newVariants);
-        setGangIsVariant(newVariants.length > 0);
-      }
-
-      // Use server action instead of fetch
+  // TanStack Query mutation for gang updates with optimistic updates
+  const updateGangMutation = useMutation({
+    mutationFn: async (updates: any) => {
       const { updateGang } = await import('@/app/actions/update-gang');
       const result = await updateGang({
         gang_id: id,
         ...updates
       });
-
       if (!result.success) {
-        // Revert optimistic updates if the request fails
-        setName(prevName);
-        setCredits(prevCredits);
-        setWealth(prevWealth);
-        // Revert parent component's credits state
-        onGangCreditsUpdate?.(prevCredits);
-        setAlignment(prevAlignment);
-        setAllianceId(prevAllianceId);
-        setAllianceName(prevAllianceName);
-        setGangAffiliationId(prevGangAffiliationId);
-        setGangAffiliationName(prevGangAffiliationName);
-        setGangOriginId(prevGangOriginId);
-        setGangOriginName(prevGangOriginName);
-        setReputation(prevReputation);
-        setMeat(prevMeat);
-        setScavengingRolls(prevScavengingRolls);
-        setExplorationPoints(prevExplorationPoints);
-        setPower(prevPower);
-        setSustenance(prevSustenance);
-        setSalvage(prevSalvage);
-        setGangIsVariant(prevGangIsVariant);
-        setGangVariants(prevGangVariants);
-        setGangColour(prevGangColour);
-        setHidden(prevHidden);
-        
         throw new Error(result.error || 'Failed to update gang');
       }
+      return result;
+    },
+    onMutate: async (updates) => {
+      // Snapshot previous values for rollback
+      const snapshot = {
+        name, credits, wealth, alignment, allianceId, allianceName,
+        gangAffiliationId, gangAffiliationName, gangOriginId, gangOriginName,
+        reputation, meat, scavengingRolls, explorationPoints, power, sustenance, salvage,
+        gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden
+      };
 
-      // Update from server response
+      // Apply optimistic updates
+      if (updates.name !== undefined) setName(updates.name);
+      if (updates.alignment !== undefined) setAlignment(updates.alignment);
+      if (updates.gang_colour !== undefined) setGangColour(updates.gang_colour);
+      if (updates.hidden !== undefined) setHidden(updates.hidden);
+
+      if (updates.credits !== undefined && updates.credits_operation) {
+        const creditsDelta = updates.credits_operation === 'add' ? updates.credits : -updates.credits;
+        const newCredits = snapshot.credits + creditsDelta;
+        setCredits(newCredits);
+        setWealth(snapshot.wealth + creditsDelta);
+        onGangCreditsUpdate?.(newCredits);
+      }
+
+      if (updates.alliance_id !== undefined) {
+        setAllianceId(updates.alliance_id);
+        // Use provided alliance name from modal for optimistic update
+        if (updates.alliance_name !== undefined) {
+          setAllianceName(updates.alliance_name);
+        }
+      }
+
+      if (updates.gang_affiliation_id !== undefined) {
+        setGangAffiliationId(updates.gang_affiliation_id);
+        // Use provided affiliation name from modal for optimistic update
+        if (updates.gang_affiliation_name !== undefined) {
+          setGangAffiliationName(updates.gang_affiliation_name);
+        }
+      }
+
+      if (updates.gang_origin_id !== undefined) {
+        setGangOriginId(updates.gang_origin_id);
+        setGangOriginName(updates.gang_origin_name || '');
+      }
+
+      if (updates.reputation !== undefined && updates.reputation_operation) {
+        setReputation(snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
+      }
+
+      if (updates.meat !== undefined && updates.meat_operation) {
+        setMeat(snapshot.meat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
+      }
+
+      if (updates.scavenging_rolls !== undefined && updates.scavenging_rolls_operation) {
+        setScavengingRolls(snapshot.scavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
+      }
+
+      if (updates.exploration_points !== undefined && updates.exploration_points_operation) {
+        setExplorationPoints(snapshot.explorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
+      }
+
+      if (updates.power !== undefined && updates.power_operation) {
+        setPower(snapshot.power + (updates.power_operation === 'add' ? updates.power : -updates.power));
+      }
+
+      if (updates.sustenance !== undefined && updates.sustenance_operation) {
+        setSustenance(snapshot.sustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
+      }
+
+      if (updates.salvage !== undefined && updates.salvage_operation) {
+        setSalvage(snapshot.salvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
+      }
+
+      if (updates.gang_variants !== undefined) {
+        const newVariants = updates.gang_variants.map((variantId: string) =>
+          availableVariants.find(v => v.id === variantId) ||
+          gangVariants.find(v => v.id === variantId) ||
+          { id: variantId, variant: 'Unknown' }
+        );
+        setGangVariants(newVariants);
+        setGangIsVariant(newVariants.length > 0);
+      }
+
+      return { snapshot };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.snapshot) {
+        const s = context.snapshot;
+        setName(s.name);
+        setCredits(s.credits);
+        setWealth(s.wealth);
+        onGangCreditsUpdate?.(s.credits);
+        setAlignment(s.alignment);
+        setAllianceId(s.allianceId);
+        setAllianceName(s.allianceName);
+        setGangAffiliationId(s.gangAffiliationId);
+        setGangAffiliationName(s.gangAffiliationName);
+        setGangOriginId(s.gangOriginId);
+        setGangOriginName(s.gangOriginName);
+        setReputation(s.reputation);
+        setMeat(s.meat);
+        setScavengingRolls(s.scavengingRolls);
+        setExplorationPoints(s.explorationPoints);
+        setPower(s.power);
+        setSustenance(s.sustenance);
+        setSalvage(s.salvage);
+        setGangVariants(s.gangVariants);
+        setGangIsVariant(s.gangIsVariant);
+        setGangColour(s.gangColour);
+        setHidden(s.hidden);
+      }
+
+      // Show error toast
+      console.error('Error updating gang:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update gang';
+      toast({
+        variant: "destructive",
+        description: errorMessage
+      });
+    },
+    onSuccess: (result, variables) => {
+      // Sync with server response
       if (result.data) {
         setLastUpdated(result.data.last_updated);
-        
-        // Update alliance name if alliance was changed
-        if (result.data.alliance_name) {
-          setAllianceName(result.data.alliance_name);
-        }
-        
-        // Update gang affiliation name if affiliation was changed
-        if (result.data.gang_affiliation_name !== undefined) {
-          setGangAffiliationName(result.data.gang_affiliation_name);
-        }
-        
-        // Update gang variants from server response
-        if (result.data.gang_variants) {
+        if (result.data.alliance_name) setAllianceName(result.data.alliance_name);
+        if (result.data.gang_affiliation_name !== undefined) setGangAffiliationName(result.data.gang_affiliation_name);
+        // Only update variants if they were actually changed in the request
+        if (variables.gang_variants !== undefined && result.data.gang_variants) {
           setGangVariants(result.data.gang_variants);
           setGangIsVariant(result.data.gang_variants.length > 0);
         }
       }
 
+      // Show success toast
+      toast({
+        description: "Gang updated successfully"
+      });
+    }
+  });
+
+  const handleGangUpdate = async (updates: any): Promise<boolean> => {
+    try {
+      await updateGangMutation.mutateAsync(updates);
       return true;
     } catch (error) {
       console.error('Error updating gang:', error);

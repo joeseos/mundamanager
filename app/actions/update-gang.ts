@@ -327,9 +327,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
     }
     
-    // If gang variants were updated, invalidate fighter types cache
+    // If gang variants were updated, invalidate fighter types cache and basic gang data
     if (params.gang_variants !== undefined) {
       revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.gang_id));
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id)); // Variants are stored in gang_basic
     }
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses specific granular tags

@@ -17,6 +17,7 @@ interface GangUpdates {
   credits_operation?: 'add' | 'subtract';
   alignment?: string;
   alliance_id?: string | null;
+  alliance_name?: string;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
   meat?: number;
@@ -34,6 +35,7 @@ interface GangUpdates {
   gang_variants?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
+  gang_affiliation_name?: string;
   gang_origin_id?: string | null;
   gang_origin_name?: string;
   hidden?: boolean;
@@ -308,122 +310,123 @@ export default function GangEditModal({
   };
 
   const handleSave = async () => {
-    try {
-      const updates: GangUpdates = {};
-      const initial = initialValuesRef.current;
+    const updates: GangUpdates = {};
+    const initial = initialValuesRef.current;
 
-      // Only include name if changed
-      if (formState.name !== initial.name) {
-        updates.name = formState.name;
-      }
-
-      // Only include alignment if changed
-      if (formState.alignment !== initial.alignment) {
-        updates.alignment = formState.alignment;
-      }
-
-      // Only include alliance if changed
-      if (formState.allianceId !== initial.allianceId) {
-        updates.alliance_id = formState.allianceId === '' ? null : formState.allianceId;
-      }
-
-      // Only include gang colour if changed
-      if (formState.gangColour !== initial.gangColour) {
-        updates.gang_colour = formState.gangColour;
-      }
-
-      // Only include gang affiliation if changed
-      if (formState.gangAffiliationId !== initial.gangAffiliationId) {
-        updates.gang_affiliation_id = formState.gangAffiliationId === '' ? null : formState.gangAffiliationId;
-      }
-
-      // Only include gang origin if changed
-      if (formState.gangOriginId !== initial.gangOriginId) {
-        updates.gang_origin_id = formState.gangOriginId === '' ? null : formState.gangOriginId;
-        updates.gang_origin_name = formState.gangOriginId === '' ? '' :
-          originList.find(origin => origin.id === formState.gangOriginId)?.origin_name || '';
-      }
-
-      // Only include hidden if changed
-      if (formState.hidden !== initial.hidden) {
-        updates.hidden = formState.hidden;
-      }
-
-      // Only include gang variants if changed (bidirectional check)
-      const variantsChanged = formState.gangVariants.length !== initial.gangVariants.length ||
-        formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id)) ||
-        initial.gangVariants.some(v => !formState.gangVariants.some(fv => fv.id === v.id));
-      if (variantsChanged) {
-        updates.gang_variants = formState.gangVariants.map(v => v.id);
-      }
-
-      // Handle resource deltas - only include if non-empty and non-zero
-      const creditsDifference = parseInt(formState.credits) || 0;
-      if (creditsDifference !== 0) {
-        updates.credits = Math.abs(creditsDifference);
-        updates.credits_operation = creditsDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const reputationDifference = parseInt(formState.reputation) || 0;
-      if (reputationDifference !== 0) {
-        updates.reputation = Math.abs(reputationDifference);
-        updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const meatDifference = parseInt(formState.meat) || 0;
-      if (meatDifference !== 0) {
-        updates.meat = Math.abs(meatDifference);
-        updates.meat_operation = meatDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const scavengingRollsDifference = parseInt(formState.scavengingRolls) || 0;
-      if (scavengingRollsDifference !== 0) {
-        updates.scavenging_rolls = Math.abs(scavengingRollsDifference);
-        updates.scavenging_rolls_operation = scavengingRollsDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const explorationPointsDifference = parseInt(formState.explorationPoints) || 0;
-      if (explorationPointsDifference !== 0) {
-        updates.exploration_points = Math.abs(explorationPointsDifference);
-        updates.exploration_points_operation = explorationPointsDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const powerDifference = parseInt(formState.power) || 0;
-      if (powerDifference !== 0) {
-        updates.power = Math.abs(powerDifference);
-        updates.power_operation = powerDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const sustenanceDifference = parseInt(formState.sustenance) || 0;
-      if (sustenanceDifference !== 0) {
-        updates.sustenance = Math.abs(sustenanceDifference);
-        updates.sustenance_operation = sustenanceDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const salvageDifference = parseInt(formState.salvage) || 0;
-      if (salvageDifference !== 0) {
-        updates.salvage = Math.abs(salvageDifference);
-        updates.salvage_operation = salvageDifference >= 0 ? 'add' : 'subtract';
-      }
-
-      const success = await onSave(updates);
-      
-      if (success) {
-        toast({
-          description: "Gang updated successfully",
-          variant: "default"
-        });
-        
-        onClose();
-      }
-    } catch (error) {
-      console.error('Error updating gang:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update gang. Please try again.",
-        variant: "destructive"
-      });
+    // Only include name if changed
+    if (formState.name !== initial.name) {
+      updates.name = formState.name;
     }
+
+    // Only include alignment if changed
+    if (formState.alignment !== initial.alignment) {
+      updates.alignment = formState.alignment;
+    }
+
+    // Only include alliance if changed
+    if (formState.allianceId !== initial.allianceId) {
+      updates.alliance_id = formState.allianceId === '' ? null : formState.allianceId;
+      // Include alliance name for optimistic update (server will also fetch it for validation)
+      if (formState.allianceId === '') {
+        updates.alliance_name = '';
+      } else {
+        const alliance = allianceList.find(a => a.id === formState.allianceId);
+        updates.alliance_name = alliance?.alliance_name || '';
+      }
+    }
+
+    // Only include gang colour if changed
+    if (formState.gangColour !== initial.gangColour) {
+      updates.gang_colour = formState.gangColour;
+    }
+
+    // Only include gang affiliation if changed
+    if (formState.gangAffiliationId !== initial.gangAffiliationId) {
+      updates.gang_affiliation_id = formState.gangAffiliationId === '' ? null : formState.gangAffiliationId;
+      // Include affiliation name for optimistic update (server will also fetch it for validation)
+      if (formState.gangAffiliationId === '') {
+        updates.gang_affiliation_name = '';
+      } else {
+        const affiliation = affiliationList.find(a => a.id === formState.gangAffiliationId);
+        updates.gang_affiliation_name = affiliation?.name || '';
+      }
+    }
+
+    // Only include gang origin if changed
+    if (formState.gangOriginId !== initial.gangOriginId) {
+      updates.gang_origin_id = formState.gangOriginId === '' ? null : formState.gangOriginId;
+      updates.gang_origin_name = formState.gangOriginId === '' ? '' :
+        originList.find(origin => origin.id === formState.gangOriginId)?.origin_name || '';
+    }
+
+    // Only include hidden if changed
+    if (formState.hidden !== initial.hidden) {
+      updates.hidden = formState.hidden;
+    }
+
+    // Only include gang variants if changed (bidirectional check)
+    const variantsChanged = formState.gangVariants.length !== initial.gangVariants.length ||
+      formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id)) ||
+      initial.gangVariants.some(v => !formState.gangVariants.some(fv => fv.id === v.id));
+    if (variantsChanged) {
+      updates.gang_variants = formState.gangVariants.map(v => v.id);
+    }
+
+    // Handle resource deltas - only include if non-empty and non-zero
+    const creditsDifference = parseInt(formState.credits) || 0;
+    if (creditsDifference !== 0) {
+      updates.credits = Math.abs(creditsDifference);
+      updates.credits_operation = creditsDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const reputationDifference = parseInt(formState.reputation) || 0;
+    if (reputationDifference !== 0) {
+      updates.reputation = Math.abs(reputationDifference);
+      updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const meatDifference = parseInt(formState.meat) || 0;
+    if (meatDifference !== 0) {
+      updates.meat = Math.abs(meatDifference);
+      updates.meat_operation = meatDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const scavengingRollsDifference = parseInt(formState.scavengingRolls) || 0;
+    if (scavengingRollsDifference !== 0) {
+      updates.scavenging_rolls = Math.abs(scavengingRollsDifference);
+      updates.scavenging_rolls_operation = scavengingRollsDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const explorationPointsDifference = parseInt(formState.explorationPoints) || 0;
+    if (explorationPointsDifference !== 0) {
+      updates.exploration_points = Math.abs(explorationPointsDifference);
+      updates.exploration_points_operation = explorationPointsDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const powerDifference = parseInt(formState.power) || 0;
+    if (powerDifference !== 0) {
+      updates.power = Math.abs(powerDifference);
+      updates.power_operation = powerDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const sustenanceDifference = parseInt(formState.sustenance) || 0;
+    if (sustenanceDifference !== 0) {
+      updates.sustenance = Math.abs(sustenanceDifference);
+      updates.sustenance_operation = sustenanceDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    const salvageDifference = parseInt(formState.salvage) || 0;
+    if (salvageDifference !== 0) {
+      updates.salvage = Math.abs(salvageDifference);
+      updates.salvage_operation = salvageDifference >= 0 ? 'add' : 'subtract';
+    }
+
+    // Close modal immediately for instant UX (optimistic update will handle UI)
+    onClose();
+
+    // Call onSave which triggers TanStack Query mutation with optimistic updates
+    // Toast notifications are handled by the mutation in gang.tsx
+    onSave(updates);
   };
 
   const editModalContent = (
