@@ -208,7 +208,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
       ]
     };
 
-    revalidatePath('/customise');
+    revalidatePath('/');
     return { success: true, data: transformedFighter };
   } catch (error) {
     console.error('Error in createCustomFighter:', error);
@@ -253,7 +253,7 @@ export async function deleteCustomFighter(id: string): Promise<{ success: boolea
       return { success: false, error: `Failed to delete custom fighter type: ${deleteError.message}` };
     }
 
-    revalidatePath('/customise');
+    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomFighter:', error);
@@ -474,7 +474,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       ]
     };
 
-    revalidatePath('/customise');
+    revalidatePath('/');
     return { success: true, data: transformedFighter };
   } catch (error) {
     console.error('Error in updateCustomFighter:', error);

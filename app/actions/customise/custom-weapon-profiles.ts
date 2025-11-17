@@ -87,7 +87,7 @@ export async function saveCustomWeaponProfiles(
     }
 
     // Revalidate the customize page
-    revalidatePath('/customise');
+    revalidatePath('/');
     
     return { success: true };
   } catch (error) {

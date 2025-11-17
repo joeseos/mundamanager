@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type MouseEvent } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -86,6 +86,20 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
     setOpen(false);
   };
 
+  const createHomeTabHandler = (tab: 'gangs' | 'campaigns' | 'customassets') => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/') {
+      event.preventDefault();
+      setOpen(false);
+      window.dispatchEvent(
+        new CustomEvent<'gangs' | 'campaigns' | 'customassets'>('homeTabSwitch', {
+          detail: tab,
+        })
+      );
+    } else {
+      handleLinkClick();
+    }
+  };
+
   return (
     <div className="relative">
       <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
@@ -146,23 +160,23 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/?tab=gangs" className="w-full cursor-pointer">
+            <Link href="/?tab=gangs" onClick={createHomeTabHandler('gangs')} className="w-full cursor-pointer">
               <FaUsers className="mr-2 h-4 w-4" />
               Gangs
             </Link>
           </DropdownMenuItem>
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/?tab=campaigns" className="w-full cursor-pointer">
+            <Link href="/?tab=campaigns" onClick={createHomeTabHandler('campaigns')} className="w-full cursor-pointer">
               <FiMap className="mr-2 h-4 w-4" />
               Campaigns
             </Link>
           </DropdownMenuItem>
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/customise" className="w-full cursor-pointer">
+            <Link href="/?tab=customassets" onClick={createHomeTabHandler('customassets')} className="w-full cursor-pointer">
               <MdOutlineColorLens className="mr-2 h-4 w-4" />
-              Customise
+              Custom Assets
             </Link>
           </DropdownMenuItem>
 

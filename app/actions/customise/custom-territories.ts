@@ -41,8 +41,8 @@ export async function updateCustomTerritory(
     throw new Error(`Failed to update territory: ${error.message}`);
   }
 
-  // Revalidate the customize page and territory cache
-  revalidatePath('/customise');
+  // Revalidate the home page (customise tab) and territory cache
+  revalidatePath('/');
   revalidateTag(`custom-territories-${user.id}`);
   revalidateTag('territories-list');
   
@@ -68,8 +68,8 @@ export async function deleteCustomTerritory(territoryId: string) {
     throw new Error(`Failed to delete territory: ${error.message}`);
   }
 
-  // Revalidate the customize page and territory cache
-  revalidatePath('/customise');
+  // Revalidate the home page (customise tab) and territory cache
+  revalidatePath('/');
   revalidateTag(`custom-territories-${user.id}`);
   revalidateTag('territories-list');
   
@@ -131,8 +131,8 @@ export async function createCustomTerritory(data: {
     throw new Error(`Failed to create territory: ${error.message}`);
   }
 
-  // Revalidate the customize page and territory cache
-  revalidatePath('/customise');
+  // Revalidate the home page (customise tab) and territory cache
+  revalidatePath('/');
   revalidateTag(`custom-territories-${user.id}`);
   revalidateTag('territories-list');
   
