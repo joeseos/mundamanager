@@ -216,9 +216,9 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
-      attacker: { gang_name: attacker?.name },
-      defender: { gang_name: defender?.name },
-      winner: winner?.name ? { gang_name: winner.name } : null
+      attacker: attacker?.name ? { gang_id: attacker_id, gang_name: attacker.name } : undefined,
+      defender: defender?.name ? { gang_id: defender_id, gang_name: defender.name } : undefined,
+      winner: winner?.name ? { gang_id: winner_id, gang_name: winner.name } : undefined
     };
 
     // 🎯 Invalidate cache - battles and territories if claimed
@@ -428,9 +428,9 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
-      attacker: { gang_name: attacker?.name },
-      defender: { gang_name: defender?.name },
-      winner: winner?.name ? { gang_name: winner.name } : null
+      attacker: attacker?.name ? { gang_id: attacker_id, gang_name: attacker.name } : undefined,
+      defender: defender?.name ? { gang_id: defender_id, gang_name: defender.name } : undefined,
+      winner: winner?.name ? { gang_id: winner_id, gang_name: winner.name } : undefined
     };
 
     // 🎯 Invalidate cache - battles and territories if claimed

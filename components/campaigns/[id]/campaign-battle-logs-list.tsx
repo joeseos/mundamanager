@@ -140,11 +140,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Callback to handle battle updates from modal - supports both value and updater function
   const handleBattleUpdate = (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => {
-    if (typeof updatedBattles === 'function') {
-      setLocalBattles(updatedBattles);
-    } else {
-      setLocalBattles(updatedBattles);
-    }
+    setLocalBattles(updatedBattles);
   };
 
   // Expose the openAddModal function to parent components

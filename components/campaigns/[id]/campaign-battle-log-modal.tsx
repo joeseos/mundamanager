@@ -57,6 +57,7 @@ const CampaignBattleLogModal = ({
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
@@ -507,6 +508,9 @@ const CampaignBattleLogModal = ({
   };
 
   const handleSaveBattle = async () => {
+    // Guard against double-click
+    if (isSubmitting) return false;
+
     // Prevent non-admin users from updating existing battles
     if (isEditMode && !isAdmin) {
       toast({
@@ -515,7 +519,7 @@ const CampaignBattleLogModal = ({
       });
       return false;
     }
-    
+
     // Validate required fields
     if (selectedScenario === '') {
       toast({
@@ -605,6 +609,9 @@ const CampaignBattleLogModal = ({
       created_at: new Date(battleDate + 'T00:00:00').toISOString()
     };
 
+    // Set submitting flag to prevent double-click
+    setIsSubmitting(true);
+
     // Close modal immediately for instant UX
     onClose();
     resetForm();
@@ -615,6 +622,9 @@ const CampaignBattleLogModal = ({
     } else {
       createBattleMutation.mutate(battleData);
     }
+
+    // Reset submitting flag after modal animation completes
+    setTimeout(() => setIsSubmitting(false), 500);
 
     return true;
   };
