@@ -16,12 +16,19 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
     includeInactiveFighters: true,
     includeRecoveryFighters: true,
   });
+  const [printStyle, setPrintStyle] = useState<'eco' | 'fancy'>('eco');
 
   const handleConfirm = () => {
     const gangCard = document.getElementById('gang_card');
     const details = document.getElementById('gang_card_additional_details');
     const inactiveFighters = document.querySelectorAll('[id^="is_inactive"]');
     const recoveryFighters = document.querySelectorAll('[id^="is_recovery"]');
+
+    if (printStyle === 'fancy') {
+      document.body.classList.add('fancy-print');
+    } else {
+      document.body.classList.remove('fancy-print');
+    }
 
     if (gangCard) gangCard.style.display = printOptions.includeGangCard ? '' : 'none';
     if (details) details.style.display = printOptions.includeAdditionalDetails ? '' : 'none';
@@ -57,6 +64,7 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
       recoveryFighters.forEach(el => {
         (el as HTMLElement).style.display = '';
       });
+      document.body.classList.remove('fancy-print');
     }, 100);
 
     onClose();
@@ -71,6 +79,44 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
       confirmText="Print"
       content={
         <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="block text-sm font-medium text-muted-foreground">Print style</div>
+            <div className="flex flex-col gap-2">
+              {[
+                {
+                  id: 'eco',
+                  label: 'Eco',
+                  description: 'Hide decorative backgrounds to save ink.'
+                },
+                {
+                  id: 'fancy',
+                  label: 'Fancy',
+                  description: 'Include illustrated card backgrounds when printing.'
+                }
+              ].map(({ id, label, description }) => (
+                <label
+                  key={id}
+                  className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${
+                    printStyle === id ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="print-style"
+                    value={id}
+                    checked={printStyle === id}
+                    onChange={() => setPrintStyle(id as 'eco' | 'fancy')}
+                    className="mt-1 sr-only"
+                  />
+                  <div>
+                    <div className="text-sm font-medium">{label}</div>
+                    <div className="text-xs text-muted-foreground">{description}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="block text-sm font-medium text-muted-foreground">Include the following:</div>
 
           {[

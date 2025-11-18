@@ -398,7 +398,7 @@ const FighterCard = memo(function FighterCard({
       <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
         <div className="flex w-full">
           <div
-            className={`absolute inset-0 bg-no-repeat bg-cover print:!bg-none ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
+            className={`absolute inset-0 bg-no-repeat bg-cover print:!bg-none fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
@@ -414,8 +414,8 @@ const FighterCard = memo(function FighterCard({
                 </div>
               )}
               <div className="flex flex-col items-baseline w-full">
-                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground">{name}</div>
-                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-muted-foreground">
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground fancy-print-keep-color-heading">{name}</div>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-muted-foreground fancy-print-keep-color-subtitle">
                   {type}
                   {alliance_crew_name && ` - ${alliance_crew_name}`}
                   {fighter_class && ` (${fighter_class})`}
