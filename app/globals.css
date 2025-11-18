@@ -177,6 +177,23 @@
       max-width: 10rem; /* Smaller width for smaller screens */
     }
 
+    body.fancy-print .fighter-card-bg.print-fighter-card {
+      background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp') !important;
+      background-color: #faf9f7 !important;
+    }
+
+    body.fancy-print .fancy-print-top-bar {
+      background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png') !important;
+    }
+
+    body.fancy-print .fancy-print-keep-color-heading {
+      color: #ffffff !important;
+    }
+
+    body.fancy-print .fancy-print-keep-color-subtitle {
+      color: #d1d5db !important;
+    }
+
     html {
       zoom: 1;
     }
