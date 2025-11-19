@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { FaDownload } from "react-icons/fa";
+import { IoDownloadOutline } from "react-icons/io5";
+import Modal from '@/components/ui/modal';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -14,8 +16,10 @@ export function PwaInstallButton() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
+  const [isWindowsDesktop, setIsWindowsDesktop] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [showAndroidInstructions, setShowAndroidInstructions] = useState(false);
+  const [showDesktopInfo, setShowDesktopInfo] = useState(false);
 
   useEffect(() => {
     // Detect iOS
@@ -40,8 +44,13 @@ export function PwaInstallButton() {
 
     const ios = checkIOS();
     const android = checkAndroid();
+    const isWindows =
+      /windows/.test(window.navigator.userAgent.toLowerCase()) &&
+      !/phone|tablet|mobile/.test(window.navigator.userAgent.toLowerCase());
+
     setIsIOS(ios);
     setIsAndroid(android);
+    setIsWindowsDesktop(isWindows && !ios && !android);
 
     // Check if app is already installed
     const checkIfInstalled = () => {
@@ -124,6 +133,11 @@ export function PwaInstallButton() {
       return;
     }
 
+    if (isWindowsDesktop) {
+      setShowDesktopInfo(true);
+      return;
+    }
+
     // For Android, if no prompt available, show manual instructions
     if (!deferredPrompt) {
       if (isAndroid) {
@@ -155,7 +169,7 @@ export function PwaInstallButton() {
   }
 
   // Don't render if not installable (only applies to non-iOS)
-  if (!isIOS && !isInstallable) {
+  if (!isIOS && !isInstallable && !isWindowsDesktop) {
     return null;
   }
 
@@ -166,61 +180,97 @@ export function PwaInstallButton() {
         className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full leading-none"
         aria-label="Mobile App"
       >
-        <FaDownload className="mr-1 size-5" />
+        <FaDownload className="mr-1 size-4" />
         Mobile App
       </button>
       
       {showIOSInstructions && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowIOSInstructions(false)}
-        >
-          <div 
-            className="bg-card border rounded-lg p-6 max-w-md w-full shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold mb-4">Add to Home Screen</h3>
-            <ol className="list-decimal list-inside space-y-2 text-sm mb-4">
-              <li>Tap the Share button <span className="inline-block">📤</span> at the bottom of the screen</li>
-              <li>Scroll down and tap &quot;Add to Home Screen&quot;</li>
-              <li>Tap &quot;Add&quot; in the top right corner</li>
-            </ol>
-            <button
-              onClick={() => setShowIOSInstructions(false)}
-              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
+        <Modal
+          title="Add to Home Screen"
+          onClose={() => setShowIOSInstructions(false)}
+          width="sm"
+          content={
+            <div className="space-y-4">
+              <ol className="list-decimal list-inside space-y-2 text-sm">
+                <li>
+                  Tap the Share button{' '}
+                  <IoDownloadOutline className="inline-block align-middle" /> at
+                  the bottom of the screen
+                </li>
+                <li>Scroll down and tap "Add to Home Screen"</li>
+                <li>Tap "Add" in the top right corner</li>
+              </ol>
+              <button
+                onClick={() => setShowIOSInstructions(false)}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                Got it
+              </button>
+            </div>
+          }
+        />
       )}
 
       {showAndroidInstructions && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowAndroidInstructions(false)}
-        >
-          <div 
-            className="bg-card border rounded-lg p-4 max-w-md w-full shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold mb-4">Install App</h3>
-            <ol className="list-decimal list-inside space-y-2 text-sm mb-4">
-              <li>Tap the menu button <span className="inline-block">⋮</span> (three dots) of your browser</li>
-              <li>Select "Install app" or "Add to Home screen"</li>
-              <li>Follow the prompts to complete installation</li>
-            </ol>
-            <div className="text-xs text-muted-foreground mb-4">
-              Note: If you don't see the install option, this browser may not support Progressive Web App. Try accessing this site from another browser.
+        <Modal
+          title="Install App"
+          onClose={() => setShowAndroidInstructions(false)}
+          width="sm"
+          content={
+            <div className="space-y-4">
+              <ol className="list-decimal list-inside space-y-2 text-sm mb-2">
+                <li>
+                  Tap the menu button <span className="inline-block">⋮</span>{' '}
+                  (three dots) of your browser
+                </li>
+                <li>Select "Install app" or "Add to Home screen"</li>
+                <li>Follow the prompts to complete installation</li>
+              </ol>
+              <div className="text-xs text-muted-foreground">
+                Note: If you don't see the install option, this browser may
+                not support Progressive Web App. Try accessing this site from
+                another browser.
+              </div>
+              <button
+                onClick={() => setShowAndroidInstructions(false)}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                Got it
+              </button>
             </div>
-            <button
-              onClick={() => setShowAndroidInstructions(false)}
-              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
+          }
+        />
+      )}
+
+      {showDesktopInfo && (
+        <Modal
+          title="Mobile App"
+          onClose={() => setShowDesktopInfo(false)}
+          width="sm"
+          content={
+            <div className="space-y-4 text-sm">
+              <p>
+                Munda Manager can be installed as a mobile app on your phone or tablet (Android & iOS).
+                Open this site in any browser and click on this button again to install it on your device.
+              </p>
+              <div className="rounded-md border p-3 bg-muted">
+                <p className="mb-2">
+                  On Android: you can also open the browser menu and select <strong>Install app</strong> or
+                  <strong> Add to Home screen</strong>.
+                </p>
+                <p>
+                  On iOS: you need to tap the Share button at the bottom of the screen and choose <strong>Add to Home Screen</strong>.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDesktopInfo(false)}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                Got it
+              </button>
+            </div>
+          }
+        />
       )}
     </>
   );
