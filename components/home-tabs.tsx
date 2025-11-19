@@ -94,12 +94,12 @@ export default function HomeTabs({
   return (
     <div className="w-full">
       {/* Tab Navigation */}
-      <div className="bg-card shadow-md rounded-lg mb-4 flex">
+      <div className="bg-card shadow-md rounded-lg mb-4 flex justify-center">
         {tabTitles.map((title, index) => (
           <button
             key={index}
             onClick={() => handleTabChange(index)}
-            className={`flex-1 md:p-4 p-2 leading-none text-center transition-colors ${
+            className={`md:[word-spacing:0vw] [word-spacing:100vw] flex-1 py-4 px-4 leading-none text-center transition-colors ${
               activeTab === index
                 ? 'text-foreground font-medium border-b-0 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
