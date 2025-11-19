@@ -12,6 +12,7 @@ import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { GrHelpBook } from "react-icons/gr";
 import { Button } from '@/components/ui/button';
+import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
@@ -92,19 +93,21 @@ export default async function Home() {
               Join our Discord to chat or get help with Necromunda and Munda Manager.
             </p>
             <div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 justify-center">
                 <a href="https://tinyurl.com/how-to-use-mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
-                  <GrHelpBook className="mr-2 h-4 w-4" />
-                  User Guide
+                  <GrHelpBook className="mr-1 size-4" />
+                  <span className="sm:hidden">Guide</span>
+                  <span className="hidden sm:inline">User Guide</span>
                 </a>
                 <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
-                  <FaDiscord className="mr-2 h-4 w-4" />
+                  <FaDiscord className="mr-1 size-4" />
                   Discord
                 </a>
                 <a href="https://www.patreon.com/c/mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
-                  <FaPatreon className="mr-2 h-4 w-4" />
+                  <FaPatreon className="mr-1 size-4" />
                   Patreon
                 </a>
+                <PwaInstallButton />
               </div>
             </div>
             <div className="mt-4">
