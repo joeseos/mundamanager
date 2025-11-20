@@ -99,7 +99,7 @@ export default function HomeTabs({
           <button
             key={index}
             onClick={() => handleTabChange(index)}
-            className={`md:[word-spacing:0vw] [word-spacing:100vw] flex-1 p4 leading-none text-center transition-colors ${
+            className={`md:[word-spacing:0vw] [word-spacing:100vw] flex-1 md:p-4 p-2 leading-none text-center transition-colors ${
               activeTab === index
                 ? 'text-foreground font-medium border-b-0 border-primary'
                 : 'text-muted-foreground hover:text-foreground'
