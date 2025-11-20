@@ -780,16 +780,6 @@ export default function GangVehicles({
                         variant="outline"
                         size="sm"
                         className="h-6 px-2 text-xs py-0"
-                        onClick={(e) => handleSellClick(e, vehicle)}
-                        disabled={isLoading || isSellLoading || !userPermissions?.canEdit}
-                        title="Sell"
-                      >
-                        <MdCurrencyExchange className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs py-0"
                         onClick={(e) => handleEditClick(e, vehicle)}
                         disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
                         title="Edit"
@@ -797,6 +787,16 @@ export default function GangVehicles({
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs py-0"
+                        onClick={(e) => handleSellClick(e, vehicle)}
+                        disabled={isLoading || isSellLoading || !userPermissions?.canEdit}
+                        title="Sell"
+                      >
+                        <MdCurrencyExchange className="h-4 w-4" />
+                      </Button>
+                      {/* <Button
                         variant="destructive"
                         size="sm"
                         className="h-6 px-2 text-xs py-0"
@@ -804,8 +804,8 @@ export default function GangVehicles({
                         disabled={isLoading || isDeleteLoading || !userPermissions?.canEdit}
                         title="Delete"
                       >
-                        <LuTrash2 className="h-4 w-4" /> {/* Delete */}
-                      </Button>
+                        <LuTrash2 className="h-4 w-4" />
+                      </Button> */}
                     </div>
                     <span className="w-20 text-right">{calculateVehicleTotalValue(vehicle)}</span>
                   </label>
