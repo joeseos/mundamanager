@@ -359,7 +359,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (!wasActive && willBeActive) {
           delta = +(await getEffectiveCost()); // Became active
         }
-        // else: stayed inactive or was already active, delta = 0
+        // else: stayed inactive (still killed or retired), delta = 0
 
         await adjustRating(delta);
 
