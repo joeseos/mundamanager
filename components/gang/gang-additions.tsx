@@ -43,10 +43,19 @@ interface EquipmentSelection {
   [key: string]: EquipmentSelectionCategory;
 }
 
+/**
+ * Represents equipment selected by the user during fighter creation.
+ * Tracks which selection category the equipment came from to prevent
+ * cross-category conflicts when managing selections.
+ */
 interface SelectedEquipmentItem {
-  categoryId: string;      // Which selection category this came from
-  equipmentId: string;     // The actual equipment ID
+  /** The selection category this equipment belongs to */
+  categoryId: string;
+  /** The unique equipment ID */
+  equipmentId: string;
+  /** Cost of this equipment */
   cost: number;
+  /** Quantity selected */
   quantity: number;
 }
 
@@ -742,12 +751,13 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                                       );
 
                                       if (existingDefaultIndex >= 0) {
-                                        // Increase existing default item quantity
-                                        withoutReplacement[existingDefaultIndex] = {
-                                          ...withoutReplacement[existingDefaultIndex],
-                                          quantity: withoutReplacement[existingDefaultIndex].quantity + replacementQuantity
+                                        // Increase existing default item quantity (immutable update)
+                                        const updated = [...withoutReplacement];
+                                        updated[existingDefaultIndex] = {
+                                          ...updated[existingDefaultIndex],
+                                          quantity: updated[existingDefaultIndex].quantity + replacementQuantity
                                         };
-                                        return withoutReplacement;
+                                        return updated;
                                       } else {
                                         // Add back the default item
                                         return [...withoutReplacement, {
@@ -941,8 +951,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     }
 
     try {
-
-
       // Prepare default equipment from the selected gang addition type
       const gangAdditionTypeForEquipment = gangAdditionTypes.find(t => t.id === fighterTypeIdToUse);
       const defaultEquipment = gangAdditionTypeForEquipment?.default_equipment?.map(item => ({
@@ -951,12 +959,14 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         quantity: 1
       })) || [];
 
-      // Clean transformation - no string manipulation needed!
-      const selectedEquipmentForBackend = selectedEquipment.map(item => ({
-        equipment_id: item.equipmentId,
-        cost: item.cost,
-        quantity: item.quantity
-      }));
+      // Clean transformation with validation - no string manipulation needed!
+      const selectedEquipmentForBackend = selectedEquipment
+        .filter(item => item.equipmentId && item.quantity > 0)
+        .map(item => ({
+          equipment_id: item.equipmentId,
+          cost: item.cost,
+          quantity: item.quantity
+        }));
 
       // Use the server action instead of direct RPC call
       const result = await addFighterToGang({
