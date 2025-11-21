@@ -94,7 +94,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       // Case 3: Inactive fighter → Active fighter (ADD)
       ratingDelta = vehicleCost;
     }
-    // Case 4: Active → Active or Inactive → Inactive or Inactive → Unassigned: no change
+    // Case 4: Active → Active fighter or Inactive → Inactive fighter: no change
 
     if (ratingDelta !== 0) {
       try {
