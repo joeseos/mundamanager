@@ -154,13 +154,26 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Handle different actions
     switch (params.action) {
       case 'kill': {
-        const wasKilled = !!fighter.killed;
+        // Check if fighter is CURRENTLY active (before kill toggle)
+        const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+
         const willBeKilled = !fighter.killed;
-        const delta = willBeKilled ? -(await getEffectiveCost()) : +(await getEffectiveCost());
+
+        // Check if fighter WILL BE active (after kill toggle)
+        const willBeActive = willBeKilled ? false : (!fighter.retired && !fighter.enslaved);
+
+        // Delta = change in active status
+        let delta = 0;
+        if (wasActive && !willBeActive) {
+          delta = -(await getEffectiveCost()); // Became inactive
+        } else if (!wasActive && willBeActive) {
+          delta = +(await getEffectiveCost()); // Became active
+        }
+        // else: stayed inactive, delta = 0
 
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             killed: willBeKilled,
             updated_at: new Date().toISOString()
           })
@@ -207,12 +220,26 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'retire': {
+        // Check if fighter is CURRENTLY active (before retire toggle)
+        const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+
         const willBeRetired = !fighter.retired;
-        const delta = willBeRetired ? -(await getEffectiveCost()) : +(await getEffectiveCost());
+
+        // Check if fighter WILL BE active (after retire toggle)
+        const willBeActive = willBeRetired ? false : (!fighter.killed && !fighter.enslaved);
+
+        // Delta = change in active status
+        let delta = 0;
+        if (wasActive && !willBeActive) {
+          delta = -(await getEffectiveCost()); // Became inactive
+        } else if (!wasActive && willBeActive) {
+          delta = +(await getEffectiveCost()); // Became active
+        }
+        // else: stayed inactive, delta = 0
 
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             retired: willBeRetired,
             updated_at: new Date().toISOString()
           })
@@ -309,9 +336,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'rescue': {
+        // Check if fighter is CURRENTLY active (before rescue)
+        const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
-          .update({ 
+          .update({
             enslaved: false,
             updated_at: new Date().toISOString()
           })
@@ -321,8 +351,16 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        // Add back effective cost after making fighter active
-        const delta = +(await getEffectiveCost());
+        // Check if fighter WILL BE active (after rescue)
+        const willBeActive = !fighter.killed && !fighter.retired;
+
+        // Delta = change in active status
+        let delta = 0;
+        if (!wasActive && willBeActive) {
+          delta = +(await getEffectiveCost()); // Became active
+        }
+        // else: stayed inactive (still killed or retired), delta = 0
+
         await adjustRating(delta);
 
         // Log fighter rescue
