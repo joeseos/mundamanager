@@ -73,12 +73,14 @@ export default function PrintModal({ gangId, onClose }: PrintModalProps) {
   return (
     <Modal
       title="Print Options"
-      helper="These settings only affect desktop printing. They have no effect when printing from a mobile device."
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Print"
       content={
         <div className="space-y-4">
+          <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+            <strong>Note:</strong> These settings are used for desktop printing and might have no effect when printing from a mobile device. iOS devices are currently not supported for printing.
+          </div>
           <div className="space-y-2">
             <div className="block text-sm font-medium text-muted-foreground">Print style</div>
             <div className="flex flex-col gap-2">
