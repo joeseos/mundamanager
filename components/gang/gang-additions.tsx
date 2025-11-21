@@ -43,6 +43,22 @@ interface EquipmentSelection {
   [key: string]: EquipmentSelectionCategory;
 }
 
+/**
+ * Represents equipment selected by the user during fighter creation.
+ * Tracks which selection category the equipment came from to prevent
+ * cross-category conflicts when managing selections.
+ */
+interface SelectedEquipmentItem {
+  /** The selection category this equipment belongs to */
+  categoryId: string;
+  /** The unique equipment ID */
+  equipmentId: string;
+  /** Cost of this equipment */
+  cost: number;
+  /** Quantity selected */
+  quantity: number;
+}
+
 interface GangAdditionsProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
@@ -230,11 +246,7 @@ export default function GangAdditions({
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
 
   // Add state to track selected equipment with costs
-  const [selectedEquipment, setSelectedEquipment] = useState<Array<{
-    equipment_id: string;
-    cost: number;
-    quantity: number;
-  }>>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
 
   // Automatically select NULL sub-type if available, otherwise select the cheapest one
   useEffect(() => {
@@ -561,26 +573,25 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
                             // Remove all equipment selections for this category and restore default if needed
                             setSelectedEquipment((prev) => {
-                              const currentCategoryOptions = categoryData.options || [];
-                              let filtered = prev.filter(item =>
-                                !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
-                              );
-                              
+                              // Remove selections from this category
+                              let filtered = prev.filter(item => item.categoryId !== categoryId);
+
                               // For optional_single, restore default equipment when "Keep Default" is selected
                               if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
                                 // Add back all default equipment for this category
                                 categoryData.default.forEach((defaultItem: any) => {
                                   // Only add if not already present
-                                  if (!filtered.some(item => item.equipment_id === defaultItem.id)) {
+                                  if (!filtered.some(item => item.equipmentId === defaultItem.id)) {
                                     filtered.push({
-                                      equipment_id: defaultItem.id,
+                                      categoryId: categoryId,  // Track that this belongs to this category
+                                      equipmentId: defaultItem.id,
                                       cost: 0, // Default equipment has cost 0
                                       quantity: defaultItem.quantity || 1
                                     });
                                   }
                                 });
                               }
-                              
+
                               return filtered;
                             });
 
@@ -638,25 +649,13 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
                                 // Update equipment with costs - handle default replacement for optional_single
                                 setSelectedEquipment((prev) => {
-                                  // Remove previous selections from this specific category only
-                                  // Use current category options directly to avoid stale state issues
-                                  const currentCategoryOptions = categoryData.options || [];
-                                  
-                                  // Remove any equipment that could come from this category
-                                  let filtered = prev.filter(item => {
-                                    return !currentCategoryOptions.some(categoryOption => categoryOption.id === item.equipment_id);
-                                  });
-                                  
-                                  // For optional_single selections, also remove default equipment when selecting a replacement
-                                  if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
-                                    // Remove all default equipment from this category
-                                    categoryData.default.forEach((defaultItem: any) => {
-                                      filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
-                                    });
-                                  }
-                                  
+                                  // Remove previous selection from THIS category only
+                                  let filtered = prev.filter(item => item.categoryId !== categoryId);
+
+                                  // Add new selection with clear category tracking
                                   return [...filtered, {
-                                    equipment_id: option.id,
+                                    categoryId: categoryId,
+                                    equipmentId: option.id,
                                     cost: option.cost || 0,
                                     quantity: 1
                                   }];
@@ -698,29 +697,31 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                                     // Replace part of the default item quantity
                                     const defaultItem = categoryData.default[0] as any;
                                     const replacementQuantity = option.max_quantity || 1;
-                                    
+
                                     setSelectedEquipment(prev => {
                                       const updatedEquipment = prev.map(item => {
-                                        if (item.equipment_id === defaultItem.id) {
+                                        if (item.equipmentId === defaultItem.id && item.quantity > 0) {
                                           const newQuantity = item.quantity - replacementQuantity;
-                                          return newQuantity > 0 
+                                          return newQuantity > 0
                                             ? { ...item, quantity: newQuantity }
                                             : null; // Mark for removal
                                         }
                                         return item;
-                                      }).filter((item): item is { equipment_id: string; cost: number; quantity: number } => item !== null); // Remove items marked for removal
-                                      
+                                      }).filter((item): item is SelectedEquipmentItem => item !== null); // Remove items marked for removal
+
                                       // Add the replacement item
                                       return [...updatedEquipment, {
-                                        equipment_id: option.id,
+                                        categoryId: categoryId,
+                                        equipmentId: option.id,
                                         cost: optionCost,
                                         quantity: replacementQuantity
                                       }];
                                     });
                                   } else {
                                     // Just add the new equipment
-                                    setSelectedEquipment([...selectedEquipment, {
-                                      equipment_id: option.id,
+                                    setSelectedEquipment(prev => [...prev, {
+                                      categoryId: categoryId,
+                                      equipmentId: option.id,
                                       cost: optionCost,
                                       quantity: 1
                                     }]);
@@ -737,25 +738,31 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                                     // Restore the default item quantity and remove the replacement
                                     const defaultItem = categoryData.default[0] as any;
                                     const replacementQuantity = option.max_quantity || 1;
-                                    
+
                                     setSelectedEquipment(prev => {
                                       // Remove the replacement item
-                                      const withoutReplacement = prev.filter(item => item.equipment_id !== option.id);
-                                      
+                                      const withoutReplacement = prev.filter(item =>
+                                        !(item.categoryId === categoryId && item.equipmentId === option.id)
+                                      );
+
                                       // Check if default item exists, if so increase its quantity, otherwise add it back
-                                      const existingDefaultIndex = withoutReplacement.findIndex(item => item.equipment_id === defaultItem.id);
-                                      
+                                      const existingDefaultIndex = withoutReplacement.findIndex(
+                                        item => item.equipmentId === defaultItem.id
+                                      );
+
                                       if (existingDefaultIndex >= 0) {
-                                        // Increase existing default item quantity
-                                        withoutReplacement[existingDefaultIndex] = {
-                                          ...withoutReplacement[existingDefaultIndex],
-                                          quantity: withoutReplacement[existingDefaultIndex].quantity + replacementQuantity
+                                        // Increase existing default item quantity (immutable update)
+                                        const updated = [...withoutReplacement];
+                                        updated[existingDefaultIndex] = {
+                                          ...updated[existingDefaultIndex],
+                                          quantity: updated[existingDefaultIndex].quantity + replacementQuantity
                                         };
-                                        return withoutReplacement;
+                                        return updated;
                                       } else {
                                         // Add back the default item
                                         return [...withoutReplacement, {
-                                          equipment_id: defaultItem.id,
+                                          categoryId: categoryId,
+                                          equipmentId: defaultItem.id,
                                           cost: 0, // Default items have cost 0
                                           quantity: replacementQuantity
                                         }];
@@ -763,7 +770,9 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
                                     });
                                   } else {
                                     // Just remove the equipment
-                                    setSelectedEquipment(selectedEquipment.filter(item => item.equipment_id !== option.id));
+                                    setSelectedEquipment(prev =>
+                                      prev.filter(item => !(item.categoryId === categoryId && item.equipmentId === option.id))
+                                    );
                                   }
                                   
                                   setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
@@ -851,27 +860,28 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
   };
 
   // Helper function to get default equipment from equipment selection
-  const getDefaultEquipment = (equipmentSelection: any): Array<{equipment_id: string, cost: number, quantity: number}> => {
-    const defaults: Array<{equipment_id: string, cost: number, quantity: number}> = [];
-    
+  const getDefaultEquipment = (equipmentSelection: any): SelectedEquipmentItem[] => {
+    const defaults: SelectedEquipmentItem[] = [];
+
     if (!equipmentSelection) return defaults;
-    
+
     // Normalize equipment_selection to UI format
     const normalizedSelection = normalizeEquipmentSelection(equipmentSelection);
-    
+
     Object.entries(normalizedSelection).forEach(([categoryId, categoryData]) => {
       if (categoryData?.default && Array.isArray(categoryData.default)) {
         categoryData.default.forEach((item: EquipmentDefaultItem) => {
           const defaultItem = item as any;
           defaults.push({
-            equipment_id: defaultItem.id,
+            categoryId: categoryId,
+            equipmentId: defaultItem.id,
             cost: 0, // Default equipment from equipment selections should have cost 0
             quantity: defaultItem.quantity || 1
           });
         });
       }
     });
-    
+
     return defaults;
   };
 
@@ -941,8 +951,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     }
 
     try {
-      
-
       // Prepare default equipment from the selected gang addition type
       const gangAdditionTypeForEquipment = gangAdditionTypes.find(t => t.id === fighterTypeIdToUse);
       const defaultEquipment = gangAdditionTypeForEquipment?.default_equipment?.map(item => ({
@@ -950,7 +958,15 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         cost: item.cost || 0,
         quantity: 1
       })) || [];
-      
+
+      // Clean transformation with validation - no string manipulation needed!
+      const selectedEquipmentForBackend = selectedEquipment
+        .filter(item => item.equipmentId && item.quantity > 0)
+        .map(item => ({
+          equipment_id: item.equipmentId,
+          cost: item.cost,
+          quantity: item.quantity
+        }));
 
       // Use the server action instead of direct RPC call
       const result = await addFighterToGang({
@@ -958,7 +974,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         fighter_type_id: fighterTypeIdToUse,
         gang_id: gangId,
         cost: parsedCost,
-        selected_equipment: selectedEquipment,
+        selected_equipment: selectedEquipmentForBackend,
         default_equipment: defaultEquipment,
         use_base_cost_for_rating: useBaseCostForRating
       });
