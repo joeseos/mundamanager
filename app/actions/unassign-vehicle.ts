@@ -38,6 +38,21 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       return { success: true, data: { previous_fighter_id: null } };
     }
 
+    // Check if the previous fighter is currently active
+    let wasFighterActive = false;
+    if (previousFighterId) {
+      const { data: fighterData } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved')
+        .eq('id', previousFighterId)
+        .single();
+
+      wasFighterActive = !!(fighterData &&
+        !fighterData.killed &&
+        !fighterData.retired &&
+        !fighterData.enslaved);
+    }
+
     // Get vehicle cost data before unassigning for rating calculation
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
 
@@ -52,8 +67,9 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       throw new Error(updateError.message || 'Failed to unassign vehicle');
     }
 
-    // Rating delta: when vehicle was assigned and now becomes unassigned, reduce gang rating
-    if (previousFighterId && vehicleCost > 0) {
+    // Rating delta: only reduce rating if vehicle was assigned to an ACTIVE fighter
+    // If fighter is killed/retired/enslaved, their cost (including vehicle) is already removed from rating
+    if (wasFighterActive && vehicleCost > 0) {
       try {
         const { data: ratingRow } = await supabase
           .from('gangs')
