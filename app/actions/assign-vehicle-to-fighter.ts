@@ -34,6 +34,35 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       .eq('id', params.vehicleId)
       .single();
 
+    const previousFighterId = beforeVehicle?.fighter_id;
+
+    // Check if the previous fighter (if any) was active
+    let wasPreviousFighterActive = false;
+    if (previousFighterId) {
+      const { data: prevFighterData } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved')
+        .eq('id', previousFighterId)
+        .single();
+
+      wasPreviousFighterActive = !!(prevFighterData &&
+        !prevFighterData.killed &&
+        !prevFighterData.retired &&
+        !prevFighterData.enslaved);
+    }
+
+    // Check if the new fighter is active
+    const { data: newFighterData } = await supabase
+      .from('fighters')
+      .select('killed, retired, enslaved')
+      .eq('id', params.fighterId)
+      .single();
+
+    const isNewFighterActive = !!(newFighterData &&
+      !newFighterData.killed &&
+      !newFighterData.retired &&
+      !newFighterData.enslaved);
+
     // Call the Supabase function
     const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
       p_vehicle_id: params.vehicleId,
@@ -48,17 +77,26 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     // Get vehicle cost data to return to frontend for immediate UI update
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
 
-    // Capture post-state
-    const { data: afterVehicle } = await supabase
-      .from('vehicles')
-      .select('fighter_id')
-      .eq('id', params.vehicleId)
-      .single();
+    // Rating delta calculation:
+    // - If vehicle was unassigned and new fighter is active: ADD vehicle cost
+    // - If vehicle was assigned to active fighter and new fighter is inactive: SUBTRACT vehicle cost
+    // - If vehicle was assigned to inactive fighter and new fighter is active: ADD vehicle cost
+    // - Otherwise: no rating change
+    let ratingDelta = 0;
 
-    // Rating delta: only when previously unassigned and now assigned
-    const wasUnassigned = !beforeVehicle?.fighter_id;
-    const isAssigned = !!afterVehicle?.fighter_id;
-    if (wasUnassigned && isAssigned && vehicleCost > 0) {
+    if (!previousFighterId && isNewFighterActive) {
+      // Case 1: Unassigned → Active fighter (ADD)
+      ratingDelta = vehicleCost;
+    } else if (previousFighterId && wasPreviousFighterActive && !isNewFighterActive) {
+      // Case 2: Active fighter → Inactive fighter (SUBTRACT)
+      ratingDelta = -vehicleCost;
+    } else if (previousFighterId && !wasPreviousFighterActive && isNewFighterActive) {
+      // Case 3: Inactive fighter → Active fighter (ADD)
+      ratingDelta = vehicleCost;
+    }
+    // Case 4: Active → Active or Inactive → Inactive or Inactive → Unassigned: no change
+
+    if (ratingDelta !== 0) {
       try {
         const { data: ratingRow } = await supabase
           .from('gangs')
@@ -68,7 +106,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
         const currentRating = (ratingRow?.rating ?? 0) as number;
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + vehicleCost) })
+          .update({ rating: Math.max(0, currentRating + ratingDelta) })
           .eq('id', params.gangId);
         invalidateGangRating(params.gangId);
       } catch (e) {
