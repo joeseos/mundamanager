@@ -140,4 +140,28 @@ export const getVehicleDamageRollForName = (name: string): number | undefined =>
   return found ? Number(found[0]) : undefined;
 };
 
+// ============================================================================
+// Power Boosts for Spyrers - D6 table and resolver
+// ============================================================================
+
+// D6 table for Power Boosts (Spyrers)
+export const POWER_BOOST_TABLE: TableEntry[] = [
+  { range: [1, 1], name: 'Combat Neuroware' },
+  { range: [2, 2], name: 'Heightened Reactions' },
+  { range: [3, 3], name: 'Improved Motive Power' },
+  { range: [4, 4], name: 'Thickened Armour' },
+  { range: [5, 6], name: 'Hunting Rig Augmentation' },
+];
+
+export const resolvePowerBoostFromUtil = (roll: number): TableEntry | undefined =>
+  POWER_BOOST_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+// Keeping resolve by name for optional diagnostics/UI usage
+export const resolvePowerBoostRangeFromUtilByName = (
+  name: string,
+): [number, number] | undefined => {
+  const entry = POWER_BOOST_TABLE.find((e) => e.name === name);
+  return entry?.range;
+};
+
 

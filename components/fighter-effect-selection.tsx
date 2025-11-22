@@ -328,12 +328,13 @@ const FighterEffectSelection = React.forwardRef<
         </p>
         <div className="space-y-2">
           {targetableWeapons.map(w => (
-            <label key={w.id} className="flex items-center gap-2">
+            <label key={w.id} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 name="target-weapon"
                 checked={selectedTargetId === w.id}
                 onChange={() => setSelectedTargetId(w.id)}
+                className="w-4 h-4 cursor-pointer"
               />
               <div className="flex flex-col">
                 <span>
@@ -414,9 +415,9 @@ const FighterEffectSelection = React.forwardRef<
                       const isDisabled = isEffectDisabled(effect.id, effect);
 
                       return (
-                        <div 
+                        <label
                           key={effect.id}
-                          className={`flex items-center gap-2 ${isDisabled ? 'opacity-50' : ''}`}
+                          className={`flex items-center gap-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                         >
                           {!isFixed && (
                             selectionType === 'single_select' ? (
@@ -426,6 +427,7 @@ const FighterEffectSelection = React.forwardRef<
                                 checked={isSelected}
                                 onChange={() => handleEffectToggle(effect.id, effect)}
                                 disabled={isDisabled}
+                                className="w-4 h-4 cursor-pointer"
                               />
                             ) : (
                               <Checkbox
@@ -435,7 +437,7 @@ const FighterEffectSelection = React.forwardRef<
                               />
                             )
                           )}
-                          
+
                           <div className="flex-1">
                             {effect.modifiers.length > 0 ? (
                               <div className="text-muted-foreground">
@@ -447,7 +449,7 @@ const FighterEffectSelection = React.forwardRef<
                               </div>
                             )}
                           </div>
-                        </div>
+                        </label>
                       );
                     })}
                   </div>

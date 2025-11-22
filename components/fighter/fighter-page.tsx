@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
 import { Equipment } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
+import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
 import { SkillsList } from "@/components/fighter/fighter-skills-list";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { FighterNotes } from "@/components/fighter/fighter-notes-list";
@@ -103,6 +104,7 @@ interface Fighter {
     cyberteknika: FighterEffect[];
     'gene-smithing': FighterEffect[];
     'rig-glitches': FighterEffect[];
+    'power-boosts': FighterEffect[];
     augmentations: FighterEffect[];
     equipment: FighterEffect[];
     user: FighterEffect[];
@@ -223,6 +225,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     cyberteknika: fighterData.fighter.effects?.cyberteknika || [],
     'gene-smithing': fighterData.fighter.effects?.['gene-smithing'] || [],
     'rig-glitches': fighterData.fighter.effects?.['rig-glitches'] || [],
+    'power-boosts': fighterData.fighter.effects?.['power-boosts'] || [],
     augmentations: fighterData.fighter.effects?.augmentations || [],
     equipment: fighterData.fighter.effects?.equipment || [],
     user: fighterData.fighter.effects?.user || [],
@@ -492,6 +495,8 @@ export default function FighterPage({
           targetCategory = 'injuries';
         } else if (categoryName === 'advancements') {
           targetCategory = 'advancements';
+        } else if (categoryName === 'power-boosts') {
+          targetCategory = 'power-boosts';
         }
         // If no match, it will default to 'user'
         
@@ -839,6 +844,37 @@ export default function FighterPage({
               // No direct characteristic updates needed
             }}
           />
+
+          {fighterData.fighter?.is_spyrer && (
+            <PowerBoostsList
+              fighterId={fighterData.fighter.id}
+              powerBoosts={fighterData.fighter?.effects?.['power-boosts'] || []}
+              userPermissions={userPermissions}
+              currentKillCount={fighterData.fighter.kill_count ?? 0}
+              onPowerBoostUpdate={(updatedPowerBoosts) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    effects: {
+                      ...prev.fighter.effects,
+                      'power-boosts': updatedPowerBoosts
+                    }
+                  } : null
+                }));
+              }}
+              onKillsCreditsUpdate={(killsChange, creditsChange) => {
+                setFighterData(prev => ({
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    kill_count: (prev.fighter.kill_count || 0) + killsChange,
+                    credits: (prev.fighter.credits || 0) + creditsChange
+                  } : null
+                }));
+              }}
+            />
+          )}
 
           <InjuriesList
             injuries={[

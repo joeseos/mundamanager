@@ -947,9 +947,11 @@ export default function AddFighter({
           cyberteknika: [],
           'gene-smithing': [],
           'rig-glitches': [],
+          'power-boosts': [],
           augmentations: [],
           equipment: [],
-          user: []
+          user: [],
+          skills: []
         },
         base_stats: {
           movement: data.stats.movement,
@@ -1053,9 +1055,11 @@ export default function AddFighter({
               cyberteknika: [],
               'gene-smithing': [],
               'rig-glitches': [],
+              'power-boosts': [],
               augmentations: [],
               equipment: [],
-              user: []
+              user: [],
+              skills: []
             },
             base_stats: {
               movement: beast.movement,

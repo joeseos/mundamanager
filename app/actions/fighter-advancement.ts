@@ -10,6 +10,12 @@ import {
   logSkillAdvancementDeletion 
 } from './logs/gang-fighter-logs';
 
+// Type for power boost type_specific_data
+interface PowerBoostTypeData {
+  kill_cost?: number;
+  credits_increase?: number;
+}
+
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
   // Check if this fighter is an exotic beast owned by another fighter
@@ -18,7 +24,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .select('fighter_owner_id')
     .eq('fighter_pet_id', fighterId)
     .single();
-    
+
   if (ownerData) {
     // Invalidate the owner's cache since their total cost changed
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
@@ -714,7 +720,419 @@ export async function deleteAdvancement(
     console.error('Error deleting advancement:', error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
-} 
+}
+
+// Power Boost operations for Spyrers
+export interface AddPowerBoostParams {
+  fighter_id: string;
+  power_boost_type_id: string;
+  kill_cost: number;
+  /** Child effect type IDs selected by user (used when power boost has separate child effect types) */
+  selected_effect_ids?: string[];
+  /** Modifier IDs selected by user (used when parent power boost has effect_selection and multiple modifiers) */
+  selected_modifier_ids?: string[];
+}
+
+export async function addPowerBoost(
+  params: AddPowerBoostParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+
+    const user = await getAuthenticatedUser(supabase);
+    const isAdmin = await checkAdminOptimized(supabase, user);
+
+    // Verify fighter ownership and get fighter data
+    const { data: fighter, error: fighterError} = await supabase
+      .from('fighters')
+      .select('id, user_id, gang_id, kill_count, fighter_name')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    // Check if fighter has enough kills
+    const currentKillCount = fighter.kill_count || 0;
+    if (currentKillCount < params.kill_cost) {
+      return { success: false, error: 'Insufficient kills' };
+    }
+
+    // Get the power boost type details
+    const { data: effectType, error: effectTypeError } = await supabase
+      .from('fighter_effect_types')
+      .select('id, effect_name, type_specific_data')
+      .eq('id', params.power_boost_type_id)
+      .single();
+
+    if (effectTypeError || !effectType) {
+      return { success: false, error: 'Power boost type not found' };
+    }
+
+    // Merge type_specific_data with kill cost
+    const mergedTypeData = {
+      ...(effectType.type_specific_data || {}),
+      kill_cost: params.kill_cost
+    };
+
+    // Insert the new power boost as a fighter effect
+    const { data: insertedEffect, error: insertError } = await supabase
+      .from('fighter_effects')
+      .insert({
+        fighter_id: params.fighter_id,
+        fighter_effect_type_id: params.power_boost_type_id,
+        effect_name: effectType.effect_name,
+        type_specific_data: mergedTypeData,
+        user_id: user.id
+      })
+      .select('id')
+      .single();
+
+    if (insertError || !insertedEffect) {
+      return { success: false, error: 'Failed to insert power boost' };
+    }
+
+    // Get modifiers for this power boost type and insert them
+    const { data: modifierTemplates, error: modifierError } = await supabase
+      .from('fighter_effect_type_modifiers')
+      .select('id, stat_name, default_numeric_value')
+      .eq('fighter_effect_type_id', params.power_boost_type_id);
+
+    if (modifierTemplates && modifierTemplates.length > 0) {
+      // Filter by selected_modifier_ids if provided
+      const modifiersToCreate = params.selected_modifier_ids && params.selected_modifier_ids.length > 0
+        ? modifierTemplates.filter(m => params.selected_modifier_ids!.includes(m.id))
+        : modifierTemplates;
+
+      if (modifiersToCreate.length > 0) {
+        const modifiersToInsert = modifiersToCreate.map(template => ({
+          fighter_effect_id: insertedEffect.id,
+          stat_name: template.stat_name,
+          numeric_value: template.default_numeric_value
+        }));
+
+        const { error: modifierInsertError } = await supabase
+          .from('fighter_effect_modifiers')
+          .insert(modifiersToInsert);
+
+        if (modifierInsertError) {
+          return { success: false, error: 'Failed to insert power boost modifiers' };
+        }
+      }
+    }
+
+    // If there are selected effect types (child effects), create them as well
+    if (params.selected_effect_ids && params.selected_effect_ids.length > 0) {
+      const failedEffects: string[] = [];
+
+      for (const effectTypeId of params.selected_effect_ids) {
+        // Get the effect type details
+        const { data: childEffectType, error: childEffectTypeError } = await supabase
+          .from('fighter_effect_types')
+          .select('id, effect_name, type_specific_data')
+          .eq('id', effectTypeId)
+          .single();
+
+        if (childEffectTypeError || !childEffectType) {
+          failedEffects.push(effectTypeId);
+          continue;
+        }
+
+        // Insert the child effect
+        const { data: childEffect, error: childEffectError } = await supabase
+          .from('fighter_effects')
+          .insert({
+            fighter_id: params.fighter_id,
+            fighter_effect_type_id: effectTypeId,
+            effect_name: childEffectType.effect_name,
+            type_specific_data: childEffectType.type_specific_data,
+            user_id: user.id
+          })
+          .select('id')
+          .single();
+
+        if (childEffectError || !childEffect) {
+          failedEffects.push(effectTypeId);
+          continue;
+        }
+
+        // Get modifiers for this child effect type
+        const { data: childModifiers, error: childModifiersError } = await supabase
+          .from('fighter_effect_type_modifiers')
+          .select('stat_name, default_numeric_value')
+          .eq('fighter_effect_type_id', effectTypeId);
+
+        if (childModifiersError) {
+          failedEffects.push(effectTypeId);
+          continue;
+        }
+
+        if (childModifiers && childModifiers.length > 0) {
+          const childModifiersToInsert = childModifiers.map(template => ({
+            fighter_effect_id: childEffect.id,
+            stat_name: template.stat_name,
+            numeric_value: template.default_numeric_value
+          }));
+
+          const { error: insertModifiersError } = await supabase
+            .from('fighter_effect_modifiers')
+            .insert(childModifiersToInsert);
+
+          if (insertModifiersError) {
+            failedEffects.push(effectTypeId);
+            continue;
+          }
+        }
+      }
+
+      // If any effects failed, fail the entire operation
+      if (failedEffects.length > 0) {
+        return {
+          success: false,
+          error: `Failed to add ${failedEffects.length} of ${params.selected_effect_ids.length} selected effect(s)`
+        };
+      }
+    }
+
+    // Extract credits_increase from type_specific_data for gang rating
+    let creditsIncrease = 0;
+    if (effectType.type_specific_data && typeof effectType.type_specific_data === 'object') {
+      const typeData = effectType.type_specific_data as PowerBoostTypeData;
+      creditsIncrease = typeData.credits_increase || 0;
+    }
+
+    // Update fighter's kill_count (credits are calculated from effects, not stored)
+    const newKillCount = currentKillCount - params.kill_cost;
+
+    const { data: updatedFighter, error: updateError } = await supabase
+      .from('fighters')
+      .update({
+        kill_count: newKillCount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.fighter_id)
+      .select('id, kill_count, credits')
+      .single();
+
+    if (updateError || !updatedFighter) {
+      return { success: false, error: 'Failed to update fighter' };
+    }
+
+    // Update gang rating and wealth (+credits_increase)
+    if (creditsIncrease > 0) {
+      const { data: gangRow, error: gangSelectError } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangSelectError || !gangRow) {
+        return { success: false, error: 'Failed to fetch gang data for rating update' };
+      }
+
+      const currentRating = (gangRow.rating ?? 0) as number;
+      const currentWealth = (gangRow.wealth ?? 0) as number;
+      const ratingDelta = creditsIncrease;
+      const wealthDelta = ratingDelta;
+
+      const { error: gangUpdateError } = await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
+        .eq('id', fighter.gang_id);
+
+      if (gangUpdateError) {
+        return { success: false, error: 'Failed to update gang rating/wealth: ' + gangUpdateError.message };
+      }
+    }
+
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
+
+    // If this is a beast fighter, also invalidate owner's cache
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+
+    // Invalidate cache for fighter advancement (effects for power boosts)
+    invalidateFighterAdvancement({
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id,
+      advancementType: 'effect'
+    });
+
+    // Get the created effect data for the response
+    const { data: createdEffect, error: effectError } = await supabase
+      .from('fighter_effects')
+      .select(`
+        id,
+        effect_name,
+        type_specific_data,
+        created_at,
+        fighter_effect_modifiers (
+          id,
+          fighter_effect_id,
+          stat_name,
+          numeric_value
+        )
+      `)
+      .eq('id', insertedEffect.id)
+      .single();
+
+    return {
+      success: true,
+      fighter: {
+        id: updatedFighter.id,
+        xp: 0 // Not used for power boosts
+      },
+      effect: createdEffect || null
+    };
+
+  } catch (error) {
+    console.error('Error adding power boost:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export interface DeletePowerBoostParams {
+  fighter_id: string;
+  power_boost_id: string;
+}
+
+export async function deletePowerBoost(
+  params: DeletePowerBoostParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+
+    const user = await getAuthenticatedUser(supabase);
+    const isAdmin = await checkAdminOptimized(supabase, user);
+
+    // Verify fighter ownership
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, user_id, gang_id, kill_count, fighter_name')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    // Check if effect exists and get effect data
+    const { data: effectData, error: effectError } = await supabase
+      .from('fighter_effects')
+      .select('id, fighter_id, type_specific_data, effect_name')
+      .eq('id', params.power_boost_id)
+      .single();
+
+    if (effectError || !effectData) {
+      return { success: false, error: 'Power boost not found' };
+    }
+
+    if (effectData.fighter_id !== params.fighter_id) {
+      return { success: false, error: 'Power boost does not belong to this fighter' };
+    }
+
+    // Extract kill cost and credits from type_specific_data
+    let killCostToRefund = 0;
+    let creditsToDeduct = 0;
+    if (effectData.type_specific_data && typeof effectData.type_specific_data === 'object') {
+      const typeData = effectData.type_specific_data as PowerBoostTypeData;
+      killCostToRefund = typeData.kill_cost || 0;
+      creditsToDeduct = typeData.credits_increase || 0;
+    }
+
+    // Delete the effect (this will cascade delete the modifiers)
+    const { error: deleteError } = await supabase
+      .from('fighter_effects')
+      .delete()
+      .eq('id', params.power_boost_id);
+
+    if (deleteError) {
+      return { success: false, error: 'Failed to delete power boost' };
+    }
+
+    // Update fighter's kill_count (refund kills) - credits are calculated from effects
+    const newKillCount = (fighter.kill_count || 0) + killCostToRefund;
+
+    const { data: updatedFighter, error: updateError } = await supabase
+      .from('fighters')
+      .update({
+        kill_count: newKillCount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.fighter_id)
+      .select('id, kill_count, credits')
+      .single();
+
+    if (updateError || !updatedFighter) {
+      return { success: false, error: 'Failed to update fighter' };
+    }
+
+    // Update gang rating and wealth (-credits_increase)
+    if (creditsToDeduct > 0) {
+      const { data: gangRow, error: gangSelectError } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      if (gangSelectError || !gangRow) {
+        return { success: false, error: 'Failed to fetch gang data for rating update' };
+      }
+
+      const currentRating = (gangRow.rating ?? 0) as number;
+      const currentWealth = (gangRow.wealth ?? 0) as number;
+      const ratingDelta = -creditsToDeduct;
+      const wealthDelta = ratingDelta;
+
+      const { error: gangUpdateError } = await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + ratingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        })
+        .eq('id', fighter.gang_id);
+
+      if (gangUpdateError) {
+        return { success: false, error: 'Failed to update gang rating/wealth: ' + gangUpdateError.message };
+      }
+    }
+
+    // Invalidate fighter cache
+    invalidateFighterData(params.fighter_id, fighter.gang_id);
+
+    // If this is a beast fighter, also invalidate owner's cache
+    await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
+
+    // Invalidate cache for fighter advancement
+    invalidateFighterAdvancement({
+      fighterId: params.fighter_id,
+      gangId: fighter.gang_id,
+      advancementType: 'effect'
+    });
+
+    return {
+      success: true,
+      fighter: {
+        id: updatedFighter.id,
+        xp: 0 // Not used for power boosts
+      }
+    };
+
+  } catch (error) {
+    console.error('Error deleting power boost:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
