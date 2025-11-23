@@ -6,8 +6,8 @@ export async function POST(request: Request) {
   const supabase = await createClient();
 
   // Check if user is authenticated
-  const userId = await getUserIdFromClaims(supabase);
-  if (!userId) {
+  const requesterId = await getUserIdFromClaims(supabase);
+  if (!requesterId) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401 }
@@ -43,16 +43,16 @@ export async function POST(request: Request) {
       .from('campaign_members')
       .select('role')
       .eq('campaign_id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', requesterId)
       .single();
 
     // Allow if:
     // 1. User is OWNER/ARBITRATOR, or
-    // 2. User is adding their own gang (user.id === userId)
-    if (roleError || !memberRole || 
-        (memberRole.role !== 'OWNER' && 
-         memberRole.role !== 'ARBITRATOR' && 
-         user.id !== userId)) {
+    // 2. User is adding their own gang (requesterId === userId)
+    if (roleError || !memberRole ||
+        (memberRole.role !== 'OWNER' &&
+         memberRole.role !== 'ARBITRATOR' &&
+         requesterId !== userId)) {
       return NextResponse.json(
         { error: "Insufficient permissions" },
         { status: 403 }
@@ -106,12 +106,12 @@ export async function DELETE(request: Request) {
       .from('campaign_members')
       .select('role')
       .eq('campaign_id', campaignId)
-      .eq('user_id', user.id)
+      .eq('user_id', requesterId)
       .single();
 
-    if (user.id !== userId && memberData?.role !== 'OWNER' && memberData?.role !== 'ARBITRATOR') {
+    if (requesterId !== userId && memberData?.role !== 'OWNER' && memberData?.role !== 'ARBITRATOR') {
       return NextResponse.json(
-        { error: "Unauthorized to remove gang for other users" }, 
+        { error: "Unauthorized to remove gang for other users" },
         { status: 403 }
       );
     }

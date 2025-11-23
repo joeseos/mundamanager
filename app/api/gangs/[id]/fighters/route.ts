@@ -108,7 +108,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Gang not found" }, { status: 404 });
     }
 
-    if (gang.user_id !== user.id) {
+    if (gang.user_id !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
