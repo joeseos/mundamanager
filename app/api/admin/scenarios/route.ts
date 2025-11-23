@@ -193,22 +193,6 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Check if scenario is in use by any battles
-    const { data: battles, error: checkError } = await supabase
-      .from('campaign_battles')
-      .select('id')
-      .eq('scenario', id)
-      .limit(1);
-
-    if (checkError) throw checkError;
-
-    if (battles && battles.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete scenario - it is currently used in battle logs' },
-        { status: 409 }
-      );
-    }
-
     const { error } = await supabase
       .from('scenarios')
       .delete()
