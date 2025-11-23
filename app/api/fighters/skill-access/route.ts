@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { PermissionService } from '@/app/lib/user-permissions';
-import { getAuthenticatedUser, getUserIdFromClaims } from '@/utils/auth';
+import { getUserIdFromClaims } from '@/utils/auth';
 
 export async function GET(request: Request) {
   try {
@@ -31,11 +31,9 @@ export async function GET(request: Request) {
     }
 
     // Check if user has access to this fighter (either owner or admin)
-    const currentUser = await getAuthenticatedUser(supabase);
-
     // Use PermissionService to check fighter permissions
     const permissionService = new PermissionService();
-    const permissions = await permissionService.getFighterPermissions(currentUser.id, fighterId);
+    const permissions = await permissionService.getFighterPermissions(userId, fighterId);
 
     if (!permissions.canEdit) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
