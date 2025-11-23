@@ -1,10 +1,16 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { checkAdmin } from "@/utils/auth";
 
 export async function GET() {
   const supabase = await createClient();
 
   try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data: scenarios, error } = await supabase
       .from('scenarios')
       .select('id, scenario_name, scenario_number')
@@ -26,13 +32,49 @@ export async function POST(request: Request) {
   const supabase = await createClient();
 
   try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { scenario_name, scenario_number } = body;
 
-    if (!scenario_name || scenario_number === undefined) {
+    const trimmedName = scenario_name?.trim();
+
+    if (!trimmedName || scenario_number === undefined) {
       return NextResponse.json(
         { error: 'scenario_name and scenario_number are required' },
         { status: 400 }
+      );
+    }
+
+    if (trimmedName.length > 200) {
+      return NextResponse.json(
+        { error: 'scenario_name must be 200 characters or less' },
+        { status: 400 }
+      );
+    }
+
+    const numericScenarioNumber = Number(scenario_number);
+    if (isNaN(numericScenarioNumber) || numericScenarioNumber < 1) {
+      return NextResponse.json(
+        { error: 'scenario_number must be a positive number' },
+        { status: 400 }
+      );
+    }
+
+    // Check for duplicate scenario number
+    const { data: existing } = await supabase
+      .from('scenarios')
+      .select('id')
+      .eq('scenario_number', numericScenarioNumber)
+      .single();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'A scenario with this number already exists' },
+        { status: 409 }
       );
     }
 
@@ -40,8 +82,8 @@ export async function POST(request: Request) {
       .from('scenarios')
       .insert([
         {
-          scenario_name,
-          scenario_number: Number(scenario_number)
+          scenario_name: trimmedName,
+          scenario_number: numericScenarioNumber
         }
       ])
       .select()
@@ -63,21 +105,58 @@ export async function PATCH(request: Request) {
   const supabase = await createClient();
 
   try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id, scenario_name, scenario_number } = body;
 
-    if (!id || !scenario_name || scenario_number === undefined) {
+    const trimmedName = scenario_name?.trim();
+
+    if (!id || !trimmedName || scenario_number === undefined) {
       return NextResponse.json(
         { error: 'id, scenario_name, and scenario_number are required' },
         { status: 400 }
       );
     }
 
+    if (trimmedName.length > 200) {
+      return NextResponse.json(
+        { error: 'scenario_name must be 200 characters or less' },
+        { status: 400 }
+      );
+    }
+
+    const numericScenarioNumber = Number(scenario_number);
+    if (isNaN(numericScenarioNumber) || numericScenarioNumber < 1) {
+      return NextResponse.json(
+        { error: 'scenario_number must be a positive number' },
+        { status: 400 }
+      );
+    }
+
+    // Check for duplicate scenario number (excluding current scenario)
+    const { data: existing } = await supabase
+      .from('scenarios')
+      .select('id')
+      .eq('scenario_number', numericScenarioNumber)
+      .neq('id', id)
+      .single();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'A scenario with this number already exists' },
+        { status: 409 }
+      );
+    }
+
     const { data: scenario, error } = await supabase
       .from('scenarios')
       .update({
-        scenario_name,
-        scenario_number: Number(scenario_number)
+        scenario_name: trimmedName,
+        scenario_number: numericScenarioNumber
       })
       .eq('id', id)
       .select()
@@ -99,6 +178,11 @@ export async function DELETE(request: Request) {
   const supabase = await createClient();
 
   try {
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id } = body;
 
@@ -106,6 +190,22 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         { error: 'id is required' },
         { status: 400 }
+      );
+    }
+
+    // Check if scenario is in use by any battles
+    const { data: battles, error: checkError } = await supabase
+      .from('campaign_battles')
+      .select('id')
+      .eq('scenario', id)
+      .limit(1);
+
+    if (checkError) throw checkError;
+
+    if (battles && battles.length > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete scenario - it is currently used in battle logs' },
+        { status: 409 }
       );
     }
 
