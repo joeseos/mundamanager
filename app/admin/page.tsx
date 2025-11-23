@@ -1,6 +1,6 @@
 'use client';
 
-import { Users, Edit, Sword, Car, BookOpen, BarChart3 } from "lucide-react";
+import { Users, Edit, Sword, Car, BookOpen, BarChart3, Map } from "lucide-react";
 import { useState } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
 import { AdminEditFighterTypeModal } from "@/components/admin/admin-edit-fighter-type";
@@ -12,6 +12,7 @@ import { AdminGangLineageModal } from "@/components/admin/admin-gang-lineage";
 import { AdminCreateVehicleTypeModal } from "@/components/admin/admin-create-vehicle-type";
 import { AdminEditVehicleTypeModal } from "@/components/admin/admin-edit-vehicle-type";
 import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
+import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { ToastProvider } from "@/components/ui/toast";
 
 export default function AdminPage() {
@@ -25,6 +26,7 @@ export default function AdminPage() {
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showScenarios, setShowScenarios] = useState(false);
 
   const coreSections = [
     {
@@ -80,6 +82,12 @@ export default function AdminPage() {
       description: "Manage gang affiliation & legacies",
       action: () => setShowGangLineages(true),
       icon: Users
+    },
+    {
+      title: "Manage Scenarios",
+      description: "Add, edit, or delete scenarios",
+      action: () => setShowScenarios(true),
+      icon: Map
     }
   ];
 
@@ -212,6 +220,13 @@ export default function AdminPage() {
             <AdminStatsModal
               onClose={() => setShowStats(false)}
               onSubmit={() => setShowStats(false)}
+            />
+          )}
+
+          {showScenarios && (
+            <AdminScenariosModal
+              onClose={() => setShowScenarios(false)}
+              onSubmit={() => setShowScenarios(false)}
             />
           )}
         </main>
