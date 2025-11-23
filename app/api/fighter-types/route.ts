@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,8 +21,8 @@ export async function GET(request: Request) {
 
   try {
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -123,13 +124,13 @@ export async function GET(request: Request) {
     if (includeCustomFighters && !isGangAddition) {
       try {
         // Fetch user's own custom fighters
-        const customFighters = await getUserCustomFighterTypes(user.id);
+        const customFighters = await getUserCustomFighterTypes(userId);
 
         // Fetch shared custom fighters from campaigns where user is a member (any role)
         const { data: campaignMembers } = await supabase
           .from('campaign_members')
           .select('campaign_id')
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
         const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
 

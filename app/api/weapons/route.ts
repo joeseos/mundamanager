@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export const runtime = 'edge';
 export const preferredRegion = 'auto';
@@ -10,10 +11,10 @@ const CACHE_MAX_AGE = 3600;
 export async function GET() {
   try {
     const supabase = await createClient();
-    
+
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

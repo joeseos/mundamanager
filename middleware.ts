@@ -34,8 +34,8 @@ export async function middleware(request: NextRequest) {
   // Only check auth for non-skip paths
   let userId: string | undefined;
   if (!skipSessionPaths.includes(request.nextUrl.pathname)) {
-    const { data: userResult } = await supabase.auth.getUser();
-    userId = userResult?.user?.id;
+    const { data: claims } = await supabase.auth.getClaims();
+    userId = claims?.claims?.sub;
   }
   console.log("User authenticated:", !!userId);
 
@@ -97,20 +97,13 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api routes that handle their own auth
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico and static assets
-     * - images (public images folder)
-     * - static assets (fonts, documents, etc.)
-     * - Next.js special files (robots, sitemap, manifest, etc.)
-     * - development and health check endpoints
-     * 
-     * This maximizes performance by only running middleware on actual page routes
-     * that need authentication handling.
+     * Match all paths except:
+     * - /api routes (all API routes)
+     * - /_next (Next.js internals)
+     * - /images (static images)
+     * - Files with extensions (static assets)
      */
-    '/((?!api/(?:fighters|gangs|campaigns|admin|alliances|notifications|search-users|gang-types|fighter-types|weapons|skills|skill-types|gang_variant_types|fighter-weapons|fighter-effects|patreon/webhook|patreon/sync|users)|_next/static|_next/image|favicon.ico|images|site.webmanifest|robots.txt|sitemap.xml|manifest.json|sw.js|workbox-.*\\.js|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json)$).*)',
+    '/((?!api/|_next/|images/|.*\\..*$).*)',
   ],
 };
 // Testing deployment after Vercel outage - can remove this

@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export async function PATCH(request: Request) {
   const supabase = await createClient();
@@ -8,9 +9,9 @@ export async function PATCH(request: Request) {
     const { campaignId, userId, newRole } = await request.json();
 
     // Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
+    const requesterId = await getUserIdFromClaims(supabase);
 
-    if (!user) {
+    if (!requesterId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -19,7 +20,7 @@ export async function PATCH(request: Request) {
       .from('campaign_members')
       .select('role')
       .eq('campaign_id', campaignId)
-      .eq('user_id', user.id);
+      .eq('user_id', requesterId);
 
     const isOwner = requesterRoles?.some((row: { role: string }) => row.role === 'OWNER');
     if (!isOwner) {
@@ -56,8 +57,8 @@ export async function DELETE(request: Request) {
     const { campaignId, memberId } = await request.json();
 
     // Get the authenticated user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const requesterId = await getUserIdFromClaims(supabase);
+    if (!requesterId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -66,7 +67,7 @@ export async function DELETE(request: Request) {
       .from('campaign_members')
       .select('role')
       .eq('campaign_id', campaignId)
-      .eq('user_id', user.id);
+      .eq('user_id', requesterId);
 
     const isOwner = requesterRoles?.some((row: { role: string }) => row.role === 'OWNER');
     if (!isOwner) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 // Add Edge Function configurations
 export const runtime = 'edge';
@@ -47,8 +48,8 @@ export async function POST(request: Request) {
   const supabase = await createClient();
 
   // Get the authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (!user) {
+  const userId = await getUserIdFromClaims(supabase);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq('fighter_id', fighter_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .in('fighter_effect_type_id', (effectTypes as EffectType[]).map(et => et.id));
 
     if (fetchError) {
@@ -245,7 +246,7 @@ export async function POST(request: Request) {
             await createNewEffect(
               supabase,
               fighter_id,
-              user.id,
+              userId,
               statName,
               remainingChange,
               effectTypes as EffectType[]
@@ -260,7 +261,7 @@ export async function POST(request: Request) {
         await createNewEffect(
           supabase,
           fighter_id,
-          user.id,
+          userId,
           statName,
           changeValue,
           effectTypes as EffectType[]
@@ -311,7 +312,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq('fighter_id', fighter_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .in('fighter_effect_type_id', (effectTypes as EffectType[]).map(et => et.id));
 
     if (fetchUpdatedError) {

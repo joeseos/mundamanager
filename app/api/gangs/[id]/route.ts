@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
+import { getUserIdFromClaims } from "@/utils/auth";
 
 enum GangAlignment {
   LAW_ABIDING = 'Law Abiding',
@@ -116,9 +117,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   try {
     // Get the current user using server-side auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    const userId = await getUserIdFromClaims(supabase);
+
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

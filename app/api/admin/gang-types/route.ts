@@ -55,21 +55,9 @@ export async function POST(request: Request) {
 
   try {
     // Check admin authorization
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const isAdmin = await checkAdmin(supabase);
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.user_role !== 'admin') {
+    if (!isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

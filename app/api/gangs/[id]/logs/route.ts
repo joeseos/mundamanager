@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { checkAdmin } from "@/utils/auth";
+import { checkAdmin, getUserIdFromClaims } from "@/utils/auth";
 
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -10,17 +10,17 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     console.log('Gang Logs API called for gang ID:', params.id);
 
     // Get the current user using server-side auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      console.error('Auth error:', authError);
+    const userId = await getUserIdFromClaims(supabase);
+
+    if (!userId) {
+      console.error('Auth error: No user ID');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    console.log('User authenticated:', user.id);
+    console.log('User authenticated:', userId);
 
     // Verify the user owns this gang or has access to it
     const { data: gangData, error: gangError } = await supabase
@@ -40,7 +40,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     console.log('Gang found, user_id:', gangData.user_id);
 
     // Check if user owns the gang
-    const ownsGang = gangData.user_id === user.id;
+    const ownsGang = gangData.user_id === userId;
 
     // Check if user is OWNER/ARBITRATOR of any campaign containing this gang
     let hasArbitratorAccess = false;
@@ -61,7 +61,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         const { data: membershipData, error: membershipError } = await supabase
           .from('campaign_members')
           .select('campaign_id, role')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .in('campaign_id', campaignIds)
           .in('role', ['OWNER', 'ARBITRATOR']);
 

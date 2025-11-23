@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 // Add Edge Function configurations
 export const runtime = 'edge';
@@ -8,7 +9,7 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
   const params = await props.params;
   const supabase = await createClient();
   const { id } = params;
-  
+
   if (!id) {
     return NextResponse.json(
       { error: "Notification ID is required" },
@@ -27,9 +28,9 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
 
   try {
     // Get the current user to ensure they can only delete their own notifications
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+
+    if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -50,7 +51,7 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
       );
     }
 
-    if (notification.receiver_id !== user.id) {
+    if (notification.receiver_id !== userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 403 }

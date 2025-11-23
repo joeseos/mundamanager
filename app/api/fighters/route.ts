@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 // Add Edge Function configurations
 export const runtime = 'edge';
@@ -49,9 +50,9 @@ type Fighter = {
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const userId = await getUserIdFromClaims(supabase);
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
