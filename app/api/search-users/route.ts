@@ -1,20 +1,21 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get('query')
-    
+
     if (!query || query.length < 2) {
       return Response.json([])
     }
 
     const supabase = await createClient()
-    
+
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase)
+    if (!userId) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
     

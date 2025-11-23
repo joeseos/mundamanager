@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
-import {checkAdmin} from "@/utils/auth";
+import { checkAdmin, getUserIdFromClaims } from "@/utils/auth";
 
 interface Variant {
     id: string;
@@ -12,8 +12,8 @@ export async function GET(request: Request) {
 
     try {
         // Check if user is authenticated
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const userId = await getUserIdFromClaims(supabase);
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

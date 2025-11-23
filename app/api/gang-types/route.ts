@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
 
   try {
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('user_role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     const isAdmin = profile?.user_role === 'admin';

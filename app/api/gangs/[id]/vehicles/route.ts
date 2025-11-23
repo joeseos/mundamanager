@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -39,9 +40,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -162,9 +163,9 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
     const supabase = await createClient();
     
     // Get the current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    const userId = await getUserIdFromClaims(supabase);
+
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -178,7 +179,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       .eq('id', params.id)
       .single();
 
-    if (gangError || !gangData || gangData.user_id !== user.id) {
+    if (gangError || !gangData || gangData.user_id !== userId) {
       return NextResponse.json(
         { error: 'Gang not found or access denied' },
         { status: 404 }

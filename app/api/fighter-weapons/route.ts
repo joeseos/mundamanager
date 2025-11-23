@@ -1,13 +1,14 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
 
   try {
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -45,8 +46,8 @@ export async function GET(request: Request) {
 
   try {
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -104,8 +105,8 @@ export async function DELETE(request: Request) {
 
   try {
     // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

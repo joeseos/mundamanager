@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { Skill } from '@/types/fighter';
+import { getUserIdFromClaims } from "@/utils/auth";
 
 interface Equipment {
   id: string;
@@ -86,8 +87,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   try {
     // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (!user) {
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -107,7 +108,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Gang not found" }, { status: 404 });
     }
 
-    if (gang.user_id !== user.id) {
+    if (gang.user_id !== userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

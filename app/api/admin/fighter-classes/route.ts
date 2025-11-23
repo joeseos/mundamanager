@@ -8,9 +8,6 @@ export async function GET() {
   const supabase = await createClient();
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    console.log('Current user:', user?.id);
-
     const isAdmin = await checkAdmin(supabase);
     console.log('Is admin check result:', isAdmin);
 
