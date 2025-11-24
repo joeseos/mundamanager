@@ -1,7 +1,7 @@
 "use server";
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
@@ -15,17 +15,6 @@ export const signUpAction = async (formData: FormData) => {
   const supabase = await createClient();
 
   try {
-    // Check if username already exists (case-insensitive)
-    const { data: existingUser } = await supabase
-      .from('profiles')
-      .select('username')
-      .ilike('username', username)
-      .single();
-
-    if (existingUser) {
-      return { error: "Username already taken" };
-    }
-
     // Sign up the user with metadata
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -57,7 +46,35 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Failed to create account. Please try again" };
     }
 
-    // Profile will be automatically created by database trigger
+    // Create profile using service role (bypasses RLS)
+    try {
+      const serviceRoleClient = createServiceRoleClient();
+      const { error: profileError } = await serviceRoleClient
+        .from('profiles')
+        .insert({
+          id: signUpData.user.id,
+          username: username,
+          user_role: 'user'
+        })
+        .single();
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        // Clean up the auth user
+        await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
+        
+        if (profileError.code === '23505') {
+          return { error: "Username already taken. Please try again with a different username." };
+        }
+        return { error: "Failed to create profile. Please try again." };
+      }
+    } catch (error) {
+      console.error('Unexpected error during profile creation:', error);
+      const serviceRoleClient = createServiceRoleClient();
+      await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
+      return { error: "Failed to complete registration. Please try again." };
+    }
+
     return { message: "Please check your email to verify your account" };
 
   } catch (error) {
