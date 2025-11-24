@@ -1,5 +1,4 @@
 import { createClient } from "@/utils/supabase/server";
-import { getUserIdFromClaims } from "@/utils/auth";
 
 export interface CustomEquipment {
   id: string;
@@ -35,18 +34,18 @@ export async function getUserCustomEquipment(userId: string): Promise<CustomEqui
 
 export async function getUserCustomEquipmentByCategory(category?: string): Promise<CustomEquipment[]> {
   const supabase = await createClient();
-
+  
   // Get the current user
-  const userId = await getUserIdFromClaims(supabase);
-
-  if (!userId) {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
     throw new Error('Unauthorized');
   }
 
   let query = supabase
     .from('custom_equipment')
     .select('*')
-    .eq('user_id', userId);
+    .eq('user_id', user.id);
 
   // Apply category filter if specified
   if (category) {

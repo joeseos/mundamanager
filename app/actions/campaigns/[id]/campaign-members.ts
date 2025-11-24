@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS, invalidateCampaignMembership } from "@/utils/cache-tags";
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
-import { getAuthenticatedUser, getUserIdFromClaims } from '@/utils/auth';
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AddGangToCampaignParams {
   campaignId: string;
@@ -323,12 +323,12 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       if (campaignError) console.error('Error fetching campaign data:', campaignError);
 
       // Get current user for logging
-      const userId = await getUserIdFromClaims(supabase);
-      if (userId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
         const { data: userData, error: userError } = await supabase
           .from('profiles')
           .select('username')
-          .eq('id', userId)
+          .eq('id', user.id)
           .single();
 
         if (userError) console.error('Error fetching user data:', userError);
