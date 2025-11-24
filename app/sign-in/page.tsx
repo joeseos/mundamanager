@@ -30,8 +30,8 @@ export default function SignIn() {
   useEffect(() => {
     // Check if user is already authenticated and redirect if needed
     async function checkAuth() {
-      const { data: claimsData } = await supabase.auth.getClaims();
-      if (claimsData?.claims?.sub) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
         const nextParam = searchParams.get('next');
         const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
         router.push(isSafe ? nextParam! : '/');
