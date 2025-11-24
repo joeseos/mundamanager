@@ -1,10 +1,11 @@
 "use server";
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -56,34 +57,33 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Failed to create account. Please try again" };
     }
 
+    // Create profile using service role (bypasses RLS)
     try {
-      // Create profile
-      const { error: profileError } = await supabase
+      const serviceRoleClient = createServiceRoleClient();
+      const { error: profileError } = await serviceRoleClient
         .from('profiles')
         .insert({
           id: signUpData.user.id,
           username: username,
-          updated_at: new Date().toISOString()
+          user_role: 'user'
         })
         .single();
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
+        // Clean up the auth user
+        await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
         
-        switch (profileError.code) {
-          case '23505': // Unique violation
-            return { error: "Username already taken. Please choose another" };
-          case '23503': // Foreign key violation
-            return { error: "Account creation failed. Please try again" };
-          default:
-            await supabase.auth.admin.deleteUser(signUpData.user.id);
-            return { error: "Failed to create profile. Please try again" };
+        if (profileError.code === '23505') {
+          return { error: "Username already taken. Please try again with a different username." };
         }
+        return { error: "Failed to create profile. Please try again." };
       }
-    } catch (profileError) {
-      console.error('Profile creation error:', profileError);
-      await supabase.auth.admin.deleteUser(signUpData.user.id);
-      return { error: "Failed to complete registration. Please try again" };
+    } catch (error) {
+      console.error('Unexpected error during profile creation:', error);
+      const serviceRoleClient = createServiceRoleClient();
+      await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
+      return { error: "Failed to complete registration. Please try again." };
     }
 
     return { message: "Please check your email to verify your account" };
@@ -219,9 +219,22 @@ export const resetPasswordAction = async (formData: FormData) => {
 };
 
 export const signOutAction = async () => {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  return redirect("/");
+  const cookieStore = await cookies();
+
+  // Manually delete all Supabase auth cookies
+  // This is necessary because supabase.auth.signOut() can't read the session
+  // in Server Actions due to cookie handling limitations in Server Components
+  const allCookies = cookieStore.getAll();
+  allCookies.forEach(cookie => {
+    if (cookie.name.startsWith('sb-')) {
+      cookieStore.delete(cookie.name);
+    }
+  });
+
+  // Revalidate the root layout to clear any cached user data
+  revalidatePath('/', 'layout');
+
+  return redirect("/sign-in");
 };
 
 

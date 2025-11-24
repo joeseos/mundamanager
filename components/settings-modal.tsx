@@ -10,8 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
-import { createClient } from "@/utils/supabase/client";
+import { signOutAction } from "@/app/actions/auth";
 import Link from 'next/link';
 import { useFetchNotifications } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
@@ -44,8 +43,6 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
-  const router = useRouter();
-  const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -72,9 +69,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
   const handleLogout = async () => {
     setOpen(false);
-    await supabase.auth.signOut();
-    router.push('/sign-in');
-    router.refresh();
+    await signOutAction();
   };
 
   const handleDummyClick = () => {
