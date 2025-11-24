@@ -509,7 +509,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
             ammo: profile.ammo,
             traits: profile.traits,
             sort_order: profile.sort_order,
-            user_id: user.id
+            user_id: claimsData.claims.sub
           }));
 
           const { error: insertError } = await supabase
