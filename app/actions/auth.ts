@@ -15,6 +15,17 @@ export const signUpAction = async (formData: FormData) => {
   const supabase = await createClient();
 
   try {
+    // Check if username already exists (case-insensitive)
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('username')
+      .ilike('username', username)
+      .single();
+
+    if (existingUser) {
+      return { error: "Username already taken" };
+    }
+
     // Sign up the user with metadata
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
