@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface CustomTerritory {
   id: string;
@@ -10,13 +11,9 @@ export interface CustomTerritory {
 
 export async function getUserCustomTerritories(campaignTypeId?: string): Promise<CustomTerritory[]> {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
+  const user = await getAuthenticatedUser(supabase);
 
   // Custom territories don't have campaign types, so ignore the campaignTypeId parameter
   const { data: customTerritories, error } = await supabase
