@@ -107,9 +107,9 @@ export default function MemberSearchBar({
   const handleAddMember = async (member: Member) => {
     setIsAdding(true)
     try {
-      const { data: claimsData } = await supabase.auth.getClaims();
-
-      if (!claimsData?.claims?.sub) {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
         throw new Error('Not authenticated');
       }
 
@@ -118,7 +118,7 @@ export default function MemberSearchBar({
         campaignId,
         userId: member.user_id,
         role: 'MEMBER',
-        invitedBy: claimsData.claims.sub
+        invitedBy: user.id
       });
 
       if (!result.success) {

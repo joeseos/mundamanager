@@ -218,9 +218,9 @@ export async function DELETE(
     const supabase = await createClient();
 
     // Get the current user
-    const userId = await getUserIdFromClaims(supabase);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!userId) {
+    if (authError || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
