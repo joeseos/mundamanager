@@ -457,8 +457,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       setIsLoading(true);
       
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: claimsData } = await supabase.auth.getClaims();
+      if (!claimsData?.claims?.sub) {
         throw new Error('User not authenticated');
       }
 
@@ -469,7 +469,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         equipment_category: copyModalData.equipment_category,
         equipment_type: copyModalData.equipment_type,
         availability: copyModalData.availability,
-        user_id: user.id
+        user_id: claimsData.claims.sub
       };
 
       // Create the new equipment
