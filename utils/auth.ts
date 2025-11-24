@@ -20,10 +20,25 @@ export async function getAuthenticatedUser(supabase: SupabaseClient): Promise<Au
   };
 }
 
-// Simple helper for API routes that only need user ID
+/**
+ * Gets user ID from JWT claims without session validation.
+ *
+ * Performance optimization: Reads from JWT instead of making API call.
+ * Security: Relies on RLS policies for actual authorization at database level.
+ *
+ * Trade-off: Revoked sessions will pass this check until JWT expires (~1 hour),
+ * but RLS policies will still prevent unauthorized database access.
+ *
+ * @returns User ID from JWT claims, or null if not authenticated
+ */
 export async function getUserIdFromClaims(supabase: SupabaseClient): Promise<string | null> {
-  const { data: claimsData } = await supabase.auth.getClaims();
-  return claimsData?.claims?.sub || null;
+  try {
+    const { data: claimsData } = await supabase.auth.getClaims();
+    return claimsData?.claims?.sub || null;
+  } catch (error) {
+    console.error('Error getting user ID from claims:', error);
+    return null;
+  }
 }
 
 export async function checkAdmin(supabase: SupabaseClient) {

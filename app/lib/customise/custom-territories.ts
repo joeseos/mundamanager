@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 export interface CustomTerritory {
   id: string;
@@ -10,11 +11,11 @@ export interface CustomTerritory {
 
 export async function getUserCustomTerritories(campaignTypeId?: string): Promise<CustomTerritory[]> {
   const supabase = await createClient();
-  
+
   // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
+  const userId = await getUserIdFromClaims(supabase);
+
+  if (!userId) {
     throw new Error('Unauthorized');
   }
 
@@ -22,7 +23,7 @@ export async function getUserCustomTerritories(campaignTypeId?: string): Promise
   const { data: customTerritories, error } = await supabase
     .from('custom_territories')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('territory_name', { ascending: true });
 
   if (error) {
