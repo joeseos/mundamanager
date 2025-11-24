@@ -1,8 +1,9 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangRating, CACHE_TAGS } from '@/utils/cache-tags';
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
+import { revalidateTag } from 'next/cache';
 
 import { 
   logCharacteristicAdvancement, 
@@ -28,6 +29,10 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
   if (ownerData) {
     // Invalidate the owner's cache since their total cost changed
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
+
+    // Invalidate the owner's beast costs cache
+    // Without this, the owner's cost calculation uses stale beast data
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
   }
 }
 
