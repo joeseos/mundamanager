@@ -129,7 +129,7 @@ export function ShareCustomFighterModal({
         ) : userCampaigns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>You're not part of any campaigns yet.</p>
-            <p className="text-sm mt-2">Join or create a campaign to share custom fighters.</p>
+            <p className="text-sm mt-2">You need to be an arbitrator of a campaign to share custom fighters to it.</p>
           </div>
         ) : (
           <div className="space-y-3">
