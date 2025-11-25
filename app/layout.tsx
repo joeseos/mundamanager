@@ -172,7 +172,7 @@ export default async function RootLayout({
           <div className="flex justify-between items-center h-14 px-2">
             <Link href="/" className="flex items-center">
               <Image
-                src="/images/favicon-192x192.png"
+                src="/images/favicon-36x36.png"
                 alt="App Icon"
                 width={36}
                 height={36}
