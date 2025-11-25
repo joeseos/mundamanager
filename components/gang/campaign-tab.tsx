@@ -65,8 +65,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span>Role: {campaign.role ?? 'N/A'}</span>
-                      <span>Status: {campaign.status ?? 'Unknown'}</span>
-                      <span>Joined: {campaign.joined_at ?? 'Unknown'}</span>
+                      <span>Status: {campaign.status ?? 'Active'}</span>
+                      <span>Joined: {campaign.joined_at ? new Date(campaign.joined_at).toLocaleDateString('en-CA') : 'Unknown'}</span>
                     </div>
                   </div>
                 </div>
