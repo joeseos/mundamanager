@@ -21,6 +21,14 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       if (value === null || value === undefined) return '-';
       return value.toString();
     },
+    formatRange: (value: string | number | null | undefined): string => {
+      if (value === null || value === undefined) return '-';
+      const strValue = value.toString();
+      if (strValue === '') return strValue;
+      if (strValue.endsWith('"')) return strValue;
+      // Append " when the value ends with a digit (i.e., a numeric range)
+      return /\d$/.test(strValue) ? `${strValue}"` : strValue;
+    },
     formatAccuracy: (value: number | string | null | undefined): string => {
       if (value === null || value === undefined) return '-';
       const strValue = value.toString();
@@ -241,10 +249,10 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
                     </div>
                   </td>
                   <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
-                    {formatters.formatValue(profile.range_short)}
+                    {formatters.formatRange(profile.range_short)}
                   </td>
                   <td className={`${pClass} text-center whitespace-nowrap align-top`}>
-                    {formatters.formatValue(profile.range_long)}
+                    {formatters.formatRange(profile.range_long)}
                   </td>
                   <td className={`${pClass} text-center border-l border-black whitespace-nowrap align-top`}>
                     {formatters.formatAccuracy(profile.acc_short)}
