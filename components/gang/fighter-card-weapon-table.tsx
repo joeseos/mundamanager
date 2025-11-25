@@ -26,6 +26,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       const strValue = value.toString();
       if (strValue === '') return strValue;
       if (strValue.endsWith('"')) return strValue;
+      if (strValue.toLowerCase().startsWith('sx')) return strValue;
       // Append " when the value ends with a digit (i.e., a numeric range)
       return /\d$/.test(strValue) ? `${strValue}"` : strValue;
     },
