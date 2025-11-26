@@ -977,6 +977,7 @@ export default function Gang({
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               gangVariants={gangVariants}
+              gangAffiliationId={gangAffiliationId}
             />
           )}
 
@@ -999,6 +1000,7 @@ export default function Gang({
               gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
+              gangAffiliationId={gangAffiliationId}
             />
           )}
 

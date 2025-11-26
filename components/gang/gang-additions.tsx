@@ -66,6 +66,7 @@ interface GangAdditionsProps {
   gangTypeId: string;
   initialCredits: number;
   onFighterAdded: (newFighter: FighterProps, cost: number) => void;
+  gangAffiliationId?: string | null;
 }
 
 // Helper to normalize equipment_selection to the old UI format
@@ -228,6 +229,7 @@ export default function GangAdditions({
   gangTypeId,
   initialCredits,
   onFighterAdded,
+  gangAffiliationId,
 }: GangAdditionsProps) {
   const { toast } = useToast();
   const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
@@ -284,7 +286,8 @@ export default function GangAdditions({
   const fetchGangAdditionTypes = async () => {
     try {
       // Use the API route
-      const response = await fetch(`/api/fighter-types?gang_type_id=${gangTypeId}&is_gang_addition=true`);
+      const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
+      const response = await fetch(`/api/fighter-types?gang_type_id=${gangTypeId}&is_gang_addition=true${affiliationParam}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

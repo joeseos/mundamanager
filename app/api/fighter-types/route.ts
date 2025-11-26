@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const gangId = searchParams.get('gang_id');
   const gangTypeId = searchParams.get('gang_type_id');
+  const gangAffiliationId = searchParams.get('gang_affiliation_id');
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
   const includeCustomFighters = searchParams.get('include_custom_fighters') === 'true';
   const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
       // Use get_fighter_types_with_cost for gang additions (same as server action)
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
+        p_gang_affiliation_id: gangAffiliationId || null,
         p_is_gang_addition: true
       });
       
@@ -44,7 +46,8 @@ export async function GET(request: Request) {
     } else {
       // Use get_add_fighter_details for regular fighters (same as server action)
       const { data: result, error } = await supabase.rpc('get_add_fighter_details', {
-        p_gang_type_id: gangTypeId
+        p_gang_type_id: gangTypeId,
+        p_gang_affiliation_id: gangAffiliationId || null
       });
       
       if (error) {
