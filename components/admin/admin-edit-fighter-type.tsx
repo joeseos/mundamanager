@@ -72,6 +72,13 @@ interface FighterTypeGangCost {
   fighter_type_id: string;
   gang_type_id: string;
   adjusted_cost: number;
+  gang_affiliation_id?: string | null;
+}
+
+interface GangAffiliation {
+  id: string;
+  name: string;
+  fighter_type_id: string;
 }
 
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
@@ -135,8 +142,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add new state for gang-specific costs
   const [showGangCostDialog, setShowGangCostDialog] = useState(false);
   const [selectedGangTypeForCost, setSelectedGangTypeForCost] = useState('');
-  const [gangAdjustedCost, setGangAdjustedCost] = useState('');
   const [gangTypeCosts, setGangTypeCosts] = useState<FighterTypeGangCost[]>([]);
+  const [gangAffiliations, setGangAffiliations] = useState<GangAffiliation[]>([]);
+  const [selectedGangAffiliationForCost, setSelectedGangAffiliationForCost] = useState<string>('');
   
   // Add at the top of the AdminEditFighterTypeModal component, after other state declarations
   const [skillAccess, setSkillAccess] = useState<{
@@ -154,6 +162,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const fighterTypeInputRef = useRef<HTMLInputElement>(null);
   const subTypeNameInputRef = useRef<HTMLInputElement>(null);
   const specialSkillsInputRef = useRef<HTMLInputElement>(null);
+  const gangAdjustedCostInputRef = useRef<HTMLInputElement>(null);
   
   // Add a ref to track if equipment categories have been loaded
   const hasLoadedEquipmentCategoriesRef = useRef(false);
@@ -264,6 +273,26 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     };
 
     fetchGangTypes();
+  }, [toast]);
+
+  // Fetch gang affiliations when the modal opens
+  useEffect(() => {
+    const fetchGangAffiliations = async () => {
+      try {
+        const response = await fetch('/api/admin/gang-lineages?type=affiliation');
+        if (!response.ok) throw new Error('Failed to fetch gang affiliations');
+        const data = await response.json();
+        setGangAffiliations(data);
+      } catch (error) {
+        console.error('Error fetching gang affiliations:', error);
+        toast({
+          description: 'Failed to load gang affiliations',
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchGangAffiliations();
   }, [toast]);
 
   // New useEffect to fetch fighter classes
@@ -1293,22 +1322,39 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
 
   const handleAddGangCost = () => {
-    if (!selectedGangTypeForCost || !gangAdjustedCost) return;
+    // Get the cost from the ref instead of state
+    const costValue = gangAdjustedCostInputRef.current?.value || '';
+    
+    if (!selectedGangTypeForCost || !costValue) {
+      toast({
+        description: 'Please select a gang type and enter a cost',
+        variant: "destructive"
+      });
+      return false;
+    }
     
     // Convert cost to number
-    const cost = parseInt(gangAdjustedCost);
-    if (isNaN(cost)) return;
+    const cost = parseInt(costValue);
+    if (isNaN(cost) || cost < 0) {
+      toast({
+        description: 'Please enter a valid cost (must be 0 or greater)',
+        variant: "destructive"
+      });
+      return false;
+    }
     
     // Create new gang cost
     const newGangCost: FighterTypeGangCost = {
       fighter_type_id: selectedFighterTypeId,
       gang_type_id: selectedGangTypeForCost,
-      adjusted_cost: cost
+      adjusted_cost: cost,
+      gang_affiliation_id: selectedGangAffiliationForCost || null
     };
     
-    // Check if this gang type already has a cost set
+    // Check if this gang type and affiliation combination already has a cost set
     const existingIndex = gangTypeCosts.findIndex(
-      item => item.gang_type_id === selectedGangTypeForCost
+      item => item.gang_type_id === selectedGangTypeForCost &&
+              item.gang_affiliation_id === (selectedGangAffiliationForCost || null)
     );
     
     if (existingIndex >= 0) {
@@ -1323,47 +1369,62 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     
     // Reset form
     setSelectedGangTypeForCost('');
-    setGangAdjustedCost('');
+    setSelectedGangAffiliationForCost('');
+    if (gangAdjustedCostInputRef.current) {
+      gangAdjustedCostInputRef.current.value = '';
+    }
     setShowGangCostDialog(false);
     
     return true; // Return true to close the modal
   };
   
-  const handleRemoveGangCost = (gangTypeId: string) => {
-    setGangTypeCosts(gangTypeCosts.filter(cost => cost.gang_type_id !== gangTypeId));
-  };
 
   // Create gang cost modal content
   const gangCostModalContent = (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Select a gang type and enter an adjusted cost for this fighter when used by that gang</p>
+      <p className="text-sm text-muted-foreground">Select a gang type, optionally select an affiliation, and enter an adjusted cost for this fighter</p>
       
       <div>
-        <label className="block text-sm font-medium mb-1">Gang Type</label>
+        <label className="block text-sm font-medium mb-1">Gang Type *</label>
         <select
           value={selectedGangTypeForCost}
           onChange={(e) => setSelectedGangTypeForCost(e.target.value)}
           className="w-full p-2 border rounded-md"
         >
           <option value="">Select a gang type</option>
-          {gangTypes
-            .filter(gangType => !gangTypeCosts.some(
-              cost => cost.gang_type_id === gangType.gang_type_id
-            ))
-            .map((gangType) => (
-              <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
-                {gangType.gang_type}
-              </option>
-            ))}
+          {gangTypes.map((gangType) => (
+            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+              {gangType.gang_type}
+            </option>
+          ))}
         </select>
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Adjusted Cost (credits)</label>
+        <label className="block text-sm font-medium mb-1">Gang Affiliation (Optional)</label>
+        <select
+          value={selectedGangAffiliationForCost}
+          onChange={(e) => setSelectedGangAffiliationForCost(e.target.value)}
+          className="w-full p-2 border rounded-md"
+        >
+          <option value="">None (applies to all gangs of this type)</option>
+          {gangAffiliations.map((affiliation) => (
+            <option key={affiliation.id} value={affiliation.id}>
+              {affiliation.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          If no affiliation is selected, this cost applies to all gangs of the selected type. If an affiliation is selected, this cost only applies to gangs with that specific affiliation.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Adjusted Cost (credits) *</label>
         <Input
+          ref={gangAdjustedCostInputRef}
           type="number"
-          value={gangAdjustedCost}
-          onChange={(e) => setGangAdjustedCost(e.target.value)}
+          defaultValue=""
           placeholder="Enter adjusted cost in credits"
           min="0"
           onKeyDown={(e) => {
@@ -2259,16 +2320,26 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
                 {gangTypeCosts.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {gangTypeCosts.map((gangCost) => {
+                    {gangTypeCosts.map((gangCost, index) => {
                       const gangType = gangTypes.find(g => g.gang_type_id === gangCost.gang_type_id);
+                      const affiliation = gangCost.gang_affiliation_id 
+                        ? gangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)
+                        : null;
+                      
+                      const displayText = affiliation
+                        ? `${gangType?.gang_type || 'Unknown Gang'} (${affiliation.name}) - ${gangCost.adjusted_cost} credits`
+                        : `${gangType?.gang_type || 'Unknown Gang'} - ${gangCost.adjusted_cost} credits`;
+                      
                       return (
                         <div
-                          key={gangCost.gang_type_id}
+                          key={`${gangCost.gang_type_id}-${gangCost.gang_affiliation_id || 'none'}-${index}`}
                           className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                         >
-                          <span>{gangType?.gang_type || 'Unknown Gang'} ({gangCost.adjusted_cost} credits)</span>
+                          <span>{displayText}</span>
                           <button
-                            onClick={() => handleRemoveGangCost(gangCost.gang_type_id)}
+                            onClick={() => {
+                              setGangTypeCosts(gangTypeCosts.filter((_, i) => i !== index));
+                            }}
                             className="hover:text-red-500 focus:outline-none"
                           >
                             <X className="h-4 w-4" />
@@ -2287,11 +2358,14 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     onClose={() => {
                       setShowGangCostDialog(false);
                       setSelectedGangTypeForCost("");
-                      setGangAdjustedCost("");
+                      setSelectedGangAffiliationForCost("");
+                      if (gangAdjustedCostInputRef.current) {
+                        gangAdjustedCostInputRef.current.value = '';
+                      }
                     }}
                     onConfirm={handleAddGangCost}
                     confirmText="Save Cost"
-                    confirmDisabled={!selectedGangTypeForCost || !gangAdjustedCost || parseInt(gangAdjustedCost) < 0}
+                    confirmDisabled={!selectedGangTypeForCost}
                   />
                 )}
               </div>

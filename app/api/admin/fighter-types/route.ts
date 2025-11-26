@@ -128,7 +128,7 @@ export async function GET(request: Request) {
       // Fetch gang-specific costs
       const { data: gangTypeCosts, error: gangCostsError } = await supabase
         .from('fighter_type_gang_cost')
-        .select('id, fighter_type_id, gang_type_id, adjusted_cost')
+        .select('id, fighter_type_id, gang_type_id, adjusted_cost, gang_affiliation_id')
         .eq('fighter_type_id', id);
 
       if (gangCostsError) {
@@ -743,8 +743,11 @@ export async function PUT(request: Request) {
         const gangCostsToInsert = data.gang_type_costs.map((cost: any) => ({
           fighter_type_id: id,
           gang_type_id: cost.gang_type_id,
-          adjusted_cost: cost.adjusted_cost
+          adjusted_cost: cost.adjusted_cost,
+          gang_affiliation_id: cost.gang_affiliation_id || null
         }));
+        
+        console.log('Inserting gang costs with affiliations:', gangCostsToInsert);
         
         const { error: insertError } = await supabase
           .from('fighter_type_gang_cost')
