@@ -22,6 +22,7 @@ interface AddFighterProps {
   initialCredits: number;
   onFighterAdded: (newFighter: any, cost: number) => void;
   gangVariants?: Array<{id: string, variant: string}>;
+  gangAffiliationId?: string | null;
 }
 
 interface GangEquipmentOption {
@@ -214,6 +215,7 @@ export default function AddFighter({
   initialCredits,
   onFighterAdded,
   gangVariants = [],
+  gangAffiliationId,
 }: AddFighterProps) {
   const { toast } = useToast();
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
@@ -252,7 +254,8 @@ export default function AddFighter({
       const gangVariantsParam = gangVariants.length > 0 ? `&gang_variants=${encodeURIComponent(JSON.stringify(gangVariants))}` : '';
       const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
       const includeAllParam = includeCustomFighters ? '&include_all_gang_type=true' : '';
-      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}`);
+      const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}${affiliationParam}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

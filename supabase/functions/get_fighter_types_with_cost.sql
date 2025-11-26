@@ -6,6 +6,7 @@ DROP FUNCTION IF EXISTS get_fighter_types_with_cost();
 -- Create new function with optional parameters
 CREATE OR REPLACE FUNCTION get_fighter_types_with_cost(
     p_gang_type_id uuid DEFAULT NULL,
+    p_gang_affiliation_id uuid DEFAULT NULL,
     p_is_gang_addition boolean DEFAULT NULL
 )
 RETURNS TABLE (
@@ -797,6 +798,7 @@ BEGIN
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
         AND ftgc.gang_type_id = p_gang_type_id
+        AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
     WHERE
         -- Removed the gang_type_id restriction for gang additions

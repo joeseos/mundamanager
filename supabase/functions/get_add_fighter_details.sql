@@ -1,8 +1,12 @@
 -- Drop the function if it already exists
 DROP FUNCTION IF EXISTS get_add_fighter_details(uuid);
+DROP FUNCTION IF EXISTS get_add_fighter_details(uuid, uuid);
 
 -- Create the new function
-CREATE OR REPLACE FUNCTION get_add_fighter_details(p_gang_type_id uuid)
+CREATE OR REPLACE FUNCTION get_add_fighter_details(
+    p_gang_type_id uuid,
+    p_gang_affiliation_id uuid DEFAULT NULL
+)
 RETURNS TABLE (
     id uuid,
     fighter_type text,
@@ -39,7 +43,7 @@ BEGIN
         fc.class_name,
         ft.fighter_class_id,  -- Added fighter_class_id field
         ft.gang_type,
-        ft.cost,
+        COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
         ft.gang_type_id,
         ft.special_rules::text[],
         ft.movement,
@@ -602,7 +606,7 @@ BEGIN
             WHERE fes.fighter_type_id = ft.id
             LIMIT 1
         ) AS equipment_selection,
-        ft.cost AS total_cost,
+        COALESCE(ftgc.adjusted_cost, ft.cost) AS total_cost,
         COALESCE(
             (
                 SELECT jsonb_build_object(
@@ -630,6 +634,12 @@ BEGIN
         ) AS available_legacies
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
-    WHERE ft.gang_type_id = p_gang_type_id;
+    LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
+        AND ftgc.gang_type_id = p_gang_type_id
+        AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
+    WHERE ft.gang_type_id = p_gang_type_id
+        OR (ftgc.fighter_type_id IS NOT NULL 
+            AND ftgc.gang_affiliation_id IS NOT NULL 
+            AND ftgc.gang_affiliation_id = p_gang_affiliation_id);
 END;
 $$;
