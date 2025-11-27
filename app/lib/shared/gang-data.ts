@@ -492,7 +492,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
               created_at,
               territory_id,
               territory_name,
-              ruined
+              ruined,
+              default_gang_territory
             `)
             .eq('campaign_id', (cg.campaigns as any).id)
             .eq('gang_id', gangId);
