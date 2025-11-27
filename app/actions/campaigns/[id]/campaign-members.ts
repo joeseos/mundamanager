@@ -61,7 +61,8 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
           campaign_id: campaignId,
           gang_id: gangId,
           user_id: userId,
-          campaign_member_id: campaignMemberId
+          campaign_member_id: campaignMemberId,
+          joined_at: new Date().toISOString()
         });
 
       if (error) throw error;
@@ -86,7 +87,8 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
           campaign_id: campaignId,
           gang_id: gangId,
           user_id: userId,
-          campaign_member_id: targetMemberId
+          campaign_member_id: targetMemberId,
+          joined_at: new Date().toISOString()
         });
 
       if (error) throw error;

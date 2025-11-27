@@ -453,12 +453,15 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
       const { data, error } = await supabase
         .from('campaign_gangs')
         .select(`
-          role,
-          status,
-          invited_at,
           joined_at,
-          invited_by,
-          campaign:campaign_id (
+          user_id,
+          campaign_members!campaign_member_id (
+            role,
+            status,
+            invited_at,
+            invited_by
+          ),
+          campaigns!campaign_id (
             id,
             campaign_name,
             has_meat,
@@ -472,12 +475,15 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         `)
         .eq('gang_id', gangId);
 
-      if (error) return [];
+      if (error) {
+        console.error('Error fetching gang campaigns:', error);
+        return [];
+      }
 
       const campaigns: GangCampaign[] = [];
-      
+
       for (const cg of data || []) {
-        if (cg.campaign) {
+        if (cg.campaigns) {
           // Get territories for this campaign
           const { data: territories } = await supabase
             .from('campaign_territories')
@@ -486,26 +492,56 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
               created_at,
               territory_id,
               territory_name,
-              ruined
+              ruined,
+              default_gang_territory
             `)
-            .eq('campaign_id', (cg.campaign as any).id)
+            .eq('campaign_id', (cg.campaigns as any).id)
             .eq('gang_id', gangId);
 
+          // Get member data - need to fetch ALL entries for this user in this campaign
+          // to determine the highest role (in case they have multiple gangs)
+          let memberData = cg.campaign_members;
+
+          if (!memberData || !(memberData as any)?.role) {
+            // Fallback: query all campaign_members entries for this user in this campaign
+            const { data: allMemberEntries } = await supabase
+              .from('campaign_members')
+              .select('role, status, invited_at, invited_by')
+              .eq('campaign_id', (cg.campaigns as any).id)
+              .eq('user_id', (cg as any).user_id);
+
+            if (allMemberEntries && allMemberEntries.length > 0) {
+              // Find the highest role (OWNER > ARBITRATOR > MEMBER)
+              const roleHierarchy: Record<string, number> = {
+                'OWNER': 3,
+                'ARBITRATOR': 2,
+                'MEMBER': 1
+              };
+
+              type MemberEntry = { role: string; status: string | null; invited_at: string; invited_by: string };
+              memberData = allMemberEntries.reduce((highest: MemberEntry, current: MemberEntry) => {
+                const currentRank = roleHierarchy[current.role] || 0;
+                const highestRank = roleHierarchy[highest.role] || 0;
+                return currentRank > highestRank ? current : highest;
+              }, allMemberEntries[0]);
+            }
+          }
+
           campaigns.push({
-            campaign_id: (cg.campaign as any).id,
-            campaign_name: (cg.campaign as any).campaign_name,
-            role: cg.role,
-            status: cg.status,
-            invited_at: cg.invited_at,
+            campaign_id: (cg.campaigns as any).id,
+            campaign_name: (cg.campaigns as any).campaign_name,
+            role: (memberData as any)?.role,
+            status: (memberData as any)?.status,
+            invited_at: (memberData as any)?.invited_at,
             joined_at: cg.joined_at,
-            invited_by: cg.invited_by,
-            has_meat: (cg.campaign as any).has_meat,
-            has_exploration_points: (cg.campaign as any).has_exploration_points,
-            has_scavenging_rolls: (cg.campaign as any).has_scavenging_rolls,
-            has_power: (cg.campaign as any).has_power,
-            has_sustenance: (cg.campaign as any).has_sustenance,
-            has_salvage: (cg.campaign as any).has_salvage,
-            trading_posts: (cg.campaign as any).trading_posts || [],
+            invited_by: (memberData as any)?.invited_by,
+            has_meat: (cg.campaigns as any).has_meat,
+            has_exploration_points: (cg.campaigns as any).has_exploration_points,
+            has_scavenging_rolls: (cg.campaigns as any).has_scavenging_rolls,
+            has_power: (cg.campaigns as any).has_power,
+            has_sustenance: (cg.campaigns as any).has_sustenance,
+            has_salvage: (cg.campaigns as any).has_salvage,
+            trading_posts: (cg.campaigns as any).trading_posts || [],
             territories: territories || []
           });
         }
