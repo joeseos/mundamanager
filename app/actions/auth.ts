@@ -234,7 +234,9 @@ export const signOutAction = async () => {
   // Revalidate the root layout to clear any cached user data
   revalidatePath('/', 'layout');
 
-  return redirect("/sign-in");
+  // Redirect to root, which will be rewritten to /sign-in by middleware
+  // This keeps the URL as / instead of /sign-in
+  return redirect("/");
 };
 
 
