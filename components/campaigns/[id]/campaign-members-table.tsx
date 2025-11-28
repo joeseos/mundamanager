@@ -251,30 +251,42 @@ export default function MembersTable({
 
   const fetchUserGangs = async (userId: string) => {
     try {
+      // Single optimized query with LEFT JOIN to check campaign membership
       const { data: gangs, error } = await supabase
         .from('gangs')
-        .select('id, name, gang_type, gang_colour, rating, wealth, reputation, exploration_points, meat, scavenging_rolls, power, sustenance, salvage')
+        .select(`
+          id, 
+          name, 
+          gang_type, 
+          gang_colour, 
+          rating, 
+          wealth, 
+          reputation, 
+          exploration_points, 
+          meat, 
+          scavenging_rolls, 
+          power, 
+          sustenance, 
+          salvage,
+          campaign_gangs(gang_id)
+        `)
         .eq('user_id', userId);
 
       if (error) throw error;
 
-      // Check if the user's gangs are in ANY campaign (more efficient than fetching all 1000+ campaigns)
-      const userGangIds = gangs?.map(g => g.id) || [];
-      
-      const { data: userGangsInCampaigns, error: campaignError } = await supabase
-        .from('campaign_gangs')
-        .select('gang_id')
-        .in('gang_id', userGangIds);
-
-      if (campaignError) throw campaignError;
-
-      // Create set of this user's gang IDs that are already in campaigns
-      const takenGangIds = new Set(userGangsInCampaigns?.map(cg => cg.gang_id) || []);
-
-      const gangsWithAvailability = gangs?.map(gang => ({
-        ...gang,
-        isInCampaign: takenGangIds.has(gang.id)
-      })) || [];
+      // Transform data to include isInCampaign flag
+      const gangsWithAvailability = gangs?.map(gang => {
+        // If campaign_gangs array exists and has entries, the gang is in a campaign
+        const isInCampaign = Array.isArray((gang as any).campaign_gangs) && (gang as any).campaign_gangs.length > 0;
+        
+        // Remove the campaign_gangs join data from the result
+        const { campaign_gangs, ...gangData } = gang as any;
+        
+        return {
+          ...gangData,
+          isInCampaign
+        };
+      }) || [];
 
       setUserGangs(gangsWithAvailability);
     } catch (error) {
@@ -323,12 +335,12 @@ export default function MembersTable({
         rating: selectedGang.rating || 0,
         wealth: selectedGang.wealth || 0,
         reputation: selectedGang.reputation || 0,
-        exploration_points: selectedGang.exploration_points ?? null,
-        meat: selectedGang.meat ?? null,
-        scavenging_rolls: selectedGang.scavenging_rolls ?? null,
-        power: selectedGang.power ?? null,
-        sustenance: selectedGang.sustenance ?? null,
-        salvage: selectedGang.salvage ?? null,
+        exploration_points: selectedGang.exploration_points ?? undefined,
+        meat: selectedGang.meat ?? undefined,
+        scavenging_rolls: selectedGang.scavenging_rolls ?? undefined,
+        power: selectedGang.power ?? undefined,
+        sustenance: selectedGang.sustenance ?? undefined,
+        salvage: selectedGang.salvage ?? undefined,
         territory_count: 0 // Will be updated when server responds
       };
 
