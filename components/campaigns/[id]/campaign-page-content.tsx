@@ -693,7 +693,50 @@ export default function CampaignPageContent({
                   canDeleteTerritories: safePermissions.canDeleteTerritories,
                   canClaimTerritories: safePermissions.canClaimTerritories
                 }}
-                onTerritoryUpdate={refreshData}
+                onTerritoryUpdate={(update) => {
+                  if (!update) {
+                    refreshData();
+                    return;
+                  }
+
+                  if (update.action === 'assign') {
+                    // Optimistically assign gang to territory
+                    setCampaignData(prev => ({
+                      ...prev,
+                      territories: (prev.territories || []).map(territory => 
+                        territory.id === update.territoryId
+                          ? { ...territory, gang_id: update.gangId ?? null, owning_gangs: update.gangData ? [update.gangData] : [] }
+                          : territory
+                      )
+                    }));
+                  } else if (update.action === 'remove') {
+                    // Optimistically remove gang from territory
+                    setCampaignData(prev => ({
+                      ...prev,
+                      territories: (prev.territories || []).map(territory => 
+                        territory.id === update.territoryId
+                          ? { ...territory, gang_id: null, owning_gangs: [] }
+                          : territory
+                      )
+                    }));
+                  } else if (update.action === 'update') {
+                    // Optimistically update territory status
+                    setCampaignData(prev => ({
+                      ...prev,
+                      territories: (prev.territories || []).map(territory => 
+                        territory.id === update.territoryId
+                          ? { ...territory, ...update.updates }
+                          : territory
+                      )
+                    }));
+                  } else if (update.action === 'delete') {
+                    // Optimistically delete territory
+                    setCampaignData(prev => ({
+                      ...prev,
+                      territories: (prev.territories || []).filter(t => t.id !== update.territoryId)
+                    }));
+                  }
+                }}
               />
             </div>
           </div>
@@ -727,7 +770,50 @@ export default function CampaignPageContent({
                     canDeleteTerritories: safePermissions.canDeleteTerritories,
                     canClaimTerritories: safePermissions.canClaimTerritories
                   }}
-                  onTerritoryUpdate={refreshData}
+                  onTerritoryUpdate={(update) => {
+                    if (!update) {
+                      refreshData();
+                      return;
+                    }
+
+                    if (update.action === 'assign') {
+                      // Optimistically assign gang to territory
+                      setCampaignData(prev => ({
+                        ...prev,
+                        territories: (prev.territories || []).map(territory => 
+                          territory.id === update.territoryId
+                            ? { ...territory, gang_id: update.gangId ?? null, owning_gangs: update.gangData ? [update.gangData] : [] }
+                            : territory
+                        )
+                      }));
+                    } else if (update.action === 'remove') {
+                      // Optimistically remove gang from territory
+                      setCampaignData(prev => ({
+                        ...prev,
+                        territories: (prev.territories || []).map(territory => 
+                          territory.id === update.territoryId
+                            ? { ...territory, gang_id: null, owning_gangs: [] }
+                            : territory
+                        )
+                      }));
+                    } else if (update.action === 'update') {
+                      // Optimistically update territory status
+                      setCampaignData(prev => ({
+                        ...prev,
+                        territories: (prev.territories || []).map(territory => 
+                          territory.id === update.territoryId
+                            ? { ...territory, ...update.updates }
+                            : territory
+                        )
+                      }));
+                    } else if (update.action === 'delete') {
+                      // Optimistically delete territory
+                      setCampaignData(prev => ({
+                        ...prev,
+                        territories: (prev.territories || []).filter(t => t.id !== update.territoryId)
+                      }));
+                    }
+                  }}
                 />
               </div>
             </div>

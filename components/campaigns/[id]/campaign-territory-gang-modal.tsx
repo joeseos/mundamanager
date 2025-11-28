@@ -2,13 +2,13 @@
 
 import Modal from "@/components/ui/modal"
 import { useState, useEffect } from "react"
-import { createClient } from "@/utils/supabase/client"
 import Link from 'next/link'
 
 interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  gang_colour?: string;
   campaign_gang_id?: string;
   user_id?: string;
   campaign_member_id?: string;
@@ -23,6 +23,7 @@ interface TerritoryGangModalProps {
   campaignId: string;
   territoryName: string;
   existingGangId?: string | null;
+  isAssigning?: boolean;
 }
 
 export default function TerritoryGangModal({
@@ -31,12 +32,12 @@ export default function TerritoryGangModal({
   onConfirm,
   campaignId,
   territoryName,
-  existingGangId = null
+  existingGangId = null,
+  isAssigning = false
 }: TerritoryGangModalProps) {
   const [availableGangs, setAvailableGangs] = useState<Gang[]>([]);
   const [selectedGang, setSelectedGang] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     const loadGangs = async () => {
@@ -44,67 +45,15 @@ export default function TerritoryGangModal({
       
       setIsLoading(true);
       try {
-        // Get campaign gangs
-        const { data: campaignGangs, error: campaignGangsError } = await supabase
-          .from('campaign_gangs')
-          .select(`
-            id,
-            gang_id,
-            user_id,
-            campaign_member_id
-          `)
-          .eq('campaign_id', campaignId);
-
-        if (campaignGangsError) throw campaignGangsError;
-
-        if (!campaignGangs?.length) {
-          setAvailableGangs([]);
-          setIsLoading(false);
-          return;
-        }
-
-        // Get the gang details
-        const { data: gangs, error: gangsError } = await supabase
-          .from('gangs')
-          .select('id, name, gang_type, gang_colour')
-          .in('id', campaignGangs.map(cg => cg.gang_id));
-
-        if (gangsError) throw gangsError;
-
-        // Get user profiles for all gang owners
-        const userIds = campaignGangs.map(cg => cg.user_id).filter(Boolean);
-        let userProfiles: { id: string; username: string }[] = [];
+        // Use existing API route that combines all queries server-side
+        const response = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
         
-        if (userIds.length > 0) {
-          const { data: profiles, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, username')
-            .in('id', userIds);
-
-          if (!profilesError && profiles) {
-            userProfiles = profiles;
-          }
+        if (!response.ok) {
+          throw new Error(`Failed to fetch gangs: ${response.statusText}`);
         }
 
-        // Combine the data with user information
-        const enhancedGangs = gangs?.map(gang => {
-          // Find the campaign_gang entry for this gang
-          const campaignGang = campaignGangs.find(cg => cg.gang_id === gang.id);
-          // Find the user profile for this gang owner
-          const userProfile = userProfiles.find(profile => profile.id === campaignGang?.user_id);
-          
-          return {
-            id: gang.id,
-            name: gang.name,
-            gang_type: gang.gang_type,
-            campaign_gang_id: campaignGang?.id,
-            user_id: campaignGang?.user_id,
-            campaign_member_id: campaignGang?.campaign_member_id,
-            owner_username: userProfile?.username || 'Unknown'
-          };
-        }) || [];
-
-        setAvailableGangs(enhancedGangs);
+        const gangs = await response.json();
+        setAvailableGangs(gangs);
       } catch (error) {
         console.error('Error loading gangs:', error);
         setAvailableGangs([]);
@@ -159,7 +108,7 @@ export default function TerritoryGangModal({
       onClose={onClose}
       onConfirm={() => selectedGang && onConfirm(selectedGang)}
       confirmText="Assign Territory"
-      confirmDisabled={!selectedGang}
+      confirmDisabled={!selectedGang || isAssigning}
     />
   );
 } 
