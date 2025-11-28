@@ -92,7 +92,6 @@ export interface GangCampaign {
   role: string;
   status: string;
   invited_at?: string;
-  joined_at?: string;
   invited_by?: string;
   has_meat: boolean;
   has_exploration_points: boolean;
@@ -453,7 +452,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
       const { data, error } = await supabase
         .from('campaign_gangs')
         .select(`
-          joined_at,
           user_id,
           campaign_members!campaign_member_id (
             role,
@@ -533,7 +531,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             role: (memberData as any)?.role,
             status: (memberData as any)?.status,
             invited_at: (memberData as any)?.invited_at,
-            joined_at: cg.joined_at,
             invited_by: (memberData as any)?.invited_by,
             has_meat: (cg.campaigns as any).has_meat,
             has_exploration_points: (cg.campaigns as any).has_exploration_points,
