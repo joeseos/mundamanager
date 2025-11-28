@@ -95,7 +95,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
               role,
               status,
               invited_at,
-              joined_at,
               invited_by,
               campaign:campaign_id (
                 id,
@@ -158,7 +157,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             role: cg.role,
             status: cg.status,
             invited_at: cg.invited_at,
-            joined_at: cg.joined_at,
             invited_by: cg.invited_by,
             has_meat: cg.campaign.has_meat,
             has_exploration_points: cg.campaign.has_exploration_points,

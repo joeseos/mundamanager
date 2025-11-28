@@ -65,8 +65,7 @@ export async function POST(request: Request) {
       .insert({
         campaign_id: campaignId,
         gang_id: gangId,
-        user_id: userId,
-        joined_at: new Date().toISOString()
+        user_id: userId
       });
 
     if (insertError) throw insertError;
