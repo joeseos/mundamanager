@@ -10,13 +10,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
 import { createClient } from "@/utils/supabase/client";
-import { LuTrophy } from "react-icons/lu";
 import { FiMap } from "react-icons/fi";
 import { FaUsers } from "react-icons/fa";
-import { MdFactory } from "react-icons/md";
-import { LuSwords, LuClipboard } from "react-icons/lu";
-import { RiContactsBook3Line } from "react-icons/ri";
-import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
 import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
 

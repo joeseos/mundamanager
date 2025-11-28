@@ -2,7 +2,6 @@
 // Server actions should trigger revalidation of this data using revalidatePath
 
 import { createClient } from "@/utils/supabase/server";
-import { redirect } from "next/navigation";
 import { CreateGangButton } from '@/components/create-gang-modal';
 import { CreateCampaignButton } from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
@@ -16,6 +15,7 @@ import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
+import { redirect } from "next/navigation";
 
 export default async function Home() {
   const supabase = await createClient();

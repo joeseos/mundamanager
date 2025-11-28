@@ -58,6 +58,13 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // For unauthenticated users accessing root, rewrite to sign-in (server-side, no redirect)
+  if (!userId && request.nextUrl.pathname === '/') {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = '/sign-in';
+    return NextResponse.rewrite(rewriteUrl);
+  }
+
   // Redirect to sign-in if user is not authenticated
   if (!userId) {
     console.log("Redirecting to sign-in page");
