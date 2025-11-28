@@ -7,6 +7,8 @@ import { Database } from "@/types/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { LuTrash2 } from 'react-icons/lu'
+import { useMutation } from '@tanstack/react-query'
+import { addGangToCampaignDirect, removeGangFromCampaignDirect } from "@/app/actions/campaigns/[id]/campaign-gangs"
 
 type Gang = Database['public']['Tables']['gangs']['Row'] & {
   gang_type?: string;
@@ -24,7 +26,6 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
   const [searchResults, setSearchResults] = useState<Gang[]>([])
   const [campaignGangs, setCampaignGangs] = useState<Gang[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [isAdding, setIsAdding] = useState(false)
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -172,77 +173,104 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
     return () => clearTimeout(debounceTimer)
   }, [query, campaignGangs])
 
-  const handleAddGang = async (gang: Database['public']['Tables']['gangs']['Row']) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/campaign_gangs`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({
-            campaign_id: campaignId,
-            gang_id: gang.id
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to add gang to campaign');
-      }
-
-      setCampaignGangs([...campaignGangs, gang]);
-      toast({
-        description: `Added ${gang.name} to the campaign`
+  // TanStack Query mutation for adding gang
+  const addGangMutation = useMutation({
+    mutationFn: async (variables: { gangId: string; gangName: string }) => {
+      const result = await addGangToCampaignDirect({
+        campaignId,
+        gangId: variables.gangId
       });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add gang to campaign');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Find the gang from search results for optimistic update
+      const gang = searchResults.find(g => g.id === variables.gangId);
+      if (!gang) return {};
+
+      // Store previous state for rollback
+      const previousGangs = [...campaignGangs];
+      
+      // Optimistically add gang to the list
+      setCampaignGangs([...campaignGangs, gang]);
+      
+      // Clear search
       setQuery('');
       setSearchResults([]);
-    } catch (error) {
-      console.error('Error adding gang to campaign:', error);
+
+      return { previousGangs, gangName: variables.gangName };
+    },
+    onSuccess: (result, variables, context) => {
       toast({
-        description: 'Failed to add gang to campaign',
+        description: result.message || `Added ${context?.gangName} to the campaign`
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousGangs) {
+        setCampaignGangs(context.previousGangs);
+      }
+      
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to add gang to campaign',
         variant: "destructive"
       });
     }
-  };
+  });
 
-  const handleRemoveGang = async (gang: Gang) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/campaign_gangs?campaign_id=eq.${campaignId}&gang_id=eq.${gang.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Prefer': 'return=minimal'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to remove gang from campaign');
-      }
-
-      setCampaignGangs(campaignGangs.filter(g => g.id !== gang.id));
-      toast({
-        description: `Removed ${gang.name} from the campaign`
+  // TanStack Query mutation for removing gang
+  const removeGangMutation = useMutation({
+    mutationFn: async (variables: { gangId: string; gangName: string }) => {
+      const result = await removeGangFromCampaignDirect({
+        campaignId,
+        gangId: variables.gangId
       });
-    } catch (error) {
-      console.error('Error removing gang from campaign:', error);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to remove gang from campaign');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousGangs = [...campaignGangs];
+      
+      // Optimistically remove gang from the list
+      setCampaignGangs(campaignGangs.filter(g => g.id !== variables.gangId));
+
+      return { previousGangs, gangName: variables.gangName };
+    },
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: result.message || `Removed ${context?.gangName} from the campaign`
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousGangs) {
+        setCampaignGangs(context.previousGangs);
+      }
+      
       toast({
         variant: "destructive",
-        description: "Failed to remove gang from campaign"
+        description: error instanceof Error ? error.message : "Failed to remove gang from campaign"
       });
     }
+  });
+
+  const handleAddGang = (gang: Database['public']['Tables']['gangs']['Row']) => {
+    addGangMutation.mutate({
+      gangId: gang.id,
+      gangName: gang.name
+    });
+  };
+
+  const handleRemoveGang = (gang: Gang) => {
+    removeGangMutation.mutate({
+      gangId: gang.id,
+      gangName: gang.name
+    });
   };
 
   return (
@@ -254,7 +282,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full"
-          disabled={isAdding}
+          disabled={addGangMutation.isPending || removeGangMutation.isPending}
         />
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -269,7 +297,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
                   <button
                     onClick={() => handleAddGang(gang)}
                     className="w-full px-4 py-2 text-left hover:bg-muted"
-                    disabled={isAdding}
+                    disabled={addGangMutation.isPending || removeGangMutation.isPending}
                   >
                     <div className="flex flex-col">
                       <span className="font-medium">{gang.name}</span>
@@ -299,6 +327,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
                   size="sm"
                   onClick={() => handleRemoveGang(gang)}
                   className="text-xs px-1.5 h-6"
+                  disabled={addGangMutation.isPending || removeGangMutation.isPending}
                 >
                   <LuTrash2 className="h-4 w-4" />
                 </Button>
