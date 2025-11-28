@@ -69,6 +69,10 @@ interface Gang {
   isInCampaign?: boolean;
 }
 
+type GangWithCampaignCheck = Gang & {
+  campaign_gangs?: Array<{ gang_id: string }>;
+}
+
 interface GangToRemove {
   memberId: string;
   gangId: string;
@@ -275,12 +279,12 @@ export default function MembersTable({
       if (error) throw error;
 
       // Transform data to include isInCampaign flag
-      const gangsWithAvailability = gangs?.map(gang => {
+      const gangsWithAvailability = (gangs as unknown as GangWithCampaignCheck[])?.map(gang => {
         // If campaign_gangs array exists and has entries, the gang is in a campaign
-        const isInCampaign = Array.isArray((gang as any).campaign_gangs) && (gang as any).campaign_gangs.length > 0;
+        const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
         
         // Remove the campaign_gangs join data from the result
-        const { campaign_gangs, ...gangData } = gang as any;
+        const { campaign_gangs, ...gangData } = gang;
         
         return {
           ...gangData,
@@ -309,7 +313,12 @@ export default function MembersTable({
 
   // TanStack Query mutation for adding gang with optimistic updates
   const addGangMutation = useMutation({
-    mutationFn: async (variables: { gangId: string; userId: string; campaignMemberId?: string; gangName: string }) => {
+    mutationFn: async (variables: { 
+      gangId: string; 
+      userId: string; 
+      campaignMemberId?: string; 
+      gangData: Gang;
+    }) => {
       const result = await addGangToCampaign({
         campaignId,
         gangId: variables.gangId,
@@ -322,25 +331,26 @@ export default function MembersTable({
       return result;
     },
     onMutate: async (variables) => {
-      if (!selectedGang || !selectedMember) return {};
+      // Use variables.gangData instead of closure to avoid stale data
+      const { gangData } = variables;
 
-      // Create optimistic gang object using all available data from selectedGang
+      // Create optimistic gang object using all available data from variables
       const optimisticGang = {
-        id: `temp-${Date.now()}`, // Temporary ID for the campaign_gangs entry
+        id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
         gang_id: variables.gangId,
-        gang_name: selectedGang.name,
-        gang_type: selectedGang.gang_type,
-        gang_colour: selectedGang.gang_colour || '#000000',
+        gang_name: gangData.name,
+        gang_type: gangData.gang_type,
+        gang_colour: gangData.gang_colour || '#000000',
         status: null,
-        rating: selectedGang.rating || 0,
-        wealth: selectedGang.wealth || 0,
-        reputation: selectedGang.reputation || 0,
-        exploration_points: selectedGang.exploration_points ?? undefined,
-        meat: selectedGang.meat ?? undefined,
-        scavenging_rolls: selectedGang.scavenging_rolls ?? undefined,
-        power: selectedGang.power ?? undefined,
-        sustenance: selectedGang.sustenance ?? undefined,
-        salvage: selectedGang.salvage ?? undefined,
+        rating: gangData.rating || 0,
+        wealth: gangData.wealth || 0,
+        reputation: gangData.reputation || 0,
+        exploration_points: gangData.exploration_points ?? undefined,
+        meat: gangData.meat ?? undefined,
+        scavenging_rolls: gangData.scavenging_rolls ?? undefined,
+        power: gangData.power ?? undefined,
+        sustenance: gangData.sustenance ?? undefined,
+        salvage: gangData.salvage ?? undefined,
         territory_count: 0 // Will be updated when server responds
       };
 
@@ -359,10 +369,12 @@ export default function MembersTable({
 
       return { 
         previousMembers: members,
-        gangName: variables.gangName,
+        gangName: gangData.name,
         updatedMember
       };
     },
+    retry: 2,
+    retryDelay: 1000,
     onSuccess: (result, variables, context) => {
       // Server action handles cache invalidation
       // The real data will replace our optimistic update
@@ -400,11 +412,12 @@ export default function MembersTable({
     
     console.log("Adding gang to member:", JSON.stringify(selectedMember, null, 2));
 
+    // Pass all gang data through variables to avoid stale closure
     addGangMutation.mutate({
       gangId: selectedGang.id,
       userId: selectedMember.user_id,
       campaignMemberId: selectedMember.id,
-      gangName: selectedGang.name
+      gangData: selectedGang
     });
     
     return true;
@@ -537,6 +550,8 @@ export default function MembersTable({
         gangName: variables.gangName
       };
     },
+    retry: 2,
+    retryDelay: 1000,
     onSuccess: (result, variables, context) => {
       toast({
         description: `Removed ${context?.gangName} from the campaign`

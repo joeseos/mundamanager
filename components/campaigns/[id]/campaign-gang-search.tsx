@@ -175,7 +175,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
 
   // TanStack Query mutation for adding gang
   const addGangMutation = useMutation({
-    mutationFn: async (variables: { gangId: string; gangName: string }) => {
+    mutationFn: async (variables: { gangId: string; gangData: Gang }) => {
       const result = await addGangToCampaignDirect({
         campaignId,
         gangId: variables.gangId
@@ -186,22 +186,23 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
       return result;
     },
     onMutate: async (variables) => {
-      // Find the gang from search results for optimistic update
-      const gang = searchResults.find(g => g.id === variables.gangId);
-      if (!gang) return {};
+      // Use variables.gangData instead of closure to avoid stale data
+      const { gangData } = variables;
 
       // Store previous state for rollback
       const previousGangs = [...campaignGangs];
       
-      // Optimistically add gang to the list
-      setCampaignGangs([...campaignGangs, gang]);
+      // Optimistically add gang to the list using data from variables
+      setCampaignGangs([...campaignGangs, gangData]);
       
       // Clear search
       setQuery('');
       setSearchResults([]);
 
-      return { previousGangs, gangName: variables.gangName };
+      return { previousGangs, gangName: gangData.name };
     },
+    retry: 2,
+    retryDelay: 1000,
     onSuccess: (result, variables, context) => {
       toast({
         description: result.message || `Added ${context?.gangName} to the campaign`
@@ -241,6 +242,8 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
 
       return { previousGangs, gangName: variables.gangName };
     },
+    retry: 2,
+    retryDelay: 1000,
     onSuccess: (result, variables, context) => {
       toast({
         description: result.message || `Removed ${context?.gangName} from the campaign`
@@ -260,9 +263,10 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
   });
 
   const handleAddGang = (gang: Database['public']['Tables']['gangs']['Row']) => {
+    // Pass gang data through variables to avoid stale closure
     addGangMutation.mutate({
       gangId: gang.id,
-      gangName: gang.name
+      gangData: gang as Gang
     });
   };
 
