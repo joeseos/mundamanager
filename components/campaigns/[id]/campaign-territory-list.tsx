@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useToast } from "@/components/ui/use-toast";
 import { Edit } from "lucide-react";
 import { LuTrash2 } from "react-icons/lu";
@@ -58,6 +59,17 @@ interface Territory {
   } | null;
 }
 
+interface TerritoryUpdate {
+  action: 'assign' | 'remove' | 'update' | 'delete';
+  territoryId: string;
+  gangId?: string;
+  gangData?: Gang;
+  updates?: {
+    ruined?: boolean;
+    default_gang_territory?: boolean;
+  };
+}
+
 interface CampaignTerritoryListProps {
   territories: Territory[];
   campaignId: string;
@@ -68,7 +80,7 @@ interface CampaignTerritoryListProps {
     canDeleteTerritories: boolean;
     canClaimTerritories: boolean;
   };
-  onTerritoryUpdate?: () => void;
+  onTerritoryUpdate?: (update?: TerritoryUpdate) => void;
 }
 
 export default function CampaignTerritoryList({
@@ -107,66 +119,202 @@ export default function CampaignTerritoryList({
     return null;
   };
 
-  // Gang assignment
-  const handleAssignGang = async (gangId: string) => {
-    if (!selectedTerritory) return false;
-
-    try {
+  // TanStack Query mutation for assigning gang to territory
+  const assignGangMutation = useMutation({
+    mutationFn: async (variables: {
+      territoryId: string;
+      gangId: string;
+      gangData: Gang;
+      territoryName: string;
+    }) => {
       const result = await assignGangToTerritory({
-        campaignId: campaignId,
-        territoryId: selectedTerritory.id,
-        gangId
+        campaignId,
+        territoryId: variables.territoryId,
+        gangId: variables.gangId
       });
-
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error(result.error || 'Failed to assign gang to territory');
       }
-
-      toast({
-        description: "Gang assigned to territory successfully"
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousTerritories = [...territories];
+      
+      // Optimistically update via parent callback
+      onTerritoryUpdate?.({
+        action: 'assign',
+        territoryId: variables.territoryId,
+        gangId: variables.gangId,
+        gangData: variables.gangData
       });
-
-      // Refresh parent data
+      
+      return { previousTerritories, territoryName: variables.territoryName, gangName: variables.gangData.name };
+    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: `${context?.gangName} assigned to ${context?.territoryName}`
+      });
+      
+      // Close modal
+      setShowGangModal(false);
+      setSelectedTerritory(null);
+    },
+    onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
       onTerritoryUpdate?.();
-    } catch (error) {
+      
+      // Note: Modal stays open on error to allow user to retry with a different selection
       console.error('Error assigning gang:', error);
       toast({
         variant: "destructive",
-        description: "Failed to assign gang to territory"
+        description: error instanceof Error ? error.message : "Failed to assign gang to territory"
       });
-    } finally {
-      setShowGangModal(false);
-      setSelectedTerritory(null);
     }
-    return false;
+  });
+
+  // Gang assignment handler
+  const handleAssignGang = async (gangId: string) => {
+    if (!selectedTerritory) return false;
+    
+    // Get gang details
+    const gangData = getGangDetails(gangId);
+    if (!gangData) {
+      toast({
+        variant: "destructive",
+        description: "Gang data not found"
+      });
+      return false;
+    }
+
+    // Pass gang data through variables to avoid stale closure
+    assignGangMutation.mutate({
+      territoryId: selectedTerritory.id,
+      gangId,
+      gangData,
+      territoryName: selectedTerritory.territory_name
+    });
+    
+    return true;
   };
 
-  // Gang removal
-  const handleRemoveGang = async (territoryId: string, gangId: string) => {
-    try {
+  // TanStack Query mutation for removing gang from territory
+  const removeGangMutation = useMutation({
+    mutationFn: async (variables: {
+      territoryId: string;
+      territoryName: string;
+    }) => {
       const result = await removeGangFromTerritory({
-        campaignId: campaignId,
-        territoryId
+        campaignId,
+        territoryId: variables.territoryId
       });
-
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error(result.error || 'Failed to remove gang from territory');
       }
-
-      toast({
-        description: "Gang removed from territory"
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousTerritories = [...territories];
+      
+      // Optimistically update via parent callback
+      onTerritoryUpdate?.({
+        action: 'remove',
+        territoryId: variables.territoryId
       });
-
-      // Refresh parent data
+      
+      return { previousTerritories, territoryName: variables.territoryName };
+    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: `Gang removed from ${context?.territoryName}`
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
       onTerritoryUpdate?.();
-    } catch (error) {
+      
       console.error('Error removing gang:', error);
       toast({
         variant: "destructive",
-        description: "Failed to remove gang from territory"
+        description: error instanceof Error ? error.message : "Failed to remove gang from territory"
       });
     }
+  });
+
+  // Gang removal handler
+  const handleRemoveGang = async (territoryId: string) => {
+    // Find territory name
+    const territory = territories.find(t => t.id === territoryId);
+    if (!territory) return;
+
+    removeGangMutation.mutate({
+      territoryId,
+      territoryName: territory.territory_name
+    });
   };
+
+  // TanStack Query mutation for updating territory status
+  const updateTerritoryMutation = useMutation({
+    mutationFn: async (variables: {
+      territoryId: string;
+      ruined: boolean;
+      default_gang_territory: boolean;
+      territoryName: string;
+    }) => {
+      const result = await updateTerritoryStatus({
+        campaignId,
+        territoryId: variables.territoryId,
+        ruined: variables.ruined,
+        default_gang_territory: variables.default_gang_territory
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update territory');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousTerritories = [...territories];
+      
+      // Optimistically update via parent callback
+      onTerritoryUpdate?.({
+        action: 'update',
+        territoryId: variables.territoryId,
+        updates: {
+          ruined: variables.ruined,
+          default_gang_territory: variables.default_gang_territory
+        }
+      });
+      
+      return { previousTerritories, territoryName: variables.territoryName };
+    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: `${context?.territoryName} updated successfully`
+      });
+      
+      // Close modal
+      setShowTerritoryEditModal(false);
+      setTerritoryToEdit(null);
+    },
+    onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
+      onTerritoryUpdate?.();
+      
+      console.error('Error updating territory:', error);
+      toast({
+        variant: "destructive",
+        description: error instanceof Error ? error.message : "Failed to update territory"
+      });
+    }
+  });
 
   // Territory editing
   const handleEditClick = (territory: Territory) => {
@@ -177,36 +325,14 @@ export default function CampaignTerritoryList({
   const handleTerritoryUpdate = async (updates: { ruined: boolean; default_gang_territory: boolean }) => {
     if (!territoryToEdit) return false;
 
-    try {
-      const result = await updateTerritoryStatus({
-        campaignId: campaignId,
-        territoryId: territoryToEdit.id,
-        ruined: updates.ruined,
-        default_gang_territory: updates.default_gang_territory
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      toast({
-        description: "Territory updated successfully"
-      });
-
-      setShowTerritoryEditModal(false);
-      setTerritoryToEdit(null);
-
-      // Refresh parent data
-      onTerritoryUpdate?.();
-      return true;
-    } catch (error) {
-      console.error('Error updating territory:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to update territory"
-      });
-      return false;
-    }
+    updateTerritoryMutation.mutate({
+      territoryId: territoryToEdit.id,
+      ruined: updates.ruined,
+      default_gang_territory: updates.default_gang_territory,
+      territoryName: territoryToEdit.territory_name
+    });
+    
+    return true;
   };
 
   // Handle column header click for sorting
@@ -286,6 +412,56 @@ export default function CampaignTerritoryList({
     return allItems;
   };
 
+  // TanStack Query mutation for deleting territory
+  const deleteTerritoryMutation = useMutation({
+    mutationFn: async (variables: {
+      territoryId: string;
+      territoryName: string;
+    }) => {
+      const result = await removeTerritoryFromCampaign({
+        campaignId,
+        territoryId: variables.territoryId
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to remove territory');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousTerritories = [...territories];
+      
+      // Optimistically update via parent callback
+      onTerritoryUpdate?.({
+        action: 'delete',
+        territoryId: variables.territoryId
+      });
+      
+      return { previousTerritories, territoryName: variables.territoryName };
+    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    onSuccess: (result, variables, context) => {
+      toast({
+        description: `${context?.territoryName} removed successfully`
+      });
+      
+      // Close modal
+      setShowDeleteModal(false);
+      setTerritoryToDelete(null);
+    },
+    onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
+      onTerritoryUpdate?.();
+      
+      console.error('Error removing territory:', error);
+      toast({
+        variant: "destructive",
+        description: error instanceof Error ? error.message : "Failed to remove territory"
+      });
+    }
+  });
+
   // Territory deletion
   const handleDeleteClick = (territoryId: string, territoryName: string) => {
     setTerritoryToDelete({ id: territoryId, name: territoryName });
@@ -293,29 +469,13 @@ export default function CampaignTerritoryList({
   };
 
   const handleRemoveTerritory = async (territoryId: string) => {
-    try {
-      const result = await removeTerritoryFromCampaign({
-        campaignId: campaignId,
-        territoryId
-      });
+    const territory = territories.find(t => t.id === territoryId);
+    if (!territory) return;
 
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      toast({
-        description: "Territory removed successfully"
-      });
-
-      // Refresh parent data
-      onTerritoryUpdate?.();
-    } catch (error) {
-      console.error('Error removing territory:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to remove territory"
-      });
-    }
+    deleteTerritoryMutation.mutate({
+      territoryId,
+      territoryName: territory.territory_name
+    });
   };
 
   // Get sorted display list
@@ -397,9 +557,11 @@ export default function CampaignTerritoryList({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleRemoveGang(item.territory.id, gang.id);
+                                  handleRemoveGang(item.territory.id);
                                 }}
-                                className="ml-1 text-gray-400 hover:text-muted-foreground"
+                                disabled={removeGangMutation.isPending}
+                                className="ml-1 text-gray-400 hover:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Remove gang from territory"
                               >
                                 ×
                               </button>
@@ -464,6 +626,7 @@ export default function CampaignTerritoryList({
           campaignId={campaignId}
           territoryName={selectedTerritory.territory_name}
           existingGangId={selectedTerritory.gang_id}
+          isAssigning={assignGangMutation.isPending}
         />
       )}
 
@@ -477,17 +640,11 @@ export default function CampaignTerritoryList({
             setTerritoryToDelete(null);
           }}
           onConfirm={async () => {
-            try {
-              await handleRemoveTerritory(territoryToDelete.id);
-              setShowDeleteModal(false);
-              setTerritoryToDelete(null);
-              return false;
-            } catch (error) {
-              console.error('Error removing territory:', error);
-              return false;
-            }
+            await handleRemoveTerritory(territoryToDelete.id);
+            return false;
           }}
           confirmText="Delete"
+          confirmDisabled={deleteTerritoryMutation.isPending}
         />
       )}
 
@@ -503,6 +660,7 @@ export default function CampaignTerritoryList({
           territoryName={territoryToEdit.territory_name}
           currentRuined={territoryToEdit.ruined || false}
           currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
+          isUpdating={updateTerritoryMutation.isPending}
         />
       )}
 

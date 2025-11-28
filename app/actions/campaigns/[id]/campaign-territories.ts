@@ -202,11 +202,10 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
       .eq('campaign_id', campaignId);
 
     if (error) throw error;
-    console.log('territoryData', territoryData);
+    
     // Log territory loss for the gang that lost it
     if (territoryData?.gang_id && gangName && campaignName) {
       try {
-        console.log('logging territory loss', { territoryData, gangName, campaignName });
         await logTerritoryLost({
           gang_id: territoryData.gang_id,
           gang_name: gangName,

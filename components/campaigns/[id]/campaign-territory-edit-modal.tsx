@@ -11,6 +11,7 @@ interface TerritoryEditModalProps {
   territoryName: string;
   currentRuined: boolean;
   currentDefaultGangTerritory: boolean;
+  isUpdating?: boolean;
 }
 
 export default function TerritoryEditModal({
@@ -19,7 +20,8 @@ export default function TerritoryEditModal({
   onConfirm,
   territoryName,
   currentRuined,
-  currentDefaultGangTerritory
+  currentDefaultGangTerritory,
+  isUpdating = false
 }: TerritoryEditModalProps) {
   const [ruined, setRuined] = useState(currentRuined);
   const [defaultGangTerritory, setDefaultGangTerritory] = useState(currentDefaultGangTerritory);
@@ -87,7 +89,7 @@ export default function TerritoryEditModal({
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Update Territory"
-      confirmDisabled={!hasChanged}
+      confirmDisabled={!hasChanged || isUpdating}
     />
   );
 }
