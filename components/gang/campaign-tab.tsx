@@ -328,7 +328,6 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                           {getRoleTitle(campaign.role)}
                         </Badge>
                       </span>
-                      <span>Joined: {campaign.joined_at ? new Date(campaign.joined_at).toLocaleDateString('en-CA') : 'Unknown'}</span>
                     </div>
                   </div>
                 </div>
