@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import Modal from "@/components/ui/modal"
 import Link from 'next/link'
+import { useMutation } from '@tanstack/react-query'
 import { 
   addGangToCampaign, 
   removeMemberFromCampaign, 
@@ -55,7 +56,21 @@ interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  gang_colour: string | null;
+  rating?: number;
+  wealth?: number;
+  reputation?: number;
+  exploration_points?: number | null;
+  meat?: number | null;
+  scavenging_rolls?: number | null;
+  power?: number | null;
+  sustenance?: number | null;
+  salvage?: number | null;
   isInCampaign?: boolean;
+}
+
+type GangWithCampaignCheck = Gang & {
+  campaign_gangs?: Array<{ gang_id: string }>;
 }
 
 interface GangToRemove {
@@ -134,8 +149,7 @@ export default function MembersTable({
 
   useEffect(() => {
     if (selectedMember) {
-      console.log("Selected member:", JSON.stringify(selectedMember, null, 2));
-      console.log("Member index:", selectedMember.index);
+      // Selected member tracking for modals
     }
   }, [selectedMember]);
 
@@ -240,30 +254,43 @@ export default function MembersTable({
 
   const fetchUserGangs = async (userId: string) => {
     try {
+      // Single optimized query with LEFT JOIN to check campaign membership
       const { data: gangs, error } = await supabase
         .from('gangs')
-        .select('id, name, gang_type, gang_colour')
-        .eq('user_id', userId);
+        .select(`
+          id, 
+          name, 
+          gang_type, 
+          gang_colour, 
+          rating, 
+          wealth, 
+          reputation, 
+          exploration_points, 
+          meat, 
+          scavenging_rolls, 
+          power, 
+          sustenance, 
+          salvage,
+          campaign_gangs(gang_id)
+        `)
+        .eq('user_id', userId)
+        .returns<GangWithCampaignCheck[]>();
 
       if (error) throw error;
 
-      // Check if the user's gangs are in ANY campaign (more efficient than fetching all 1000+ campaigns)
-      const userGangIds = gangs?.map(g => g.id) || [];
-      
-      const { data: userGangsInCampaigns, error: campaignError } = await supabase
-        .from('campaign_gangs')
-        .select('gang_id')
-        .in('gang_id', userGangIds);
-
-      if (campaignError) throw campaignError;
-
-      // Create set of this user's gang IDs that are already in campaigns
-      const takenGangIds = new Set(userGangsInCampaigns?.map(cg => cg.gang_id) || []);
-
-      const gangsWithAvailability = gangs?.map(gang => ({
-        ...gang,
-        isInCampaign: takenGangIds.has(gang.id)
-      })) || [];
+      // Transform data to include isInCampaign flag
+      const gangsWithAvailability = gangs?.map(gang => {
+        // If campaign_gangs array exists and has entries, the gang is in a campaign
+        const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
+        
+        // Remove the campaign_gangs join data from the result
+        const { campaign_gangs, ...gangData } = gang;
+        
+        return {
+          ...gangData,
+          isInCampaign
+        };
+      }) || [];
 
       setUserGangs(gangsWithAvailability);
     } catch (error) {
@@ -276,53 +303,120 @@ export default function MembersTable({
   };
 
   const handleGangClick = async (member: Member) => {
-    console.log("Gang click - member object:", JSON.stringify(member, null, 2));
-    
     setSelectedMember(member);
     
     await fetchUserGangs(member.user_id);
     setShowGangModal(true);
   };
 
+  // TanStack Query mutation for adding gang with optimistic updates
+  const addGangMutation = useMutation({
+    mutationFn: async (variables: { 
+      gangId: string; 
+      userId: string; 
+      campaignMemberId?: string; 
+      gangData: Gang;
+    }) => {
+      const result = await addGangToCampaign({
+        campaignId,
+        gangId: variables.gangId,
+        userId: variables.userId,
+        campaignMemberId: variables.campaignMemberId
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add gang to campaign');
+      }
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Use variables.gangData instead of closure to avoid stale data
+      const { gangData } = variables;
+
+      // Create optimistic gang object using all available data from variables
+      const optimisticGang = {
+        id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
+        gang_id: variables.gangId,
+        gang_name: gangData.name,
+        gang_type: gangData.gang_type,
+        gang_colour: gangData.gang_colour || '#000000',
+        status: null,
+        rating: gangData.rating || 0,
+        wealth: gangData.wealth || 0,
+        reputation: gangData.reputation || 0,
+        exploration_points: gangData.exploration_points ?? undefined,
+        meat: gangData.meat ?? undefined,
+        scavenging_rolls: gangData.scavenging_rolls ?? undefined,
+        power: gangData.power ?? undefined,
+        sustenance: gangData.sustenance ?? undefined,
+        salvage: gangData.salvage ?? undefined,
+        territory_count: 0 // Will be updated when server responds
+      };
+
+      // Find the member index in the members array
+      const memberIndex = members.findIndex(m => m.user_id === variables.userId);
+      if (memberIndex === -1) return {};
+
+      // Create updated member with the new gang
+      const updatedMember = {
+        ...members[memberIndex],
+        gangs: [...(members[memberIndex].gangs || []), optimisticGang]
+      };
+
+      // Pass optimistic update to parent
+      onMemberUpdate({ updatedMember });
+
+      return { 
+        previousMembers: members,
+        gangName: gangData.name,
+        updatedMember
+      };
+    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    onSuccess: (result, variables, context) => {
+      // Server action handles cache invalidation
+      // The real data will replace our optimistic update
+      toast({
+        description: `Added ${context?.gangName} to the campaign`
+      });
+      
+      // Close modal
+      setShowGangModal(false);
+      setSelectedGang(null);
+      setSelectedMember(null);
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update
+      if (context?.previousMembers) {
+        // Find the previous member state
+        const previousMember = context.previousMembers.find(m => m.user_id === variables.userId);
+        if (previousMember) {
+          onMemberUpdate({ updatedMember: previousMember });
+        }
+      }
+      
+      toast({
+        variant: "destructive",
+        description: error instanceof Error ? error.message : "Failed to add gang"
+      });
+    }
+  });
+
   const handleAddGang = async () => {
     if (!selectedGang || !selectedMember) {
       console.error("Missing selectedGang or selectedMember");
       return false;
     }
+
+    // Pass all gang data through variables to avoid stale closure
+    addGangMutation.mutate({
+      gangId: selectedGang.id,
+      userId: selectedMember.user_id,
+      campaignMemberId: selectedMember.id,
+      gangData: selectedGang
+    });
     
-    console.log("Adding gang to member:", JSON.stringify(selectedMember, null, 2));
-
-    try {
-      const result = await addGangToCampaign({
-        campaignId,
-        gangId: selectedGang.id,
-        userId: selectedMember.user_id,
-        campaignMemberId: selectedMember.id
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      // Trigger refresh to get updated data from cache
-      onMemberUpdate({});
-      
-      toast({
-        description: `Added ${selectedGang.name} to the campaign`
-      });
-      
-      setShowGangModal(false);
-      setSelectedGang(null);
-      setSelectedMember(null);
-      return true;
-    } catch (error) {
-      console.error('Error adding gang:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to add gang"
-      });
-      return false;
-    }
+    return true;
   };
 
   const handleRoleChange = async () => {
@@ -364,7 +458,7 @@ export default function MembersTable({
 
   const handleRemoveMember = async () => {
     if (!memberToRemove) return false;
-    console.log("Removing member:", memberToRemove);
+    
     // Prevent deleting the last owner
     if (memberToRemove.role === 'OWNER') {
       const ownerCount = members.filter(m => m.role === 'OWNER').length;
@@ -416,40 +510,77 @@ export default function MembersTable({
     }
   };
 
-  const handleRemoveGang = async () => {
-    if (!gangToRemove) return false;
-    console.log("Removing gang with details:", gangToRemove);
-
-    try {
+  // TanStack Query mutation for removing gang with optimistic updates
+  const removeGangMutation = useMutation({
+    mutationFn: async (variables: { 
+      campaignId: string;
+      gangId: string; 
+      memberId: string; 
+      memberIndex?: number; 
+      campaignGangId?: string;
+      gangName: string;
+    }) => {
       const result = await removeGangFromCampaign({
-        campaignId,
-        gangId: gangToRemove.gangId,
-        memberId: gangToRemove.memberId,
-        memberIndex: gangToRemove.memberIndex,
-        campaignGangId: gangToRemove.id
+        campaignId: variables.campaignId,
+        gangId: variables.gangId,
+        memberId: variables.memberId,
+        memberIndex: variables.memberIndex,
+        campaignGangId: variables.campaignGangId
       });
-
       if (!result.success) {
-        throw new Error(result.error);
+        throw new Error(result.error || 'Failed to remove gang from campaign');
       }
-
+      return result;
+    },
+    onMutate: async (variables) => {
+      // Store previous state for rollback
+      const previousMembers = [...members];
+      
+      // Optimistically remove gang from members
       onMemberUpdate({
-        removedGangIds: [gangToRemove.gangId]
+        removedGangIds: [variables.gangId]
       });
+
+      return { 
+        previousMembers,
+        gangName: variables.gangName
+      };
+    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    onSuccess: (result, variables, context) => {
       toast({
-        description: `Removed ${gangToRemove.gangName} from the campaign`
+        description: `Removed ${context?.gangName} from the campaign`
       });
+      
+      // Close modal
       setShowRemoveGangModal(false);
       setGangToRemove(null);
-      return true;
-    } catch (error) {
-      console.error('Error removing gang:', error);
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update by refreshing data
+      onMemberUpdate({});
+      
       toast({
         variant: "destructive",
         description: error instanceof Error ? error.message : "Failed to remove gang"
       });
-      return false;
     }
+  });
+
+  const handleRemoveGang = async () => {
+    if (!gangToRemove) return false;
+
+    removeGangMutation.mutate({
+      campaignId,
+      gangId: gangToRemove.gangId,
+      memberId: gangToRemove.memberId,
+      memberIndex: gangToRemove.memberIndex,
+      campaignGangId: gangToRemove.id,
+      gangName: gangToRemove.gangName
+    });
+    
+    return true;
   };
 
   const gangModalContent = useMemo(() => (
@@ -987,7 +1118,7 @@ export default function MembersTable({
           }}
           onConfirm={handleAddGang}
           confirmText="Add Gang"
-          confirmDisabled={!selectedGang}
+          confirmDisabled={!selectedGang || addGangMutation.isPending}
         />
       )}
 
@@ -1001,7 +1132,7 @@ export default function MembersTable({
           }}
           onConfirm={handleRemoveGang}
           confirmText="Remove Gang"
-          confirmDisabled={false}
+          confirmDisabled={removeGangMutation.isPending}
         />
       )}
 

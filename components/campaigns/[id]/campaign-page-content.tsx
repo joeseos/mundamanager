@@ -636,29 +636,41 @@ export default function CampaignPageContent({
                 isAdmin={isAdmin}
                 members={campaignData.members}
                 userId={userId}
-                onMemberUpdate={({ removedMemberId, removedGangIds }) => {
-                  startTransition(() => {
-                    // For specific updates, we can do optimistic updates
-                    if (removedMemberId) {
-                      // Optimistically remove the member from the local state
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: prev.members.filter(m => m.id !== removedMemberId)
-                      }));
-                    } else if (removedGangIds && removedGangIds.length > 0) {
-                      // Optimistically remove gangs from the local state
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: prev.members.map(member => ({
-                          ...member,
-                          gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.gang_id))
-                        }))
-                      }));
-                    } else {
-                      // For other updates (like adding gangs), fetch fresh data
-                      refreshData();
-                    }
-                  });
+                onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember }) => {
+                  // For specific updates, we do optimistic updates (no startTransition needed for instant updates)
+                  if (removedMemberId) {
+                    // Optimistically remove the member from the local state
+                    setCampaignData(prev => ({
+                      ...prev,
+                      members: prev.members.filter(m => m.id !== removedMemberId)
+                    }));
+                  } else if (removedGangIds && removedGangIds.length > 0) {
+                    // Optimistically remove gangs from the local state
+                    setCampaignData(prev => ({
+                      ...prev,
+                      members: prev.members.map(member => ({
+                        ...member,
+                        gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.gang_id))
+                      })),
+                      // Also update territories owned by the removed gangs (safe access)
+                      territories: (prev.territories || []).map(territory => 
+                        removedGangIds.includes(territory.gang_id || '')
+                          ? { ...territory, gang_id: null, owning_gangs: [] }
+                          : territory
+                      )
+                    }));
+                  } else if (updatedMember) {
+                    // Optimistically update a specific member
+                    setCampaignData(prev => ({
+                      ...prev,
+                      members: prev.members.map(member => 
+                        member.user_id === updatedMember.user_id ? updatedMember : member
+                      )
+                    }));
+                  } else {
+                    // For other updates, fetch fresh data
+                    refreshData();
+                  }
                 }}
                 isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                 isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
