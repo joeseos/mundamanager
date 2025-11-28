@@ -202,7 +202,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
       return { previousGangs, gangName: gangData.name };
     },
     retry: 2,
-    retryDelay: 1000,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
       toast({
         description: result.message || `Added ${context?.gangName} to the campaign`
@@ -243,7 +243,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
       return { previousGangs, gangName: variables.gangName };
     },
     retry: 2,
-    retryDelay: 1000,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
       toast({
         description: result.message || `Removed ${context?.gangName} from the campaign`

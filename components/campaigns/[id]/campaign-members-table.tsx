@@ -149,8 +149,7 @@ export default function MembersTable({
 
   useEffect(() => {
     if (selectedMember) {
-      console.log("Selected member:", JSON.stringify(selectedMember, null, 2));
-      console.log("Member index:", selectedMember.index);
+      // Selected member tracking for modals
     }
   }, [selectedMember]);
 
@@ -274,12 +273,13 @@ export default function MembersTable({
           salvage,
           campaign_gangs(gang_id)
         `)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .returns<GangWithCampaignCheck[]>();
 
       if (error) throw error;
 
       // Transform data to include isInCampaign flag
-      const gangsWithAvailability = (gangs as unknown as GangWithCampaignCheck[])?.map(gang => {
+      const gangsWithAvailability = gangs?.map(gang => {
         // If campaign_gangs array exists and has entries, the gang is in a campaign
         const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
         
@@ -303,8 +303,6 @@ export default function MembersTable({
   };
 
   const handleGangClick = async (member: Member) => {
-    console.log("Gang click - member object:", JSON.stringify(member, null, 2));
-    
     setSelectedMember(member);
     
     await fetchUserGangs(member.user_id);
@@ -374,7 +372,7 @@ export default function MembersTable({
       };
     },
     retry: 2,
-    retryDelay: 1000,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
       // Server action handles cache invalidation
       // The real data will replace our optimistic update
@@ -409,8 +407,6 @@ export default function MembersTable({
       console.error("Missing selectedGang or selectedMember");
       return false;
     }
-    
-    console.log("Adding gang to member:", JSON.stringify(selectedMember, null, 2));
 
     // Pass all gang data through variables to avoid stale closure
     addGangMutation.mutate({
@@ -462,7 +458,7 @@ export default function MembersTable({
 
   const handleRemoveMember = async () => {
     if (!memberToRemove) return false;
-    console.log("Removing member:", memberToRemove);
+    
     // Prevent deleting the last owner
     if (memberToRemove.role === 'OWNER') {
       const ownerCount = members.filter(m => m.role === 'OWNER').length;
@@ -551,7 +547,7 @@ export default function MembersTable({
       };
     },
     retry: 2,
-    retryDelay: 1000,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
       toast({
         description: `Removed ${context?.gangName} from the campaign`
@@ -574,7 +570,6 @@ export default function MembersTable({
 
   const handleRemoveGang = async () => {
     if (!gangToRemove) return false;
-    console.log("Removing gang with details:", gangToRemove);
 
     removeGangMutation.mutate({
       campaignId,

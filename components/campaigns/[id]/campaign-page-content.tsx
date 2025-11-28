@@ -637,32 +637,30 @@ export default function CampaignPageContent({
                 members={campaignData.members}
                 userId={userId}
                 onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember }) => {
-                  // For specific updates, we can do optimistic updates
+                  // For specific updates, we do optimistic updates (no startTransition needed for instant updates)
                   if (removedMemberId) {
                     // Optimistically remove the member from the local state
-                    startTransition(() => {
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: prev.members.filter(m => m.id !== removedMemberId)
-                      }));
-                    });
+                    setCampaignData(prev => ({
+                      ...prev,
+                      members: prev.members.filter(m => m.id !== removedMemberId)
+                    }));
                   } else if (removedGangIds && removedGangIds.length > 0) {
-                    // Optimistically remove gangs from the local state (instant, no transition)
+                    // Optimistically remove gangs from the local state
                     setCampaignData(prev => ({
                       ...prev,
                       members: prev.members.map(member => ({
                         ...member,
                         gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.gang_id))
                       })),
-                      // Also update territories owned by the removed gangs
-                      territories: prev.territories.map(territory => 
+                      // Also update territories owned by the removed gangs (safe access)
+                      territories: (prev.territories || []).map(territory => 
                         removedGangIds.includes(territory.gang_id || '')
                           ? { ...territory, gang_id: null, owning_gangs: [] }
                           : territory
                       )
                     }));
                   } else if (updatedMember) {
-                    // Optimistically update a specific member (instant, no transition)
+                    // Optimistically update a specific member
                     setCampaignData(prev => ({
                       ...prev,
                       members: prev.members.map(member => 
