@@ -2,6 +2,19 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
+type CampaignGangWithGang = {
+  id: string;
+  gang_id: string;
+  user_id: string | null;
+  campaign_member_id: string | null;
+  gangs: {
+    id: string;
+    name: string;
+    gang_type: string;
+    gang_colour: string | null;
+  };
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -26,7 +39,8 @@ export async function GET(request: Request) {
         campaign_member_id,
         gangs!inner(id, name, gang_type, gang_colour)
       `)
-      .eq('campaign_id', campaignId);
+      .eq('campaign_id', campaignId)
+      .returns<CampaignGangWithGang[]>();
 
     if (campaignGangsError) {
       console.error('Error fetching campaign gangs:', campaignGangsError);
@@ -43,8 +57,8 @@ export async function GET(request: Request) {
     // Extract unique user IDs and fetch profiles
     const userIds = Array.from(new Set(
       campaignGangs
-        .map((cg: any) => cg.user_id)
-        .filter(Boolean)
+        .map(cg => cg.user_id)
+        .filter((id): id is string => Boolean(id))
     ));
 
     let userProfiles: { id: string; username: string }[] = [];
@@ -67,8 +81,8 @@ export async function GET(request: Request) {
 
     // Transform the data into the format needed by the modal
     const gangs = campaignGangs
-      .filter((cg: any) => cg.gangs) // Filter out any entries without gang data
-      .map((cg: any) => ({
+      .filter(cg => cg.gangs) // Filter out any entries without gang data
+      .map(cg => ({
         id: cg.gangs.id,
         name: cg.gangs.name,
         gang_type: cg.gangs.gang_type,
@@ -76,7 +90,7 @@ export async function GET(request: Request) {
         campaign_gang_id: cg.id,
         user_id: cg.user_id,
         campaign_member_id: cg.campaign_member_id,
-        owner_username: profileMap.get(cg.user_id) || 'Unknown'
+        owner_username: (cg.user_id && profileMap.get(cg.user_id)) || 'Unknown'
       }));
 
     return NextResponse.json(gangs);

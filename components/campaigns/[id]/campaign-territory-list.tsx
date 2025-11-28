@@ -163,6 +163,10 @@ export default function CampaignTerritoryList({
       setSelectedTerritory(null);
     },
     onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
+      onTerritoryUpdate?.();
+      
+      // Note: Modal stays open on error to allow user to retry with a different selection
       console.error('Error assigning gang:', error);
       toast({
         variant: "destructive",
@@ -231,6 +235,9 @@ export default function CampaignTerritoryList({
       });
     },
     onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
+      onTerritoryUpdate?.();
+      
       console.error('Error removing gang:', error);
       toast({
         variant: "destructive",
@@ -240,7 +247,7 @@ export default function CampaignTerritoryList({
   });
 
   // Gang removal handler
-  const handleRemoveGang = async (territoryId: string, gangId: string) => {
+  const handleRemoveGang = async (territoryId: string) => {
     // Find territory name
     const territory = territories.find(t => t.id === territoryId);
     if (!territory) return;
@@ -298,6 +305,9 @@ export default function CampaignTerritoryList({
       setTerritoryToEdit(null);
     },
     onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
+      onTerritoryUpdate?.();
+      
       console.error('Error updating territory:', error);
       toast({
         variant: "destructive",
@@ -441,6 +451,9 @@ export default function CampaignTerritoryList({
       setTerritoryToDelete(null);
     },
     onError: (error, variables, context) => {
+      // Rollback by refreshing data from server
+      onTerritoryUpdate?.();
+      
       console.error('Error removing territory:', error);
       toast({
         variant: "destructive",
@@ -544,9 +557,11 @@ export default function CampaignTerritoryList({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleRemoveGang(item.territory.id, gang.id);
+                                  handleRemoveGang(item.territory.id);
                                 }}
-                                className="ml-1 text-gray-400 hover:text-muted-foreground"
+                                disabled={removeGangMutation.isPending}
+                                className="ml-1 text-gray-400 hover:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Remove gang from territory"
                               >
                                 ×
                               </button>
