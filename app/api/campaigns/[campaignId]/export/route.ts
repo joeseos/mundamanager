@@ -152,13 +152,70 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
 }
 
+// TypeScript interfaces for export data structures
+
+interface ExportGangReference {
+  id: string;
+  name: string;
+  type: string;
+  colour: string;
+}
+
+interface ExportTerritory {
+  id: string;
+  template_id: string | null;
+  name: string;
+  gang_id?: string;
+  created_at: string;
+  ruined: boolean;
+  default_gang_territory: boolean;
+  is_custom: boolean;
+  owning_gangs: ExportGangReference[];
+}
+
+interface ExportGang {
+  id: string;
+  name: string;
+  type: string;
+  colour: string;
+  status: string;
+  rating: number;
+  wealth: number;
+  reputation: number;
+  exploration_points: number | null;
+  meat: number | null;
+  scavenging_rolls: number | null;
+  power: number | null;
+  sustenance: number | null;
+  salvage: number | null;
+  territory_count: number;
+  territories: ExportTerritory[];
+}
+
+interface ExportBattle {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  scenario: string;
+  scenario_name: string;
+  scenario_number: string | null;
+  note: string;
+  participants: any;
+  territory_id: string | null;
+  territory_is_custom: boolean;
+  territory_name?: string;
+  attacker?: { id: string; name: string };
+  defender?: { id: string; name: string };
+  winner?: { id: string; name: string };
+}
+
 // Transformation functions to clean up export field names
 
 /**
  * Transform gang data for export - removes redundant gang_ prefixes
  * Maps gang_id (actual UUID) to id, removes campaign_gang relationship ID
  */
-function transformGangForExport(gang: any): any {
+function transformGangForExport(gang: any): ExportGang {
   return {
     id: gang.gang_id, // Use actual gang UUID as primary identifier
     name: gang.gang_name,
@@ -175,30 +232,45 @@ function transformGangForExport(gang: any): any {
     sustenance: gang.sustenance,
     salvage: gang.salvage,
     territory_count: gang.territory_count,
-    territories: gang.territories ? gang.territories.map(transformTerritoryForExport) : []
+    territories: (gang.territories ?? []).map((t: any) => transformTerritoryForExport(t, true))
   };
 }
 
 /**
  * Transform territory data for export - removes redundant prefixes
+ * @param territory - Territory data from database
+ * @param isNested - If true, omits gang_id (when nested under gang)
  */
-function transformTerritoryForExport(territory: any): any {
-  return {
-    id: territory.territory_id || territory.custom_territory_id,
+function transformTerritoryForExport(territory: any, isNested: boolean = false): ExportTerritory {
+  const result: ExportTerritory = {
+    id: territory.id, // Unique campaign_territory ID
+    template_id: territory.territory_id || territory.custom_territory_id,
     name: territory.territory_name,
-    gang_id: territory.gang_id,
     created_at: territory.created_at,
-    ruined: territory.ruined,
-    default_gang_territory: territory.default_gang_territory,
-    is_custom: territory.is_custom
+    ruined: territory.ruined ?? false,
+    default_gang_territory: territory.default_gang_territory ?? false,
+    is_custom: territory.is_custom ?? false,
+    owning_gangs: (territory.owning_gangs ?? []).map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      type: g.gang_type,
+      colour: g.gang_colour
+    }))
   };
+
+  // Only include gang_id for top-level territories (not nested under gangs)
+  if (!isNested && territory.gang_id) {
+    result.gang_id = territory.gang_id;
+  }
+
+  return result;
 }
 
 /**
  * Transform battle data for export - cleans up nested gang references
  */
-function transformBattleForExport(battle: any): any {
-  const transformed: any = {
+function transformBattleForExport(battle: any): ExportBattle {
+  const transformed: ExportBattle = {
     id: battle.id,
     created_at: battle.created_at,
     updated_at: battle.updated_at,
@@ -207,8 +279,8 @@ function transformBattleForExport(battle: any): any {
     scenario_number: battle.scenario_number,
     note: battle.note,
     participants: battle.participants,
-    territory_id: battle.territory_id,
-    custom_territory_id: battle.custom_territory_id,
+    territory_id: battle.territory_id || battle.custom_territory_id,
+    territory_is_custom: !!battle.custom_territory_id,
     territory_name: battle.territory_name
   };
 
@@ -370,7 +442,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         has_salvage: campaignBasic.has_salvage
       },
       members: membersWithTerritories,
-      available_territories: campaignTerritories.map(transformTerritoryForExport),
+      available_territories: campaignTerritories.map(t => transformTerritoryForExport(t, false)),
       battle_logs: campaignBattles.map(transformBattleForExport)
     };
 
