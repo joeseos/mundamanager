@@ -152,6 +152,91 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
 }
 
+// Transformation functions to clean up export field names
+
+/**
+ * Transform gang data for export - removes redundant gang_ prefixes
+ * Maps gang_id (actual UUID) to id, removes campaign_gang relationship ID
+ */
+function transformGangForExport(gang: any): any {
+  return {
+    id: gang.gang_id, // Use actual gang UUID as primary identifier
+    name: gang.gang_name,
+    type: gang.gang_type,
+    colour: gang.gang_colour,
+    status: gang.status,
+    rating: gang.rating,
+    wealth: gang.wealth,
+    reputation: gang.reputation,
+    exploration_points: gang.exploration_points,
+    meat: gang.meat,
+    scavenging_rolls: gang.scavenging_rolls,
+    power: gang.power,
+    sustenance: gang.sustenance,
+    salvage: gang.salvage,
+    territory_count: gang.territory_count,
+    territories: gang.territories ? gang.territories.map(transformTerritoryForExport) : []
+  };
+}
+
+/**
+ * Transform territory data for export - removes redundant prefixes
+ */
+function transformTerritoryForExport(territory: any): any {
+  return {
+    id: territory.territory_id || territory.custom_territory_id,
+    name: territory.territory_name,
+    gang_id: territory.gang_id,
+    created_at: territory.created_at,
+    ruined: territory.ruined,
+    default_gang_territory: territory.default_gang_territory,
+    is_custom: territory.is_custom
+  };
+}
+
+/**
+ * Transform battle data for export - cleans up nested gang references
+ */
+function transformBattleForExport(battle: any): any {
+  const transformed: any = {
+    id: battle.id,
+    created_at: battle.created_at,
+    updated_at: battle.updated_at,
+    scenario: battle.scenario,
+    scenario_name: battle.scenario_name,
+    scenario_number: battle.scenario_number,
+    note: battle.note,
+    participants: battle.participants,
+    territory_id: battle.territory_id,
+    custom_territory_id: battle.custom_territory_id,
+    territory_name: battle.territory_name
+  };
+
+  // Transform nested gang references to use clean field names
+  if (battle.attacker) {
+    transformed.attacker = {
+      id: battle.attacker.gang_id,
+      name: battle.attacker.gang_name
+    };
+  }
+
+  if (battle.defender) {
+    transformed.defender = {
+      id: battle.defender.gang_id,
+      name: battle.defender.gang_name
+    };
+  }
+
+  if (battle.winner) {
+    transformed.winner = {
+      id: battle.winner.gang_id,
+      name: battle.winner.gang_name
+    };
+  }
+
+  return transformed;
+}
+
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
   const { campaignId } = params;
@@ -244,10 +329,10 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
           territory => territory.gang_id === gang.gang_id
         );
 
-        return {
+        return transformGangForExport({
           ...gang,
           territories: gangTerritories
-        };
+        });
       });
 
       return {
@@ -285,8 +370,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         has_salvage: campaignBasic.has_salvage
       },
       members: membersWithTerritories,
-      available_territories: campaignTerritories,
-      battle_logs: campaignBattles
+      available_territories: campaignTerritories.map(transformTerritoryForExport),
+      battle_logs: campaignBattles.map(transformBattleForExport)
     };
 
     // Return based on requested format
