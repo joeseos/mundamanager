@@ -1,6 +1,17 @@
 // Campaign-related type definitions
 
 /**
+ * Gang reference used when gang is nested under another entity.
+ * Uses clean names since parent context provides meaning.
+ */
+export interface GangReference {
+  id: string;
+  name: string;
+  type?: string;
+  colour?: string;
+}
+
+/**
  * Battle participant with role and gang association
  */
 export interface BattleParticipant {
@@ -26,18 +37,9 @@ export interface Battle {
   territory_id?: string | null;
   custom_territory_id?: string | null;
   territory_name?: string;
-  attacker?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  defender?: {
-    gang_id?: string;
-    gang_name: string;
-  };
-  winner?: {
-    gang_id?: string;
-    gang_name: string;
-  };
+  attacker?: GangReference;
+  defender?: GangReference;
+  winner?: GangReference;
 }
 
 /**
@@ -63,6 +65,21 @@ export interface Territory {
   is_custom?: boolean;
   territory_id?: string | null;
   custom_territory_id?: string | null;
+}
+
+/**
+ * Campaign territory with clean structure
+ */
+export interface CampaignTerritory {
+  id: string;                    // campaign_territory ID (unique instance)
+  template_id: string | null;    // territory_id or custom_territory_id
+  name: string;                  // territory_name
+  gang_id?: string | null;
+  created_at: string;
+  ruined: boolean;
+  default_gang_territory: boolean;
+  is_custom: boolean;
+  owning_gangs: GangReference[];
 }
 
 /**
@@ -93,12 +110,27 @@ export interface Member {
     user_role: string;
   };
   gangs: {
-    id: string;
-    gang_id: string;
-    gang_name: string;
-    gang_colour?: string;
-    status: string | null;
-    rating?: number;
+    // Relationship metadata (from campaign_gangs junction table)
+    campaign_gang_id: string;
     campaign_member_id?: string;
+    status: string | null;
+
+    // Gang data (clean names from gangs table)
+    id: string;              // gang's actual UUID
+    name: string;
+    type: string;
+    colour: string;
+    rating?: number;
+    wealth?: number;
+    reputation?: number;
+    territory_count?: number;
+
+    // Optional campaign resources
+    exploration_points?: number | null;
+    meat?: number | null;
+    scavenging_rolls?: number | null;
+    power?: number | null;
+    sustenance?: number | null;
+    salvage?: number | null;
   }[];
 }

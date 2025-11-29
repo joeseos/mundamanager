@@ -35,18 +35,22 @@ interface Member {
     user_role: string;
   };
   gangs: {
-    id: string;
-    gang_id: string;
-    gang_name: string;
-    gang_type: string;
-    gang_colour: string;
+    campaign_gang_id: string;
+    campaign_member_id?: string;
     status: string | null;
+    id: string;              // gang's actual UUID
+    name: string;
+    type: string;
+    colour: string;
     rating?: number;
     wealth?: number;
     reputation?: number;
-    exploration_points?: number;
-    meat?: number;
-    scavenging_rolls?: number;
+    exploration_points?: number | null;
+    meat?: number | null;
+    scavenging_rolls?: number | null;
+    power?: number | null;
+    sustenance?: number | null;
+    salvage?: number | null;
     territory_count?: number;
   }[];
   index?: number;
@@ -55,8 +59,8 @@ interface Member {
 interface Gang {
   id: string;
   name: string;
-  gang_type: string;
-  gang_colour: string | null;
+  type: string;
+  colour: string | null;
   rating?: number;
   wealth?: number;
   reputation?: number;
@@ -184,12 +188,12 @@ export default function MembersTable({
       
       switch (sortField) {
         case 'gang':
-          aValue = a.gangs[0]?.gang_name || '';
-          bValue = b.gangs[0]?.gang_name || '';
+          aValue = a.gangs[0]?.name || '';
+          bValue = b.gangs[0]?.name || '';
           break;
         case 'type':
-          aValue = a.gangs[0]?.gang_type || '';
-          bValue = b.gangs[0]?.gang_type || '';
+          aValue = a.gangs[0]?.type || '';
+          bValue = b.gangs[0]?.type || '';
           break;
         case 'player':
           aValue = a.profile.username || '';
@@ -334,11 +338,11 @@ export default function MembersTable({
 
       // Create optimistic gang object using all available data from variables
       const optimisticGang = {
-        id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
-        gang_id: variables.gangId,
-        gang_name: gangData.name,
-        gang_type: gangData.gang_type,
-        gang_colour: gangData.gang_colour || '#000000',
+        campaign_gang_id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
+        id: variables.gangId,
+        name: gangData.name,
+        type: gangData.type,
+        colour: gangData.colour || '#000000',
         status: null,
         rating: gangData.rating || 0,
         wealth: gangData.wealth || 0,
@@ -494,7 +498,7 @@ export default function MembersTable({
 
               onMemberUpdate({
           removedMemberId: memberToRemove.id,
-          removedGangIds: memberToRemove.gangs.map(g => g.gang_id)
+          removedGangIds: memberToRemove.gangs.map(g => g.id)
         });
       toast({
         description: `Removed ${memberToRemove.profile.username} from the campaign`
@@ -603,7 +607,7 @@ export default function MembersTable({
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-medium">{gang.name}</span>
-                <span className="text-sm text-muted-foreground ml-2">{gang.gang_type || "-"}</span>
+                <span className="text-sm text-muted-foreground ml-2">{gang.type || "-"}</span>
               </div>
               {gang.isInCampaign && (
                 <span className="text-xs text-muted-foreground">Already in a campaign.</span>
@@ -636,7 +640,7 @@ export default function MembersTable({
           Are you sure you want to {isRemovingSelf ? 'leave' : 'remove'} {isRemovingSelf ? '' : <strong>{memberToRemove?.profile?.username || 'Unknown User'}</strong>} {isRemovingSelf ? 'this' : 'from this'} campaign?
           {memberToRemove?.gangs[0] && (
             <p className="mt-2 text-red-600">
-              This will also remove {isRemovingSelf ? 'your' : 'their'} gang <strong>{memberToRemove.gangs[0].gang_name}</strong> from the campaign.
+              This will also remove {isRemovingSelf ? 'your' : 'their'} gang <strong>{memberToRemove.gangs[0].name}</strong> from the campaign.
             </p>
           )}
         </div>
@@ -808,29 +812,29 @@ export default function MembersTable({
             {sortedMembers.map((member, index) => (
               <tr key={`${member.user_id}-${index}`} className="border-b last:border-0">
                 <td className="px-2 py-2 max-w-[8rem]">
-                  {member.gangs[0]?.gang_name ? (
+                  {member.gangs[0]?.name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                         style={{
-                          color: member.gangs[0]?.gang_colour || '#000000'
+                          color: member.gangs[0]?.colour || '#000000'
                         }}
                       >
                         <Link
-                          href={`/gang/${member.gangs[0].gang_id}`}
+                          href={`/gang/${member.gangs[0].id}`}
                           prefetch={false}
                           className="hover:text-muted-foreground transition-colors"
                         >
-                          {member.gangs[0].gang_name}
+                          {member.gangs[0].name}
                         </Link>
                         {(currentUserId === member.user_id || isAdmin) && (
                           <button
                             onClick={() => {
                               setGangToRemove({
                                 memberId: member.user_id,
-                                gangId: member.gangs[0].gang_id,
-                                gangName: member.gangs[0].gang_name,
+                                gangId: member.gangs[0].id,
+                                gangName: member.gangs[0].name,
                                 memberIndex: member.index,
-                                id: member.gangs[0].id
+                                id: member.gangs[0].campaign_gang_id
                               });
                               setShowRemoveGangModal(true);
                             }}
@@ -858,7 +862,7 @@ export default function MembersTable({
                 </td>
                 <td className="px-2 py-2 max-w-[5rem]">
                   <span className="text-muted-foreground">
-                    {member.gangs[0]?.gang_type || "-"}
+                    {member.gangs[0]?.type || "-"}
                   </span>
                 </td>
                 <td className="px-2 py-2 max-w-[6rem]">
@@ -956,27 +960,27 @@ export default function MembersTable({
           <div key={`${member.user_id}-${index}`} className="bg-card rounded-lg border p-4">
             <div className="flex justify-between items-start mb-2">
               <div>
-                {member.gangs[0]?.gang_name ? (
+                {member.gangs[0]?.name ? (
                   <div className="flex items-center gap-1">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-muted"
-                      style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
+                      style={{ color: member.gangs[0]?.colour || '#000000' }}
                     >
                       <Link
-                        href={`/gang/${member.gangs[0].gang_id}`}
+                        href={`/gang/${member.gangs[0].id}`}
                         prefetch={false}
                         className="hover:text-muted-foreground transition-colors"
                       >
-                        {member.gangs[0].gang_name}
+                        {member.gangs[0].name}
                       </Link>
                       {(currentUserId === member.user_id || isAdmin) && (
                         <button
                           onClick={() => {
                             setGangToRemove({
                               memberId: member.user_id,
-                              gangId: member.gangs[0].gang_id,
-                              gangName: member.gangs[0].gang_name,
+                              gangId: member.gangs[0].id,
+                              gangName: member.gangs[0].name,
                               memberIndex: member.index,
-                              id: member.gangs[0].id
+                              id: member.gangs[0].campaign_gang_id
                             });
                             setShowRemoveGangModal(true);
                           }}
@@ -1035,7 +1039,7 @@ export default function MembersTable({
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Type</span>
               <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.gang_type || "-"}
+                {member.gangs[0]?.type || "-"}
               </span>
             </div>
             <div className="flex justify-between items-center">

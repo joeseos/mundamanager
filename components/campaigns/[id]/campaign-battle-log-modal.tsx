@@ -114,16 +114,16 @@ const CampaignBattleLogModal = ({
         territory_name: territoryName,
         // Add full gang objects for display
         attacker: battleData.attacker_id ? {
-          gang_id: battleData.attacker_id,
-          gang_name: getGangName(battleData.attacker_id)
+          id: battleData.attacker_id,
+          name: getGangName(battleData.attacker_id)
         } : undefined,
         defender: battleData.defender_id ? {
-          gang_id: battleData.defender_id,
-          gang_name: getGangName(battleData.defender_id)
+          id: battleData.defender_id,
+          name: getGangName(battleData.defender_id)
         } : undefined,
         winner: battleData.winner_id ? {
-          gang_id: battleData.winner_id,
-          gang_name: getGangName(battleData.winner_id)
+          id: battleData.winner_id,
+          name: getGangName(battleData.winner_id)
         } : undefined
       };
 
@@ -202,16 +202,16 @@ const CampaignBattleLogModal = ({
               updated_at: new Date().toISOString(),
               // Update full gang objects for display
               attacker: battleData.attacker_id ? {
-                gang_id: battleData.attacker_id,
-                gang_name: getGangName(battleData.attacker_id)
+                id: battleData.attacker_id,
+                name: getGangName(battleData.attacker_id)
               } : undefined,
               defender: battleData.defender_id ? {
-                gang_id: battleData.defender_id,
-                gang_name: getGangName(battleData.defender_id)
+                id: battleData.defender_id,
+                name: getGangName(battleData.defender_id)
               } : undefined,
               winner: battleData.winner_id ? {
-                gang_id: battleData.winner_id,
-                gang_name: getGangName(battleData.winner_id)
+                id: battleData.winner_id,
+                name: getGangName(battleData.winner_id)
               } : undefined
             };
           }
@@ -378,8 +378,8 @@ const CampaignBattleLogModal = ({
       // Fallback to old data structure
       let idx = 1;
       
-      if (battleToEdit.attacker_id || battleToEdit.attacker?.gang_id) {
-        const gangId = battleToEdit.attacker?.gang_id || battleToEdit.attacker_id || '';
+      if (battleToEdit.attacker_id || battleToEdit.attacker?.id) {
+        const gangId = battleToEdit.attacker?.id || battleToEdit.attacker_id || '';
         if (gangId) {
           newGangsInBattle.push({
             id: idx++,
@@ -388,9 +388,9 @@ const CampaignBattleLogModal = ({
           });
         }
       }
-      
-      if (battleToEdit.defender_id || battleToEdit.defender?.gang_id) {
-        const gangId = battleToEdit.defender?.gang_id || battleToEdit.defender_id || '';
+
+      if (battleToEdit.defender_id || battleToEdit.defender?.id) {
+        const gangId = battleToEdit.defender?.id || battleToEdit.defender_id || '';
         if (gangId) {
           newGangsInBattle.push({
             id: idx++,
@@ -424,8 +424,8 @@ const CampaignBattleLogModal = ({
       setWinner("draw");
     } else if (battleToEdit.winner_id) {
       setWinner(battleToEdit.winner_id);
-    } else if (battleToEdit.winner?.gang_id) {
-      setWinner(battleToEdit.winner.gang_id);
+    } else if (battleToEdit.winner?.id) {
+      setWinner(battleToEdit.winner.id);
     } else {
       setWinner("");
     }

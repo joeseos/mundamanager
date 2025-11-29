@@ -317,23 +317,28 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     const gangs = memberGangs.map(cg => {
       const gangDetails = gangsData.find(g => g.id === cg.gang_id);
       return {
-        id: cg.id,
-        gang_id: cg.gang_id,
-        gang_name: gangDetails?.name || '',
-        gang_type: gangDetails?.gang_type || '',
-        gang_colour: gangDetails?.gang_colour || '#000000',
+        // Relationship metadata
+        campaign_gang_id: cg.id,
+        campaign_member_id: cg.campaign_member_id,
         status: cg.status,
+
+        // Gang data (clean names)
+        id: cg.gang_id,
+        name: gangDetails?.name || '',
+        type: gangDetails?.gang_type || '',
+        colour: gangDetails?.gang_colour || '#000000',
         rating: gangDetails?.rating || 0,
         wealth: gangDetails?.wealth || 0,
         reputation: gangDetails?.reputation || 0,
-        campaign_member_id: cg.campaign_member_id,
+        territory_count: territoryCounts[cg.gang_id] || 0,
+
+        // Optional campaign resources
         exploration_points: gangDetails?.exploration_points ?? null,
         meat: gangDetails?.meat ?? null,
         scavenging_rolls: gangDetails?.scavenging_rolls ?? null,
         power: gangDetails?.power ?? null,
         sustenance: gangDetails?.sustenance ?? null,
-        salvage: gangDetails?.salvage ?? null,
-        territory_count: territoryCounts[cg.gang_id] || 0
+        salvage: gangDetails?.salvage ?? null
       };
     });
 
@@ -410,8 +415,8 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
         name: gangDetails.name,
-        gang_type: gangDetails.gang_type || '',
-        gang_colour: gangDetails.gang_colour || '#000000'
+        type: gangDetails.gang_type || '',
+        colour: gangDetails.gang_colour || '#000000'
       }] : []
     };
   }) || [];
@@ -516,16 +521,16 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       custom_territory_id: battle.custom_territory_id,
       territory_name: territoryName,
       attacker: battle.attacker_id ? {
-        gang_id: battle.attacker_id,
-        gang_name: gangMap.get(battle.attacker_id)?.name || 'Unknown'
+        id: battle.attacker_id,
+        name: gangMap.get(battle.attacker_id)?.name || 'Unknown'
       } : undefined,
       defender: battle.defender_id ? {
-        gang_id: battle.defender_id,
-        gang_name: gangMap.get(battle.defender_id)?.name || 'Unknown'
+        id: battle.defender_id,
+        name: gangMap.get(battle.defender_id)?.name || 'Unknown'
       } : undefined,
       winner: battle.winner_id ? {
-        gang_id: battle.winner_id,
-        gang_name: gangMap.get(battle.winner_id)?.name || 'Unknown'
+        id: battle.winner_id,
+        name: gangMap.get(battle.winner_id)?.name || 'Unknown'
       } : undefined
     };
   }) || [];
@@ -884,13 +889,13 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
       const availableGangs = campaignGangs?.map(cg => {
         const gangDetails = gangsData.find(g => g.id === cg.gang_id);
         return {
-          id: cg.id,
-          gang_id: cg.gang_id,
-          gang_name: gangDetails?.name || 'Unknown',
-          gang_type: gangDetails?.gang_type || '',
-          gang_colour: gangDetails?.gang_colour || '#000000',
+          campaign_gang_id: cg.id,
+          campaign_member_id: cg.campaign_member_id,
           user_id: cg.user_id,
-          campaign_member_id: cg.campaign_member_id
+          id: cg.gang_id,
+          name: gangDetails?.name || 'Unknown',
+          type: gangDetails?.gang_type || '',
+          colour: gangDetails?.gang_colour || '#000000'
         };
       }) || [];
 

@@ -7,8 +7,8 @@ import Link from 'next/link'
 interface Gang {
   id: string;
   name: string;
-  gang_type: string;
-  gang_colour?: string;
+  type: string;
+  colour?: string;
   campaign_gang_id?: string;
   user_id?: string;
   campaign_member_id?: string;

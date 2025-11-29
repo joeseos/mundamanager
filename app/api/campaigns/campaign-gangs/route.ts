@@ -85,8 +85,8 @@ export async function GET(request: Request) {
       .map(cg => ({
         id: cg.gangs.id,
         name: cg.gangs.name,
-        gang_type: cg.gangs.gang_type,
-        gang_colour: cg.gangs.gang_colour,
+        type: cg.gangs.gang_type,      // Clean field name
+        colour: cg.gangs.gang_colour,  // Clean field name
         campaign_gang_id: cg.id,
         user_id: cg.user_id,
         campaign_member_id: cg.campaign_member_id,

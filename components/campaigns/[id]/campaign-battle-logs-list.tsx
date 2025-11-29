@@ -163,19 +163,19 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         if (member.gangs && member.gangs.length > 0) {
           member.gangs.forEach(gang => {
             // Create a unique key for each gang instance that includes member instance info
-            const gangKey = gang.gang_id;
+            const gangKey = gang.id;
             
             if (!gangsMap.has(gangKey)) {
               gangsMap.set(gangKey, {
-                id: gang.gang_id,
-                name: gang.gang_name,
+                id: gang.id,
+                name: gang.name,
                 // Store additional data for reference if needed
                 campaign_member_id: member.id || gang.campaign_member_id,
                 user_id: member.user_id,
                 owner_username: member.profile?.username || member.username || 'Unknown'
               });
-              gangNamesMap.set(gang.gang_id, gang.gang_name);
-              gangColourMap.set(gang.gang_id, gang.gang_colour || '#000000');
+              gangNamesMap.set(gang.id, gang.name);
+              gangColourMap.set(gang.id, gang.colour || '#000000');
             }
           });
         }
@@ -225,11 +225,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
       // Create a map of gang IDs to gang names from battle data
       const battleGangNames = new Map<string, string>();
-      if (battle.attacker?.gang_id && battle.attacker?.gang_name) {
-        battleGangNames.set(battle.attacker.gang_id, battle.attacker.gang_name);
+      if (battle.attacker?.id && battle.attacker?.name) {
+        battleGangNames.set(battle.attacker.id, battle.attacker.name);
       }
-      if (battle.defender?.gang_id && battle.defender?.gang_name) {
-        battleGangNames.set(battle.defender.gang_id, battle.defender.gang_name);
+      if (battle.defender?.id && battle.defender?.name) {
+        battleGangNames.set(battle.defender.id, battle.defender.name);
       }
 
       participants = [...participants].sort((a, b) => {
@@ -290,10 +290,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     // Fallback to old data structure
     const gangs = [];
     
-    if (battle.attacker_id || battle.attacker?.gang_id) {
-      const gangId = battle.attacker?.gang_id || battle.attacker_id;
-      const gangName = battle.attacker?.gang_name || getGangName(gangId || "");
-      
+    if (battle.attacker_id || battle.attacker?.id) {
+      const gangId = battle.attacker?.id || battle.attacker_id;
+      const gangName = battle.attacker?.name || getGangName(gangId || "");
+
       if (gangId) {
         gangs.push({
           id: gangId,
@@ -302,10 +302,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         });
       }
     }
-    
-    if (battle.defender_id || battle.defender?.gang_id) {
-      const gangId = battle.defender?.gang_id || battle.defender_id;
-      const gangName = battle.defender?.gang_name || getGangName(gangId || "");
+
+    if (battle.defender_id || battle.defender?.id) {
+      const gangId = battle.defender?.id || battle.defender_id;
+      const gangName = battle.defender?.name || getGangName(gangId || "");
       
       if (gangId) {
         gangs.push({
@@ -487,22 +487,22 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="px-2 py-2 align-top">
-                    {battle.winner?.gang_id ? (
+                    {battle.winner?.id ? (
                       <span
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                        style={{ color: getGangColour(battle.winner.gang_id) }}
+                        style={{ color: getGangColour(battle.winner.id) }}
                       >
                         <Link
-                          href={`/gang/${battle.winner.gang_id}`}
+                          href={`/gang/${battle.winner.id}`}
                           className="hover:text-muted-foreground transition-colors"
                         >
-                          {battle.winner.gang_name || 'Unknown'}
+                          {battle.winner.name || 'Unknown'}
                         </Link>
                       </span>
                     ) : battle.winner_id === null ? (
                       <span className="ml-2 text-xs">Draw</span>
                     ) : (
-                      <span className="ml-2 text-xs">{battle.winner?.gang_name || 'Unknown'}</span>
+                      <span className="ml-2 text-xs">{battle.winner?.name || 'Unknown'}</span>
                     )}
                   </td>
 

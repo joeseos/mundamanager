@@ -32,21 +32,6 @@ interface Campaign {
 interface BattleLog extends Battle {
   campaign_id?: string;
   campaign_name?: string;
-  attacker?: {
-    gang_id?: string;
-    gang_name: string;
-    gang_colour?: string;
-  };
-  defender?: {
-    gang_id?: string;
-    gang_name: string;
-    gang_colour?: string;
-  };
-  winner?: {
-    gang_id?: string;
-    gang_name: string;
-    gang_colour?: string;
-  };
 }
 
 // Props interface with campaigns data
@@ -273,19 +258,19 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             territory_name: territoryKey ? territoriesMap.get(territoryKey) : undefined,
             participants: participantsWithNames,
             attacker: battle.attacker_id ? {
-              gang_id: battle.attacker_id,
-              gang_name: gangMap.get(battle.attacker_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.attacker_id) || '#000000'
+              id: battle.attacker_id,
+              name: gangMap.get(battle.attacker_id)?.name || 'Unknown',
+              colour: gangColourMap.get(battle.attacker_id) || '#000000'
             } : undefined,
             defender: battle.defender_id ? {
-              gang_id: battle.defender_id,
-              gang_name: gangMap.get(battle.defender_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.defender_id) || '#000000'
+              id: battle.defender_id,
+              name: gangMap.get(battle.defender_id)?.name || 'Unknown',
+              colour: gangColourMap.get(battle.defender_id) || '#000000'
             } : undefined,
             winner: battle.winner_id ? {
-              gang_id: battle.winner_id,
-              gang_name: gangMap.get(battle.winner_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.winner_id) || '#000000'
+              id: battle.winner_id,
+              name: gangMap.get(battle.winner_id)?.name || 'Unknown',
+              colour: gangColourMap.get(battle.winner_id) || '#000000'
             } : undefined
           };
         });
@@ -483,20 +468,20 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
 
                     // Get all participating gangs (deduplicated by gang_id)
                     const participatingGangsMap = new Map<string, { gang_id: string; gang_name: string; gang_colour: string }>();
-                    
+
                     // Add from attacker/defender structure
-                    if (battle.attacker && battle.attacker.gang_id) {
-                      participatingGangsMap.set(battle.attacker.gang_id, {
-                        gang_id: battle.attacker.gang_id,
-                        gang_name: battle.attacker.gang_name,
-                        gang_colour: battle.attacker.gang_colour || '#000000'
+                    if (battle.attacker && battle.attacker.id) {
+                      participatingGangsMap.set(battle.attacker.id, {
+                        gang_id: battle.attacker.id,
+                        gang_name: battle.attacker.name,
+                        gang_colour: battle.attacker.colour || '#000000'
                       });
                     }
-                    if (battle.defender && battle.defender.gang_id) {
-                      participatingGangsMap.set(battle.defender.gang_id, {
-                        gang_id: battle.defender.gang_id,
-                        gang_name: battle.defender.gang_name,
-                        gang_colour: battle.defender.gang_colour || '#000000'
+                    if (battle.defender && battle.defender.id) {
+                      participatingGangsMap.set(battle.defender.id, {
+                        gang_id: battle.defender.id,
+                        gang_name: battle.defender.name,
+                        gang_colour: battle.defender.colour || '#000000'
                       });
                     }
 
