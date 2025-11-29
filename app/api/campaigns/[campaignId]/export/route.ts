@@ -152,6 +152,163 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
 }
 
+// TypeScript interfaces for export data structures
+
+interface ExportGangReference {
+  id: string;
+  name: string;
+  type: string;
+  colour: string;
+}
+
+interface ExportTerritory {
+  id: string;
+  template_id: string | null;
+  name: string;
+  gang_id?: string;
+  created_at: string;
+  ruined: boolean;
+  default_gang_territory: boolean;
+  is_custom: boolean;
+  owning_gangs: ExportGangReference[];
+}
+
+interface ExportGang {
+  id: string;
+  name: string;
+  type: string;
+  colour: string;
+  status: string;
+  rating: number;
+  wealth: number;
+  reputation: number;
+  exploration_points: number | null;
+  meat: number | null;
+  scavenging_rolls: number | null;
+  power: number | null;
+  sustenance: number | null;
+  salvage: number | null;
+  territory_count: number;
+  territories: ExportTerritory[];
+}
+
+interface ExportBattle {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  scenario: string;
+  scenario_name: string;
+  scenario_number: string | null;
+  note: string;
+  participants: any;
+  territory_id: string | null;
+  territory_is_custom: boolean;
+  territory_name?: string;
+  attacker?: { id: string; name: string };
+  defender?: { id: string; name: string };
+  winner?: { id: string; name: string };
+}
+
+// Transformation functions to clean up export field names
+
+/**
+ * Transform gang data for export - removes redundant gang_ prefixes
+ * Maps gang_id (actual UUID) to id, removes campaign_gang relationship ID
+ */
+function transformGangForExport(gang: any): ExportGang {
+  return {
+    id: gang.gang_id, // Use actual gang UUID as primary identifier
+    name: gang.gang_name,
+    type: gang.gang_type,
+    colour: gang.gang_colour,
+    status: gang.status,
+    rating: gang.rating,
+    wealth: gang.wealth,
+    reputation: gang.reputation,
+    exploration_points: gang.exploration_points,
+    meat: gang.meat,
+    scavenging_rolls: gang.scavenging_rolls,
+    power: gang.power,
+    sustenance: gang.sustenance,
+    salvage: gang.salvage,
+    territory_count: gang.territory_count,
+    territories: (gang.territories ?? []).map((t: any) => transformTerritoryForExport(t, true))
+  };
+}
+
+/**
+ * Transform territory data for export - removes redundant prefixes
+ * @param territory - Territory data from database
+ * @param isNested - If true, omits gang_id (when nested under gang)
+ */
+function transformTerritoryForExport(territory: any, isNested: boolean = false): ExportTerritory {
+  const result: ExportTerritory = {
+    id: territory.id, // Unique campaign_territory ID
+    template_id: territory.territory_id || territory.custom_territory_id,
+    name: territory.territory_name,
+    created_at: territory.created_at,
+    ruined: territory.ruined ?? false,
+    default_gang_territory: territory.default_gang_territory ?? false,
+    is_custom: territory.is_custom ?? false,
+    owning_gangs: (territory.owning_gangs ?? []).map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      type: g.gang_type,
+      colour: g.gang_colour
+    }))
+  };
+
+  // Only include gang_id for top-level territories (not nested under gangs)
+  if (!isNested && territory.gang_id) {
+    result.gang_id = territory.gang_id;
+  }
+
+  return result;
+}
+
+/**
+ * Transform battle data for export - cleans up nested gang references
+ */
+function transformBattleForExport(battle: any): ExportBattle {
+  const transformed: ExportBattle = {
+    id: battle.id,
+    created_at: battle.created_at,
+    updated_at: battle.updated_at,
+    scenario: battle.scenario,
+    scenario_name: battle.scenario_name,
+    scenario_number: battle.scenario_number,
+    note: battle.note,
+    participants: battle.participants,
+    territory_id: battle.territory_id || battle.custom_territory_id,
+    territory_is_custom: !!battle.custom_territory_id,
+    territory_name: battle.territory_name
+  };
+
+  // Transform nested gang references to use clean field names
+  if (battle.attacker) {
+    transformed.attacker = {
+      id: battle.attacker.gang_id,
+      name: battle.attacker.gang_name
+    };
+  }
+
+  if (battle.defender) {
+    transformed.defender = {
+      id: battle.defender.gang_id,
+      name: battle.defender.gang_name
+    };
+  }
+
+  if (battle.winner) {
+    transformed.winner = {
+      id: battle.winner.gang_id,
+      name: battle.winner.gang_name
+    };
+  }
+
+  return transformed;
+}
+
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
   const { campaignId } = params;
@@ -244,10 +401,10 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
           territory => territory.gang_id === gang.gang_id
         );
 
-        return {
+        return transformGangForExport({
           ...gang,
           territories: gangTerritories
-        };
+        });
       });
 
       return {
@@ -285,8 +442,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         has_salvage: campaignBasic.has_salvage
       },
       members: membersWithTerritories,
-      available_territories: campaignTerritories,
-      battle_logs: campaignBattles
+      available_territories: campaignTerritories.map(t => transformTerritoryForExport(t, false)),
+      battle_logs: campaignBattles.map(transformBattleForExport)
     };
 
     // Return based on requested format
