@@ -733,8 +733,13 @@ const CampaignBattleLogModal = ({
               onChange={(e) => {
                 const value = e.target.value;
                 // Allow empty string or only positive integers
-                if (value === '' || (parseInt(value, 10) > 0 && !value.includes('-') && !value.includes('.'))) {
+                if (value === '') {
                   setCycle(value);
+                } else {
+                  const numValue = parseInt(value, 10);
+                  if (!isNaN(numValue) && numValue > 0 && !value.includes('-') && !value.includes('.')) {
+                    setCycle(value);
+                  }
                 }
               }}
               disabled={isLoadingBattleData}
