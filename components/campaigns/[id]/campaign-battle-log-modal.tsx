@@ -730,9 +730,21 @@ const CampaignBattleLogModal = ({
               className="w-full px-3 py-2 rounded-md border border-border bg-muted"
               placeholder="Enter cycle number (optional)"
               value={cycle}
-              onChange={(e) => setCycle(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Allow empty string or only positive integers
+                if (value === '' || (parseInt(value, 10) > 0 && !value.includes('-') && !value.includes('.'))) {
+                  setCycle(value);
+                }
+              }}
               disabled={isLoadingBattleData}
               min="1"
+              onKeyDown={(e) => {
+                // Prevent entering minus, plus, period, and 'e' (scientific notation)
+                if (['-', '+', '.', 'e', 'E'].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
             />
           </div>
 
