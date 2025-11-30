@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, X } from "lucide-react";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -57,7 +57,6 @@ const CampaignBattleLogModal = ({
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
@@ -68,7 +67,7 @@ const CampaignBattleLogModal = ({
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
-  
+
   // Check if the user has admin permissions (OWNER or ARBITRATOR)
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 
@@ -257,6 +256,9 @@ const CampaignBattleLogModal = ({
     }
   });
 
+  // Compute isSubmitting from mutation states
+  const isSubmitting = createBattleMutation.isPending || updateBattleMutation.isPending;
+
   // If in edit mode and the user is not admin, show an error and close the modal
   useEffect(() => {
     if (isOpen && isEditMode && !isAdmin) {
@@ -319,14 +321,8 @@ const CampaignBattleLogModal = ({
     };
   }, [isOpen, campaignId, toast]);
 
-  useEffect(() => {
-    if (isOpen && battleToEdit && scenarios.length > 0) {
-      populateFormWithBattleData();
-    }
-  }, [isOpen, battleToEdit, scenarios]);
-
   // Populate a form with battle data when editing
-  const populateFormWithBattleData = () => {
+  const populateFormWithBattleData = useCallback(() => {
     if (!battleToEdit) return;
     
     // Set scenario
@@ -454,7 +450,13 @@ const CampaignBattleLogModal = ({
         setSelectedTerritory(matchedTerritory.id);
       }
     }
-  };
+  }, [battleToEdit, scenarios, territories]);
+
+  useEffect(() => {
+    if (isOpen && battleToEdit && scenarios.length > 0) {
+      populateFormWithBattleData();
+    }
+  }, [isOpen, battleToEdit, scenarios, populateFormWithBattleData]);
 
   // Update available territories when winner changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -629,9 +631,6 @@ const CampaignBattleLogModal = ({
       cycle: cycleValue
     };
 
-    // Set submitting flag to prevent double-click
-    setIsSubmitting(true);
-
     // Close modal immediately for instant UX
     onClose();
     resetForm();
@@ -642,9 +641,6 @@ const CampaignBattleLogModal = ({
     } else {
       createBattleMutation.mutate(battleData);
     }
-
-    // Reset submitting flag after modal animation completes
-    setTimeout(() => setIsSubmitting(false), 500);
 
     return true;
   };

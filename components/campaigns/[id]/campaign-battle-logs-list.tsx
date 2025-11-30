@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { ChevronLeft, ChevronRight, Edit } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
-import { createBattleLog, updateBattleLog, deleteBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
+import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import Modal from "@/components/ui/modal";
 import { LuTrash2 } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
@@ -462,7 +462,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             </tr>
           </thead>
           <tbody>
-            {battles.length === 0 ? (
+            {localBattles.length === 0 ? (
               <tr>
                 <td colSpan={isAdmin ? 8 : 7} className="text-muted-foreground italic text-center">
                   No battles recorded yet.
