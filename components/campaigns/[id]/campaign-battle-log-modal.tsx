@@ -71,9 +71,6 @@ const CampaignBattleLogModal = ({
   // Check if the user has admin permissions (OWNER or ARBITRATOR)
   const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 
-  // Compute isSubmitting from mutation states
-  const isSubmitting = createBattleMutation.isPending || updateBattleMutation.isPending;
-
   // Helper to get gang name by ID - extracted to avoid duplication
   const getGangName = (gangId: string | null | undefined) => {
     if (!gangId) return 'Unknown';
@@ -258,6 +255,9 @@ const CampaignBattleLogModal = ({
       });
     }
   });
+
+  // Compute isSubmitting from mutation states
+  const isSubmitting = createBattleMutation.isPending || updateBattleMutation.isPending;
 
   // If in edit mode and the user is not admin, show an error and close the modal
   useEffect(() => {
