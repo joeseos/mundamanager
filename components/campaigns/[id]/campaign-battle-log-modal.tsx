@@ -64,7 +64,8 @@ const CampaignBattleLogModal = ({
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   });
-  
+  const [cycle, setCycle] = useState<string>('');
+
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
   
@@ -112,6 +113,7 @@ const CampaignBattleLogModal = ({
         territory_id: battleData.territory_id,
         custom_territory_id: battleData.custom_territory_id,
         territory_name: territoryName,
+        cycle: battleData.cycle,
         // Add full gang objects for display
         attacker: battleData.attacker_id ? {
           id: battleData.attacker_id,
@@ -199,6 +201,7 @@ const CampaignBattleLogModal = ({
               territory_id: battleData.territory_id,
               custom_territory_id: battleData.custom_territory_id,
               territory_name: territoryName,
+              cycle: battleData.cycle,
               updated_at: new Date().toISOString(),
               // Update full gang objects for display
               attacker: battleData.attacker_id ? {
@@ -347,7 +350,14 @@ const CampaignBattleLogModal = ({
       const tzOffsetMs = dt.getTimezoneOffset() * 60000;
       setBattleDate(new Date(dt.getTime() - tzOffsetMs).toISOString().slice(0, 10));
     }
-    
+
+    // Set cycle
+    if (battleToEdit.cycle !== undefined && battleToEdit.cycle !== null) {
+      setCycle(String(battleToEdit.cycle));
+    } else {
+      setCycle('');
+    }
+
     // Set gangs and roles
     const newGangsInBattle: GangEntry[] = [];
     
@@ -606,7 +616,8 @@ const CampaignBattleLogModal = ({
             campaign_territory_id: selectedTerritory
           }]
         : [],
-      created_at: new Date(battleDate + 'T00:00:00').toISOString()
+      created_at: new Date(battleDate + 'T00:00:00').toISOString(),
+      cycle: cycle ? parseInt(cycle, 10) : null
     };
 
     // Set submitting flag to prevent double-click
@@ -639,6 +650,7 @@ const CampaignBattleLogModal = ({
     setWinner('');
     setNotes('');
     setSelectedTerritory('');
+    setCycle('');
     const now = new Date();
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     setBattleDate(new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10));
@@ -694,6 +706,21 @@ const CampaignBattleLogModal = ({
               value={battleDate}
               onChange={(e) => setBattleDate(e.target.value)}
               disabled={isLoadingBattleData}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Cycle
+            </label>
+            <input
+              type="number"
+              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+              placeholder="Enter cycle number (optional)"
+              value={cycle}
+              onChange={(e) => setCycle(e.target.value)}
+              disabled={isLoadingBattleData}
+              min="1"
             />
           </div>
 

@@ -37,6 +37,7 @@ export interface Battle {
   territory_id?: string | null;
   custom_territory_id?: string | null;
   territory_name?: string;
+  cycle?: number | null;
   attacker?: GangReference;
   defender?: GangReference;
   winner?: GangReference;

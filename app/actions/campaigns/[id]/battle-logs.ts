@@ -34,6 +34,7 @@ export interface BattleLogParams {
   created_at?: string;
   territory_id?: string | null;
   custom_territory_id?: string | null;
+  cycle?: number | null;
 }
 
 /**
@@ -42,16 +43,17 @@ export interface BattleLogParams {
 export async function createBattleLog(campaignId: string, params: BattleLogParams): Promise<any> {
   try {
     const supabase = await createClient();
-    
-    const { 
-      scenario, 
-      attacker_id, 
-      defender_id, 
-      winner_id, 
+
+    const {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
       note,
       participants,
       claimed_territories = [],
-      created_at
+      created_at,
+      cycle
     } = params;
 
     // Get territory IDs if a territory is being claimed
@@ -85,7 +87,8 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
           created_at: created_at ?? new Date().toISOString(),
           territory_id,
-          custom_territory_id
+          custom_territory_id,
+          cycle
         }
       ])
       .select()
@@ -242,16 +245,17 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 export async function updateBattleLog(campaignId: string, battleId: string, params: BattleLogParams): Promise<any> {
   try {
     const supabase = await createClient();
-    
-    const { 
-      scenario, 
-      attacker_id, 
-      defender_id, 
-      winner_id, 
+
+    const {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
       note,
       participants,
       claimed_territories = [],
-      created_at
+      created_at,
+      cycle
     } = params;
 
     // First, verify the battle exists and belongs to the campaign
@@ -293,7 +297,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
       updated_at: new Date().toISOString(),
       territory_id,
-      custom_territory_id
+      custom_territory_id,
+      cycle
     };
     if (created_at) {
       updatePayload.created_at = created_at;
