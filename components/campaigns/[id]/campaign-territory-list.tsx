@@ -32,9 +32,9 @@ interface Member {
   username: string;
   role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
   gangs: {
+    campaign_gang_id: string;
     id: string;
-    gang_id: string;
-    gang_name: string;
+    name: string;
     gang_type: string;
     gang_colour: string;
     status: string | null;
@@ -106,11 +106,11 @@ export default function CampaignTerritoryList({
   const getGangDetails = (gangId: string) => {
     // Look through members' gangs to find the gang details
     for (const member of members) {
-      const gang = member.gangs.find((g: Member['gangs'][0]) => g.gang_id === gangId);
+      const gang = member.gangs.find((g: Member['gangs'][0]) => g.id === gangId);
       if (gang) {
         return {
-          id: gang.gang_id,
-          name: gang.gang_name,
+          id: gang.id,
+          name: gang.name,
           gang_type: gang.gang_type || 'Unknown',
           gang_colour: gang.gang_colour || '#000000'
         };

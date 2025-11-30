@@ -22,6 +22,7 @@ import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-
 import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
+import type { Battle } from '@/types/campaign';
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 
@@ -47,9 +48,9 @@ interface Member {
     user_role: string;
   };
   gangs: {
+    campaign_gang_id: string;
     id: string;
-    gang_id: string;
-    gang_name: string;
+    name: string;
     gang_type: string;
     gang_colour: string;
     status: string | null;
@@ -114,24 +115,7 @@ interface CampaignPageContentProps {
     has_sustenance: boolean;
     has_salvage: boolean;
     trading_posts: string[];
-    battles: {
-      id: string;
-      created_at: string;
-      scenario_number: number;
-      scenario_name: string;
-      attacker?: {
-        gang_id?: string;
-        gang_name: string;
-      };
-      defender?: {
-        gang_id?: string;
-        gang_name: string;
-      };
-              winner?: {
-          gang_id?: string;
-          gang_name: string;
-        };
-      }[];
+    battles: Battle[];
       triumphs: {
         id: string;
         triumph: string;
@@ -707,7 +691,7 @@ export default function CampaignPageContent({
                       ...prev,
                       members: prev.members.map(member => ({
                         ...member,
-                        gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.gang_id))
+                        gangs: member.gangs.filter((gang: Member['gangs'][0]) => !removedGangIds.includes(gang.id))
                       })),
                       // Also update territories owned by the removed gangs (safe access)
                       territories: (prev.territories || []).map(territory => 

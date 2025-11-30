@@ -212,13 +212,13 @@ interface ExportBattle {
 // Transformation functions to clean up export field names
 
 /**
- * Transform gang data for export - removes redundant gang_ prefixes
- * Maps gang_id (actual UUID) to id, removes campaign_gang relationship ID
+ * Transform gang data for export - maps directly from data structure
+ * Data layer provides clean id/name, database names for gang_type/gang_colour
  */
 function transformGangForExport(gang: any): ExportGang {
   return {
-    id: gang.gang_id, // Use actual gang UUID as primary identifier
-    name: gang.gang_name,
+    id: gang.id, // Gang UUID
+    name: gang.name,
     type: gang.gang_type,
     colour: gang.gang_colour,
     status: gang.status,
@@ -237,7 +237,7 @@ function transformGangForExport(gang: any): ExportGang {
 }
 
 /**
- * Transform territory data for export - removes redundant prefixes
+ * Transform territory data for export - maps directly from data structure
  * @param territory - Territory data from database
  * @param isNested - If true, omits gang_id (when nested under gang)
  */
@@ -267,7 +267,8 @@ function transformTerritoryForExport(territory: any, isNested: boolean = false):
 }
 
 /**
- * Transform battle data for export - cleans up nested gang references
+ * Transform battle data for export - now just maps directly from clean structure
+ * Data layer already provides clean field names (no more gang_ prefixes)
  */
 function transformBattleForExport(battle: any): ExportBattle {
   const transformed: ExportBattle = {
@@ -284,25 +285,25 @@ function transformBattleForExport(battle: any): ExportBattle {
     territory_name: battle.territory_name
   };
 
-  // Transform nested gang references to use clean field names
+  // Gang references already have clean field names from data layer
   if (battle.attacker) {
     transformed.attacker = {
-      id: battle.attacker.gang_id,
-      name: battle.attacker.gang_name
+      id: battle.attacker.id,
+      name: battle.attacker.name
     };
   }
 
   if (battle.defender) {
     transformed.defender = {
-      id: battle.defender.gang_id,
-      name: battle.defender.gang_name
+      id: battle.defender.id,
+      name: battle.defender.name
     };
   }
 
   if (battle.winner) {
     transformed.winner = {
-      id: battle.winner.gang_id,
-      name: battle.winner.gang_name
+      id: battle.winner.id,
+      name: battle.winner.name
     };
   }
 
@@ -398,7 +399,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       const gangsWithTerritories = member.gangs.map(gang => {
         // Find territories owned by this gang
         const gangTerritories = campaignTerritories.filter(
-          territory => territory.gang_id === gang.gang_id
+          territory => territory.gang_id === gang.id
         );
 
         return transformGangForExport({
