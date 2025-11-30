@@ -105,6 +105,7 @@ export async function PUT(
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
+      cycle: battle.cycle,
       attacker: { gang_name: attacker?.name },
       defender: { gang_name: defender?.name },
       winner: winner?.name ? { gang_name: winner.name } : null

@@ -452,7 +452,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <thead>
             <tr className="bg-muted border-b">
               <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
-              <th className="px-2 py-2 text-left font-medium">Cycle</th>
+              <th className="px-2 py-2 text-left font-medium w-16">Cycle</th>
               <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
               <th className="px-2 py-2 text-left font-medium">Territory</th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
