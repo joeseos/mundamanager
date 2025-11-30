@@ -64,7 +64,8 @@ const CampaignBattleLogModal = ({
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   });
-  
+  const [cycle, setCycle] = useState<string>('');
+
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
   
@@ -112,6 +113,7 @@ const CampaignBattleLogModal = ({
         territory_id: battleData.territory_id,
         custom_territory_id: battleData.custom_territory_id,
         territory_name: territoryName,
+        cycle: battleData.cycle,
         // Add full gang objects for display
         attacker: battleData.attacker_id ? {
           id: battleData.attacker_id,
@@ -199,6 +201,7 @@ const CampaignBattleLogModal = ({
               territory_id: battleData.territory_id,
               custom_territory_id: battleData.custom_territory_id,
               territory_name: territoryName,
+              cycle: battleData.cycle,
               updated_at: new Date().toISOString(),
               // Update full gang objects for display
               attacker: battleData.attacker_id ? {
@@ -347,7 +350,14 @@ const CampaignBattleLogModal = ({
       const tzOffsetMs = dt.getTimezoneOffset() * 60000;
       setBattleDate(new Date(dt.getTime() - tzOffsetMs).toISOString().slice(0, 10));
     }
-    
+
+    // Set cycle
+    if (battleToEdit.cycle !== undefined && battleToEdit.cycle !== null) {
+      setCycle(String(battleToEdit.cycle));
+    } else {
+      setCycle('');
+    }
+
     // Set gangs and roles
     const newGangsInBattle: GangEntry[] = [];
     
@@ -593,6 +603,15 @@ const CampaignBattleLogModal = ({
     // Get a default attacker/defender if needed for the API
     const firstGangId = gangsInBattle.find(g => g.gangId)?.gangId || '';
 
+    // Validate and prepare cycle value
+    let cycleValue: number | null = null;
+    if (cycle) {
+      const parsedCycle = parseInt(cycle, 10);
+      if (!isNaN(parsedCycle) && parsedCycle > 0) {
+        cycleValue = parsedCycle;
+      }
+    }
+
     // Prepare battle data for API
     const battleData: BattleLogParams = {
       scenario: scenarioName,
@@ -606,7 +625,8 @@ const CampaignBattleLogModal = ({
             campaign_territory_id: selectedTerritory
           }]
         : [],
-      created_at: new Date(battleDate + 'T00:00:00').toISOString()
+      created_at: new Date(battleDate + 'T00:00:00').toISOString(),
+      cycle: cycleValue
     };
 
     // Set submitting flag to prevent double-click
@@ -639,6 +659,7 @@ const CampaignBattleLogModal = ({
     setWinner('');
     setNotes('');
     setSelectedTerritory('');
+    setCycle('');
     const now = new Date();
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     setBattleDate(new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10));
@@ -653,28 +674,31 @@ const CampaignBattleLogModal = ({
   const formValid = useMemo(() => {
     // Check if a scenario is selected
     const scenarioValid = selectedScenario !== '';
-    
+
     // Check if custom scenario has text (when custom is selected)
-    const customScenarioValid = selectedScenario !== 'custom' || 
+    const customScenarioValid = selectedScenario !== 'custom' ||
       (selectedScenario === 'custom' && customScenario.trim() !== '');
-    
+
     // Check if at least one gang is selected
     const anyGangSelected = gangsInBattle.some(g => g.gangId);
-    
+
     // Find gangs with roles
     const attackers = gangsInBattle.filter(g => g.role === 'attacker' && g.gangId);
     const defenders = gangsInBattle.filter(g => g.role === 'defender' && g.gangId);
     const gangsWithRole = gangsInBattle.filter(g => g.role !== 'none' && g.gangId);
-    
+
     // If any gang has a role, both attackers and defenders should exist
-    const rolesValid = gangsWithRole.length === 0 || 
+    const rolesValid = gangsWithRole.length === 0 ||
       (gangsWithRole.length > 0 && attackers.length > 0 && defenders.length > 0);
-    
+
     // Check if a winner is selected
     const winnerValid = !!winner;
-    
-    return scenarioValid && customScenarioValid && anyGangSelected && rolesValid && winnerValid;
-  }, [selectedScenario, customScenario, gangsInBattle, winner]);
+
+    // Check if cycle is valid (either empty or a positive number)
+    const cycleValid = !cycle || (!isNaN(parseInt(cycle, 10)) && parseInt(cycle, 10) > 0);
+
+    return scenarioValid && customScenarioValid && anyGangSelected && rolesValid && winnerValid && cycleValid;
+  }, [selectedScenario, customScenario, gangsInBattle, winner, cycle]);
 
   if (!isOpen) return null;
 
@@ -694,6 +718,38 @@ const CampaignBattleLogModal = ({
               value={battleDate}
               onChange={(e) => setBattleDate(e.target.value)}
               disabled={isLoadingBattleData}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Cycle
+            </label>
+            <input
+              type="number"
+              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+              placeholder="Enter cycle number (optional)"
+              value={cycle}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Allow empty string or only positive integers
+                if (value === '') {
+                  setCycle(value);
+                } else {
+                  const numValue = parseInt(value, 10);
+                  if (!isNaN(numValue) && numValue > 0 && !value.includes('-') && !value.includes('.')) {
+                    setCycle(value);
+                  }
+                }
+              }}
+              disabled={isLoadingBattleData}
+              min="1"
+              onKeyDown={(e) => {
+                // Prevent entering minus, plus, period, and 'e' (scientific notation)
+                if (['-', '+', '.', 'e', 'E'].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
             />
           </div>
 

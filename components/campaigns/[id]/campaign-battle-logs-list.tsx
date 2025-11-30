@@ -452,6 +452,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <thead>
             <tr className="bg-muted border-b">
               <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
+              <th className="px-2 py-2 text-left font-medium w-16">Cycle</th>
               <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
               <th className="px-2 py-2 text-left font-medium">Territory</th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
@@ -463,7 +464,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <tbody>
             {battles.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6} className="text-muted-foreground italic text-center">
+                <td colSpan={isAdmin ? 8 : 7} className="text-muted-foreground italic text-center">
                   No battles recorded yet.
                 </td>
               </tr>
@@ -472,6 +473,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 <tr key={battle.id} className="border-b">
                   <td className="px-2 py-2 align-top max-w-[5rem]">
                     {formatDate(battle.created_at)}
+                  </td>
+
+                  <td className="px-2 py-2 align-top">
+                    {battle.cycle || '-'}
                   </td>
 
                   <td className="px-2 py-2 align-top max-w-[8rem]">

@@ -437,7 +437,8 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       participants,
       scenario_id,
       territory_id,
-      custom_territory_id
+      custom_territory_id,
+      cycle
     `)
     .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
@@ -520,6 +521,7 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       territory_id: battle.territory_id,
       custom_territory_id: battle.custom_territory_id,
       territory_name: territoryName,
+      cycle: battle.cycle,
       attacker: battle.attacker_id ? {
         id: battle.attacker_id,
         name: gangMap.get(battle.attacker_id)?.name || 'Unknown'

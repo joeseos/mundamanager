@@ -27,14 +27,15 @@ export async function PUT(
 
   try {
     const requestBody = await request.json();
-    const { 
-      scenario, 
-      attacker_id, 
-      defender_id, 
-      winner_id, 
+    const {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
       note,
       participants,
-      claimed_territories = [] 
+      claimed_territories = [],
+      cycle
     } = requestBody;
 
     // Validate required fields
@@ -70,7 +71,8 @@ export async function PUT(
         winner_id,
         note,
         participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        cycle
       })
       .eq('id', battleId)
       .select()
@@ -103,6 +105,7 @@ export async function PUT(
     // Transform the response to match the expected format
     const transformedBattle = {
       ...battle,
+      cycle: battle.cycle,
       attacker: { gang_name: attacker?.name },
       defender: { gang_name: defender?.name },
       winner: winner?.name ? { gang_name: winner.name } : null
