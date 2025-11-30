@@ -91,12 +91,12 @@ async function logBattleParticipantResults(
       const otherParticipants = parsedParticipants.filter((p: BattleParticipant) => p.gang_id !== participant.gang_id);
       const opponentNames = otherParticipants
         .map((p: BattleParticipant) => gangNameMap.get(p.gang_id))
-        .filter(Boolean);
+        .filter((name): name is string => Boolean(name));
       const opponentName = opponentNames.join(', ') || 'Unknown';
 
       await logBattleResult({
         gang_id: participant.gang_id,
-        gang_name: gangName,
+        gang_name: gangName as string,
         campaign_name: campaign.campaign_name,
         opponent_name: opponentName,
         scenario,
