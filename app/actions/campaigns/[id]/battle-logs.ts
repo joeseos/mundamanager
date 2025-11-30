@@ -4,6 +4,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Type definition for battle participant
@@ -42,14 +43,13 @@ export interface BattleLogParams {
  * Reduces code duplication and fixes N+1 query problem
  */
 async function logBattleParticipantResults(
-  supabase: any,
+  supabase: SupabaseClient,
   participants: BattleParticipant[] | string,
   winner_id: string | null,
   scenario: string,
   campaign: { campaign_name: string },
   claimed_territories: TerritoryClaimRequest[],
-  winner: { name: string } | null,
-  campaignId: string
+  winner: { name: string } | null
 ) {
   try {
     // Parse participants if it's a JSON string
@@ -231,8 +231,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         scenario,
         campaign,
         claimed_territories,
-        winner,
-        campaignId
+        winner
       );
     }
 
@@ -368,8 +367,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         scenario,
         campaign,
         claimed_territories,
-        winner,
-        campaignId
+        winner
       );
     }
 
