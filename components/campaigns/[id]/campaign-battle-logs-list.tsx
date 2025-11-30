@@ -175,7 +175,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 owner_username: member.profile?.username || member.username || 'Unknown'
               });
               gangNamesMap.set(gang.id, gang.name);
-              gangColourMap.set(gang.id, gang.colour || '#000000');
+              gangColourMap.set(gang.id, gang.gang_colour || '#000000');
             }
           });
         }

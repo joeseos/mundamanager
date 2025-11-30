@@ -40,8 +40,8 @@ interface Member {
     status: string | null;
     id: string;              // gang's actual UUID
     name: string;
-    type: string;
-    colour: string;
+    gang_type: string;
+    gang_colour: string;
     rating?: number;
     wealth?: number;
     reputation?: number;
@@ -59,8 +59,8 @@ interface Member {
 interface Gang {
   id: string;
   name: string;
-  type: string;
-  colour: string | null;
+  gang_type: string;
+  gang_colour: string | null;
   rating?: number;
   wealth?: number;
   reputation?: number;
@@ -73,7 +73,20 @@ interface Gang {
   isInCampaign?: boolean;
 }
 
-type GangWithCampaignCheck = Gang & {
+type GangWithCampaignCheck = {
+  id: string;
+  name: string;
+  gang_type: string;      // Database column name
+  gang_colour: string | null;  // Database column name
+  rating?: number;
+  wealth?: number;
+  reputation?: number;
+  exploration_points?: number | null;
+  meat?: number | null;
+  scavenging_rolls?: number | null;
+  power?: number | null;
+  sustenance?: number | null;
+  salvage?: number | null;
   campaign_gangs?: Array<{ gang_id: string }>;
 }
 
@@ -192,8 +205,8 @@ export default function MembersTable({
           bValue = b.gangs[0]?.name || '';
           break;
         case 'type':
-          aValue = a.gangs[0]?.type || '';
-          bValue = b.gangs[0]?.type || '';
+          aValue = a.gangs[0]?.gang_type || '';
+          bValue = b.gangs[0]?.gang_type || '';
           break;
         case 'player':
           aValue = a.profile.username || '';
@@ -282,16 +295,18 @@ export default function MembersTable({
 
       if (error) throw error;
 
-      // Transform data to include isInCampaign flag
+      // Transform data to include isInCampaign flag and map database column names to clean field names
       const gangsWithAvailability = gangs?.map(gang => {
         // If campaign_gangs array exists and has entries, the gang is in a campaign
         const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
-        
-        // Remove the campaign_gangs join data from the result
-        const { campaign_gangs, ...gangData } = gang;
-        
+
+        // Remove the campaign_gangs join data and map database column names
+        const { campaign_gangs, gang_type, gang_colour, ...gangData } = gang;
+
         return {
           ...gangData,
+          gang_type,
+          gang_colour,
           isInCampaign
         };
       }) || [];
@@ -341,8 +356,8 @@ export default function MembersTable({
         campaign_gang_id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
         id: variables.gangId,
         name: gangData.name,
-        type: gangData.type,
-        colour: gangData.colour || '#000000',
+        gang_type: gangData.gang_type,
+        gang_colour: gangData.gang_colour || '#000000',
         status: null,
         rating: gangData.rating || 0,
         wealth: gangData.wealth || 0,
@@ -607,7 +622,7 @@ export default function MembersTable({
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-medium">{gang.name}</span>
-                <span className="text-sm text-muted-foreground ml-2">{gang.type || "-"}</span>
+                <span className="text-sm text-muted-foreground ml-2">{gang.gang_type || "-"}</span>
               </div>
               {gang.isInCampaign && (
                 <span className="text-xs text-muted-foreground">Already in a campaign.</span>
@@ -816,7 +831,7 @@ export default function MembersTable({
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                         style={{
-                          color: member.gangs[0]?.colour || '#000000'
+                          color: member.gangs[0]?.gang_colour || '#000000'
                         }}
                       >
                         <Link
@@ -862,7 +877,7 @@ export default function MembersTable({
                 </td>
                 <td className="px-2 py-2 max-w-[5rem]">
                   <span className="text-muted-foreground">
-                    {member.gangs[0]?.type || "-"}
+                    {member.gangs[0]?.gang_type || "-"}
                   </span>
                 </td>
                 <td className="px-2 py-2 max-w-[6rem]">
@@ -963,7 +978,7 @@ export default function MembersTable({
                 {member.gangs[0]?.name ? (
                   <div className="flex items-center gap-1">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-muted"
-                      style={{ color: member.gangs[0]?.colour || '#000000' }}
+                      style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
                     >
                       <Link
                         href={`/gang/${member.gangs[0].id}`}
@@ -1039,7 +1054,7 @@ export default function MembersTable({
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Type</span>
               <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.type || "-"}
+                {member.gangs[0]?.gang_type || "-"}
               </span>
             </div>
             <div className="flex justify-between items-center">

@@ -322,11 +322,11 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         campaign_member_id: cg.campaign_member_id,
         status: cg.status,
 
-        // Gang data (clean names)
+        // Gang data (clean names for id/name, database names for gang_type/gang_colour)
         id: cg.gang_id,
         name: gangDetails?.name || '',
-        type: gangDetails?.gang_type || '',
-        colour: gangDetails?.gang_colour || '#000000',
+        gang_type: gangDetails?.gang_type || '',
+        gang_colour: gangDetails?.gang_colour || '#000000',
         rating: gangDetails?.rating || 0,
         wealth: gangDetails?.wealth || 0,
         reputation: gangDetails?.reputation || 0,
@@ -415,8 +415,8 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
         name: gangDetails.name,
-        type: gangDetails.gang_type || '',
-        colour: gangDetails.gang_colour || '#000000'
+        gang_type: gangDetails.gang_type || '',
+        gang_colour: gangDetails.gang_colour || '#000000'
       }] : []
     };
   }) || [];
@@ -894,8 +894,8 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
           user_id: cg.user_id,
           id: cg.gang_id,
           name: gangDetails?.name || 'Unknown',
-          type: gangDetails?.gang_type || '',
-          colour: gangDetails?.gang_colour || '#000000'
+          gang_type: gangDetails?.gang_type || '',
+          gang_colour: gangDetails?.gang_colour || '#000000'
         };
       }) || [];
 

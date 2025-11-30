@@ -29,8 +29,8 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 interface Gang {
   id: string;
   name: string;
-  type: string;
-  colour: string;
+  gang_type: string;
+  gang_colour: string;
 }
 
 interface Member {
@@ -51,8 +51,8 @@ interface Member {
     campaign_gang_id: string;
     id: string;
     name: string;
-    type: string;
-    colour: string;
+    gang_type: string;
+    gang_colour: string;
     status: string | null;
     rating?: number;
     reputation?: number;

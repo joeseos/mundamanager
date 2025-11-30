@@ -2,13 +2,13 @@
 
 /**
  * Gang reference used when gang is nested under another entity.
- * Uses clean names since parent context provides meaning.
+ * Uses clean names for id/name, but keeps database column names for gang_type/gang_colour.
  */
 export interface GangReference {
   id: string;
   name: string;
-  type?: string;
-  colour?: string;
+  gang_type?: string;
+  gang_colour?: string;
 }
 
 /**
@@ -115,11 +115,11 @@ export interface Member {
     campaign_member_id?: string;
     status: string | null;
 
-    // Gang data (clean names from gangs table)
+    // Gang data (clean names for id/name, database names for gang_type/gang_colour)
     id: string;              // gang's actual UUID
     name: string;
-    type: string;
-    colour: string;
+    gang_type: string;
+    gang_colour: string;
     rating?: number;
     wealth?: number;
     reputation?: number;

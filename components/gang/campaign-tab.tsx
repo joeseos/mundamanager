@@ -188,13 +188,13 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
         
         const gangIds = Array.from(allGangIds);
 
-        let gangsData: { id: string; name: string; gang_colour: string }[] = [];
+        let gangsData: { id: string; name: string; gang_type: string; gang_colour: string }[] = [];
         if (gangIds.length > 0) {
           const { data: gangs } = await supabase
             .from('gangs')
-            .select('id, name, gang_colour')
+            .select('id, name, gang_type, gang_colour')
             .in('id', gangIds);
-          
+
           gangsData = gangs || [];
         }
 
@@ -260,17 +260,17 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             attacker: battle.attacker_id ? {
               id: battle.attacker_id,
               name: gangMap.get(battle.attacker_id)?.name || 'Unknown',
-              colour: gangColourMap.get(battle.attacker_id) || '#000000'
+              gang_colour: gangColourMap.get(battle.attacker_id) || '#000000'
             } : undefined,
             defender: battle.defender_id ? {
               id: battle.defender_id,
               name: gangMap.get(battle.defender_id)?.name || 'Unknown',
-              colour: gangColourMap.get(battle.defender_id) || '#000000'
+              gang_colour: gangColourMap.get(battle.defender_id) || '#000000'
             } : undefined,
             winner: battle.winner_id ? {
               id: battle.winner_id,
               name: gangMap.get(battle.winner_id)?.name || 'Unknown',
-              colour: gangColourMap.get(battle.winner_id) || '#000000'
+              gang_colour: gangColourMap.get(battle.winner_id) || '#000000'
             } : undefined
           };
         });
@@ -467,21 +467,21 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     }
 
                     // Get all participating gangs (deduplicated by gang_id)
-                    const participatingGangsMap = new Map<string, { id: string; name: string; colour: string }>();
+                    const participatingGangsMap = new Map<string, { id: string; name: string; gang_colour: string }>();
 
                     // Add from attacker/defender structure
                     if (battle.attacker && battle.attacker.id) {
                       participatingGangsMap.set(battle.attacker.id, {
                         id: battle.attacker.id,
                         name: battle.attacker.name,
-                        colour: battle.attacker.colour || '#000000'
+                        gang_colour: battle.attacker.gang_colour || '#000000'
                       });
                     }
                     if (battle.defender && battle.defender.id) {
                       participatingGangsMap.set(battle.defender.id, {
                         id: battle.defender.id,
                         name: battle.defender.name,
-                        colour: battle.defender.colour || '#000000'
+                        gang_colour: battle.defender.gang_colour || '#000000'
                       });
                     }
 
@@ -498,7 +498,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                               participatingGangsMap.set(p.gang_id, {
                                 id: p.gang_id,
                                 name: p.gang_name,
-                                colour: p.gang_colour || '#000000'
+                                gang_colour: p.gang_colour || '#000000'
                               });
                             }
                           });
@@ -526,7 +526,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                                   key={gang.id}
                                   variant="outline"
                                   className="cursor-pointer hover:bg-secondary"
-                                  style={{ color: gang.colour }}
+                                  style={{ color: gang.gang_colour }}
                                 >
                                   <Link
                                     href={`/gang/${gang.id}`}

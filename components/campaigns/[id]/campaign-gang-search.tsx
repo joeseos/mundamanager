@@ -11,7 +11,7 @@ import { useMutation } from '@tanstack/react-query'
 import { addGangToCampaignDirect, removeGangFromCampaignDirect } from "@/app/actions/campaigns/[id]/campaign-gangs"
 
 type Gang = Database['public']['Tables']['gangs']['Row'] & {
-  type?: string;
+  gang_type?: string;
   user?: {
     username: string;
   };
@@ -147,10 +147,10 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
           (usersData || []).map(user => [user.id, user.username])
         )
 
-        // Transform the data to include type and username
+        // Transform the data to include gang_type and username
         const transformedResults = gangsData.map(gang => ({
           ...gang,
-          type: gangTypeMap[gang.gang_type_id],
+          gang_type: gangTypeMap[gang.gang_type_id],
           user: {
             username: userMap[gang.user_id]
           }
@@ -306,7 +306,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
                     <div className="flex flex-col">
                       <span className="font-medium">{gang.name}</span>
                       <span className="text-sm text-muted-foreground">
-                        {gang.type} - Owner: {gang.user?.username || 'Unknown'}
+                        {gang.gang_type} - Owner: {gang.user?.username || 'Unknown'}
                       </span>
                     </div>
                   </button>
@@ -323,7 +323,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
             {campaignGangs.map(gang => (
               <li key={gang.id} className="flex items-center justify-between p-2 bg-muted rounded">
                 <div className="flex items-center gap-2">
-                  <span>{gang.name} ({gang.type})</span>
+                  <span>{gang.name} ({gang.gang_type})</span>
                   <span className="text-sm text-muted-foreground">- {gang.user?.username}</span>
                 </div>
                 <Button

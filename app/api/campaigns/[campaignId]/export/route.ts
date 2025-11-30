@@ -212,15 +212,15 @@ interface ExportBattle {
 // Transformation functions to clean up export field names
 
 /**
- * Transform gang data for export - now just maps directly from clean structure
- * Data layer already provides clean field names (no more gang_ prefixes)
+ * Transform gang data for export - maps directly from data structure
+ * Data layer provides clean id/name, database names for gang_type/gang_colour
  */
 function transformGangForExport(gang: any): ExportGang {
   return {
-    id: gang.id, // Gang UUID (already clean from data layer)
+    id: gang.id, // Gang UUID
     name: gang.name,
-    type: gang.type,
-    colour: gang.colour,
+    type: gang.gang_type,
+    colour: gang.gang_colour,
     status: gang.status,
     rating: gang.rating,
     wealth: gang.wealth,
@@ -237,7 +237,7 @@ function transformGangForExport(gang: any): ExportGang {
 }
 
 /**
- * Transform territory data for export - now just maps directly from clean structure
+ * Transform territory data for export - maps directly from data structure
  * @param territory - Territory data from database
  * @param isNested - If true, omits gang_id (when nested under gang)
  */
@@ -253,8 +253,8 @@ function transformTerritoryForExport(territory: any, isNested: boolean = false):
     owning_gangs: (territory.owning_gangs ?? []).map((g: any) => ({
       id: g.id,
       name: g.name,
-      type: g.type,      // Already clean from data layer
-      colour: g.colour   // Already clean from data layer
+      type: g.gang_type,
+      colour: g.gang_colour
     }))
   };
 

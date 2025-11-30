@@ -23,8 +23,8 @@ import {
 interface Gang {
   id: string;
   name: string;
-  type: string;
-  colour: string;
+  gang_type: string;
+  gang_colour: string;
 }
 
 interface Member {
@@ -35,8 +35,8 @@ interface Member {
     campaign_gang_id: string;
     id: string;
     name: string;
-    type: string;
-    colour: string;
+    gang_type: string;
+    gang_colour: string;
     status: string | null;
   }[];
 }
@@ -111,8 +111,8 @@ export default function CampaignTerritoryList({
         return {
           id: gang.id,
           name: gang.name,
-          type: gang.type || 'Unknown',
-          colour: gang.colour || '#000000'
+          gang_type: gang.gang_type || 'Unknown',
+          gang_colour: gang.gang_colour || '#000000'
         };
       }
     }
@@ -545,7 +545,7 @@ export default function CampaignTerritoryList({
                           <div
                             key={gang.id}
                             className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                            style={{ color: gang.colour || '#000000' }}
+                            style={{ color: gang.gang_colour || '#000000' }}
                           >
                             <Link 
                               href={`/gang/${gang.id}`} 
