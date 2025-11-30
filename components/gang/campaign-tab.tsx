@@ -467,38 +467,38 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     }
 
                     // Get all participating gangs (deduplicated by gang_id)
-                    const participatingGangsMap = new Map<string, { gang_id: string; gang_name: string; gang_colour: string }>();
+                    const participatingGangsMap = new Map<string, { id: string; name: string; colour: string }>();
 
                     // Add from attacker/defender structure
                     if (battle.attacker && battle.attacker.id) {
                       participatingGangsMap.set(battle.attacker.id, {
-                        gang_id: battle.attacker.id,
-                        gang_name: battle.attacker.name,
-                        gang_colour: battle.attacker.colour || '#000000'
+                        id: battle.attacker.id,
+                        name: battle.attacker.name,
+                        colour: battle.attacker.colour || '#000000'
                       });
                     }
                     if (battle.defender && battle.defender.id) {
                       participatingGangsMap.set(battle.defender.id, {
-                        gang_id: battle.defender.id,
-                        gang_name: battle.defender.name,
-                        gang_colour: battle.defender.colour || '#000000'
+                        id: battle.defender.id,
+                        name: battle.defender.name,
+                        colour: battle.defender.colour || '#000000'
                       });
                     }
 
                     // Add from participants array
                     if (battle.participants) {
                       try {
-                        const participants = typeof battle.participants === 'string' 
-                          ? JSON.parse(battle.participants) 
+                        const participants = typeof battle.participants === 'string'
+                          ? JSON.parse(battle.participants)
                           : battle.participants;
-                        
+
                         if (Array.isArray(participants)) {
                           participants.forEach((p: any) => {
                             if (p.gang_id && p.gang_name && !participatingGangsMap.has(p.gang_id)) {
                               participatingGangsMap.set(p.gang_id, {
-                                gang_id: p.gang_id,
-                                gang_name: p.gang_name,
-                                gang_colour: p.gang_colour || '#000000'
+                                id: p.gang_id,
+                                name: p.gang_name,
+                                colour: p.gang_colour || '#000000'
                               });
                             }
                           });
@@ -509,9 +509,9 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     }
 
                     const participatingGangs = Array.from(participatingGangsMap.values());
-                    
+
                     // Filter out the user's own gang
-                    const opponentGangs = participatingGangs.filter(gang => gang.gang_id !== gangId);
+                    const opponentGangs = participatingGangs.filter(gang => gang.id !== gangId);
 
                     return (
                       <tr key={battle.id} className="border-b">
@@ -522,17 +522,17 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                           <div className="flex flex-wrap gap-2">
                             {opponentGangs.length > 0 ? (
                               opponentGangs.map((gang) => (
-                                <Badge 
-                                  key={gang.gang_id}
-                                  variant="outline" 
+                                <Badge
+                                  key={gang.id}
+                                  variant="outline"
                                   className="cursor-pointer hover:bg-secondary"
-                                  style={{ color: gang.gang_colour }}
+                                  style={{ color: gang.colour }}
                                 >
-                                  <Link 
-                                    href={`/gang/${gang.gang_id}`}
+                                  <Link
+                                    href={`/gang/${gang.id}`}
                                     className="flex items-center"
                                   >
-                                    {gang.gang_name}
+                                    {gang.name}
                                   </Link>
                                 </Badge>
                               ))
