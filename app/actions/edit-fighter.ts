@@ -1014,9 +1014,15 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     }
 
     // Additional cache invalidation for notes
-    if (params.note !== undefined || params.note_backstory !== undefined) {
-      // Invalidate fighter basic data (includes notes)
+    if (params.note_backstory !== undefined) {
+      // Backstory only shown on fighter page - granular invalidation
       revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
+    }
+
+    if (params.note !== undefined) {
+      // Note shown on gang page - need composite invalidation
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     }
 
     return {
