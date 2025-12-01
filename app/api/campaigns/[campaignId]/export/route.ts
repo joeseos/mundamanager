@@ -367,6 +367,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     };
 
     // Create service role client to bypass RLS for public export access
+    // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be exported
+    // Rate limiting (10 req/min per IP) provides abuse protection
     const supabase = createServiceRoleClient();
 
     // Fetch all campaign data using existing cached functions
