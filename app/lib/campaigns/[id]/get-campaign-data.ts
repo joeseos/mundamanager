@@ -2,100 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import { getGangRating } from '@/app/lib/shared/gang-data';
-
-// Type definitions
-interface CampaignBasic {
-  id: string;
-  campaign_name: string;
-  campaign_type_id: string;
-  status: string;
-  description: string;
-  created_at: string;
-  updated_at: string;
-  has_meat: boolean;
-  has_exploration_points: boolean;
-  has_scavenging_rolls: boolean;
-  has_power: boolean;
-  has_sustenance: boolean;
-  has_salvage: boolean;
-  trading_posts: string[] | null;
-  note: string;
-  campaign_types: {
-    campaign_type_name: string;
-  } | null;
-}
-
-interface CampaignTriumph {
-  id: string;
-  triumph: string;
-  criteria: string;
-  campaign_type_id: string;
-  created_at: string;
-  updated_at: string | null;
-}
-
-interface Fighter {
-  id: string;
-  gang_id: string;
-  credits: number;
-  cost_adjustment: number;
-  fighter_equipment?: { purchase_cost: number }[];
-  fighter_skills?: { credits_increase: number }[];
-  fighter_effects?: { type_specific_data: { credits_increase?: number } }[];
-  vehicles?: {
-    id: string;
-    cost: number;
-    fighter_equipment?: { purchase_cost: number }[];
-    fighter_effects?: { type_specific_data: { credits_increase?: number } }[];
-  }[];
-}
-
-interface GangVehicle {
-  id: string;
-  gang_id: string;
-  cost: number;
-  fighter_equipment?: { purchase_cost: number }[];
-  fighter_effects?: { type_specific_data: { credits_increase?: number } }[];
-}
-
-interface Gang {
-  id: string;
-  name: string;
-  gang_type_id: string;
-  gang_colour: string;
-  reputation: number;
-  gang_types: {
-    gang_type: string;
-  } | null;
-}
-
-interface Profile {
-  id: string;
-  username: string;
-  updated_at: string;
-  user_role: string;
-}
-
-interface CampaignMember {
-  id: string;
-  user_id: string;
-  role: string;
-  status: string;
-  invited_at: string;
-  joined_at: string;
-  invited_by: string;
-  profiles: Profile | null;
-}
-
-interface CampaignGang {
-  id: string;
-  gang_id: string;
-  user_id: string;
-  campaign_member_id: string;
-  status: string;
-  gangs: Gang | null;
-}
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -247,47 +153,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         }
       });
     }
-  }
-
-  let fightersData: any[] = [];
-  let gangVehiclesData: any[] = [];
-  
-  if (gangIds.length > 0) {
-    const { data: fighters, error: fightersError } = await supabase
-      .from('fighters')
-      .select(`
-        id,
-        gang_id,
-        credits,
-        cost_adjustment,
-        fighter_equipment(purchase_cost),
-        fighter_skills(credits_increase),
-        fighter_effects(type_specific_data),
-        vehicles(id, cost, fighter_equipment(purchase_cost), fighter_effects(type_specific_data))
-      `)
-      .in('gang_id', gangIds)
-      .eq('killed', false)
-      .eq('retired', false)
-      .eq('enslaved', false);
-
-    if (fightersError) throw fightersError;
-    fightersData = fighters || [];
-
-    // Fetch gang-owned vehicles (where fighter_id is NULL)
-    const { data: gangVehicles, error: gangVehiclesError } = await supabase
-      .from('vehicles')
-      .select(`
-        id,
-        gang_id,
-        cost,
-        fighter_equipment(purchase_cost),
-        fighter_effects(type_specific_data)
-      `)
-      .in('gang_id', gangIds)
-      .is('fighter_id', null);
-
-    if (gangVehiclesError) throw gangVehiclesError;
-    gangVehiclesData = gangVehicles || [];
   }
 
   // Rating now comes directly from the gangs query above; no per-gang fetches needed
@@ -564,8 +429,8 @@ async function _getCampaignTriumphs(campaignTypeId: string, supabase: SupabaseCl
  * Cache key: campaign-basic-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBasic = async (campaignId: string) => {
-  const supabase = await createClient();
+export const getCampaignBasic = async (campaignId: string, supabaseClient?: SupabaseClient) => {
+  const supabase = supabaseClient ?? await createClient();
   return unstable_cache(
     async () => {
       return _getCampaignBasic(campaignId, supabase);
@@ -588,17 +453,17 @@ export const getCampaignBasic = async (campaignId: string) => {
  * Cache key: campaign-members-{campaignId}
  * Invalidation: Server actions + gang cache tags
  */
-export const getCampaignMembers = async (campaignId: string) => {
-  const supabase = await createClient();
-  
+export const getCampaignMembers = async (campaignId: string, supabaseClient?: SupabaseClient) => {
+  const supabase = supabaseClient ?? await createClient();
+
   // First, get the gang IDs for this campaign to build cache tags
   const { data: campaignGangs } = await supabase
     .from('campaign_gangs')
     .select('gang_id')
     .eq('campaign_id', campaignId);
-  
+
   const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
-  
+
   // Build cache tags that include gang overview and rating tags
   const cacheTags = [
     CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId),
@@ -610,7 +475,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     ...gangIds.map(gangId => CACHE_TAGS.SHARED_GANG_RATING(gangId)),
     ...gangIds.map(gangId => CACHE_TAGS.COMPUTED_GANG_RATING(gangId))
   ];
-  
+
   return unstable_cache(
     async () => {
       return _getCampaignMembers(campaignId, supabase);
@@ -628,8 +493,8 @@ export const getCampaignMembers = async (campaignId: string) => {
  * Cache key: campaign-territories-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignTerritories = async (campaignId: string) => {
-  const supabase = await createClient();
+export const getCampaignTerritories = async (campaignId: string, supabaseClient?: SupabaseClient) => {
+  const supabase = supabaseClient ?? await createClient();
   return unstable_cache(
     async () => {
       return _getCampaignTerritories(campaignId, supabase);
@@ -652,8 +517,8 @@ export const getCampaignTerritories = async (campaignId: string) => {
  * Cache key: campaign-battles-{campaignId}-{limit}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBattles = async (campaignId: string, limit = 100) => {
-  const supabase = await createClient();
+export const getCampaignBattles = async (campaignId: string, limit = 100, supabaseClient?: SupabaseClient) => {
+  const supabase = supabaseClient ?? await createClient();
   return unstable_cache(
     async () => {
       return _getCampaignBattles(campaignId, supabase, limit);

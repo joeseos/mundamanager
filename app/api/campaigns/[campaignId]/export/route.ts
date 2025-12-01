@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createServiceRoleClient } from "@/utils/supabase/server";
 import {
   getCampaignBasic,
   getCampaignMembers,
@@ -366,18 +366,22 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
     };
 
+    // Create service role client to bypass RLS for public export access
+    // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be exported
+    // Rate limiting (10 req/min per IP) provides abuse protection
+    const supabase = createServiceRoleClient();
+
     // Fetch all campaign data using existing cached functions
-    // Access control is handled by Supabase RLS policies
     const [
       campaignBasic,
       campaignMembers,
       campaignTerritories,
       campaignBattles
     ] = await Promise.all([
-      getCampaignBasic(campaignId),
-      getCampaignMembers(campaignId),
-      getCampaignTerritories(campaignId),
-      getCampaignBattles(campaignId)
+      getCampaignBasic(campaignId, supabase),
+      getCampaignMembers(campaignId, supabase),
+      getCampaignTerritories(campaignId, supabase),
+      getCampaignBattles(campaignId, 100, supabase)
     ]);
 
     // Return 404 if campaign not found
