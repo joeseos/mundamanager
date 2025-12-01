@@ -3,85 +3,55 @@ import { redirect, notFound } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
+import {
+  getGangBasic,
+  getGangPositioning,
+  getGangType,
+  getAlliance,
+  getGangFightersList,
+  getGangVehicles,
+  getGangStash,
+  getGangCampaigns,
+  getGangVariants,
+  getGangRatingAndWealth,
+  getGangCredits,
+  getUserProfile
+} from '@/app/lib/shared/gang-data';
 
 /**
- * Initialize or fix fighter positioning
- * - Creates initial positions if none exist
- * - Removes positions for deleted fighters
- * - Fixes gaps in position numbers
- * - Updates database if positions changed
+ * Initialize positioning if needed (lazy initialization)
+ * - Only creates initial positions if none exist
+ * - Never "fixes" existing positions on page load
+ * - Position fixes should happen via explicit user actions (reordering)
  */
-async function initializeOrFixPositioning(
+async function initializePositioningIfNeeded(
   positioning: Record<string, any> | null,
   fighters: Array<{ id: string; fighter_name: string }>,
   gangId: string,
   supabase: any
 ): Promise<Record<string, any>> {
-  let pos = positioning || {};
-
-  // If no positions exist, create initial positions sorted by fighter name
-  if (Object.keys(pos).length === 0) {
+  // Only create initial positions if none exist
+  if (!positioning || Object.keys(positioning).length === 0) {
     const sortedFighters = [...fighters].sort((a, b) =>
       a.fighter_name.localeCompare(b.fighter_name)
     );
 
-    pos = sortedFighters.reduce((acc, fighter, index) => ({
+    const pos = sortedFighters.reduce((acc, fighter, index) => ({
       ...acc,
       [index]: fighter.id
     }), {});
-  } else {
-    // Filter out positions referencing non-existent fighters
-    const validFighterIds = new Set(fighters.map(f => f.id));
-    const validPositions: Record<string, string> = {};
 
-    Object.entries(pos as Record<string, string>).forEach(([position, fighterId]) => {
-      if (validFighterIds.has(fighterId)) {
-        validPositions[position] = fighterId;
-      }
-    });
-
-    // Fix gaps in position numbers
-    const currentPositions = Object.keys(validPositions).map(p => Number(p)).sort((a, b) => a - b);
-    let expectedPosition = 0;
-    const positionMapping: Record<number, number> = {};
-
-    currentPositions.forEach(position => {
-      positionMapping[position] = expectedPosition;
-      expectedPosition++;
-    });
-
-    // Create new positioning with corrected positions
-    const newPositioning: Record<number, string> = {};
-    for (const [position, fighterId] of Object.entries(validPositions)) {
-      newPositioning[positionMapping[Number(position)] ?? expectedPosition++] = fighterId;
-    }
-    pos = newPositioning;
-
-    // Ensure each fighter has a position
-    fighters.forEach(fighter => {
-      if (!Object.values(pos).includes(fighter.id)) {
-        pos[expectedPosition++] = fighter.id;
-      }
-    });
-  }
-
-  // Check if positions changed
-  const positionsChanged = !positioning ||
-    Object.entries(pos).some(([id, fId]) => positioning[id] !== fId);
-
-  // Update database if positions changed
-  if (positionsChanged) {
-    const { error } = await supabase
+    // Save initial positions
+    await supabase
       .from('gangs')
       .update({ positioning: pos })
       .eq('id', gangId);
 
-    if (error) {
-      console.error('Error updating positions:', error);
-    }
+    return pos;
   }
 
-  return pos;
+  // Return existing positions as-is (don't fix on every load)
+  return positioning;
 }
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
@@ -97,25 +67,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   }
 
   try {
-    // Fetch gang data using granular shared functions
-    const {
-      getGangBasic,
-      getGangPositioning,
-      getGangType,
-      getAlliance,
-      getGangFightersList,
-      getGangVehicles,
-      getGangStash,
-      getGangCampaigns,
-      getGangVariants,
-      getGangRatingAndWealth,
-      getGangCredits,
-      getUserProfile
-    } = await import('@/app/lib/shared/gang-data');
-
-    // Get supabase client first to pass to all functions
-    const supabase = await createClient();
-
     // Fetch basic gang data first to check if gang exists
     const gangBasic = await getGangBasic(params.id, supabase);
 
@@ -164,46 +115,13 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       permissionService.getGangPermissions(user.id, params.id)
     ]);
 
-    // Initialize or fix positioning for fighters
-    const processedPositioning = await initializeOrFixPositioning(
+    // Initialize positioning if needed (lazy initialization only)
+    const processedPositioning = await initializePositioningIfNeeded(
       gangPositioning,
       fighters,
       params.id,
       supabase
     );
-
-    // Fetch trading post names for campaigns that have trading posts
-    const allTradingPostIds = campaigns
-      .map((c: any) => c.trading_posts)
-      .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-      .flat();
-    
-    let tradingPostNamesMap: Record<string, string> = {};
-    if (allTradingPostIds.length > 0) {
-      const uniqueIds = Array.from(new Set(allTradingPostIds));
-      const { data: tradingPostTypes } = await supabase
-        .from('trading_post_types')
-        .select('id, trading_post_name')
-        .in('id', uniqueIds);
-      
-      if (tradingPostTypes) {
-        tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
-          acc[tp.id] = tp.trading_post_name;
-          return acc;
-        }, {});
-      }
-    }
-
-    // Add trading post names to campaigns
-    campaigns.forEach((campaign: any) => {
-      if (campaign.trading_posts && Array.isArray(campaign.trading_posts) && campaign.trading_posts.length > 0) {
-        campaign.trading_post_names = campaign.trading_posts
-          .map((id: string) => tradingPostNamesMap[id])
-          .filter(Boolean);
-      } else {
-        campaign.trading_post_names = [];
-      }
-    });
 
     // Assemble the gang data structure for client
     // NOTE: fighters are already fully processed from getGangFightersList with shared cache tags
