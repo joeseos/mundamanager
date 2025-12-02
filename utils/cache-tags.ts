@@ -217,13 +217,12 @@ export function invalidateFighterAdvancement(params: {
   // Computed data changes
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
-  
+
   // Shared data changes
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  
+
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
 }
 
@@ -331,13 +330,12 @@ export function invalidateFighterAddition(params: {
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
-  
+
   // Shared data changes
   revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
   revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  
+
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
 }
 
@@ -424,7 +422,6 @@ export const invalidateGangFinancials = (gangId: string) => {
 };
 
 export const invalidateGangData = (gangId: string) => {
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
   revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
 };
