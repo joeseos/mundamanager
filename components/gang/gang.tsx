@@ -317,7 +317,10 @@ export default function Gang({
       return;
     }
 
-    localStorage.setItem('gang_view_mode', viewMode);
+    // Type guard to ensure viewMode is not null before saving
+    if (viewMode) {
+      localStorage.setItem('gang_view_mode', viewMode);
+    }
   }, [viewMode]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
