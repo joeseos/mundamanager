@@ -70,10 +70,10 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignTerritories,
       campaignBattles
     ] = await Promise.all([
-      getCampaignBasic(params.id),
-      getCampaignMembers(params.id),
-      getCampaignTerritories(params.id),
-      getCampaignBattles(params.id)
+      getCampaignBasic(params.id, supabase),
+      getCampaignMembers(params.id, supabase),
+      getCampaignTerritories(params.id, supabase),
+      getCampaignBattles(params.id, 100, supabase)
     ]);
 
     // Check if campaign exists

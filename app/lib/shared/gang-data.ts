@@ -443,6 +443,21 @@ export const getGangVariants = async (gangVariantIds: string[], supabase: any): 
 };
 
 /**
+ * Helper function to group array items by a key
+ */
+function groupBy<T extends Record<string, any>>(
+  array: T[],
+  key: string
+): Record<string, T[]> {
+  return array.reduce((acc, item) => {
+    const groupKey = String(item[key]);
+    if (!acc[groupKey]) acc[groupKey] = [];
+    acc[groupKey].push(item);
+    return acc;
+  }, {} as Record<string, T[]>);
+}
+
+/**
  * Get gang campaigns
  * Cache: COMPOSITE_GANG_CAMPAIGNS
  */
@@ -478,24 +493,56 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         return [];
       }
 
+      // Get all campaign IDs first
+      const campaignIds = (data || [])
+        .map((cg: any) => (cg.campaigns as any)?.id)
+        .filter(Boolean);
+
+      // Single batch query for all territories
+      const { data: allTerritories } = await supabase
+        .from('campaign_territories')
+        .select(`
+          id,
+          campaign_id,
+          created_at,
+          territory_id,
+          territory_name,
+          ruined,
+          default_gang_territory
+        `)
+        .in('campaign_id', campaignIds)
+        .eq('gang_id', gangId);
+
+      // Create lookup map
+      const territoriesByCampaign = groupBy(allTerritories || [], 'campaign_id');
+
       const campaigns: GangCampaign[] = [];
+
+      // Collect all trading post IDs across all campaigns for batch fetch
+      const allTradingPostIds = (data || [])
+        .map((cg: any) => (cg.campaigns as any)?.trading_posts)
+        .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
+        .flat();
+
+      // Batch fetch trading post names
+      let tradingPostNamesMap: Record<string, string> = {};
+      if (allTradingPostIds.length > 0) {
+        const uniqueIds = Array.from(new Set(allTradingPostIds));
+        const { data: tradingPostTypes } = await supabase
+          .from('trading_post_types')
+          .select('id, trading_post_name')
+          .in('id', uniqueIds);
+
+        if (tradingPostTypes) {
+          tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
+            acc[tp.id] = tp.trading_post_name;
+            return acc;
+          }, {});
+        }
+      }
 
       for (const cg of data || []) {
         if (cg.campaigns) {
-          // Get territories for this campaign
-          const { data: territories } = await supabase
-            .from('campaign_territories')
-            .select(`
-              id,
-              created_at,
-              territory_id,
-              territory_name,
-              ruined,
-              default_gang_territory
-            `)
-            .eq('campaign_id', (cg.campaigns as any).id)
-            .eq('gang_id', gangId);
-
           // Get member data - need to fetch ALL entries for this user in this campaign
           // to determine the highest role (in case they have multiple gangs)
           let memberData = cg.campaign_members;
@@ -525,6 +572,12 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             }
           }
 
+          // Get trading post names for this campaign
+          const tradingPosts = (cg.campaigns as any).trading_posts || [];
+          const trading_post_names = tradingPosts
+            .map((id: string) => tradingPostNamesMap[id])
+            .filter(Boolean);
+
           campaigns.push({
             campaign_id: (cg.campaigns as any).id,
             campaign_name: (cg.campaigns as any).campaign_name,
@@ -538,8 +591,9 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_power: (cg.campaigns as any).has_power,
             has_sustenance: (cg.campaigns as any).has_sustenance,
             has_salvage: (cg.campaigns as any).has_salvage,
-            trading_posts: (cg.campaigns as any).trading_posts || [],
-            territories: territories || []
+            trading_posts: tradingPosts,
+            trading_post_names,
+            territories: territoriesByCampaign[(cg.campaigns as any).id] || []
           });
         }
       }
@@ -697,99 +751,468 @@ const getGangFighterIds = async (gangId: string, supabase: any): Promise<string[
 };
 
 /**
- * Get all fighters in a gang with complete data
+ * Get all fighters in a gang with complete data (BATCHED QUERIES)
  *
- * NOTE: This function does NOT use unstable_cache() itself.
- * It relies on the individual fighter data functions' caching.
- * This ensures proper cache tag hierarchy - when a fighter's equipment changes,
- * only that fighter's data is invalidated, not the entire gang's fighter list.
+ * Uses batched database queries to minimize round trips:
+ * - Single query for all fighters with joins for types/sub-types
+ * - Batch query for all equipment (WHERE fighter_id IN (...))
+ * - Batch query for all skills
+ * - Batch query for all effects
+ * - Batch query for all vehicles
+ * - Batch query for beast relationships
  *
- * The only cached part is the fighter ID list (via getGangFighterIds).
+ * Target: ~8 queries total regardless of fighter count (vs ~100+ with N+1 pattern)
  */
 export const getGangFightersList = async (gangId: string, supabase: any): Promise<GangFighter[]> => {
-  // Get all fighter IDs (this is cached separately)
-  const fighterIds = await getGangFighterIds(gangId, supabase);
+  return unstable_cache(
+    async () => {
+      // Step 1: Fetch ALL fighters for the gang in ONE query with joins
+      const { data: fighters, error: fightersError } = await supabase
+        .from('fighters')
+        .select(`
+          id,
+          fighter_name,
+          label,
+          note,
+          note_backstory,
+          credits,
+          cost_adjustment,
+          movement,
+          weapon_skill,
+          ballistic_skill,
+          strength,
+          toughness,
+          wounds,
+          initiative,
+          attacks,
+          leadership,
+          cool,
+          willpower,
+          intelligence,
+          xp,
+          special_rules,
+          fighter_class,
+          fighter_class_id,
+          fighter_type,
+          fighter_type_id,
+          custom_fighter_type_id,
+          fighter_gang_legacy_id,
+          fighter_gang_legacy:fighter_gang_legacy_id (
+            id,
+            fighter_type_id,
+            name
+          ),
+          fighter_sub_type_id,
+          killed,
+          starved,
+          retired,
+          enslaved,
+          recovery,
+          captured,
+          free_skill,
+          kills,
+          kill_count,
+          fighter_pet_id,
+          image_url,
+          position,
+          fighter_types!fighter_type_id (
+            fighter_type,
+            alliance_crew_name,
+            cost
+          ),
+          fighter_sub_types!fighter_sub_type_id (
+            id,
+            sub_type_name
+          )
+        `)
+        .eq('gang_id', gangId);
 
-  // Fetch all fighters in parallel using cached granular functions
-  const fighters = await Promise.all(
-    fighterIds.map(async (fighterId) => {
-      try {
-        // Each of these calls uses its own cache tags
-        const [
-          fighterBasic,
-          equipment,
-          skills,
-          effects,
-          vehicles,
-          beastCosts
-        ] = await Promise.all([
-          getFighterBasic(fighterId, supabase),      // Uses BASE_FIGHTER_BASIC(fighterId)
-          getFighterEquipment(fighterId, supabase),  // Uses BASE_FIGHTER_EQUIPMENT(fighterId)
-          getFighterSkills(fighterId, supabase),     // Uses BASE_FIGHTER_SKILLS(fighterId)
-          getFighterEffects(fighterId, supabase),    // Uses BASE_FIGHTER_EFFECTS(fighterId)
-          getFighterVehicles(fighterId, supabase),   // Uses BASE_FIGHTER_VEHICLES(fighterId)
-          getFighterOwnedBeastsCost(fighterId, supabase)  // Get beast costs for calculation
-        ]);
+      if (fightersError || !fighters || fighters.length === 0) {
+        return [];
+      }
 
-        // Skip if fighter not found
-        if (!fighterBasic) {
-          return null;
+      // Extract all fighter IDs for batch queries
+      const fighterIds = fighters.map((f: any) => f.id);
+
+      // Step 2: Batch fetch ALL related data in parallel
+      const [
+        allEquipment,
+        allSkills,
+        allEffects,
+        allVehicles,
+        allBeastRelationships,
+        allBeastOwnershipInfo,
+        allEquipmentTargetingEffects
+      ] = await Promise.all([
+        // Batch fetch all equipment for all fighters
+        supabase
+          .from('fighter_equipment')
+          .select(`
+            id,
+            fighter_id,
+            equipment_id,
+            custom_equipment_id,
+            purchase_cost,
+            is_master_crafted,
+            equipment:equipment_id (
+              equipment_name,
+              equipment_type,
+              equipment_category
+            ),
+            custom_equipment:custom_equipment_id (
+              equipment_name,
+              equipment_type,
+              equipment_category
+            )
+          `)
+          .in('fighter_id', fighterIds)
+          .is('vehicle_id', null),
+
+        // Batch fetch all skills for all fighters
+        supabase
+          .from('fighter_skills')
+          .select(`
+            id,
+            fighter_id,
+            credits_increase,
+            xp_cost,
+            is_advance,
+            fighter_effect_skill_id,
+            created_at,
+            skill:skill_id (
+              name
+            ),
+            fighter_effect_skills!fighter_effect_skill_id (
+              fighter_effects (
+                effect_name
+              )
+            )
+          `)
+          .in('fighter_id', fighterIds),
+
+        // Batch fetch all effects for all fighters
+        supabase
+          .from('fighter_effects')
+          .select(`
+            id,
+            fighter_id,
+            effect_name,
+            type_specific_data,
+            created_at,
+            updated_at,
+            fighter_effect_type:fighter_effect_type_id (
+              fighter_effect_category:fighter_effect_category_id (
+                category_name
+              )
+            ),
+            fighter_effect_modifiers (
+              id,
+              fighter_effect_id,
+              stat_name,
+              numeric_value
+            )
+          `)
+          .in('fighter_id', fighterIds)
+          .is('vehicle_id', null),
+
+        // Batch fetch all vehicles for all fighters
+        supabase
+          .from('vehicles')
+          .select(`
+            id,
+            fighter_id,
+            created_at,
+            movement,
+            front,
+            side,
+            rear,
+            hull_points,
+            handling,
+            save,
+            body_slots,
+            drive_slots,
+            engine_slots,
+            special_rules,
+            vehicle_name,
+            vehicle_type_id,
+            vehicle_type,
+            cost
+          `)
+          .in('fighter_id', fighterIds),
+
+        // Batch fetch beast relationships (fighters that own other fighters)
+        supabase
+          .from('fighter_exotic_beasts')
+          .select('fighter_owner_id, fighter_pet_id')
+          .in('fighter_owner_id', fighterIds),
+
+        // Batch fetch beast ownership info (for fighters that ARE owned)
+        supabase
+          .from('fighter_exotic_beasts')
+          .select(`
+            id,
+            fighter_pet_id,
+            fighter_equipment_id,
+            fighters!fighter_owner_id (
+              fighter_name
+            ),
+            fighter_equipment!fighter_equipment_id (
+              gang_stash
+            )
+          `)
+          .in('fighter_pet_id', fighterIds),
+
+        // Batch fetch effects that target equipment (for effect_names on weapons)
+        supabase
+          .from('fighter_effects')
+          .select('target_equipment_id, effect_name')
+          .in('fighter_id', fighterIds)
+          .not('target_equipment_id', 'is', null)
+      ]);
+
+      // Step 3: Fetch weapon profiles in batch for all weapons found
+      const allStandardEquipmentIds = (allEquipment.data || [])
+        .filter((item: any) => item.equipment_id && ((item.equipment as any)?.equipment_type === 'weapon'))
+        .map((item: any) => item.equipment_id);
+
+      const allCustomEquipmentIds = (allEquipment.data || [])
+        .filter((item: any) => item.custom_equipment_id && ((item.custom_equipment as any)?.equipment_type === 'weapon'))
+        .map((item: any) => item.custom_equipment_id);
+
+      const [standardProfiles, customProfiles] = await Promise.all([
+        allStandardEquipmentIds.length > 0
+          ? supabase
+              .from('weapon_profiles')
+              .select('*')
+              .in('weapon_id', allStandardEquipmentIds)
+              .order('sort_order', { nullsFirst: false })
+              .order('profile_name')
+          : Promise.resolve({ data: [] }),
+
+        allCustomEquipmentIds.length > 0
+          ? supabase
+              .from('custom_weapon_profiles')
+              .select('*')
+              .in('custom_equipment_id', allCustomEquipmentIds)
+              .order('sort_order', { nullsFirst: false })
+              .order('profile_name')
+          : Promise.resolve({ data: [] })
+      ]);
+
+      // Step 3.5: Batch fetch vehicle equipment and effects for cost calculation
+      const vehicleIds = (allVehicles.data || []).map((v: any) => v.id);
+      const [allVehicleEquipment, allVehicleEffects] = await Promise.all([
+        vehicleIds.length > 0
+          ? supabase
+              .from('fighter_equipment')
+              .select('vehicle_id, purchase_cost')
+              .in('vehicle_id', vehicleIds)
+          : Promise.resolve({ data: [] }),
+
+        vehicleIds.length > 0
+          ? supabase
+              .from('fighter_effects')
+              .select('vehicle_id, type_specific_data')
+              .in('vehicle_id', vehicleIds)
+          : Promise.resolve({ data: [] })
+      ]);
+
+      // Step 4: Create lookup Maps for O(1) access
+      const equipmentByFighter = groupBy(allEquipment.data || [], 'fighter_id');
+      const skillsByFighter = groupBy(allSkills.data || [], 'fighter_id');
+      const effectsByFighter = groupBy(allEffects.data || [], 'fighter_id');
+      const vehiclesByFighter = groupBy(allVehicles.data || [], 'fighter_id');
+      const beastsByOwner = groupBy(allBeastRelationships.data || [], 'fighter_owner_id');
+      const vehicleEquipmentByVehicle = groupBy(allVehicleEquipment.data || [], 'vehicle_id');
+      const vehicleEffectsByVehicle = groupBy(allVehicleEffects.data || [], 'vehicle_id');
+
+      // Create ownership info map (petId -> ownership info)
+      const ownershipInfoMap = new Map();
+      (allBeastOwnershipInfo.data || []).forEach((info: any) => {
+        ownershipInfoMap.set(info.fighter_pet_id, {
+          owner_name: (info.fighters as any)?.fighter_name,
+          beast_equipment_stashed: info.fighter_equipment?.gang_stash || false
+        });
+      });
+
+      // Create equipment targeting effects map (equipmentId -> effect_names[])
+      const equipmentTargetingEffectsMap = new Map<string, string[]>();
+      (allEquipmentTargetingEffects.data || []).forEach((effect: any) => {
+        if (!equipmentTargetingEffectsMap.has(effect.target_equipment_id)) {
+          equipmentTargetingEffectsMap.set(effect.target_equipment_id, []);
         }
+        if (effect.effect_name && !equipmentTargetingEffectsMap.get(effect.target_equipment_id)!.includes(effect.effect_name)) {
+          equipmentTargetingEffectsMap.get(effect.target_equipment_id)!.push(effect.effect_name);
+        }
+      });
 
-        // Get fighter type and sub-type info using cached helpers
-        const [fighterTypeInfo, fighterSubTypeInfo] = await Promise.all([
-          getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
-          fighterBasic.fighter_sub_type_id
-            ? getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase)
-            : Promise.resolve(null)
-        ]);
+      // Create fighter lookup map for O(1) beast lookups
+      const fighterLookup = new Map(fighters.map((f: any) => [f.id, f]));
 
-        // Get exotic beast ownership info if applicable
-        const ownershipInfo = fighterBasic.fighter_pet_id
-          ? await getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase)
-          : null;
+      // Create weapon profiles maps
+      const standardProfilesMap = new Map<string, any[]>();
+      (standardProfiles.data || []).forEach((profile: any) => {
+        if (!standardProfilesMap.has(profile.weapon_id)) {
+          standardProfilesMap.set(profile.weapon_id, []);
+        }
+        standardProfilesMap.get(profile.weapon_id)!.push(profile);
+      });
 
-        // Calculate total cost inline (avoid redundant getFighterTotalCost call)
-        let totalCost = 0;
+      const customProfilesMap = new Map<string, any[]>();
+      (customProfiles.data || []).forEach((profile: any) => {
+        if (!customProfilesMap.has(profile.custom_equipment_id)) {
+          customProfilesMap.set(profile.custom_equipment_id, []);
+        }
+        customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
+      });
 
-        // Check if this fighter is owned by another fighter (exotic beast)
-        const isOwnedBeast = !!ownershipInfo;
+      // Step 5: Transform each fighter using pre-fetched data
+      return fighters.map((fighter: any) => {
+        try {
+          const fighterId = fighter.id;
 
-        if (!isOwnedBeast) {
-          // Calculate total cost for normal fighters
-          const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
-          const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
-          const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
+          // Get fighter-specific data from Maps
+          const equipment = equipmentByFighter[fighterId] || [];
+          const skillsData = skillsByFighter[fighterId] || [];
+          const effectsData = effectsByFighter[fighterId] || [];
+          const vehicles = vehiclesByFighter[fighterId] || [];
+          const ownedBeasts = beastsByOwner[fighterId] || [];
+          const ownershipInfo = fighter.fighter_pet_id ? ownershipInfoMap.get(fighter.fighter_pet_id) : null;
+
+        // Process skills into the expected format
+        const skills: Record<string, any> = {};
+        skillsData.forEach((skillData: any) => {
+          const skillName = (skillData.skill as any)?.name;
+          if (skillName) {
+            const injuryName = skillData.fighter_effect_skills?.fighter_effects?.effect_name;
+            skills[skillName] = {
+              id: skillData.id,
+              name: skillName,
+              credits_increase: skillData.credits_increase || 0,
+              xp_cost: skillData.xp_cost || 0,
+              is_advance: skillData.is_advance || false,
+              fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
+              injury_name: injuryName || undefined,
+              acquired_at: skillData.created_at
+            };
+          }
+        });
+
+        // Process effects into the expected format (grouped by category)
+        const effects: Record<string, any[]> = {};
+        effectsData.forEach((effectData: any) => {
+          const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
+          if (!effects[categoryName]) {
+            effects[categoryName] = [];
+          }
+          effects[categoryName].push({
+            id: effectData.id,
+            effect_name: effectData.effect_name,
+            type_specific_data: effectData.type_specific_data,
+            created_at: effectData.created_at,
+            updated_at: effectData.updated_at,
+            fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
+          });
+        });
+
+        // Process equipment and add weapon profiles
+        const processedEquipment = equipment.map((item: any) => {
+          const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
+          let weaponProfiles: any[] = [];
+
+          if (equipmentType === 'weapon') {
+            if (item.equipment_id) {
+              const profiles = standardProfilesMap.get(item.equipment_id) || [];
+              weaponProfiles = profiles.map((profile: any) => ({
+                ...profile,
+                is_master_crafted: item.is_master_crafted || false
+              }));
+            } else if (item.custom_equipment_id) {
+              const profiles = customProfilesMap.get(item.custom_equipment_id) || [];
+              weaponProfiles = profiles.map((profile: any) => ({
+                ...profile,
+                is_master_crafted: item.is_master_crafted || false
+              }));
+            }
+          }
+
+          // Get effect names that target this equipment
+          const effect_names = equipmentTargetingEffectsMap.get(item.id) || [];
+
+          return {
+            fighter_equipment_id: item.id,
+            equipment_id: item.equipment_id || undefined,
+            custom_equipment_id: item.custom_equipment_id || undefined,
+            equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
+            equipment_type: equipmentType || 'unknown',
+            equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+            purchase_cost: item.purchase_cost || 0,
+            is_master_crafted: item.is_master_crafted || false,
+            weapon_profiles: weaponProfiles,
+            effect_names: effect_names.length > 0 ? effect_names : undefined
+          };
+        });
+
+        // Calculate beast costs (fighters owned by this fighter)
+        const beastCosts = ownedBeasts.reduce((total: number, beastRel: any) => {
+          // Find the beast fighter using O(1) lookup
+          const beastFighter: any = fighterLookup.get(beastRel.fighter_pet_id);
+          if (!beastFighter || beastFighter.killed || beastFighter.retired || beastFighter.enslaved || beastFighter.captured) {
+            return total;
+          }
+
+          // Get beast's equipment, skills, effects
+          const beastEquipment = equipmentByFighter[beastRel.fighter_pet_id] || [];
+          const beastSkills = skillsByFighter[beastRel.fighter_pet_id] || [];
+          const beastEffects = effectsByFighter[beastRel.fighter_pet_id] || [];
+
+          const equipmentCost = beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
+          const skillsCost = beastSkills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
+          const effectsCost = beastEffects.reduce((sum: number, effect: any) => {
             return sum + (effect.type_specific_data?.credits_increase || 0);
           }, 0);
 
-          // Calculate vehicle costs (base vehicle cost + vehicle equipment + vehicle effects)
-          const vehicleCost = vehicles.reduce((sum, vehicle) => {
+          const baseBeastCost = (beastFighter.fighter_types as any)?.cost || 0;
+
+          return total + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beastFighter.cost_adjustment || 0);
+        }, 0);
+
+        // Calculate total cost
+        let totalCost = 0;
+        const isOwnedBeast = !!ownershipInfo;
+
+        if (!isOwnedBeast) {
+          const equipmentCost = processedEquipment.reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+          const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+          const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+            return sum + (effect.type_specific_data?.credits_increase || 0);
+          }, 0);
+
+          // Calculate vehicle costs including equipment and effects
+          const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => {
             let vehicleTotal = vehicle.cost || 0;
 
             // Add vehicle equipment costs
-            if (vehicle.equipment) {
-              vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
-                return equipSum + (eq.purchase_cost || 0);
-              }, 0);
-            }
+            const vehicleEquipment = vehicleEquipmentByVehicle[vehicle.id] || [];
+            vehicleTotal += vehicleEquipment.reduce((equipSum: number, eq: any) => {
+              return equipSum + (eq.purchase_cost || 0);
+            }, 0);
 
             // Add vehicle effects costs
-            if (vehicle.effects) {
-              vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
-                return effectSum + (effect.type_specific_data?.credits_increase || 0);
-              }, 0);
-            }
+            const vehicleEffectsData = vehicleEffectsByVehicle[vehicle.id] || [];
+            vehicleTotal += vehicleEffectsData.reduce((effectSum: number, effect: any) => {
+              return effectSum + (effect.type_specific_data?.credits_increase || 0);
+            }, 0);
 
             return sum + vehicleTotal;
           }, 0);
 
-          totalCost = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
-                      (fighterBasic.cost_adjustment || 0) + beastCosts;
+          totalCost = fighter.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
+                      (fighter.cost_adjustment || 0) + beastCosts;
         }
 
-        // Separate equipment into weapons and wargear to match FighterProps interface
-        const weapons: WeaponProps[] = equipment
+        // Separate equipment into weapons and wargear
+        const weapons: WeaponProps[] = processedEquipment
           .filter((item: any) => item.equipment_type === 'weapon')
           .map((item: any) => ({
             fighter_weapon_id: item.fighter_equipment_id,
@@ -798,11 +1221,10 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             cost: item.purchase_cost || 0,
             weapon_profiles: item.weapon_profiles || [],
             is_master_crafted: item.is_master_crafted || false,
-            effect_names: item.effect_names || undefined,
             equipment_category: item.equipment_category || undefined
           }));
 
-        const wargear: WargearItem[] = equipment
+        const wargear: WargearItem[] = processedEquipment
           .filter((item: any) => item.equipment_type === 'wargear')
           .map((item: any) => ({
             fighter_weapon_id: item.fighter_equipment_id,
@@ -812,63 +1234,68 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             is_master_crafted: item.is_master_crafted || false
           }));
 
-        // Assemble fighter object matching FighterProps interface
+        // Get fighter type info from the join
+        const fighterTypeInfo = fighter.fighter_types || {};
+        const fighterSubTypeInfo = fighter.fighter_sub_types || null;
+
         return {
-          id: fighterBasic.id,
-          fighter_name: fighterBasic.fighter_name,
-          label: fighterBasic.label,
-          fighter_type: fighterBasic.fighter_type || fighterTypeInfo?.fighter_type || 'Unknown',
-          fighter_class: fighterBasic.fighter_class || 'Unknown',
+          id: fighter.id,
+          fighter_name: fighter.fighter_name,
+          label: fighter.label,
+          fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
+          fighter_class: fighter.fighter_class || 'Unknown',
           fighter_sub_type: fighterSubTypeInfo ? {
-            fighter_sub_type: fighterSubTypeInfo.fighter_sub_type,
-            fighter_sub_type_id: fighterSubTypeInfo.fighter_sub_type_id
+            fighter_sub_type: fighterSubTypeInfo.sub_type_name,
+            fighter_sub_type_id: fighterSubTypeInfo.id
           } : undefined,
-          alliance_crew_name: fighterTypeInfo?.alliance_crew_name,
-          position: fighterBasic.position,
-          xp: fighterBasic.xp,
-          kills: fighterBasic.kills || 0,
+          alliance_crew_name: fighterTypeInfo.alliance_crew_name,
+          position: fighter.position,
+          xp: fighter.xp,
+          kills: fighter.kills || 0,
           credits: totalCost,
-          movement: fighterBasic.movement,
-          weapon_skill: fighterBasic.weapon_skill,
-          ballistic_skill: fighterBasic.ballistic_skill,
-          strength: fighterBasic.strength,
-          toughness: fighterBasic.toughness,
-          wounds: fighterBasic.wounds,
-          initiative: fighterBasic.initiative,
-          attacks: fighterBasic.attacks,
-          leadership: fighterBasic.leadership,
-          cool: fighterBasic.cool,
-          willpower: fighterBasic.willpower,
-          intelligence: fighterBasic.intelligence,
+          movement: fighter.movement,
+          weapon_skill: fighter.weapon_skill,
+          ballistic_skill: fighter.ballistic_skill,
+          strength: fighter.strength,
+          toughness: fighter.toughness,
+          wounds: fighter.wounds,
+          initiative: fighter.initiative,
+          attacks: fighter.attacks,
+          leadership: fighter.leadership,
+          cool: fighter.cool,
+          willpower: fighter.willpower,
+          intelligence: fighter.intelligence,
           weapons,
           wargear,
           effects,
           skills,
           vehicles,
-          cost_adjustment: fighterBasic.cost_adjustment,
-          special_rules: fighterBasic.special_rules || [],
-          note: fighterBasic.note,
-          killed: fighterBasic.killed || false,
-          starved: fighterBasic.starved || false,
-          retired: fighterBasic.retired || false,
-          enslaved: fighterBasic.enslaved || false,
-          recovery: fighterBasic.recovery || false,
-          captured: fighterBasic.captured || false,
-          free_skill: fighterBasic.free_skill || false,
-          image_url: fighterBasic.image_url,
+          cost_adjustment: fighter.cost_adjustment,
+          special_rules: fighter.special_rules || [],
+          note: fighter.note,
+          killed: fighter.killed || false,
+          starved: fighter.starved || false,
+          retired: fighter.retired || false,
+          enslaved: fighter.enslaved || false,
+          recovery: fighter.recovery || false,
+          captured: fighter.captured || false,
+          free_skill: fighter.free_skill || false,
+          image_url: fighter.image_url,
           owner_name: ownershipInfo?.owner_name,
-          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false
         };
-      } catch (error) {
-        console.error(`Error processing fighter ${fighterId}:`, error);
-        // Return a minimal fighter object to prevent breaking the entire list
-        return null;
-      }
-    })
-  );
-
-  // Filter out any null entries from errors
-  return fighters.filter((f): f is NonNullable<typeof f> => f !== null) as GangFighter[];
+        } catch (error) {
+          console.error(`Error processing fighter ${fighter.id}:`, error);
+          return null;
+        }
+      }).filter((f: any): f is NonNullable<typeof f> => f !== null);
+    },
+    [`gang-fighters-list-${gangId}`],
+    {
+      tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
+      revalidate: false
+    }
+  )();
 };
 
 /**

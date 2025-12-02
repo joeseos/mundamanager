@@ -425,6 +425,31 @@ async function _getCampaignTriumphs(campaignTypeId: string, supabase: SupabaseCl
 // 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING unstable_cache()
 
 /**
+ * Get gang IDs for a campaign (cached)
+ * Used internally to build cache tags for getCampaignMembers
+ */
+const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) => {
+  return unstable_cache(
+    async () => {
+      const { data: campaignGangs } = await supabase
+        .from('campaign_gangs')
+        .select('gang_id')
+        .eq('campaign_id', campaignId);
+
+      return campaignGangs?.map(cg => cg.gang_id) || [];
+    },
+    [`campaign-gang-ids-${campaignId}`],
+    {
+      tags: [
+        CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId),
+        `campaign-gangs-${campaignId}`
+      ],
+      revalidate: false
+    }
+  )();
+};
+
+/**
  * Get campaign basic information with persistent caching
  * Cache key: campaign-basic-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
@@ -456,13 +481,8 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
 export const getCampaignMembers = async (campaignId: string, supabaseClient?: SupabaseClient) => {
   const supabase = supabaseClient ?? await createClient();
 
-  // First, get the gang IDs for this campaign to build cache tags
-  const { data: campaignGangs } = await supabase
-    .from('campaign_gangs')
-    .select('gang_id')
-    .eq('campaign_id', campaignId);
-
-  const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
+  // Get gang IDs using cached helper - only hits DB on cache miss
+  const gangIds = await getCampaignGangIds(campaignId, supabase);
 
   // Build cache tags that include gang overview and rating tags
   const cacheTags = [

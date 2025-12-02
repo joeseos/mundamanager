@@ -569,9 +569,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           const { data: files } = await supabase.storage
             .from('users-images')
             .list(`gangs/${gangId}/fighters/`);
-          
+
           const filesToRemove: string[] = [];
-          
+
           if (files) {
             // Find all files that start with the fighter ID
             files.forEach(file => {
@@ -580,7 +580,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               }
             });
           }
-          
+
           // Remove all matching files
           if (filesToRemove.length > 0) {
             await supabase.storage
@@ -594,6 +594,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
+        revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter removal
@@ -679,7 +680,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_FIGHTER_BASIC
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -787,8 +788,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
 
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    revalidateTag(CACHE_TAGS.GANG_FIGHTERS_LIST(fighter.gang_id));
-    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_FIGHTER_BASIC
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -994,7 +994,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       console.error('Failed to log fighter details changes:', logError);
     }
 
-    // Invalidate cache
+    // Invalidate cache (already handles BASE_FIGHTER_BASIC and COMPOSITE_GANG_FIGHTERS_LIST)
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
@@ -1012,13 +1012,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           revalidateTag(`fighter-exotic-beast-${beast.id}`);
         });
       }
-    }
-
-    // Additional cache invalidation for notes
-    if (params.note !== undefined || params.note_backstory !== undefined) {
-      // Invalidate fighter basic data (includes notes)
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-      // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_FIGHTER_BASIC
     }
 
     return {
