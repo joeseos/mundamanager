@@ -984,7 +984,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           ? supabase
               .from('weapon_profiles')
               .select('*')
-              .in('weapon_id', allStandardEquipmentIds)
+              .or(`weapon_id.in.(${allStandardEquipmentIds.join(',')}),weapon_group_id.in.(${allStandardEquipmentIds.join(',')})`)
               .order('sort_order', { nullsFirst: false })
               .order('profile_name')
           : Promise.resolve({ data: [] }),
@@ -1052,10 +1052,26 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       // Create weapon profiles maps
       const standardProfilesMap = new Map<string, any[]>();
       (standardProfiles.data || []).forEach((profile: any) => {
+        // Add to direct weapon_id
         if (!standardProfilesMap.has(profile.weapon_id)) {
           standardProfilesMap.set(profile.weapon_id, []);
         }
         standardProfilesMap.get(profile.weapon_id)!.push(profile);
+
+        // Also add to weapon_group_id if this is an ammo/accessory profile and fighter owns it
+        // (This merges owned ammo profiles into their parent weapon)
+        if (profile.weapon_group_id &&
+            profile.weapon_group_id !== profile.weapon_id &&
+            allStandardEquipmentIds.includes(profile.weapon_id)) {
+          if (!standardProfilesMap.has(profile.weapon_group_id)) {
+            standardProfilesMap.set(profile.weapon_group_id, []);
+          }
+          // Avoid duplicates
+          const existingIds = standardProfilesMap.get(profile.weapon_group_id)!.map((p: any) => p.id);
+          if (!existingIds.includes(profile.id)) {
+            standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
+          }
+        }
       });
 
       const customProfilesMap = new Map<string, any[]>();
