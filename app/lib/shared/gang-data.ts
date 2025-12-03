@@ -1005,17 +1005,97 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         vehicleIds.length > 0
           ? supabase
               .from('fighter_equipment')
-              .select('vehicle_id, purchase_cost')
+              .select(`
+                id,
+                vehicle_id,
+                equipment_id,
+                custom_equipment_id,
+                purchase_cost,
+                is_master_crafted,
+                equipment:equipment_id (
+                  equipment_name,
+                  equipment_type,
+                  equipment_category
+                ),
+                custom_equipment:custom_equipment_id (
+                  equipment_name,
+                  equipment_type,
+                  equipment_category
+                )
+              `)
               .in('vehicle_id', vehicleIds)
           : Promise.resolve({ data: [] }),
 
         vehicleIds.length > 0
           ? supabase
               .from('fighter_effects')
-              .select('vehicle_id, type_specific_data')
+              .select(`
+                id,
+                vehicle_id,
+                effect_name,
+                type_specific_data,
+                created_at,
+                updated_at,
+                fighter_effect_type:fighter_effect_type_id (
+                  fighter_effect_category:fighter_effect_category_id (
+                    category_name
+                  )
+                ),
+                fighter_effect_modifiers (
+                  id,
+                  fighter_effect_id,
+                  stat_name,
+                  numeric_value
+                )
+              `)
               .in('vehicle_id', vehicleIds)
           : Promise.resolve({ data: [] })
       ]);
+
+      // Step 3.6: Batch fetch weapon profiles for vehicle weapons
+      const vehicleStandardWeaponIds = (allVehicleEquipment.data || [])
+        .filter((item: any) => item.equipment_id && (item.equipment?.equipment_type === 'weapon'))
+        .map((item: any) => item.equipment_id);
+
+      const vehicleCustomWeaponIds = (allVehicleEquipment.data || [])
+        .filter((item: any) => item.custom_equipment_id && (item.custom_equipment?.equipment_type === 'weapon'))
+        .map((item: any) => item.custom_equipment_id);
+
+      const [vehicleStandardProfiles, vehicleCustomProfiles] = await Promise.all([
+        vehicleStandardWeaponIds.length > 0
+          ? supabase
+              .from('weapon_profiles')
+              .select('*')
+              .in('weapon_id', vehicleStandardWeaponIds)
+              .order('sort_order', { nullsFirst: false })
+              .order('profile_name')
+          : Promise.resolve({ data: [] }),
+        vehicleCustomWeaponIds.length > 0
+          ? supabase
+              .from('custom_weapon_profiles')
+              .select('*')
+              .or(`custom_equipment_id.in.(${vehicleCustomWeaponIds.join(',')}),weapon_group_id.in.(${vehicleCustomWeaponIds.join(',')})`)
+              .order('sort_order', { nullsFirst: false })
+              .order('profile_name')
+          : Promise.resolve({ data: [] })
+      ]);
+
+      // Build vehicle weapon profile maps
+      const vehicleStandardProfilesMap = new Map<string, any[]>();
+      (vehicleStandardProfiles.data || []).forEach((profile: any) => {
+        if (!vehicleStandardProfilesMap.has(profile.weapon_id)) {
+          vehicleStandardProfilesMap.set(profile.weapon_id, []);
+        }
+        vehicleStandardProfilesMap.get(profile.weapon_id)!.push(profile);
+      });
+
+      const vehicleCustomProfilesMap = new Map<string, any[]>();
+      (vehicleCustomProfiles.data || []).forEach((profile: any) => {
+        if (!vehicleCustomProfilesMap.has(profile.custom_equipment_id)) {
+          vehicleCustomProfilesMap.set(profile.custom_equipment_id, []);
+        }
+        vehicleCustomProfilesMap.get(profile.custom_equipment_id)!.push(profile);
+      });
 
       // Step 4: Create lookup Maps for O(1) access
       const equipmentByFighter = groupBy(allEquipment.data || [], 'fighter_id');
@@ -1213,6 +1293,62 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         let totalCost = 0;
         const isOwnedBeast = !!ownershipInfo;
 
+        // Process vehicles with equipment and effects for display
+        const processedVehicles = vehicles.map((vehicle: any) => {
+          // Process equipment with weapon profiles
+          const vehicleEquipment = (allVehicleEquipment.data || [])
+            .filter((e: any) => e.vehicle_id === vehicle.id)
+            .map((item: any) => {
+              const equipmentType = item.equipment?.equipment_type || item.custom_equipment?.equipment_type;
+              let weaponProfiles: any[] = [];
+
+              if (equipmentType === 'weapon') {
+                if (item.equipment_id) {
+                  weaponProfiles = (vehicleStandardProfilesMap.get(item.equipment_id) || [])
+                    .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+                } else if (item.custom_equipment_id) {
+                  weaponProfiles = (vehicleCustomProfilesMap.get(item.custom_equipment_id) || [])
+                    .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+                }
+              }
+
+              return {
+                vehicle_weapon_id: item.id,
+                equipment_id: item.equipment_id || item.custom_equipment_id,
+                custom_equipment_id: item.custom_equipment_id,
+                equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
+                equipment_type: equipmentType || 'unknown',
+                equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
+                purchase_cost: item.purchase_cost || 0,
+                weapon_profiles: weaponProfiles
+              };
+            });
+
+          // Process effects grouped by category
+          const vehicleEffectsData = (allVehicleEffects.data || []).filter((e: any) => e.vehicle_id === vehicle.id);
+          const vehicleEffects: Record<string, any[]> = {};
+          vehicleEffectsData.forEach((effectData: any) => {
+            const categoryName = effectData.fighter_effect_type?.fighter_effect_category?.category_name || 'uncategorized';
+            if (!vehicleEffects[categoryName]) {
+              vehicleEffects[categoryName] = [];
+            }
+            vehicleEffects[categoryName].push({
+              id: effectData.id,
+              effect_name: effectData.effect_name,
+              type_specific_data: effectData.type_specific_data,
+              created_at: effectData.created_at,
+              updated_at: effectData.updated_at,
+              fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
+            });
+          });
+
+          return {
+            ...vehicle,
+            equipment: vehicleEquipment,
+            effects: vehicleEffects
+          };
+        });
+
         if (!isOwnedBeast) {
           const equipmentCost = processedEquipment.reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
           const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
@@ -1221,20 +1357,20 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           }, 0);
 
           // Calculate vehicle costs including equipment and effects
-          const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => {
+          const vehicleCost = processedVehicles.reduce((sum: number, vehicle: any) => {
             let vehicleTotal = vehicle.cost || 0;
 
-            // Add vehicle equipment costs
-            const vehicleEquipment = vehicleEquipmentByVehicle[vehicle.id] || [];
-            vehicleTotal += vehicleEquipment.reduce((equipSum: number, eq: any) => {
-              return equipSum + (eq.purchase_cost || 0);
-            }, 0);
+            if (vehicle.equipment) {
+              vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
+                return equipSum + (eq.purchase_cost || 0);
+              }, 0);
+            }
 
-            // Add vehicle effects costs
-            const vehicleEffectsData = vehicleEffectsByVehicle[vehicle.id] || [];
-            vehicleTotal += vehicleEffectsData.reduce((effectSum: number, effect: any) => {
-              return effectSum + (effect.type_specific_data?.credits_increase || 0);
-            }, 0);
+            if (vehicle.effects) {
+              vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+                return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
+              }, 0);
+            }
 
             return sum + vehicleTotal;
           }, 0);
@@ -1301,7 +1437,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           wargear,
           effects,
           skills,
-          vehicles,
+          vehicles: processedVehicles,
           cost_adjustment: fighter.cost_adjustment,
           special_rules: fighter.special_rules || [],
           note: fighter.note,
