@@ -12,8 +12,7 @@ import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
 import { sellVehicle } from '@/app/actions/sell-vehicle';
 import { UserPermissions } from '@/types/user-permissions';
-import { LuTrash2 } from 'react-icons/lu';
-import { Edit } from 'lucide-react';
+import { LuTrash2, LuSquarePen } from 'react-icons/lu';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { unassignVehicle } from '@/app/actions/unassign-vehicle';
 import { HiUserRemove } from "react-icons/hi";
@@ -784,7 +783,7 @@ export default function GangVehicles({
                         disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
                         title="Edit"
                       >
-                        <Edit className="h-4 w-4" />
+                        <LuSquarePen className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"

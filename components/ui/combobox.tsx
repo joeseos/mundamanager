@@ -140,12 +140,20 @@ export function Combobox({
     }
   }, [open, updatePosition])
 
-  // Handle click outside
+  // Handle click outside or on another combobox
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element
-      // Check if click is outside both the combobox container and the dropdown portal
-      if (!target.closest('[data-combobox]') && !target.closest('[data-combobox-dropdown]')) {
+      const clickedCombobox = target.closest('[data-combobox]')
+      const currentCombobox = inputRef.current?.closest('[data-combobox]')
+      
+      // Close if:
+      // 1. Click is outside both the combobox container and the dropdown portal, OR
+      // 2. Click is on a different combobox (not this one)
+      if (
+        (!target.closest('[data-combobox]') && !target.closest('[data-combobox-dropdown]')) ||
+        (clickedCombobox && clickedCombobox !== currentCombobox)
+      ) {
         setOpen(false)
         setSearchValue("")
         setInputValue("")
