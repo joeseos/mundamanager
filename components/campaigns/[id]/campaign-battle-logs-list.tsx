@@ -5,13 +5,16 @@ import Link from "next/link";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
-import { ChevronLeft, ChevronRight, Edit } from "lucide-react";
 import { BiSolidNotepad } from "react-icons/bi";
+import { HiChevronLeft, HiChevronRight, HiX } from "react-icons/hi";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import Modal from "@/components/ui/modal";
-import { LuTrash2 } from "react-icons/lu";
+import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member, Scenario } from '@/types/campaign';
+import { Combobox } from "@/components/ui/combobox";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 interface CampaignBattleLogsListProps {
   campaignId: string;
@@ -61,12 +64,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     setLocalBattles(battles);
   }, [battles]);
 
+  // Filter state
+  const [filterCycle, setFilterCycle] = useState<string>('');
+  const [filterScenario, setFilterScenario] = useState<string>('');
+  const [filterParticipatingGang, setFilterParticipatingGang] = useState<string>('');
+  const [filterWinningGang, setFilterWinningGang] = useState<string>('');
+  const [filterDraws, setFilterDraws] = useState<boolean>(false);
+
+  // Sorting state
+  const [sortField, setSortField] = useState<string>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  // Calculate total pages - use localBattles for pagination
-  const totalPages = Math.ceil(localBattles.length / itemsPerPage);
 
   // Map of gang IDs to gang names for lookup
   const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
@@ -76,19 +87,210 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
 
-  // Sort battles by date (newest first) - use localBattles
-  const sortedBattles = useMemo(() => {
-    return [...localBattles].sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  // Extract unique values for filter options
+  const filterOptions = useMemo(() => {
+    const cycles = new Set<number>();
+    const scenarios = new Set<string>();
+    const participatingGangIds = new Set<string>();
+    const winningGangIds = new Set<string>();
+    let hasDraws = false;
+
+    localBattles.forEach(battle => {
+      // Cycles
+      if (battle.cycle !== null && battle.cycle !== undefined) {
+        cycles.add(battle.cycle);
+      }
+
+      // Scenarios
+      const scenarioName = battle.scenario || battle.scenario_name;
+      if (scenarioName) {
+        scenarios.add(scenarioName);
+      }
+
+      // Participating gangs
+      let participants = battle.participants;
+      if (participants && typeof participants === 'string') {
+        try {
+          participants = JSON.parse(participants);
+        } catch (e) {
+          participants = [];
+        }
+      }
+      if (participants && Array.isArray(participants)) {
+        participants.forEach((p: BattleParticipant) => {
+          if (p.gang_id) {
+            participatingGangIds.add(p.gang_id);
+          }
+        });
+      }
+      // Also check old structure
+      if (battle.attacker_id || battle.attacker?.id) {
+        const gangId = battle.attacker?.id || battle.attacker_id;
+        if (gangId) participatingGangIds.add(gangId);
+      }
+      if (battle.defender_id || battle.defender?.id) {
+        const gangId = battle.defender?.id || battle.defender_id;
+        if (gangId) participatingGangIds.add(gangId);
+      }
+
+      // Winning gangs
+      if (battle.winner_id === null) {
+        hasDraws = true;
+      } else if (battle.winner_id || battle.winner?.id) {
+        const gangId = battle.winner?.id || battle.winner_id;
+        if (gangId) winningGangIds.add(gangId);
+      }
     });
+
+    return {
+      cycles: Array.from(cycles).sort((a, b) => a - b),
+      scenarios: Array.from(scenarios).sort(),
+      participatingGangIds: Array.from(participatingGangIds),
+      winningGangIds: Array.from(winningGangIds),
+      hasDraws
+    };
   }, [localBattles]);
+
+  // Sort and filter battles
+  const sortedAndFilteredBattles = useMemo(() => {
+    let filtered = [...localBattles];
+
+    // Apply filters
+    if (filterCycle) {
+      const cycleNum = parseInt(filterCycle);
+      filtered = filtered.filter(battle => battle.cycle === cycleNum);
+    }
+
+    if (filterScenario) {
+      filtered = filtered.filter(battle => {
+        const scenarioName = battle.scenario || battle.scenario_name;
+        return scenarioName === filterScenario;
+      });
+    }
+
+    if (filterParticipatingGang) {
+      filtered = filtered.filter(battle => {
+        let participants = battle.participants;
+        if (participants && typeof participants === 'string') {
+          try {
+            participants = JSON.parse(participants);
+          } catch (e) {
+            participants = [];
+          }
+        }
+        if (participants && Array.isArray(participants)) {
+          return participants.some((p: BattleParticipant) => p.gang_id === filterParticipatingGang);
+        }
+        // Also check old structure
+        const attackerId = battle.attacker?.id || battle.attacker_id;
+        const defenderId = battle.defender?.id || battle.defender_id;
+        return attackerId === filterParticipatingGang || defenderId === filterParticipatingGang;
+      });
+    }
+
+    if (filterWinningGang) {
+      filtered = filtered.filter(battle => {
+        const winnerId = battle.winner?.id || battle.winner_id;
+        return winnerId === filterWinningGang;
+      });
+    }
+
+    if (filterDraws) {
+      filtered = filtered.filter(battle => battle.winner_id === null);
+    }
+
+    // Sort based on selected field and direction
+    return filtered.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+      
+      switch (sortField) {
+        case 'date':
+          aValue = new Date(a.created_at).getTime();
+          bValue = new Date(b.created_at).getTime();
+          break;
+        case 'cycle':
+          aValue = a.cycle ?? -1;
+          bValue = b.cycle ?? -1;
+          break;
+        case 'scenario':
+          aValue = (a.scenario || a.scenario_name || '').toLowerCase();
+          bValue = (b.scenario || b.scenario_name || '').toLowerCase();
+          break;
+        case 'territory':
+          aValue = (a.territory_name || '').toLowerCase();
+          bValue = (b.territory_name || '').toLowerCase();
+          break;
+        case 'winner':
+          aValue = (a.winner?.name || '').toLowerCase();
+          bValue = (b.winner?.name || '').toLowerCase();
+          // Handle draws (null winner_id)
+          if (a.winner_id === null) aValue = 'draw';
+          if (b.winner_id === null) bValue = 'draw';
+          break;
+        default:
+          aValue = new Date(a.created_at).getTime();
+          bValue = new Date(b.created_at).getTime();
+      }
+      
+      // Handle string comparison
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue);
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      
+      // Handle number comparison
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [localBattles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+
+  // Handle sorting
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      // Set default direction based on field type
+      const numericalFields = ['cycle'];
+      const dateFields = ['date'];
+      if (dateFields.includes(field)) {
+        setSortDirection('desc'); // Newest first for dates
+      } else if (numericalFields.includes(field)) {
+        setSortDirection('desc'); // Highest first for numbers
+      } else {
+        setSortDirection('asc'); // A-Z for strings
+      }
+    }
+  };
+
+  // Reset pagination when filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+
+  // Calculate total pages - use filtered battles for pagination
+  const totalPages = Math.ceil(sortedAndFilteredBattles.length / itemsPerPage);
   
   // Get current battles for pagination
   const currentBattles = useMemo(() => {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    return sortedBattles.slice(indexOfFirstItem, indexOfLastItem);
-  }, [sortedBattles, currentPage, itemsPerPage]);
+    return sortedAndFilteredBattles.slice(indexOfFirstItem, indexOfLastItem);
+  }, [sortedAndFilteredBattles, currentPage, itemsPerPage]);
+
+  // Check if any filters are active
+  const hasActiveFilters = filterCycle || filterScenario || filterParticipatingGang || filterWinningGang || filterDraws;
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilterCycle('');
+    setFilterScenario('');
+    setFilterParticipatingGang('');
+    setFilterWinningGang('');
+    setFilterDraws(false);
+  };
   
   // Pagination navigation
   const goToNextPage = () => {
@@ -201,6 +403,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const getGangColour = (gangId: string | undefined): string => {
     if (!gangId) return '#000000';
     return gangColourMap.get(gangId) || '#000000';
+  };
+
+  // Get gang info by ID for filter labels
+  const getGangInfo = (gangId: string): { name: string; owner_username?: string } => {
+    const gang = availableGangs.find(g => g.id === gangId);
+    if (gang) {
+      return {
+        name: gang.name,
+        owner_username: gang.owner_username
+      };
+    }
+    return {
+      name: gangNameMap.get(gangId) || 'Unknown'
+    };
   };
 
   // Get all gangs with their roles for a battle
@@ -447,51 +663,226 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           </Button>
         </div>
       )}
+
+      {/* Filter Section */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Filters</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Cycle Filter */}
+          <div className="space-y-1">
+            <Label htmlFor="filter-cycle" className="text-xs">Cycle</Label>
+            <Combobox
+              options={[
+                { value: '', label: 'All Cycles' },
+                ...filterOptions.cycles.map(cycle => ({
+                  value: cycle.toString(),
+                  label: `Cycle ${cycle}`
+                }))
+              ]}
+              value={filterCycle}
+              onValueChange={setFilterCycle}
+              placeholder="All Cycles"
+              className="h-9"
+            />
+          </div>
+
+          {/* Scenario Filter */}
+          <div className="space-y-1">
+            <Label htmlFor="filter-scenario" className="text-xs">Scenario</Label>
+            <Combobox
+              options={[
+                { value: '', label: 'All Scenarios' },
+                ...filterOptions.scenarios.map(scenario => ({
+                  value: scenario,
+                  label: scenario
+                }))
+              ]}
+              value={filterScenario}
+              onValueChange={setFilterScenario}
+              placeholder="All Scenarios"
+              className="h-9"
+            />
+          </div>
+
+          {/* Participating Gang Filter */}
+          <div className="space-y-1">
+            <Label htmlFor="filter-participating" className="text-xs">Participating Gang</Label>
+            <Combobox
+              options={[
+                { value: '', label: 'All Gangs' },
+                ...filterOptions.participatingGangIds.map(gangId => {
+                  const gangInfo = getGangInfo(gangId);
+                  const label = gangInfo.owner_username 
+                    ? `${gangInfo.name} • ${gangInfo.owner_username}`
+                    : gangInfo.name;
+                  return {
+                    value: gangId,
+                    label: label
+                  };
+                })
+              ]}
+              value={filterParticipatingGang}
+              onValueChange={setFilterParticipatingGang}
+              placeholder="All Gangs"
+              className="h-9"
+            />
+          </div>
+
+          {/* Winning Gang Filter */}
+          <div className="space-y-1">
+            <Label htmlFor="filter-winning" className="text-xs">Winning Gang</Label>
+            <Combobox
+              options={[
+                { value: '', label: 'All Winners' },
+                ...filterOptions.winningGangIds.map(gangId => {
+                  const gangInfo = getGangInfo(gangId);
+                  const label = gangInfo.owner_username 
+                    ? `${gangInfo.name} • ${gangInfo.owner_username}`
+                    : gangInfo.name;
+                  return {
+                    value: gangId,
+                    label: label
+                  };
+                })
+              ]}
+              value={filterWinningGang}
+              onValueChange={setFilterWinningGang}
+              placeholder="All Winners"
+              className="h-9"
+            />
+          </div>
+
+          {/* Draws Filter */}
+          <div className="space-y-1">
+            <Label htmlFor="filter-draws" className="text-xs">Show Only Draws</Label>
+            <div className="flex items-center space-x-2 h-9">
+              <Checkbox
+                id="filter-draws"
+                checked={filterDraws}
+                onCheckedChange={(checked) => setFilterDraws(checked === true)}
+              />
+              <Label htmlFor="filter-draws" className="text-xs font-normal cursor-pointer">
+                Draws only
+              </Label>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="leading-[3] text-xs text-muted-foreground">
+            {hasActiveFilters 
+              ? `Showing ${sortedAndFilteredBattles.length} of ${localBattles.length} battles`
+              : `Showing all ${localBattles.length} battles`}
+          </span>
+          {hasActiveFilters && (
+            <Button
+              onClick={clearFilters}
+              variant="outline"
+              size="sm"
+            >
+              <HiX className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="rounded-md border overflow-x-auto">
         <table className="w-full text-xs md:text-sm">
           <thead>
             <tr className="bg-muted border-b">
-              <th className="px-2 py-2 text-left font-medium max-w-[5rem]">Date</th>
-              <th className="px-2 py-2 text-left font-medium w-16">Cycle</th>
-              <th className="px-2 py-2 text-left font-medium max-w-[8rem]">Scenario</th>
-              <th className="px-2 py-2 text-left font-medium">Territory</th>
+              <th 
+                className="p-1 md:p-2 text-left font-medium min-w-[5rem] md:min-w-[6.2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                onClick={() => handleSort('date')}
+              >
+                <div className="flex items-center gap-1">
+                  Date
+                  {sortField === 'date' && (
+                    <span className="text-muted-foreground">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="p-1 md:p-2 text-left font-medium min-w-[1rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                onClick={() => handleSort('cycle')}
+              >
+                <div className="flex items-center gap-1">
+                  Cycle
+                  {sortField === 'cycle' && (
+                    <span className="text-muted-foreground">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="p-1 md:p-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                onClick={() => handleSort('scenario')}
+              >
+                <div className="flex items-center gap-1">
+                  Scenario
+                  {sortField === 'scenario' && (
+                    <span className="text-muted-foreground">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
+              <th 
+                className="p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none"
+                onClick={() => handleSort('territory')}
+              >
+                <div className="flex items-center gap-1">
+                  Territory
+                  {sortField === 'territory' && (
+                    <span className="text-muted-foreground">
+                      {sortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
+              </th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner</th>
-              <th className="px-2 py-2 text-left font-medium">Report</th>
-              {isAdmin && <th className="px-2 py-2 text-right font-medium">Actions</th>}
+              <th className="p-1 md:p-2 text-left font-medium">Report</th>
+              {isAdmin && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {localBattles.length === 0 ? (
+            {sortedAndFilteredBattles.length === 0 ? (
               <tr>
                 <td colSpan={isAdmin ? 8 : 7} className="text-muted-foreground italic text-center">
-                  No battles recorded yet.
+                  {localBattles.length === 0 
+                    ? "No battles recorded yet."
+                    : "No battles match the selected filters."}
                 </td>
               </tr>
             ) : (
               currentBattles.map((battle) => (
                 <tr key={battle.id} className="border-b">
-                  <td className="px-2 py-2 align-top max-w-[5rem]">
+                  <td className="p-1 md:p-2 align-top max-w-[5rem]">
                     {formatDate(battle.created_at)}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="p-1 md:p-2 align-top">
                     {battle.cycle || '-'}
                   </td>
 
-                  <td className="px-2 py-2 align-top max-w-[8rem]">
+                  <td className="p-1 md:p-2 align-top max-w-[8rem]">
                     {battle.scenario || battle.scenario_name || 'N/A'}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="p-1 md:p-2 align-top">
                     {battle.territory_name || '-'}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="p-1 md:p-2 align-top">
                     {getGangsWithRoles(battle)}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="p-1 md:p-2 align-top">
                     {battle.winner?.id ? (
                       <span
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
@@ -511,7 +902,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     )}
                   </td>
 
-                  <td className="px-2 py-2 align-top">
+                  <td className="p-1 md:p-2 align-top">
                     {battle.note && (
                       <button
                         onClick={() => {
@@ -526,7 +917,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     )}
                   </td>
                   {isAdmin && (
-                    <td className="px-2 py-2 align-top text-right">
+                    <td className="p-1 md:p-2 align-top text-right">
                       <div className="flex justify-end space-x-2">
                         <Button
                           onClick={() => handleEditBattle(battle)}
@@ -535,7 +926,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                           className="h-8 w-8 p-0"
                           aria-label="Edit battle"
                         >
-                          <Edit className="h-4 w-4" />
+                          <LuSquarePen className="h-4 w-4" />
                         </Button>
                         <Button
                           onClick={(e) => handleDeleteBattle(battle, e)}
@@ -566,7 +957,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             size="sm"
             className="flex items-center gap-1"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <HiChevronLeft className="h-4 w-4" />
             Previous
           </Button>
           <span className="text-sm">
@@ -580,7 +971,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             className="flex items-center gap-1"
           >
             Next
-            <ChevronRight className="h-4 w-4" />
+            <HiChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}

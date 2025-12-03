@@ -822,7 +822,7 @@ const CampaignBattleLogModal = ({
                       onChange={(e) => handleGangChange(gangEntry.id, e.target.value)}
                       disabled={isLoadingBattleData}
                     >
-                      <option value="">Gang {gangEntry.id}</option>
+                      <option value="">Select a Gang</option>
                       {availableGangsForThisEntry.map((gang) => (
                         <option key={gang.id} value={gang.id}>
                           {gang.name}{gang.owner_username ? ` • ${gang.owner_username}` : ''}
