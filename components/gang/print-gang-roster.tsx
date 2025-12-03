@@ -521,7 +521,7 @@ export default function GangRoster({ gang }: GangRosterProps) {
                              <span className="font-semibold whitespace-nowrap flex-shrink-0">Misc</span>
                              <div className="flex items-center gap-0.5 flex-shrink-0">
                                {Array.from({ length: 6 }).map((_, i) => (
-                                 <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                 <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
                                ))}
                              </div>
                            </div>
