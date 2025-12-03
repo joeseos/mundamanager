@@ -1,17 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { WeaponProps, WargearItem } from '@/types/fighter';
-import {
-  getFighterBasic,
-  getFighterEquipment,
-  getFighterSkills,
-  getFighterEffects,
-  getFighterVehicles,
-  getFighterOwnedBeastsCost,
-  getFighterTypeInfo,
-  getFighterSubTypeInfo,
-  getFighterOwnershipInfo
-} from './fighter-data';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -722,35 +711,6 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
 // =============================================================================
 
 /**
- * Get list of fighter IDs for a gang (just IDs, lightweight)
- * Cache: COMPOSITE_GANG_FIGHTER_IDS
- *
- * This is the only part that needs composite caching - the list of fighter IDs.
- * Individual fighter data is cached separately by the fighter-data functions.
- */
-const getGangFighterIds = async (gangId: string, supabase: any): Promise<string[]> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('fighters')
-        .select('id')
-        .eq('gang_id', gangId);
-
-      if (error || !data) return [];
-      return data.map((f: any) => f.id);
-    },
-    [`gang-fighter-ids-${gangId}`],
-    {
-      tags: [
-        CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), // Keep for backward compatibility
-        CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId)
-      ],
-      revalidate: false
-    }
-  )();
-};
-
-/**
  * Get all fighters in a gang with complete data (BATCHED QUERIES)
  *
  * Uses batched database queries to minimize round trips:
@@ -1066,7 +1026,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           ? supabase
               .from('weapon_profiles')
               .select('*')
-              .in('weapon_id', vehicleStandardWeaponIds)
+              .or(`weapon_id.in.(${vehicleStandardWeaponIds.join(',')}),weapon_group_id.in.(${vehicleStandardWeaponIds.join(',')})`)
               .order('sort_order', { nullsFirst: false })
               .order('profile_name')
           : Promise.resolve({ data: [] }),
@@ -1083,18 +1043,50 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       // Build vehicle weapon profile maps
       const vehicleStandardProfilesMap = new Map<string, any[]>();
       (vehicleStandardProfiles.data || []).forEach((profile: any) => {
+        // Add to direct weapon_id
         if (!vehicleStandardProfilesMap.has(profile.weapon_id)) {
           vehicleStandardProfilesMap.set(profile.weapon_id, []);
         }
         vehicleStandardProfilesMap.get(profile.weapon_id)!.push(profile);
+
+        // Also add to weapon_group_id if this is an ammo/accessory profile and vehicle owns it
+        // (This merges owned ammo profiles into their parent weapon)
+        if (profile.weapon_group_id &&
+            profile.weapon_group_id !== profile.weapon_id &&
+            vehicleStandardWeaponIds.includes(profile.weapon_id)) {
+          if (!vehicleStandardProfilesMap.has(profile.weapon_group_id)) {
+            vehicleStandardProfilesMap.set(profile.weapon_group_id, []);
+          }
+          // Avoid duplicates
+          const existingIds = vehicleStandardProfilesMap.get(profile.weapon_group_id)!.map((p: any) => p.id);
+          if (!existingIds.includes(profile.id)) {
+            vehicleStandardProfilesMap.get(profile.weapon_group_id)!.push(profile);
+          }
+        }
       });
 
       const vehicleCustomProfilesMap = new Map<string, any[]>();
       (vehicleCustomProfiles.data || []).forEach((profile: any) => {
+        // Add to direct custom_equipment_id
         if (!vehicleCustomProfilesMap.has(profile.custom_equipment_id)) {
           vehicleCustomProfilesMap.set(profile.custom_equipment_id, []);
         }
         vehicleCustomProfilesMap.get(profile.custom_equipment_id)!.push(profile);
+
+        // Also add to weapon_group_id if this is an ammo/accessory profile and vehicle owns it
+        // (This merges owned ammo profiles into their parent weapon)
+        if (profile.weapon_group_id &&
+            profile.weapon_group_id !== profile.custom_equipment_id &&
+            vehicleCustomWeaponIds.includes(profile.custom_equipment_id)) {
+          if (!vehicleCustomProfilesMap.has(profile.weapon_group_id)) {
+            vehicleCustomProfilesMap.set(profile.weapon_group_id, []);
+          }
+          // Avoid duplicates
+          const existingIds = vehicleCustomProfilesMap.get(profile.weapon_group_id)!.map((p: any) => p.id);
+          if (!existingIds.includes(profile.id)) {
+            vehicleCustomProfilesMap.get(profile.weapon_group_id)!.push(profile);
+          }
+        }
       });
 
       // Step 4: Create lookup Maps for O(1) access
@@ -1103,8 +1095,6 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       const effectsByFighter = groupBy(allEffects.data || [], 'fighter_id');
       const vehiclesByFighter = groupBy(allVehicles.data || [], 'fighter_id');
       const beastsByOwner = groupBy(allBeastRelationships.data || [], 'fighter_owner_id');
-      const vehicleEquipmentByVehicle = groupBy(allVehicleEquipment.data || [], 'vehicle_id');
-      const vehicleEffectsByVehicle = groupBy(allVehicleEffects.data || [], 'vehicle_id');
 
       // Create ownership info map (petId -> ownership info)
       const ownershipInfoMap = new Map();
