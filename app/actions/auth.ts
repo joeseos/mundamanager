@@ -71,19 +71,31 @@ export const signUpAction = async (formData: FormData) => {
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
-        // Clean up the auth user
-        await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
-        
+        // Check if this is a duplicate key error (code 23505)
         if (profileError.code === '23505') {
+          const errorDetail = profileError.message?.toLowerCase() || '';
+          const errorConstraint = (profileError as { constraint?: string }).constraint?.toLowerCase() || '';
+
+          // Duplicate on primary key (id) = user already registered
+          if (errorDetail.includes('profiles_pkey') || errorConstraint.includes('pkey') || errorDetail.includes('"id"')) {
+            // Don't delete auth user - they already exist!
+            return { error: "This email is already registered. Please sign in instead." };
+          }
+
+          // Otherwise it's a username conflict
+          await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
           return { error: "Username already taken. Please try again with a different username." };
         }
-        return { error: "Failed to create profile. Please try again." };
+
+        // For other errors, clean up and show generic message
+        await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
+        return { error: "Failed to create your account. Please try again." };
       }
     } catch (error) {
       console.error('Unexpected error during profile creation:', error);
       const serviceRoleClient = createServiceRoleClient();
       await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
-      return { error: "Failed to complete registration. Please try again." };
+      return { error: "Something went wrong during sign up. Please try again." };
     }
 
     return { message: "Please check your email to verify your account" };
