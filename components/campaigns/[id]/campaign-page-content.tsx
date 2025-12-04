@@ -12,9 +12,9 @@ import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-ima
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import { FiMap, FiCamera, FiShare2, FiDownload } from "react-icons/fi";
+import { FiMap, FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuClipboard, LuTrophy } from "react-icons/lu";
+import { LuSwords, LuClipboard, LuTrophy, LuCodeXml } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
@@ -530,7 +530,7 @@ export default function CampaignPageContent({
                     className="print:hidden"
                     title="View Campaign Data"
                   >
-                    <FiDownload className="w-5 h-5" />
+                    <LuCodeXml className="w-5 h-5" />
                   </Button>
                 )}
 
