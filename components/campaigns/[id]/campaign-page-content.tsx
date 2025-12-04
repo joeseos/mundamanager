@@ -359,7 +359,7 @@ export default function CampaignPageContent({
   // Handle campaign export
   const handleExportCampaign = (format: 'json' | 'xml') => {
     // Open the API endpoint directly in a new tab
-    window.open(`/api/campaigns/${campaignData.id}/export?format=${format}`, '_blank');
+    window.open(`/api/campaigns/${campaignData.id}/data?format=${format}`, '_blank');
     
     toast({
       description: `Campaign data opened in new tab (${format.toUpperCase()})`
@@ -521,14 +521,14 @@ export default function CampaignPageContent({
                </div>
 
               <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
-                {/* Export button */}
+                {/* View Campaign Data button */}
                 {safePermissions.canEditCampaign && (
                   <Button
                     onClick={() => setShowExportModal(true)}
                     variant="ghost"
                     size="icon"
                     className="print:hidden"
-                    title="Export Campaign"
+                    title="View Campaign Data"
                   >
                     <FiDownload className="w-5 h-5" />
                   </Button>
@@ -920,26 +920,27 @@ export default function CampaignPageContent({
           isAdmin={!!safePermissions.canManageTerritories}
         />
 
-        {/* Campaign Export Modal */}
+        {/* View Campaign Data Modal */}
         {showExportModal && (
           <Modal
-            title="Export Campaign Data"
+            title="View Campaign Data"
             content={
               <div className="space-y-4">
-                <p>Choose the format for exporting your campaign data:</p>
-                <div className="flex flex-col gap-2">
+                <p>Choose the format to view your campaign data:</p>
+                <div className="flex flex-row gap-2">
                   <Button
                     onClick={() => handleExportCampaign('json')}
-                    className="w-full"
+                    variant="outline"
+                    className="flex-1"
                   >
-                    Export as JSON
+                    JSON
                   </Button>
                   <Button
                     onClick={() => handleExportCampaign('xml')}
                     variant="outline"
-                    className="w-full"
+                    className="flex-1"
                   >
-                    Export as XML
+                    XML
                   </Button>
                 </div>
               </div>
