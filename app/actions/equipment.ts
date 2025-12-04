@@ -644,35 +644,26 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
     const wealthDelta = totalRatingDelta + (-finalPurchaseCost) + stashValueDelta;
 
-    const { error: gangUpdateError } = await supabase
-      .from('gangs')
-      .update({
-        credits: gang.credits - finalPurchaseCost,
-        rating: Math.max(0, (gang.rating || 0) + totalRatingDelta),
-        wealth: Math.max(0, (gang.wealth || 0) + wealthDelta)
-      })
-      .eq('id', params.gang_id);
+    // Only update if something actually changed
+    if (finalPurchaseCost !== 0 || totalRatingDelta !== 0 || wealthDelta !== 0) {
+      const { error: gangUpdateError } = await supabase
+        .from('gangs')
+        .update({
+          credits: gang.credits - finalPurchaseCost,
+          rating: Math.max(0, (gang.rating || 0) + totalRatingDelta),
+          wealth: Math.max(0, (gang.wealth || 0) + wealthDelta)
+        })
+        .eq('id', params.gang_id);
 
-    if (gangUpdateError) {
-      throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
-    }
+      if (gangUpdateError) {
+        throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
+      }
 
-    // Invalidate gang rating cache
-    try {
-      invalidateGangRating(params.gang_id);
-    } catch (e) {
-      console.error('Failed to invalidate gang rating cache:', e);
-    }
-
-    // Fetch vehicle fighter assignment if needed for cache invalidation
-    let vehicleAssignedFighterIdForCache = null;
-    if (params.vehicle_id) {
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', params.vehicle_id)
-        .single();
-      vehicleAssignedFighterIdForCache = vehicleData?.fighter_id || null;
+      try {
+        invalidateGangRating(params.gang_id);
+      } catch (e) {
+        console.error('Failed to invalidate gang rating cache:', e);
+      }
     }
 
     // Optimized cache invalidation - use granular approach
@@ -692,9 +683,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         });
       }
     } else if (params.vehicle_id) {
-      if (vehicleAssignedFighterIdForCache) {
-        invalidateFighterDataWithFinancials(vehicleAssignedFighterIdForCache, params.gang_id);
-        invalidateFighterVehicleData(vehicleAssignedFighterIdForCache, params.gang_id);
+      if (vehicleAssignedFighterId) {
+        invalidateFighterDataWithFinancials(vehicleAssignedFighterId, params.gang_id);
+        invalidateFighterVehicleData(vehicleAssignedFighterId, params.gang_id);
       }
       invalidateVehicleData(params.vehicle_id);
     } else {
