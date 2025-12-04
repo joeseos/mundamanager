@@ -409,15 +409,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       newEquipmentId = fighterEquip.id;
     }
 
-    // Update gang credits
-    const { error: updateError } = await supabase
-      .from('gangs')
-      .update({ credits: gang.credits - finalPurchaseCost })
-      .eq('id', params.gang_id);
-
-    if (updateError) {
-      throw new Error(`Failed to update gang credits: ${updateError.message}`);
-    }
 
     // Log equipment action
     try {
@@ -648,53 +639,26 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // PARALLEL: Rating/wealth updates and cache invalidation data fetching
-    const finalOperations = [];
+    // Calculate and apply all gang updates in a single operation
+    const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
+    const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
+    const wealthDelta = totalRatingDelta + (-finalPurchaseCost) + stashValueDelta;
 
-    // Calculate rating and wealth updates
-    let newRating: number | undefined = undefined;
-    let newWealth: number | undefined = undefined;
+    // Only update if something actually changed
+    if (finalPurchaseCost !== 0 || totalRatingDelta !== 0 || wealthDelta !== 0) {
+      const { error: gangUpdateError } = await supabase
+        .from('gangs')
+        .update({
+          credits: gang.credits - finalPurchaseCost,
+          rating: Math.max(0, (gang.rating || 0) + totalRatingDelta),
+          wealth: Math.max(0, (gang.wealth || 0) + wealthDelta)
+        })
+        .eq('id', params.gang_id);
 
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0 || finalPurchaseCost > 0 || (params.buy_for_gang_stash && ratingCost > 0)) {
-      // Use already-fetched gang values instead of re-querying
-      const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
-      const creditsDelta = -finalPurchaseCost; // Negative because credits were spent
+      if (gangUpdateError) {
+        throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
+      }
 
-      // When buying for stash, wealth includes stash value increase
-      // Wealth = Rating + Credits + Stash Value
-      // Stash value uses ratingCost (respects user's "Use Listed Cost for Rating" choice)
-      // For stash: wealthDelta = ratingDelta (0) + creditsDelta (-manual_cost) + stashValueDelta (+ratingCost)
-      // For fighter/vehicle: wealthDelta = ratingDelta (+ratingCost) + creditsDelta (-manual_cost)
-      const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
-      const wealthDelta = totalRatingDelta + creditsDelta + stashValueDelta;
-
-      newRating = Math.max(0, (gang.rating || 0) + totalRatingDelta);
-      newWealth = Math.max(0, (gang.wealth || 0) + wealthDelta);
-
-      finalOperations.push(
-        supabase
-          .from('gangs')
-          .update({ rating: newRating, wealth: newWealth })
-          .eq('id', params.gang_id)
-      );
-    }
-
-    // Vehicle fighter assignment check if needed for cache invalidation
-    if (params.vehicle_id) {
-      finalOperations.push(
-        supabase
-          .from('vehicles')
-          .select('fighter_id')
-          .eq('id', params.vehicle_id)
-          .single()
-      );
-    }
-
-    // Execute final operations in parallel
-    const finalResults = await Promise.all(finalOperations);
-
-    // Handle rating/wealth update result
-    if (ratingDelta !== 0 || createdBeastsRatingDelta !== 0 || finalPurchaseCost > 0 || (params.buy_for_gang_stash && ratingCost > 0)) {
       try {
         invalidateGangRating(params.gang_id);
       } catch (e) {
@@ -719,13 +683,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         });
       }
     } else if (params.vehicle_id) {
-      // Find vehicle data - it could be at index 0 or 1 depending on whether gang update ran
-      const vehicleDataResult = finalOperations.length > 1 ? finalResults[1] : finalResults[0];
-      const vehicleData = vehicleDataResult?.data;
-
-      if (vehicleData?.fighter_id) {
-        invalidateFighterDataWithFinancials(vehicleData.fighter_id, params.gang_id);
-        invalidateFighterVehicleData(vehicleData.fighter_id, params.gang_id);
+      if (vehicleAssignedFighterId) {
+        invalidateFighterDataWithFinancials(vehicleAssignedFighterId, params.gang_id);
+        invalidateFighterVehicleData(vehicleAssignedFighterId, params.gang_id);
       }
       invalidateVehicleData(params.vehicle_id);
     } else {
@@ -759,8 +719,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           records: [{
             id: params.gang_id,
             credits: gang.credits - finalPurchaseCost,
-            rating: newRating,
-            wealth: newWealth
+            rating: Math.max(0, (gang.rating || 0) + totalRatingDelta),
+            wealth: Math.max(0, (gang.wealth || 0) + wealthDelta)
           }]
         },
         insertIntofighter_equipmentCollection: {
