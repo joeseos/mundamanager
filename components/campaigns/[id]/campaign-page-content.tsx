@@ -920,36 +920,36 @@ export default function CampaignPageContent({
           isAdmin={!!safePermissions.canManageTerritories}
         />
 
-        {/* View Campaign Data Modal */}
-        {showExportModal && (
-          <Modal
-            title="View Campaign Data"
-            content={
-              <div className="space-y-4">
-                <p>Choose the format to view your campaign data:</p>
-                <div className="flex flex-row gap-2">
-                  <Button
-                    onClick={() => handleExportCampaign('json')}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    JSON
-                  </Button>
-                  <Button
-                    onClick={() => handleExportCampaign('xml')}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    XML
-                  </Button>
-                </div>
-              </div>
-            }
-            onClose={() => setShowExportModal(false)}
-          />
-        )}
-
       </div>
+
+      {/* View Campaign Data Modal */}
+      {showExportModal && (
+        <Modal
+          title="View Campaign Data"
+          content={
+            <div className="space-y-4">
+              <p>Choose the format to view your campaign data:</p>
+              <div className="flex flex-row gap-2">
+                <Button
+                  onClick={() => handleExportCampaign('json')}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  JSON
+                </Button>
+                <Button
+                  onClick={() => handleExportCampaign('xml')}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  XML
+                </Button>
+              </div>
+            </div>
+          }
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
     </main>
   );
 } 
