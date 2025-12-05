@@ -36,7 +36,7 @@ function getClientIP(request: Request): string {
 }
 
 /**
- * Check rate limiting for export endpoint (10 requests per minute per IP)
+ * Check rate limiting for data endpoint (10 requests per minute per IP)
  * @param ip - Client IP address
  * @returns Rate limit status with details for response headers
  */
@@ -366,8 +366,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
     };
 
-    // Create service role client to bypass RLS for public export access
-    // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be exported
+    // Create service role client to bypass RLS for public data access
+    // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be viewed
     // Rate limiting (10 req/min per IP) provides abuse protection
     const supabase = createServiceRoleClient();
 
@@ -453,7 +453,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
     // Return based on requested format
     if (format === 'xml') {
-      const xmlContent = objectToXml(exportData, 'campaign_export');
+      const xmlContent = objectToXml(exportData, 'campaign_data');
       return new NextResponse(xmlContent, {
         status: 200,
         headers: {
@@ -466,15 +466,16 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
     return NextResponse.json(exportData, { headers: rateLimitHeaders });
   } catch (error) {
-    console.error('Error exporting campaign:', error);
+    console.error('Error generating campaign data:', error);
     return format === 'xml'
-      ? new NextResponse(objectToXml({ error: "Failed to export campaign data" }, 'error'), {
+      ? new NextResponse(objectToXml({ error: "Failed to generate campaign data" }, 'error'), {
           status: 500,
           headers: { 'Content-Type': 'application/xml' }
         })
       : NextResponse.json(
-          { error: "Failed to export campaign data" },
+          { error: "Failed to generate campaign data" },
           { status: 500 }
         );
   }
 }
+
