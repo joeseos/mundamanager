@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { WeaponProps, WargearItem } from '@/types/fighter';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -922,10 +923,17 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           `)
           .in('fighter_pet_id', fighterIds),
 
-        // Batch fetch effects that target equipment (for effect_names on weapons)
+        // Batch fetch effects that target equipment (with modifiers for weapon profile modifications)
         supabase
           .from('fighter_effects')
-          .select('target_equipment_id, effect_name')
+          .select(`
+            id,
+            fighter_effect_type_id,
+            effect_name,
+            type_specific_data,
+            target_equipment_id,
+            fighter_effect_modifiers ( stat_name, numeric_value, operation )
+          `)
           .in('fighter_id', fighterIds)
           .not('target_equipment_id', 'is', null)
       ]);
@@ -1093,14 +1101,19 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         });
       });
 
-      // Create equipment targeting effects map (equipmentId -> effect_names[])
-      const equipmentTargetingEffectsMap = new Map<string, string[]>();
+      // Create equipment targeting effects map (equipmentId -> effects with modifiers)
+      const equipmentTargetingEffectsMap = new Map<string, any[]>();
+      const equipmentTargetingEffectNamesMap = new Map<string, string[]>();
       (allEquipmentTargetingEffects.data || []).forEach((effect: any) => {
         if (!equipmentTargetingEffectsMap.has(effect.target_equipment_id)) {
           equipmentTargetingEffectsMap.set(effect.target_equipment_id, []);
+          equipmentTargetingEffectNamesMap.set(effect.target_equipment_id, []);
         }
-        if (effect.effect_name && !equipmentTargetingEffectsMap.get(effect.target_equipment_id)!.includes(effect.effect_name)) {
-          equipmentTargetingEffectsMap.get(effect.target_equipment_id)!.push(effect.effect_name);
+        equipmentTargetingEffectsMap.get(effect.target_equipment_id)!.push(effect);
+        // Collect unique effect names
+        const existingNames = equipmentTargetingEffectNamesMap.get(effect.target_equipment_id)!;
+        if (effect.effect_name && !existingNames.includes(effect.effect_name)) {
+          existingNames.push(effect.effect_name);
         }
       });
 
@@ -1254,8 +1267,16 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             }
           }
 
+          // Apply equipment-targeted effect modifiers to weapon profiles
+          if (weaponProfiles.length > 0) {
+            const targetingEffects = equipmentTargetingEffectsMap.get(item.id) || [];
+            if (targetingEffects.length > 0) {
+              weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
+            }
+          }
+
           // Get effect names that target this equipment
-          const effect_names = equipmentTargetingEffectsMap.get(item.id) || [];
+          const effect_names = equipmentTargetingEffectNamesMap.get(item.id) || [];
 
           return {
             fighter_equipment_id: item.id,
@@ -1422,7 +1443,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             cost: item.purchase_cost || 0,
             weapon_profiles: item.weapon_profiles || [],
             is_master_crafted: item.is_master_crafted || false,
-            equipment_category: item.equipment_category || undefined
+            equipment_category: item.equipment_category || undefined,
+            effect_names: item.effect_names
           }));
 
         const wargear: WargearItem[] = processedEquipment
