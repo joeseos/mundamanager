@@ -13,7 +13,7 @@ interface RateLimitEntry {
   resetTime: number;
 }
 
-const exportRateLimitMap = new Map<string, RateLimitEntry>();
+const dataRateLimitMap = new Map<string, RateLimitEntry>();
 
 /**
  * Extract client IP from Vercel request headers
@@ -40,7 +40,7 @@ function getClientIP(request: Request): string {
  * @param ip - Client IP address
  * @returns Rate limit status with details for response headers
  */
-function checkExportRateLimit(ip: string): {
+function checkDataRateLimit(ip: string): {
   allowed: boolean;
   remaining: number;
   reset: number;
@@ -50,21 +50,21 @@ function checkExportRateLimit(ip: string): {
   const windowMs = 60 * 1000; // 1 minute window
   const maxRequests = 10;
 
-  const entry = exportRateLimitMap.get(ip);
+  const entry = dataRateLimitMap.get(ip);
 
   // Create new window if doesn't exist or expired
   if (!entry || now > entry.resetTime) {
-    exportRateLimitMap.set(ip, {
+    dataRateLimitMap.set(ip, {
       count: 1,
       resetTime: now + windowMs
     });
 
     // Cleanup expired entries (memory leak prevention)
     const expirationThreshold = now - windowMs;
-    const entries = Array.from(exportRateLimitMap.entries());
+    const entries = Array.from(dataRateLimitMap.entries());
     for (const [key, value] of entries) {
       if (value.resetTime < expirationThreshold) {
-        exportRateLimitMap.delete(key);
+        dataRateLimitMap.delete(key);
       }
     }
 
@@ -152,16 +152,16 @@ function objectToXml(obj: any, rootName: string = 'root'): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
 }
 
-// TypeScript interfaces for export data structures
+// TypeScript interfaces for data structures
 
-interface ExportGangReference {
+interface DataGangReference {
   id: string;
   name: string;
   type: string;
   colour: string;
 }
 
-interface ExportTerritory {
+interface DataTerritory {
   id: string;
   template_id: string | null;
   name: string;
@@ -170,10 +170,10 @@ interface ExportTerritory {
   ruined: boolean;
   default_gang_territory: boolean;
   is_custom: boolean;
-  owning_gangs: ExportGangReference[];
+  owning_gangs: DataGangReference[];
 }
 
-interface ExportGang {
+interface DataGang {
   id: string;
   name: string;
   type: string;
@@ -189,10 +189,10 @@ interface ExportGang {
   sustenance: number | null;
   salvage: number | null;
   territory_count: number;
-  territories: ExportTerritory[];
+  territories: DataTerritory[];
 }
 
-interface ExportBattle {
+interface DataBattle {
   id: string;
   created_at: string;
   updated_at: string;
@@ -209,13 +209,13 @@ interface ExportBattle {
   winner?: { id: string; name: string };
 }
 
-// Transformation functions to clean up export field names
+// Transformation functions to clean up data field names
 
 /**
- * Transform gang data for export - maps directly from data structure
+ * Transform gang data for data endpoint - maps directly from data structure
  * Data layer provides clean id/name, database names for gang_type/gang_colour
  */
-function transformGangForExport(gang: any): ExportGang {
+function transformGangForData(gang: any): DataGang {
   return {
     id: gang.id, // Gang UUID
     name: gang.name,
@@ -232,17 +232,17 @@ function transformGangForExport(gang: any): ExportGang {
     sustenance: gang.sustenance,
     salvage: gang.salvage,
     territory_count: gang.territory_count,
-    territories: (gang.territories ?? []).map((t: any) => transformTerritoryForExport(t, true))
+    territories: (gang.territories ?? []).map((t: any) => transformTerritoryForData(t, true))
   };
 }
 
 /**
- * Transform territory data for export - maps directly from data structure
+ * Transform territory data for data endpoint - maps directly from data structure
  * @param territory - Territory data from database
  * @param isNested - If true, omits gang_id (when nested under gang)
  */
-function transformTerritoryForExport(territory: any, isNested: boolean = false): ExportTerritory {
-  const result: ExportTerritory = {
+function transformTerritoryForData(territory: any, isNested: boolean = false): DataTerritory {
+  const result: DataTerritory = {
     id: territory.id, // Unique campaign_territory ID
     template_id: territory.territory_id || territory.custom_territory_id,
     name: territory.territory_name,
@@ -267,11 +267,11 @@ function transformTerritoryForExport(territory: any, isNested: boolean = false):
 }
 
 /**
- * Transform battle data for export - now just maps directly from clean structure
+ * Transform battle data for data endpoint - now just maps directly from clean structure
  * Data layer already provides clean field names (no more gang_ prefixes)
  */
-function transformBattleForExport(battle: any): ExportBattle {
-  const transformed: ExportBattle = {
+function transformBattleForData(battle: any): DataBattle {
+  const transformed: DataBattle = {
     id: battle.id,
     created_at: battle.created_at,
     updated_at: battle.updated_at,
@@ -335,7 +335,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     const clientIP = getClientIP(request);
 
     // Apply rate limiting (10 requests per minute per IP)
-    const rateLimitResult = checkExportRateLimit(clientIP);
+    const rateLimitResult = checkDataRateLimit(clientIP);
 
     if (!rateLimitResult.allowed) {
       const resetSeconds = Math.ceil((rateLimitResult.reset - Date.now()) / 1000);
@@ -406,7 +406,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
           territory => territory.gang_id === gang.id
         );
 
-        return transformGangForExport({
+        return transformGangForData({
           ...gang,
           territories: gangTerritories
         });
@@ -425,8 +425,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       };
     });
 
-    // Build the export structure
-    const exportData = {
+    // Build the data structure
+    const campaignData = {
       campaign: {
         id: campaignBasic.id,
         campaign_name: campaignBasic.campaign_name,
@@ -447,13 +447,13 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         has_salvage: campaignBasic.has_salvage
       },
       members: membersWithTerritories,
-      available_territories: campaignTerritories.map(t => transformTerritoryForExport(t, false)),
-      battle_logs: campaignBattles.map(transformBattleForExport)
+      available_territories: campaignTerritories.map(t => transformTerritoryForData(t, false)),
+      battle_logs: campaignBattles.map(transformBattleForData)
     };
 
     // Return based on requested format
     if (format === 'xml') {
-      const xmlContent = objectToXml(exportData, 'campaign_data');
+      const xmlContent = objectToXml(campaignData, 'campaign_data');
       return new NextResponse(xmlContent, {
         status: 200,
         headers: {
@@ -464,7 +464,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       });
     }
 
-    return NextResponse.json(exportData, { headers: rateLimitHeaders });
+    return NextResponse.json(campaignData, { headers: rateLimitHeaders });
   } catch (error) {
     console.error('Error generating campaign data:', error);
     return format === 'xml'
