@@ -45,7 +45,9 @@ export async function middleware(request: NextRequest) {
     '/sign-up', 
     '/auth/callback', 
     '/reset-password',
-    '/reset-password/update'
+    '/reset-password/update',
+    '/user-guide',
+    '/about'
   ];
 
   // Check for password reset flow
