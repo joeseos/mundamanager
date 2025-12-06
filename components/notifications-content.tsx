@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { CircleAlert, Info, TriangleAlert, UserPlus, Check, X } from 'lucide-react';
+import { LuOctagonX, LuUserPlus, LuTriangleAlert } from "react-icons/lu";
+import { LuCheck } from "react-icons/lu";
+import { ImInfo } from "react-icons/im";
+import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
 import { useFetchNotifications } from '../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
@@ -110,15 +113,15 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request') => {
     switch (type) {
       case 'error':
-        return <CircleAlert className="h-5 w-5 text-red-500" />;
+        return <LuOctagonX className="h-5 w-5 text-red-500" />;
       case 'warning':
-        return <TriangleAlert className="h-5 w-5 text-amber-500" />;
+        return <LuTriangleAlert className="h-5 w-5 text-amber-500" />;
       case 'invite':
-        return <UserPlus className="h-5 w-5 text-indigo-500" />;
+        return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
       case 'friend_request':
-        return <UserPlus className="h-5 w-5 text-green-500" />;
+        return <LuUserPlus className="h-5 w-5 text-green-500" />;
       default:
-        return <Info className="h-5 w-5 text-blue-500" />;
+        return <ImInfo className="h-5 w-5 text-blue-500" />;
     }
   };
 
@@ -127,7 +130,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       <div>
         {notifications.length === 0 ? (
           <div className="p-6 text-center text-muted-foreground border border-dashed rounded-lg">
-            <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+            <ImInfo className="h-8 w-8 mx-auto mb-2 text-gray-400" />
             <p>No notifications yet</p>
             <p className="text-sm mt-1">When you receive notifications, they will appear here</p>
           </div>
@@ -178,7 +181,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                         size="sm"
                         className="flex items-center gap-1"
                       >
-                        <X className="h-3 w-3" />
+                        <HiX className="h-3 w-3" />
                         {processingRequest === notification.id ? 'Declining...' : 'Decline'}
                       </Button>
                       <Button
@@ -191,7 +194,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                         size="sm"
                         className="flex items-center gap-1"
                       >
-                        <Check className="h-3 w-3" />
+                        <LuCheck className="h-3 w-3" />
                         {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
                       </Button>
                     </div>

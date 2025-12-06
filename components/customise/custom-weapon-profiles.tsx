@@ -4,7 +4,7 @@ import React, { useState, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ImInfo } from "react-icons/im";
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { LuChevronUp, LuChevronDown } from "react-icons/lu";
 
 export interface CustomWeaponProfile {
   id?: string;
@@ -54,7 +54,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
             disabled={isFirst}
             title="Move up"
           >
-            <ChevronUp className="h-4 w-4" />
+            <LuChevronUp className="h-4 w-4" />
           </Button>
           <Button
             type="button"
@@ -64,7 +64,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
             disabled={isLast}
             title="Move down"
           >
-            <ChevronDown className="h-4 w-4" />
+            <LuChevronDown className="h-4 w-4" />
           </Button>
           <Button
             type="button"

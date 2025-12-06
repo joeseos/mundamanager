@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
-import { X } from "lucide-react";
+import { HiX } from "react-icons/hi";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 
 interface AdminEditVehicleTypeModalProps {
@@ -201,7 +201,7 @@ const GangOriginEquipmentModal: React.FC<GangOriginEquipmentModalProps> = ({
                       onClick={() => setEquipmentSelections(equipmentSelections.filter((_, i) => i !== index))}
                       className="hover:text-red-500 focus:outline-none"
                     >
-                      <X className="h-4 w-4" />
+                      <HiX className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -401,7 +401,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
                       onClick={() => setEquipmentSelections(equipmentSelections.filter((_, i) => i !== index))}
                       className="hover:text-red-500 focus:outline-none"
                     >
-                      <X className="h-4 w-4" />
+                      <HiX className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -982,7 +982,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                           onClick={() => setEquipmentListSelections(equipmentListSelections.filter((_, i) => i !== index))}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     );
@@ -1030,7 +1030,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                           )}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
@@ -1078,7 +1078,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                           )}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     ))}

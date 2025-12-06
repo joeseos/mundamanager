@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useToast } from "@/components/ui/use-toast";
-import { Edit } from "lucide-react";
+import { LuSquarePen } from "react-icons/lu";
 import { LuTrash2 } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
 import { GiAncientRuins } from "react-icons/gi";
@@ -591,7 +591,7 @@ export default function CampaignTerritoryList({
                           className="h-8 w-8 p-0"
                           aria-label="Edit territory"
                         >
-                          <Edit className="h-4 w-4" />
+                          <LuSquarePen className="h-4 w-4" />
                         </Button>
                       )}
                       {permissions.canDeleteTerritories && (

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, X } from "lucide-react";
+import { LuPlus } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -836,7 +837,7 @@ const CampaignBattleLogModal = ({
                         className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-muted"
                         disabled={isLoadingBattleData}
                       >
-                        <X className="h-4 w-4" />
+                        <HiX className="h-4 w-4" />
                       </button>
                     )}
                   </div>
@@ -896,7 +897,7 @@ const CampaignBattleLogModal = ({
               onClick={addGang} 
               disabled={isLoadingBattleData}
             >
-              <Plus className="h-4 w-4" />
+              <LuPlus className="h-4 w-4" />
               Add Gang
             </Button>
           </div>

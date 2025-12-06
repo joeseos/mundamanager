@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
+import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
 interface AdminCreateEquipmentModalProps {
@@ -417,7 +417,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           )}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
@@ -551,7 +551,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           )}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     ))}

@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X, Plus, Trash2 } from "lucide-react";
+import { LuTrash2, LuPlus } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
 
 type LineageType = 'legacy' | 'affiliation';
@@ -574,7 +575,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     onClick={() => removeFighterTypeAccess(fighterTypeId)}
                     className="hover:text-red-500 focus:outline-none"
                   >
-                    <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                   </button>
                 </div>
               );
@@ -659,7 +660,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   className="mr-2"
                   disabled={isLoading}
                 >
-                  <Plus className="h-4 w-4 mr-1" />
+                  <LuPlus className="h-4 w-4 mr-1" />
                   Create New
                 </Button>
               </div>
@@ -680,7 +681,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     className="text-red-600 hover:text-red-800"
                     disabled={isLoading}
                   >
-                    <Trash2 className="h-4 w-4 mr-1" />
+                    <LuTrash2 className="h-4 w-4 mr-1" />
                     Delete
                   </Button>
                 </div>
@@ -825,7 +826,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                                 className="hover:text-red-500 focus:outline-none"
                                 disabled={isLoading}
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </button>
                             </div>
                           );

@@ -7,7 +7,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { X, Edit, Eye } from 'lucide-react';
+import { LuEye } from "react-icons/lu";
+import { LuSquarePen } from 'react-icons/lu';
+import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
@@ -388,7 +390,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const actions: ListAction[] = readOnly ? [
     {
-      icon: <Eye className="h-4 w-4" />,
+      icon: <LuEye className="h-4 w-4" />,
       onClick: (item: CustomFighterType) => handleView(item),
       variant: 'outline',
       size: 'sm',
@@ -410,7 +412,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       className: 'text-xs px-1.5 h-6'
     },
     {
-      icon: <Edit className="h-4 w-4" />,
+      icon: <LuSquarePen className="h-4 w-4" />,
       onClick: (item: CustomFighterType) => handleEdit(item),
       variant: 'outline',
       size: 'sm',
@@ -1083,7 +1085,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                       onClick={() => handleRemoveSpecialRule(rule)}
                       className="ml-2 text-gray-500 hover:text-muted-foreground focus:outline-none"
                     >
-                      <X size={14} />
+                      <HiX size={14} />
                     </button>
                   </div>
                 ))}
@@ -1243,7 +1245,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                           onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
                           className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     );
@@ -1311,7 +1313,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
                           className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     );
@@ -1484,7 +1486,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                       onClick={() => handleRemoveSpecialRule(rule)}
                       className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
                     >
-                      <X size={14} />
+                      <HiX size={14} />
                     </button>
                   </div>
                 ))}
@@ -1644,7 +1646,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                           onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
                           className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
-                          <X size={14} />
+                          <HiX size={14} />
                         </button>
                       </div>
                     );
@@ -1712,7 +1714,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
                           className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
                         >
-                          <X size={14} />
+                          <HiX size={14} />
                         </button>
                       </div>
                     );

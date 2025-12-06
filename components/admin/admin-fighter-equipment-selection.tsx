@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { X, Plus } from "lucide-react";
+import { LuPlus, LuTrash2 } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import { Equipment } from '@/types/equipment';
 import { Button } from "@/components/ui/button";
-import { LuTrash2 } from "react-icons/lu";
 
 interface EquipmentWithId extends Equipment {
   id: string;
@@ -147,7 +147,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
           className="hover:bg-muted p-1 rounded self-end"
           disabled={disabled}
         >
-          <X className="h-4 w-4" />
+                              <HiX className="h-4 w-4" />
         </button>
       </div>
     </div>
@@ -215,7 +215,7 @@ export function AdminFighterEquipmentSelection({
             variant="outline"
             className="whitespace-nowrap"
           >
-            <Plus className="h-4 w-4 mr-1" /> Add Category
+            <LuPlus className="h-4 w-4 mr-1" /> Add Category
           </Button>
         </div>
       </div>
@@ -362,7 +362,7 @@ export function AdminFighterEquipmentSelection({
                               className="ml-auto hover:bg-muted p-1 rounded"
                               disabled={disabled}
                             >
-                              <X className="h-4 w-4" />
+                              <HiX className="h-4 w-4" />
                             </button>
                           </div>
                         );
@@ -550,7 +550,7 @@ export function AdminFighterEquipmentSelection({
                                     className="hover:bg-muted p-1 rounded self-end"
                             disabled={disabled}
                                   >
-                                    <X className="h-4 w-4" />
+                                    <HiX className="h-4 w-4" />
                                   </button>
                                 </div>
                               </div>
@@ -626,7 +626,7 @@ export function AdminFighterEquipmentSelection({
                                     className="hover:bg-muted p-1 rounded self-end"
                                     disabled={disabled}
                                   >
-                                    <X className="h-4 w-4" />
+                                    <HiX className="h-4 w-4" />
                                   </button>
                                 </div>
                               </div>

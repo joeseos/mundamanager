@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
-import { X } from "lucide-react";
+import { HiX } from "react-icons/hi";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 
 interface AdminCreateVehicleTypeModalProps {
@@ -730,7 +730,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                         onClick={() => setEquipmentListSelections(equipmentListSelections.filter((_, i) => i !== index))}
                         className="hover:text-red-500 focus:outline-none"
                       >
-                        <X className="h-4 w-4" />
+                        <HiX className="h-4 w-4" />
                       </button>
                     </div>
                   );
@@ -775,7 +775,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                         )}
                         className="hover:text-red-500 focus:outline-none"
                       >
-                        <X className="h-4 w-4" />
+                        <HiX className="h-4 w-4" />
                       </button>
                     </div>
                   ))}
@@ -822,7 +822,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                         )}
                         className="hover:text-red-500 focus:outline-none"
                       >
-                        <X className="h-4 w-4" />
+                        <HiX className="h-4 w-4" />
                       </button>
                     </div>
                   ))}

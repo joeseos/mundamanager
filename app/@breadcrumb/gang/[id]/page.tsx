@@ -1,4 +1,4 @@
-import { Home } from 'lucide-react'
+import { LuHouse } from "react-icons/lu";
 import { createClient } from "@/utils/supabase/server"
 import {
   Breadcrumb,
@@ -42,7 +42,7 @@ export default async function GangBreadcrumb({
                   aria-label="Home"
                 >
                   <span aria-hidden="true">
-                    <Home className="h-4 w-4" />
+                    <LuHouse className="h-4 w-4" />
                   </span>
                 </Link>
               </BreadcrumbLink>

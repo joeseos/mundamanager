@@ -6,8 +6,7 @@ import { CustomTerritory } from '@/app/lib/customise/custom-territories';
 import { updateCustomTerritory, deleteCustomTerritory, createCustomTerritory } from '@/app/actions/customise/custom-territories';
 import Modal from '@/components/ui/modal';
 import { useToast } from '@/components/ui/use-toast';
-import { Edit, Eye } from 'lucide-react';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 
 interface CustomiseTerritoriesProps {
@@ -103,7 +102,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
   // Define actions for each territory item
   const actions: ListAction[] = readOnly ? [
     {
-      icon: <Eye className="h-4 w-4" />,
+      icon: <LuEye className="h-4 w-4" />,
       onClick: (item: CustomTerritory) => handleViewTerritory(item),
       variant: 'outline',
       size: 'sm',
@@ -118,7 +117,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
     }
   ] : [
     {
-      icon: <Edit className="h-4 w-4" />,
+      icon: <LuSquarePen className="h-4 w-4" />,
       onClick: (item: CustomTerritory) => handleEditTerritory(item),
       variant: 'outline',
       size: 'sm',

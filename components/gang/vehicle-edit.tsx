@@ -4,7 +4,9 @@ import { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { X, Plus, Minus } from "lucide-react";
+import { LuPlus } from "react-icons/lu";
+import { LuMinus } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
 
 type CombinedVehicleProps = VehicleProps & {
@@ -302,7 +304,7 @@ function VehicleCharacteristicModal({
                     onClick={() => handleDecrease(stat.key)}
                     disabled={isSaving}
                   >
-                    <Minus className="h-4 w-4" />
+                    <LuMinus className="h-4 w-4" />
                   </Button>
                   <div className="flex flex-col items-center">
                     <span className="text-sm md:text-xl font-bold">
@@ -319,7 +321,7 @@ function VehicleCharacteristicModal({
                     onClick={() => handleIncrease(stat.key)}
                     disabled={isSaving}
                   >
-                    <Plus className="h-4 w-4" />
+                    <LuPlus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -481,7 +483,7 @@ export default function VehicleEdit({
                     onClick={() => handleRemoveSpecialRule(rule)}
                     className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
                   >
-                    <X size={14} />
+                    <HiX size={14} />
                   </button>
                 </div>
               ))}

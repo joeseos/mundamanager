@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { LuChartColumn } from "react-icons/lu";
 
 interface Stats {
   userCount: number;
@@ -44,7 +44,7 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
       <div className="bg-card rounded-lg shadow-xl w-full max-w-2xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div className="flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5 text-muted-foreground" />
+            <LuChartColumn className="h-5 w-5 text-muted-foreground" />
             <h3 className="text-xl md:text-2xl font-bold text-foreground">Statistics</h3>
           </div>
           <button

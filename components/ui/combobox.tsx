@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { LuCheck, LuChevronsUpDown } from "react-icons/lu";
 import { cn } from "@/app/lib/utils"
 
 /**
@@ -207,7 +207,7 @@ export function Combobox({
           onClick={() => setOpen(!open)}
           disabled={disabled}
         >
-          <ChevronsUpDown className="h-4 w-4 opacity-50" />
+          <LuChevronsUpDown className="h-4 w-4 opacity-50" />
         </button>
       </div>
 
@@ -239,7 +239,7 @@ export function Combobox({
                 >
                   <span className="flex items-center gap-1">{option.label}</span>
                   {value === option.value && !option.disabled && (
-                    <Check className="h-4 w-4" />
+                    <LuCheck className="h-4 w-4" />
                   )}
                 </button>
               ))}

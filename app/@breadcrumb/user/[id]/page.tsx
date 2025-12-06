@@ -1,4 +1,4 @@
-import { Home, User } from 'lucide-react'
+import { LuHouse } from "react-icons/lu";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -38,7 +38,7 @@ export default async function UserBreadcrumb({ params }: UserBreadcrumbProps) {
           <BreadcrumbList aria-label="Breadcrumb navigation">
             <BreadcrumbItem>
               <BreadcrumbLink href="/" className="flex items-center gap-1">
-                <Home className="h-4 w-4" />
+                <LuHouse className="h-4 w-4" />
                 <span className="sr-only">Home</span>
               </BreadcrumbLink>
             </BreadcrumbItem>
