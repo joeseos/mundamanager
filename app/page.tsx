@@ -16,6 +16,7 @@ import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -94,11 +95,11 @@ export default async function Home() {
             </p>
             <div>
               <div className="flex gap-1 justify-center">
-                <a href="https://tinyurl.com/how-to-use-mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
+                <Link href="/user-guide" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
                   <GrHelpBook className="mr-1 size-4" />
                   <span className="sm:hidden">Guide</span>
                   <span className="hidden sm:inline">User Guide</span>
-                </a>
+                </Link>
                 <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
                   <FaDiscord className="mr-1 size-4" />
                   Discord
