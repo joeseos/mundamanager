@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X, Plus, Minus } from "lucide-react";
+import { LuPlus } from "react-icons/lu";
+import { LuMinus } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import { FighterType } from "@/types/fighter";
 import { GangType, Equipment } from "@/types/gang";
 import { skillSetRank } from "@/utils/skillSetRank";
@@ -745,7 +747,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
                         className="hover:text-red-500 focus:outline-none"
                       >
-                        <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                       </button>
                     </div>
                   );
@@ -838,7 +840,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                           onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     );
@@ -949,7 +951,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                               onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
                               className="hover:text-red-500 focus:outline-none"
                             >
-                              <X className="h-4 w-4" />
+                              <HiX className="h-4 w-4" />
                             </button>
                           </div>
                         </div>
@@ -992,7 +994,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                           )}
                           className="hover:text-red-500 focus:outline-none"
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     );

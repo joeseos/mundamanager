@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
-import { X } from "lucide-react";
+import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
@@ -759,7 +759,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 )}
                                 className="hover:text-red-500 focus:outline-none"
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </button>
                             </div>
                           ))}
@@ -880,7 +880,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="hover:text-red-500 focus:outline-none"
                                 disabled={!selectedEquipmentId}
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </button>
                             </div>
                           ))}
@@ -991,7 +991,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 )}
                                 className="hover:text-red-500 focus:outline-none"
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </button>
                             </div>
                           ))}
@@ -1129,7 +1129,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 className="hover:text-red-500 focus:outline-none"
                                 disabled={!selectedEquipmentId}
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </button>
                             </div>
                           ))}
@@ -1291,7 +1291,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                             className="hover:text-red-500 focus:outline-none"
                             disabled={!selectedEquipmentId}
                           >
-                            <X className="h-4 w-4" />
+                            <HiX className="h-4 w-4" />
                           </button>
                         </div>
                       );

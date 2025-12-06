@@ -6,7 +6,8 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "r
 import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
-import { HiChevronLeft, HiChevronRight, HiX } from "react-icons/hi";
+import { HiX } from "react-icons/hi";
+import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import Modal from "@/components/ui/modal";
 import { LuTrash2, LuSquarePen } from "react-icons/lu";
@@ -957,7 +958,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             size="sm"
             className="flex items-center gap-1"
           >
-            <HiChevronLeft className="h-4 w-4" />
+            <LuChevronLeft className="h-4 w-4" />
             Previous
           </Button>
           <span className="text-sm">
@@ -971,7 +972,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             className="flex items-center gap-1"
           >
             Next
-            <HiChevronRight className="h-4 w-4" />
+            <LuChevronRight className="h-4 w-4" />
           </Button>
         </div>
       )}

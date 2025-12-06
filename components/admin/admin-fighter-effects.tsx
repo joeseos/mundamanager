@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { X, Info } from "lucide-react";
+import { ImInfo } from "react-icons/im";
+import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from 'react-tooltip';
@@ -628,7 +629,7 @@ export function AdminFighterEffects({
                                 className="h-7 w-7 p-0"
                                 disabled={isLoading}
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </Button>
                             </div>
                           );
@@ -825,7 +826,7 @@ export function AdminFighterEffects({
             <div>
               <label className="block text-sm font-medium mb-1 flex items-center gap-1">
                 Operation *
-                <Info
+                <ImInfo
                   className="h-4 w-4 text-muted-foreground cursor-help"
                   data-tooltip-id="operation-tooltip"
                 />

@@ -7,7 +7,7 @@ import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import Modal from '@/components/ui/modal'
 import { deleteFriend } from '@/app/actions/friends'
-import { X } from 'lucide-react'
+import { HiX } from "react-icons/hi";
 import { useTransition, useOptimistic } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -217,7 +217,7 @@ export default function FriendsSearchBar({
                   onClick={() => setFriendToDelete(friend)}
                   aria-label={`Remove ${friend.username}`}
                 >
-                  <X size={14} />
+                  <HiX size={14} />
                 </button>
               </Badge>
             ))}
@@ -252,7 +252,7 @@ export default function FriendsSearchBar({
                   onClick={() => setFriendToDelete(friend)}
                   aria-label={`Abort friend request to ${friend.username}`}
                 >
-                  <X size={14} />
+                  <HiX size={14} />
                 </button>
               </Badge>
             ))}

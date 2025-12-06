@@ -12,22 +12,22 @@ import Blockquote from '@tiptap/extension-blockquote';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Button } from '@/components/ui/button';
 import {
-  Italic, 
-  Underline as UnderlineIcon, 
-  Link as LinkIcon, 
-  AlignLeft, 
-  AlignCenter, 
-  AlignRight, 
-  AlignJustify,
-  Heading1, 
-  Heading2, 
-  Heading3,
-  Palette,
-  Unlink,
-  List,
-  ListOrdered,
-  Strikethrough
-} from 'lucide-react';
+  LuItalic, 
+  LuUnderline, 
+  LuLink, 
+  LuAlignLeft, 
+  LuAlignCenter, 
+  LuAlignRight, 
+  LuAlignJustify,
+  LuHeading1, 
+  LuHeading2, 
+  LuHeading3,
+  LuPalette,
+  LuUnlink,
+  LuList,
+  LuListOrdered,
+  LuStrikethrough
+} from "react-icons/lu";
 import { BiSolidQuoteRight } from "react-icons/bi";
 import { HiMiniBold } from "react-icons/hi2";
 import { useState, useEffect, useRef } from 'react';
@@ -287,7 +287,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('italic')}
           title="Italic"
         >
-          <Italic className="h-4 w-4" />
+          <LuItalic className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -295,7 +295,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('underline')}
           title="Underline"
         >
-          <UnderlineIcon className="h-4 w-4" />
+          <LuUnderline className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -303,7 +303,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('strike')}
           title="Strikethrough"
         >
-          <Strikethrough className="h-4 w-4" />
+          <LuStrikethrough className="h-4 w-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
@@ -314,7 +314,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('heading', { level: 1 })}
           title="Heading 1"
         >
-          <Heading1 className="h-4 w-4" />
+          <LuHeading1 className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -322,7 +322,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('heading', { level: 2 })}
           title="Heading 2"
         >
-          <Heading2 className="h-4 w-4" />
+          <LuHeading2 className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -330,7 +330,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('heading', { level: 3 })}
           title="Heading 3"
         >
-          <Heading3 className="h-4 w-4" />
+          <LuHeading3 className="h-4 w-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
@@ -341,7 +341,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('bulletList')}
           title="Bullet List"
         >
-          <List className="h-4 w-4" />
+          <LuList className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -349,7 +349,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive('orderedList')}
           title="Numbered List"
         >
-          <ListOrdered className="h-4 w-4" />
+          <LuListOrdered className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -368,7 +368,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive({ textAlign: 'left' })}
           title="Align Left"
         >
-          <AlignLeft className="h-4 w-4" />
+          <LuAlignLeft className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -376,7 +376,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive({ textAlign: 'center' })}
           title="Align Center"
         >
-          <AlignCenter className="h-4 w-4" />
+          <LuAlignCenter className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -384,7 +384,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive({ textAlign: 'right' })}
           title="Align Right"
         >
-          <AlignRight className="h-4 w-4" />
+          <LuAlignRight className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
@@ -392,7 +392,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           isActive={editor.isActive({ textAlign: 'justify' })}
           title="Justify"
         >
-          <AlignJustify className="h-4 w-4" />
+          <LuAlignJustify className="h-4 w-4" />
         </MenuButton>
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
@@ -403,7 +403,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
             onClick={() => setShowColorPicker(!showColorPicker)}
             title="Text Colour"
           >
-            <Palette className="h-4 w-4" />
+            <LuPalette className="h-4 w-4" />
           </MenuButton>
           
           {showColorPicker && (
@@ -441,14 +441,14 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
              onClick={removeLink}
              title="Remove Link"
            >
-             <Unlink className="h-4 w-4" />
+             <LuUnlink className="h-4 w-4" />
            </MenuButton>
          ) : (
            <MenuButton
              onClick={() => setShowLinkInput(!showLinkInput)}
              title="Add Link"
            >
-             <LinkIcon className="h-4 w-4" />
+             <LuLink className="h-4 w-4" />
            </MenuButton>
          )}
 

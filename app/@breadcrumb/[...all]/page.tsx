@@ -1,4 +1,4 @@
-import { Home } from 'lucide-react'
+import { LuHouse } from "react-icons/lu";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -23,7 +23,7 @@ export default function CatchAllBreadcrumb() {
                 aria-current="page"
               >
                 <span aria-hidden="true">
-                  <Home className="h-4 w-4" />
+                  <LuHouse className="h-4 w-4" />
                 </span>
               </BreadcrumbPage>
             </BreadcrumbItem>

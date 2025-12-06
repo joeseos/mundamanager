@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { X } from "lucide-react";
+import { HiX } from "react-icons/hi";
 import { LuTrash2 } from "react-icons/lu";
 import { FighterType } from "@/types/fighter";
 import { GangType } from "@/types/gang";
@@ -1906,7 +1906,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             className="hover:text-red-500 focus:outline-none"
                             disabled={!selectedFighterTypeId}
                           >
-                            <X className="h-4 w-4" />
+                            <HiX className="h-4 w-4" />
                           </button>
                         </div>
                       );
@@ -2053,7 +2053,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                           className="hover:text-red-500 focus:outline-none"
                           disabled={!selectedFighterTypeId}
                         >
-                          <X className="h-4 w-4" />
+                          <HiX className="h-4 w-4" />
                         </button>
                       </div>
                     );
@@ -2138,7 +2138,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                                 onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
                                 className="hover:text-red-500 focus:outline-none"
                               >
-                                <X className="h-4 w-4" />
+                                <HiX className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
@@ -2186,7 +2186,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             )}
                             className="hover:text-red-500 focus:outline-none"
                           >
-                            <X className="h-4 w-4" />
+                            <HiX className="h-4 w-4" />
                           </button>
                         </div>
                       );
@@ -2342,7 +2342,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             }}
                             className="hover:text-red-500 focus:outline-none"
                           >
-                            <X className="h-4 w-4" />
+                            <HiX className="h-4 w-4" />
                           </button>
                         </div>
                       );

@@ -1,6 +1,8 @@
 'use client';
 
-import { Users, Edit, Sword, Car, BookOpen, BarChart3, Map } from "lucide-react";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser } from "react-icons/lu";
+import { LuChartColumn } from "react-icons/lu";
+import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
 import { AdminEditFighterTypeModal } from "@/components/admin/admin-edit-fighter-type";
@@ -33,61 +35,61 @@ export default function AdminPage() {
       title: "Add Fighter Type",
       description: "Add a new fighter type",
       action: () => setIsModalOpen(true),
-      icon: Users
+      icon: LuUsers
     },
     {
       title: "Edit Fighter Type",
       description: "Modify existing fighter types",
       action: () => setShowEditFighterType(true),
-      icon: Edit
+      icon: LuSquarePen
     },
     {
       title: "Add Equipment",
       description: "Add new equipment and weapons",
       action: () => setShowCreateEquipment(true),
-      icon: Sword
+      icon: LuSword
     },
     {
       title: "Edit Equipment",
       description: "Modify existing equipment",
       action: () => setShowEditEquipment(true),
-      icon: Edit
+      icon: LuSquarePen
     },
     {
       title: "Add Vehicle Type",
       description: "Add a new vehicle type",
       action: () => setShowAddVehicle(true),
-      icon: Car
+      icon: LuCar
     },
     {
       title: "Edit Vehicle Type",
       description: "Modify existing vehicle types",
       action: () => setShowEditVehicle(true),
-      icon: Edit
+      icon: LuSquarePen
     },
     {
       title: "Add Skill",
       description: "Add a new skill or skill set",
       action: () => setShowCreateSkill(true),
-      icon: BookOpen
+      icon: LuBookOpen
     },
     {
       title: "Edit Skill",
       description:"Edit a skill or skill set",
       action: () => setShowEditSkill(true),
-      icon: Edit
+      icon: LuSquarePen
     },
     {
       title: "Affiliations & Legacies",
       description: "Manage gang affiliation & legacies",
       action: () => setShowGangLineages(true),
-      icon: Users
+      icon: LuBookUser
     },
     {
       title: "Manage Scenarios",
       description: "Add, edit, or delete scenarios",
       action: () => setShowScenarios(true),
-      icon: Map
+      icon: LuScrollText
     }
   ];
 
@@ -95,7 +97,7 @@ export default function AdminPage() {
     title: "Statistics",
     description: "View database statistics",
     action: () => setShowStats(true),
-    icon: BarChart3
+    icon: LuChartColumn
   };
 
   return (

@@ -8,8 +8,7 @@ import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions
 import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
 import Modal from '@/components/ui/modal';
 import { useToast } from '@/components/ui/use-toast';
-import { Edit, Eye } from 'lucide-react';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { createClient } from '@/utils/supabase/client';
 
@@ -212,7 +211,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   // Define actions for each equipment item
   const actions: ListAction[] = readOnly ? [
     {
-      icon: <Eye className="h-4 w-4" />,
+      icon: <LuEye className="h-4 w-4" />,
       onClick: (item: CustomEquipment) => handleViewEquipment(item),
       variant: 'outline',
       size: 'sm',
@@ -227,7 +226,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     }
   ] : [
     {
-      icon: <Edit className="h-4 w-4" />,
+      icon: <LuSquarePen className="h-4 w-4" />,
       onClick: (item: CustomEquipment) => handleEditEquipment(item),
       variant: 'outline',
       size: 'sm',

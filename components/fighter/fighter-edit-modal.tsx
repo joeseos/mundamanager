@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
-import { Plus, Minus, X } from "lucide-react";
+import { LuPlus } from "react-icons/lu";
+import { LuMinus } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import { toast } from "@/components/ui/use-toast";
 import { fighterClassRank } from '@/utils/fighterClassRank';
 
@@ -420,7 +422,7 @@ function CharacterStatsModal({
                       onClick={() => handleDecrease(stat.key)}
                       disabled={isSaving}
                     >
-                      <Minus className="h-4 w-4" />
+                      <LuMinus className="h-4 w-4" />
                     </Button>
                     <div className="flex flex-col items-center">
                       {/* Display TOTAL value as the large, primary value */}
@@ -439,7 +441,7 @@ function CharacterStatsModal({
                       onClick={() => handleIncrease(stat.key)}
                       disabled={isSaving}
                     >
-                      <Plus className="h-4 w-4" />
+                      <LuPlus className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -1499,7 +1501,7 @@ export function EditFighterModal({
                       onClick={() => handleRemoveSpecialRule(rule)}
                       className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
                     >
-                      <X size={14} />
+                      <HiX size={14} />
                     </button>
                   </div>
                 ))}

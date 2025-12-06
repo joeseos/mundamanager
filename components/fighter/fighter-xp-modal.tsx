@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import Modal from "@/components/ui/modal";
-import { Plus, Minus } from "lucide-react";
+import { LuPlus, LuMinus } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
 import { useToast } from "@/components/ui/use-toast";
@@ -274,7 +274,7 @@ export function FighterXpModal({
                     className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
                     onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
                   >
-                    <Minus className="h-4 w-4" />
+                    <LuMinus className="h-4 w-4" />
                   </Button>
                   <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
                   <Button
@@ -283,7 +283,7 @@ export function FighterXpModal({
                     className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
                     onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
                   >
-                    <Plus className="h-4 w-4" />
+                    <LuPlus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

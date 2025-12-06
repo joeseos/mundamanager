@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile } from '@/types/equipment';
-import { ChevronRight, X } from "lucide-react";
+import { LuChevronRight } from "react-icons/lu";
+import { HiX } from "react-icons/hi";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
@@ -951,7 +952,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
               className="h-8 w-8 rounded-full absolute right-4 top-4"
               onClick={onClose}
             >
-              <X className="h-4 w-4" />
+              <HiX className="h-4 w-4" />
               <span className="sr-only">Close</span>
             </Button>
 
@@ -1113,7 +1114,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                       onClick={() => toggleCategory(category)}
                     >
                       <span>{category.category_name}</span>
-                      <ChevronRight
+                      <LuChevronRight
                         className={`h-4 w-4 transition-transform duration-200 ${
                           expandedCategories.has(category.category_name) ? "rotate-90" : ""
                         }`}

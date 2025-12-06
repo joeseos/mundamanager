@@ -12,7 +12,7 @@ import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
 import { sellVehicle } from '@/app/actions/sell-vehicle';
 import { UserPermissions } from '@/types/user-permissions';
-import { LuTrash2, LuSquarePen } from 'react-icons/lu';
+import { LuSquarePen } from 'react-icons/lu';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { unassignVehicle } from '@/app/actions/unassign-vehicle';
 import { HiUserRemove } from "react-icons/hi";

@@ -16,7 +16,8 @@ import { useFetchNotifications } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
 
 // Icons
-import { Settings, LogOut, User, Info, Menu } from 'lucide-react';
+import { LuSettings, LuLogOut, LuUser, LuMenu } from "react-icons/lu";
+import { ImInfo } from "react-icons/im";
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { FiMap } from "react-icons/fi";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -105,7 +106,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             className="hover:bg-neutral-800 hover:text-white data-[state=open]:bg-neutral-800 data-[state=open]:text-white rounded-full focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:ring-0 focus:ring-offset-0"
             aria-label="Open Settings Menu"
           >
-            <Menu className="h-5 w-5" />
+            <LuMenu className="h-5 w-5" />
           </Button>
         </DropdownMenuTrigger>
         
@@ -142,7 +143,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
             <Link href="/account" className="w-full cursor-pointer flex items-center">
-              <User className="mr-2 h-4 w-4" />
+              <LuUser className="mr-2 h-4 w-4" />
               Account
               {notificationCount > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
@@ -179,7 +180,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
             <Link href="/about" className="w-full cursor-pointer">
-              <Info className="mr-2 h-4 w-4" />
+              <ImInfo className="mr-2 h-4 w-4" />
               About
             </Link>
           </DropdownMenuItem>
@@ -209,7 +210,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild onClick={handleLinkClick}>
                 <Link href="/admin" className="w-full cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
+                  <LuSettings className="mr-2 h-4 w-4" />
                   Admin
                 </Link>
               </DropdownMenuItem>
@@ -222,7 +223,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             onClick={handleLogout}
             className="text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900 dark:hover:text-red-400"
           >
-            <LogOut className="mr-2 h-4 w-4" />
+            <LuLogOut className="mr-2 h-4 w-4" />
             Logout
           </DropdownMenuItem>
         </DropdownMenuContent>
