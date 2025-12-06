@@ -6,6 +6,7 @@ import { BarChart3 } from 'lucide-react';
 interface Stats {
   userCount: number;
   gangCount: number;
+  campaignCount: number;
 }
 
 interface AdminStatsModalProps {
@@ -60,7 +61,7 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
               <p className="text-muted-foreground">Loading stats...</p>
             </div>
           ) : stats ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-6 bg-muted/50 rounded-lg border">
                 <p className="text-sm text-muted-foreground mb-2">Total Users</p>
                 <p className="text-3xl font-bold">{stats.userCount.toLocaleString()}</p>
@@ -68,6 +69,10 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
               <div className="p-6 bg-muted/50 rounded-lg border">
                 <p className="text-sm text-muted-foreground mb-2">Total Gangs</p>
                 <p className="text-3xl font-bold">{stats.gangCount.toLocaleString()}</p>
+              </div>
+              <div className="p-6 bg-muted/50 rounded-lg border">
+                <p className="text-sm text-muted-foreground mb-2">Total Campaigns</p>
+                <p className="text-3xl font-bold">{stats.campaignCount.toLocaleString()}</p>
               </div>
             </div>
           ) : (

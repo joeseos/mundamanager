@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { invalidateUserCount } from '@/utils/cache-tags';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -91,6 +92,9 @@ export const signUpAction = async (formData: FormData) => {
         await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
         return { error: "Failed to create your account. Please try again." };
       }
+
+      // Invalidate user count cache when a new user is successfully created
+      invalidateUserCount();
     } catch (error) {
       console.error('Unexpected error during profile creation:', error);
       const serviceRoleClient = createServiceRoleClient();

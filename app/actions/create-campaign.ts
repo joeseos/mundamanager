@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { invalidateCampaignCount } from '@/utils/cache-tags';
 
 interface CreateCampaignParams {
   name: string;
@@ -49,6 +50,9 @@ export async function createCampaign({ name, campaignTypeId, trading_posts }: Cr
     if (memberError) {
       throw memberError;
     }
+
+    // Invalidate global campaign count
+    invalidateCampaignCount();
 
     return {
       success: true,

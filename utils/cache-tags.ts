@@ -116,6 +116,9 @@ export const CACHE_TAGS = {
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
   GLOBAL_SKILL_CATEGORIES: () => `global-skill-categories`,           // skill categories
   GLOBAL_PATREON_SUPPORTERS: () => `global-patreon-supporters`,       // patreon supporters list
+  GLOBAL_USER_COUNT: () => `global-user-count`,                       // total user count for homepage
+  GLOBAL_GANG_COUNT: () => `global-gang-count`,                       // total gang count for homepage
+  GLOBAL_CAMPAIGN_COUNT: () => `global-campaign-count`,               // total campaign count for homepage
   
   // Gang-specific reference data
   GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
@@ -490,4 +493,31 @@ export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) =>
  */
 export function invalidatePatreonSupporters() {
   revalidateTag(CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS());
+}
+
+/**
+ * User Count Invalidation Pattern
+ * Triggered when: New user registers or profile is created
+ * Data changed: Global user count for homepage display
+ */
+export function invalidateUserCount() {
+  revalidateTag(CACHE_TAGS.GLOBAL_USER_COUNT());
+}
+
+/**
+ * Gang Count Invalidation Pattern
+ * Triggered when: Gang is created or deleted
+ * Data changed: Global gang count for homepage display
+ */
+export function invalidateGangCount() {
+  revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT());
+}
+
+/**
+ * Campaign Count Invalidation Pattern
+ * Triggered when: Campaign is created or deleted
+ * Data changed: Global campaign count for homepage display
+ */
+export function invalidateCampaignCount() {
+  revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT());
 }

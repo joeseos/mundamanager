@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { CACHE_TAGS, invalidateCampaignCount } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface UpdateCampaignSettingsParams {
@@ -166,6 +166,9 @@ export async function deleteCampaign(campaignId: string) {
 
     // Invalidate user dashboard cache since user's campaign list changed
     // Note: We'd need the user ID to properly invalidate USER_CAMPAIGNS cache
+    
+    // Invalidate global campaign count
+    invalidateCampaignCount();
 
     return { success: true };
   } catch (error) {
