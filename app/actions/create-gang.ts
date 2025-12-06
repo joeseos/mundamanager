@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateGangCreation } from '@/utils/cache-tags';
+import { invalidateGangCreation, invalidateGangCount } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 interface CreateGangParams {
@@ -63,6 +63,9 @@ export async function createGang({
       gangId: data[0].id,
       userId: user.id
     });
+    
+    // Invalidate global gang count
+    invalidateGangCount();
     
     return { 
       success: true, 

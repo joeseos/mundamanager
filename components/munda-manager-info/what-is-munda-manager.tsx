@@ -4,7 +4,13 @@ import { FiMap } from "react-icons/fi";
 import { MdOutlineCurrencyExchange } from "react-icons/md";
 import Link from "next/link";
 
-export default function WhatIsMundaManager() {
+interface WhatIsMundaManagerProps {
+  userCount?: number;
+  gangCount?: number;
+  campaignCount?: number;
+}
+
+export default function WhatIsMundaManager({ userCount, gangCount, campaignCount }: WhatIsMundaManagerProps = {}) {
   const features = [
     {
       icon: <FaUsers className="h-6 w-6" />,
@@ -119,13 +125,39 @@ export default function WhatIsMundaManager() {
 
       <section className="bg-blue-50 p-4 rounded-lg">
         <h2 className="text-lg font-semibold mb-2 text-blue-900">Ready to Get Started?</h2>
-        <p className="text-blue-800">
+        <p className="text-blue-800 mb-3">
           <Link href="/sign-up" className="text-blue-900 font-semibold underline hover:text-blue-700">
             Sign up
           </Link>{" "}
-          now and start managing your gangs and campaigns. Thousands of Necromunda players 
-          have already discovered how Munda Manager can enhance their gaming experience!
+          now and start managing your gangs and campaigns.
         </p>
+        {(userCount !== undefined || gangCount !== undefined || campaignCount !== undefined) && (
+          <div className="text-blue-800 text-sm space-y-1">
+            {userCount !== undefined && (
+              <p>
+                <strong>{userCount.toLocaleString()}</strong> Necromunda players use Munda Manager
+              </p>
+            )}
+            {gangCount !== undefined && (
+              <p>
+                <strong>{gangCount.toLocaleString()}</strong> gangs created
+              </p>
+            )}
+            {campaignCount !== undefined && (
+              <p>
+                <strong>{campaignCount.toLocaleString()}</strong> campaigns launched
+              </p>
+            )}
+            <p className="mt-2">
+              Join them and discover how Munda Manager can make your games easier to run and track!
+            </p>
+          </div>
+        )}
+        {userCount === undefined && gangCount === undefined && campaignCount === undefined && (
+          <p className="text-blue-800">
+            Thousands of Necromunda players are already using Munda Manager to manage their gangs and campaigns!
+          </p>
+        )}
       </section>
     </div>
   );

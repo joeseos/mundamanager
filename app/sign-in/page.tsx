@@ -19,6 +19,9 @@ export default function SignIn() {
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [userCount, setUserCount] = useState<number | undefined>(undefined);
+  const [gangCount, setGangCount] = useState<number | undefined>(undefined);
+  const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const router = useRouter();
   const supabase = createClient();
   
@@ -40,6 +43,35 @@ export default function SignIn() {
     if (error) {
       setErrorMessage(error);
     }
+
+    // Fetch stats (non-blocking, cached)
+    async function fetchStats() {
+      try {
+        const [userResponse, gangResponse, campaignResponse] = await Promise.all([
+          fetch('/api/stats/user-count'),
+          fetch('/api/stats/gang-count'),
+          fetch('/api/stats/campaign-count')
+        ]);
+
+        if (userResponse.ok) {
+          const data = await userResponse.json();
+          setUserCount(data.count);
+        }
+        if (gangResponse.ok) {
+          const data = await gangResponse.json();
+          setGangCount(data.count);
+        }
+        if (campaignResponse.ok) {
+          const data = await campaignResponse.json();
+          setCampaignCount(data.count);
+        }
+      } catch (error) {
+        // Silently fail - we'll just show the generic message
+        console.error('Failed to fetch stats:', error);
+      }
+    }
+
+    fetchStats();
   }, [searchParams, router, supabase.auth]);
 
   // Create the appropriate message object based on searchParams
@@ -178,7 +210,7 @@ export default function SignIn() {
           {activeTab === 0 && (
             <div>
               <h1 className="text-xl font-semibold mb-4">What is Munda Manager? And what can you do with it?</h1>
-              <WhatIsMundaManager />
+              <WhatIsMundaManager userCount={userCount} gangCount={gangCount} campaignCount={campaignCount} />
             </div>
           )}
           

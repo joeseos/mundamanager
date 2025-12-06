@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { getUserCount } from '@/app/lib/get-stats-user';
+import { getGangCount } from '@/app/lib/get-stats-gang';
+import { getCampaignCount } from '@/app/lib/get-stats-campaign';
 
 export async function GET() {
   const supabase = await createClient();
@@ -11,23 +14,18 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user count from profiles table
-    const { count: userCount, error: userError } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-
-    if (userError) throw userError;
-
-    // Get gang count from gangs table
-    const { count: gangCount, error: gangError } = await supabase
-      .from('gangs')
-      .select('*', { count: 'exact', head: true });
-
-    if (gangError) throw gangError;
+    // Use cached count functions instead of direct database queries
+    // These are cached for 24 hours and automatically invalidated on create/delete
+    const [userCount, gangCount, campaignCount] = await Promise.all([
+      getUserCount(),
+      getGangCount(),
+      getCampaignCount()
+    ]);
 
     return NextResponse.json({
-      userCount: userCount || 0,
-      gangCount: gangCount || 0
+      userCount,
+      gangCount,
+      campaignCount
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
