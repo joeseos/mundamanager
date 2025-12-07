@@ -89,7 +89,7 @@ export default async function ContributorsPage() {
   const ongoingContributors: Contributor[] = [
     { name: "YukiTheSnowFox" },
     { name: "THESEUS" },
-    { name: "Professor Bleep Blop" },
+    { name: "Professor Bleep Bloop" },
     { name: "HiveScum Wonka" },
   ];
 
