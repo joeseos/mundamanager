@@ -98,11 +98,14 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except:
-     * - Specific API routes (they handle their own auth)
-     * - _next/static, _next/image (Next.js internals)
-     * - Static assets and common files
-     * - Static file filtering also done in middleware for early returns
+     * - api/ (ALL API routes - they handle their own auth)
+     * - _next/static, _next/image, _next/webpack-hmr (Next.js internals)
+     * - Static assets by file extension
+     * - Common static files (favicon, robots, sitemap, etc.)
+     * - Service workers and special paths
+     *
+     * Note: Query strings are automatically stripped by Next.js before matching
      */
-    '/((?!api/(?:fighters|gangs|campaigns|admin|alliances|notifications|search-users|gang-types|fighter-types|weapons|skills|skill-types|gang_variant_types|fighter-weapons|fighter-effects|patreon/webhook|patreon/sync|users)|_next/static|_next/image|favicon.ico|images|site.webmanifest|robots.txt|sitemap.xml|manifest.json|sw.js|workbox-.*\\.js|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json)$).*)',
+    '/((?!api/|_next/static|_next/image|_next/webpack-hmr|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
   ],
 };
