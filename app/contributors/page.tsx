@@ -87,7 +87,7 @@ export default async function ContributorsPage() {
   ];
 
   const ongoingContributors: Contributor[] = [
-    { name: "YukiTheSnowFox" },
+    { name: "YukiTheSnowFox", link: "https://www.instagram.com/inquisitorsnowfox" },
     { name: "T_H_E_S_E_U_S" },
     { name: "Professor Bleep Bloop" },
     { name: "HiveScum Wonka" },
@@ -176,7 +176,7 @@ export default async function ContributorsPage() {
                         href={member.link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:opacity-80 transition-opacity"
+                        className="inline-flex hover:[&>*]:text-red-800 transition-colors"
                       >
                         <Badge variant="outline">{member.name}</Badge>
                       </a>
@@ -211,7 +211,7 @@ export default async function ContributorsPage() {
                           href={contributor.link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:opacity-80 transition-opacity"
+                          className="inline-flex hover:[&>*]:text-red-800 transition-colors"
                         >
                           <Badge variant="outline">{contributor.name}</Badge>
                         </a>
@@ -232,7 +232,7 @@ export default async function ContributorsPage() {
                           href={contributor.link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:opacity-80 transition-opacity"
+                          className="inline-flex hover:[&>*]:text-red-800 transition-colors"
                         >
                           <Badge variant="outline">{contributor.name}</Badge>
                         </a>
@@ -307,7 +307,7 @@ export default async function ContributorsPage() {
                         href={creator.link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:opacity-80 transition-opacity"
+                        className="inline-flex hover:[&>*]:text-red-800 transition-colors"
                       >
                         <Badge variant="outline">{creator.name}</Badge>
                       </a>
@@ -347,4 +347,3 @@ export default async function ContributorsPage() {
     </>
   );
 }
-
