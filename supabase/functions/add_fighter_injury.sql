@@ -2,14 +2,17 @@
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
+DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, BOOLEAN) CASCADE;
+DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, UUID) CASCADE;
 
 CREATE OR REPLACE FUNCTION add_fighter_injury(
     in_fighter_id UUID,
     in_injury_type_id UUID,
-    in_user_id UUID
+    in_user_id UUID,
+    in_target_equipment_id UUID DEFAULT NULL
 )
 RETURNS TABLE (result JSON) AS $$
 DECLARE
@@ -85,14 +88,16 @@ BEGIN
         fighter_effect_type_id,
         effect_name,
         type_specific_data,
-        user_id
+        user_id,
+        fighter_equipment_id
     )
     VALUES (
         in_fighter_id,
         in_injury_type_id,
         effect_type_record.effect_name,
         effect_type_record.type_specific_data,
-        in_user_id
+        in_user_id,
+        in_target_equipment_id
     )
     RETURNING id INTO new_effect_id;
     
@@ -224,6 +229,6 @@ SECURITY DEFINER
 SET search_path = public, auth, private;
 
 -- Revoke and grant permissions
-REVOKE ALL ON FUNCTION add_fighter_injury(UUID, UUID, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID, UUID) TO service_role;
+REVOKE ALL ON FUNCTION add_fighter_injury(UUID, UUID, UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION add_fighter_injury(UUID, UUID, UUID, UUID) TO service_role;

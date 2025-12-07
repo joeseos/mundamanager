@@ -68,7 +68,7 @@ const FighterEffectSelection = React.forwardRef<
         // Sort alphabetically by name
         const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
         setTargetableWeapons(sorted);
-        
+
         // Extract effect names from passed-in weapons (always provided now)
         const effectsMap = new Map<string, string[]>();
         sorted.forEach(w => {

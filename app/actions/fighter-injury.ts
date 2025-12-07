@@ -26,6 +26,7 @@ export interface AddFighterInjuryParams {
   injury_type_id: string;
   send_to_recovery?: boolean;
   set_captured?: boolean;
+  target_equipment_id?: string;
 }
 
 export interface DeleteFighterInjuryParams {
@@ -77,7 +78,8 @@ export async function addFighterInjury(
       .rpc('add_fighter_injury', {
         in_fighter_id: params.fighter_id,
         in_injury_type_id: params.injury_type_id,
-        in_user_id: user.id
+        in_user_id: user.id,
+        in_target_equipment_id: params.target_equipment_id || null
       });
 
     if (error) {
