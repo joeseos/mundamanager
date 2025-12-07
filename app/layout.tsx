@@ -15,6 +15,7 @@ import { ClientThemeProvider } from "@/components/client-theme-provider";
 import { ThemeToggleDropdown } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Footer from "./footer";
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -208,7 +209,7 @@ export default async function RootLayout({
           </div>
         </header>
         {breadcrumb}
-        <main className={`min-h-screen flex flex-col items-center ${user ? 'pt-24' : 'pt-16'} print:print-reset`}>
+        <main className="min-h-screen flex flex-col items-center pt-24 print:print-reset">
           <div className="flex-1 w-full flex flex-col items-center">
             {!hasEnvVars && (
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
@@ -246,6 +247,7 @@ export default async function RootLayout({
             </div>
           </div>
         </main>
+        <Footer />
         <ClientToaster />
           </QueryClientProviderWrapper>
         </ClientThemeProvider>

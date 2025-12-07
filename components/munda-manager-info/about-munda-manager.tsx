@@ -1,49 +1,13 @@
 import type { JSX } from "react";
-import { TbDiamondFilled } from "react-icons/tb";
-import { getPatreonTierConfig } from "@/utils/patreon";
-import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
-import { Badge } from "@/components/ui/badge";
 
 type FAQItem = {
   q: string;
   a: string | JSX.Element;
 };
 
-type PatreonSupporter = {
-  username: string;
-  patreon_tier_id: string;
-  patreon_tier_title?: string;
-};
-
-type AboutMundaManagerProps = {
-  patreonSupporters?: PatreonSupporter[];
-};
-
-export default function AboutMundaManager({ patreonSupporters = [] }: AboutMundaManagerProps) {
+export default function AboutMundaManager() {
   const patreonUrl = "https://www.patreon.com/c/mundamanager/membership";
   const buyMeACoffeeUrl = "https://buymeacoffee.com/mundamanager";
-
-  // Get tier configuration from utility function
-  const tierConfig = getPatreonTierConfig();
-
-  // Helper function to render supporter badges
-  const renderSupporterBadges = (tierId: string) => {
-    const supporters = patreonSupporters.filter(supporter => supporter.patreon_tier_id === tierId);
-    
-    if (supporters.length === 0) {
-      return <p className="text-muted-foreground text-sm italic">No supporters yet</p>;
-    }
-
-    return supporters.map((supporter, index) => (
-      <Badge key={index} variant="outline" className="flex items-center gap-1">
-        <PatreonSupporterIcon
-          patreonTierId={supporter.patreon_tier_id}
-          patreonTierTitle={supporter.patreon_tier_title}
-        />
-        {supporter.username}
-      </Badge>
-    ));
-  };
 
   const faqItems: FAQItem[] = [
     {
@@ -56,11 +20,11 @@ export default function AboutMundaManager({ patreonSupporters = [] }: AboutMunda
     },
     {
       q: "How can I provide feedback or request features?",
-      a: <>Join the <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> to provide feedback or request features.</>
+      a: <>Join the <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord server</a> to provide feedback or request features.</>
     },
     {
       q: "Can I report a bug or technical issue?",
-      a: <>Yes, please reach out on the <a href="https://discord.gg/FrqEWShQd7" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. I'll do my best to address it as soon as possible.</>
+      a: <>Yes, please reach out on the <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. I'll do my best to address it as soon as possible.</>
     }
   ];
 
@@ -78,7 +42,7 @@ export default function AboutMundaManager({ patreonSupporters = [] }: AboutMunda
           If you enjoy using Munda Manager and would like to support its development, consider becoming a Patreon member! Your contributions help me continue to improve and expand the tool for the community. You can join my Patreon at:{' '}
           <a 
             href={patreonUrl}
-            className="text-blue-600 hover:underline"
+            className="underline hover:text-red-800"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -87,48 +51,11 @@ export default function AboutMundaManager({ patreonSupporters = [] }: AboutMunda
           or buy me a coffee at{' '}
           <a 
             href={buyMeACoffeeUrl}
-            className="text-blue-600 hover:underline"
+            className="underline hover:text-red-800"
             target="_blank"
             rel="noopener noreferrer"
           >
             buymeacoffee.com/mundamanager
-          </a>.
-        </p>
-      </section>
-
-      {patreonSupporters.length > 0 && (
-        <section>
-          <h2 className="text-xl font-semibold mb-2">Patreon Supporters</h2>
-          <p className="text-muted-foreground mb-4">
-            Thank you to our amazing Patreon supporters who help keep Munda Manager running!
-          </p>
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-             {tierConfig.map((tier) => (
-               <div key={tier.id} className="space-y-2">
-                 <h3 className="font-semibold text-lg flex items-center gap-2">
-                   <TbDiamondFilled size={20} color={tier.color} />
-                   {tier.name}
-                 </h3>
-                 <div className="flex flex-wrap gap-1">
-                   {renderSupporterBadges(tier.id)}
-                 </div>
-               </div>
-             ))}
-           </div>
-        </section>
-      )}
-
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Contact</h2>
-        <p className="text-muted-foreground">
-          For support or feedback, please join the{' '}
-          <a 
-            href="https://discord.gg/FrqEWShQd7" 
-            className="text-blue-600 hover:underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Discord server
           </a>.
         </p>
       </section>
