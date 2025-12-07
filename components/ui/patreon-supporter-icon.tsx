@@ -1,3 +1,5 @@
+'use client';
+
 import { TbDiamondFilled } from "react-icons/tb";
 import { getPatreonTierColor } from "@/utils/patreon";
 
