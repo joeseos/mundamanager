@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
@@ -20,6 +20,7 @@ import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { Combobox } from '@/components/ui/combobox';
 import { useMutation } from '@tanstack/react-query';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -33,6 +34,7 @@ interface InjuriesListProps {
   fighter_class?: string;
   is_spyrer?: boolean;
   kill_count?: number;
+  fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
 }
 
 export function InjuriesList({
@@ -46,7 +48,8 @@ export function InjuriesList({
   userPermissions,
   fighter_class,
   is_spyrer = false,
-  kill_count = 0
+  kill_count = 0,
+  fighterWeapons
 }: InjuriesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -58,11 +61,15 @@ export function InjuriesList({
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
   const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
+  const [showEquipmentSelection, setShowEquipmentSelection] = useState(false);
+  const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
+  const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean }>(null);
   const { toast} = useToast();
 
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; injury_type_id: string; send_to_recovery?: boolean; set_captured?: boolean }) => {
+    mutationFn: async (variables: { fighter_id: string; injury_type_id: string; send_to_recovery?: boolean; set_captured?: boolean; target_equipment_id?: string }) => {
       const result = await addFighterInjury(variables);
       if (!result.success) {
         throw new Error(result.error || 'Failed to add lasting injury');
@@ -367,8 +374,16 @@ export function InjuriesList({
 
     // Check if the injury requires Recovery or Captured status
     const typeSpecificData = injury.type_specific_data && typeof injury.type_specific_data === 'object' ? injury.type_specific_data : {};
+    const appliesToEquipment = typeSpecificData.applies_to === 'equipment';
     const requiresRecovery = typeSpecificData.recovery === "true";
     const requiresCaptured = typeSpecificData.captured === "true";
+
+    // Check if glitch requires equipment selection FIRST
+    if (appliesToEquipment) {
+      setIsAddModalOpen(false);
+      setShowEquipmentSelection(true);
+      return false;
+    }
 
     // If fighter is already in Recovery, don't show the Recovery modal again
     if (requiresRecovery && !fighterRecovery) {
@@ -413,8 +428,12 @@ export function InjuriesList({
       fighter_id: fighterId,
       injury_type_id: selectedInjuryId,
       send_to_recovery: sendToRecovery,
-      set_captured: setCaptured
+      set_captured: setCaptured,
+      target_equipment_id: targetEquipmentId || undefined
     });
+
+    // Reset target after mutation
+    setTargetEquipmentId(null);
   };
 
   const handleDeleteInjury = (injuryId: string, injuryName: string) => {
@@ -727,13 +746,14 @@ export function InjuriesList({
       )}
 
       {isRecoveryModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               setIsRecoveryModalOpen(false);
               setSelectedInjuryId('');
               setSelectedInjury(null);
+              setTargetEquipmentId(null);
             }
           }}
         >
@@ -748,6 +768,7 @@ export function InjuriesList({
                     setIsRecoveryModalOpen(false);
                     setSelectedInjuryId('');
                     setSelectedInjury(null);
+                    setTargetEquipmentId(null);
                   }}
                   className="text-muted-foreground hover:text-muted-foreground text-xl"
                 >
@@ -755,7 +776,7 @@ export function InjuriesList({
                 </button>
               </div>
             </div>
-            
+
             <div className="px-[10px] py-4">
               <p>You will need to remove the Recovery flag yourself when you update the gang next.</p>
             </div>
@@ -766,6 +787,7 @@ export function InjuriesList({
                   setIsRecoveryModalOpen(false);
                   setSelectedInjuryId('');
                   setSelectedInjury(null);
+                  setTargetEquipmentId(null);
                 }}
                 className="px-4 py-2 border rounded hover:bg-muted"
               >
@@ -789,13 +811,14 @@ export function InjuriesList({
       )}
 
       {isCapturedModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               setIsCapturedModalOpen(false);
               setSelectedInjuryId('');
               setSelectedInjury(null);
+              setTargetEquipmentId(null);
             }
           }}
         >
@@ -810,6 +833,7 @@ export function InjuriesList({
                     setIsCapturedModalOpen(false);
                     setSelectedInjuryId('');
                     setSelectedInjury(null);
+                    setTargetEquipmentId(null);
                   }}
                   className="text-muted-foreground hover:text-muted-foreground text-xl"
                 >
@@ -817,7 +841,7 @@ export function InjuriesList({
                 </button>
               </div>
             </div>
-            
+
             <div className="px-[10px] py-4">
               <p>This injury results in the fighter being captured. Do you want to mark the fighter as Captured?</p>
             </div>
@@ -828,6 +852,7 @@ export function InjuriesList({
                   setIsCapturedModalOpen(false);
                   setSelectedInjuryId('');
                   setSelectedInjury(null);
+                  setTargetEquipmentId(null);
                 }}
                 className="px-4 py-2 border rounded hover:bg-muted"
               >
@@ -864,6 +889,72 @@ export function InjuriesList({
           }
           onClose={() => setDeleteModalData(null)}
           onConfirm={() => { void handleDeleteInjury(deleteModalData.id, deleteModalData.name); return true; }}
+        />
+      )}
+
+      {showEquipmentSelection && selectedInjury && (
+        <Modal
+          title="Select Weapon"
+          content={
+            <FighterEffectSelection
+              ref={effectSelectionRef}
+              equipmentId=""
+              effectTypes={[]}
+              targetSelectionOnly
+              fighterId={fighterId}
+              modifierEquipmentId=""
+              effectTypeId={selectedInjury.id}
+              effectName={selectedInjury.effect_name}
+              fighterWeapons={fighterWeapons}
+              onApplyToTarget={async (equipmentId) => {
+                setTargetEquipmentId(equipmentId);
+                setShowEquipmentSelection(false);
+
+                const typeSpecificData = (selectedInjury as any).type_specific_data || {};
+                const requiresRecovery = typeSpecificData.recovery === "true";
+                const requiresCaptured = typeSpecificData.captured === "true";
+
+                // Check for recovery/captured modal or proceed directly
+                if (requiresRecovery && !fighterRecovery) {
+                  setIsRecoveryModalOpen(true);
+                } else if (requiresCaptured) {
+                  setIsCapturedModalOpen(true);
+                } else {
+                  addInjuryMutation.mutate({
+                    fighter_id: fighterId,
+                    injury_type_id: selectedInjuryId,
+                    send_to_recovery: false,
+                    set_captured: false,
+                    target_equipment_id: equipmentId
+                  });
+                  // Reset state
+                  setTargetEquipmentId(null);
+                  setSelectedInjuryId('');
+                  setSelectedInjury(null);
+                }
+              }}
+              onSelectionComplete={() => {}}
+              onCancel={() => {
+                setShowEquipmentSelection(false);
+                setTargetEquipmentId(null);
+                setSelectedInjuryId('');
+                setSelectedInjury(null);
+              }}
+              onValidityChange={(isValid) => setIsEffectSelectionValid(isValid)}
+            />
+          }
+          onClose={() => {
+            setShowEquipmentSelection(false);
+            setTargetEquipmentId(null);
+            setSelectedInjuryId('');
+            setSelectedInjury(null);
+          }}
+          onConfirm={async () => {
+            return await effectSelectionRef.current?.handleConfirm() || false;
+          }}
+          confirmText="Select Weapon"
+          confirmDisabled={!isEffectSelectionValid}
+          width="lg"
         />
       )}
 

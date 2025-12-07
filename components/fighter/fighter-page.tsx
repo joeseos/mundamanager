@@ -888,6 +888,14 @@ export default function FighterPage({
             is_spyrer={fighterData.fighter?.is_spyrer}
             kill_count={fighterData.fighter?.kill_count ?? 0}
             skills={fighterData.fighter?.skills || {}}
+            fighterWeapons={fighterData.equipment
+              ?.filter((e: any) => e.equipment_type === 'weapon')
+              .map((e: any) => ({
+                id: e.fighter_equipment_id,
+                name: e.equipment_name,
+                equipment_category: e.equipment_category,
+                effect_names: e.effect_names
+              }))}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
               setFighterData(prev => {
                 if (!prev.fighter) return prev;

@@ -924,6 +924,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           .in('fighter_pet_id', fighterIds),
 
         // Batch fetch effects that target equipment (with modifiers for weapon profile modifications)
+        // fighter_equipment_id: which equipment receives the effect (target)
+        // target_equipment_id: which equipment adds the effect (source, for equipment-to-equipment effects)
         supabase
           .from('fighter_effects')
           .select(`
@@ -931,11 +933,12 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             fighter_effect_type_id,
             effect_name,
             type_specific_data,
+            fighter_equipment_id,
             target_equipment_id,
             fighter_effect_modifiers ( stat_name, numeric_value, operation )
           `)
           .in('fighter_id', fighterIds)
-          .not('target_equipment_id', 'is', null)
+          .not('fighter_equipment_id', 'is', null)
       ]);
 
       // Step 3: Fetch weapon profiles in batch for all weapons found
@@ -1105,13 +1108,13 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       const equipmentTargetingEffectsMap = new Map<string, any[]>();
       const equipmentTargetingEffectNamesMap = new Map<string, string[]>();
       (allEquipmentTargetingEffects.data || []).forEach((effect: any) => {
-        if (!equipmentTargetingEffectsMap.has(effect.target_equipment_id)) {
-          equipmentTargetingEffectsMap.set(effect.target_equipment_id, []);
-          equipmentTargetingEffectNamesMap.set(effect.target_equipment_id, []);
+        if (!equipmentTargetingEffectsMap.has(effect.fighter_equipment_id)) {
+          equipmentTargetingEffectsMap.set(effect.fighter_equipment_id, []);
+          equipmentTargetingEffectNamesMap.set(effect.fighter_equipment_id, []);
         }
-        equipmentTargetingEffectsMap.get(effect.target_equipment_id)!.push(effect);
+        equipmentTargetingEffectsMap.get(effect.fighter_equipment_id)!.push(effect);
         // Collect unique effect names
-        const existingNames = equipmentTargetingEffectNamesMap.get(effect.target_equipment_id)!;
+        const existingNames = equipmentTargetingEffectNamesMap.get(effect.fighter_equipment_id)!;
         if (effect.effect_name && !existingNames.includes(effect.effect_name)) {
           existingNames.push(effect.effect_name);
         }
