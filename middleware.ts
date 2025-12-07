@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
   // List of paths that don't require authentication
   const publicPaths = [
     '/sign-in',
@@ -20,11 +22,11 @@ export async function middleware(request: NextRequest) {
 
   // Check for password reset flow
   const isPasswordResetFlow =
-    request.nextUrl.pathname.startsWith('/reset-password') ||
-    request.nextUrl.pathname.startsWith('/auth/callback');
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/auth/callback');
 
   // Early return for public paths - avoid creating Supabase client unnecessarily
-  if (publicPaths.includes(request.nextUrl.pathname) || isPasswordResetFlow) {
+  if (publicPaths.includes(pathname) || isPasswordResetFlow) {
     return NextResponse.next({ request });
   }
 
@@ -96,14 +98,11 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - _next/webpack-hmr (hot module reload)
-     * - api/ (API routes handle their own auth)
-     * - Common static files (favicon, robots, sitemap, manifest)
-     * - Service workers (sw.js, workbox-*.js)
-     * - Static asset files with extensions (images, fonts, CSS, JS, etc.)
+     * - Specific API routes (they handle their own auth)
+     * - _next/static, _next/image (Next.js internals)
+     * - Static assets and common files
+     * - Static file filtering also done in middleware for early returns
      */
-    '/((?!_next/static|_next/image|_next/webpack-hmr|api/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox|.*\\.(png|jpg|jpeg|gif|svg|ico|webp|avif|woff|woff2|ttf|eot|otf|css|js|json|xml|txt|pdf|zip|map|webmanifest)$).*)',
+    '/((?!api/(?:fighters|gangs|campaigns|admin|alliances|notifications|search-users|gang-types|fighter-types|weapons|skills|skill-types|gang_variant_types|fighter-weapons|fighter-effects|patreon/webhook|patreon/sync|users)|_next/static|_next/image|favicon.ico|images|site.webmanifest|robots.txt|sitemap.xml|manifest.json|sw.js|workbox-.*\\.js|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json)$).*)',
   ],
 };
