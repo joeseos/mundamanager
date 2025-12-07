@@ -99,13 +99,14 @@ export const config = {
     /*
      * Match all request paths except:
      * - api/ (ALL API routes - they handle their own auth)
-     * - _next/static, _next/image, _next/webpack-hmr (Next.js internals)
+     * - _next/ (ALL Next.js internals: static files, image optimization, data fetching, HMR)
+     *   Important: _next/data/* is used for client-side navigation with getServerSideProps/getStaticProps
      * - Static assets by file extension
      * - Common static files (favicon, robots, sitemap, etc.)
      * - Service workers and special paths
      *
      * Note: Query strings are automatically stripped by Next.js before matching
      */
-    '/((?!api/|_next/static|_next/image|_next/webpack-hmr|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
+    '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
   ],
 };
