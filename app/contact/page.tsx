@@ -172,7 +172,7 @@ export default function ContactPage() {
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">Check out our <Link href="/join-the-team" className="underline hover:text-red-800">Join the Team</Link> page for more information</li>
                   <li className="text-muted-foreground">Visit our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> to get familiar with the codebase</li>
-                  <li className="text-muted-foreground">Join our Discord to discuss contribution opportunities</li>
+                  <li className="text-muted-foreground">Join our <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">Discord server</a> to discuss contribution opportunities</li>
                 </ul>
               </section>
 

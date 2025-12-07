@@ -190,7 +190,7 @@ export default async function ContributorsPage() {
               <section id="contributors" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Team Members</h2>
                 <p className="text-muted-foreground mb-2">
-                  Munda Manager would not be where it is without its fabulous team members who contribute throughout the project:
+                  Munda Manager would not be what it is today without our fantastic team members who keep the project moving forward through work such as:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2 mb-4">
                   <li className="text-muted-foreground">Code contributions and bug fixes</li>
