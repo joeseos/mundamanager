@@ -28,6 +28,7 @@ export interface Equipment {
   equipment_category?: string;
   created_at?: string;
   weapon_profiles?: WeaponProfile[] | null;
+  base_weapon_profiles?: WeaponProfile[] | null; // Original profiles before effects applied (for optimistic updates)
   core_equipment?: boolean;
   vehicle_upgrade_slot?: string;
   target_equipment_id?: string | null; // For equipment-to-equipment upgrades

@@ -27,6 +27,7 @@ interface InjuriesListProps {
   onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   onSkillsUpdate?: (updatedSkills: FighterSkills) => void;
   onKillCountUpdate?: (newKillCount: number) => void;
+  onEquipmentEffectUpdate?: (fighterEquipmentId: string | null, effectData: any | null) => void;
   skills?: FighterSkills;
   fighterId: string;
   fighterRecovery?: boolean;
@@ -42,6 +43,7 @@ export function InjuriesList({
   onInjuryUpdate,
   onSkillsUpdate,
   onKillCountUpdate,
+  onEquipmentEffectUpdate,
   skills = {},
   fighterId,
   fighterRecovery = false,
@@ -69,33 +71,53 @@ export function InjuriesList({
 
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; injury_type_id: string; send_to_recovery?: boolean; set_captured?: boolean; target_equipment_id?: string }) => {
-      const result = await addFighterInjury(variables);
+    mutationFn: async (variables: { 
+      fighter_id: string; 
+      injury_type_id: string; 
+      send_to_recovery?: boolean; 
+      set_captured?: boolean; 
+      target_equipment_id?: string;
+      injury_data: any; // Full injury data for optimistic updates
+    }) => {
+      const result = await addFighterInjury({
+        fighter_id: variables.fighter_id,
+        injury_type_id: variables.injury_type_id,
+        send_to_recovery: variables.send_to_recovery,
+        set_captured: variables.set_captured,
+        target_equipment_id: variables.target_equipment_id
+      });
       if (!result.success) {
         throw new Error(result.error || 'Failed to add lasting injury');
       }
       return result;
     },
     onMutate: async (variables) => {
-      if (!selectedInjury) return {};
+      const injuryData = variables.injury_data;
+      if (!injuryData) return {};
 
       // Store previous state for rollback
       const previousInjuries = [...injuries];
       const previousSkills = { ...skills };
 
-      // Optimistically add injury
+      // Optimistically add injury (data passed through variables)
       const tempInjury: FighterEffect = {
-        ...(selectedInjury as any),
+        ...injuryData,
         id: `optimistic-injury-${Date.now()}`,
         created_at: new Date().toISOString(),
+        fighter_equipment_id: variables.target_equipment_id || undefined,
       };
 
       if (onInjuryUpdate) {
         onInjuryUpdate([...injuries, tempInjury], variables.send_to_recovery ? true : undefined);
       }
 
+      // Optimistically add equipment effect if attached to equipment
+      if (variables.target_equipment_id && onEquipmentEffectUpdate) {
+        onEquipmentEffectUpdate(variables.target_equipment_id, tempInjury as any);
+      }
+
       // Optimistically add skill if injury grants one
-      const grantedSkill = (selectedInjury as any)?.granted_skill;
+      const grantedSkill = injuryData?.granted_skill;
       let grantedSkillName: string | undefined;
 
       if (onSkillsUpdate && grantedSkill) {
@@ -109,7 +131,7 @@ export function InjuriesList({
             is_advance: false,
             acquired_at: new Date().toISOString(),
             fighter_injury_id: tempInjury.id,
-            injury_name: (selectedInjury as any)?.effect_name
+            injury_name: injuryData?.effect_name
           }
         };
         onSkillsUpdate(updatedSkills);
@@ -119,7 +141,8 @@ export function InjuriesList({
         previousInjuries,
         previousSkills,
         grantedSkillName,
-        injuryName: (selectedInjury as any)?.effect_name
+        injuryName: injuryData?.effect_name,
+        targetEquipmentId: variables.target_equipment_id
       };
     },
     onSuccess: (result, variables, context) => {
@@ -132,6 +155,11 @@ export function InjuriesList({
         description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
         variant: "default"
       });
+
+      // Reconcile equipment effect with server response (replace optimistic with real data)
+      if (context?.targetEquipmentId && result.injury && onEquipmentEffectUpdate) {
+        onEquipmentEffectUpdate(context.targetEquipmentId, result.injury);
+      }
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates
@@ -140,6 +168,10 @@ export function InjuriesList({
       }
       if (context?.previousSkills && onSkillsUpdate) {
         onSkillsUpdate(context.previousSkills);
+      }
+      // Rollback equipment effect
+      if (context?.targetEquipmentId && onEquipmentEffectUpdate) {
+        onEquipmentEffectUpdate(context.targetEquipmentId, null);
       }
 
       const errorText = is_spyrer ? 'Failed to add rig glitch' : 'Failed to add lasting injury';
@@ -167,11 +199,17 @@ export function InjuriesList({
       // Store previous state for rollback
       const previousInjuries = [...injuries];
       const previousSkills = { ...skills };
+      const fighterEquipmentId = (injuryToDelete as any)?.fighter_equipment_id;
 
       // Optimistically remove injury
       if (onInjuryUpdate) {
         const updatedInjuries = injuries.filter(i => i.id !== variables.injury_id);
         onInjuryUpdate(updatedInjuries);
+      }
+
+      // Optimistically remove equipment effect if attached to equipment
+      if (fighterEquipmentId && onEquipmentEffectUpdate) {
+        onEquipmentEffectUpdate(fighterEquipmentId, null);
       }
 
       // Optimistically remove skill if injury granted one
@@ -190,7 +228,9 @@ export function InjuriesList({
       return {
         previousInjuries,
         previousSkills,
-        injuryName
+        injuryName,
+        fighterEquipmentId,
+        previousEffect: injuryToDelete
       };
     },
     onSuccess: (result, variables, context) => {
@@ -206,6 +246,10 @@ export function InjuriesList({
       }
       if (context?.previousSkills && onSkillsUpdate) {
         onSkillsUpdate(context.previousSkills);
+      }
+      // Rollback equipment effect removal
+      if (context?.fighterEquipmentId && context?.previousEffect && onEquipmentEffectUpdate) {
+        onEquipmentEffectUpdate(context.fighterEquipmentId, context.previousEffect as any);
       }
 
       const errorText = is_spyrer ? 'Failed to delete rig glitch' : 'Failed to delete lasting injury';
@@ -404,7 +448,8 @@ export function InjuriesList({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
         send_to_recovery: false,
-        set_captured: false
+        set_captured: false,
+        injury_data: selectedInjury
       });
       return true;
     }
@@ -429,7 +474,8 @@ export function InjuriesList({
       injury_type_id: selectedInjuryId,
       send_to_recovery: sendToRecovery,
       set_captured: setCaptured,
-      target_equipment_id: targetEquipmentId || undefined
+      target_equipment_id: targetEquipmentId || undefined,
+      injury_data: selectedInjury
     });
 
     // Reset target after mutation
@@ -925,7 +971,8 @@ export function InjuriesList({
                     injury_type_id: selectedInjuryId,
                     send_to_recovery: false,
                     set_captured: false,
-                    target_equipment_id: equipmentId
+                    target_equipment_id: equipmentId,
+                    injury_data: selectedInjury
                   });
                   // Reset state
                   setTargetEquipmentId(null);

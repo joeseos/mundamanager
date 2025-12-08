@@ -99,6 +99,7 @@ export interface FighterEffect {
   type_specific_data?: any;
   created_at: string;
   updated_at?: string;
+  fighter_equipment_id?: string;
   fighter_effect_modifiers: Array<{
     id: string;
     fighter_effect_id: string;
@@ -523,6 +524,7 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           type_specific_data,
           created_at,
           updated_at,
+          fighter_equipment_id,
           fighter_effect_type:fighter_effect_type_id (
             fighter_effect_category:fighter_effect_category_id (
               category_name
@@ -555,6 +557,7 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           type_specific_data: effectData.type_specific_data,
           created_at: effectData.created_at,
           updated_at: effectData.updated_at || undefined,
+          fighter_equipment_id: effectData.fighter_equipment_id || undefined,
           fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
         });
       });

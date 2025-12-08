@@ -21,9 +21,26 @@ export async function GET(request: Request) {
 
     if (effectsError) throw effectsError;
 
-    // For injuries that grant skills, fetch the skill names
+    // Transform and add skills for injuries
     const effectsWithSkills = await Promise.all(
       (effects || []).map(async (effect) => {
+        // Transform fighter_effect_type_modifiers to fighter_effect_modifiers format
+        // This normalizes the API response to match the instance format used throughout the app
+        const fighter_effect_modifiers = (effect.fighter_effect_type_modifiers || []).map((mod: any) => ({
+          id: mod.id,
+          stat_name: mod.stat_name,
+          numeric_value: mod.default_numeric_value,
+          operation: mod.operation
+        }));
+
+        let result: any = {
+          ...effect,
+          fighter_effect_modifiers,
+        };
+        // Remove the original type modifiers to avoid confusion
+        delete result.fighter_effect_type_modifiers;
+
+        // For injuries that grant skills, fetch the skill names
         if (effect.type_specific_data?.skill_id) {
           const { data: skill } = await supabase
             .from('skills')
@@ -31,12 +48,10 @@ export async function GET(request: Request) {
             .eq('id', effect.type_specific_data.skill_id)
             .single();
 
-          return {
-            ...effect,
-            granted_skill: skill || null
-          };
+          result.granted_skill = skill || null;
         }
-        return effect;
+
+        return result;
       })
     );
 

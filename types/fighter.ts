@@ -76,6 +76,7 @@ export interface FighterEffect {
   id: string;
   effect_name: string;
   fighter_effect_type_id?: string;
+  fighter_equipment_id?: string; // Equipment this effect targets (for weapon effects)
   fighter_effect_modifiers: {
     id: string;
     fighter_effect_id: string;
