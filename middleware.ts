@@ -1,13 +1,46 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { getUserIdFromClaims } from './utils/auth'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // List of paths that don't require authentication
+  // Skip middleware for server actions - they handle their own auth
+  if (request.headers.get('Next-Action')) {
+    return NextResponse.next();
+  }
+
+  // Auth pages - check if user is already logged in and redirect away
+  const authPages = ['/sign-in', '/sign-up'];
+
+  if (authPages.includes(pathname)) {
+    // Create minimal Supabase client for auth check only
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll() {
+            // No-op for read-only auth check
+          },
+        },
+      }
+    );
+
+    const userId = await getUserIdFromClaims(supabase);
+
+    if (userId) {
+      // Already authenticated, redirect to home
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    return NextResponse.next({ request });
+  }
+
+  // Public pages - accessible to everyone, no auth check
   const publicPaths = [
-    '/sign-in',
-    '/sign-up',
     '/auth/callback',
     '/reset-password',
     '/reset-password/update',
@@ -53,8 +86,7 @@ export async function middleware(request: NextRequest) {
   );
 
   // Check authentication
-  const { data: claims } = await supabase.auth.getClaims();
-  const userId = claims?.claims?.sub;
+  const userId = await getUserIdFromClaims(supabase);
 
   // For unauthenticated users accessing root, rewrite to sign-in (server-side, no redirect)
   if (!userId && request.nextUrl.pathname === '/') {
