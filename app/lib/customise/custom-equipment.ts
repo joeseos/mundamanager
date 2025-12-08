@@ -1,19 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { CustomEquipment } from "@/types/equipment";
 
-export interface CustomEquipment {
-  id: string;
-  user_id: string;
-  equipment_name: string;
-  availability: string;
-  cost: number;
-  faction?: string;
-  variant?: string;
-  equipment_category?: string;
-  equipment_category_id?: string;
-  equipment_type?: string;
-  created_at: string;
-  updated_at?: string;
-}
+// Re-export for backward compatibility
+export type { CustomEquipment } from "@/types/equipment";
 
 export async function getUserCustomEquipment(userId: string): Promise<CustomEquipment[]> {
   const supabase = await createClient();

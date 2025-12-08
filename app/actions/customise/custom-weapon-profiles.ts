@@ -3,20 +3,10 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { CustomWeaponProfileData } from "@/types/equipment";
 
-export interface CustomWeaponProfileData {
-  profile_name?: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  ammo: string;
-  traits?: string;
-  sort_order?: number;
-}
+// Note: CustomWeaponProfileData type is defined in @/types/equipment
+// Cannot re-export types from 'use server' files
 
 export async function saveCustomWeaponProfiles(
   equipmentId: string,

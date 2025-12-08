@@ -8,6 +8,8 @@ interface Equipment {
   cost: number;
 }
 
+// Local interface - API returns traits as array for easier consumption,
+// differs from canonical WeaponProfile in types/equipment.ts
 interface WeaponProfile {
   id: string;
   profile_name: string;

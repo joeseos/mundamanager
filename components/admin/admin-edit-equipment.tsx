@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
+import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -20,21 +21,6 @@ interface AdminEditEquipmentModalProps {
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
-
-interface WeaponProfile {
-  profile_name: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  ammo: string;
-  traits: string;
-  weapon_group_id?: string | null;
-  sort_order: number;
-}
 
 interface GangAdjustedCost {
   gang_type: string;
@@ -70,7 +56,7 @@ interface Equipment {
   equipment_category: string;
   equipment_type: EquipmentType;
   core_equipment: boolean;
-  weapon_profiles?: WeaponProfile[];
+  weapon_profiles?: WeaponProfileInput[];
   fighter_types?: string[];
   gang_adjusted_costs?: GangAdjustedCost[];
   equipment_availabilities?: EquipmentAvailability[];
@@ -91,7 +77,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
   const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
   const [isGangTypesLoading, setIsGangTypesLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([{
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
     profile_name: '',
     range_short: '',
     range_long: '',
@@ -421,7 +407,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     isWeaponsLoading
   ]);
 
-  const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
+  const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
       ...newProfiles[index],

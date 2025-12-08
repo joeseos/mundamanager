@@ -924,7 +924,7 @@ export default function FighterPage({
                       return {
                         ...itemWithoutEffect,
                         weapon_profiles: baseProfiles
-                      } as Equipment;
+                      };
                     } else {
                       // Add equipment_effect and apply modifiers to weapon profiles
                       const effect = {
@@ -940,14 +940,14 @@ export default function FighterPage({
                       
                       // Store base profiles if not already stored, then apply modifiers
                       const baseProfiles = item.base_weapon_profiles || item.weapon_profiles || [];
-                      const modifiedProfiles = applyWeaponModifiers(baseProfiles as any, [effect]);
+                      const modifiedProfiles = applyWeaponModifiers(baseProfiles, [effect]);
                       
                       return {
                         ...item,
                         base_weapon_profiles: baseProfiles,
                         weapon_profiles: modifiedProfiles,
                         equipment_effect: effect
-                      } as Equipment;
+                      };
                     }
                   }
                   return item;
