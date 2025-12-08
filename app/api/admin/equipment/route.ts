@@ -454,7 +454,7 @@ export async function POST(request: Request) {
     // If this is a weapon and has profiles, insert them
     if (equipment_type.toLowerCase() === 'weapon' && weapon_profiles && weapon_profiles.length > 0) {
       const weaponId = equipment.id;
-      const cleanedWeaponProfileInputs = weapon_profiles.map((profile: WeaponProfileInput) => ({
+      const cleanedWeaponProfiles = weapon_profiles.map((profile: WeaponProfileInput) => ({
         ...profile,
         weapon_id: weaponId,
         profile_name: profile.profile_name.trimEnd(),
@@ -474,7 +474,7 @@ export async function POST(request: Request) {
 
       const { error: profileError } = await supabase
         .from('weapon_profiles')
-        .insert(cleanedWeaponProfileInputs);
+        .insert(cleanedWeaponProfiles);
 
       if (profileError) throw profileError;
     }

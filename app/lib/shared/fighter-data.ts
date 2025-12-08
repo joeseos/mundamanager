@@ -94,8 +94,6 @@ export interface FighterSkill {
   acquired_at: string;
 }
 
-// FighterEffect is imported from @/types/fighter
-
 // =============================================================================
 // BASE DATA FUNCTIONS - Raw database queries with proper cache tags
 // =============================================================================

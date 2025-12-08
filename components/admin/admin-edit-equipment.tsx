@@ -77,7 +77,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
   const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
   const [isGangTypesLoading, setIsGangTypesLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfileInputs] = useState<WeaponProfileInput[]>([{
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
     profile_name: '',
     range_short: '',
     range_long: '',
@@ -179,7 +179,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setVariants('');
         setEquipmentType('');
         setCoreEquipment(false);
-        setWeaponProfileInputs([{
+        setWeaponProfiles([{
           profile_name: '',
           range_short: '',
           range_long: '',
@@ -289,10 +289,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         // Set weapon profiles if they exist
         if (data.weapon_profiles && data.weapon_profiles.length > 0) {
           console.log('Setting weapon profiles from main API:', data.weapon_profiles);
-          setWeaponProfileInputs(data.weapon_profiles);
+          setWeaponProfiles(data.weapon_profiles);
         } else if (data.equipment_type === 'weapon') {
           console.log('No weapon profiles found, setting default');
-          setWeaponProfileInputs([{
+          setWeaponProfiles([{
             profile_name: '',
             range_short: '',
             range_long: '',
@@ -414,11 +414,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       [field]: value
     };
     console.log('Updated weapon profiles:', newProfiles);
-    setWeaponProfileInputs(newProfiles);
+    setWeaponProfiles(newProfiles);
   };
 
   const addProfile = () => {
-    setWeaponProfileInputs([
+    setWeaponProfiles([
       ...weaponProfiles,
       {
         profile_name: '',
@@ -438,7 +438,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   };
 
   const removeProfile = (index: number) => {
-    setWeaponProfileInputs(weaponProfiles.filter((_, i) => i !== index));
+    setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {

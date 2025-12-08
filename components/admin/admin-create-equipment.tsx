@@ -38,7 +38,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfileInputs] = useState<WeaponProfileInput[]>([{
+  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([{
     profile_name: '',
     range_short: '',
     range_long: '',
@@ -140,11 +140,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       ...newProfiles[index],
       [field]: value
     };
-    setWeaponProfileInputs(newProfiles);
+    setWeaponProfiles(newProfiles);
   };
 
   const addProfile = () => {
-    setWeaponProfileInputs([
+    setWeaponProfiles([
       ...weaponProfiles,
       {
         profile_name: '',
@@ -164,7 +164,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   };
 
   const removeProfile = (index: number) => {
-    setWeaponProfileInputs(weaponProfiles.filter((_, i) => i !== index));
+    setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
   };
 
 
@@ -180,7 +180,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
     setIsLoading(true);
     try {
-      const cleanedWeaponProfileInputs = equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
+      const cleanedWeaponProfiles = equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
         ...profile,
         weapon_group_id: profile.weapon_group_id || null,
         range_short: profile.range_short || null,
@@ -210,7 +210,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
-          weapon_profiles: cleanedWeaponProfileInputs,
+          weapon_profiles: cleanedWeaponProfiles,
           gang_adjusted_costs: gangAdjustedCosts.map(d => ({
             gang_type_id: d.gang_type_id,
             adjusted_cost: d.adjusted_cost
