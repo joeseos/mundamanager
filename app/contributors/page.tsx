@@ -83,7 +83,7 @@ export default async function ContributorsPage() {
   const coreTeam: Contributor[] = [
     { name: "joesoes" },
     { name: "Djidiouf", link: "https://www.ashenquarter.com" },
-    { name: "Tizdale" },
+    { name: "Tizdale", link: "https://www.instagram.com/mm_tizdale" },
   ];
 
   const ongoingContributors: Contributor[] = [
