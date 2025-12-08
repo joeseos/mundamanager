@@ -17,10 +17,10 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
 export async function getCampaignCount(): Promise<number> {
   const getCachedCampaignCount = unstable_cache(
     async () => {
-      // Use anon key for public data (RLS may control access, but count is typically public)
+      // Use service role key to bypass RLS for public stats
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
       // Count all campaigns
