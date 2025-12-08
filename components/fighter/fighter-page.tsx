@@ -30,6 +30,7 @@ import { GiCrossedChains } from "react-icons/gi";
 import { TbMeatOff } from "react-icons/tb";
 import { FaMedkit } from "react-icons/fa";
 import { GiHandcuffs } from "react-icons/gi";
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -184,23 +185,37 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     Object.assign(transformedSkills, fighterData.fighter.skills);
   }
 
-  // Transform equipment
-  const transformedEquipment = (fighterData.equipment || []).map((item: any) => ({
-    fighter_equipment_id: item.fighter_equipment_id,
-    equipment_id: item.equipment_id,
-    equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
-      ? `${item.equipment_name} (Master-crafted)`
-      : item.equipment_name,
-    equipment_type: item.equipment_type,
-    equipment_category: item.equipment_category,
-    cost: item.purchase_cost,
-    base_cost: item.original_cost,
-    weapon_profiles: item.weapon_profiles,
-    core_equipment: item.core_equipment,
-    is_master_crafted: item.is_master_crafted,
-    target_equipment_id: item.target_equipment_id,
-    effect_names: item.effect_names
-  }));
+  // Collect all effects that are attached to equipment (have fighter_equipment_id)
+  const allEffects = Object.values(fighterData.fighter?.effects || {}).flat();
+  const equipmentEffectsMap = new Map();
+  allEffects.forEach((effect: any) => {
+    if (effect.fighter_equipment_id) {
+      equipmentEffectsMap.set(effect.fighter_equipment_id, effect);
+    }
+  });
+
+  // Transform equipment and attach matching effects
+  const transformedEquipment = (fighterData.equipment || []).map((item: any) => {
+    const equipmentEffect = equipmentEffectsMap.get(item.fighter_equipment_id);
+
+    return {
+      fighter_equipment_id: item.fighter_equipment_id,
+      equipment_id: item.equipment_id,
+      equipment_name: item.is_master_crafted && item.equipment_type === 'weapon'
+        ? `${item.equipment_name} (Master-crafted)`
+        : item.equipment_name,
+      equipment_type: item.equipment_type,
+      equipment_category: item.equipment_category,
+      cost: item.purchase_cost,
+      base_cost: item.original_cost,
+      weapon_profiles: item.weapon_profiles,
+      core_equipment: item.core_equipment,
+      is_master_crafted: item.is_master_crafted,
+      target_equipment_id: item.target_equipment_id,
+      effect_names: item.effect_names,
+      equipment_effect: equipmentEffect || undefined
+    };
+  });
 
   // Transform vehicle equipment
   const transformedVehicleEquipment = (fighterData.fighter?.vehicles?.[0]?.equipment || []).map((item: any) => ({
@@ -352,7 +367,7 @@ export default function FighterPage({
     }
   }, [toast]);
 
-  // Sync local state with props when they change (after router.refresh())
+  // Sync local state with props when they change
   useEffect(() => {
     setFighterData(transformFighterData(initialFighterData, initialGangFighters));
   }, [initialFighterData, initialGangFighters]);
@@ -896,6 +911,54 @@ export default function FighterPage({
                 equipment_category: e.equipment_category,
                 effect_names: e.effect_names
               }))}
+            onEquipmentEffectUpdate={(fighterEquipmentId, effectData) => {
+              setFighterData(prev => {
+                // Update equipment to add/remove equipment_effect and recalculate weapon profiles
+                const updatedEquipment = prev.equipment.map((item: Equipment): Equipment => {
+                  if (item.fighter_equipment_id === fighterEquipmentId) {
+                    if (effectData === null) {
+                      // Remove equipment_effect and restore base weapon profiles
+                      const { equipment_effect, ...itemWithoutEffect } = item;
+                      // Restore base profiles by removing the effect modifiers
+                      const baseProfiles = item.base_weapon_profiles || item.weapon_profiles;
+                      return {
+                        ...itemWithoutEffect,
+                        weapon_profiles: baseProfiles
+                      } as Equipment;
+                    } else {
+                      // Add equipment_effect and apply modifiers to weapon profiles
+                      const effect = {
+                        id: effectData.id,
+                        effect_name: effectData.effect_name,
+                        fighter_effect_type_id: effectData.fighter_effect_type_id,
+                        fighter_equipment_id: fighterEquipmentId,
+                        category_name: effectData.category_name,
+                        fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
+                        type_specific_data: effectData.type_specific_data,
+                        created_at: effectData.created_at
+                      };
+                      
+                      // Store base profiles if not already stored, then apply modifiers
+                      const baseProfiles = item.base_weapon_profiles || item.weapon_profiles || [];
+                      const modifiedProfiles = applyWeaponModifiers(baseProfiles as any, [effect]);
+                      
+                      return {
+                        ...item,
+                        base_weapon_profiles: baseProfiles,
+                        weapon_profiles: modifiedProfiles,
+                        equipment_effect: effect
+                      } as Equipment;
+                    }
+                  }
+                  return item;
+                });
+
+                return {
+                  ...prev,
+                  equipment: updatedEquipment
+                };
+              });
+            }}
             onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
               setFighterData(prev => {
                 if (!prev.fighter) return prev;

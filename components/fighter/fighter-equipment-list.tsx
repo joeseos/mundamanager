@@ -415,7 +415,7 @@ export function WeaponList({
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
-              
+
               {/* <Button
                 variant="destructive"
                 size="sm"
@@ -437,12 +437,42 @@ export function WeaponList({
     </tr>
   );
 
-  // Helper to render a parent item and its children
+  // Render equipment effect as a pseudo-child row
+  const renderEffectRow = (item: Equipment) => {
+    if (!item.equipment_effect) return null;
+
+    return (
+      <tr
+        key={`${item.fighter_equipment_id}-effect`}
+        className="border-b bg-muted/20"
+      >
+        <td className="px-1 py-1">
+          <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
+            <TbCornerLeftUp className="inline" />
+          </span>
+          <span className="text-sm">
+            {item.equipment_effect.effect_name}
+          </span>
+        </td>
+        <td className="px-1 py-1 text-right">
+          <span className="text-sm">-</span>
+        </td>
+        <td className="px-1 py-1">
+          <div className="flex justify-end gap-1">
+            {/* Could add a remove effect button here if needed */}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // Helper to render a parent item, its effect (if any), and its children
   const renderItemWithChildren = (item: Equipment) => {
     const children = equipmentTree.get(item.fighter_equipment_id) || [];
     return (
       <React.Fragment key={item.fighter_equipment_id}>
         {renderRow(item, false)}
+        {renderEffectRow(item)}
         {children.map(child => renderRow(child, true))}
       </React.Fragment>
     );
