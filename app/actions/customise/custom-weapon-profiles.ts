@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CustomWeaponProfileData } from "@/types/equipment";
 
-// Re-export for backward compatibility
-export type { CustomWeaponProfileData } from "@/types/equipment";
+// Note: CustomWeaponProfileData type is defined in @/types/equipment
+// Cannot re-export types from 'use server' files
 
 export async function saveCustomWeaponProfiles(
   equipmentId: string,
