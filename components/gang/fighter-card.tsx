@@ -11,8 +11,7 @@ import { IoSkull } from "react-icons/io5";
 import { LuArmchair } from "react-icons/lu";
 import { MdChair, MdDragIndicator } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
-import { WeaponProfile as EquipmentWeaponProfile } from '@/types/equipment';
-import { WeaponProfile as WeaponTypeProfile, Weapon } from '@/types/weapon';
+import { WeaponProfile, Weapon } from '@/types/equipment';
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
   name: string;  // maps to fighter_name

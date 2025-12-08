@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Weapon, WeaponProfile } from '@/types/weapon';
+import { Weapon, WeaponProfile } from '@/types/equipment';
 
 interface WeaponTableProps {
   weapons: Weapon[];
@@ -40,17 +40,17 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       // Otherwise add a + prefix
       return `+${strValue}`;
     },
-    formatAp: (value: number | null | undefined): string => {
-      if (value === null || value === undefined || value === 0) return '-';
+    formatAp: (value: number | string | null | undefined): string => {
+      if (value === null || value === undefined || value === 0 || value === '0') return '-';
       return value.toString();
     },
-    formatAmmo: (value: number | null | undefined): string => {
-      if (value === null || value === undefined || value === 0) return '-';
+    formatAmmo: (value: number | string | null | undefined): string => {
+      if (value === null || value === undefined || value === 0 || value === '0') return '-';
       return value.toString();
     }
   }), []);
 
-  const formatStrength = (strength: string | null | undefined) => {
+  const formatStrength = (strength: string | number | null | undefined) => {
     if (strength === null || strength === undefined) return '-';
     return strength.toString();
   };

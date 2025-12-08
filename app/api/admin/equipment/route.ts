@@ -1,21 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-
-interface WeaponProfile {
-  profile_name: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  ammo: string;
-  traits: string;
-  weapon_group_id?: string | null;
-  sort_order: number;
-}
+import { WeaponProfileInput } from "@/types/equipment";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
@@ -468,7 +454,7 @@ export async function POST(request: Request) {
     // If this is a weapon and has profiles, insert them
     if (equipment_type.toLowerCase() === 'weapon' && weapon_profiles && weapon_profiles.length > 0) {
       const weaponId = equipment.id;
-      const cleanedWeaponProfiles = weapon_profiles.map((profile: WeaponProfile) => ({
+      const cleanedWeaponProfileInputs = weapon_profiles.map((profile: WeaponProfileInput) => ({
         ...profile,
         weapon_id: weaponId,
         profile_name: profile.profile_name.trimEnd(),
@@ -488,7 +474,7 @@ export async function POST(request: Request) {
 
       const { error: profileError } = await supabase
         .from('weapon_profiles')
-        .insert(cleanedWeaponProfiles);
+        .insert(cleanedWeaponProfileInputs);
 
       if (profileError) throw profileError;
     }
@@ -620,7 +606,7 @@ export async function PUT(request: Request) {
         const { error: profilesError } = await supabase
           .from('weapon_profiles')
           .insert(
-            weapon_profiles.map((profile: WeaponProfile) => ({
+            weapon_profiles.map((profile: WeaponProfileInput) => ({
               weapon_id: id,
               profile_name: profile.profile_name.trimEnd(),
               range_short: profile.range_short,
@@ -830,7 +816,7 @@ export async function PATCH(request: Request) {
         const { error: profilesError } = await supabase
           .from('weapon_profiles')
           .insert(
-            weapon_profiles.map((profile: WeaponProfile) => ({
+            weapon_profiles.map((profile: WeaponProfileInput) => ({
               weapon_id: id,
               profile_name: profile.profile_name.trimEnd(),
               range_short: profile.range_short,

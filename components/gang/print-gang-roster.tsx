@@ -5,7 +5,7 @@ import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
 import { calculateAdjustedStats } from "@/utils/effect-modifiers";
 import WeaponTable from "./fighter-card-weapon-table";
-import { Weapon } from "@/types/weapon";
+import { Weapon } from "@/types/equipment";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 

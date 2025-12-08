@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { FighterEffect } from '@/types/fighter';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -93,20 +94,7 @@ export interface FighterSkill {
   acquired_at: string;
 }
 
-export interface FighterEffect {
-  id: string;
-  effect_name: string;
-  type_specific_data?: any;
-  created_at: string;
-  updated_at?: string;
-  fighter_equipment_id?: string;
-  fighter_effect_modifiers: Array<{
-    id: string;
-    fighter_effect_id: string;
-    stat_name: string;
-    numeric_value: number;
-  }>;
-}
+// FighterEffect is imported from @/types/fighter
 
 // =============================================================================
 // BASE DATA FUNCTIONS - Raw database queries with proper cache tags
@@ -678,7 +666,8 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
       const equipmentCost = equipment.reduce((sum, eq) => sum + eq.purchase_cost, 0);
       const skillsCost = Object.values(skills).reduce((sum, skill) => sum + skill.credits_increase, 0);
       const effectsCost = Object.values(effects).flat().reduce((sum, effect) => {
-        return sum + (effect.type_specific_data?.credits_increase || 0);
+        const data = effect.type_specific_data;
+        return sum + (typeof data === 'object' && data?.credits_increase ? data.credits_increase : 0);
       }, 0);
       
       // Calculate vehicle costs (base vehicle cost + vehicle equipment + vehicle effects)

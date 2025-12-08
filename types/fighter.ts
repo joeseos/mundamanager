@@ -1,5 +1,7 @@
-import { Weapon } from './weapon';
-import { Equipment as BaseEquipment } from '@/types/equipment';
+import { Equipment as BaseEquipment, WeaponProfile, Weapon } from '@/types/equipment';
+
+// Re-export types for backward compatibility
+export type { WeaponProfile, Weapon };
 
 export interface FighterType {
   id: string;
@@ -88,7 +90,8 @@ export interface FighterEffect {
     credits_increase?: number;
     [key: string]: any;
   } | string;
-  created_at?: string; // Explicitly mark as optional
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface FighterEffects {
@@ -241,21 +244,6 @@ export interface FighterProps {
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   beast_equipment_stashed?: boolean; // Whether the equipment granting this beast is in stash
   image_url?: string; // URL to the fighter's image
-}
-
-export interface WeaponProfile {
-  id: string;
-  profile_name: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  ammo: string;
-  traits: string;
-  weapon_group_id: string;
 }
 
 // Update the FIGHTER_CLASSES to include all classes from fighterClassRank

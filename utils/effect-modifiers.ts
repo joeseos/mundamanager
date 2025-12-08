@@ -5,6 +5,7 @@
  */
 
 import { FighterProps, FighterEffect, EffectCategory } from '@/types/fighter';
+import { WeaponProfile } from '@/types/equipment';
 
 // =============================================================================
 // SHARED TYPES
@@ -218,21 +219,6 @@ export function calculateAdjustedStats(fighter: FighterProps) {
 // =============================================================================
 // WEAPON PROFILE EFFECTS
 // =============================================================================
-
-interface WeaponProfile {
-  id: string;
-  profile_name: string;
-  range_short?: number | string | null;
-  range_long?: number | string | null;
-  acc_short?: number | string | null;
-  acc_long?: number | string | null;
-  strength?: number | string | null;
-  ap?: number | string | null;
-  damage?: number | string | null;
-  ammo?: number | string | null;
-  traits?: string | null;
-  [key: string]: any;
-}
 
 /**
  * Apply equipment→equipment effect modifiers to weapon profiles

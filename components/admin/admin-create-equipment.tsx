@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
 
@@ -14,21 +15,6 @@ interface AdminCreateEquipmentModalProps {
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
-
-interface WeaponProfile {
-  profile_name: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  ammo: string;
-  traits: string;
-  weapon_group_id?: string | null;
-  sort_order: number;
-}
 
 interface GangAdjustedCost {
   gang_type: string;
@@ -52,7 +38,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([{
+  const [weaponProfiles, setWeaponProfileInputs] = useState<WeaponProfileInput[]>([{
     profile_name: '',
     range_short: '',
     range_long: '',
@@ -148,17 +134,17 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     fetchGangTypes();
   }, [showAdjustedCostDialog, showAvailabilityDialog, toast]);
 
-  const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
+  const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
       ...newProfiles[index],
       [field]: value
     };
-    setWeaponProfiles(newProfiles);
+    setWeaponProfileInputs(newProfiles);
   };
 
   const addProfile = () => {
-    setWeaponProfiles([
+    setWeaponProfileInputs([
       ...weaponProfiles,
       {
         profile_name: '',
@@ -178,7 +164,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   };
 
   const removeProfile = (index: number) => {
-    setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
+    setWeaponProfileInputs(weaponProfiles.filter((_, i) => i !== index));
   };
 
 
@@ -194,7 +180,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
     setIsLoading(true);
     try {
-      const cleanedWeaponProfiles = equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
+      const cleanedWeaponProfileInputs = equipmentType === 'weapon' ? weaponProfiles.map(profile => ({
         ...profile,
         weapon_group_id: profile.weapon_group_id || null,
         range_short: profile.range_short || null,
@@ -224,7 +210,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
-          weapon_profiles: cleanedWeaponProfiles,
+          weapon_profiles: cleanedWeaponProfileInputs,
           gang_adjusted_costs: gangAdjustedCosts.map(d => ({
             gang_type_id: d.gang_type_id,
             adjusted_cost: d.adjusted_cost

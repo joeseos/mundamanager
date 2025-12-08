@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
+import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -20,21 +21,6 @@ interface AdminEditEquipmentModalProps {
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
-
-interface WeaponProfile {
-  profile_name: string;
-  range_short: string;
-  range_long: string;
-  acc_short: string;
-  acc_long: string;
-  strength: string;
-  ap: string;
-  damage: string;
-  ammo: string;
-  traits: string;
-  weapon_group_id?: string | null;
-  sort_order: number;
-}
 
 interface GangAdjustedCost {
   gang_type: string;
@@ -70,7 +56,7 @@ interface Equipment {
   equipment_category: string;
   equipment_type: EquipmentType;
   core_equipment: boolean;
-  weapon_profiles?: WeaponProfile[];
+  weapon_profiles?: WeaponProfileInput[];
   fighter_types?: string[];
   gang_adjusted_costs?: GangAdjustedCost[];
   equipment_availabilities?: EquipmentAvailability[];
@@ -91,7 +77,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
   const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
   const [isGangTypesLoading, setIsGangTypesLoading] = useState(false);
-  const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfile[]>([{
+  const [weaponProfiles, setWeaponProfileInputs] = useState<WeaponProfileInput[]>([{
     profile_name: '',
     range_short: '',
     range_long: '',
@@ -193,7 +179,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setVariants('');
         setEquipmentType('');
         setCoreEquipment(false);
-        setWeaponProfiles([{
+        setWeaponProfileInputs([{
           profile_name: '',
           range_short: '',
           range_long: '',
@@ -303,10 +289,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         // Set weapon profiles if they exist
         if (data.weapon_profiles && data.weapon_profiles.length > 0) {
           console.log('Setting weapon profiles from main API:', data.weapon_profiles);
-          setWeaponProfiles(data.weapon_profiles);
+          setWeaponProfileInputs(data.weapon_profiles);
         } else if (data.equipment_type === 'weapon') {
           console.log('No weapon profiles found, setting default');
-          setWeaponProfiles([{
+          setWeaponProfileInputs([{
             profile_name: '',
             range_short: '',
             range_long: '',
@@ -421,18 +407,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     isWeaponsLoading
   ]);
 
-  const handleProfileChange = (index: number, field: keyof WeaponProfile, value: string | number | boolean) => {
+  const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
     newProfiles[index] = {
       ...newProfiles[index],
       [field]: value
     };
     console.log('Updated weapon profiles:', newProfiles);
-    setWeaponProfiles(newProfiles);
+    setWeaponProfileInputs(newProfiles);
   };
 
   const addProfile = () => {
-    setWeaponProfiles([
+    setWeaponProfileInputs([
       ...weaponProfiles,
       {
         profile_name: '',
@@ -452,7 +438,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   };
 
   const removeProfile = (index: number) => {
-    setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
+    setWeaponProfileInputs(weaponProfiles.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
