@@ -432,7 +432,12 @@ export function InjuriesList({
         setShowEquipmentSelection(true);
         return false;
       }
-      // If no equipment available, fall through to apply directly to fighter
+      // Show error instead of silently falling through
+      toast({
+        description: "This effect requires equipment but the fighter has no weapons",
+        variant: "destructive"
+      });
+      return false;
     }
 
     // If fighter is already in Recovery, don't show the Recovery modal again

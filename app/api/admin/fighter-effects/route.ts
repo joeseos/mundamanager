@@ -20,12 +20,8 @@ export async function GET(request: NextRequest) {
     const fetchModifiers = searchParams.get('modifiers') === 'true';
     const modifierId = searchParams.get('modifier_id');
 
-    console.log('GET request params:', { id, equipmentId, categoryId, fetchCategories, fetchModifiers, modifierId });
-    
     // Handle categories request
     if (fetchCategories) {
-      console.log('Fetching fighter effect categories');
-      
       const { data, error } = await supabase
         .from('fighter_effect_categories')
         .select('*')
@@ -36,14 +32,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       
-      console.log(`Found ${data?.length || 0} fighter effect categories`);
       return NextResponse.json(data || []);
     }
     
     // Handle specific modifier request
     if (modifierId) {
-      console.log('Fetching specific modifier:', modifierId);
-      
       const { data, error } = await supabase
         .from('fighter_effect_type_modifiers')
         .select('*')
@@ -60,8 +53,6 @@ export async function GET(request: NextRequest) {
     
     // Handle specific modifiers request for an effect type
     if (fetchModifiers && id) {
-      console.log('Fetching modifiers for effect type:', id);
-      
       const { data, error } = await supabase
         .from('fighter_effect_type_modifiers')
         .select('*')
@@ -72,15 +63,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       
-      console.log(`Found ${data?.length || 0} modifiers`);
       return NextResponse.json(data || []);
     }
     
     // Handle equipment filtering
     if (equipmentId) {
-      console.log('Trying to find fighter effects for equipment ID:', equipmentId);
-      console.log('Equipment ID type:', typeof equipmentId);
-      
       // Try a raw SQL query approach for JSONB filtering
       try {
         // Execute a raw SQL query to properly filter by equipment_id in the JSONB
@@ -97,10 +84,6 @@ export async function GET(request: NextRequest) {
         if (error) {
           console.error('Error with SQL query:', error);
         } else {
-          console.log('Found fighter effects with SQL query:', data?.length || 0);
-          console.log('Equipment ID being searched:', equipmentId);
-          console.log('Effect types found:', data?.map(d => ({ id: d.id, name: d.effect_name, equipment_id: d.type_specific_data?.equipment_id })));
-          
           // If we have effect types, get the modifiers for each
           if (data && data.length > 0) {
             try {
@@ -133,8 +116,7 @@ export async function GET(request: NextRequest) {
         console.error('Error with SQL approach:', e);
       }
       
-      // If SQL approach failed, try a different method
-      console.log('SQL approach failed, falling back to manual filtering');
+      // If SQL approach failed, try a different method (manual filtering)
       try {
         const { data, error } = await supabase.from('fighter_effect_types')
           .select(`
@@ -148,24 +130,17 @@ export async function GET(request: NextRequest) {
         if (error) {
           console.error('Error fetching all fighter effects:', error);
         } else {
-          console.log('Fetched all effects for manual filtering:', data?.length || 0);
           // Manually filter on the client side
           const filteredData = data.filter(item => {
             try {
               const typeSpecificData = item.type_specific_data;
-              const matches = typeSpecificData && 
+              return typeSpecificData && 
                      typeSpecificData.equipment_id && 
                      typeSpecificData.equipment_id === equipmentId;
-              if (matches) {
-                console.log('Found matching effect:', item.effect_name, 'for equipment:', equipmentId);
-              }
-              return matches;
             } catch (e) {
               return false;
             }
           });
-          
-          console.log('Manually filtered data count:', filteredData.length);
           
           // If we have effect types, get the modifiers for each
           if (filteredData.length > 0) {
@@ -200,14 +175,11 @@ export async function GET(request: NextRequest) {
       }
       
       // If all approaches failed, return empty array
-      console.log('All approaches failed, returning empty array');
       return NextResponse.json([]);
     }
 
     // Handle category filtering
     if (categoryId) {
-      console.log('Fetching fighter effects for category ID:', categoryId);
-
       const { data, error } = await supabase
         .from('fighter_effect_types')
         .select(`
@@ -224,8 +196,6 @@ export async function GET(request: NextRequest) {
         console.error('Error fetching fighter effects by category:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-
-      console.log(`Found ${data?.length || 0} fighter effects for category`);
 
       // Get modifiers for each effect type
       if (data && data.length > 0) {
@@ -273,8 +243,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    console.log('Found fighter effect types:', fighterEffectTypes?.length || 0);
-    
     // If we have effect types, get the modifiers for each
     if (fighterEffectTypes && fighterEffectTypes.length > 0) {
       try {
@@ -320,12 +288,9 @@ export async function POST(request: NextRequest) {
     }
     
     const body = await request.json();
-    console.log('POST request body:', body);
     
     // Check if this is a category request
     if (body.request_type === 'category') {
-      console.log('Creating fighter effect category');
-      
       // Validate required fields
       if (!body.category_name) {
         return NextResponse.json({ error: 'Category name is required' }, { status: 400 });
@@ -350,8 +315,6 @@ export async function POST(request: NextRequest) {
     
     // Check if this is a modifier request
     if (body.fighter_effect_type_id && body.stat_name !== undefined) {
-      console.log('Creating fighter effect modifier');
-      
       // Validate required fields
       if (!body.fighter_effect_type_id || !body.stat_name) {
         return NextResponse.json({ error: 'Fighter effect type ID and stat name are required' }, { status: 400 });
@@ -415,8 +378,6 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    console.log('Formatted type_specific_data for insert:', typeSpecificData);
-    
     // Create fighter effect type
     try {
       const { data, error } = await supabase
@@ -434,8 +395,6 @@ export async function POST(request: NextRequest) {
         
         // Try alternative approach if there's a JSON error
         if (error.message.includes('invalid input syntax for type json')) {
-          console.log('Trying alternative JSON approach');
-          
           // Try using JSON.stringify and direct DB parameter approach
           const { data: altData, error: altError } = await supabase
             .from('fighter_effect_types')
@@ -491,7 +450,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log('PATCH request body:', body);
 
     // Validate required fields
     if (!body.effect_name) {
@@ -553,8 +511,6 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
-    
-    console.log(`Deleting ${isCategory ? 'category' : isModifier ? 'modifier' : 'fighter effect'} with id:`, id);
     
     // If it's a category, check for dependencies and delete it
     if (isCategory) {

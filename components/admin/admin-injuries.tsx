@@ -25,6 +25,14 @@ interface FighterEffectTypeModifier {
   operation?: 'add' | 'set';
 }
 
+/** Type-specific data for injury/rig-glitch effect types */
+interface InjuryTypeSpecificData {
+  recovery: 'true' | 'false';
+  convalescence: 'true' | 'false';
+  effect_selection: 'fixed' | 'single_select' | 'multiple_select';
+  applies_to?: 'equipment';
+}
+
 interface FighterEffectType {
   id: string;
   effect_name: string;
@@ -67,6 +75,9 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   const [effectSelection, setEffectSelection] = useState<'fixed' | 'single_select' | 'multiple_select'>('fixed');
 
   const { toast } = useToast();
+
+  // Computed disabled state for form fields
+  const isFormDisabled = (!isCreateMode && !selectedEffectId) || isLoading;
 
   // Fetch categories on mount
   useEffect(() => {
@@ -197,11 +208,11 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       let body: string | undefined;
 
       // Build type_specific_data
-      const typeSpecificData: any = {
+      const typeSpecificData: InjuryTypeSpecificData = {
         recovery: recovery ? 'true' : 'false',
         convalescence: convalescence ? 'true' : 'false',
         effect_selection: effectSelection,
-        ...(appliesToEquipment && { applies_to: 'equipment' })
+        ...(appliesToEquipment && { applies_to: 'equipment' as const })
       };
 
       switch (operation) {
@@ -447,7 +458,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                 onChange={(e) => setEffectName(e.target.value)}
                 placeholder="E.g. Sprained Ankle, Head Injury"
                 className="w-full"
-                disabled={(!isCreateMode && !selectedEffectId) || isLoading}
+                disabled={isFormDisabled}
               />
             </div>
 
@@ -464,7 +475,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                     checked={recovery}
                     onChange={(e) => setRecovery(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300"
-                    disabled={(!isCreateMode && !selectedEffectId) || isLoading}
+                    disabled={isFormDisabled}
                   />
                   <label htmlFor="recovery" className="text-sm font-medium cursor-pointer">
                     Goes into recovery
@@ -479,7 +490,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                     checked={convalescence}
                     onChange={(e) => setConvalescence(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300"
-                    disabled={(!isCreateMode && !selectedEffectId) || isLoading}
+                    disabled={isFormDisabled}
                   />
                   <label htmlFor="convalescence" className="text-sm font-medium cursor-pointer">
                     Goes into convalescence
@@ -495,7 +506,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                     value={effectSelection}
                     onChange={(e) => setEffectSelection(e.target.value as 'fixed' | 'single_select' | 'multiple_select')}
                     className="w-full p-2 border rounded-md"
-                    disabled={(!isCreateMode && !selectedEffectId) || isLoading}
+                    disabled={isFormDisabled}
                   >
                     <option value="fixed">Fixed</option>
                     <option value="single_select">Single Select</option>
@@ -514,7 +525,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                     checked={appliesToEquipment}
                     onChange={(e) => setAppliesToEquipment(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300"
-                    disabled={(!isCreateMode && !selectedEffectId) || isLoading}
+                    disabled={isFormDisabled}
                   />
                   <label htmlFor="appliesToEquipment" className="text-sm font-medium cursor-pointer">
                     Applies to equipment (user must select which weapon is affected)
@@ -524,6 +535,9 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
             )}
 
             {/* Fighter Effects Section - Only show after creating or when editing */}
+            {/* Note: equipmentId prop is reused here but actually receives the effect type ID,
+                not an equipment ID. This allows AdminFighterEffects to manage modifiers 
+                for this injury/glitch effect type. */}
             {(selectedEffectId && !isCreateMode) && (
               <div className="border-t pt-4">
                 <AdminFighterEffects
