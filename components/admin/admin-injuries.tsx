@@ -5,51 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { AdminFighterEffects } from "./admin-fighter-effects";
+import { 
+  FighterEffectType, 
+  FighterEffectCategory, 
+  TypeSpecificData 
+} from "@/types/fighter-effect";
 
 enum OperationType {
   POST = 'POST',
   UPDATE = 'UPDATE',
   DELETE = 'DELETE'
-}
-
-interface FighterEffectCategory {
-  id: string;
-  category_name: string;
-}
-
-interface FighterEffectTypeModifier {
-  id?: string;
-  fighter_effect_type_id?: string;
-  stat_name: string;
-  default_numeric_value: number | null;
-  operation?: 'add' | 'set';
-}
-
-/** Type-specific data for injury/rig-glitch effect types */
-interface InjuryTypeSpecificData {
-  recovery: 'true' | 'false';
-  convalescence: 'true' | 'false';
-  effect_selection: 'fixed' | 'single_select' | 'multiple_select';
-  applies_to?: 'equipment';
-}
-
-interface FighterEffectType {
-  id: string;
-  effect_name: string;
-  fighter_effect_category_id: string | null;
-  type_specific_data: {
-    equipment_id?: string;
-    skill_id?: string;
-    applies_to?: 'equipment';
-    effect_selection?: "fixed" | "single_select" | "multiple_select";
-    max_selections?: number;
-    selection_group?: string;
-    traits_to_add?: string[];
-    traits_to_remove?: string[];
-    recovery?: string | boolean;
-    convalescence?: string | boolean;
-  } | null;
-  modifiers: FighterEffectTypeModifier[];
 }
 
 interface AdminInjuriesGlitchesModalProps {
@@ -208,7 +173,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       let body: string | undefined;
 
       // Build type_specific_data
-      const typeSpecificData: InjuryTypeSpecificData = {
+      const typeSpecificData: TypeSpecificData = {
         recovery: recovery ? 'true' : 'false',
         convalescence: convalescence ? 'true' : 'false',
         effect_selection: effectSelection,

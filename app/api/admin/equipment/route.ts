@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { WeaponProfileInput } from "@/types/equipment";
+import { 
+  FighterEffectType, 
+  FighterEffectTypeModifier, 
+  FighterEffectCategory 
+} from "@/types/fighter-effect";
 
 interface FighterTypeEquipment {
   fighter_type_id: string;
@@ -16,29 +21,6 @@ interface GangAdjustedCost {
 interface EquipmentAvailability {
   gang_type_id: string;
   availability: string;
-}
-
-interface FighterEffectTypeModifier {
-  id: string;
-  stat_name: string;
-  default_numeric_value: number | null;
-}
-
-interface FighterEffectType {
-  id: string;
-  effect_name: string;
-  fighter_effect_category_id: string | null;
-  type_specific_data: {
-    equipment_id: string;
-    effect_selection?: "fixed" | "single_select" | "multiple_select";
-    max_selections?: number;
-  } | null;
-  modifiers: FighterEffectTypeModifier[];
-}
-
-interface FighterEffectCategory {
-  id: string;
-  category_name: string;
 }
 
 export async function GET(request: Request) {

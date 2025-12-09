@@ -1,3 +1,5 @@
+import { TypeSpecificData, FighterEffectModifier } from '@/types/fighter-effect';
+
 /**
  * WeaponProfile - canonical type for weapon profiles
  * Fields are flexible (number | string | null) because:
@@ -80,17 +82,8 @@ export interface Equipment {
     fighter_effect_type_id?: string;
     fighter_equipment_id: string;
     category_name?: string;
-    fighter_effect_modifiers: Array<{
-      id: string;
-      fighter_effect_id: string;
-      stat_name: string;
-      numeric_value: number;
-    }>;
-    type_specific_data?: {
-      xp_cost?: number;
-      credits_increase?: number;
-      [key: string]: any;
-    } | string;
+    fighter_effect_modifiers: FighterEffectModifier[];
+    type_specific_data?: TypeSpecificData | string;
     created_at?: string;
   };
 }

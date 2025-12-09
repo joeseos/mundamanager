@@ -4,8 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import Modal from "@/components/ui/modal";
-import { Skill, FighterSkills } from '@/types/fighter';
-import { FighterEffect as FighterEffectType } from '@/types/fighter';
+import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
+import { TypeSpecificData } from '@/types/fighter-effect';
 import { createClient } from '@/utils/supabase/client';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
@@ -128,13 +128,6 @@ interface FighterChanges {
     acquired_at: string;
   }>;
   skills?: Skill[];
-}
-
-interface AdvancementTypeSpecificData {
-  xp_cost?: number;
-  times_increased?: number;
-  credits_increase?: number;
-  skill_id?: string;
 }
 
 interface AdvancementsListProps {

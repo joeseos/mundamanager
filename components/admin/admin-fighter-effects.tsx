@@ -9,6 +9,11 @@ import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from 'react-tooltip';
+import { 
+  FighterEffectType, 
+  FighterEffectTypeModifier, 
+  FighterEffectCategory 
+} from "@/types/fighter-effect";
 
 // Mapping of stat_name (database value) to display_name (UI label)
 const STAT_MAPPINGS = [
@@ -59,36 +64,6 @@ const getValueSuffix = (stat_name: string): string => {
   const mapping = STAT_MAPPINGS.find(m => m.stat_name === stat_name);
   return mapping ? mapping.value_suffix : '';
 };
-
-interface FighterEffectTypeModifier {
-  id?: string;
-  fighter_effect_type_id?: string;
-  stat_name: string;
-  default_numeric_value: number | null;
-  operation?: 'add' | 'set';
-}
-
-interface FighterEffectType {
-  id: string;
-  effect_name: string;
-  fighter_effect_category_id: string | null;
-  type_specific_data: {
-    equipment_id?: string;
-    skill_id?: string;
-    applies_to?: 'equipment';
-    effect_selection?: "fixed" | "single_select" | "multiple_select";
-    max_selections?: number;
-    selection_group?: string;
-    traits_to_add?: string[];
-    traits_to_remove?: string[];
-  } | null;
-  modifiers: FighterEffectTypeModifier[];
-}
-
-interface FighterEffectCategory {
-  id: string;
-  category_name: string;
-}
 
 interface AdminFighterEffectsProps {
   equipmentId: string;

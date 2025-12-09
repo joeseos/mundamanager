@@ -4,30 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/utils/supabase/client";
-
-
-interface FighterEffectModifier {
-  id: string;
-  stat_name: string;
-  default_numeric_value: number;
-}
-
-interface FighterEffectType {
-  id: string;
-  effect_name: string;
-  fighter_effect_category_id: string | null;
-  type_specific_data: {
-    equipment_id: string;
-    effect_selection?: "fixed" | "single_select" | "multiple_select";
-    max_selections?: number;
-    selection_group?: string;
-  } | null;
-  modifiers: FighterEffectModifier[];
-  fighter_effect_categories?: {
-    id: string;
-    category_name: string;
-  };
-}
+import { 
+  FighterEffectType, 
+  FighterEffectTypeModifier 
+} from "@/types/fighter-effect";
 
 interface FighterEffectSelectionProps {
   equipmentId: string;
@@ -267,14 +247,15 @@ const FighterEffectSelection = React.forwardRef<
     }
   }, [selectedEffects, effectTypes, onValidityChange, targetSelectionOnly, selectedTargetId]);
 
-  const renderEffectModifiers = (modifiers: FighterEffectModifier[]) => {
+  const renderEffectModifiers = (modifiers: FighterEffectTypeModifier[]) => {
     return modifiers.map(modifier => {
       const formattedStatName = modifier.stat_name.replace(/_/g, ' ');
       const capitalizedStatName = formattedStatName.charAt(0).toUpperCase() + formattedStatName.slice(1);
+      const value = modifier.default_numeric_value ?? 0;
       
       return (
         <div key={modifier.id}>
-          {capitalizedStatName}: {modifier.default_numeric_value > 0 ? '+' : ''}{modifier.default_numeric_value}
+          {capitalizedStatName}: {value > 0 ? '+' : ''}{value}
         </div>
       );
     });

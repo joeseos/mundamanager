@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from 'react';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { TypeSpecificData } from '@/types/fighter-effect';
 
 export type Gang = {
   id: string;
@@ -45,12 +46,12 @@ type Fighter = {
   cost_adjustment: number;
   fighter_equipment?: Array<{ purchase_cost: number }>;
   fighter_skills?: Array<{ credits_increase: number }>;
-  fighter_effects?: Array<{ type_specific_data: { credits_increase?: number } }>;
+  fighter_effects?: Array<{ type_specific_data: TypeSpecificData }>;
   vehicles?: Array<{
     id: string;
     cost: number;
     fighter_equipment?: Array<{ purchase_cost: number }>;
-    fighter_effects?: Array<{ type_specific_data: { credits_increase?: number } }>;
+    fighter_effects?: Array<{ type_specific_data: TypeSpecificData }>;
   }>;
 };
 
