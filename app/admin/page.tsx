@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
@@ -15,6 +15,7 @@ import { AdminCreateVehicleTypeModal } from "@/components/admin/admin-create-veh
 import { AdminEditVehicleTypeModal } from "@/components/admin/admin-edit-vehicle-type";
 import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
+import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
 import { ToastProvider } from "@/components/ui/toast";
 
 export default function AdminPage() {
@@ -29,6 +30,7 @@ export default function AdminPage() {
   const [showEditVehicle, setShowEditVehicle] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
+  const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
 
   const coreSections = [
     {
@@ -90,6 +92,12 @@ export default function AdminPage() {
       description: "Add, edit, or delete scenarios",
       action: () => setShowScenarios(true),
       icon: LuScrollText
+    },
+    {
+      title: "Injuries & Rig Glitches",
+      description: "Manage injuries and rig glitches",
+      action: () => setShowInjuriesGlitches(true),
+      icon: LuHeartCrack
     }
   ];
 
@@ -229,6 +237,13 @@ export default function AdminPage() {
             <AdminScenariosModal
               onClose={() => setShowScenarios(false)}
               onSubmit={() => setShowScenarios(false)}
+            />
+          )}
+
+          {showInjuriesGlitches && (
+            <AdminInjuriesGlitchesModal
+              onClose={() => setShowInjuriesGlitches(false)}
+              onSubmit={() => setShowInjuriesGlitches(false)}
             />
           )}
         </main>

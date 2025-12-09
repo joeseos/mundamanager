@@ -423,9 +423,20 @@ export function InjuriesList({
     const requiresCaptured = typeSpecificData.captured === "true";
 
     // Check if glitch requires equipment selection FIRST
+    // Only show equipment selection if there are weapons available to select
     if (appliesToEquipment) {
-      setIsAddModalOpen(false);
-      setShowEquipmentSelection(true);
+      const hasAvailableEquipment = fighterWeapons && fighterWeapons.length > 0;
+      
+      if (hasAvailableEquipment) {
+        setIsAddModalOpen(false);
+        setShowEquipmentSelection(true);
+        return false;
+      }
+      // Show error instead of silently falling through
+      toast({
+        description: "This effect requires equipment but the fighter has no weapons",
+        variant: "destructive"
+      });
       return false;
     }
 
