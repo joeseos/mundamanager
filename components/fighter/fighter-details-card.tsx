@@ -13,23 +13,10 @@ import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterImageEditModal } from './fighter-image-edit-modal';
 
-
-// Vehicle equipment profile interface
-
-
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
   vehicle_id: string;
   vehicle_equipment_id: string;
-}
-
-
-
-interface FighterEffectStatModifier {
-  id: string;
-  fighter_effect_id: string;
-  stat_name: string;
-  numeric_value: number;
 }
 
 interface FighterDetailsCardProps {

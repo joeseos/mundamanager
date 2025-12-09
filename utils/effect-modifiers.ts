@@ -6,6 +6,7 @@
 
 import { FighterProps, FighterEffect, EffectCategory } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
+import { TraitModificationData } from '@/types/fighter-effect';
 
 // =============================================================================
 // SHARED TYPES
@@ -20,10 +21,7 @@ interface EffectModifier {
 interface Effect {
   id: string;
   effect_name: string;
-  type_specific_data?: {
-    traits_to_add?: string[];
-    traits_to_remove?: string[];
-  };
+  type_specific_data?: TraitModificationData;
   fighter_effect_modifiers?: EffectModifier[];
 }
 

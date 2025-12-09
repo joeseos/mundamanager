@@ -1,4 +1,22 @@
 import { Equipment as BaseEquipment, WeaponProfile, Weapon } from '@/types/equipment';
+import type { 
+  FighterEffectCategory, 
+  FighterEffect, 
+  FighterEffects,
+  FighterEffectModifier,
+  EffectCategoryName,
+  TypeSpecificData
+} from '@/types/fighter-effect';
+
+// Re-export fighter effect types from centralized location
+export type { 
+  FighterEffectCategory, 
+  FighterEffect, 
+  FighterEffects,
+  FighterEffectModifier,
+  TypeSpecificData
+};
+export type EffectCategory = EffectCategoryName;
 
 // Re-export types for backward compatibility
 export type { WeaponProfile, Weapon };
@@ -54,16 +72,6 @@ export interface WeaponProps {
   equipment_category?: string; // Equipment category for the weapon
 }
 
-export interface FighterEffectCategory {
-  id: string;
-  created_at: string; // Timestamp with timezone
-  updated_at: string | null; // Timestamp with timezone, can be null
-  category_name: string
-}
-
-// First, let's define the effect categories as a type
-export type EffectCategory = 'injuries' | 'advancements' | 'bionics' | 'cyberteknika' | 'gene-smithing' | 'rig-glitches' | 'augmentations' | 'equipment' | 'user' | 'skills' | 'power-boosts';
-
 export interface Skill {
   id: string;
   name: string;
@@ -73,32 +81,6 @@ export interface Skill {
   is_advance: boolean;
   fighter_injury_id: string | null;
 }
-
-export interface FighterEffect {
-  id: string;
-  effect_name: string;
-  fighter_effect_type_id?: string;
-  fighter_equipment_id?: string; // Equipment this effect targets (for weapon effects)
-  fighter_effect_modifiers: {
-    id: string;
-    fighter_effect_id: string;
-    stat_name: string;
-    numeric_value: number;
-  }[];
-  type_specific_data?: {
-    xp_cost?: number;
-    credits_increase?: number;
-    [key: string]: any;
-  } | string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface FighterEffects {
-  injuries: FighterEffect[];
-}
-
-
 
 export interface VehicleEquipment extends BaseEquipment {
   vehicle_id: string;
