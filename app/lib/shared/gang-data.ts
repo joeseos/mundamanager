@@ -1104,17 +1104,24 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         });
       });
 
-      // Create equipment targeting effects map (equipmentId -> effects with modifiers)
+      // Create equipment targeting effects map (targetEquipmentId -> effects with modifiers)
+      // Two cases:
+      // 1. Rig glitches: fighter_equipment_id = target weapon, target_equipment_id = NULL
+      // 2. Equipment-to-equipment (e.g., hotshot laspack): fighter_equipment_id = source, target_equipment_id = target weapon
       const equipmentTargetingEffectsMap = new Map<string, any[]>();
       const equipmentTargetingEffectNamesMap = new Map<string, string[]>();
       (allEquipmentTargetingEffects.data || []).forEach((effect: any) => {
-        if (!equipmentTargetingEffectsMap.has(effect.fighter_equipment_id)) {
-          equipmentTargetingEffectsMap.set(effect.fighter_equipment_id, []);
-          equipmentTargetingEffectNamesMap.set(effect.fighter_equipment_id, []);
+        // Use target_equipment_id if present (equipment-to-equipment), otherwise fighter_equipment_id (rig glitches)
+        const targetId = effect.target_equipment_id || effect.fighter_equipment_id;
+        if (!targetId) return;
+        
+        if (!equipmentTargetingEffectsMap.has(targetId)) {
+          equipmentTargetingEffectsMap.set(targetId, []);
+          equipmentTargetingEffectNamesMap.set(targetId, []);
         }
-        equipmentTargetingEffectsMap.get(effect.fighter_equipment_id)!.push(effect);
+        equipmentTargetingEffectsMap.get(targetId)!.push(effect);
         // Collect unique effect names
-        const existingNames = equipmentTargetingEffectNamesMap.get(effect.fighter_equipment_id)!;
+        const existingNames = equipmentTargetingEffectNamesMap.get(targetId)!;
         if (effect.effect_name && !existingNames.includes(effect.effect_name)) {
           existingNames.push(effect.effect_name);
         }
