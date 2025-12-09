@@ -97,6 +97,7 @@ interface AdminFighterEffectsProps {
   fighterEffectCategories?: FighterEffectCategory[];
   onUpdate?: () => void;
   onChange?: (effects: FighterEffectType[]) => void;
+  hideEquipmentOption?: boolean; // Hide "Applies to Equipment" option (for injuries/glitches)
 }
 
 export function AdminFighterEffects({
@@ -105,7 +106,8 @@ export function AdminFighterEffects({
   fighterEffects = [],
   fighterEffectCategories = [],
   onUpdate,
-  onChange
+  onChange,
+  hideEquipmentOption = false
 }: AdminFighterEffectsProps) {
   const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
   const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
@@ -689,25 +691,27 @@ export function AdminFighterEffects({
               </select>
             </div>
 
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newEffect.applies_to === 'equipment'}
-                  onChange={(e) => setNewEffect(prev => ({
-                    ...prev,
-                    applies_to: e.target.checked ? 'equipment' : ''
-                  }))}
-                  className="w-4 h-4 rounded border-gray-300"
-                />
-                <span className="text-sm font-medium">
-                  Applies to Equipment
-                </span>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                Check this if this effect modifies weapon profiles of another piece of equipment (e.g., Hot-shot Las Pack removes "Plentiful" trait from lasguns)
-              </p>
-            </div>
+            {!hideEquipmentOption && (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newEffect.applies_to === 'equipment'}
+                    onChange={(e) => setNewEffect(prev => ({
+                      ...prev,
+                      applies_to: e.target.checked ? 'equipment' : ''
+                    }))}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium">
+                    Applies to Equipment
+                  </span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Check this if this effect modifies weapon profiles of another piece of equipment (e.g., Hot-shot Las Pack removes "Plentiful" trait from lasguns)
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium mb-1">Selection Type *</label>

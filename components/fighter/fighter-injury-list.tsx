@@ -423,10 +423,16 @@ export function InjuriesList({
     const requiresCaptured = typeSpecificData.captured === "true";
 
     // Check if glitch requires equipment selection FIRST
+    // Only show equipment selection if there are weapons available to select
     if (appliesToEquipment) {
-      setIsAddModalOpen(false);
-      setShowEquipmentSelection(true);
-      return false;
+      const hasAvailableEquipment = fighterWeapons && fighterWeapons.length > 0;
+      
+      if (hasAvailableEquipment) {
+        setIsAddModalOpen(false);
+        setShowEquipmentSelection(true);
+        return false;
+      }
+      // If no equipment available, fall through to apply directly to fighter
     }
 
     // If fighter is already in Recovery, don't show the Recovery modal again

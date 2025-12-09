@@ -15,11 +15,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const equipmentId = searchParams.get('equipmentId');
+    const categoryId = searchParams.get('categoryId');
     const fetchCategories = searchParams.get('categories') === 'true';
     const fetchModifiers = searchParams.get('modifiers') === 'true';
     const modifierId = searchParams.get('modifier_id');
-    
-    console.log('GET request params:', { id, equipmentId, fetchCategories, fetchModifiers, modifierId });
+
+    console.log('GET request params:', { id, equipmentId, categoryId, fetchCategories, fetchModifiers, modifierId });
     
     // Handle categories request
     if (fetchCategories) {
@@ -202,8 +203,55 @@ export async function GET(request: NextRequest) {
       console.log('All approaches failed, returning empty array');
       return NextResponse.json([]);
     }
-    
-    // Default query if no equipment_id is provided
+
+    // Handle category filtering
+    if (categoryId) {
+      console.log('Fetching fighter effects for category ID:', categoryId);
+
+      const { data, error } = await supabase
+        .from('fighter_effect_types')
+        .select(`
+          id,
+          effect_name,
+          fighter_effect_category_id,
+          type_specific_data,
+          fighter_effect_categories(id, category_name)
+        `)
+        .eq('fighter_effect_category_id', categoryId)
+        .order('effect_name');
+
+      if (error) {
+        console.error('Error fetching fighter effects by category:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      console.log(`Found ${data?.length || 0} fighter effects for category`);
+
+      // Get modifiers for each effect type
+      if (data && data.length > 0) {
+        const { data: modifiers, error: modifiersError } = await supabase
+          .from('fighter_effect_type_modifiers')
+          .select('*')
+          .in('fighter_effect_type_id', data.map(effect => effect.id));
+
+        if (modifiersError) {
+          console.error('Error fetching modifiers:', modifiersError);
+          return NextResponse.json({ error: modifiersError.message }, { status: 500 });
+        }
+
+        // Add modifiers to each fighter effect type
+        const fighterEffectTypes = data.map(effect => ({
+          ...effect,
+          modifiers: modifiers ? modifiers.filter(m => m.fighter_effect_type_id === effect.id) : []
+        }));
+
+        return NextResponse.json(fighterEffectTypes);
+      }
+
+      return NextResponse.json(data || []);
+    }
+
+    // Default query if no equipment_id or categoryId is provided
     let query = supabase
       .from('fighter_effect_types')
       .select(`
@@ -425,9 +473,71 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  const supabase = await createClient();
+
+  try {
+    // Check for admin access
+    const isAdmin = await checkAdmin(supabase);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Effect ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    console.log('PATCH request body:', body);
+
+    // Validate required fields
+    if (!body.effect_name) {
+      return NextResponse.json({ error: 'Effect name is required' }, { status: 400 });
+    }
+
+    // Prepare type_specific_data if provided
+    let typeSpecificData = body.type_specific_data;
+    if (typeSpecificData && typeof typeSpecificData === 'string') {
+      try {
+        typeSpecificData = JSON.parse(typeSpecificData);
+      } catch (e) {
+        console.error('Error parsing type_specific_data:', e);
+        return NextResponse.json({ error: 'Invalid JSON in type_specific_data' }, { status: 400 });
+      }
+    }
+
+    // Update fighter effect type
+    const { data, error } = await supabase
+      .from('fighter_effect_types')
+      .update({
+        effect_name: body.effect_name,
+        fighter_effect_category_id: body.fighter_effect_category_id || null,
+        ...(typeSpecificData !== undefined && { type_specific_data: typeSpecificData })
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating fighter effect:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
+  } catch (error: any) {
+    console.error('Error in PATCH handler:', error);
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'An unexpected error occurred'
+    }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
-  
+
   try {
     // Check for admin access
     const isAdmin = await checkAdmin(supabase);
