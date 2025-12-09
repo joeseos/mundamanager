@@ -4,7 +4,6 @@ import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
-import { FighterEffectModifier } from '@/types/fighter-effect';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";

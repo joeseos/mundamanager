@@ -27,6 +27,8 @@ export interface TypeSpecificData extends TraitModificationData {
   recovery?: 'true' | 'false' | string | boolean;
   convalescence?: 'true' | 'false' | string | boolean;
   captured?: 'true' | 'false' | string;
+  d66_min?: number;  // Dice roll range for injury tables
+  d66_max?: number;
   // Advancement fields
   xp_cost?: number;
   credits_increase?: number;
@@ -34,7 +36,7 @@ export interface TypeSpecificData extends TraitModificationData {
   times_increased?: number;
   // Power boost fields
   kill_cost?: number;
-  // Allow additional fields
+  // Index signature for legacy/unknown database fields
   [key: string]: string | number | boolean | string[] | undefined;
 }
 
