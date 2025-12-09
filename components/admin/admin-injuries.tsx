@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { AdminFighterEffects } from "./admin-fighter-effects";
-import { 
-  FighterEffectType, 
-  FighterEffectCategory, 
-  TypeSpecificData 
+import {
+  FighterEffectType,
+  FighterEffectCategory,
+  TypeSpecificData
 } from "@/types/fighter-effect";
 
 enum OperationType {
@@ -434,12 +435,10 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
                 {/* Recovery */}
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="recovery"
                     checked={recovery}
-                    onChange={(e) => setRecovery(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300"
+                    onCheckedChange={(checked) => setRecovery(checked === true)}
                     disabled={isFormDisabled}
                   />
                   <label htmlFor="recovery" className="text-sm font-medium cursor-pointer">
@@ -449,12 +448,10 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
                 {/* Convalescence */}
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="convalescence"
                     checked={convalescence}
-                    onChange={(e) => setConvalescence(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300"
+                    onCheckedChange={(checked) => setConvalescence(checked === true)}
                     disabled={isFormDisabled}
                   />
                   <label htmlFor="convalescence" className="text-sm font-medium cursor-pointer">
@@ -484,12 +481,10 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
                 {/* Applies to Equipment */}
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="appliesToEquipment"
                     checked={appliesToEquipment}
-                    onChange={(e) => setAppliesToEquipment(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300"
+                    onCheckedChange={(checked) => setAppliesToEquipment(checked === true)}
                     disabled={isFormDisabled}
                   />
                   <label htmlFor="appliesToEquipment" className="text-sm font-medium cursor-pointer">
