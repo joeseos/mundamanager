@@ -104,6 +104,7 @@ interface BuyEquipmentParams {
     target_equipment_id: string;
     effect_type_id: string;
   };
+  listed_cost?: number;
 }
 
 function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons }: PurchaseModalProps) {
@@ -745,6 +746,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         use_base_cost_for_rating: useBaseCostForRating,
         buy_for_gang_stash: isGangStashPurchase,
         selected_effect_ids: selectedEffectIds,
+        listed_cost: item.adjusted_cost ?? item.cost,
         // Only include fighter_id or vehicle_id if not buying for gang stash
         ...(!isGangStashPurchase && (isVehicleEquipment
           ? { vehicle_id: vehicleId || undefined }

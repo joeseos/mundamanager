@@ -28,6 +28,7 @@ interface BuyEquipmentParams {
   selected_effect_ids?: string[];
   equipment_target?: { target_equipment_id: string; effect_type_id: string };
   target_equipment_id?: string; // existing purchase flow carries the chosen target
+  listed_cost?: number; // the adjusted cost as displayed in UI, includes all discounts
 }
 
 interface DeleteEquipmentParams {
@@ -194,24 +195,15 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('fighter_id or vehicle_id is required for non-stash purchases');
     }
 
-    // PARALLEL: Gang info and fighter/vehicle data
+    // PARALLEL: Gang info and vehicle data
     // Note: Authorization is enforced by RLS policies on fighter_equipment table
-    const [gangResult, fighterResult, vehicleResult] = await Promise.all([
+    const [gangResult, vehicleResult] = await Promise.all([
       // Gang info
       supabase
         .from('gangs')
         .select('id, credits, gang_type_id, user_id, rating, wealth')
         .eq('id', params.gang_id)
         .single(),
-
-      // Fighter type ID for discounts (only if needed)
-      (params.fighter_id && !params.buy_for_gang_stash)
-        ? supabase
-            .from('fighters')
-            .select('fighter_type_id')
-            .eq('id', params.fighter_id)
-            .single()
-        : Promise.resolve({ data: null }),
 
       // Vehicle assignment check (only if needed)
       (params.vehicle_id && !params.buy_for_gang_stash)
@@ -229,13 +221,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Extract parallel query results
-    const fighterTypeId = fighterResult.data?.fighter_type_id || null;
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
 
     // Get equipment details
     let equipmentDetails: any;
     let baseCost: number;
-    let adjustedCost: number;
     let weaponProfiles: any[] = [];
     let customWeaponProfiles: any[] = [];
 
@@ -273,28 +263,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       equipmentDetails = equipment;
       baseCost = equipment.cost;
       weaponProfiles = equipment.weapon_profiles || [];
-
-      // Resolve adjusted cost using RPC (legacy-aware)
-      const { data: pricedRows, error: priceErr } = await supabase.rpc(
-        'get_equipment_with_discounts',
-        {
-          gang_type_id: gang.gang_type_id,
-          equipment_category: null,
-          fighter_type_id: params.buy_for_gang_stash ? null : fighterTypeId,
-          fighter_type_equipment: params.buy_for_gang_stash ? null : true,
-          equipment_tradingpost: null,
-          fighter_id: params.buy_for_gang_stash ? null : (params.fighter_id ?? null),
-          only_equipment_id: params.equipment_id
-        }
-      );
-
-      if (priceErr) {
-        console.warn('Price resolution via RPC failed; falling back to base cost:', priceErr);
-      }
-
-      adjustedCost = Array.isArray(pricedRows) && pricedRows[0]?.adjusted_cost != null
-        ? pricedRows[0].adjusted_cost
-        : equipment.cost;
     } else if (params.custom_equipment_id) {
       // PARALLEL: Custom equipment and profiles
       const [customEquipResult, profilesResult] = await Promise.all([
@@ -336,7 +304,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
       equipmentDetails = customEquip;
       baseCost = customEquip.cost;
-      adjustedCost = customEquip.cost;
 
       // Only use weapon profiles if it's actually a weapon
       if (customEquip.equipment_type === 'weapon') {
@@ -348,8 +315,14 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate final costs
-    const finalPurchaseCost = params.manual_cost ?? adjustedCost;
-    let ratingCost = params.use_base_cost_for_rating ? adjustedCost : finalPurchaseCost;
+    // We trust the client's listed_cost (the adjusted price from UI) because:
+    // 1. The client has already called get_equipment_with_discounts with correct gang_id
+    // 2. Users can already manipulate manual_cost if desired
+    // 3. Redundant server-side RPC call was removed for performance (previously missed gang_id parameter)
+    const finalPurchaseCost = params.manual_cost ?? params.listed_cost ?? baseCost;
+    let ratingCost = params.use_base_cost_for_rating
+      ? (params.listed_cost ?? baseCost)
+      : finalPurchaseCost;
 
     // Apply master-crafted bonus for weapons
     if (equipmentDetails.equipment_type === 'weapon' && params.master_crafted) {
