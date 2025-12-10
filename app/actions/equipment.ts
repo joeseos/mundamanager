@@ -315,6 +315,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate final costs
+    // We trust the client's listed_cost (the adjusted price from UI) because:
+    // 1. The client has already called get_equipment_with_discounts with correct gang_id
+    // 2. Users can already manipulate manual_cost if desired
+    // 3. Redundant server-side RPC call was removed for performance (previously missed gang_id parameter)
     const finalPurchaseCost = params.manual_cost ?? params.listed_cost ?? baseCost;
     let ratingCost = params.use_base_cost_for_rating
       ? (params.listed_cost ?? baseCost)
