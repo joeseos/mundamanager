@@ -238,13 +238,13 @@ export async function GET(request: Request) {
       interface VariantAvailabilityData {
         availability: string;
         gang_variant_id: string | null;
-        gang_variant_types: { variant: string } | null;
+        gang_variant_types: { variant: string }[] | null;
       }
 
       const formattedVariantAvailabilities = (variantAvailabilities as VariantAvailabilityData[] || [])
-        .filter((a: VariantAvailabilityData) => a && a.gang_variant_id !== null && a.gang_variant_types)
+        .filter((a: VariantAvailabilityData) => a && a.gang_variant_id !== null && a.gang_variant_types && a.gang_variant_types.length > 0)
         .map((a: VariantAvailabilityData) => ({
-          variant: a.gang_variant_types!.variant,
+          variant: a.gang_variant_types![0].variant,
           gang_variant_id: a.gang_variant_id!,
           availability: a.availability
         }));
