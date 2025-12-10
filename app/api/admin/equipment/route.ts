@@ -23,6 +23,16 @@ interface EquipmentAvailability {
   availability: string;
 }
 
+interface EquipmentOriginAvailability {
+  gang_origin_id: string;
+  availability: string;
+}
+
+interface EquipmentVariantAvailability {
+  gang_variant_id: string;
+  availability: string;
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
@@ -129,8 +139,6 @@ export async function GET(request: Request) {
         console.warn('Error fetching variant availabilities from equipment_availability:', variantAvailabilitiesError);
       }
 
-      console.log('Fetched variant availabilities:', variantAvailabilities || []);
-
       // Fetch trading post associations
       const { data: tradingPostAssociations, error: tradingPostError } = await supabase
         .from('trading_post_equipment')
@@ -233,15 +241,13 @@ export async function GET(request: Request) {
         gang_variant_types: { variant: string } | null;
       }
 
-      const formattedVariantAvailabilities = (variantAvailabilities || [])
-        .filter((a: any) => a && a.gang_variant_id !== null && a.gang_variant_types)
-        .map((a: any) => ({
-          variant: a.gang_variant_types.variant,
-          gang_variant_id: a.gang_variant_id,
+      const formattedVariantAvailabilities = (variantAvailabilities as VariantAvailabilityData[] || [])
+        .filter((a: VariantAvailabilityData) => a && a.gang_variant_id !== null && a.gang_variant_types)
+        .map((a: VariantAvailabilityData) => ({
+          variant: a.gang_variant_types!.variant,
+          gang_variant_id: a.gang_variant_id!,
           availability: a.availability
         }));
-
-      console.log('Formatted variant availabilities:', formattedVariantAvailabilities);
 
       // Format trading post associations
       const tradingPostIds = (tradingPostAssociations || []).map(tp => tp.trading_post_type_id);
@@ -799,6 +805,7 @@ export async function PATCH(request: Request) {
       gang_origin_adjusted_costs,
       equipment_availabilities,
       equipment_origin_availabilities,
+      equipment_variant_availabilities,
       fighter_effects
     } = data;
 
@@ -1073,7 +1080,7 @@ export async function PATCH(request: Request) {
 
       // If there are new variant availabilities to add
       if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
-        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: any) => ({
+        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: EquipmentVariantAvailability) => ({
           equipment_id: id,
           gang_variant_id: avail.gang_variant_id,
           availability: avail.availability.trimEnd(),

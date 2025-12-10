@@ -761,11 +761,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 </div>
               )}
 
-              {/* 3-column Grid: Gang costs and availability */}
+              {/* Gang costs and availability (responsive grid: 1 col mobile, 2 col tablet, 3 col desktop) */}
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Row 1, Col 1: Cost per Gang */}
+                    {/* Cost per Gang */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Cost per Gang
@@ -886,7 +886,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Row 1, Col 2: Availability per Gang */}
+                    {/* Availability per Gang */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang
@@ -998,7 +998,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Row 1, Col 3: Cost per Gang Origin */}
+                    {/* Cost per Gang Origin */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Cost per Gang Origin
@@ -1136,7 +1136,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Row 2, Col 1: Availability per Gang Origin */}
+                    {/* Availability per Gang Origin */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Origin
@@ -1265,7 +1265,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Row 2, Col 2: Availability per Gang Variant */}
+                    {/* Availability per Gang Variant */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Variant
@@ -1312,6 +1312,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           }}
                           onConfirm={() => {
                             if (selectedAvailabilityGangVariant && variantAvailabilityValue) {
+                              // Check for duplicates
+                              const alreadyExists = equipmentVariantAvailabilities.some(
+                                a => a.gang_variant_id === selectedAvailabilityGangVariant
+                              );
+                              if (alreadyExists) {
+                                toast({
+                                  description: 'This variant already has an availability set',
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+
                               const selectedVariant = gangVariantList.find(g => g.id === selectedAvailabilityGangVariant);
                               if (selectedVariant) {
                                 setEquipmentVariantAvailabilities(prev => [
