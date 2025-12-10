@@ -23,6 +23,16 @@ interface EquipmentAvailability {
   availability: string;
 }
 
+interface EquipmentOriginAvailability {
+  gang_origin_id: string;
+  availability: string;
+}
+
+interface EquipmentVariantAvailability {
+  gang_variant_id: string;
+  availability: string;
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
@@ -110,6 +120,24 @@ export async function GET(request: Request) {
       }
 
       console.log('Fetched origin availabilities:', originAvailabilities || []);
+
+      // Fetch equipment variant availabilities (gang variant-based)
+      const { data: variantAvailabilities, error: variantAvailabilitiesError } = await supabase
+        .from('equipment_availability')
+        .select(`
+          availability,
+          gang_variant_id,
+          gang_variant_types!gang_variant_id (
+            variant
+          )
+        `)
+        .eq('equipment_id', id)
+        .not('gang_variant_id', 'is', null);
+
+      // Don't throw error if the query fails or returns empty, just log it
+      if (variantAvailabilitiesError) {
+        console.warn('Error fetching variant availabilities from equipment_availability:', variantAvailabilitiesError);
+      }
 
       // Fetch trading post associations
       const { data: tradingPostAssociations, error: tradingPostError } = await supabase
@@ -205,6 +233,21 @@ export async function GET(request: Request) {
         }));
 
       console.log('Formatted origin availabilities:', formattedOriginAvailabilities);
+
+      // Format the variant availabilities
+      interface VariantAvailabilityData {
+        availability: string;
+        gang_variant_id: string | null;
+        gang_variant_types: { variant: string }[] | null;
+      }
+
+      const formattedVariantAvailabilities = (variantAvailabilities as VariantAvailabilityData[] || [])
+        .filter((a: VariantAvailabilityData) => a && a.gang_variant_id !== null && a.gang_variant_types && a.gang_variant_types.length > 0)
+        .map((a: VariantAvailabilityData) => ({
+          variant: a.gang_variant_types![0].variant,
+          gang_variant_id: a.gang_variant_id!,
+          availability: a.availability
+        }));
 
       // Format trading post associations
       const tradingPostIds = (tradingPostAssociations || []).map(tp => tp.trading_post_type_id);
@@ -341,6 +384,7 @@ export async function GET(request: Request) {
         gang_origin_adjusted_costs: formattedOriginAdjustedCosts || [],
         equipment_availabilities: formattedAvailabilities || [],
         equipment_origin_availabilities: formattedOriginAvailabilities || [],
+        equipment_variant_availabilities: formattedVariantAvailabilities || [],
         trading_post_associations: tradingPostIds,
         trading_post_types: tradingPostTypes || [],
         fighter_effects: fighterEffects,
@@ -761,6 +805,7 @@ export async function PATCH(request: Request) {
       gang_origin_adjusted_costs,
       equipment_availabilities,
       equipment_origin_availabilities,
+      equipment_variant_availabilities,
       fighter_effects
     } = data;
 
@@ -1014,6 +1059,43 @@ export async function PATCH(request: Request) {
           // Log but don't throw on insert error
           if (insertError) {
             console.warn('Error inserting gang origin availabilities into equipment_availability:', insertError);
+          }
+        }
+      }
+    }
+
+    // Handle equipment variant availabilities
+    if (equipment_variant_availabilities !== undefined) {
+      // First, delete all existing gang variant availabilities for this equipment
+      const { error: deleteError } = await supabase
+        .from('equipment_availability')
+        .delete()
+        .eq('equipment_id', id)
+        .not('gang_variant_id', 'is', null);
+
+      // Log but don't throw on delete error
+      if (deleteError) {
+        console.warn('Error deleting gang variant availabilities from equipment_availability:', deleteError);
+      }
+
+      // If there are new variant availabilities to add
+      if (Array.isArray(equipment_variant_availabilities) && equipment_variant_availabilities.length > 0) {
+        const variantAvailabilityRecords = equipment_variant_availabilities.map((avail: EquipmentVariantAvailability) => ({
+          equipment_id: id,
+          gang_variant_id: avail.gang_variant_id,
+          availability: avail.availability.trimEnd(),
+          gang_type_id: null,
+          gang_origin_id: null
+        }));
+
+        if (variantAvailabilityRecords.length > 0) {
+          const { error: insertError } = await supabase
+            .from('equipment_availability')
+            .insert(variantAvailabilityRecords);
+
+          // Log but don't throw on insert error
+          if (insertError) {
+            console.warn('Error inserting gang variant availabilities into equipment_availability:', insertError);
           }
         }
       }

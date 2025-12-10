@@ -9,6 +9,7 @@ import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
+import { gangVariantRank } from "@/utils/gangVariantRank";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { AdminTradingPost } from "./admin-trading-post";
 import { LuTrash2 } from 'react-icons/lu';
@@ -43,6 +44,12 @@ interface EquipmentAvailability {
 interface EquipmentOriginAvailability {
   origin_name: string;
   gang_origin_id: string;
+  availability: string;
+}
+
+interface EquipmentVariantAvailability {
+  variant: string;
+  gang_variant_id: string;
   availability: string;
 }
 
@@ -114,6 +121,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [originAvailabilityValue, setOriginAvailabilityValue] = useState("");
   const [equipmentOriginAvailabilities, setEquipmentOriginAvailabilities] = useState<EquipmentOriginAvailability[]>([]);
   const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
+  const [showVariantAvailabilityDialog, setShowVariantAvailabilityDialog] = useState(false);
+  const [selectedAvailabilityGangVariant, setSelectedAvailabilityGangVariant] = useState("");
+  const [variantAvailabilityValue, setVariantAvailabilityValue] = useState("");
+  const [equipmentVariantAvailabilities, setEquipmentVariantAvailabilities] = useState<EquipmentVariantAvailability[]>([]);
+  const [gangVariantList, setGangVariantList] = useState<Array<{id: string, variant: string}>>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
@@ -197,6 +209,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setGangOriginAdjustedCosts([]);
         setEquipmentAvailabilities([]);
         setEquipmentOriginAvailabilities([]);
+        setEquipmentVariantAvailabilities([]);
         setSelectedTradingPosts([]);
         return;
       }
@@ -252,6 +265,15 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           setEquipmentOriginAvailabilities(data.equipment_origin_availabilities.map((a: any) => ({
             origin_name: a.origin_name,
             gang_origin_id: a.gang_origin_id,
+            availability: a.availability
+          })));
+        }
+
+        // Set equipment variant availabilities if they exist
+        if (data.equipment_variant_availabilities) {
+          setEquipmentVariantAvailabilities(data.equipment_variant_availabilities.map((a: any) => ({
+            variant: a.variant,
+            gang_variant_id: a.gang_variant_id,
             availability: a.availability
           })));
         }
@@ -397,6 +419,28 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     fetchGangOrigins();
   }, [showOriginAvailabilityDialog, showOriginAdjustedCostDialog, toast]);
 
+  // Fetch gang variants when variant availability dialog is opened
+  useEffect(() => {
+    const fetchGangVariants = async () => {
+      if (showVariantAvailabilityDialog) {
+        try {
+          const response = await fetch('/api/gang_variant_types');
+          if (!response.ok) throw new Error('Failed to fetch gang variants');
+          const data = await response.json();
+          setGangVariantList(data);
+        } catch (error) {
+          console.error('Error fetching gang variants:', error);
+          toast({
+            description: 'Failed to load gang variants',
+            variant: "destructive"
+          });
+        }
+      }
+    };
+
+    fetchGangVariants();
+  }, [showVariantAvailabilityDialog, toast]);
+
   useEffect(() => {
     setIsLoading(
       isEquipmentDetailsLoading ||
@@ -491,6 +535,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         })),
         equipment_origin_availabilities: equipmentOriginAvailabilities.map(a => ({
           gang_origin_id: a.gang_origin_id,
+          availability: a.availability
+        })),
+        equipment_variant_availabilities: equipmentVariantAvailabilities.map(a => ({
+          gang_variant_id: a.gang_variant_id,
           availability: a.availability
         })),
         fighter_effects: fighterEffects
@@ -713,11 +761,11 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 </div>
               )}
 
-              {/* 2x2 Grid: Gang costs and availability */}
+              {/* Gang costs and availability (responsive grid: 1 col mobile, 2 col tablet, 3 col desktop) */}
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* First row: Gang Type costs and availability */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Cost per Gang */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Cost per Gang
@@ -838,6 +886,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
+                    {/* Availability per Gang */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang
@@ -949,7 +998,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
-                    {/* Second row: Gang Origin costs and availability */}
+                    {/* Cost per Gang Origin */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Cost per Gang Origin
@@ -1087,6 +1136,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
                     </div>
 
+                    {/* Availability per Gang Origin */}
                     <div>
                       <label className="block text-sm font-medium text-muted-foreground mb-1">
                         Availability per Gang Origin
@@ -1207,6 +1257,130 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 type="text"
                                 value={originAvailabilityValue}
                                 onChange={(e) => setOriginAvailabilityValue(e.target.value)}
+                                placeholder="E.g. R9, C, E"
+                              />
+                            </div>
+                          </div>
+                        </Modal>
+                      )}
+                    </div>
+
+                    {/* Availability per Gang Variant */}
+                    <div>
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
+                        Availability per Gang Variant
+                      </label>
+                      <Button
+                        onClick={() => setShowVariantAvailabilityDialog(true)}
+                        variant="outline"
+                        size="sm"
+                        className="mb-2"
+                      >
+                        Add Variant
+                      </Button>
+
+                      {equipmentVariantAvailabilities.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {equipmentVariantAvailabilities.map((avail, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                            >
+                              <span>{avail.variant} (Availability: {avail.availability})</span>
+                              <button
+                                onClick={() => setEquipmentVariantAvailabilities(prev =>
+                                  prev.filter((_, i) => i !== index)
+                                )}
+                                className="hover:text-red-500 focus:outline-none"
+                                disabled={!selectedEquipmentId}
+                              >
+                                <HiX className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {showVariantAvailabilityDialog && (
+                        <Modal
+                          title="Availability per Gang Variant"
+                          helper="Select a gang variant and enter an availability value"
+                          onClose={() => {
+                            setShowVariantAvailabilityDialog(false);
+                            setSelectedAvailabilityGangVariant("");
+                            setVariantAvailabilityValue("");
+                          }}
+                          onConfirm={() => {
+                            if (selectedAvailabilityGangVariant && variantAvailabilityValue) {
+                              // Check for duplicates
+                              const alreadyExists = equipmentVariantAvailabilities.some(
+                                a => a.gang_variant_id === selectedAvailabilityGangVariant
+                              );
+                              if (alreadyExists) {
+                                toast({
+                                  description: 'This variant already has an availability set',
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+
+                              const selectedVariant = gangVariantList.find(g => g.id === selectedAvailabilityGangVariant);
+                              if (selectedVariant) {
+                                setEquipmentVariantAvailabilities(prev => [
+                                  ...prev,
+                                  {
+                                    variant: selectedVariant.variant,
+                                    gang_variant_id: selectedVariant.id,
+                                    availability: variantAvailabilityValue
+                                  }
+                                ]);
+                                setShowVariantAvailabilityDialog(false);
+                                setSelectedAvailabilityGangVariant("");
+                                setVariantAvailabilityValue("");
+                              }
+                            }
+                          }}
+                          confirmText="Save"
+                          confirmDisabled={
+                            !selectedAvailabilityGangVariant ||
+                            !variantAvailabilityValue
+                          }
+                          width="sm"
+                        >
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Gang Variant</label>
+                              <select
+                                value={selectedAvailabilityGangVariant}
+                                onChange={(e) => {
+                                  const selected = gangVariantList.find(g => g.id === e.target.value);
+                                  if (selected) {
+                                    setSelectedAvailabilityGangVariant(e.target.value);
+                                  }
+                                }}
+                                className="w-full p-2 border rounded-md"
+                              >
+                                <option key="default" value="">Select a Gang Variant</option>
+                                {gangVariantList
+                                  .sort((a, b) => {
+                                    const rankA = gangVariantRank[a.variant.toLowerCase()] ?? Infinity;
+                                    const rankB = gangVariantRank[b.variant.toLowerCase()] ?? Infinity;
+                                    return rankA - rankB;
+                                  })
+                                  .map((variant) => (
+                                    <option key={variant.id} value={variant.id}>
+                                      {variant.variant}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium mb-1">Availability</label>
+                              <Input
+                                type="text"
+                                value={variantAvailabilityValue}
+                                onChange={(e) => setVariantAvailabilityValue(e.target.value)}
                                 placeholder="E.g. R9, C, E"
                               />
                             </div>
