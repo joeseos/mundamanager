@@ -156,6 +156,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     );
   } catch (error) {
     console.error('Error in GangPage:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      gangId: params.id
+    });
     throw error;
   }
 }
