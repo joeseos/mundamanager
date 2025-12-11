@@ -46,7 +46,6 @@ interface FighterPageProps {
     recovery?: boolean;
     captured?: boolean;
   }>;
-  userPermissions: UserPermissions;
   fighterId: string;
 }
 
@@ -288,7 +287,6 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 export default function FighterPage({
   initialFighterData,
   initialGangFighters,
-  userPermissions,
   fighterId
 }: FighterPageProps) {
   // Transform initial data and set up state
@@ -308,12 +306,40 @@ export default function FighterPage({
     }
   });
 
+  // Fetch user permissions on mount (client-side)
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>({
+    isOwner: false,
+    isAdmin: false,
+    canEdit: false,
+    canDelete: false,
+    canView: true,
+    userId: null
+  });
+
   const router = useRouter();
   const { toast } = useToast();
   const [isFetchingGangCredits, setIsFetchingGangCredits] = useState(false);
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
   const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
   const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
+
+  // Fetch user permissions on mount
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await fetch(`/api/permissions/fighter/${fighterId}`);
+        if (response.ok) {
+          const permissions = await response.json();
+          setUserPermissions(permissions);
+        }
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+        // Keep default read-only permissions on error
+      }
+    };
+
+    fetchPermissions();
+  }, [fighterId]);
 
   // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {

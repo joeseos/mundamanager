@@ -1,9 +1,7 @@
-import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { createServiceRoleClient } from "@/utils/supabase/server";
+import { notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
-import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
-import { getAuthenticatedUser } from "@/utils/auth";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -11,15 +9,7 @@ interface FighterPageProps {
 
 export default async function FighterPageServer({ params }: FighterPageProps) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  // Get authenticated user via claims (no extra network call)
-  let user: { id: string };
-  try {
-    user = await getAuthenticatedUser(supabase);
-  } catch {
-    redirect("/sign-in");
-  }
+  const supabase = createServiceRoleClient();
 
   try {
     // Fetch fighter data using granular shared functions
@@ -338,20 +328,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       }
     }
 
-
-    // Use centralized permission service to get user permissions
-    const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
-
     // Fetch gang fighters for the dropdown using cached function
     const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
 
-    // Pass fighter data and user permissions to client component
+    // Pass fighter data to client component (auth and permissions handled client-side)
     return (
       <FighterPageComponent
         initialFighterData={fighterData}
         initialGangFighters={gangFighters}
-        userPermissions={userPermissions}
         fighterId={id}
       />
     );
