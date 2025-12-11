@@ -15,12 +15,14 @@ import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { FiMap } from 'react-icons/fi';
 import { LuClipboard } from 'react-icons/lu';
+import { useClientAuth } from '@/hooks/useClientAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
   gangId: string;
-  userId: string;
-  userPermissions: UserPermissions;
+  userId: string | null;
+  userPermissions: UserPermissions | null;
 }
 
 interface GangDataState {
@@ -71,12 +73,58 @@ interface GangDataState {
   onFighterUpdate: (updatedFighter: FighterProps) => void;
 }
 
-export default function GangPageContent({ 
-  initialGangData, 
-  gangId, 
-  userId,
-  userPermissions 
+export default function GangPageContent({
+  initialGangData,
+  gangId,
+  userId: serverUserId,
+  userPermissions: serverPermissions
 }: GangPageContentProps) {
+
+  // --- Client-side permission handling ---
+
+  // Get client-side auth (only used if serverUserId not provided)
+  const { user: clientUser } = useClientAuth();
+
+  // Determine user ID (prefer server-provided, fall back to client)
+  const userId = serverUserId || clientUser?.id || null;
+
+  // Instant ownership check - no API call needed
+  const isOwner = !!userId && userId === initialGangData.user_id;
+
+  // Fetch permissions only if:
+  // - No server permissions provided (public gang flow)
+  // - User is logged in
+  // - User is NOT the owner (owners don't need API call)
+  const { permissions: fetchedPermissions, isLoading: isPermissionsLoading } = usePermissions(
+    'gang',
+    gangId,
+    { enabled: !serverPermissions && !!userId && !isOwner }
+  );
+
+  // Use server permissions if available, otherwise fetched
+  const permissions = serverPermissions || fetchedPermissions;
+
+  // Compute capabilities
+  const canEdit = isOwner || permissions?.canEdit || false;
+
+  // Show action buttons:
+  // - Owners: immediately (isOwner is synchronous)
+  // - Arbitrators/Admins: after permissions load (buttons appear, no flash)
+  // - Others: never
+  const showActionButtons = isOwner || (!isPermissionsLoading && canEdit);
+
+  // Build permissions object for child components
+  const resolvedPermissions: UserPermissions = serverPermissions || {
+    isOwner,
+    isAdmin: permissions?.isAdmin || false,
+    canEdit,
+    canDelete: isOwner || permissions?.canDelete || false,
+    canView: true,
+    userId: userId || ''
+  };
+
+  // --- End permission handling ---
+
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
     stash: initialGangData.stash || [],
@@ -142,12 +190,12 @@ export default function GangPageContent({
       // If server provided updated rating, use that instead of calculating
       if (skipRatingUpdate) {
         const existingFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
-        
+
         return {
           ...prev,
           processedData: {
             ...prev.processedData,
-            fighters: existingFighter 
+            fighters: existingFighter
               ? prev.processedData.fighters.map(fighter =>
                   fighter.id === updatedFighter.id ? updatedFighter : fighter
                 )
@@ -159,7 +207,7 @@ export default function GangPageContent({
 
       // Find the previous version of this fighter to compare
       const prevFighter = prev.processedData.fighters.find(f => f.id === updatedFighter.id);
-      
+
       // If fighter doesn't exist, add it as a new fighter
       if (!prevFighter) {
         return {
@@ -171,12 +219,12 @@ export default function GangPageContent({
           }
         };
       }
-      
+
       // Calculate rating change from vehicle updates
       let ratingChange = 0;
       let nextFighter: FighterProps = { ...updatedFighter };
       let vehicleChanged = false;
-      
+
       // If fighter now has a vehicle that it didn't have before
       if (nextFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
         // Add the vehicle's cost to the rating - we know it's a VehicleProps
@@ -185,7 +233,7 @@ export default function GangPageContent({
         // Sync fighter credits
         nextFighter.credits = (prevFighter.credits || 0) + vehicleCost;
         vehicleChanged = true;
-      } 
+      }
       // If fighter had a vehicle but no longer does
       else if ((!nextFighter.vehicles || nextFighter.vehicles.length === 0) && prevFighter?.vehicles?.length) {
         // Subtract the vehicle's cost from the rating
@@ -196,7 +244,7 @@ export default function GangPageContent({
         vehicleChanged = true;
       }
       // If fighter had a vehicle and still has one, but it's different
-      else if (nextFighter.vehicles?.length && prevFighter?.vehicles?.length && 
+      else if (nextFighter.vehicles?.length && prevFighter?.vehicles?.length &&
                nextFighter.vehicles[0].id !== prevFighter.vehicles[0].id) {
         // Remove old vehicle cost and add new vehicle cost
         const prevVehicleCost = (prevFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
@@ -334,7 +382,8 @@ export default function GangPageContent({
             onGangCreditsUpdate={handleGangCreditsUpdate}
             gang_variants={gangData.processedData.gang_variants}
             vehicles={gangData.processedData.vehicles || []}
-            userPermissions={userPermissions}
+            userPermissions={resolvedPermissions}
+            showActionButtons={showActionButtons}
           />
         </div>
         <GangInventory
@@ -350,11 +399,11 @@ export default function GangPageContent({
           onGangCreditsUpdate={handleGangCreditsUpdate}
           onGangRatingUpdate={handleGangRatingUpdate}
           onGangWealthUpdate={handleGangWealthUpdate}
-          userPermissions={userPermissions}
-          campaignTradingPostIds={(gangData.processedData.campaigns || []).length > 0 
+          userPermissions={resolvedPermissions}
+          campaignTradingPostIds={(gangData.processedData.campaigns || []).length > 0
             ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_posts || [])
             : undefined}
-          campaignTradingPostNames={(gangData.processedData.campaigns || []).length > 0 
+          campaignTradingPostNames={(gangData.processedData.campaigns || []).length > 0
             ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
             : undefined}
         />
@@ -364,7 +413,7 @@ export default function GangPageContent({
           gangId={gangId}
           onVehicleUpdate={handleVehicleUpdate}
           onFighterUpdate={handleFighterUpdate}
-          userPermissions={userPermissions}
+          userPermissions={resolvedPermissions}
           onGangCreditsUpdate={handleGangCreditsUpdate}
           onGangRatingUpdate={handleGangRatingUpdate}
           onGangWealthUpdate={handleGangWealthUpdate}
@@ -373,20 +422,20 @@ export default function GangPageContent({
         />
         <div className="bg-card shadow-md rounded-lg p-4">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>
-          <GangTerritories 
-            gangId={gangId} 
-            campaigns={gangData.processedData.campaigns || []} 
+          <GangTerritories
+            gangId={gangId}
+            campaigns={gangData.processedData.campaigns || []}
           />
         </div>
-        <GangNotes 
+        <GangNotes
           gangId={gangId}
           initialNote={gangData.processedData.note || ''}
           initialNoteBackstory={gangData.processedData.note_backstory || ''}
           onNoteUpdate={handleNoteUpdate}
           onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
-          userPermissions={userPermissions}
+          userPermissions={resolvedPermissions}
         />
       </Tabs>
     </div>
   );
-} 
+}
