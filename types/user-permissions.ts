@@ -4,7 +4,7 @@ export interface UserPermissions {
   canEdit: boolean;
   canDelete: boolean;
   canView: boolean;
-  userId: string;
+  userId: string | null;
 }
 
 // Add campaign-specific permissions interface

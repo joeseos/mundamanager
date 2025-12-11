@@ -94,6 +94,7 @@ interface GangProps {
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
   userPermissions?: UserPermissions;
+  showActionButtons?: boolean;
   username?: string;
   patreon_tier_id?: string;
   patreon_tier_title?: string;
@@ -144,6 +145,7 @@ export default function Gang({
   gang_variants,
   vehicles,
   userPermissions,
+  showActionButtons = false,
   username,
   patreon_tier_id,
   patreon_tier_title,
@@ -693,13 +695,14 @@ export default function Gang({
 
                 <div className="flex gap-2">
                   {additionalButtons}
-                  <Button
-                    onClick={handleEditModalOpen}
-                    disabled={!userPermissions?.canEdit}
-                    className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Edit
-                  </Button>
+                  {showActionButtons && (
+                    <Button
+                      onClick={handleEditModalOpen}
+                      className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                    >
+                      Edit
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -918,29 +921,28 @@ export default function Gang({
               <span>Created: {formatDate(created_at)}</span>
               <span>Last Updated: {formatDate(lastUpdated)}</span>
             </div>
-            <div className="mt-2 flex flex-wrap sm:justify-end justify-center gap-2">
-              <Button
-                onClick={handleAddFighterClick}
-                disabled={!userPermissions?.canEdit}
-                className="bg-neutral-900 text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add Fighter
-              </Button>
-              <Button
-                onClick={handleAddVehicleModalOpen}
-                disabled={!userPermissions?.canEdit}
-                className="bg-neutral-900 text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add Vehicle
-              </Button>
-              <Button
-                onClick={handleGangAdditionsModalOpen}
-                disabled={!userPermissions?.canEdit}
-                className="bg-neutral-900 text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Gang Additions
-              </Button>
-            </div>
+            {showActionButtons && (
+              <div className="mt-2 flex flex-wrap sm:justify-end justify-center gap-2">
+                <Button
+                  onClick={handleAddFighterClick}
+                  className="bg-neutral-900 text-white w-full min-w-[135px] sm:w-auto hover:bg-gray-800 print:hidden"
+                >
+                  Add Fighter
+                </Button>
+                <Button
+                  onClick={handleAddVehicleModalOpen}
+                  className="bg-neutral-900 text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+                >
+                  Add Vehicle
+                </Button>
+                <Button
+                  onClick={handleGangAdditionsModalOpen}
+                  className="bg-neutral-900 text-white flex-1 min-w-[135px] sm:flex-none hover:bg-gray-800 print:hidden"
+                >
+                  Gang Additions
+                </Button>
+              </div>
+            )}
           </div>
 
           {showPrintModal && (
