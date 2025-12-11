@@ -44,7 +44,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     }
 
     // Initialize permission service (used for both view check and permissions)
-    const permissionService = new PermissionService();
+    const permissionService = new PermissionService(await supabase);
 
     // Check if user can view hidden gang
     if (userId) {

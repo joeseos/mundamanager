@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
-import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 
 interface FighterPageProps {
@@ -11,9 +10,6 @@ interface FighterPageProps {
 export default async function FighterPageServer({ params }: FighterPageProps) {
   const { id } = await params;
   const supabase = await createClient();
-
-  // Trust that middleware already authenticated the user
-  // Only get user ID when we need it for permissions
 
   try {
     // Fetch fighter data using granular shared functions
@@ -332,29 +328,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       }
     }
 
-
-    // Get user ID only for permission check (middleware already authenticated)
-    let userPermissions = { canEdit: false, canDelete: false };
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const permissionService = new PermissionService();
-        userPermissions = await permissionService.getFighterPermissions(user.id, id);
-      }
-    } catch {
-      // If permission check fails, just use default (no permissions)
-      // This should never happen since middleware already authenticated
-    }
-
     // Fetch gang fighters for the dropdown using cached function
     const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
 
-    // Pass fighter data and user permissions to client component
+    // Pass fighter data to client component (permissions will be fetched client-side)
     return (
       <FighterPageComponent
         initialFighterData={fighterData}
         initialGangFighters={gangFighters}
-        userPermissions={userPermissions}
         fighterId={id}
       />
     );

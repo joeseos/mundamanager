@@ -34,7 +34,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   let permissions: CampaignPermissions | null = null;
   if (userId) {
     try {
-      const permissionService = new PermissionService();
+      const permissionService = new PermissionService(await supabase);
       permissions = await permissionService.getCampaignPermissions(userId, params.id);
     } catch (error) {
       console.error('Error calculating permissions:', error);

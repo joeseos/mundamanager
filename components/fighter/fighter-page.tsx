@@ -31,6 +31,9 @@ import { TbMeatOff } from "react-icons/tb";
 import { FaMedkit } from "react-icons/fa";
 import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { createClient } from "@/utils/supabase/client";
+import { PermissionService } from "@/app/lib/user-permissions";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -46,7 +49,6 @@ interface FighterPageProps {
     recovery?: boolean;
     captured?: boolean;
   }>;
-  userPermissions: UserPermissions;
   fighterId: string;
 }
 
@@ -288,13 +290,45 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 export default function FighterPage({
   initialFighterData,
   initialGangFighters,
-  userPermissions,
   fighterId
 }: FighterPageProps) {
   // Transform initial data and set up state
   const [fighterData, setFighterData] = useState<FighterPageState>(() =>
     transformFighterData(initialFighterData, initialGangFighters)
   );
+
+  // Fetch permissions on client side using client Supabase
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>({
+    isOwner: false,
+    isAdmin: false,
+    canEdit: false,
+    canDelete: false,
+    canView: true,
+    userId: ''
+  });
+
+  useEffect(() => {
+    async function loadPermissions() {
+      try {
+        const supabase = createClient();
+        const userId = await getUserIdFromClaims(supabase);
+        
+        if (!userId) {
+          // No user, keep default read-only permissions
+          return;
+        }
+
+        // Use PermissionService directly with client Supabase
+        const permissionService = new PermissionService(supabase);
+        const perms = await permissionService.getFighterPermissions(userId, fighterId);
+        setUserPermissions(perms);
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
+        // Keep default permissions on error
+      }
+    }
+    loadPermissions();
+  }, [fighterId]);
 
   const [uiState, setUiState] = useState<UIState>({
     isLoading: false,
