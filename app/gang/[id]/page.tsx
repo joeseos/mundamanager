@@ -29,6 +29,8 @@ import {
   getUserProfile
 } from '@/app/lib/shared/gang-data';
 
+export const revalidate = false; // Cache indefinitely until manually revalidated
+
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   // Use service role client - no cookies(), enables ISR caching

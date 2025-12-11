@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 
+export const revalidate = false; // Cache indefinitely until manually revalidated
+
 interface FighterPageProps {
   params: Promise<{ id: string }>;
 }
