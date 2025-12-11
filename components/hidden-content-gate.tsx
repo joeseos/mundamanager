@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useClientAuth } from '@/hooks/useClientAuth';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -27,20 +28,25 @@ export default function HiddenContentGate({
     { enabled: !!user }
   );
 
+  const canView = permissions?.isOwner || permissions?.isAdmin || permissions?.canEdit;
+
+  // Handle redirects in useEffect to avoid "Cannot update during render" warning
+  useEffect(() => {
+    if (isAuthLoading || isPermissionsLoading) return;
+
+    if (!user) {
+      router.push('/sign-in');
+    } else if (!canView) {
+      router.push('/');
+    }
+  }, [isAuthLoading, isPermissionsLoading, user, canView, router]);
+
   if (isAuthLoading || isPermissionsLoading) {
     return <>{loadingComponent}</>;
   }
 
-  if (!user) {
-    router.push('/sign-in');
-    return null;
-  }
-
-  const canView = permissions?.isOwner || permissions?.isAdmin || permissions?.canEdit;
-
-  if (!canView) {
-    router.push('/');
-    return null;
+  if (!user || !canView) {
+    return null; // Will redirect via useEffect
   }
 
   return <>{children({ userId: user.id, permissions: permissions! })}</>;

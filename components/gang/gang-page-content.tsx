@@ -114,6 +114,8 @@ export default function GangPageContent({
   const showActionButtons = isOwner || (!isPermissionsLoading && canEdit);
 
   // Build permissions object for child components
+  // Note: Empty string for userId is safe here - when userId is null, user isn't
+  // authenticated so they won't have edit permissions and buttons won't be shown
   const resolvedPermissions: UserPermissions = serverPermissions || {
     isOwner,
     isAdmin: permissions?.isAdmin || false,

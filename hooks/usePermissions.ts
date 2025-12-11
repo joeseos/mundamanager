@@ -5,6 +5,9 @@ import type { UserPermissions } from '@/types/user-permissions';
 
 const fetcher = async (url: string): Promise<UserPermissions> => {
   const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error('Failed to fetch permissions');
+  }
   return res.json();
 };
 

@@ -1,3 +1,14 @@
+/**
+ * Gang Page - ISR Enabled
+ *
+ * This page uses service role client (no cookies) to enable caching.
+ * - Public gangs: Fully cached, permissions checked client-side
+ * - Hidden gangs: Cached but gated by HiddenContentGate
+ *
+ * Action buttons (Edit, Add Fighter, etc.) are shown based on:
+ * - Owners: Instant (client-side check against gang.user_id)
+ * - Arbitrators/Admins: After permission API call (~50ms)
+ */
 import { createServiceRoleClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";

@@ -42,6 +42,8 @@ function initializeAuth() {
     notifyListeners();
 
     // Set up auth state change listener (only once)
+    // Note: For singleton pattern, we intentionally don't unsubscribe
+    // as we want to keep listening for auth changes globally
     supabase.auth.onAuthStateChange((_event, session) => {
       cachedUser = session?.user ?? null;
       notifyListeners();
