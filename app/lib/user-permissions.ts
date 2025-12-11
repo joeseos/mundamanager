@@ -1,14 +1,23 @@
-import { createClient } from '@/utils/supabase/server';
 import type { UserPermissions, UserProfile, CampaignPermissions } from '@/types/user-permissions';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export class PermissionService {
+  private supabase: SupabaseClient | Promise<SupabaseClient>;
+
+  constructor(supabase: SupabaseClient) {
+    // Always require a Supabase client to be passed
+    // In server components, pass server client: await createClient()
+    // In client components, pass client: createClient() from @/utils/supabase/client
+    this.supabase = supabase;
+  }
+
   /**
    * Fetches user profile from database to check their role
    * @param userId - The user's ID
    * @returns UserProfile with role information (admin, user)
    */
   async getUserProfile(userId: string): Promise<UserProfile | null> {
-    const supabase = await createClient();
+    const supabase = this.supabase instanceof Promise ? await this.supabase : this.supabase;
     const { data: profile } = await supabase
       .from('profiles')
       .select('id, user_role')
@@ -24,7 +33,7 @@ export class PermissionService {
    * @returns The user ID of the gang owner, or null if not found
    */
   async getGangOwnership(gangId: string): Promise<string | null> {
-    const supabase = await createClient();
+    const supabase = this.supabase instanceof Promise ? await this.supabase : this.supabase;
     const { data: gang } = await supabase
       .from('gangs')
       .select('user_id')
@@ -41,7 +50,7 @@ export class PermissionService {
    * @returns The user's highest role across campaigns, or null if not a member
    */
   async getUserRoleInGangCampaigns(userId: string, gangId: string): Promise<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null> {
-    const supabase = await createClient();
+    const supabase = this.supabase instanceof Promise ? await this.supabase : this.supabase;
     
     // First get campaign IDs for this gang
     const { data: campaignGangs, error: campaignGangsError } = await supabase
@@ -88,7 +97,7 @@ export class PermissionService {
    * @returns The user's role in the campaign, or null if not a member
    */
   async getCampaignRole(userId: string, campaignId: string): Promise<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null> {
-    const supabase = await createClient();
+    const supabase = this.supabase instanceof Promise ? await this.supabase : this.supabase;
     
     // Use select without .single() since users can have multiple entries (different gangs)
     const { data: members, error } = await supabase
@@ -131,7 +140,7 @@ export class PermissionService {
     userId: string, 
     fighterId: string
   ): Promise<UserPermissions> {
-    const supabase = await createClient();
+    const supabase = this.supabase instanceof Promise ? await this.supabase : this.supabase;
     
     const { data: fighter } = await supabase
       .from('fighters')

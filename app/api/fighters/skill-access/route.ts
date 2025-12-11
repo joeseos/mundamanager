@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     // Check if user has access to this fighter (either owner or admin)
     // Use PermissionService to check fighter permissions
-    const permissionService = new PermissionService();
+    const permissionService = new PermissionService(await supabase);
     const permissions = await permissionService.getFighterPermissions(userId, fighterId);
 
     if (!permissions.canEdit) {

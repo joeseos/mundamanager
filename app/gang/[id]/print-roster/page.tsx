@@ -42,7 +42,7 @@ export default async function GangRosterPage(props: {
     }
 
     // Check if user can view hidden gang
-    const permissionService = new PermissionService();
+    const permissionService = new PermissionService(await supabase);
     const canView = await permissionService.canViewHiddenGang(
       user.id,
       params.id,
