@@ -2,7 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { PermissionService } from "@/app/lib/user-permissions";
-import { getAuthenticatedUser } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
   getGangBasic,
@@ -23,13 +22,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   const params = await props.params;
   const supabase = await createClient();
 
-  // Get authenticated user via claims (no extra network call)
-  let user: { id: string };
-  try {
-    user = await getAuthenticatedUser(supabase);
-  } catch {
-    redirect("/sign-in");
-  }
+  // Trust that middleware already authenticated the user
+  // Only get user ID when we need it for permissions
 
   try {
     // Fetch basic gang data first to check if gang exists
@@ -39,15 +33,32 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       notFound();
     }
 
-    // Check if user can view hidden gang
-    const permissionService = new PermissionService();
-    const canView = await permissionService.canViewHiddenGang(
-      user.id,
-      params.id,
-      gangBasic.hidden
-    );
+    // Get user ID only for permission checks (middleware already authenticated)
+    let userId: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id || null;
+    } catch {
+      // Fallback - should never happen since middleware authenticated
+      redirect("/sign-in");
+    }
 
-    if (!canView) {
+    // Initialize permission service (used for both view check and permissions)
+    const permissionService = new PermissionService();
+
+    // Check if user can view hidden gang
+    if (userId) {
+      const canView = await permissionService.canViewHiddenGang(
+        userId,
+        params.id,
+        gangBasic.hidden
+      );
+
+      if (!canView) {
+        notFound();
+      }
+    } else if (gangBasic.hidden) {
+      // If no user ID and gang is hidden, don't show it
       notFound();
     }
 
@@ -63,8 +74,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangCredits,
       gangVariants,
       gangRatingAndWealth,
-      userProfile,
-      userPermissions
+      userProfile
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic.gang_type_id, supabase),
@@ -76,9 +86,26 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRatingAndWealth(params.id, supabase),
-      getUserProfile(gangBasic.user_id, supabase),
-      permissionService.getGangPermissions(user.id, params.id)
+      getUserProfile(gangBasic.user_id, supabase)
     ]);
+
+    // Get user permissions (only if we have userId)
+    let userPermissions = { 
+      isOwner: false, 
+      isAdmin: false, 
+      canEdit: false, 
+      canDelete: false, 
+      canView: true,
+      userId: userId || ''
+    };
+    if (userId) {
+      try {
+        userPermissions = await permissionService.getGangPermissions(userId, params.id);
+      } catch {
+        // If permission check fails, just use default (no permissions)
+        userPermissions.userId = userId;
+      }
+    }
 
     // Initialize positioning if needed (lazy initialization only)
     const processedPositioning = await initializePositioningIfNeeded(
@@ -144,7 +171,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       <GangPageContent
         initialGangData={gangDataForClient}
         gangId={params.id}
-        userId={user.id}
+        userId={userId || ''}
         userPermissions={userPermissions}
       />
     );

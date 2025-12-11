@@ -3,7 +3,6 @@ import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
-import { getAuthenticatedUser } from "@/utils/auth";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -13,13 +12,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
   const { id } = await params;
   const supabase = await createClient();
 
-  // Get authenticated user via claims (no extra network call)
-  let user: { id: string };
-  try {
-    user = await getAuthenticatedUser(supabase);
-  } catch {
-    redirect("/sign-in");
-  }
+  // Trust that middleware already authenticated the user
+  // Only get user ID when we need it for permissions
 
   try {
     // Fetch fighter data using granular shared functions
@@ -339,9 +333,18 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     }
 
 
-    // Use centralized permission service to get user permissions
-    const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
+    // Get user ID only for permission check (middleware already authenticated)
+    let userPermissions = { canEdit: false, canDelete: false };
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const permissionService = new PermissionService();
+        userPermissions = await permissionService.getFighterPermissions(user.id, id);
+      }
+    } catch {
+      // If permission check fails, just use default (no permissions)
+      // This should never happen since middleware already authenticated
+    }
 
     // Fetch gang fighters for the dropdown using cached function
     const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
