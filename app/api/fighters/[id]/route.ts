@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { invalidateGangCredits } from '@/utils/cache-tags';
 
 // Add Edge Function configurations
-export const runtime = 'edge';
+// export const runtime = 'edge';  // Removed for Cloudflare deployment
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {

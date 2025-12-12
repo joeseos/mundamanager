@@ -3,7 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
 // Add Edge Function configurations
-export const runtime = 'edge';
+// export const runtime = 'edge';  // Removed for Cloudflare deployment
 export const dynamic = 'force-dynamic';
 
 // Define types for our data structures
