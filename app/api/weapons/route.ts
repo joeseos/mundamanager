@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
-export const runtime = 'edge';
+// export const runtime = 'edge';  // Removed for Cloudflare deployment
 export const preferredRegion = 'auto';
 export const dynamic = 'force-dynamic';
 

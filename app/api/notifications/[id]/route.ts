@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
 // Add Edge Function configurations
-export const runtime = 'edge';
+// export const runtime = 'edge';  // Removed for Cloudflare deployment
 
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
