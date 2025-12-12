@@ -54,6 +54,7 @@
     "sonner": "^1.7.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.14.6",
     "@parcel/css": "^1.14.0",
     "@types/node": "20.10.6",
     "@types/react": "19.1.8",
