@@ -6,8 +6,8 @@ import Link from "next/link";
 
 interface WhatIsMundaManagerProps {
   userCount?: number;
-  gangCount?: number;
-  campaignCount?: number;
+  gangCount?: number | null;
+  campaignCount?: number | null;
 }
 
 export default function WhatIsMundaManager({ userCount, gangCount, campaignCount }: WhatIsMundaManagerProps = {}) {
@@ -131,19 +131,19 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
           </Link>{" "}
           now and start managing your gangs and campaigns.
         </p>
-        {(userCount !== undefined || gangCount !== undefined || campaignCount !== undefined) && (
+        {(userCount !== undefined && userCount !== null || gangCount !== undefined && gangCount !== null || campaignCount !== undefined && campaignCount !== null) && (
           <div className="text-blue-800 text-sm space-y-1">
-            {userCount !== undefined && (
+            {userCount !== undefined && userCount !== null && (
               <p>
                 <strong>{userCount.toLocaleString()}</strong> Necromunda players use Munda Manager
               </p>
             )}
-            {gangCount !== undefined && (
+            {gangCount !== undefined && gangCount !== null && (
               <p>
                 <strong>{gangCount.toLocaleString()}</strong> gangs created
               </p>
             )}
-            {campaignCount !== undefined && (
+            {campaignCount !== undefined && campaignCount !== null && (
               <p>
                 <strong>{campaignCount.toLocaleString()}</strong> campaigns launched
               </p>
@@ -153,7 +153,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
             </p>
           </div>
         )}
-        {userCount === undefined && gangCount === undefined && campaignCount === undefined && (
+        {(userCount === undefined || userCount === null) && (gangCount === undefined || gangCount === null) && (campaignCount === undefined || campaignCount === null) && (
           <p className="text-blue-800">
             Thousands of Necromunda players are already using Munda Manager to manage their gangs and campaigns!
           </p>

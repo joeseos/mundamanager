@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 
 /**
  * Get cached campaign count for public display
@@ -12,16 +12,18 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
  * - Automatic: Every 86400 seconds (24 hours)
  * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT()) after campaign creation/deletion
  * 
- * @returns The total number of campaigns in the database
+ * @returns The total number of campaigns in the database, or null if service role key is not available
  */
-export async function getCampaignCount(): Promise<number> {
+export async function getCampaignCount(): Promise<number | null> {
   const getCachedCampaignCount = unstable_cache(
     async () => {
+      // Check if service role key is available
+      if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        return null;
+      }
+
       // Use service role key to bypass RLS for public stats
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      const supabase = createServiceRoleClient();
       
       // Count all campaigns
       const { count, error } = await supabase
@@ -30,8 +32,7 @@ export async function getCampaignCount(): Promise<number> {
       
       if (error) {
         console.error('Error fetching campaign count:', error);
-        // Return a fallback count or throw based on your preference
-        return 0;
+        return null;
       }
       
       return count || 0;
