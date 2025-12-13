@@ -13,6 +13,7 @@ export async function GET() {
   try {
     const count = await getGangCount();
     
+    // Return null if count is null (service role key not available)
     const response = NextResponse.json({ count });
     
     // Add cache headers for edge/CDN caching
