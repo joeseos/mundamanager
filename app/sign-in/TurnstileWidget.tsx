@@ -140,11 +140,13 @@ export default function TurnstileWidget() {
 
   return (
     <div className="w-full">
-      <div ref={widgetRef} className="turnstile-widget"></div>
+      <div className="flex justify-center">
+        <div ref={widgetRef} className="turnstile-widget"></div>
+      </div>
       
       {/* Error state */}
       {hasError && (
-        <div className="p-4 border border-red-300 rounded-md bg-red-50 dark:bg-red-900/20 dark:border-red-600">
+        <div className="p-4 border border-red-300 rounded-md bg-red-50 dark:bg-red-900/20 dark:border-red-600 mt-2">
           <div className="flex items-center space-x-2">
             <div className="text-red-600 dark:text-red-400">⚠️</div>
             <div className="text-sm text-red-600 dark:text-red-400">
@@ -155,7 +157,7 @@ export default function TurnstileWidget() {
       )}
       
       {process.env.NODE_ENV === 'development' && !siteKey && (
-        <div className="text-amber-500 text-sm mt-2">
+        <div className="text-amber-500 text-sm mt-2 text-center">
           Note: NEXT_PUBLIC_TURNSTILE_SITE_KEY environment variable is not set
         </div>
       )}

@@ -114,7 +114,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           onSubmit={handleSubmit}
         >
-          <h1 className="text-2xl font-medium text-white mb-2">Sign up</h1>
+          <h1 className="text-2xl font-medium text-white mb-2">Sign Up</h1>
           <p className="text-sm text-white mb-8">
             Already have an account?{" "}
             <Link className="text-white font-medium underline" href="/sign-in">
@@ -214,7 +214,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
               className="bg-neutral-900 text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Signing up...' : 'Sign up'}
+              {isSubmitting ? 'Signing Up...' : 'Sign Up'}
             </button>
             <FormMessage message={searchParams} />
           </div>
