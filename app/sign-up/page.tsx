@@ -7,14 +7,15 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, use } from "react";
+import { LuEye, LuEyeOff } from "react-icons/lu";
 
 export default function Page(props: { searchParams: Promise<Message> }) {
   const searchParams = use(props.searchParams);
   const [passwordError, setPasswordError] = useState<string>("");
   const [usernameError, setUsernameError] = useState<string>("");
   const [emailError, setEmailError] = useState<string>("");
-  const [emailConfirmError, setEmailConfirmError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const [passwordRequirements, setPasswordRequirements] = useState({
     hasLowerCase: false,
@@ -60,13 +61,6 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     const password = formData.get('password') as string;
     const username = formData.get('username') as string;
     const email = formData.get('email') as string;
-    const confirmEmail = formData.get('confirmEmail') as string;
-
-    if (email !== confirmEmail) {
-      setEmailConfirmError("Emails do not match");
-      setIsSubmitting(false);
-      return;
-    }
 
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (!isValidUsername) {
@@ -90,7 +84,6 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     setPasswordError("");
     setUsernameError("");
     setEmailError("");
-    setEmailConfirmError("");
 
     try {
       const result = await signUpAction(formData);
@@ -162,53 +155,55 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 <p className="text-red-400 text-sm mt-1">{emailError}</p>
               )}
             </div>
-
-            <div>
-              <Label htmlFor="confirmEmail" className="text-white">Confirm Email</Label>
-              <Input 
-                id="confirmEmail"
-                name="confirmEmail" 
-                type="email"
-                placeholder="you@example.com" 
-                required 
-                className="text-foreground mt-1" 
-                autoComplete="email"
-              />
-              {emailConfirmError && (
-                <p className="text-red-400 text-sm mt-1">{emailConfirmError}</p>
-              )}
-            </div>
             
             <div>
               <Label htmlFor="password" className="text-white">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                name="password"
-                placeholder="••••••••"
-                minLength={6}
-                required
-                className="text-foreground mt-1"
-                onChange={(e) => checkPasswordRequirements(e.target.value)}
-                autoComplete="new-password"
-              />
+              <div className="relative mt-1">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="••••••••"
+                  minLength={6}
+                  required
+                  className="text-foreground pr-10"
+                  onChange={(e) => checkPasswordRequirements(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onMouseDown={() => setShowPassword(true)}
+                  onMouseUp={() => setShowPassword(false)}
+                  onMouseLeave={() => setShowPassword(false)}
+                  onTouchStart={() => setShowPassword(true)}
+                  onTouchEnd={() => setShowPassword(false)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors select-none touch-none"
+                  aria-label="Hold to reveal password"
+                >
+                  {showPassword ? (
+                    <LuEyeOff className="h-5 w-5" />
+                  ) : (
+                    <LuEye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
               {passwordError && (
                 <p className="text-red-400 text-sm mt-1">{passwordError}</p>
               )}
               <div className="mt-2 text-sm space-y-1">
-                <p className={passwordRequirements.hasMinLength ? "text-green-400" : "text-gray-400"}>
+                <p className={passwordRequirements.hasMinLength ? "text-green-500" : "text-gray-400"}>
                   ✓ At least 6 characters
                 </p>
-                <p className={passwordRequirements.hasLowerCase ? "text-green-400" : "text-gray-400"}>
+                <p className={passwordRequirements.hasLowerCase ? "text-green-500" : "text-gray-400"}>
                   ✓ One lowercase letter
                 </p>
-                <p className={passwordRequirements.hasUpperCase ? "text-green-400" : "text-gray-400"}>
+                <p className={passwordRequirements.hasUpperCase ? "text-green-500" : "text-gray-400"}>
                   ✓ One uppercase letter
                 </p>
-                <p className={passwordRequirements.hasNumber ? "text-green-400" : "text-gray-400"}>
+                <p className={passwordRequirements.hasNumber ? "text-green-500" : "text-gray-400"}>
                   ✓ One number
                 </p>
-                <p className={passwordRequirements.hasSpecialChar ? "text-green-400" : "text-gray-400"}>
+                <p className={passwordRequirements.hasSpecialChar ? "text-green-500" : "text-gray-400"}>
                   ✓ One special character (!@#$%^&*()_+-=[]{}|;:,&lt;&gt;?~)
                 </p>
               </div>

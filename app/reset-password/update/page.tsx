@@ -7,13 +7,32 @@ import { Label } from "@/components/ui/label";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { LuEye, LuEyeOff } from "react-icons/lu";
 
 function UpdatePasswordFormContent() {
   const [message, setMessage] = useState<Message>({} as Message);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    hasLowerCase: false,
+    hasUpperCase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+    hasMinLength: false,
+  });
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
+
+  const checkPasswordRequirements = (password: string) => {
+    setPasswordRequirements({
+      hasLowerCase: /[a-z]/.test(password),
+      hasUpperCase: /[A-Z]/.test(password),
+      hasNumber: /\d/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password),
+      hasMinLength: password.length >= 6,
+    });
+  };
 
   useEffect(() => {
     const setupPasswordReset = async () => {
@@ -58,15 +77,20 @@ function UpdatePasswordFormContent() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const password = formData.get('password') as string;
-    const confirmPassword = formData.get('confirmPassword') as string;
+
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?~]/.test(password);
+    const hasMinLength = password.length >= 6;
+
+    if (!hasLowerCase || !hasUpperCase || !hasNumber || !hasSpecialChar || !hasMinLength) {
+      setMessage({ error: 'Password must contain at least 6 characters, including uppercase, lowercase, number, and special character' });
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      if (password !== confirmPassword) {
-        setMessage({ error: 'Passwords do not match' });
-        setIsSubmitting(false);
-        return;
-      }
-
       const { error } = await supabase.auth.updateUser({ password });
 
       if (error) {
@@ -93,28 +117,51 @@ function UpdatePasswordFormContent() {
       <div className="flex flex-col gap-4">
         <div>
           <Label htmlFor="password">New Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            placeholder="••••••••"
-            required
-            className="text-foreground mt-1"
-            minLength={6}
-          />
-        </div>
-        
-        <div>
-          <Label htmlFor="confirmPassword">Confirm New Password</Label>
-          <Input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            placeholder="••••••••"
-            required
-            className="text-foreground mt-1"
-            minLength={6}
-          />
+          <div className="relative mt-1">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              required
+              className="text-foreground pr-10"
+              minLength={6}
+              onChange={(e) => checkPasswordRequirements(e.target.value)}
+            />
+            <button
+              type="button"
+              onMouseDown={() => setShowPassword(true)}
+              onMouseUp={() => setShowPassword(false)}
+              onMouseLeave={() => setShowPassword(false)}
+              onTouchStart={() => setShowPassword(true)}
+              onTouchEnd={() => setShowPassword(false)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors select-none touch-none"
+              aria-label="Hold to reveal password"
+            >
+              {showPassword ? (
+                <LuEyeOff className="h-5 w-5" />
+              ) : (
+                <LuEye className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+          <div className="mt-2 text-sm space-y-1">
+            <p className={passwordRequirements.hasMinLength ? "text-green-500" : "text-gray-400"}>
+              ✓ At least 6 characters
+            </p>
+            <p className={passwordRequirements.hasLowerCase ? "text-green-500" : "text-gray-400"}>
+              ✓ One lowercase letter
+            </p>
+            <p className={passwordRequirements.hasUpperCase ? "text-green-500" : "text-gray-400"}>
+              ✓ One uppercase letter
+            </p>
+            <p className={passwordRequirements.hasNumber ? "text-green-500" : "text-gray-400"}>
+              ✓ One number
+            </p>
+            <p className={passwordRequirements.hasSpecialChar ? "text-green-500" : "text-gray-400"}>
+              ✓ One special character (!@#$%^&*()_+-=[]{}|;:,&lt;&gt;?~)
+            </p>
+          </div>
         </div>
 
         <SubmitButton 
