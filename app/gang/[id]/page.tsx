@@ -29,7 +29,7 @@ import {
   getUserProfile
 } from '@/app/lib/shared/gang-data';
 
-export const revalidate = false; // Cache for 1 year (no automatic revalidation)
+export const revalidate = false; // Cache forever (no automatic revalidation)
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

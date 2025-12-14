@@ -16,7 +16,7 @@ import {
   getGangCredits
 } from '@/app/lib/shared/gang-data';
 
-export const revalidate = false; // Cache for 1 year (no automatic revalidation)
+export const revalidate = false; // Cache forever (no automatic revalidation)
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
