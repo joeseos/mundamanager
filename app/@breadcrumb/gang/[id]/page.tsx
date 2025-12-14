@@ -1,5 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { createClient } from "@/utils/supabase/server"
+import { createServiceRoleClient } from "@/utils/supabase/server"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,7 +16,7 @@ export default async function GangBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
+  const supabase = createServiceRoleClient()
   
   const { data: gangData } = await supabase
     .from('gangs')
