@@ -2,6 +2,21 @@ import { createServiceRoleClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
+import {
+  getFighterBasic,
+  getFighterEquipment,
+  getFighterSkills,
+  getFighterEffects,
+  getFighterVehicles,
+  getFighterOwnedBeastsCost
+} from '@/app/lib/shared/fighter-data';
+import {
+  getGangBasic,
+  getGangPositioning,
+  getGangCredits
+} from '@/app/lib/shared/gang-data';
+
+export const revalidate = false; // Cache for 1 year (no automatic revalidation)
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -12,21 +27,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
   const supabase = createServiceRoleClient();
 
   try {
-    // Fetch fighter data using granular shared functions
-    const {
-      getFighterBasic,
-      getFighterEquipment,
-      getFighterSkills,
-      getFighterEffects,
-      getFighterVehicles,
-      getFighterOwnedBeastsCost
-    } = await import('@/app/lib/shared/fighter-data');
-
-    const {
-      getGangBasic,
-      getGangPositioning,
-      getGangCredits
-    } = await import('@/app/lib/shared/gang-data');
 
     // Fetch basic fighter data first to check if fighter exists
     const fighterBasic = await getFighterBasic(id, supabase);
