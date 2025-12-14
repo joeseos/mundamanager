@@ -10,8 +10,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
 import { createClient } from "@/utils/supabase/client";
-import { FiMap } from "react-icons/fi";
 import { FaUsers } from "react-icons/fa";
+import { MdAppShortcut } from "react-icons/md";
+import { LuEye, LuEyeOff } from "react-icons/lu";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
 import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
 
@@ -22,6 +23,7 @@ export default function SignIn() {
   const [userCount, setUserCount] = useState<number | undefined>(undefined);
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   
@@ -123,7 +125,7 @@ export default function SignIn() {
               <input type="hidden" name="next" value={nextParam!} />
             ) : null;
           })()}
-          <h1 className="text-2xl font-medium text-white mb-2">Sign in</h1>
+          <h1 className="text-2xl font-medium text-white mb-2">Sign In</h1>
           <p className="text-sm text-white mb-8">
             Don't have an account?{" "}
             <Link className="text-white font-medium underline" href="/sign-up">
@@ -142,15 +144,33 @@ export default function SignIn() {
               autoComplete="email"
             />
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="••••••••"
-              required
-              className="text-foreground"
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                required
+                className="text-foreground pr-10"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onMouseDown={() => setShowPassword(true)}
+                onMouseUp={() => setShowPassword(false)}
+                onMouseLeave={() => setShowPassword(false)}
+                onTouchStart={() => setShowPassword(true)}
+                onTouchEnd={() => setShowPassword(false)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors select-none touch-none"
+                aria-label="Hold to reveal password"
+              >
+                {showPassword ? (
+                  <LuEyeOff className="h-5 w-5" />
+                ) : (
+                  <LuEye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
             {errorMessage && (
               <div className="text-red-500 text-sm">
                 {errorMessage}
@@ -162,11 +182,11 @@ export default function SignIn() {
             >
               Forgot your password?
             </Link>
-            <div className="mt-2">
+            <div className="mt-2 flex justify-center">
               <TurnstileWidget />
             </div>
-            <SubmitButton pendingText="Signing in..." className="mt-2">
-              Sign in
+            <SubmitButton pendingText="Signing In..." className="mt-2">
+              Sign In
             </SubmitButton>
           </div>
         </form>
@@ -185,7 +205,7 @@ export default function SignIn() {
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <FaUsers className="h-5 w-5" />
+            <MdAppShortcut className="h-5 w-5" />
             <span className="ml-2 hidden sm:inline">What is Munda Manager?</span>
           </button>
 
@@ -197,7 +217,7 @@ export default function SignIn() {
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <FiMap className="h-5 w-5" />
+            <FaUsers className="s-5" />
             <span className="ml-2 hidden sm:inline">About</span>
           </button>
         </div>

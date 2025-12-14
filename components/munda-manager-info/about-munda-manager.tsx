@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import Link from "next/link";
 
 type FAQItem = {
   q: string;
@@ -11,20 +12,24 @@ export default function AboutMundaManager() {
 
   const faqItems: FAQItem[] = [
     {
-      q: "What is Munda Manager?",
-      a: "Munda Manager is a fan-created tool for managing gangs, fighters, and campaigns in Necromunda, a tabletop game published by Games Workshop. It's designed to help players keep track of their gang details and campaign progress."
-    },
-    {
       q: "Is there a cost to use Munda Manager?",
       a: "Munda Manager is free to use! The goal is to support the community and make it easier for players to manage their gangs and campaigns. However, if you would like to support the development, you can become a Patreon member."
     },
     {
       q: "How can I provide feedback or request features?",
-      a: <>Join the <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord server</a> to provide feedback or request features.</>
+      a: <>Jump on the <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord server</a> and let us know what you think! Feature requests, suggestions, and even complaints are all welcome.</>
     },
     {
       q: "Can I report a bug or technical issue?",
-      a: <>Yes, please reach out on the <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord server</a> with a description of the issue. I'll do my best to address it as soon as possible.</>
+      a: <>Absolutely! Head over to <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord</a> and drop a message with what's going wrong. We'll get it fixed as soon as we can.</>
+    },
+    {
+      q: "Is my data safe?",
+      a: "Your data is stored securely. While gangs and campaigns can be shared publicly, your account information and personal details remain private. We don't sell data, we don't share it, and we don't use it for anything other than making Munda Manager work. Simple as that."
+    },
+    {
+      q: "Can I contribute code or help with development?",
+      a: <>Munda Manager is open source! If you're interested in contributing, check out our <Link href="/join-the-team" className="underline hover:text-red-800">Join the Team</Link> page to learn about all the ways you can help. You can also check out the project on <a href="https://github.com" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">GitHub</a> or reach out on <a href="https://discord.gg/FrqEWShQd7" className="underline hover:text-red-800" target="_blank" rel="noopener noreferrer">Discord</a>.</>
     }
   ];
 
@@ -32,31 +37,58 @@ export default function AboutMundaManager() {
     <div className="space-y-6">
       <section>
         <p className="text-muted-foreground">
-          Munda Manager is a comprehensive gang management tool for Necromunda, helping you keep track of your gangs, fighters, and campaigns.
+          Munda Manager is a fan-created gang and campaign management tool for Necromunda, a tabletop game published by Games Workshop. It's designed to help players keep track of their gang details, fighters, equipment, and campaign progress.
+        </p>
+        <p className="text-muted-foreground mt-3">
+          We built Munda Manager as a modern replacement for the older tools that have been left unmaintained. It started because we were tired of having to use unsupported websites that weren't being updated anymore. They required us to do a lot of work just to make them function properly when managing our gangs and campaigns. We figured other players probably felt the same way, especially those looking for an actively maintained solution, so we built something to make everyone's lives easier.
+        </p>
+        <p className="text-muted-foreground mt-3">
+          Our goal is simple: help you spend less time doing admin work and more time playing Necromunda. Whether you're running a campaign, managing multiple gangs, or just want a better way to track your fighters, Munda Manager is here to help.
         </p>
       </section>
 
       <section>
-        <h2 className="text-xl font-semibold mb-2">Support</h2>
+        <h2 className="text-xl font-semibold mb-2">Built by the Community, for the Community</h2>
         <p className="text-muted-foreground">
-          If you enjoy using Munda Manager and would like to support its development, consider becoming a Patreon member! Your contributions help me continue to improve and expand the tool for the community. You can join my Patreon at:{' '}
+          Munda Manager has grown thanks to feedback and suggestions from players like you. Features get added based on what the community actually needs, not what looks good on paper. If you've got ideas, bug reports, or just want to chat about Necromunda, join us on{' '}
+          <a 
+            href="https://discord.gg/FrqEWShQd7"
+            className="underline hover:text-red-800"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Discord
+          </a>. Your input shapes what gets built next.
+        </p>
+        <p className="text-muted-foreground mt-2">
+          Want to see who's helping build Munda Manager? Check out our <Link href="/contributors" className="underline hover:text-red-800">Contributors</Link> page to meet the team. Interested in joining? We'd love to have you! Learn more on our <Link href="/join-the-team" className="underline hover:text-red-800">Join the Team</Link> page.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-xl font-semibold mb-2">Support the Project</h2>
+        <p className="text-muted-foreground">
+          Munda Manager is completely free to use, and it always will be. If you find it useful and want to help keep it running and improving, you can support development through{' '}
           <a 
             href={patreonUrl}
             className="underline hover:text-red-800"
             target="_blank"
             rel="noopener noreferrer"
           >
-            patreon.com/mundamanager
+            Patreon
           </a>{' '}
-          or buy me a coffee at{' '}
+          or{' '}
           <a 
             href={buyMeACoffeeUrl}
             className="underline hover:text-red-800"
             target="_blank"
             rel="noopener noreferrer"
           >
-            buymeacoffee.com/mundamanager
-          </a>.
+            Buy Me a Coffee
+          </a>. Every bit helps cover hosting costs and keeps new features coming.
+        </p>
+        <p className="text-muted-foreground mt-2">
+          But honestly? The best way to support the project is to use it, share it with your gaming group, and let us know what you think. That feedback is worth more than any donation.
         </p>
       </section>
 

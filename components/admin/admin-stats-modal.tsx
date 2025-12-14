@@ -5,8 +5,8 @@ import { LuChartColumn } from "react-icons/lu";
 
 interface Stats {
   userCount: number;
-  gangCount: number;
-  campaignCount: number;
+  gangCount: number | null;
+  campaignCount: number | null;
 }
 
 interface AdminStatsModalProps {
@@ -68,11 +68,15 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
               </div>
               <div className="p-6 bg-muted/50 rounded-lg border">
                 <p className="text-sm text-muted-foreground mb-2">Total Gangs</p>
-                <p className="text-3xl font-bold">{stats.gangCount.toLocaleString()}</p>
+                <p className="text-3xl font-bold">
+                  {stats.gangCount !== null ? stats.gangCount.toLocaleString() : 'N/A'}
+                </p>
               </div>
               <div className="p-6 bg-muted/50 rounded-lg border">
                 <p className="text-sm text-muted-foreground mb-2">Total Campaigns</p>
-                <p className="text-3xl font-bold">{stats.campaignCount.toLocaleString()}</p>
+                <p className="text-3xl font-bold">
+                  {stats.campaignCount !== null ? stats.campaignCount.toLocaleString() : 'N/A'}
+                </p>
               </div>
             </div>
           ) : (

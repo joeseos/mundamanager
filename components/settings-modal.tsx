@@ -17,7 +17,6 @@ import dynamic from 'next/dynamic';
 
 // Icons
 import { LuSettings, LuLogOut, LuUser, LuMenu } from "react-icons/lu";
-import { ImInfo } from "react-icons/im";
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { FiMap } from "react-icons/fi";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -173,15 +172,6 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             <Link href="/?tab=customassets" onClick={createHomeTabHandler('customassets')} className="w-full cursor-pointer">
               <MdOutlineColorLens className="mr-2 h-4 w-4" />
               Custom Assets
-            </Link>
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem asChild onClick={handleLinkClick}>
-            <Link href="/about" className="w-full cursor-pointer">
-              <ImInfo className="mr-2 h-4 w-4" />
-              About
             </Link>
           </DropdownMenuItem>
 
