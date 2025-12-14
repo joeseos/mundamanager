@@ -24,6 +24,8 @@ import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { Combobox } from "@/components/ui/combobox";
+import { useClientAuth } from '@/hooks/useClientAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { GiCrossedChains } from "react-icons/gi";
@@ -46,7 +48,6 @@ interface FighterPageProps {
     recovery?: boolean;
     captured?: boolean;
   }>;
-  userPermissions: UserPermissions;
   fighterId: string;
 }
 
@@ -288,7 +289,6 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 export default function FighterPage({
   initialFighterData,
   initialGangFighters,
-  userPermissions,
   fighterId
 }: FighterPageProps) {
   // Transform initial data and set up state
@@ -307,6 +307,35 @@ export default function FighterPage({
       addVehicleEquipment: false
     }
   });
+
+  // --- Client-side permission handling ---
+  const { user: clientUser } = useClientAuth();
+  const userId = clientUser?.id || null;
+
+  // Instant ownership check - no API call needed if user owns the gang
+  const isOwner = !!userId && userId === initialFighterData.gang.user_id;
+
+  // Fetch permissions only if:
+  // - User is logged in
+  // - User is NOT the owner (owners don't need API call)
+  const { permissions: fetchedPermissions, isLoading: isPermissionsLoading } = usePermissions(
+    'fighter',
+    fighterId,
+    { enabled: !!userId && !isOwner }
+  );
+
+  // Compute capabilities
+  const canEdit = isOwner || fetchedPermissions?.canEdit || false;
+
+  // Build permissions object for child components
+  const userPermissions: UserPermissions = {
+    isOwner,
+    isAdmin: fetchedPermissions?.isAdmin || false,
+    canEdit,
+    canDelete: isOwner || fetchedPermissions?.canDelete || false,
+    canView: true,
+    userId: userId || ''
+  };
 
   const router = useRouter();
   const { toast } = useToast();

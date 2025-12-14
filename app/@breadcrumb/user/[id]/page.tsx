@@ -7,7 +7,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { createClient } from '@/utils/supabase/server'
+import { createServiceRoleClient } from '@/utils/supabase/server'
 
 interface UserBreadcrumbProps {
   params: Promise<{ id: string }>
@@ -17,7 +17,7 @@ export default async function UserBreadcrumb({ params }: UserBreadcrumbProps) {
   const { id } = await params;
   
   // Fetch the username for the breadcrumb
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('username')

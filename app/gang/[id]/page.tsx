@@ -1,8 +1,18 @@
-import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
+/**
+ * Gang Page - ISR Enabled
+ *
+ * This page uses service role client (no cookies) to enable caching.
+ * - Public gangs: Fully cached, permissions checked client-side
+ * - Hidden gangs: Cached but gated by HiddenContentGate
+ *
+ * Action buttons (Edit, Add Fighter, etc.) are shown based on:
+ * - Owners: Instant (client-side check against gang.user_id)
+ * - Arbitrators/Admins: After permission API call (~50ms)
+ */
+import { createServiceRoleClient } from "@/utils/supabase/server";
+import { notFound } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
-import { PermissionService } from "@/app/lib/user-permissions";
-import { getAuthenticatedUser } from "@/utils/auth";
+import HiddenContentGate from "@/components/hidden-content-gate";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
   getGangBasic,
@@ -19,35 +29,18 @@ import {
   getUserProfile
 } from '@/app/lib/shared/gang-data';
 
+export const revalidate = false; // Cache forever (no automatic revalidation)
+
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await createClient();
-
-  // Get authenticated user via claims (no extra network call)
-  let user: { id: string };
-  try {
-    user = await getAuthenticatedUser(supabase);
-  } catch {
-    redirect("/sign-in");
-  }
+  // Use service role client - no cookies(), enables ISR caching
+  const supabase = createServiceRoleClient();
 
   try {
     // Fetch basic gang data first to check if gang exists
     const gangBasic = await getGangBasic(params.id, supabase);
 
     if (!gangBasic) {
-      notFound();
-    }
-
-    // Check if user can view hidden gang
-    const permissionService = new PermissionService();
-    const canView = await permissionService.canViewHiddenGang(
-      user.id,
-      params.id,
-      gangBasic.hidden
-    );
-
-    if (!canView) {
       notFound();
     }
 
@@ -63,8 +56,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangCredits,
       gangVariants,
       gangRatingAndWealth,
-      userProfile,
-      userPermissions
+      userProfile
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic.gang_type_id, supabase),
@@ -76,8 +68,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRatingAndWealth(params.id, supabase),
-      getUserProfile(gangBasic.user_id, supabase),
-      permissionService.getGangPermissions(user.id, params.id)
+      getUserProfile(gangBasic.user_id, supabase)
     ]);
 
     // Initialize positioning if needed (lazy initialization only)
@@ -140,16 +131,38 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       hidden: gangBasic.hidden
     };
 
+    // Hidden gangs: require auth gate with permission check
+    if (gangBasic.hidden) {
+      return (
+        <HiddenContentGate type="gang" id={params.id}>
+          {({ userId, permissions }) => (
+            <GangPageContent
+              initialGangData={gangDataForClient}
+              gangId={params.id}
+              userId={userId}
+              userPermissions={permissions}
+            />
+          )}
+        </HiddenContentGate>
+      );
+    }
+
+    // Public gangs: always viewable, permissions checked client-side for action buttons
     return (
       <GangPageContent
         initialGangData={gangDataForClient}
         gangId={params.id}
-        userId={user.id}
-        userPermissions={userPermissions}
+        userId={null}
+        userPermissions={null}
       />
     );
   } catch (error) {
     console.error('Error in GangPage:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      gangId: params.id
+    });
     throw error;
   }
 }
