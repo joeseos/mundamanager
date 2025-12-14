@@ -24,6 +24,8 @@ import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { Combobox } from "@/components/ui/combobox";
+import { useClientAuth } from '@/hooks/useClientAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { GiCrossedChains } from "react-icons/gi";
@@ -306,15 +308,34 @@ export default function FighterPage({
     }
   });
 
-  // Fetch user permissions on mount (client-side)
-  const [userPermissions, setUserPermissions] = useState<UserPermissions>({
-    isOwner: false,
-    isAdmin: false,
-    canEdit: false,
-    canDelete: false,
+  // --- Client-side permission handling ---
+  const { user: clientUser } = useClientAuth();
+  const userId = clientUser?.id || null;
+
+  // Instant ownership check - no API call needed if user owns the gang
+  const isOwner = !!userId && userId === initialFighterData.gang.user_id;
+
+  // Fetch permissions only if:
+  // - User is logged in
+  // - User is NOT the owner (owners don't need API call)
+  const { permissions: fetchedPermissions, isLoading: isPermissionsLoading } = usePermissions(
+    'fighter',
+    fighterId,
+    { enabled: !!userId && !isOwner }
+  );
+
+  // Compute capabilities
+  const canEdit = isOwner || fetchedPermissions?.canEdit || false;
+
+  // Build permissions object for child components
+  const userPermissions: UserPermissions = {
+    isOwner,
+    isAdmin: fetchedPermissions?.isAdmin || false,
+    canEdit,
+    canDelete: isOwner || fetchedPermissions?.canDelete || false,
     canView: true,
-    userId: null
-  });
+    userId: userId || ''
+  };
 
   const router = useRouter();
   const { toast } = useToast();
@@ -322,24 +343,6 @@ export default function FighterPage({
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
   const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
   const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
-
-  // Fetch user permissions on mount
-  useEffect(() => {
-    const fetchPermissions = async () => {
-      try {
-        const response = await fetch(`/api/permissions/fighter/${fighterId}`);
-        if (response.ok) {
-          const permissions = await response.json();
-          setUserPermissions(permissions);
-        }
-      } catch (error) {
-        console.error('Error fetching permissions:', error);
-        // Keep default read-only permissions on error
-      }
-    };
-
-    fetchPermissions();
-  }, [fighterId]);
 
   // Fetch fighter types for edit modal
   const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
