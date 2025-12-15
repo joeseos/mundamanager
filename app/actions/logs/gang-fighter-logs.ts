@@ -45,6 +45,7 @@ interface FighterInjuryLogParams {
   fighter_id: string;
   fighter_name: string;
   injury_name: string;
+  dice_data?: any;
 }
 
 interface FighterRecoveryLogParams {
@@ -145,10 +146,29 @@ export async function logSkillAdvancementDeletion(params: AdvancementDeletionLog
   }
 }
 
+export async function logRolledFighterInjury(params: FighterInjuryLogParams): Promise<GangLogActionResult> {
+  try {
+    let description = `Fighter "${params.fighter_name}" rolled ${params.dice_data?.result} on the lasting injury table, resulting in: "${params.injury_name}"`;
+    
+    return await createGangLog({
+      gang_id: params.gang_id,
+      fighter_id: params.fighter_id,
+      action_type: 'injury_roll',
+      description 
+    });
+  } catch (error) {
+    console.error('Error logging the rolled fighter injury:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to log the rolled fighter injury'
+    };
+  }
+}
+
 export async function logFighterInjury(params: FighterInjuryLogParams): Promise<GangLogActionResult> {
   try {
     let description = `Fighter "${params.fighter_name}" sustained serious injury: "${params.injury_name}"`;
-
+    
     return await createGangLog({
       gang_id: params.gang_id,
       fighter_id: params.fighter_id,

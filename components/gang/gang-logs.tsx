@@ -121,7 +121,8 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'battle_lost': 'Battle lost',
       'battle_draw': 'Battle draw',
       'territory_claimed': 'Territory claimed',
-      'territory_lost': 'Territory lost'
+      'territory_lost': 'Territory lost',
+      'injury_roll': 'Injury Roll'
     };
     return actionTypeMap[actionType] || actionType;
   };

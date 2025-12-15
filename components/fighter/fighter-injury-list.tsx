@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { UserPermissions } from '@/types/user-permissions';
 import {
   addFighterInjury,
-  deleteFighterInjury
+  deleteFighterInjury,
+  verifyAndLogRolledFighterInjury
 } from '@/app/actions/fighter-injury';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
@@ -66,6 +67,7 @@ export function InjuriesList({
   const [showEquipmentSelection, setShowEquipmentSelection] = useState(false);
   const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean }>(null);
   const { toast} = useToast();
 
@@ -338,6 +340,42 @@ export function InjuriesList({
     }
   });
 
+  // TanStack Query mutation for logging rolled injury results
+  const logInjuryRollMutation = useMutation({
+    mutationFn: async (variables: { 
+      fighter_id: string; 
+      injury_type_id: string;
+      dice_data: any;
+    }) => {
+      const result = await verifyAndLogRolledFighterInjury({
+        fighter_id: variables.fighter_id,
+        injury_type_id: variables.injury_type_id,
+        dice_data: variables.dice_data
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to log lasting injury');
+      }
+      return result;
+    },
+    onSuccess: (result, variables, context) => {
+      const statusMessage: string[] = [];
+      
+      const successText = is_spyrer ? 'Rig glitch logged successfully' : 'Lasting injury logged successfully';
+      toast({
+        description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
+        variant: "default"
+      });
+    },
+    onError: (error, variables, context) => {
+      const errorText = is_spyrer ? 'Failed to log rig glitch' : 'Failed to log lasting injury';
+      toast({
+        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  });
+
   // Helper function to format the range display
   const formatInjuryRange = (injuryName: string): string => {
     const range = is_spyrer
@@ -394,6 +432,38 @@ export function InjuriesList({
     setSelectedInjuryId('');
     setSelectedInjury(null);
   }, []);
+
+  const handleLogInjuryRoll = async (diceResult: number, rolledInjury: FighterEffect) => {
+    if (injuryRollCooldown || logInjuryRollMutation.isPending) {
+      return false;
+    }
+  
+    setInjuryRollCooldown(true);
+
+    const validInjury = localAvailableInjuries.find(injury => injury.id === rolledInjury?.id);
+
+    try {
+      if(validInjury) {
+        const payload = {
+          fighter_id: fighterId,
+          injury_type_id: rolledInjury.id,
+          dice_data: { result: diceResult }
+        };
+    
+        logInjuryRollMutation.mutate(payload);
+        return true;
+      } else {     
+        toast({
+          description: "Lasting injury could not be logged.",
+          variant: "destructive"
+        });
+        return false;
+      } 
+    } finally {
+      // Cooldown to prevent rapid re-rolling and excessive logging
+      setTimeout(() => setInjuryRollCooldown(false), 2000);
+    }
+  }
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -454,7 +524,7 @@ export function InjuriesList({
     } else {
       // Directly add the injury without asking for status changes
       // Close modal immediately and trigger mutation
-      setIsAddModalOpen(false);
+      setIsAddModalOpen(false);  
       addInjuryMutation.mutate({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
@@ -654,55 +724,62 @@ export function InjuriesList({
             <div className="space-y-4">
               <div>
                 <DiceRoller
-                   items={localAvailableInjuries}
-                   ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
-                   getRange={(i: FighterEffect) => {
-                     const d: any = (i as any)?.type_specific_data || {};
-                     if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
-                       return { min: d.d66_min, max: d.d66_max };
-                     }
-                     return null; // let component fall back to util mapping
-                   }}
-                   getName={(i: FighterEffect) => (i as any).effect_name}
-                   inline
-                   rollFn={rollD66}
-                   resolveNameForRoll={(r) => {
-                     const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-                     return resolver(r)?.name;
-                   }}
-                   onRolled={(rolled) => {
-                     if (rolled.length > 0) {
-                       const roll = rolled[0].roll;
-                       // Prefer DB ranges; if not available, fallback to util by name
-                       const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-                       const util = resolver(roll);
-                       let match: any = null;
-                       if (util) {
-                         match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
-                       }
-                       if (!match) {
-                         match = rolled[0].item as any;
-                       }
-                       if (match) {
-                         setSelectedInjuryId(match.id);
-                         setSelectedInjury(match);
-                         toast({ description: `Roll ${roll}: ${match.effect_name}` });
-                       }
-                     }
-                   }}
-                   onRoll={(roll) => {
-                     const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-                     const util = resolver(roll);
-                     if (!util) return;
-                     const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
-                     if (match) {
-                       setSelectedInjuryId(match.id);
-                       setSelectedInjury(match);
-                       toast({ description: `Roll ${roll}: ${match.effect_name}` });
-                     }
-                   }}
-                   buttonText="Roll D66"
-                   disabled={!userPermissions.canEdit}
+                  items={localAvailableInjuries}
+                  ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
+                  getRange={(i: FighterEffect) => {
+                    const d: any = (i as any)?.type_specific_data || {};
+                    if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
+                      return { min: d.d66_min, max: d.d66_max };
+                    }
+                    return null; // let component fall back to util mapping
+                  }}
+                  getName={(i: FighterEffect) => (i as any).effect_name}
+                  inline
+                  rollFn={rollD66}
+                  resolveNameForRoll={(r) => {
+                    const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+                    return resolver(r)?.name;
+                  }}
+                  onRolled={(rolled) => {
+                    if (rolled.length > 0) {
+                      const roll = rolled[0].roll;
+                      // Prefer DB ranges; if not available, fallback to util by name
+                      const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+                      const util = resolver(roll);
+                      let match: any = null;
+                      if (util) {
+                        match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
+                      }
+                      if (!match) {
+                        match = rolled[0].item as any;
+                      }
+                      if (match) {
+                        setSelectedInjuryId(match.id);
+                        setSelectedInjury(match);
+                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                      }
+                    }
+                  }}
+                  onRoll={(roll) => {
+                    const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+                    const util = resolver(roll);
+                    
+                    if (!util) return;
+                    const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
+                    
+                    if (match) {
+                      const injuryId: string = match.id;
+                      setSelectedInjuryId(injuryId);
+                      setSelectedInjury(match);
+                      handleLogInjuryRoll(roll, match);
+                    }
+                  }}
+                  buttonText="Roll D66"
+                  disabled={
+                    !userPermissions.canEdit || 
+                    logInjuryRollMutation.isPending || 
+                    injuryRollCooldown
+                  }
                  />
               </div>
 

@@ -2,7 +2,8 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
-import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
+import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
+import { GangLogActionResult } from './logs/gang-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
@@ -29,6 +30,12 @@ export interface AddFighterInjuryParams {
   target_equipment_id?: string;
 }
 
+export interface VerifyAndLogRolledFighterInjuryParams {
+  fighter_id: string;
+  injury_type_id: string;
+  dice_data: any;
+}
+
 export interface DeleteFighterInjuryParams {
   fighter_id: string;
   injury_id: string;
@@ -46,6 +53,52 @@ export interface InjuryResult {
     created_at: string;
   };
   recovery_status?: boolean;
+}
+
+export async function verifyAndLogRolledFighterInjury(params: VerifyAndLogRolledFighterInjuryParams
+): Promise<GangLogActionResult> {
+  try {
+    const supabase = await createClient();
+
+    // Ensure we are dealing with an authenticated user
+    await getAuthenticatedUser(supabase);
+
+    // Verify fighter ownership
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, user_id, gang_id, fighter_name')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      throw new Error('Fighter not found');
+    }
+
+    // Verify that the passed in injury (fighter effect type) exists
+    const { data: fighterEffectType, error: fighterEffectTypeError } = await supabase
+      .from('fighter_effect_types')
+      .select('id, effect_name')
+      .eq('id', params.injury_type_id)
+      .single();
+
+    if (fighterEffectTypeError || !fighterEffectType) {
+      throw new Error('Injury not found!');
+    }
+
+    return await logRolledFighterInjury({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      fighter_name: fighter.fighter_name,
+      injury_name: fighterEffectType.effect_name,
+      dice_data: params.dice_data
+    });
+  } catch (error) {
+    console.error('Failed to log the injury roll:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
 }
 
 export async function addFighterInjury(
