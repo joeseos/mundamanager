@@ -120,37 +120,3 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
-  const supabase = await createClient();
-  
-  try {
-    const isAdmin = await checkAdmin(supabase);
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { id } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'id is required' },
-        { status: 400 }
-      );
-    }
-
-    const { error } = await supabase
-      .from('territories')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting territory:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete territory' },
-      { status: 500 }
-    );
-  }
-}

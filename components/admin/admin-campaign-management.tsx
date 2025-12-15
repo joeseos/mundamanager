@@ -10,8 +10,7 @@ import Modal from '@/components/ui/modal';
 
 enum OperationType {
   POST = 'POST',
-  UPDATE = 'UPDATE',
-  DELETE = 'DELETE'
+  UPDATE = 'UPDATE'
 }
 
 type CategoryType = 'campaign-types' | 'territories' | 'triumphs';
@@ -240,12 +239,6 @@ export function AdminCampaignManagementModal({
             image_url: imageUrl.trim() || null
           });
           break;
-        case OperationType.DELETE:
-          method = 'DELETE';
-          body = JSON.stringify({
-            id: selectedCampaignTypeId
-          });
-          break;
         default:
           throw new Error('Invalid operation');
       }
@@ -321,7 +314,7 @@ export function AdminCampaignManagementModal({
       }
 
       toast({
-        description: `Campaign type ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
+        description: `Campaign type ${operation === OperationType.POST ? 'created' : 'updated'} successfully`,
         variant: "default"
       });
 
@@ -341,7 +334,7 @@ export function AdminCampaignManagementModal({
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
       toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} campaign type`,
+        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} campaign type`,
         variant: "destructive"
       });
     } finally {
@@ -398,12 +391,6 @@ export function AdminCampaignManagementModal({
             campaign_type_id: territoryCampaignTypeId || null
           });
           break;
-        case OperationType.DELETE:
-          method = 'DELETE';
-          body = JSON.stringify({
-            id: selectedTerritoryId
-          });
-          break;
         default:
           throw new Error('Invalid operation');
       }
@@ -421,7 +408,7 @@ export function AdminCampaignManagementModal({
       }
 
       toast({
-        description: `Territory ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
+        description: `Territory ${operation === OperationType.POST ? 'created' : 'updated'} successfully`,
         variant: "default"
       });
 
@@ -439,7 +426,7 @@ export function AdminCampaignManagementModal({
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
       toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} territory`,
+        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`,
         variant: "destructive"
       });
     } finally {
@@ -501,12 +488,6 @@ export function AdminCampaignManagementModal({
             campaign_type_id: triumphCampaignTypeId
           });
           break;
-        case OperationType.DELETE:
-          method = 'DELETE';
-          body = JSON.stringify({
-            id: selectedTriumphId
-          });
-          break;
         default:
           throw new Error('Invalid operation');
       }
@@ -524,7 +505,7 @@ export function AdminCampaignManagementModal({
       }
 
       toast({
-        description: `Triumph ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
+        description: `Triumph ${operation === OperationType.POST ? 'created' : 'updated'} successfully`,
         variant: "default"
       });
 
@@ -543,7 +524,7 @@ export function AdminCampaignManagementModal({
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
       toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} triumph`,
+        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`,
         variant: "destructive"
       });
     } finally {
@@ -970,22 +951,13 @@ export function AdminCampaignManagementModal({
           )}
 
           {!activeForm.isCreateMode && activeForm.selectedId && (
-            <>
-              <Button
-                onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
-                disabled={!activeForm.canSubmit || isLoading}
-                className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
-              >
-                {isLoading ? 'Updating...' : `Update ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
-              </Button>
-              <Button
-                onClick={() => activeForm.handleSubmit(OperationType.DELETE)}
-                disabled={isLoading}
-                className="flex-1 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                {isLoading ? 'Deleting...' : `Delete ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
-              </Button>
-            </>
+            <Button
+              onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
+              disabled={!activeForm.canSubmit || isLoading}
+              className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+            >
+              {isLoading ? 'Updating...' : `Update ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
+            </Button>
           )}
         </div>
       </div>
