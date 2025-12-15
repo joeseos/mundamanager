@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuFlag } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
@@ -16,6 +16,7 @@ import { AdminEditVehicleTypeModal } from "@/components/admin/admin-edit-vehicle
 import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
+import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
 import { ToastProvider } from "@/components/ui/toast";
 
 export default function AdminPage() {
@@ -31,6 +32,7 @@ export default function AdminPage() {
   const [showStats, setShowStats] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
+  const [showCampaignManagement, setShowCampaignManagement] = useState(false);
 
   const coreSections = [
     {
@@ -98,6 +100,12 @@ export default function AdminPage() {
       description: "Manage injuries and rig glitches",
       action: () => setShowInjuriesGlitches(true),
       icon: LuHeartCrack
+    },
+    {
+      title: "Campaign Management",
+      description: "Manage campaign types, territories, and triumphs",
+      action: () => setShowCampaignManagement(true),
+      icon: LuFlag
     }
   ];
 
@@ -244,6 +252,13 @@ export default function AdminPage() {
             <AdminInjuriesGlitchesModal
               onClose={() => setShowInjuriesGlitches(false)}
               onSubmit={() => setShowInjuriesGlitches(false)}
+            />
+          )}
+
+          {showCampaignManagement && (
+            <AdminCampaignManagementModal
+              onClose={() => setShowCampaignManagement(false)}
+              onSubmit={() => setShowCampaignManagement(false)}
             />
           )}
         </main>
