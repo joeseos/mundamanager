@@ -46,6 +46,25 @@ export async function POST(request: Request) {
       );
     }
 
+    if (campaign_type_name.trim().length > 200) {
+      return NextResponse.json(
+        { error: 'campaign_type_name must be 200 characters or less' },
+        { status: 400 }
+      );
+    }
+
+    // Validate image_url format if provided
+    if (image_url && image_url.trim()) {
+      try {
+        new URL(image_url.trim());
+      } catch {
+        return NextResponse.json(
+          { error: 'image_url must be a valid URL' },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data: campaignType, error } = await supabase
       .from('campaign_types')
       .insert([{
@@ -87,10 +106,35 @@ export async function PATCH(request: Request) {
 
     const updateData: any = {};
     if (campaign_type_name !== undefined) {
-      updateData.campaign_type_name = campaign_type_name.trim();
+      const trimmedName = campaign_type_name.trim();
+      if (trimmedName.length > 200) {
+        return NextResponse.json(
+          { error: 'campaign_type_name must be 200 characters or less' },
+          { status: 400 }
+        );
+      }
+      updateData.campaign_type_name = trimmedName;
     }
     if (image_url !== undefined) {
-      updateData.image_url = image_url?.trim() || null;
+      const trimmedUrl = image_url?.trim() || null;
+      if (trimmedUrl) {
+        try {
+          new URL(trimmedUrl);
+        } catch {
+          return NextResponse.json(
+            { error: 'image_url must be a valid URL' },
+            { status: 400 }
+          );
+        }
+      }
+      updateData.image_url = trimmedUrl;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No fields to update' },
+        { status: 400 }
+      );
     }
 
     const { data: campaignType, error } = await supabase
