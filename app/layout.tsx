@@ -1,5 +1,4 @@
 import { hasEnvVars } from "@/utils/supabase/check-env-vars";
-import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import BackgroundImage from '@/components/background-image';
 import { Inter } from 'next/font/google'
