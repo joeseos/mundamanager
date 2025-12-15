@@ -102,7 +102,7 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Something went wrong during sign up. Please try again." };
     }
 
-    return { message: "Please check your email to verify your account" };
+    return { message: `We've sent a verification email to ${email}. Please check your inbox and spam folder.` };
 
   } catch (error) {
     console.error('Unexpected error during sign up:', error);

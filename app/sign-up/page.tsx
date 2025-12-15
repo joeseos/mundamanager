@@ -41,7 +41,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
         <div className="container mx-auto max-w-4xl w-full p-4">
           <div className="flex flex-col items-center justify-center text-white text-center">
             <p className="text-lg mb-4">
-              Please check your email to verify your account.
+              {searchParams.message}
             </p>
             <Link href="/sign-in" className="text-lg text-white hover:underline">
               Sign in here once verified
