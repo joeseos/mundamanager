@@ -55,6 +55,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (territory_name.trim().length > 200) {
+      return NextResponse.json(
+        { error: 'territory_name must be 200 characters or less' },
+        { status: 400 }
+      );
+    }
+
     const { data: territory, error } = await supabase
       .from('territories')
       .insert([{
@@ -96,10 +103,24 @@ export async function PATCH(request: Request) {
 
     const updateData: any = {};
     if (territory_name !== undefined) {
-      updateData.territory_name = territory_name.trim();
+      const trimmedName = territory_name.trim();
+      if (trimmedName.length > 200) {
+        return NextResponse.json(
+          { error: 'territory_name must be 200 characters or less' },
+          { status: 400 }
+        );
+      }
+      updateData.territory_name = trimmedName;
     }
     if (campaign_type_id !== undefined) {
       updateData.campaign_type_id = campaign_type_id || null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No fields to update' },
+        { status: 400 }
+      );
     }
 
     const { data: territory, error } = await supabase

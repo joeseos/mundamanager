@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,10 +90,32 @@ export function AdminCampaignManagementModal({
     fetchAllData();
   }, []);
 
+  const handleCategoryChange = useCallback((category: CategoryType) => {
+    setSelectedCategory(category);
+    // Reset all form states
+    setSelectedCampaignTypeId('');
+    setCampaignTypeName('');
+    setImageUrl('');
+    setIsCreateModeCampaignType(false);
+    setRelatedTerritories([]);
+    setRelatedTriumphs([]);
+    
+    setSelectedTerritoryId('');
+    setTerritoryName('');
+    setTerritoryCampaignTypeId('');
+    setIsCreateModeTerritory(false);
+    
+    setSelectedTriumphId('');
+    setTriumphName('');
+    setTriumphCriteria('');
+    setTriumphCampaignTypeId('');
+    setIsCreateModeTriumph(false);
+  }, []);
+
   // Reset form when category changes
   useEffect(() => {
     handleCategoryChange(selectedCategory);
-  }, [selectedCategory]);
+  }, [selectedCategory, handleCategoryChange]);
 
   // Load related territories and triumphs when campaign type is selected
   useEffect(() => {
@@ -166,28 +188,6 @@ export function AdminCampaignManagementModal({
     }
   };
 
-  const handleCategoryChange = (category: CategoryType) => {
-    setSelectedCategory(category);
-    // Reset all form states
-    setSelectedCampaignTypeId('');
-    setCampaignTypeName('');
-    setImageUrl('');
-    setIsCreateModeCampaignType(false);
-    setRelatedTerritories([]);
-    setRelatedTriumphs([]);
-    
-    setSelectedTerritoryId('');
-    setTerritoryName('');
-    setTerritoryCampaignTypeId('');
-    setIsCreateModeTerritory(false);
-    
-    setSelectedTriumphId('');
-    setTriumphName('');
-    setTriumphCriteria('');
-    setTriumphCampaignTypeId('');
-    setIsCreateModeTriumph(false);
-  };
-
   // Campaign Types handlers
   const handleCampaignTypeSelect = (id: string) => {
     setSelectedCampaignTypeId(id);
@@ -252,14 +252,16 @@ export function AdminCampaignManagementModal({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} campaign type`);
+        throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} campaign type`);
       }
 
       const savedCampaignType = await response.json();
       const campaignTypeId = savedCampaignType.id || selectedCampaignTypeId;
       
       // Update relationships for territories and triumphs
-      if (!isCreateModeCampaignType && campaignTypeId && (operation === OperationType.POST || operation === OperationType.UPDATE)) {
+      // For POST: relationships can be set after creation if any were selected
+      // For UPDATE: we always update relationships based on current selections
+      if (campaignTypeId && (operation === OperationType.UPDATE || (operation === OperationType.POST && (relatedTerritories.length > 0 || relatedTriumphs.length > 0)))) {
         // Update territories: set campaign_type_id for related, remove for unselected
         const relatedTerritoryIds = relatedTerritories.map(t => t.id);
         
@@ -276,19 +278,29 @@ export function AdminCampaignManagementModal({
         
         // Update territories
         for (const territoryId of territoriesToAdd) {
-          await fetch('/api/admin/territories', {
+          const territoryResponse = await fetch('/api/admin/territories', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: territoryId, campaign_type_id: campaignTypeId })
           });
+          
+          if (!territoryResponse.ok) {
+            const error = await territoryResponse.json();
+            throw new Error(`Failed to update territory relationship: ${error.error || 'Unknown error'}`);
+          }
         }
         
         for (const territoryId of territoriesToRemove) {
-          await fetch('/api/admin/territories', {
+          const territoryResponse = await fetch('/api/admin/territories', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: territoryId, campaign_type_id: null })
           });
+          
+          if (!territoryResponse.ok) {
+            const error = await territoryResponse.json();
+            throw new Error(`Failed to remove territory relationship: ${error.error || 'Unknown error'}`);
+          }
         }
         
         // Update triumphs: set campaign_type_id for related
@@ -302,11 +314,16 @@ export function AdminCampaignManagementModal({
         
         // Update triumphs
         for (const triumphId of triumphsToAdd) {
-          await fetch('/api/admin/campaign-triumphs', {
+          const triumphResponse = await fetch('/api/admin/campaign-triumphs', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: triumphId, campaign_type_id: campaignTypeId })
           });
+          
+          if (!triumphResponse.ok) {
+            const error = await triumphResponse.json();
+            throw new Error(`Failed to update triumph relationship: ${error.error || 'Unknown error'}`);
+          }
         }
         
         // Note: We don't remove campaign_type_id from triumphs as they require it
@@ -404,7 +421,7 @@ export function AdminCampaignManagementModal({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} territory`);
+        throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`);
       }
 
       toast({
@@ -501,7 +518,7 @@ export function AdminCampaignManagementModal({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} triumph`);
+        throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`);
       }
 
       toast({

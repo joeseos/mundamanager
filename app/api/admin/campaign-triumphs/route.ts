@@ -55,9 +55,23 @@ export async function POST(request: Request) {
       );
     }
 
+    if (triumph.trim().length > 200) {
+      return NextResponse.json(
+        { error: 'triumph must be 200 characters or less' },
+        { status: 400 }
+      );
+    }
+
     if (!criteria?.trim()) {
       return NextResponse.json(
         { error: 'criteria is required' },
+        { status: 400 }
+      );
+    }
+
+    if (criteria.trim().length > 2000) {
+      return NextResponse.json(
+        { error: 'criteria must be 2000 characters or less' },
         { status: 400 }
       );
     }
@@ -111,13 +125,34 @@ export async function PATCH(request: Request) {
 
     const updateData: any = {};
     if (triumph !== undefined) {
-      updateData.triumph = triumph.trim();
+      const trimmedTriumph = triumph.trim();
+      if (trimmedTriumph.length > 200) {
+        return NextResponse.json(
+          { error: 'triumph must be 200 characters or less' },
+          { status: 400 }
+        );
+      }
+      updateData.triumph = trimmedTriumph;
     }
     if (criteria !== undefined) {
-      updateData.criteria = criteria.trim();
+      const trimmedCriteria = criteria.trim();
+      if (trimmedCriteria.length > 2000) {
+        return NextResponse.json(
+          { error: 'criteria must be 2000 characters or less' },
+          { status: 400 }
+        );
+      }
+      updateData.criteria = trimmedCriteria;
     }
     if (campaign_type_id !== undefined) {
       updateData.campaign_type_id = campaign_type_id;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No fields to update' },
+        { status: 400 }
+      );
     }
 
     const { data: campaignTriumph, error } = await supabase
