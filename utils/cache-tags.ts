@@ -32,6 +32,8 @@ export const CACHE_TAGS = {
   BASE_FIGHTER_SKILLS: (id: string) => `base-fighter-skills-${id}`,   // skills list
   BASE_FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`, // effects/injuries
   BASE_FIGHTER_VEHICLES: (id: string) => `base-fighter-vehicles-${id}`, // assigned vehicles
+  BASE_FIGHTER_CAMPAIGNS: (id: string) => `base-fighter-campaigns-${id}`, // campaign memberships for fighter's gang
+  BASE_FIGHTER_OWNED_BEASTS: (id: string) => `base-fighter-owned-beasts-${id}`, // exotic beasts owned by fighter
   
   // Campaign base data
   BASE_CAMPAIGN_BASIC: (id: string) => `base-campaign-basic-${id}`,   // name, settings

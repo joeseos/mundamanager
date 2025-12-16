@@ -646,7 +646,6 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
       ]);
 
       // Process vehicle equipment with weapon profiles (using batched approach)
-      const vehicleEquipmentIds = (allVehicleEquipment.data || []).map((eq: any) => eq.id);
       const standardEquipmentIds = (allVehicleEquipment.data || []).filter((item: any) => {
         const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
         return equipmentType === 'weapon' && item.equipment_id;
@@ -957,213 +956,6 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
 };
 
 // =============================================================================
-// HELPER FUNCTIONS - Used by vehicle data
-// =============================================================================
-
-/**
- * Get vehicle equipment (used by getFighterVehicles)
- */
-const getVehicleEquipment = async (vehicleId: string, supabase: any): Promise<any[]> => {
-  const { data, error } = await supabase
-    .from('fighter_equipment')
-    .select(`
-      id,
-      equipment_id,
-      custom_equipment_id,
-      purchase_cost,
-      is_master_crafted,
-      equipment:equipment_id (
-        equipment_name,
-        equipment_type,
-        equipment_category
-      ),
-      custom_equipment:custom_equipment_id (
-        equipment_name,
-        equipment_type,
-        equipment_category
-      )
-    `)
-    .eq('vehicle_id', vehicleId);
-
-  if (error) return [];
-
-  if (!data || data.length === 0) return [];
-
-  // Extract all equipment IDs for batch queries
-  const standardEquipmentIds = (data || []).filter((item: any) => {
-    const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
-    return equipmentType === 'weapon' && item.equipment_id;
-  }).map((item: any) => item.equipment_id);
-
-  const customEquipmentIds = (data || []).filter((item: any) => {
-    const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
-    return equipmentType === 'weapon' && item.custom_equipment_id;
-  }).map((item: any) => item.custom_equipment_id);
-
-  // Batch fetch all weapon profiles in parallel
-  const [standardProfilesData, customProfilesData] = await Promise.all([
-    standardEquipmentIds.length > 0
-      ? Promise.all([
-          supabase
-            .from('weapon_profiles')
-            .select('*')
-            .in('weapon_id', standardEquipmentIds)
-            .order('sort_order', { nullsFirst: false })
-            .order('profile_name'),
-          supabase
-            .from('weapon_profiles')
-            .select('*')
-            .in('weapon_group_id', standardEquipmentIds)
-            .order('sort_order', { nullsFirst: false })
-            .order('profile_name')
-        ]).then(([result1, result2]) => {
-          // Combine results and deduplicate by id
-          const profilesMap = new Map();
-          [...(result1.data || []), ...(result2.data || [])].forEach((profile: any) => {
-            if (!profilesMap.has(profile.id)) {
-              profilesMap.set(profile.id, profile);
-            }
-          });
-          return { data: Array.from(profilesMap.values()), error: result1.error || result2.error };
-        })
-      : Promise.resolve({ data: [] }),
-    customEquipmentIds.length > 0
-      ? supabase
-          .from('custom_weapon_profiles')
-          .select('*')
-          .or(`custom_equipment_id.in.(${customEquipmentIds.join(',')}),weapon_group_id.in.(${customEquipmentIds.join(',')})`)
-          .order('sort_order', { nullsFirst: false })
-          .order('profile_name')
-      : Promise.resolve({ data: [] })
-  ]);
-
-  // Create Maps for O(1) lookup during processing
-  const standardProfilesMap = new Map<string, any[]>();
-  (standardProfilesData.data || []).forEach((profile: any) => {
-    // Add profile to the map under its weapon_id (for direct matches)
-    if (profile.weapon_id) {
-      if (!standardProfilesMap.has(profile.weapon_id)) {
-        standardProfilesMap.set(profile.weapon_id, []);
-      }
-      standardProfilesMap.get(profile.weapon_id)!.push(profile);
-    }
-    
-    // Also add profile to the map under weapon_group_id if it exists (for grouped weapons)
-    if (profile.weapon_group_id && standardEquipmentIds.includes(profile.weapon_group_id)) {
-      if (!standardProfilesMap.has(profile.weapon_group_id)) {
-        standardProfilesMap.set(profile.weapon_group_id, []);
-      }
-      standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
-    }
-  });
-
-  const customProfilesMap = new Map<string, any[]>();
-  (customProfilesData.data || []).forEach((profile: any) => {
-    if (profile.custom_equipment_id) {
-      if (!customProfilesMap.has(profile.custom_equipment_id)) {
-        customProfilesMap.set(profile.custom_equipment_id, []);
-      }
-      customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
-    }
-    
-    // Also add profile to the map under weapon_group_id if it exists
-    if (profile.weapon_group_id && customEquipmentIds.includes(profile.weapon_group_id)) {
-      if (!customProfilesMap.has(profile.weapon_group_id)) {
-        customProfilesMap.set(profile.weapon_group_id, []);
-      }
-      customProfilesMap.get(profile.weapon_group_id)!.push(profile);
-    }
-  });
-
-  // Process each equipment item and add weapon profiles
-  const equipmentWithProfiles = (data || []).map((item: any) => {
-    const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
-    let weaponProfiles: any[] = [];
-
-    if (equipmentType === 'weapon') {
-      if (item.equipment_id) {
-        // Lookup standard weapon profiles from Map (O(1) instead of query)
-        const profiles = standardProfilesMap.get(item.equipment_id) || [];
-        weaponProfiles = profiles.map((profile: any) => ({
-          ...profile,
-          is_master_crafted: item.is_master_crafted || false
-        }));
-      } else if (item.custom_equipment_id) {
-        // Lookup custom weapon profiles from Map (O(1) instead of query)
-        const profiles = customProfilesMap.get(item.custom_equipment_id) || [];
-        weaponProfiles = profiles.map((profile: any) => ({
-          ...profile,
-          is_master_crafted: item.is_master_crafted || false
-        }));
-      }
-    }
-
-    return {
-      vehicle_weapon_id: item.id,
-      equipment_id: item.equipment_id || item.custom_equipment_id,
-      custom_equipment_id: item.custom_equipment_id,
-      equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-      equipment_type: equipmentType || 'unknown',
-      equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-      purchase_cost: item.purchase_cost || 0,
-      weapon_profiles: weaponProfiles
-    };
-  });
-
-  return equipmentWithProfiles;
-};
-
-/**
- * Get vehicle effects (used by getFighterVehicles)
- */
-const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Record<string, any[]>> => {
-  const { data, error } = await supabase
-    .from('fighter_effects')
-    .select(`
-      id,
-      effect_name,
-      type_specific_data,
-      created_at,
-      updated_at,
-      fighter_effect_type:fighter_effect_type_id (
-        fighter_effect_category:fighter_effect_category_id (
-          category_name
-        )
-      ),
-      fighter_effect_modifiers (
-        id,
-        fighter_effect_id,
-        stat_name,
-        numeric_value
-      )
-    `)
-    .eq('vehicle_id', vehicleId);
-
-  if (error) return {};
-
-  const effectsByCategory: Record<string, any[]> = {};
-  
-  (data || []).forEach((effectData: any) => {
-    const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-    
-    if (!effectsByCategory[categoryName]) {
-      effectsByCategory[categoryName] = [];
-    }
-
-    effectsByCategory[categoryName].push({
-      id: effectData.id,
-      effect_name: effectData.effect_name,
-      type_specific_data: effectData.type_specific_data,
-      created_at: effectData.created_at,
-      updated_at: effectData.updated_at,
-      fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
-    });
-  });
-
-  return effectsByCategory;
-}
-
-// =============================================================================
 // HELPER FUNCTIONS - Reusable cached queries for fighter metadata
 // =============================================================================
 
@@ -1271,7 +1063,7 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
 
 /**
  * Get fighter campaign data
- * Cache: BASE_FIGHTER_BASIC (campaigns are part of fighter's gang)
+ * Cache: BASE_FIGHTER_CAMPAIGNS
  */
 export const getFighterCampaignData = async (fighterId: string, supabase: any): Promise<any> => {
   return unstable_cache(
@@ -1304,7 +1096,7 @@ export const getFighterCampaignData = async (fighterId: string, supabase: any): 
     },
     [`fighter-campaigns-${fighterId}`],
     {
-      tags: [CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId)],
+      tags: [CACHE_TAGS.BASE_FIGHTER_CAMPAIGNS(fighterId)],
       revalidate: false
     }
   )();
@@ -1312,7 +1104,7 @@ export const getFighterCampaignData = async (fighterId: string, supabase: any): 
 
 /**
  * Get fighter's owned exotic beasts with equipment names
- * Cache: BASE_FIGHTER_BASIC
+ * Cache: BASE_FIGHTER_OWNED_BEASTS
  */
 export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any): Promise<any> => {
   return unstable_cache(
@@ -1338,7 +1130,7 @@ export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any
     },
     [`fighter-owned-beasts-${fighterId}`],
     {
-      tags: [CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId)],
+      tags: [CACHE_TAGS.BASE_FIGHTER_OWNED_BEASTS(fighterId)],
       revalidate: false
     }
   )();
