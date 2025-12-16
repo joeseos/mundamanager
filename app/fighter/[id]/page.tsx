@@ -64,7 +64,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       fighterSubTypeData,
       gangCampaigns,
       beastDataResult,
-      ownershipDataResult
+      ownershipDataResult,
+      gangFighters
     ] = await Promise.all([
       // Gang data
       getGangBasic(fighterBasic.gang_id, supabase),
@@ -88,7 +89,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       // Owner check (if this fighter is a beast, using cached helper)
       fighterBasic.fighter_pet_id ?
         getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase) :
-        Promise.resolve(null)
+        Promise.resolve(null),
+      // Gang fighters list
+      getGangFighters(fighterBasic.gang_id, supabase)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -100,56 +103,63 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const permissionService = new PermissionService();
     const userPermissions = await permissionService.getFighterPermissions(user.id, id);
 
-    // TODO: Add authorization check here if needed
-    // if (!userPermissions.canView) {
-    //   redirect("/unauthorized");
-    // }
+    // Permissions: All authenticated users can view fighters (canView is always true)
+    // Edit/delete permissions are enforced in FighterPageComponent
 
     // Campaign data already processed and includes trading post names (from getGangCampaigns)
     const campaigns = gangCampaigns;
 
-    const beastIds = !beastDataResult.error && beastDataResult.data
-      ? beastDataResult.data.map((beast: any) => beast.fighter_pet_id).filter(Boolean)
-      : [];
+    const beastIds = beastDataResult
+      .map((beast: any) => beast.fighter_pet_id)
+      .filter(Boolean);
 
-    // Parallel batch: beast fighters, gang variants, gang fighters
+    // Parallel batch: beast fighters and gang variants (with error boundaries)
     const [
       beastFightersResult,
-      gangVariantsResult,
-      gangFighters
+      gangVariantsResult
     ] = await Promise.all([
-      // Beast fighters (only if needed)
+      // Beast fighters (only if needed) - graceful fallback on error
       beastIds.length > 0
-        ? supabase
-            .from('fighters')
-            .select(`
-              id,
-              fighter_name,
-              fighter_type,
-              fighter_class,
-              credits,
-              created_at,
-              retired
-            `)
-            .in('id', beastIds)
+        ? (async () => {
+            try {
+              return await supabase
+                .from('fighters')
+                .select(`
+                  id,
+                  fighter_name,
+                  fighter_type,
+                  fighter_class,
+                  credits,
+                  created_at,
+                  retired
+                `)
+                .in('id', beastIds);
+            } catch {
+              return { data: [] };
+            }
+          })()
         : Promise.resolve({ data: [] }),
-      // Gang variants (only if needed)
-      gangBasic.gang_variants && gangBasic.gang_variants.length > 0
-        ? supabase
-            .from('gang_variant_types')
-            .select('id, variant')
-            .in('id', gangBasic.gang_variants)
-        : Promise.resolve({ data: [] }),
-      // Gang fighters
-      getGangFighters(fighterBasic.gang_id, supabase)
+      // Gang variants (only if needed) - graceful fallback on error
+      gangBasic.gang_variants?.length
+        ? (async () => {
+            try {
+              return await supabase
+                .from('gang_variant_types')
+                .select('id, variant')
+                .in('id', gangBasic.gang_variants!);
+            } catch {
+              return { data: [] };
+            }
+          })()
+        : Promise.resolve({ data: [] })
     ]);
 
     // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
 
     // Process beast ownership data
     const ownedBeasts: any[] = [];
-    if (beastFightersResult.data && beastFightersResult.data.length > 0 && !beastDataResult.error && beastDataResult.data) {
-      beastDataResult.data.forEach((beastOwnership: any) => {
+    if (beastFightersResult.data && beastFightersResult.data.length > 0 && beastDataResult.length > 0) {
+      beastDataResult.forEach((beastOwnership: any) => {
         const beast = beastFightersResult.data.find((f: any) => f.id === beastOwnership.fighter_pet_id) as any;
         const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
 

@@ -559,13 +559,13 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
 };
 
 /**
- * Get fighter vehicles
+ * Get fighter vehicles (fighters have 0-1 vehicles)
  * Cache: BASE_FIGHTER_VEHICLES
  */
 export const getFighterVehicles = async (fighterId: string, supabase: any): Promise<any[]> => {
   return unstable_cache(
     async () => {
-      const { data: vehicles, error } = await supabase
+      const { data: vehicle, error } = await supabase
         .from('vehicles')
         .select(`
           id,
@@ -586,71 +586,65 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           vehicle_type,
           cost
         `)
-        .eq('fighter_id', fighterId);
+        .eq('fighter_id', fighterId)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error || !vehicle) return [];
 
-      if (!vehicles || vehicles.length === 0) return [];
-
-      const vehicleIds = vehicles.map((v: any) => v.id);
-
-      // Batch fetch ALL vehicle equipment and effects in parallel
-      const [allVehicleEquipment, allVehicleEffects] = await Promise.all([
-        vehicleIds.length > 0
-          ? supabase
-              .from('fighter_equipment')
-              .select(`
-                id,
-                vehicle_id,
-                equipment_id,
-                custom_equipment_id,
-                purchase_cost,
-                is_master_crafted,
-                equipment:equipment_id (
-                  equipment_name,
-                  equipment_type,
-                  equipment_category
-                ),
-                custom_equipment:custom_equipment_id (
-                  equipment_name,
-                  equipment_type,
-                  equipment_category
-                )
-              `)
-              .in('vehicle_id', vehicleIds)
-          : Promise.resolve({ data: [] }),
-        vehicleIds.length > 0
-          ? supabase
-              .from('fighter_effects')
-              .select(`
-                id,
-                vehicle_id,
-                effect_name,
-                type_specific_data,
-                created_at,
-                updated_at,
-                fighter_effect_type:fighter_effect_type_id (
-                  fighter_effect_category:fighter_effect_category_id (
-                    category_name
-                  )
-                ),
-                fighter_effect_modifiers (
-                  id,
-                  fighter_effect_id,
-                  stat_name,
-                  numeric_value
-                )
-              `)
-              .in('vehicle_id', vehicleIds)
-          : Promise.resolve({ data: [] })
+      // Fetch equipment and effects for the single vehicle in parallel
+      const [equipmentResult, effectsResult] = await Promise.all([
+        supabase
+          .from('fighter_equipment')
+          .select(`
+            id,
+            equipment_id,
+            custom_equipment_id,
+            purchase_cost,
+            is_master_crafted,
+            equipment:equipment_id (
+              equipment_name,
+              equipment_type,
+              equipment_category
+            ),
+            custom_equipment:custom_equipment_id (
+              equipment_name,
+              equipment_type,
+              equipment_category
+            )
+          `)
+          .eq('vehicle_id', vehicle.id),
+        supabase
+          .from('fighter_effects')
+          .select(`
+            id,
+            effect_name,
+            type_specific_data,
+            created_at,
+            updated_at,
+            fighter_effect_type:fighter_effect_type_id (
+              fighter_effect_category:fighter_effect_category_id (
+                category_name
+              )
+            ),
+            fighter_effect_modifiers (
+              id,
+              fighter_effect_id,
+              stat_name,
+              numeric_value
+            )
+          `)
+          .eq('vehicle_id', vehicle.id)
       ]);
 
-      // Process vehicle equipment with weapon profiles (using batched approach)
-      const standardEquipmentIds = (allVehicleEquipment.data || []).filter((item: any) => {
+      const vehicleEquipment = equipmentResult.data || [];
+
+      // Extract equipment IDs for weapon profile lookup
+      const standardEquipmentIds = vehicleEquipment.filter((item: any) => {
         const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
         return equipmentType === 'weapon' && item.equipment_id;
       }).map((item: any) => item.equipment_id);
-      const customEquipmentIds = (allVehicleEquipment.data || []).filter((item: any) => {
+
+      const customEquipmentIds = vehicleEquipment.filter((item: any) => {
         const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
         return equipmentType === 'weapon' && item.custom_equipment_id;
       }).map((item: any) => item.custom_equipment_id);
@@ -724,14 +718,8 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
         }
       });
 
-      // Group equipment and effects by vehicle_id
-      const equipmentByVehicle = new Map<string, any[]>();
-      (allVehicleEquipment.data || []).forEach((item: any) => {
-        const vehicleId = item.vehicle_id;
-        if (!equipmentByVehicle.has(vehicleId)) {
-          equipmentByVehicle.set(vehicleId, []);
-        }
-
+      // Process equipment with weapon profiles
+      const processedEquipment = vehicleEquipment.map((item: any) => {
         const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
         let weaponProfiles: any[] = [];
 
@@ -751,7 +739,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           }
         }
 
-        equipmentByVehicle.get(vehicleId)!.push({
+        return {
           vehicle_weapon_id: item.id,
           equipment_id: item.equipment_id || item.custom_equipment_id,
           custom_equipment_id: item.custom_equipment_id,
@@ -760,24 +748,19 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
           purchase_cost: item.purchase_cost || 0,
           weapon_profiles: weaponProfiles
-        });
+        };
       });
 
-      const effectsByVehicle = new Map<string, Record<string, any[]>>();
-      (allVehicleEffects.data || []).forEach((effectData: any) => {
-        const vehicleId = effectData.vehicle_id;
-        if (!effectsByVehicle.has(vehicleId)) {
-          effectsByVehicle.set(vehicleId, {});
-        }
-
+      // Group effects by category
+      const processedEffects: Record<string, any[]> = {};
+      (effectsResult.data || []).forEach((effectData: any) => {
         const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-        const vehicleEffects = effectsByVehicle.get(vehicleId)!;
-        
-        if (!vehicleEffects[categoryName]) {
-          vehicleEffects[categoryName] = [];
+
+        if (!processedEffects[categoryName]) {
+          processedEffects[categoryName] = [];
         }
 
-        vehicleEffects[categoryName].push({
+        processedEffects[categoryName].push({
           id: effectData.id,
           effect_name: effectData.effect_name,
           type_specific_data: effectData.type_specific_data,
@@ -787,12 +770,12 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
         });
       });
 
-      // Map vehicles with their equipment and effects
-      return vehicles.map((vehicle: any) => ({
+      // Return single vehicle with its equipment and effects
+      return [{
         ...vehicle,
-        equipment: equipmentByVehicle.get(vehicle.id) || [],
-        effects: effectsByVehicle.get(vehicle.id) || {}
-      }));
+        equipment: processedEquipment,
+        effects: processedEffects
+      }];
     },
     [`fighter-vehicles-${fighterId}`],
     {
@@ -1065,7 +1048,7 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
  * Get fighter's owned exotic beasts with equipment names
  * Cache: BASE_FIGHTER_OWNED_BEASTS
  */
-export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any): Promise<any> => {
+export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any): Promise<any[]> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -1084,8 +1067,8 @@ export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any
         `)
         .eq('fighter_owner_id', fighterId);
 
-      if (error) return { data: null, error };
-      return { data, error: null };
+      if (error) return [];
+      return data || [];
     },
     [`fighter-owned-beasts-${fighterId}`],
     {
