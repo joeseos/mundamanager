@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 
 interface CampaignNotesProps {
   campaignId: string;
@@ -27,14 +28,6 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
     // Remove HTML tags and count characters
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
-  };
-
-  // Check if content is effectively empty (no meaningful text)
-  const isEmptyContent = (htmlContent: string) => {
-    if (!htmlContent) return true;
-    // Remove HTML tags and check if there's any meaningful text
-    const textContent = htmlContent.replace(/<[^>]*>/g, '').trim();
-    return textContent.length === 0;
   };
 
   useEffect(() => {
@@ -60,8 +53,8 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         setError(`Campaign notes cannot exceed ${NOTE_CHAR_LIMIT} characters`);
         return;
       }
-      // Clean up empty content before saving
-      const cleanNote = isEmptyContent(note) ? '' : note;
+      // Clean up empty content before saving (but keep image-only notes)
+      const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;
       const result = await updateCampaignSettings({
         campaignId,
         note: cleanNote,
@@ -73,10 +66,11 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         description: "Campaign Notes updated successfully",
         variant: "default"
       });
-      setSavedContent(note);
+      // Track the actual value sent to the server so refresh state matches
+      setSavedContent(cleanNote);
       setIsEditing(false);
       setIsRefreshing(true);
-      onNoteUpdate?.(note);
+      onNoteUpdate?.(cleanNote);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to update campaign notes');
       toast({
@@ -141,8 +135,8 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         </div>
       ) : (
         <div 
-          className={`max-w-none ${!isEmptyContent(note) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
-          dangerouslySetInnerHTML={{ __html: !isEmptyContent(note) ? note : 'No notes added.' }}
+          className={`max-w-none ${!isHtmlEffectivelyEmpty(note) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
+          dangerouslySetInnerHTML={{ __html: !isHtmlEffectivelyEmpty(note) ? note : 'No notes added.' }}
         />
       )}
     </div>

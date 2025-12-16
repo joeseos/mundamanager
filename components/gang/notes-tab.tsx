@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { useToast } from '../ui/use-toast';
 import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
+import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 
 interface GangNotesProps {
   gangId: string;
@@ -60,14 +61,6 @@ function NoteEditor({
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
-  };
-
-  // Check if content is effectively empty (no meaningful text)
-  const isEmptyContent = (htmlContent: string) => {
-    if (!htmlContent) return true;
-    // Remove HTML tags and count characters
-    const textContent = htmlContent.replace(/<[^>]*>/g, '').trim();
-    return textContent.length === 0;
   };
 
   const handleSave = async () => {
@@ -158,8 +151,8 @@ function NoteEditor({
           </div>
         ) : (
           <div 
-            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm break-words' : 'text-muted-foreground italic text-center'}`}
-            dangerouslySetInnerHTML={{ __html: !isEmptyContent(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Gang Notes' ? 'They\'ll appear on the Gang card when printed.' : ''}` }}
+          className={`max-w-none ${!isHtmlEffectivelyEmpty(content) ? 'prose prose-sm break-words' : 'text-muted-foreground italic text-center'}`}
+          dangerouslySetInnerHTML={{ __html: !isHtmlEffectivelyEmpty(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Gang Notes' ? 'They\'ll appear on the Gang card when printed.' : ''}` }}
           />
         )}
       </div>
@@ -188,7 +181,7 @@ export function GangNotes({
   }, [initialNoteBackstory]);
 
   const handleNoteSave = async () => {
-    const cleanNote = note.trim() === '' ? '' : note;
+    const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;
     
     const response = await fetch(`/api/gangs/${gangId}`, {
       method: 'PATCH',
@@ -208,7 +201,7 @@ export function GangNotes({
   };
 
   const handleNoteBackstorySave = async () => {
-    const cleanNoteBackstory = noteBackstory.trim() === '' ? '' : noteBackstory;
+    const cleanNoteBackstory = isHtmlEffectivelyEmpty(noteBackstory) ? '' : noteBackstory;
     
     const response = await fetch(`/api/gangs/${gangId}`, {
       method: 'PATCH',
