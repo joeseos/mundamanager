@@ -13,7 +13,7 @@ interface CampaignNotesProps {
 }
 
 export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: CampaignNotesProps) {
-  const NOTE_CHAR_LIMIT = 2500;
+  const NOTE_CHAR_LIMIT = 3500;
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
       setIsSaving(true);
       const charCount = getCharCount(note);
       if (charCount > NOTE_CHAR_LIMIT) {
-        setError(`Notes cannot exceed ${NOTE_CHAR_LIMIT} characters`);
+        setError(`Campaign notes cannot exceed ${NOTE_CHAR_LIMIT} characters`);
         return;
       }
       // Clean up empty content before saving
