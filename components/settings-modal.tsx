@@ -118,7 +118,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
         <DropdownMenuContent
           align="end" 
-          className="w-56"
+          className="w-56 z-[9999]"
           sideOffset={8}
           collisionPadding={20}
         >
