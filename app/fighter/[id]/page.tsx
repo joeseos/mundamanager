@@ -113,44 +113,34 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       .map((beast: any) => beast.fighter_pet_id)
       .filter(Boolean);
 
-    // Parallel batch: beast fighters and gang variants (with error boundaries)
+    // Parallel batch: beast fighters and gang variants (non-critical queries)
     const [
       beastFightersResult,
       gangVariantsResult
     ] = await Promise.all([
-      // Beast fighters (only if needed) - graceful fallback on error
+      // Beast fighters (only if needed)
       beastIds.length > 0
-        ? (async () => {
-            try {
-              return await supabase
-                .from('fighters')
-                .select(`
-                  id,
-                  fighter_name,
-                  fighter_type,
-                  fighter_class,
-                  credits,
-                  created_at,
-                  retired
-                `)
-                .in('id', beastIds);
-            } catch {
-              return { data: [] };
-            }
-          })()
+        ? supabase
+            .from('fighters')
+            .select(`
+              id,
+              fighter_name,
+              fighter_type,
+              fighter_class,
+              credits,
+              created_at,
+              retired
+            `)
+            .in('id', beastIds)
+            .then((result: any) => result.error ? { data: [] } : result)
         : Promise.resolve({ data: [] }),
-      // Gang variants (only if needed) - graceful fallback on error
+      // Gang variants (only if needed)
       gangBasic.gang_variants?.length
-        ? (async () => {
-            try {
-              return await supabase
-                .from('gang_variant_types')
-                .select('id, variant')
-                .in('id', gangBasic.gang_variants!);
-            } catch {
-              return { data: [] };
-            }
-          })()
+        ? supabase
+            .from('gang_variant_types')
+            .select('id, variant')
+            .in('id', gangBasic.gang_variants!)
+            .then((result: any) => result.error ? { data: [] } : result)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -158,7 +148,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     // Process beast ownership data
     const ownedBeasts: any[] = [];
-    if (beastFightersResult.data && beastFightersResult.data.length > 0 && beastDataResult.length > 0) {
+    if (beastFightersResult.data?.length) {
       beastDataResult.forEach((beastOwnership: any) => {
         const beast = beastFightersResult.data.find((f: any) => f.id === beastOwnership.fighter_pet_id) as any;
         const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
