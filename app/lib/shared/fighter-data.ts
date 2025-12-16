@@ -1062,47 +1062,6 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
 };
 
 /**
- * Get fighter campaign data
- * Cache: BASE_FIGHTER_CAMPAIGNS
- */
-export const getFighterCampaignData = async (fighterId: string, supabase: any): Promise<any> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('fighters')
-        .select(`
-          gang:gang_id (
-            campaign_gangs (
-              role,
-              status,
-              invited_at,
-              invited_by,
-              campaign:campaign_id (
-                id,
-                campaign_name,
-                has_meat,
-                has_exploration_points,
-                has_scavenging_rolls,
-                trading_posts
-              )
-            )
-          )
-        `)
-        .eq('id', fighterId)
-        .single();
-
-      if (error) return { data: null, error };
-      return { data, error: null };
-    },
-    [`fighter-campaigns-${fighterId}`],
-    {
-      tags: [CACHE_TAGS.BASE_FIGHTER_CAMPAIGNS(fighterId)],
-      revalidate: false
-    }
-  )();
-};
-
-/**
  * Get fighter's owned exotic beasts with equipment names
  * Cache: BASE_FIGHTER_OWNED_BEASTS
  */

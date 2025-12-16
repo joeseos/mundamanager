@@ -32,7 +32,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterOwnedBeastsCost,
       getFighterTypeInfo,
       getFighterSubTypeInfo,
-      getFighterCampaignData,
       getFighterOwnedBeastsData,
       getFighterOwnershipInfo
     } = await import('@/app/lib/shared/fighter-data');
@@ -40,7 +39,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     const {
       getGangBasic,
       getGangPositioning,
-      getGangCredits
+      getGangCredits,
+      getGangCampaigns
     } = await import('@/app/lib/shared/gang-data');
 
     // Fetch basic fighter data first to check if fighter exists
@@ -62,7 +62,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       beastCosts,
       fighterTypeData,
       fighterSubTypeData,
-      campaignDataResult,
+      gangCampaigns,
       beastDataResult,
       ownershipDataResult
     ] = await Promise.all([
@@ -81,8 +81,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       fighterBasic.fighter_sub_type_id ?
         getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase) :
         Promise.resolve(null),
-      // Campaign data (using cached helper)
-      getFighterCampaignData(id, supabase),
+      // Campaign data (gang-level cache using COMPOSITE_GANG_CAMPAIGNS)
+      getGangCampaigns(fighterBasic.gang_id, supabase),
       // Beast ownership data (using cached helper)
       getFighterOwnedBeastsData(id, supabase),
       // Owner check (if this fighter is a beast, using cached helper)
@@ -105,53 +105,19 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     //   redirect("/unauthorized");
     // }
 
-    // Process campaign data
-    const campaigns: any[] = [];
-    if (!campaignDataResult.error && campaignDataResult.data) {
-      const campaignGangs = (campaignDataResult.data.gang as any)?.campaign_gangs || [];
-      campaignGangs.forEach((cg: any) => {
-        if (cg.campaign) {
-          campaigns.push({
-            campaign_id: cg.campaign.id,
-            campaign_name: cg.campaign.campaign_name,
-            role: cg.role,
-            status: cg.status,
-            invited_at: cg.invited_at,
-            invited_by: cg.invited_by,
-            has_meat: cg.campaign.has_meat,
-            has_exploration_points: cg.campaign.has_exploration_points,
-            has_scavenging_rolls: cg.campaign.has_scavenging_rolls,
-            trading_posts: cg.campaign.trading_posts || [],
-          });
-        }
-      });
-    }
+    // Campaign data already processed and includes trading post names (from getGangCampaigns)
+    const campaigns = gangCampaigns;
 
-    // Extract data needed for parallel batch queries
-    const allTradingPostIds = campaigns
-      .map((c: any) => c.trading_posts)
-      .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-      .flat();
-    const uniqueTradingPostIds = allTradingPostIds.length > 0 ? Array.from(new Set(allTradingPostIds)) : [];
-    
     const beastIds = !beastDataResult.error && beastDataResult.data
       ? beastDataResult.data.map((beast: any) => beast.fighter_pet_id).filter(Boolean)
       : [];
 
-    // Parallel batch: trading posts, beast fighters, gang variants, gang fighters
+    // Parallel batch: beast fighters, gang variants, gang fighters
     const [
-      tradingPostTypesResult,
       beastFightersResult,
       gangVariantsResult,
       gangFighters
     ] = await Promise.all([
-      // Trading post names (only if needed)
-      uniqueTradingPostIds.length > 0
-        ? supabase
-            .from('trading_post_types')
-            .select('id, trading_post_name')
-            .in('id', uniqueTradingPostIds)
-        : Promise.resolve({ data: [] }),
       // Beast fighters (only if needed)
       beastIds.length > 0
         ? supabase
@@ -178,25 +144,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getGangFighters(fighterBasic.gang_id, supabase)
     ]);
 
-    // Process trading post names
-    let tradingPostNamesMap: Record<string, string> = {};
-    if (tradingPostTypesResult.data && tradingPostTypesResult.data.length > 0) {
-      tradingPostNamesMap = tradingPostTypesResult.data.reduce((acc: Record<string, string>, tp: any) => {
-        acc[tp.id] = tp.trading_post_name;
-        return acc;
-      }, {});
-    }
-
-    // Add trading post names to campaigns
-    campaigns.forEach((campaign: any) => {
-      if (campaign.trading_posts && Array.isArray(campaign.trading_posts) && campaign.trading_posts.length > 0) {
-        campaign.trading_post_names = campaign.trading_posts
-          .map((id: string) => tradingPostNamesMap[id])
-          .filter(Boolean);
-      } else {
-        campaign.trading_post_names = [];
-      }
-    });
+    // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
 
     // Process beast ownership data
     const ownedBeasts: any[] = [];
