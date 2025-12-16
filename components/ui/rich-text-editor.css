@@ -1,3 +1,7 @@
+/* TipTac Rich Text Editor CSS */
+/* Prose - Override prose for reading content */
+/* ProseMirror - Override prose for editor content */
+
 /* Text Rendering - Override prose for read-only content */
 .prose {
   color: hsl(var(--primary));
@@ -55,4 +59,10 @@
 .ProseMirror a {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* Highlight selected images inside the editor with a thin blue border */
+.ProseMirror-selectednode {
+  outline: 2px solid #3b82f6; /* Tailwind blue-600 */
+  border-radius: 0.375rem; /* match rounded-md */
 }

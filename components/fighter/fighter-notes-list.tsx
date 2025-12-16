@@ -7,6 +7,7 @@ import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { useMutation } from '@tanstack/react-query';
+import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 
 interface FighterNotesProps {
   fighterId: string;
@@ -59,14 +60,6 @@ function NoteEditor({
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
-  };
-
-  // Check if content is effectively empty (no meaningful text)
-  const isEmptyContent = (htmlContent: string) => {
-    if (!htmlContent) return true;
-    // Remove HTML tags and count characters
-    const textContent = htmlContent.replace(/<[^>]*>/g, '').trim();
-    return textContent.length === 0;
   };
 
   const handleSave = async () => {
@@ -157,8 +150,8 @@ function NoteEditor({
           </div>
         ) : (
           <div 
-            className={`max-w-none ${!isEmptyContent(content) ? 'prose prose-sm' : 'text-muted-foreground italic text-center'}`}
-            dangerouslySetInnerHTML={{ __html: !isEmptyContent(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Fighter Notes' ? 'They\'ll appear on the fighter card when printed.' : ''}` }}
+          className={`max-w-none ${!isHtmlEffectivelyEmpty(content) ? 'prose prose-sm' : 'text-muted-foreground italic text-center'}`}
+          dangerouslySetInnerHTML={{ __html: !isHtmlEffectivelyEmpty(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Fighter Notes' ? 'They\'ll appear on the fighter card when printed.' : ''}` }}
           />
         )}
       </div>
@@ -187,7 +180,7 @@ export function FighterNotes({
   }, [initialNoteBackstory]);
 
   const handleNoteSave = async (content: string) => {
-    const cleanNote = content.trim() === '' ? '' : content;
+    const cleanNote = isHtmlEffectivelyEmpty(content) ? '' : content;
     
     const result = await updateFighterDetails({
       fighter_id: fighterId,
@@ -202,7 +195,7 @@ export function FighterNotes({
   };
 
   const handleNoteBackstorySave = async (content: string) => {
-    const cleanNoteBackstory = content.trim() === '' ? '' : content;
+    const cleanNoteBackstory = isHtmlEffectivelyEmpty(content) ? '' : content;
     
     const result = await updateFighterDetails({
       fighter_id: fighterId,

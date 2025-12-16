@@ -10,6 +10,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Strike from '@tiptap/extension-strike';
 import Blockquote from '@tiptap/extension-blockquote';
 import Placeholder from '@tiptap/extension-placeholder';
+import Image from '@tiptap/extension-image';
 import { Button } from '@/components/ui/button';
 import {
   LuItalic, 
@@ -23,6 +24,7 @@ import {
   LuHeading2, 
   LuHeading3,
   LuPalette,
+  LuImage,
   LuUnlink,
   LuList,
   LuListOrdered,
@@ -60,6 +62,9 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [showImageInput, setShowImageInput] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [isEditingImage, setIsEditingImage] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [toolbarTop, setToolbarTop] = useState(90);
   const [scrollY, setScrollY] = useState(0);
@@ -67,6 +72,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   const [, forceUpdate] = useState({});
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const linkInputRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
@@ -89,17 +95,27 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
       Placeholder.configure({
         placeholder: placeholder || 'Start typing...',
       }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'max-w-full h-auto rounded-md my-2',
+        },
+      }),
     ],
     content,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      // Only clean up if the content is effectively empty (just empty tags)
-      const textContent = html.replace(/<[^>]*>/g, '').trim();
-      if (textContent === '') {
-        // If there's no text content, return empty string
-        onChange('');
+
+      // Determine if content is effectively empty:
+      // - Strip all HTML tags and whitespace to check for text
+      // - If there's no text BUT there is at least one <img> tag, we treat it as non-empty
+      const textContent = html.replace(/<[^>]*>/g, "").trim();
+      const hasImage = /<img\b[^>]*src=["']?[^"'>]+["']?[^>]*>/i.test(html);
+
+      if (textContent === "" && !hasImage) {
+        // No text and no images → treat as empty
+        onChange("");
       } else {
-        // If there is text content, pass the HTML as-is
+        // Has text or at least one image → keep the HTML
         onChange(html);
       }
     },
@@ -127,6 +143,11 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
       }
       if (linkInputRef.current && !linkInputRef.current.contains(event.target as Node)) {
         setShowLinkInput(false);
+      }
+      if (imageInputRef.current && !imageInputRef.current.contains(event.target as Node)) {
+        setShowImageInput(false);
+        setIsEditingImage(false);
+        setImageUrl('');
       }
     };
 
@@ -240,23 +261,57 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
     setShowColorPicker(false);
   };
 
+  const addImage = () => {
+    if (!imageUrl) return;
+
+    if (isEditingImage) {
+      // Update existing image
+      (editor.chain() as any)
+        .focus()
+        .updateAttributes('image', { src: imageUrl })
+        .run();
+      setIsEditingImage(false);
+    } else {
+      // Insert new image
+      (editor.chain() as any)
+        .focus()
+        .setImage({ src: imageUrl })
+        .run();
+    }
+
+    setImageUrl('');
+    setShowImageInput(false);
+  };
+
+  const removeImage = () => {
+    (editor.chain() as any)
+      .focus()
+      .deleteSelection()
+      .run();
+    setIsEditingImage(false);
+    setShowImageInput(false);
+    setImageUrl('');
+  };
+
   const MenuButton = ({ 
     onClick, 
     isActive = false, 
     children, 
-    title 
+    title,
+    className,
   }: { 
     onClick: () => void; 
     isActive?: boolean; 
     children: React.ReactNode; 
     title: string;
+    className?: string;
   }) => (
     <Button
       variant={isActive ? "default" : "outline"}
       size="sm"
       onClick={onClick}
       title={title}
-      className="h-8 w-8 p-0"
+      className={`h-8 w-8 p-0 ${className ?? ""}`}
     >
       {children}
     </Button>
@@ -435,58 +490,160 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
 
         <div className="w-px h-6 bg-gray-300 mx-1" />
 
-                 {/* Link controls */}
-         {editor.isActive('link') ? (
-           <MenuButton
-             onClick={removeLink}
-             title="Remove Link"
-           >
-             <LuUnlink className="h-4 w-4" />
-           </MenuButton>
-         ) : (
-           <MenuButton
-             onClick={() => setShowLinkInput(!showLinkInput)}
-             title="Add Link"
-           >
-             <LuLink className="h-4 w-4" />
-           </MenuButton>
-         )}
+        {/* Link & image controls */}
+        <div className="flex items-center gap-1 ml-1">
+          {/* Link controls */}
+          {editor.isActive('link') ? (
+            <MenuButton
+              onClick={removeLink}
+              className="border border-blue-500 text-blue-500 dark:border-blue-400 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/60"
+              title="Remove Link"
+            >
+              <LuUnlink className="h-4 w-4" />
+            </MenuButton>
+          ) : (
+            <MenuButton
+              onClick={() => {
+                setShowLinkInput((prev) => !prev);
+                setShowImageInput(false);
+              }}
+              title="Add Link"
+            >
+              <LuLink className="h-4 w-4" />
+            </MenuButton>
+          )}
 
-         {/* Character count */}
-         {charLimit && (
-           <div className="flex flex-col items-center ml-auto text-xs font-mono">
-             <span className={`leading-none ${isOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
-               {charCount}/{charLimit}
-             </span>
-             <span className={isOverLimit ? 'text-red-500' : 'text-muted-foreground'}>
-               Characters
-             </span>
-           </div>
-         )}
-         
-         {/* Link input */}
-         {showLinkInput && (
-           <div className="absolute top-full left-1/2 transform -translate-x-1/2  bg-card border rounded-md shadow-xl p-3 z-50 min-w-[300px]" ref={linkInputRef}>
-             <div className="flex gap-2">
-               <input
-                 type="url"
-                 placeholder="Enter URL..."
-                 value={linkUrl}
-                 onChange={(e) => setLinkUrl(e.target.value)}
-                 className="flex-1 px-3 py-1 border rounded text-sm"
-                 onKeyDown={(e) => {
-                   if (e.key === 'Enter') {
-                     addLink();
-                   }
-                 }}
-               />
-               <Button size="sm" onClick={addLink}>Add</Button>
-               <Button size="sm" variant="outline" onClick={() => setShowLinkInput(false)}>Cancel</Button>
-             </div>
-           </div>
-         )}
-         
-       </div>
+          {/* Image controls */}
+          {editor.isActive('image') ? (
+            <MenuButton
+              onClick={() => {
+                // When clicking image button while image is selected, show edit dialog
+                const attrs = editor.getAttributes('image');
+                if (attrs.src) {
+                  setImageUrl(attrs.src);
+                  setIsEditingImage(true);
+                  setShowImageInput(true);
+                  setShowLinkInput(false);
+                }
+              }}
+              isActive={true}
+              className="border border-blue-500 text-blue-500 dark:border-blue-400 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/60"
+              title="Edit Image URL"
+            >
+              <LuImage className="h-4 w-4" />
+            </MenuButton>
+          ) : (
+            <MenuButton
+              onClick={() => {
+                setShowImageInput((prev) => !prev);
+                setShowLinkInput(false);
+                setIsEditingImage(false);
+                setImageUrl('');
+              }}
+              title="Insert Image from URL"
+            >
+              <LuImage className="h-4 w-4" />
+            </MenuButton>
+          )}
+        </div>
+
+        {/* Character count */}
+        {charLimit && (
+          <div className="flex flex-col items-center ml-auto text-xs font-mono">
+            <span className={`leading-none ${isOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {charCount}/{charLimit}
+            </span>
+            <span className={isOverLimit ? 'text-red-500' : 'text-muted-foreground'}>
+              Characters
+            </span>
+          </div>
+        )}
+
+        {/* Link input */}
+        {showLinkInput && (
+          <div
+            className="absolute top-full left-1/2 transform -translate-x-1/2 bg-card border rounded-md shadow-xl p-3 z-50 min-w-[300px]"
+            ref={linkInputRef}
+          >
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="Enter URL..."
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                className="flex-1 px-3 py-1 border rounded text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addLink();
+                  }
+                }}
+              />
+              <Button size="sm" onClick={addLink}>Add</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowLinkInput(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Image input */}
+        {showImageInput && (
+          <div
+            className="absolute top-full left-1/2 transform -translate-x-1/2 bg-card border rounded-md shadow-xl p-3 z-50 min-w-[300px]"
+            ref={imageInputRef}
+          >
+            <div className="flex flex-col gap-2">
+              <label className="text-xs text-muted-foreground">
+                {isEditingImage ? 'Edit Image URL' : 'Image URL (hotlink)'}
+              </label>
+              <input
+                type="url"
+                placeholder="Image URL (hotlink)..."
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="flex-1 px-3 py-1 border rounded text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    addImage();
+                  }
+                  if (e.key === 'Escape') {
+                    setShowImageInput(false);
+                    setIsEditingImage(false);
+                    setImageUrl('');
+                  }
+                }}
+                autoFocus
+              />
+              <div className="flex justify-between gap-2">
+                {isEditingImage && (
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={removeImage}
+                  >
+                    Remove
+                  </Button>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowImageInput(false);
+                      setIsEditingImage(false);
+                      setImageUrl('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={addImage}>
+                    {isEditingImage ? 'Update' : 'Insert'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
 
       {/* Editor content */}
       <div className={isMobile ? '' : ''}>
