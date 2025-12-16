@@ -45,7 +45,7 @@ interface FighterInjuryLogParams {
   fighter_id: string;
   fighter_name: string;
   injury_name: string;
-  injury_table: string;
+  injury_table?: string;
   dice_data?: any;
 }
 
