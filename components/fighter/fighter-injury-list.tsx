@@ -345,11 +345,13 @@ export function InjuriesList({
     mutationFn: async (variables: { 
       fighter_id: string; 
       injury_type_id: string;
+      injury_table: string;
       dice_data: any;
     }) => {
       const result = await verifyAndLogRolledFighterInjury({
         fighter_id: variables.fighter_id,
         injury_type_id: variables.injury_type_id,
+        injury_table: variables.injury_table,
         dice_data: variables.dice_data
       });
 
@@ -388,6 +390,49 @@ export function InjuriesList({
 
     const [min, max] = range;
     return min === max ? `${min}` : `${min}-${max}`;
+  };
+
+  // Coordinates applying a resolved dice roll:
+  // - Guards against duplicate submissions
+  // - Applies UI selection state
+  // - Logs the roll to the server
+  // - Enforces a short cooldown to prevent spam
+  const logResolvedRollWithCooldown = (injury: FighterEffect, roll: number) => {  
+    if (injuryRollCooldown || logInjuryRollMutation.isPending) {
+      return false;
+    }
+
+    setInjuryRollCooldown(true);
+
+    // Ensure the cooldown is always released once it has been set
+    try {
+      selectRolledInjury(injury);
+      logRolledInjury(injury, roll);
+      return true;      
+    } finally {
+      // Cooldown to prevent rapid re-rolling and excessive logging
+      setTimeout(() => setInjuryRollCooldown(false), 2000);
+    }
+  };
+
+  // Updates local UI state to reflect the injury produced by a dice roll.
+  // This is purely a UI concern and does not trigger any persistence.
+  const selectRolledInjury = (injury: FighterEffect) => {
+    setSelectedInjuryId(injury.id);
+    setSelectedInjury(injury);
+  };
+  
+  // Persists a resolved dice roll to the backend for auditing / verification.
+  // Fire-and-forget mutation; success and error handling are managed by the mutation.
+  const logRolledInjury = (injury: FighterEffect, roll: number) => {
+    const injuryTable = is_spyrer ? 'rig glitch' : (fighter_class === 'Crew' ? 'lasting injury crew' : 'lasting injury');
+  
+    logInjuryRollMutation.mutate({
+      fighter_id: fighterId,
+      injury_type_id: injury.id,
+      injury_table: injuryTable,
+      dice_data: { result: roll }
+    });
   };
 
   const fetchAvailableInjuries = useCallback(async () => {
@@ -432,38 +477,6 @@ export function InjuriesList({
     setSelectedInjuryId('');
     setSelectedInjury(null);
   }, []);
-
-  const handleLogInjuryRoll = async (diceResult: number, rolledInjury: FighterEffect) => {
-    if (injuryRollCooldown || logInjuryRollMutation.isPending) {
-      return false;
-    }
-  
-    setInjuryRollCooldown(true);
-
-    const validInjury = localAvailableInjuries.find(injury => injury.id === rolledInjury?.id);
-
-    try {
-      if(validInjury) {
-        const payload = {
-          fighter_id: fighterId,
-          injury_type_id: rolledInjury.id,
-          dice_data: { result: diceResult }
-        };
-    
-        logInjuryRollMutation.mutate(payload);
-        return true;
-      } else {     
-        toast({
-          description: "Lasting injury could not be logged.",
-          variant: "destructive"
-        });
-        return false;
-      } 
-    } finally {
-      // Cooldown to prevent rapid re-rolling and excessive logging
-      setTimeout(() => setInjuryRollCooldown(false), 2000);
-    }
-  }
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -753,10 +766,9 @@ export function InjuriesList({
                       if (!match) {
                         match = rolled[0].item as any;
                       }
+
                       if (match) {
-                        setSelectedInjuryId(match.id);
-                        setSelectedInjury(match);
-                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                        logResolvedRollWithCooldown(match, roll);
                       }
                     }
                   }}
@@ -768,10 +780,7 @@ export function InjuriesList({
                     const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
                     
                     if (match) {
-                      const injuryId: string = match.id;
-                      setSelectedInjuryId(injuryId);
-                      setSelectedInjury(match);
-                      handleLogInjuryRoll(roll, match);
+                      logResolvedRollWithCooldown(match, roll);
                     }
                   }}
                   buttonText="Roll D66"

@@ -3,10 +3,10 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
-import { GangLogActionResult } from './logs/gang-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
+import type { GangLogActionResult } from './logs/gang-logs';
 
 // Helper function to check if user is admin
 async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
@@ -33,6 +33,7 @@ export interface AddFighterInjuryParams {
 export interface VerifyAndLogRolledFighterInjuryParams {
   fighter_id: string;
   injury_type_id: string;
+  injury_table: string;
   dice_data: any;
 }
 
@@ -85,13 +86,16 @@ export async function verifyAndLogRolledFighterInjury(params: VerifyAndLogRolled
       throw new Error('Injury not found!');
     }
 
-    return await logRolledFighterInjury({
+    const payload = {
       gang_id: fighter.gang_id,
       fighter_id: params.fighter_id,
       fighter_name: fighter.fighter_name,
       injury_name: fighterEffectType.effect_name,
+      injury_table: params.injury_table,
       dice_data: params.dice_data
-    });
+    };
+
+    return await logRolledFighterInjury(payload);
   } catch (error) {
     console.error('Failed to log the injury roll:', error);
     return {
