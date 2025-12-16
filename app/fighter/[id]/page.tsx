@@ -96,6 +96,15 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       notFound();
     }
 
+    // Check user permissions BEFORE fetching additional data
+    const permissionService = new PermissionService();
+    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
+
+    // TODO: Add authorization check here if needed
+    // if (!userPermissions.canView) {
+    //   redirect("/unauthorized");
+    // }
+
     // Process campaign data
     const campaigns: any[] = [];
     if (!campaignDataResult.error && campaignDataResult.data) {
@@ -129,12 +138,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       ? beastDataResult.data.map((beast: any) => beast.fighter_pet_id).filter(Boolean)
       : [];
 
-    // Parallel batch: trading posts, beast fighters, gang variants, permissions, gang fighters
+    // Parallel batch: trading posts, beast fighters, gang variants, gang fighters
     const [
       tradingPostTypesResult,
       beastFightersResult,
       gangVariantsResult,
-      userPermissions,
       gangFighters
     ] = await Promise.all([
       // Trading post names (only if needed)
@@ -166,11 +174,6 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             .select('id, variant')
             .in('id', gangBasic.gang_variants)
         : Promise.resolve({ data: [] }),
-      // User permissions
-      (async () => {
-        const permissionService = new PermissionService();
-        return await permissionService.getFighterPermissions(user.id, id);
-      })(),
       // Gang fighters
       getGangFighters(fighterBasic.gang_id, supabase)
     ]);
