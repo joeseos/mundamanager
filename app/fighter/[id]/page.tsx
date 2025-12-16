@@ -29,7 +29,12 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterSkills,
       getFighterEffects,
       getFighterVehicles,
-      getFighterOwnedBeastsCost
+      getFighterOwnedBeastsCost,
+      getFighterTypeInfo,
+      getFighterSubTypeInfo,
+      getFighterCampaignData,
+      getFighterOwnedBeastsData,
+      getFighterOwnershipInfo
     } = await import('@/app/lib/shared/fighter-data');
 
     const {
@@ -71,73 +76,19 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterEffects(id, supabase),
       getFighterVehicles(id, supabase),
       getFighterOwnedBeastsCost(id, supabase),
-      // Fighter type data
-      fighterBasic.fighter_type_id ?
-        supabase
-          .from('fighter_types')
-          .select('id, fighter_type, alliance_crew_name, is_spyrer')
-          .eq('id', fighterBasic.fighter_type_id)
-          .single() :
-        Promise.resolve({ data: null, error: null }),
+      // Fighter type data (using cached helpers)
+      getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
       fighterBasic.fighter_sub_type_id ?
-        supabase
-          .from('fighter_sub_types')
-          .select('id, sub_type_name')
-          .eq('id', fighterBasic.fighter_sub_type_id)
-          .single() :
-        Promise.resolve({ data: null, error: null }),
-      // Campaign data
-      supabase
-        .from('fighters')
-        .select(`
-          gang:gang_id (
-            campaign_gangs (
-              role,
-              status,
-              invited_at,
-              invited_by,
-              campaign:campaign_id (
-                id,
-                campaign_name,
-                has_meat,
-                has_exploration_points,
-                has_scavenging_rolls,
-                trading_posts
-              )
-            )
-          )
-        `)
-        .eq('id', id)
-        .single(),
-      // Beast ownership data
-      supabase
-        .from('fighter_exotic_beasts')
-        .select(`
-          fighter_pet_id,
-          fighter_equipment_id,
-          fighter_equipment!fighter_equipment_id (
-            equipment!equipment_id (
-              equipment_name
-            ),
-            custom_equipment!custom_equipment_id (
-              equipment_name
-            )
-          )
-        `)
-        .eq('fighter_owner_id', id),
-      // Owner check (if this fighter is a beast)
+        getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase) :
+        Promise.resolve(null),
+      // Campaign data (using cached helper)
+      getFighterCampaignData(id, supabase),
+      // Beast ownership data (using cached helper)
+      getFighterOwnedBeastsData(id, supabase),
+      // Owner check (if this fighter is a beast, using cached helper)
       fighterBasic.fighter_pet_id ?
-        supabase
-          .from('fighter_exotic_beasts')
-          .select(`
-            fighter_owner_id,
-            fighters!fighter_owner_id (
-              fighter_name
-            )
-          `)
-          .eq('id', fighterBasic.fighter_pet_id)
-          .single() :
-        Promise.resolve({ data: null, error: null })
+        getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase) :
+        Promise.resolve(null)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -167,26 +118,70 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       });
     }
 
-    // Fetch trading post names for campaigns that have trading posts
+    // Extract data needed for parallel batch queries
     const allTradingPostIds = campaigns
       .map((c: any) => c.trading_posts)
       .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
       .flat();
+    const uniqueTradingPostIds = allTradingPostIds.length > 0 ? Array.from(new Set(allTradingPostIds)) : [];
     
+    const beastIds = !beastDataResult.error && beastDataResult.data
+      ? beastDataResult.data.map((beast: any) => beast.fighter_pet_id).filter(Boolean)
+      : [];
+
+    // Parallel batch: trading posts, beast fighters, gang variants, permissions, gang fighters
+    const [
+      tradingPostTypesResult,
+      beastFightersResult,
+      gangVariantsResult,
+      userPermissions,
+      gangFighters
+    ] = await Promise.all([
+      // Trading post names (only if needed)
+      uniqueTradingPostIds.length > 0
+        ? supabase
+            .from('trading_post_types')
+            .select('id, trading_post_name')
+            .in('id', uniqueTradingPostIds)
+        : Promise.resolve({ data: [] }),
+      // Beast fighters (only if needed)
+      beastIds.length > 0
+        ? supabase
+            .from('fighters')
+            .select(`
+              id,
+              fighter_name,
+              fighter_type,
+              fighter_class,
+              credits,
+              created_at,
+              retired
+            `)
+            .in('id', beastIds)
+        : Promise.resolve({ data: [] }),
+      // Gang variants (only if needed)
+      gangBasic.gang_variants && gangBasic.gang_variants.length > 0
+        ? supabase
+            .from('gang_variant_types')
+            .select('id, variant')
+            .in('id', gangBasic.gang_variants)
+        : Promise.resolve({ data: [] }),
+      // User permissions
+      (async () => {
+        const permissionService = new PermissionService();
+        return await permissionService.getFighterPermissions(user.id, id);
+      })(),
+      // Gang fighters
+      getGangFighters(fighterBasic.gang_id, supabase)
+    ]);
+
+    // Process trading post names
     let tradingPostNamesMap: Record<string, string> = {};
-    if (allTradingPostIds.length > 0) {
-      const uniqueIds = Array.from(new Set(allTradingPostIds));
-      const { data: tradingPostTypes } = await supabase
-        .from('trading_post_types')
-        .select('id, trading_post_name')
-        .in('id', uniqueIds);
-      
-      if (tradingPostTypes) {
-        tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
-          acc[tp.id] = tp.trading_post_name;
-          return acc;
-        }, {});
-      }
+    if (tradingPostTypesResult.data && tradingPostTypesResult.data.length > 0) {
+      tradingPostNamesMap = tradingPostTypesResult.data.reduce((acc: Record<string, string>, tp: any) => {
+        acc[tp.id] = tp.trading_post_name;
+        return acc;
+      }, {});
     }
 
     // Add trading post names to campaigns
@@ -202,56 +197,35 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     // Process beast ownership data
     const ownedBeasts: any[] = [];
-    if (!beastDataResult.error && beastDataResult.data) {
-      const beastIds = beastDataResult.data.map(beast => beast.fighter_pet_id).filter(Boolean);
+    if (beastFightersResult.data && beastFightersResult.data.length > 0 && !beastDataResult.error && beastDataResult.data) {
+      beastDataResult.data.forEach((beastOwnership: any) => {
+        const beast = beastFightersResult.data.find((f: any) => f.id === beastOwnership.fighter_pet_id) as any;
+        const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
 
-      if (beastIds.length > 0) {
-        const { data: beastFighters, error: beastFighterError } = await supabase
-          .from('fighters')
-          .select(`
-            id,
-            fighter_name,
-            fighter_type,
-            fighter_class,
-            credits,
-            created_at,
-            retired
-          `)
-          .in('id', beastIds);
-
-        if (!beastFighterError && beastFighters) {
-          beastDataResult.data.forEach((beastOwnership: any) => {
-            const beast = beastFighters.find(f => f.id === beastOwnership.fighter_pet_id);
-            const equipment = beastOwnership.fighter_equipment?.equipment || beastOwnership.fighter_equipment?.custom_equipment;
-
-            if (beast) {
-              ownedBeasts.push({
-                id: beast.id,
-                fighter_name: beast.fighter_name,
-                fighter_type: beast.fighter_type,
-                fighter_class: beast.fighter_class,
-                credits: beast.credits,
-                equipment_source: 'Granted by equipment',
-                equipment_name: equipment?.equipment_name || 'Unknown Equipment',
-                created_at: beast.created_at,
-                retired: beast.retired || false
-              });
-            }
+        if (beast) {
+          ownedBeasts.push({
+            id: beast.id,
+            fighter_name: beast.fighter_name,
+            fighter_type: beast.fighter_type,
+            fighter_class: beast.fighter_class,
+            credits: beast.credits,
+            equipment_source: 'Granted by equipment',
+            equipment_name: equipment?.equipment_name || 'Unknown Equipment',
+            created_at: beast.created_at,
+            retired: beast.retired || false
           });
         }
-      }
+      });
     }
 
     // Process owner data
-    const ownerName = ownershipDataResult.data
-      ? (ownershipDataResult.data.fighters as any)?.fighter_name
-      : undefined;
+    const ownerName = ownershipDataResult?.owner_name;
 
     // Calculate total cost inline (avoid redundant getFighterTotalCost call)
     let totalCost = 0;
 
     // Check if this fighter is owned by another fighter (exotic beast)
-    const isOwnedBeast = !!ownershipDataResult.data;
+    const isOwnedBeast = !!ownershipDataResult;
 
     if (!isOwnedBeast) {
       // Calculate total cost for normal fighters
@@ -292,17 +266,17 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       fighter: {
         ...fighterBasic,
         credits: totalCost,
-        alliance_crew_name: fighterTypeData?.data?.alliance_crew_name,
-        is_spyrer: fighterTypeData?.data?.is_spyrer || false,
+        alliance_crew_name: fighterTypeData?.alliance_crew_name,
+        is_spyrer: fighterTypeData?.is_spyrer || false,
         fighter_type: {
-          fighter_type_id: fighterTypeData?.data?.id || fighterBasic.custom_fighter_type_id || '',
-          fighter_type: fighterBasic.fighter_type || fighterTypeData?.data?.fighter_type || 'Unknown',
-          alliance_crew_name: fighterTypeData?.data?.alliance_crew_name
+          fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
+          fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
+          alliance_crew_name: fighterTypeData?.alliance_crew_name
         },
-        fighter_sub_type: fighterSubTypeData?.data ? {
-          id: fighterSubTypeData.data.id,
-          sub_type_name: fighterSubTypeData.data.sub_type_name,
-          fighter_sub_type: fighterSubTypeData.data.sub_type_name
+        fighter_sub_type: fighterSubTypeData ? {
+          id: fighterSubTypeData.fighter_sub_type_id,
+          sub_type_name: fighterSubTypeData.fighter_sub_type,
+          fighter_sub_type: fighterSubTypeData.fighter_sub_type
         } : undefined,
         skills,
         effects,
@@ -323,28 +297,13 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       equipment,
     };
 
-    // Get gang variants if they exist
-    if (gangBasic.gang_variants && gangBasic.gang_variants.length > 0) {
-      const { data: variants } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
-        .in('id', gangBasic.gang_variants);
-      
-      if (variants) {
-        fighterData.gang.gang_variants = variants.map((v: any) => ({
-          id: v.id,
-          variant: v.variant
-        }));
-      }
+    // Process gang variants
+    if (gangVariantsResult.data && gangVariantsResult.data.length > 0) {
+      fighterData.gang.gang_variants = gangVariantsResult.data.map((v: any) => ({
+        id: v.id,
+        variant: v.variant
+      }));
     }
-
-
-    // Use centralized permission service to get user permissions
-    const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
-
-    // Fetch gang fighters for the dropdown using cached function
-    const gangFighters = await getGangFighters(fighterData.gang.id, supabase);
 
     // Pass fighter data and user permissions to client component
     return (
