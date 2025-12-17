@@ -83,6 +83,27 @@
   }
   body {
     @apply bg-background text-foreground;
+    position: relative;
+  }
+
+  /* Fixed positioned background - mimics the React component behavior */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: hsl(var(--background));
+  }
+
+  /* Hide background when printing */
+  @media print {
+    body::before {
+      display: none;
+    }
   }
   img {
     @apply inline-block;

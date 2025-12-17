@@ -1,6 +1,5 @@
 import { hasEnvVars } from "@/utils/supabase/check-env-vars";
 import "./globals.css";
-import BackgroundImage from '@/components/background-image';
 import { Inter } from 'next/font/google'
 import Link from 'next/link';
 import Image from 'next/image';
@@ -167,7 +166,6 @@ export default async function RootLayout({
           storageKey="mundamanager-theme"
         >
           <QueryClientProviderWrapper>
-          <BackgroundImage />
           <header className="fixed top-0 left-0 right-0 bg-background border-b border-border shadow-md z-50 print:hidden">
           <div className="flex justify-between items-center h-14 px-2">
             <Link href="/" className="flex items-center">
