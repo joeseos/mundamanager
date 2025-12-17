@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateGangCount } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateGangCount, invalidateGangPermissionsForUser, invalidateCampaignMembership } from '@/utils/cache-tags';
 
 export async function deleteGang(gangId: string) {
   try {
@@ -22,6 +22,12 @@ export async function deleteGang(gangId: string) {
     if (gangError || !gang) {
       throw new Error('Gang not found');
     }
+
+    // Fetch campaign associations BEFORE delete (in case of CASCADE)
+    const { data: campaigns } = await supabase
+      .from('campaign_gangs')
+      .select('campaign_id, user_id')
+      .eq('gang_id', gangId);
 
     // Delete the gang
     const { error: deleteError } = await supabase
@@ -82,7 +88,25 @@ export async function deleteGang(gangId: string) {
     // Invalidate user's gang cache
     revalidateTag(CACHE_TAGS.USER_GANGS(gang.user_id));
     revalidateTag(CACHE_TAGS.USER_DASHBOARD(gang.user_id));
-    
+
+    // Invalidate gang permissions cache
+    invalidateGangPermissionsForUser({
+      userId: gang.user_id,
+      gangId: gangId
+    });
+
+    // Invalidate campaign membership caches if gang was in any campaigns (fetched before delete)
+    if (campaigns && campaigns.length > 0) {
+      campaigns.forEach(camp => {
+        invalidateCampaignMembership({
+          campaignId: camp.campaign_id,
+          gangId: gangId,
+          userId: camp.user_id,
+          action: 'leave'
+        });
+      });
+    }
+
     // Invalidate global gang count
     invalidateGangCount();
 

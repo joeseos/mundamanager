@@ -91,7 +91,10 @@ export const CACHE_TAGS = {
   USER_CAMPAIGNS: (userId: string) => `user-campaigns-${userId}`,   // user's campaigns
   USER_CUSTOMIZATIONS: (userId: string) => `user-custom-${userId}`, // custom equipment/territories
   USER_NOTIFICATIONS: (userId: string) => `user-notifications-${userId}`, // user notifications
-  
+
+  // User permissions
+  USER_GANG_PERMISSIONS: (userId: string, gangId: string) => `user-${userId}-gang-${gangId}-permissions`, // gang permissions for user (also used for fighters)
+
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
   USER_ACTIVITY_FEED: (userId: string) => `user-activity-${userId}`, // user activity feed
@@ -388,10 +391,41 @@ export function invalidateUserCustomizations(params: {
 }) {
   // User-scoped changes
   revalidateTag(CACHE_TAGS.USER_CUSTOMIZATIONS(params.userId));
-  
+
   // Global reference data that includes custom content
   revalidateTag(CACHE_TAGS.GLOBAL_EQUIPMENT_CATALOG());
   revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST());
+}
+
+/**
+ * Campaign Member Permissions Invalidation Pattern
+ * Triggered when: Campaign role changes or membership changes affect permissions
+ * Data changed: User permissions for campaigns
+ */
+export function invalidateCampaignMemberPermissions(params: {
+  campaignId: string;
+  userId: string;
+}) {
+  // Invalidate user's dashboard which might show permission-dependent UI
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
+  revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId));
+}
+
+/**
+ * Gang Permissions Invalidation Pattern
+ * Triggered when: Specific gang's permission context changes
+ * Data changed: Permissions for specific user-gang combination
+ * Note: Also handles fighter permissions since fighters use gang permissions
+ */
+export function invalidateGangPermissionsForUser(params: {
+  userId: string;
+  gangId: string;
+}) {
+  // Invalidate specific user-gang permission cache
+  revalidateTag(CACHE_TAGS.USER_GANG_PERMISSIONS(params.userId, params.gangId));
+
+  // Also invalidate user dashboard
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
 }
 
 // =============================================================================
