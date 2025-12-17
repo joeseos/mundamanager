@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { CACHE_TAGS, invalidateCampaignMembership, invalidateCampaignTerritory } from "@/utils/cache-tags";
+import { invalidateCampaignMembership, invalidateCampaignTerritory, invalidateGangPermissionsForUser } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AddGangToCampaignDirectParams {
@@ -91,7 +91,13 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
       userId: userId,
       action: 'join'
     });
-    
+
+    // Invalidate permission cache
+    invalidateGangPermissionsForUser({
+      userId: userId,
+      gangId: gangId
+    });
+
     // Also invalidate campaign gangs modal data
     revalidateTag(`campaign-gangs-${campaignId}`);
     revalidateTag(`campaign-${campaignId}`); // Legacy compatibility
@@ -156,7 +162,13 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
       userId: gangData.user_id,
       action: 'leave'
     });
-    
+
+    // Invalidate permission cache
+    invalidateGangPermissionsForUser({
+      userId: gangData.user_id,
+      gangId: gangId
+    });
+
     // Invalidate territory cache since we modified territories
     invalidateCampaignTerritory({
       campaignId: campaignId,

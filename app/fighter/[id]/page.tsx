@@ -101,7 +101,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
 
     // Check user permissions BEFORE fetching additional data
     const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getFighterPermissions(user.id, id);
+    const userPermissions = await permissionService.getGangPermissions(user.id, fighterBasic.gang_id);
 
     // Permissions: All authenticated users can view fighters (canView is always true)
     // Edit/delete permissions are enforced in FighterPageComponent

@@ -31,9 +31,9 @@ export async function GET(request: Request) {
     }
 
     // Check if user has access to this fighter (either owner or admin)
-    // Use PermissionService to check fighter permissions
+    // Use PermissionService to check gang permissions
     const permissionService = new PermissionService();
-    const permissions = await permissionService.getFighterPermissions(userId, fighterId);
+    const permissions = await permissionService.getGangPermissions(userId, fighter.gang_id);
 
     if (!permissions.canEdit) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });

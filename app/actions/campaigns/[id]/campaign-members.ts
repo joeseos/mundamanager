@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { CACHE_TAGS, invalidateCampaignMembership } from "@/utils/cache-tags";
+import { CACHE_TAGS, invalidateCampaignMembership, invalidateGangPermissionsForUser, invalidateCampaignMemberPermissions } from "@/utils/cache-tags";
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -127,6 +127,12 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
       gangId: gangId,
       userId: userId,
       action: 'join'
+    });
+
+    // Invalidate permission cache
+    invalidateGangPermissionsForUser({
+      userId: userId,
+      gangId: gangId
     });
 
     return { success: true };
@@ -349,6 +355,14 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       action: 'leave'
     });
 
+    // Invalidate permission cache
+    if (gangData?.user_id) {
+      invalidateGangPermissionsForUser({
+        userId: gangData.user_id,
+        gangId: gangId
+      });
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error removing gang from campaign:', error);
@@ -430,6 +444,29 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
       .eq('user_id', userId);
 
     if (error) throw error;
+
+    // Get all gangs this user has in this campaign to invalidate their permissions
+    const { data: userGangs } = await supabase
+      .from('campaign_gangs')
+      .select('gang_id, user_id')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', userId);
+
+    // Invalidate permission caches for all affected gangs
+    if (userGangs && userGangs.length > 0) {
+      userGangs.forEach(gang => {
+        invalidateGangPermissionsForUser({
+          userId: gang.user_id,
+          gangId: gang.gang_id
+        });
+      });
+    }
+
+    // Also use the new helper for broader invalidation
+    invalidateCampaignMemberPermissions({
+      campaignId,
+      userId
+    });
 
     // Use targeted cache invalidation for role update
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));

@@ -1,5 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import type { UserPermissions, UserProfile, CampaignPermissions } from '@/types/user-permissions';
+import { unstable_cache } from 'next/cache';
+import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export class PermissionService {
   /**
@@ -117,37 +119,6 @@ export class PermissionService {
   }
 
   /**
-   * Determines user permissions for a specific fighter
-   * 
-   * Permission Logic:
-   * - Delegates to gang permissions since fighter permissions should match gang permissions
-   * - If fighter has no gang, returns default permissions
-   * 
-   * @param userId - The current user's ID
-   * @param fighterId - The fighter's ID we're checking permissions for
-   * @returns UserPermissions object with all permission flags
-   */
-  async getFighterPermissions(
-    userId: string, 
-    fighterId: string
-  ): Promise<UserPermissions> {
-    const supabase = await createClient();
-    
-    const { data: fighter } = await supabase
-      .from('fighters')
-      .select('gang_id')
-      .eq('id', fighterId)
-      .single();
-
-    if (!fighter?.gang_id) {
-      return this.getDefaultPermissions(userId);
-    }
-
-    // Delegate to gang permissions since logic should be identical
-    return this.getGangPermissions(userId, fighter.gang_id);
-  }
-
-  /**
    * Check if a user can view a hidden gang
    *
    * Permission Logic:
@@ -186,6 +157,8 @@ export class PermissionService {
    * - canDelete: User is either the gang owner OR an admin OR campaign owner/arbitrator
    * - canView: Everyone can view gangs (set to true)
    *
+   * Performance: Uses cached RPC call - reduces 3 uncached queries to 1 cached RPC call
+   *
    * @param userId - The current user's ID
    * @param gangId - The gang's ID we're checking permissions for
    * @returns UserPermissions object with all permission flags
@@ -194,27 +167,35 @@ export class PermissionService {
     userId: string,
     gangId: string
   ): Promise<UserPermissions> {
-    // Get user profile, gang ownership, and campaign role in parallel (efficient single query approach)
-    const [profile, gangOwnerId, campaignRole] = await Promise.all([
-      this.getUserProfile(userId),
-      this.getGangOwnership(gangId),
-      this.getUserRoleInGangCampaigns(userId, gangId)
-    ]);
+    const supabase = await createClient();
 
-    // Determine permission flags
-    const isAdmin = profile?.user_role === 'admin'; // User has admin role
-    const isOwner = gangOwnerId === userId; // User owns this specific gang
-    const isCampaignOwner = campaignRole === 'OWNER';
-    const isCampaignArbitrator = campaignRole === 'ARBITRATOR';
+    return unstable_cache(
+      async () => {
+        try {
+          const { data, error } = await supabase
+            .rpc('get_gang_permissions', {
+              p_user_id: userId,
+              p_gang_id: gangId
+            });
 
-    return {
-      isOwner,
-      isAdmin,
-      canEdit: isOwner || isAdmin || isCampaignOwner || isCampaignArbitrator, // Gang owners can edit their own gang, admins can edit any gang, campaign owners/arbitrators can edit gangs in their campaigns
-      canDelete: isOwner || isAdmin || isCampaignOwner || isCampaignArbitrator, // Gang owners can delete their own gang, admins can delete any gang, campaign owners/arbitrators can delete gangs in their campaigns
-      canView: true, // Everyone can view gang details
-      userId
-    };
+          if (error) {
+            console.error('Error fetching gang permissions:', error);
+            return this.getDefaultPermissions(userId);
+          }
+
+          // RPC returns JSON, parse it to UserPermissions
+          return data as UserPermissions;
+        } catch (err) {
+          console.error('Exception in getGangPermissions:', err);
+          return this.getDefaultPermissions(userId);
+        }
+      },
+      [`gang-permissions-${userId}-${gangId}`],
+      {
+        tags: [CACHE_TAGS.USER_GANG_PERMISSIONS(userId, gangId)],
+        revalidate: false // Event-driven invalidation only
+      }
+    )();
   }
 
   /**
