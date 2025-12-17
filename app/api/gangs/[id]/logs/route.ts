@@ -9,6 +9,14 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   try {
     console.log('Gang Logs API called for gang ID:', params.id);
 
+    const { searchParams } = new URL(request.url);
+
+    // Values will be null if not present
+    const fighterId = searchParams.get('fighterId');
+    const actionType = searchParams.get('actionType');
+
+    //console.log(fighterId, actionType);
+
     // Get the current user using server-side auth
     const userId = await getUserIdFromClaims(supabase);
 
@@ -94,12 +102,24 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     console.log('Starting to fetch gang logs...');
 
     // Fetch gang logs - simplified query without join for now
-    const { data: logs, error: logsError } = await supabase
+    let logsQuery = supabase
       .from('gang_logs')
       .select('*')
       .eq('gang_id', params.id)
       .order('created_at', { ascending: false })
-      .limit(100); // Limit to last 100 logs for performance
+      .limit(100);
+
+    // Conditionally apply filters
+    if (fighterId) {
+      logsQuery = logsQuery.eq('fighter_id', fighterId);
+    }
+
+    if (actionType) {
+      logsQuery = logsQuery.eq('action_type', actionType);
+    }
+
+    // Execute
+    const { data: logs, error: logsError } = await logsQuery;
 
     if (logsError) {
       console.error('Error fetching gang logs:', logsError);

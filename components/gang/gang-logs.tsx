@@ -29,6 +29,10 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
+      // example query string params currently accepted
+      // actionType=fighter_recovered
+      // fighterId=f3cd42a0-9ddd-44a7-8003-0d06c3397f37 
+      // /api/gangs/${gangId}/logs?actionType=fighter_recovered&fighterId=f3cd42a0-9ddd-44a7-8003-0d06c3397f37
       const response = await fetch(`/api/gangs/${gangId}/logs`);
       
       if (!response.ok) {
