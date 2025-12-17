@@ -23,6 +23,12 @@ export async function deleteGang(gangId: string) {
       throw new Error('Gang not found');
     }
 
+    // Fetch campaign associations BEFORE delete (in case of CASCADE)
+    const { data: campaigns } = await supabase
+      .from('campaign_gangs')
+      .select('campaign_id, user_id')
+      .eq('gang_id', gangId);
+
     // Delete the gang
     const { error: deleteError } = await supabase
       .from('gangs')
@@ -89,12 +95,7 @@ export async function deleteGang(gangId: string) {
       gangId: gangId
     });
 
-    // Invalidate campaign membership caches if gang was in any campaigns
-    const { data: campaigns } = await supabase
-      .from('campaign_gangs')
-      .select('campaign_id, user_id')
-      .eq('gang_id', gangId);
-
+    // Invalidate campaign membership caches if gang was in any campaigns (fetched before delete)
     if (campaigns && campaigns.length > 0) {
       campaigns.forEach(camp => {
         invalidateCampaignMembership({

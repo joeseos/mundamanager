@@ -167,11 +167,10 @@ export class PermissionService {
     userId: string,
     gangId: string
   ): Promise<UserPermissions> {
-    const supabase = await createClient();
-
     return unstable_cache(
       async () => {
         try {
+          const supabase = await createClient();
           const { data, error } = await supabase
             .rpc('get_gang_permissions', {
               p_user_id: userId,

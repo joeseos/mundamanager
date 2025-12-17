@@ -445,18 +445,18 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
 
     if (error) throw error;
 
-    // Get all gangs this user has in this campaign to invalidate their permissions
-    const { data: userGangs } = await supabase
+    // Get ALL gangs in this campaign (not just the user's gangs)
+    // When a user becomes ARBITRATOR/OWNER, they gain permissions on all campaign gangs
+    const { data: allCampaignGangs } = await supabase
       .from('campaign_gangs')
-      .select('gang_id, user_id')
-      .eq('campaign_id', campaignId)
-      .eq('user_id', userId);
+      .select('gang_id')
+      .eq('campaign_id', campaignId);
 
-    // Invalidate permission caches for all affected gangs
-    if (userGangs && userGangs.length > 0) {
-      userGangs.forEach(gang => {
+    // Invalidate permission caches for the promoted/demoted user across ALL gangs in the campaign
+    if (allCampaignGangs && allCampaignGangs.length > 0) {
+      allCampaignGangs.forEach(gang => {
         invalidateGangPermissionsForUser({
-          userId: gang.user_id,
+          userId: userId,  // The user whose role changed
           gangId: gang.gang_id
         });
       });
