@@ -167,26 +167,27 @@ export class PermissionService {
     userId: string,
     gangId: string
   ): Promise<UserPermissions> {
+    const supabase = await createClient();
+
     return unstable_cache(
-      async () => {
+      async (uid: string, gid: string) => {
         try {
-          const supabase = await createClient();
           const { data, error } = await supabase
             .rpc('get_gang_permissions', {
-              p_user_id: userId,
-              p_gang_id: gangId
+              p_user_id: uid,
+              p_gang_id: gid
             });
 
           if (error) {
             console.error('Error fetching gang permissions:', error);
-            return this.getDefaultPermissions(userId);
+            return this.getDefaultPermissions(uid);
           }
 
           // RPC returns JSON, parse it to UserPermissions
           return data as UserPermissions;
         } catch (err) {
           console.error('Exception in getGangPermissions:', err);
-          return this.getDefaultPermissions(userId);
+          return this.getDefaultPermissions(uid);
         }
       },
       [`gang-permissions-${userId}-${gangId}`],
@@ -194,7 +195,7 @@ export class PermissionService {
         tags: [CACHE_TAGS.USER_GANG_PERMISSIONS(userId, gangId)],
         revalidate: false // Event-driven invalidation only
       }
-    )();
+    )(userId, gangId);
   }
 
   /**
