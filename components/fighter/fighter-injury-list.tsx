@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { UserPermissions } from '@/types/user-permissions';
 import {
   addFighterInjury,
-  deleteFighterInjury
+  deleteFighterInjury,
+  verifyAndLogRolledFighterInjury
 } from '@/app/actions/fighter-injury';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
@@ -66,6 +67,7 @@ export function InjuriesList({
   const [showEquipmentSelection, setShowEquipmentSelection] = useState(false);
   const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean }>(null);
   const { toast} = useToast();
 
@@ -338,6 +340,44 @@ export function InjuriesList({
     }
   });
 
+  // TanStack Query mutation for logging rolled injury results
+  const logInjuryRollMutation = useMutation({
+    mutationFn: async (variables: { 
+      fighter_id: string; 
+      injury_type_id: string;
+      injury_table: string;
+      dice_data: any;
+    }) => {
+      const result = await verifyAndLogRolledFighterInjury({
+        fighter_id: variables.fighter_id,
+        injury_type_id: variables.injury_type_id,
+        injury_table: variables.injury_table,
+        dice_data: variables.dice_data
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to log lasting injury');
+      }
+      return result;
+    },
+    onSuccess: (result, variables, context) => {
+      const statusMessage: string[] = [];
+      
+      const successText = is_spyrer ? 'Rig glitch logged successfully' : 'Lasting injury logged successfully';
+      toast({
+        description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
+        variant: "default"
+      });
+    },
+    onError: (error, variables, context) => {
+      const errorText = is_spyrer ? 'Failed to log rig glitch' : 'Failed to log lasting injury';
+      toast({
+        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  });
+
   // Helper function to format the range display
   const formatInjuryRange = (injuryName: string): string => {
     const range = is_spyrer
@@ -350,6 +390,49 @@ export function InjuriesList({
 
     const [min, max] = range;
     return min === max ? `${min}` : `${min}-${max}`;
+  };
+
+  // Coordinates applying a resolved dice roll:
+  // - Guards against duplicate submissions
+  // - Applies UI selection state
+  // - Logs the roll to the server
+  // - Enforces a short cooldown to prevent spam
+  const logResolvedRollWithCooldown = (injury: FighterEffect, roll: number) => {  
+    if (injuryRollCooldown || logInjuryRollMutation.isPending) {
+      return false;
+    }
+
+    setInjuryRollCooldown(true);
+
+    // Ensure the cooldown is always released once it has been set
+    try {
+      selectRolledInjury(injury);
+      logRolledInjury(injury, roll);
+      return true;      
+    } finally {
+      // Cooldown to prevent rapid re-rolling and excessive logging
+      setTimeout(() => setInjuryRollCooldown(false), 2000);
+    }
+  };
+
+  // Updates local UI state to reflect the injury produced by a dice roll.
+  // This is purely a UI concern and does not trigger any persistence.
+  const selectRolledInjury = (injury: FighterEffect) => {
+    setSelectedInjuryId(injury.id);
+    setSelectedInjury(injury);
+  };
+  
+  // Persists a resolved dice roll to the backend for auditing / verification.
+  // Fire-and-forget mutation; success and error handling are managed by the mutation.
+  const logRolledInjury = (injury: FighterEffect, roll: number) => {
+    const injuryTable = is_spyrer ? 'rig glitch' : (fighter_class === 'Crew' ? 'lasting injury crew' : 'lasting injury');
+  
+    logInjuryRollMutation.mutate({
+      fighter_id: fighterId,
+      injury_type_id: injury.id,
+      injury_table: injuryTable,
+      dice_data: { result: roll }
+    });
   };
 
   const fetchAvailableInjuries = useCallback(async () => {
@@ -454,7 +537,7 @@ export function InjuriesList({
     } else {
       // Directly add the injury without asking for status changes
       // Close modal immediately and trigger mutation
-      setIsAddModalOpen(false);
+      setIsAddModalOpen(false);  
       addInjuryMutation.mutate({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
@@ -654,55 +737,58 @@ export function InjuriesList({
             <div className="space-y-4">
               <div>
                 <DiceRoller
-                   items={localAvailableInjuries}
-                   ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
-                   getRange={(i: FighterEffect) => {
-                     const d: any = (i as any)?.type_specific_data || {};
-                     if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
-                       return { min: d.d66_min, max: d.d66_max };
-                     }
-                     return null; // let component fall back to util mapping
-                   }}
-                   getName={(i: FighterEffect) => (i as any).effect_name}
-                   inline
-                   rollFn={rollD66}
-                   resolveNameForRoll={(r) => {
-                     const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-                     return resolver(r)?.name;
-                   }}
-                   onRolled={(rolled) => {
-                     if (rolled.length > 0) {
-                       const roll = rolled[0].roll;
-                       // Prefer DB ranges; if not available, fallback to util by name
-                       const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-                       const util = resolver(roll);
-                       let match: any = null;
-                       if (util) {
-                         match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
-                       }
-                       if (!match) {
-                         match = rolled[0].item as any;
-                       }
-                       if (match) {
-                         setSelectedInjuryId(match.id);
-                         setSelectedInjury(match);
-                         toast({ description: `Roll ${roll}: ${match.effect_name}` });
-                       }
-                     }
-                   }}
-                   onRoll={(roll) => {
-                     const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
-                     const util = resolver(roll);
-                     if (!util) return;
-                     const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
-                     if (match) {
-                       setSelectedInjuryId(match.id);
-                       setSelectedInjury(match);
-                       toast({ description: `Roll ${roll}: ${match.effect_name}` });
-                     }
-                   }}
-                   buttonText="Roll D66"
-                   disabled={!userPermissions.canEdit}
+                  items={localAvailableInjuries}
+                  ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
+                  getRange={(i: FighterEffect) => {
+                    const d: any = (i as any)?.type_specific_data || {};
+                    if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
+                      return { min: d.d66_min, max: d.d66_max };
+                    }
+                    return null; // let component fall back to util mapping
+                  }}
+                  getName={(i: FighterEffect) => (i as any).effect_name}
+                  inline
+                  rollFn={rollD66}
+                  resolveNameForRoll={(r) => {
+                    const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+                    return resolver(r)?.name;
+                  }}
+                  onRolled={(rolled) => {
+                    if (rolled.length > 0) {
+                      const roll = rolled[0].roll;
+                      // Prefer DB ranges; if not available, fallback to util by name
+                      const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+                      const util = resolver(roll);
+                      let match: any = null;
+                      if (util) {
+                        match = localAvailableInjuries.find(i => (i as any).effect_name === util.name);
+                      }
+                      if (!match) {
+                        match = rolled[0].item as any;
+                      }
+
+                      if (match) {
+                        logResolvedRollWithCooldown(match, roll);
+                      }
+                    }
+                  }}
+                  onRoll={(roll) => {
+                    const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
+                    const util = resolver(roll);
+                    
+                    if (!util) return;
+                    const match = localAvailableInjuries.find(i => (i as any).effect_name === util.name) as any;
+                    
+                    if (match) {
+                      logResolvedRollWithCooldown(match, roll);
+                    }
+                  }}
+                  buttonText="Roll D66"
+                  disabled={
+                    !userPermissions.canEdit || 
+                    logInjuryRollMutation.isPending || 
+                    injuryRollCooldown
+                  }
                  />
               </div>
 

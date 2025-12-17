@@ -66,6 +66,7 @@ export default function DiceRoller<T>({
 
       setResults(out);
       if (inline) {
+        // if DB matches (legacy) for ranges are made, out.length will be > 0
         if (out.length > 0) {
           onRolled && onRolled(out);
         } else {

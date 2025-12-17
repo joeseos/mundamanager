@@ -73,7 +73,6 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_total_xp_changed': 'Fighter total XP changed',
       'fighter_kills_changed': 'Fighter kills count changed',
       'fighter_OOA_changed': 'Fighter OOA count changed',
-
       'fighter_cost_adjusted': 'Fighter cost adjusted',
       'equipment_purchased': 'Equipment purchased',
       'equipment_purchased_to_stash': 'Equipment purchased to stash',
@@ -121,7 +120,8 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'battle_lost': 'Battle lost',
       'battle_draw': 'Battle draw',
       'territory_claimed': 'Territory claimed',
-      'territory_lost': 'Territory lost'
+      'territory_lost': 'Territory lost',
+      'injury_roll': 'Injury Roll'
     };
     return actionTypeMap[actionType] || actionType;
   };
