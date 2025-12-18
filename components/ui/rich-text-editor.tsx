@@ -11,6 +11,25 @@ import Strike from '@tiptap/extension-strike';
 import Blockquote from '@tiptap/extension-blockquote';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+
+// Extend Image to support alignment attribute
+const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      align: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-align'),
+        renderHTML: (attributes) => {
+          if (!attributes.align) {
+            return {};
+          }
+          return { 'data-align': attributes.align };
+        },
+      },
+    };
+  },
+});
 import { Button } from '@/components/ui/button';
 import {
   LuItalic, 
@@ -32,8 +51,15 @@ import {
 } from "react-icons/lu";
 import { BiSolidQuoteRight } from "react-icons/bi";
 import { HiMiniBold } from "react-icons/hi2";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
 import '@/components/ui/rich-text-editor.css';
+import { useToast } from '@/components/ui/use-toast';
+import { useRichTextImages } from '@/hooks/use-rich-text-images';
+
+export interface RichTextEditorHandle {
+  finalizeAssets: (currentHtml: string) => Promise<string>;
+  discardAssets: () => Promise<void>;
+}
 
 interface RichTextEditorProps {
   content: string;
@@ -41,6 +67,8 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   charLimit?: number;
+  campaignId?: string; // Optional campaign ID for image uploads
+  enableImages?: boolean; // When false, hide all image upload/hotlink UI
 }
 
 const colors = [
@@ -58,7 +86,10 @@ const colors = [
   { name: 'Dark Blue', value: '#1d4ed8' },
 ];
 
-export function RichTextEditor({ content, onChange, placeholder, className, charLimit }: RichTextEditorProps) {
+export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
+  { content, onChange, placeholder, className, charLimit, campaignId, enableImages }: RichTextEditorProps,
+  ref
+) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -74,6 +105,44 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   const linkInputRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Ref to hold the image insertion function (set after editor is ready)
+  const insertImageRef = useRef<((url: string) => void) | null>(null);
+
+  // Callbacks for the image hook
+  const handleImageInserted = useCallback((url: string) => {
+    insertImageRef.current?.(url);
+  }, []);
+
+  const handleCloseImageInput = useCallback(() => {
+    setShowImageInput(false);
+    setIsEditingImage(false);
+    setImageUrl('');
+  }, []);
+
+  // Image asset management hook
+  const {
+    isUploadingImage,
+    uploadedImageCount,
+    hostedImageToRemove,
+    fileInputRef,
+    setHostedImageToRemove,
+    getStorageBaseUrl,
+    getStoragePathFromUrl,
+    isHostedImage,
+    handleFileUpload,
+    removeHostedImage,
+    finalizeAssets,
+    discardAssets,
+    resetImageInputState,
+  } = useRichTextImages({
+    campaignId,
+    content,
+    maxImages: 5,
+    onImageInserted: handleImageInserted,
+    onCloseImageInput: handleCloseImageInput,
+  });
 
   const editor = useEditor({
     extensions: [
@@ -95,7 +164,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
       Placeholder.configure({
         placeholder: placeholder || 'Start typing...',
       }),
-      Image.configure({
+      CustomImage.configure({
         HTMLAttributes: {
           class: 'max-w-full h-auto rounded-md my-2',
         },
@@ -231,10 +300,6 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
     };
   }, [isMobile, scrollY, isKeyboardOpen]);
 
-  if (!editor) {
-    return null;
-  }
-
   // Calculate character count from HTML content
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
@@ -245,6 +310,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   const isOverLimit = charLimit && charCount > charLimit;
 
   const addLink = () => {
+    if (!editor) return;
     if (linkUrl) {
       editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl }).run();
       setLinkUrl('');
@@ -253,15 +319,86 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   };
 
   const removeLink = () => {
+    if (!editor) return;
     editor.chain().focus().extendMarkRange('link').unsetLink().run();
   };
 
   const setColor = (color: string) => {
+    if (!editor) return;
     editor.chain().focus().setColor(color).run();
     setShowColorPicker(false);
   };
 
+  // Helper to get current paragraph alignment
+  const getCurrentParagraphAlignment = (): string | null => {
+    if (!editor) return null;
+    const { state } = editor;
+    const { selection } = state;
+    const { $from } = selection;
+
+    // Walk up from cursor to find nearest paragraph
+    for (let depth = $from.depth; depth > 0; depth--) {
+      const node = $from.node(depth);
+      if (node.type.name === 'paragraph') {
+        return node.attrs.textAlign || null;
+      }
+    }
+    return null;
+  };
+
+  // Helper to check if current selection (including images) has specific alignment
+  const isAlignmentActive = (alignment: 'left' | 'center' | 'right' | 'justify'): boolean => {
+    if (!editor) return false;
+
+    // Check normal text alignment first
+    if (editor.isActive({ textAlign: alignment })) {
+      return true;
+    }
+
+    // If image is selected, check the image's align attribute
+    if (editor.isActive('image')) {
+      const attrs = editor.getAttributes('image');
+      return attrs.align === alignment;
+    }
+
+    return false;
+  };
+
+  // Helper to align content (text or images)
+  const alignContent = (alignment: 'left' | 'center' | 'right' | 'justify') => {
+    if (!editor) return;
+
+    if (editor.isActive('image')) {
+      // Update the image's align attribute directly
+      (editor.chain() as any)
+        .focus()
+        .updateAttributes('image', { align: alignment })
+        .run();
+      forceUpdate({});
+    } else {
+      // Not an image, apply alignment normally
+      editor.chain().focus().setTextAlign(alignment).run();
+    }
+  };
+
+  // Helper to insert image with the current paragraph's alignment
+  const insertImageWithAlignment = (src: string) => {
+    if (!editor) return;
+
+    const currentAlignment = getCurrentParagraphAlignment();
+
+    // Insert image with alignment attribute
+    (editor.chain() as any)
+      .focus()
+      .setImage({ src, align: currentAlignment })
+      .run();
+  };
+
+  // Keep ref in sync for the image hook callback
+  insertImageRef.current = insertImageWithAlignment;
+
   const addImage = () => {
+    if (!editor) return;
     if (!imageUrl) return;
 
     if (isEditingImage) {
@@ -272,11 +409,8 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
         .run();
       setIsEditingImage(false);
     } else {
-      // Insert new image
-      (editor.chain() as any)
-        .focus()
-        .setImage({ src: imageUrl })
-        .run();
+      // Insert new image with current paragraph alignment
+      insertImageWithAlignment(imageUrl);
     }
 
     setImageUrl('');
@@ -284,6 +418,7 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
   };
 
   const removeImage = () => {
+    if (!editor) return;
     (editor.chain() as any)
       .focus()
       .deleteSelection()
@@ -292,6 +427,20 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
     setShowImageInput(false);
     setImageUrl('');
   };
+
+  // Helper to remove hosted image with editor callback
+  const handleRemoveHostedImage = async (src: string) => {
+    await removeHostedImage(src, removeImage);
+  };
+
+  useImperativeHandle(ref, () => ({
+    finalizeAssets,
+    discardAssets,
+  }));
+
+  if (!editor) {
+    return null;
+  }
 
   const MenuButton = ({ 
     onClick, 
@@ -419,32 +568,32 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
 
         {/* Text alignment */}
         <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('left').run()}
-          isActive={editor.isActive({ textAlign: 'left' })}
+          onClick={() => alignContent('left')}
+          isActive={isAlignmentActive('left')}
           title="Align Left"
         >
           <LuAlignLeft className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('center').run()}
-          isActive={editor.isActive({ textAlign: 'center' })}
+          onClick={() => alignContent('center')}
+          isActive={isAlignmentActive('center')}
           title="Align Center"
         >
           <LuAlignCenter className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('right').run()}
-          isActive={editor.isActive({ textAlign: 'right' })}
+          onClick={() => alignContent('right')}
+          isActive={isAlignmentActive('right')}
           title="Align Right"
         >
           <LuAlignRight className="h-4 w-4" />
         </MenuButton>
         
         <MenuButton
-          onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-          isActive={editor.isActive({ textAlign: 'justify' })}
+          onClick={() => alignContent('justify')}
+          isActive={isAlignmentActive('justify')}
           title="Justify"
         >
           <LuAlignJustify className="h-4 w-4" />
@@ -513,37 +662,48 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
             </MenuButton>
           )}
 
-          {/* Image controls */}
-          {editor.isActive('image') ? (
-            <MenuButton
-              onClick={() => {
-                // When clicking image button while image is selected, show edit dialog
-                const attrs = editor.getAttributes('image');
-                if (attrs.src) {
-                  setImageUrl(attrs.src);
-                  setIsEditingImage(true);
-                  setShowImageInput(true);
+          {/* Image controls (optional) */}
+          {enableImages === true && (
+            editor.isActive('image') ? (
+              <MenuButton
+                onClick={() => {
+                  const attrs = editor.getAttributes('image');
+                  if (attrs.src) {
+                    // If hosted on our storage, show removal menu instead of URL edit
+                    if (isHostedImage(attrs.src)) {
+                      setHostedImageToRemove(attrs.src);
+                      setShowImageInput(true);
+                      setIsEditingImage(false);
+                      setImageUrl('');
+                      setShowLinkInput(false);
+                      return;
+                    }
+                    // Otherwise allow editing the hotlink
+                    setImageUrl(attrs.src);
+                    setIsEditingImage(true);
+                    setShowImageInput(true);
+                    setShowLinkInput(false);
+                  }
+                }}
+                isActive={true}
+                className="border border-blue-500 text-blue-500 dark:border-blue-400 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/60"
+                title="Edit or Remove Image"
+              >
+                <LuImage className="h-4 w-4" />
+              </MenuButton>
+            ) : (
+              <MenuButton
+                onClick={() => {
+                  setShowImageInput((prev) => !prev);
                   setShowLinkInput(false);
-                }
-              }}
-              isActive={true}
-              className="border border-blue-500 text-blue-500 dark:border-blue-400 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/60"
-              title="Edit Image URL"
-            >
-              <LuImage className="h-4 w-4" />
-            </MenuButton>
-          ) : (
-            <MenuButton
-              onClick={() => {
-                setShowImageInput((prev) => !prev);
-                setShowLinkInput(false);
-                setIsEditingImage(false);
-                setImageUrl('');
-              }}
-              title="Insert Image from URL"
-            >
-              <LuImage className="h-4 w-4" />
-            </MenuButton>
+                  setIsEditingImage(false);
+                  setImageUrl('');
+                }}
+                title="Insert Image from URL"
+              >
+                <LuImage className="h-4 w-4" />
+              </MenuButton>
+            )
           )}
         </div>
 
@@ -584,61 +744,141 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
           </div>
         )}
 
-        {/* Image input */}
-        {showImageInput && (
+        {/* Image input / actions (optional) */}
+        {enableImages === true && showImageInput && (
           <div
             className="absolute top-full left-1/2 transform -translate-x-1/2 bg-card border rounded-md shadow-xl p-3 z-50 min-w-[300px]"
             ref={imageInputRef}
           >
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-muted-foreground">
-                {isEditingImage ? 'Edit Image URL' : 'Image URL (hotlink)'}
-              </label>
-              <input
-                type="url"
-                placeholder="Image URL (hotlink)..."
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="flex-1 px-3 py-1 border rounded text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    addImage();
-                  }
-                  if (e.key === 'Escape') {
-                    setShowImageInput(false);
-                    setIsEditingImage(false);
-                    setImageUrl('');
-                  }
-                }}
-                autoFocus
-              />
-              <div className="flex justify-between gap-2">
-                {isEditingImage && (
-                  <Button 
-                    size="sm" 
-                    variant="destructive" 
-                    onClick={removeImage}
-                  >
-                    Remove
-                  </Button>
-                )}
-                <div className="flex gap-2 ml-auto">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => {
-                      setShowImageInput(false);
-                      setIsEditingImage(false);
-                      setImageUrl('');
+              {hostedImageToRemove ? (
+                <>
+                  <div className="text-sm font-medium text-muted-foreground">
+                    Remove uploaded image?
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This will delete the image from storage and remove it from the note.
+                  </p>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setHostedImageToRemove(null);
+                        setShowImageInput(false);
+                        setIsEditingImage(false);
+                        setImageUrl('');
+                      }}
+                      disabled={isUploadingImage}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        if (hostedImageToRemove) {
+                          void handleRemoveHostedImage(hostedImageToRemove);
+                        }
+                      }}
+                      disabled={isUploadingImage}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {campaignId && !isEditingImage && (
+                    <>
+                      <label className="text-xs text-muted-foreground font-medium">
+                        Upload Image ({uploadedImageCount}/5)
+                      </label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,.heic,.heif,.avif,.svg"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        disabled={isUploadingImage || uploadedImageCount >= 5}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingImage || uploadedImageCount >= 5}
+                        className="w-full"
+                      >
+                        {isUploadingImage ? 'Uploading...' : uploadedImageCount >= 5 ? 'Limit Reached (5/5)' : 'Choose File to Upload'}
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center">
+                        Max 10MB • Resized to 900x900 if larger
+                      </p>
+                      <div className="w-full h-px bg-border my-1" />
+                      <label className="text-xs text-muted-foreground font-medium">
+                        Or enter Image URL (hotlink)
+                      </label>
+                    </>
+                  )}
+                  {(!campaignId || isEditingImage) && (
+                    <label className="text-xs text-muted-foreground">
+                      {isEditingImage ? 'Edit Image URL' : 'Image URL (hotlink)'}
+                    </label>
+                  )}
+                  <input
+                    type="url"
+                    placeholder="Image URL (hotlink)..."
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="flex-1 px-3 py-1 border rounded text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        addImage();
+                      }
+                      if (e.key === 'Escape') {
+                        setShowImageInput(false);
+                        setIsEditingImage(false);
+                        setImageUrl('');
+                      }
                     }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={addImage}>
-                    {isEditingImage ? 'Update' : 'Insert'}
-                  </Button>
-                </div>
-              </div>
+                    autoFocus={!campaignId || isEditingImage}
+                    disabled={isUploadingImage}
+                  />
+                  <div className="flex justify-between gap-2">
+                    {isEditingImage && (
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={removeImage}
+                        disabled={isUploadingImage}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                    <div className="flex gap-2 ml-auto">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowImageInput(false);
+                          setIsEditingImage(false);
+                          setImageUrl('');
+                        }}
+                        disabled={isUploadingImage}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={addImage}
+                        disabled={isUploadingImage || !imageUrl}
+                      >
+                        {isEditingImage ? 'Update' : 'Insert'}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -651,4 +891,4 @@ export function RichTextEditor({ content, onChange, placeholder, className, char
       </div>
     </div>
   );
-} 
+}); 

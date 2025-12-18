@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { RichTextEditor, RichTextEditorHandle } from "@/components/ui/rich-text-editor";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 
@@ -22,6 +22,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savedContent, setSavedContent] = useState<string>('');
   const { toast } = useToast();
+  const editorRef = useRef<RichTextEditorHandle>(null);
 
   // Calculate character count from HTML content (rough estimate)
   const getCharCount = (htmlContent: string) => {
@@ -53,8 +54,10 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         setError(`Campaign notes cannot exceed ${NOTE_CHAR_LIMIT} characters`);
         return;
       }
+      // Finalize staged assets and pending deletions
+      const finalizedNote = (await editorRef.current?.finalizeAssets(note)) ?? note;
       // Clean up empty content before saving (but keep image-only notes)
-      const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;
+      const cleanNote = isHtmlEffectivelyEmpty(finalizedNote) ? '' : finalizedNote;
       const result = await updateCampaignSettings({
         campaignId,
         note: cleanNote,
@@ -63,7 +66,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
         throw new Error(result.error);
       }
       toast({
-        description: "Campaign Notes updated successfully",
+        description: "Campaign Pack updated successfully",
         variant: "default"
       });
       // Track the actual value sent to the server so refresh state matches
@@ -86,7 +89,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-start">
-        <h2 className="text-xl md:text-2xl font-bold mb-6">Campaign Notes</h2>
+        <h2 className="text-xl md:text-2xl font-bold mb-6">Campaign Pack</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
             {isEditing ? (
@@ -96,6 +99,8 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
                     setIsEditing(false);
                     setNote(initialNote);
                     setError(null);
+              // Discard staged assets
+              void editorRef.current?.discardAssets();
                   }}
                   variant="outline"
                   disabled={isSaving}
@@ -126,11 +131,14 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
       {isEditing ? (
         <div className="bg-white rounded-md">
           <RichTextEditor
+            ref={editorRef}
             content={note}
             onChange={setNote}
             placeholder="Add notes here..."
             className="min-h-[200px]"
             charLimit={NOTE_CHAR_LIMIT}
+            campaignId={campaignId}
+            enableImages={true}
           />
         </div>
       ) : (

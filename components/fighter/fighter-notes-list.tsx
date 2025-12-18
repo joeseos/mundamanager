@@ -146,6 +146,7 @@ function NoteEditor({
               placeholder={placeholder}
               className="min-h-[200px]"
               charLimit={charLimit}
+              enableImages={false}
             />
           </div>
         ) : (
