@@ -14,7 +14,8 @@ import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiMap, FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuClipboard, LuTrophy, LuCodeXml } from "react-icons/lu";
+import { LuSwords, LuTrophy, LuCodeXml } from "react-icons/lu";
+import { FaBook } from "react-icons/fa";
 import { ImInfo } from "react-icons/im";
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
@@ -412,7 +413,7 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <FiMap className="h-5 w-5" />
+            <FiMap className="size-4" />
             <span className="ml-2 hidden sm:inline">Campaign</span>
           </button>
           <button
@@ -423,7 +424,7 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <MdFactory className="h-5 w-5" />
+            <MdFactory className="size-4" />
             <span className="ml-2 hidden sm:inline">Territories</span>
           </button>
           <button
@@ -434,7 +435,7 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <LuSwords className="h-5 w-5" />
+            <LuSwords className="size-4" />
             <span className="ml-2 hidden sm:inline">Battle Log</span>
           </button>
           <button
@@ -445,8 +446,8 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <LuClipboard className="h-5 w-5" />
-            <span className="ml-2 hidden sm:inline">Notes</span>
+            <FaBook className="size-4" />
+            <span className="ml-2 hidden sm:inline">Pack</span>
           </button>
           <button
             onClick={() => setActiveTab(4)}
@@ -456,7 +457,7 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <LuTrophy className="h-5 w-5" />
+            <LuTrophy className="size-4" />
             <span className="ml-2 hidden sm:inline">Triumphs</span>
           </button>
         </div>

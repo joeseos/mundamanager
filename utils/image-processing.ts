@@ -79,6 +79,53 @@ export const getResizedImg = async (
 };
 
 /**
+ * Resizes an image so that neither dimension exceeds maxWidth / maxHeight,
+ * preserving aspect ratio and WITHOUT padding. Canvas size matches the
+ * scaled image dimensions.
+ */
+export const getResizedImgMax = async (
+  imageSrc: string,
+  maxWidth: number,
+  maxHeight: number
+): Promise<Blob> => {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('No 2d context');
+  }
+
+  let { width, height } = image;
+
+  // Only downscale if necessary
+  if (width > maxWidth || height > maxHeight) {
+    const ratio = Math.min(maxWidth / width, maxHeight / height);
+    width = Math.floor(width * ratio);
+    height = Math.floor(height * ratio);
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.drawImage(image, 0, 0, width, height);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to create blob'));
+        }
+      },
+      'image/webp',
+      0.8 // 80% quality
+    );
+  });
+};
+
+/**
  * Crops an image to specified width and height WebP blob
  */
 export const getCroppedImg = async (
