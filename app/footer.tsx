@@ -35,6 +35,9 @@ export default function Footer() {
               <Link href="/user-guide" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 User Guide
               </Link>
+              <Link href="/api-access" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                API Access
+              </Link>
               <Link href="/contributors" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Contributors
               </Link>
