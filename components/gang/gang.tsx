@@ -727,13 +727,13 @@ export default function Gang({
                 <FaRegCopy className="w-5 h-5" />
               </Button>
 
-              {/* Logs button */}
+              {/* Gang Logs button */}
               <Button
                 onClick={() => setShowLogsModal(true)}
                 variant="ghost"
                 size="icon"
                 className="print:hidden"
-                title="Show Logs"
+                title="View Gang Logs"
               >
                 <LuLogs className="w-[23px] h-[23px]" />
               </Button>

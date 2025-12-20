@@ -9,9 +9,12 @@ import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
+import { FaClipboardList } from "react-icons/fa";
+import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterImageEditModal } from './fighter-image-edit-modal';
+import FighterLogs from './fighter-logs';
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
@@ -244,6 +247,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 }: FighterDetailsCardProps) {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
+  const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
 
   // Create fighter data object for stat calculation
   const fighterData = useMemo<FighterProps>(() => ({
@@ -448,6 +452,18 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         </div>
 
         <div className="flex flex-wrap sm:justify-end justify-center gap-2">
+          {/* Fighter Logs button */}
+          <Button
+            onClick={() => setIsLogsModalOpen(true)}
+            variant="ghost"
+            size="icon"
+            className="print:hidden"
+            title="View Fighter Logs"
+          >
+            <LuLogs className="w-[23px] h-[23px]" />
+          </Button>
+
+          {/* Add XP button */}
           <Button
             variant="secondary"
             className="bg-neutral-900 text-white hover:bg-gray-800"
@@ -456,6 +472,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           >
             Add XP
           </Button>
+
+          {/* Edit Fighter button */}
           <Button
             variant="secondary"
             className="bg-neutral-900 text-white hover:bg-gray-800"
@@ -510,6 +528,16 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         fighterId={id}
         gangId={gangId || ''}
         onImageUpdate={handleImageUpdate}
+      />
+
+      {/* Fighter Logs Modal */}
+      <FighterLogs
+        gangId={gangId || ''}
+        fighterId={id}
+        fighterName={name}
+        vehicleId={fighter_class === 'Crew' && vehicles?.[0] ? vehicles[0].id : undefined}
+        isOpen={isLogsModalOpen}
+        onClose={() => setIsLogsModalOpen(false)}
       />
     </div>
   );

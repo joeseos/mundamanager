@@ -93,11 +93,32 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
     console.log('Starting to fetch gang logs...');
 
+    // Check for optional query parameters
+    const url = new URL(request.url);
+    const fighterId = url.searchParams.get('fighterId');
+    const vehicleId = url.searchParams.get('vehicleId');
+
     // Fetch gang logs - simplified query without join for now
-    const { data: logs, error: logsError } = await supabase
+    let query = supabase
       .from('gang_logs')
       .select('*')
-      .eq('gang_id', params.id)
+      .eq('gang_id', params.id);
+
+    // If both fighterId and vehicleId are provided, use OR filter (for Crew fighters with vehicles)
+    if (fighterId && vehicleId) {
+      console.log('Filtering logs for fighter:', fighterId, 'or vehicle:', vehicleId);
+      query = query.or(`fighter_id.eq.${fighterId},vehicle_id.eq.${vehicleId}`);
+    } else if (fighterId) {
+      // If only fighterId is provided, filter logs for that specific fighter
+      console.log('Filtering logs for fighter:', fighterId);
+      query = query.eq('fighter_id', fighterId);
+    } else if (vehicleId) {
+      // If only vehicleId is provided, filter logs for that specific vehicle
+      console.log('Filtering logs for vehicle:', vehicleId);
+      query = query.eq('vehicle_id', vehicleId);
+    }
+
+    const { data: logs, error: logsError } = await query
       .order('created_at', { ascending: false })
       .limit(100); // Limit to last 100 logs for performance
 
