@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -449,22 +449,28 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                         (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
                       )
                       .map((variant, index, arr) => (
-                        <div key={variant.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`variant-${variant.id}`}
-                            checked={selectedVariants.some(v => v.id === variant.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedVariants(prev => [...prev, variant]);
-                              } else {
-                                setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
-                              }
-                            }}
-                          />
-                          <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
-                            {variant.variant}
-                          </label>
-                        </div>
+                        <React.Fragment key={variant.id}>
+                          {/* Insert separator before 'skirmish' */}
+                          {variant.variant.toLowerCase() === "skirmish" && (
+                            <div className="border-t border-border" />
+                          )}
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`variant-${variant.id}`}
+                              checked={selectedVariants.some(v => v.id === variant.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedVariants(prev => [...prev, variant]);
+                                } else {
+                                  setSelectedVariants(prev => prev.filter(v => v.id !== variant.id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`variant-${variant.id}`} className="text-sm cursor-pointer">
+                              {variant.variant}
+                            </label>
+                          </div>
+                        </React.Fragment>
                       ))}
                   </div>
                 </div>
