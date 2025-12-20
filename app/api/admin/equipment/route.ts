@@ -238,16 +238,18 @@ export async function GET(request: Request) {
       interface VariantAvailabilityData {
         availability: string;
         gang_variant_id: string | null;
-        gang_variant_types: { variant: string }[] | null;
+        gang_variant_types: { variant: string } | null;
       }
 
-      const formattedVariantAvailabilities = (variantAvailabilities as VariantAvailabilityData[] || [])
-        .filter((a: VariantAvailabilityData) => a && a.gang_variant_id !== null && a.gang_variant_types && a.gang_variant_types.length > 0)
-        .map((a: VariantAvailabilityData) => ({
-          variant: a.gang_variant_types![0].variant,
-          gang_variant_id: a.gang_variant_id!,
+      const formattedVariantAvailabilities = (variantAvailabilities || [])
+        .filter((a: any) => a && a.gang_variant_id !== null && a.gang_variant_types)
+        .map((a: any) => ({
+          variant: a.gang_variant_types.variant,
+          gang_variant_id: a.gang_variant_id,
           availability: a.availability
         }));
+
+      console.log('Formatted variant availabilities:', formattedVariantAvailabilities);
 
       // Format trading post associations
       const tradingPostIds = (tradingPostAssociations || []).map(tp => tp.trading_post_type_id);
