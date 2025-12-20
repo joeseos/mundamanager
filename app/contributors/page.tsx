@@ -91,6 +91,7 @@ export default async function ContributorsPage() {
     { name: "T_H_E_S_E_U_S" },
     { name: "Professor Bleep Bloop" },
     { name: "HiveScum Wonka" },
+    { name: "Clicky" },
   ];
 
   const pastContributors: Contributor[] = [
