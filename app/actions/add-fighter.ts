@@ -586,8 +586,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         for (let i = 0; i < (selectedItem.quantity || 1); i++) {
           const isCustomEquipment = selectedItem.equipment_id.startsWith('custom_');
           // Don't deduplicate selected equipment - user explicitly chose these
-          const equipmentKey = `${selectedItem.equipment_id}_selected_${i}`;
-
           equipmentInserts.push({
             fighter_id: fighterId,
             equipment_id: isCustomEquipment ? null : selectedItem.equipment_id,
