@@ -3,11 +3,17 @@ export interface EquipmentOption {
   cost: number;
   max_quantity: number;
   equipment_name?: string;
+  is_editable?: boolean;
 }
 
 export interface DefaultEquipment {
   id: string;
   quantity: number;
+  cost?: number;
+  equipment_name?: string;
+  equipment_type?: string;
+  equipment_category?: string;
+  is_editable?: boolean;
 }
 
 export interface WeaponsSelection {
@@ -44,7 +50,7 @@ export interface FighterType {
   attacks: number;
   limitation?: number;
   alignment?: string;
-  default_equipment: any[];
+  default_equipment: DefaultEquipment[];
   is_gang_addition: boolean;
   alliance_id: string;
   alliance_crew_name: string;

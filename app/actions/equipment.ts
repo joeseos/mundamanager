@@ -1376,6 +1376,17 @@ export async function applySelfUpgradeToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
+    // Validate effect type exists
+    const { data: effectType, error: effectTypeError } = await supabase
+      .from('fighter_effect_types')
+      .select('id')
+      .eq('id', params.effect_type_id)
+      .single();
+
+    if (effectTypeError || !effectType) {
+      return { success: false, error: 'Effect type not found' };
+    }
+
     // Insert effect using existing helper function
     const result = await insertEffectWithModifiers(
       supabase,
@@ -1400,7 +1411,9 @@ export async function applySelfUpgradeToEquipment(params: {
     // Invalidate caches
     try {
       invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
-    } catch {}
+    } catch (e) {
+      console.error('Cache invalidation failed:', e);
+    }
 
     return { success: true, data: result };
   } catch (e) {
