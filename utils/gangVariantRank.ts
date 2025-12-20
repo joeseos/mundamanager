@@ -1,8 +1,9 @@
 export const gangVariantRank: { [key: string]: number } = {
-  "crusading": 1,
-  "secundan incursion": 2,
-  "wasteland": 3,
-  "skirmish": 4,
+  "aranthian-aligned": 1,
+  "crusading": 2,
+  "secundan incursion": 3,
+  "wasteland": 4,
+  "skirmish": 5,
   //
   //"outlaw": 11,
   "chaos corrupted": 12,
