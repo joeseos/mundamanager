@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
@@ -76,6 +77,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
+  const [isSpyrer, setIsSpyrer] = useState(false);
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
@@ -363,6 +365,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
+        is_spyrer: isSpyrer,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -849,30 +852,46 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               </div>
             </div>
 
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center gap-4">
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="freeSkill"
+                <Checkbox
+                  id="free-skill"
                   checked={freeSkill}
-                  onChange={(e) => setFreeSkill(e.target.checked)}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => setFreeSkill(checked === true)}
                 />
-                <label htmlFor="freeSkill" className="text-sm font-medium text-muted-foreground">
+                <label
+                  htmlFor="free-skill"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
                   Free Skill
                 </label>
               </div>
-              
+
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isGangAddition"
+                <Checkbox
+                  id="gang-addition"
                   checked={isGangAddition}
-                  onChange={(e) => setIsGangAddition(e.target.checked)}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  onCheckedChange={(checked) => setIsGangAddition(checked === true)}
                 />
-                <label htmlFor="isGangAddition" className="text-sm font-medium text-muted-foreground">
+                <label
+                  htmlFor="gang-addition"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
                   Gang Addition
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="spyrer"
+                  checked={isSpyrer}
+                  onCheckedChange={(checked) => setIsSpyrer(checked === true)}
+                />
+                <label
+                  htmlFor="spyrer"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Spyrer
                 </label>
               </div>
             </div>
