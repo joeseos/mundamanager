@@ -78,6 +78,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
+  const [alignment, setAlignment] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
@@ -366,6 +367,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
         is_spyrer: isSpyrer,
+        alignment: alignment || null,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -544,6 +546,22 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   min="0"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Alignment
+              </label>
+              <select
+                value={alignment}
+                onChange={(e) => setAlignment(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select Alignment</option>
+                <option value="Law Abiding">Law Abiding</option>
+                <option value="Outlaw">Outlaw</option>
+                <option value="Unaligned">Unaligned</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">
