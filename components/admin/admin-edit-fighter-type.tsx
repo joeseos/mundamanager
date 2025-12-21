@@ -115,6 +115,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
+  const [alignment, setAlignment] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
@@ -549,6 +550,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setFreeSkill(!!data.free_skill);
       setIsGangAddition(!!data.is_gang_addition);
       setIsSpyrer(!!data.is_spyrer);
+      setAlignment(data.alignment || '');
       setSelectedEquipment(data.default_equipment || []);
       setSelectedSkills(data.default_skills || []);
       // Reset fetched skills tracking when loading a new fighter type
@@ -1152,6 +1154,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
         is_spyrer: isSpyrer,
+        alignment: alignment || null,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -1611,6 +1614,22 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       </option>
                     ))}
                   </select>
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Alignment
+                    </label>
+                    <select
+                      value={alignment}
+                      onChange={(e) => setAlignment(e.target.value)}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="">Select Alignment</option>
+                      <option value="Law Abiding">Law Abiding</option>
+                      <option value="Outlaw">Outlaw</option>
+                      <option value="Unaligned">Unaligned</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
