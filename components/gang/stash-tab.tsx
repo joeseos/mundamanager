@@ -274,6 +274,11 @@ export default function GangInventory({
           onGangRatingUpdate(responseData.updated_gang_rating);
         }
         
+        // Update gang wealth if provided
+        if (responseData?.updated_gang_wealth !== undefined && onGangWealthUpdate) {
+          onGangWealthUpdate(responseData.updated_gang_wealth);
+        }
+        
         if (isVehicleTarget) {
           // Handle vehicle equipment update
           const targetVehicle = getAllVehicles().find(v => v.id === targetId);

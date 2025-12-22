@@ -38,6 +38,7 @@ interface MoveFromStashResult {
     equipment_id: string;
     weapon_profiles?: any[];
     updated_gang_rating?: number;
+    updated_gang_wealth?: number;
     affected_beast_ids?: string[];
     updated_fighters?: any[];
     applied_effects?: any[];
@@ -423,6 +424,19 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       console.error('Failed to update gang rating/wealth after moving from stash:', e);
     }
 
+    // Fetch updated wealth after the update
+    let updatedGangWealth: number | undefined;
+    try {
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('wealth')
+        .eq('id', stashData.gang_id)
+        .single();
+      updatedGangWealth = (gangRow?.wealth ?? 0) as number;
+    } catch (e) {
+      // Silently continue if wealth fetch fails
+    }
+
     // Check for affected exotic beasts (equipment that was previously granting beasts)
     let affectedBeastIds: string[] = [];
 
@@ -626,6 +640,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 equipment_id: equipmentData.id,
                 weapon_profiles: weaponProfiles,
                 updated_gang_rating: updatedGangRating,
+                updated_gang_wealth: updatedGangWealth,
                 affected_beast_ids: affectedBeastIds,
                 updated_fighters: completeBeastData,
                 ...(appliedEffects.length > 0 && { applied_effects: appliedEffects })
@@ -748,6 +763,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         equipment_id: equipmentData.id,
         weapon_profiles: weaponProfiles,
         updated_gang_rating: updatedGangRating,
+        updated_gang_wealth: updatedGangWealth,
         ...(affectedBeastIds.length > 0 && { affected_beast_ids: affectedBeastIds }),
         ...(appliedEffects.length > 0 && { applied_effects: appliedEffects })
       }
