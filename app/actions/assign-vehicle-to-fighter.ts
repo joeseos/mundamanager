@@ -41,27 +41,29 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     if (previousFighterId) {
       const { data: prevFighterData } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved')
+        .select('killed, retired, enslaved, captured')
         .eq('id', previousFighterId)
         .single();
 
       wasPreviousFighterActive = !!(prevFighterData &&
         !prevFighterData.killed &&
         !prevFighterData.retired &&
-        !prevFighterData.enslaved);
+        !prevFighterData.enslaved &&
+        !prevFighterData.captured);
     }
 
     // Check if the new fighter is active
     const { data: newFighterData } = await supabase
       .from('fighters')
-      .select('killed, retired, enslaved')
+      .select('killed, retired, enslaved, captured')
       .eq('id', params.fighterId)
       .single();
 
     const isNewFighterActive = !!(newFighterData &&
       !newFighterData.killed &&
       !newFighterData.retired &&
-      !newFighterData.enslaved);
+      !newFighterData.enslaved &&
+      !newFighterData.captured);
 
     // Call the Supabase function
     const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {

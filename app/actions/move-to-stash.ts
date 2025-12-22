@@ -183,21 +183,47 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       ratingDelta -= effectsCredits;
     }
 
-    if (ratingDelta !== 0) {
+    // Calculate equipment value for wealth calculation
+    // Wealth includes stash value, so moving equipment to stash increases wealth by equipment value
+    const equipmentValue = (equipmentData.purchase_cost || 0) + 
+      (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+
+    // Wealth delta calculation:
+    // - If fighter is active: rating decreases (ratingDelta is negative), but stash value increases (equipmentValue is positive)
+    //   Net wealth change: ratingDelta + equipmentValue = 0 (equipment moves from rating to stash)
+    // - If fighter is inactive: rating doesn't change (ratingDelta = 0), but stash value increases
+    //   Net wealth change: equipmentValue (stash value increases)
+    const wealthDelta = ratingDelta + equipmentValue;
+
+    // Always update wealth when moving equipment to stash (stash value is part of wealth)
+    // Only update rating if it changed (active fighter)
+    if (ratingDelta !== 0 || wealthDelta !== 0) {
       try {
-        const { data: ratingRow } = await supabase
+        const { data: gangRow } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', gangId)
           .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
+        const currentRating = (gangRow?.rating ?? 0) as number;
+        const currentWealth = (gangRow?.wealth ?? 0) as number;
+        
+        const updateData: any = {
+          wealth: Math.max(0, currentWealth + wealthDelta),
+          last_updated: new Date().toISOString()
+        };
+        
+        // Only update rating if it changed (active fighter case)
+        if (ratingDelta !== 0) {
+          updateData.rating = Math.max(0, currentRating + ratingDelta);
+        }
+        
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .update(updateData)
           .eq('id', gangId);
         invalidateGangRating(gangId);
       } catch (e) {
-        console.error('Failed to update gang rating after moving equipment to stash:', e);
+        console.error('Failed to update gang rating/wealth after moving equipment to stash:', e);
       }
     }
 

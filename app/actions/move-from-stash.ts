@@ -343,11 +343,15 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
-    // Determine rating delta
-    let ratingDelta = 0;
+    // Check if fighter is active (only active fighters count toward rating)
+    let fighterIsActive = false;
     if (params.fighter_id) {
-      ratingDelta += (stashData.purchase_cost || 0);
-      ratingDelta += effectsCreditsDelta;
+      const { data: fighter } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved, captured')
+        .eq('id', params.fighter_id)
+        .single();
+      fighterIsActive = !!(fighter && !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured);
     } else if (params.vehicle_id) {
       const { data: veh } = await supabase
         .from('vehicles')
@@ -355,28 +359,67 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .eq('id', params.vehicle_id)
         .single();
       if (veh?.fighter_id) {
+        const { data: vehicleFighter } = await supabase
+          .from('fighters')
+          .select('killed, retired, enslaved, captured')
+          .eq('id', veh.fighter_id)
+          .single();
+        fighterIsActive = !!(vehicleFighter && !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured);
+      }
+    }
+
+    // Determine rating delta (only if fighter is active)
+    let ratingDelta = 0;
+    if (fighterIsActive) {
+      if (params.fighter_id) {
+        ratingDelta += (stashData.purchase_cost || 0);
+        ratingDelta += effectsCreditsDelta;
+      } else if (params.vehicle_id) {
         ratingDelta += (stashData.purchase_cost || 0);
         ratingDelta += effectsCreditsDelta;
       }
     }
 
-    // Update rating if delta
-    if (ratingDelta !== 0) {
-      try {
-        const { data: ratingRow } = await supabase
-          .from('gangs')
-          .select('rating')
-          .eq('id', stashData.gang_id)
-          .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
-        await supabase
-          .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
-          .eq('id', stashData.gang_id);
-        invalidateGangRating(stashData.gang_id);
-      } catch (e) {
-        console.error('Failed to update gang rating after moving from stash:', e);
+    // Calculate equipment value for wealth calculation
+    // Wealth includes stash value, so moving equipment from stash decreases wealth by equipment value
+    const equipmentValue = (stashData.purchase_cost || 0) + effectsCreditsDelta;
+
+    // Wealth delta calculation:
+    // - If fighter is active: rating increases (ratingDelta is positive), but stash value decreases (equipmentValue is negative)
+    //   Net wealth change: ratingDelta - equipmentValue = 0 (equipment moves from stash to rating)
+    // - If fighter is inactive: rating doesn't change (ratingDelta = 0), but stash value decreases
+    //   Net wealth change: -equipmentValue (stash value decreases)
+    const wealthDelta = ratingDelta - equipmentValue;
+
+    // Always update wealth when moving equipment from stash (stash value is part of wealth)
+    // Only update rating if it changed (active fighter case)
+    // Note: wealthDelta will always be non-zero when moving from stash (stash value decreases)
+    try {
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', stashData.gang_id)
+        .single();
+      const currentRating = (gangRow?.rating ?? 0) as number;
+      const currentWealth = (gangRow?.wealth ?? 0) as number;
+      
+      const updateData: any = {
+        wealth: Math.max(0, currentWealth + wealthDelta),
+        last_updated: new Date().toISOString()
+      };
+      
+      // Only update rating if it changed (active fighter case)
+      if (ratingDelta !== 0) {
+        updateData.rating = Math.max(0, currentRating + ratingDelta);
       }
+      
+      await supabase
+        .from('gangs')
+        .update(updateData)
+        .eq('id', stashData.gang_id);
+      invalidateGangRating(stashData.gang_id);
+    } catch (e) {
+      console.error('Failed to update gang rating/wealth after moving from stash:', e);
     }
 
     // Check for affected exotic beasts (equipment that was previously granting beasts)
