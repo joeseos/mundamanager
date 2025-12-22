@@ -22,6 +22,7 @@ import {
 } from '@/app/lib/exotic-beasts';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface MoveFromStashParams {
   stash_id: string;
@@ -351,7 +352,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .select('killed, retired, enslaved, captured')
         .eq('id', params.fighter_id)
         .single();
-      fighterIsActive = !!(fighter && !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured);
+      fighterIsActive = countsTowardRating(fighter);
     } else if (params.vehicle_id) {
       const { data: veh } = await supabase
         .from('vehicles')
@@ -364,7 +365,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           .select('killed, retired, enslaved, captured')
           .eq('id', veh.fighter_id)
           .single();
-        fighterIsActive = !!(vehicleFighter && !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured);
+        fighterIsActive = countsTowardRating(vehicleFighter);
       }
     }
 

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { logEquipmentAction } from './logs/equipment-logs';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -96,7 +97,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         throw new Error('Fighter not found for this equipment');
       }
       gangId = fighter.gang_id;
-      fighterIsActive = !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
+      fighterIsActive = countsTowardRating(fighter);
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle
       const { data: vehicle, error: vehicleError } = await supabase
@@ -120,7 +121,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           .single();
 
         if (!vehicleFighterError && vehicleFighter) {
-          fighterIsActive = !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured;
+          fighterIsActive = countsTowardRating(vehicleFighter);
         }
       }
     } else {

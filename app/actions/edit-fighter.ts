@@ -7,6 +7,7 @@ import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -127,12 +128,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
     const gangId = fighter.gang_id;
     const gangCredits = gang.credits;
-
-    // Helper to determine if a fighter counts toward rating
-    // Note: recovery and starved statuses don't affect this - they still count
-    const countsTowardRating = (f: { killed?: boolean; retired?: boolean; enslaved?: boolean; captured?: boolean }) => {
-      return !f.killed && !f.retired && !f.enslaved && !f.captured;
-    };
 
     // Helper to adjust rating and wealth by delta
     const adjustRating = async (delta: number, creditsDelta: number = 0) => {
@@ -838,11 +833,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
     }
-
-    // Helper to determine if a fighter counts toward rating
-    const countsTowardRating = (f: { killed?: boolean; retired?: boolean; enslaved?: boolean; captured?: boolean }) => {
-      return !f.killed && !f.retired && !f.enslaved && !f.captured;
-    };
 
     const wasActive = countsTowardRating(fighter);
     const previousAdjustment = fighter.cost_adjustment || 0;

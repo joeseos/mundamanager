@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface UnassignVehicleParams {
   vehicleId: string;
@@ -43,14 +44,11 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
     if (previousFighterId) {
       const { data: fighterData } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved')
+        .select('killed, retired, enslaved, captured')
         .eq('id', previousFighterId)
         .single();
 
-      wasFighterActive = !!(fighterData &&
-        !fighterData.killed &&
-        !fighterData.retired &&
-        !fighterData.enslaved);
+      wasFighterActive = countsTowardRating(fighterData);
     }
 
     // Get vehicle cost data before unassigning for rating calculation

@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface AssignVehicleToFighterParams {
   vehicleId: string;
@@ -45,11 +46,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
         .eq('id', previousFighterId)
         .single();
 
-      wasPreviousFighterActive = !!(prevFighterData &&
-        !prevFighterData.killed &&
-        !prevFighterData.retired &&
-        !prevFighterData.enslaved &&
-        !prevFighterData.captured);
+      wasPreviousFighterActive = countsTowardRating(prevFighterData);
     }
 
     // Check if the new fighter is active
@@ -59,11 +56,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       .eq('id', params.fighterId)
       .single();
 
-    const isNewFighterActive = !!(newFighterData &&
-      !newFighterData.killed &&
-      !newFighterData.retired &&
-      !newFighterData.enslaved &&
-      !newFighterData.captured);
+    const isNewFighterActive = countsTowardRating(newFighterData);
 
     // Call the Supabase function
     const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
