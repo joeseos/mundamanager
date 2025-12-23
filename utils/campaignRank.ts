@@ -8,6 +8,6 @@ export const campaignRank: { [key: string]: number } = {
   "succession campaign: part 1 - cinderak burning": 6,
   "succession campaign: part 2 - road to temenos": 7,
   "succession campaign: part 3 - fall of helmawr": 8,
-  "succession campaign: part 4 - reconquest of primus": 9,
-  "underhells campaign": 10,
+  "underhells campaign": 9,
+  "succession campaign: part 4 - reconquest of primus": 10,
 };
