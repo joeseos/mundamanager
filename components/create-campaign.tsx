@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
+import { campaignRank } from '@/utils/campaignRank'
 import { ImInfo } from "react-icons/im"
 import { Tooltip } from 'react-tooltip'
 import React from "react"
@@ -218,11 +219,25 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select campaign type</option>
-              {campaignTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.campaign_type_name}
-                </option>
-              ))}
+              {campaignTypes
+                .sort((a, b) => {
+                  const typeA = a.campaign_type_name.toLowerCase();
+                  const typeB = b.campaign_type_name.toLowerCase();
+
+                  const rankA = campaignRank[typeA] ?? Infinity;
+                  const rankB = campaignRank[typeB] ?? Infinity;
+
+                  if (rankA !== rankB) {
+                    return rankA - rankB;
+                  }
+
+                  return a.campaign_type_name.localeCompare(b.campaign_type_name);
+                })
+                .map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.campaign_type_name}
+                  </option>
+                ))}
             </select>
           </div>
 
