@@ -50,7 +50,8 @@ export async function middleware(request: NextRequest) {
     '/join-the-team',
     '/terms',
     '/contact',
-    '/privacy-policy'
+    '/privacy-policy',
+    '/merch'
   ];
 
   // Check for password reset flow

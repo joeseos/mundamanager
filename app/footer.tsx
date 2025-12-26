@@ -41,6 +41,9 @@ export default function Footer() {
               <Link href="/contributors" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Contributors
               </Link>
+              <Link href="/merch" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                Merch
+              </Link>
             </div>
           </nav>
 
