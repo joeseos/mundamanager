@@ -1425,3 +1425,61 @@ export async function applySelfUpgradeToEquipment(params: {
   }
 }
 
+interface DeleteEquipmentEffectParams {
+  effect_id: string;
+  fighter_id: string;
+  gang_id: string;
+  fighter_equipment_id: string;
+}
+
+/**
+ * Deletes an equipment effect (self-upgrade effect).
+ * This removes the effect from the fighter_effects table.
+ */
+export async function deleteEquipmentEffect(
+  params: DeleteEquipmentEffectParams
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+
+    // Check authentication
+    await getAuthenticatedUser(supabase);
+
+    // Verify the effect exists and belongs to the specified equipment
+    const { data: effect, error: effectError } = await supabase
+      .from('fighter_effects')
+      .select('id, fighter_equipment_id, effect_name')
+      .eq('id', params.effect_id)
+      .eq('fighter_equipment_id', params.fighter_equipment_id)
+      .single();
+
+    if (effectError || !effect) {
+      return { success: false, error: 'Effect not found or does not belong to this equipment' };
+    }
+
+    // Delete the effect (cascade will handle modifiers)
+    const { error: deleteError } = await supabase
+      .from('fighter_effects')
+      .delete()
+      .eq('id', params.effect_id);
+
+    if (deleteError) {
+      return { success: false, error: `Failed to delete effect: ${deleteError.message}` };
+    }
+
+    // Invalidate caches
+    try {
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: params.gang_id,
+        advancementType: 'effect'
+      });
+    } catch (e) {
+      console.error('Cache invalidation failed:', e);
+    }
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+}

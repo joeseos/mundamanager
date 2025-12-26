@@ -8,7 +8,7 @@ import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
-import { deleteEquipmentFromFighter, buyEquipmentForFighter } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter, buyEquipmentForFighter, deleteEquipmentEffect } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
@@ -115,6 +115,7 @@ export function WeaponList({
   const [upgradeEffectTypes, setUpgradeEffectTypes] = useState<FighterEffectType[]>([]);
   const [loadingEffects, setLoadingEffects] = useState(false);
   const [isUpgradeValid, setIsUpgradeValid] = useState(false);
+  const [deleteEffectModalData, setDeleteEffectModalData] = useState<{ effectId: string; fighterEquipmentId: string; effectName: string } | null>(null);
   const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
@@ -480,10 +481,11 @@ export function WeaponList({
         previousGangCredits
       };
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const selectedEffects = variables.effectTypesData.filter(et => variables.selectedEffectIds.includes(et.id));
+      const effectName = selectedEffects[0]?.effect_name || 'Effect';
       toast({
-        description: 'Effects applied successfully',
-        variant: 'default'
+        description: `${effectName} added successfully`
       });
     },
     onError: (error, variables, context) => {
@@ -531,6 +533,72 @@ export function WeaponList({
     });
 
     return true;
+  };
+
+  // Mutation for deleting equipment effects with optimistic update
+  const deleteEffectMutation = useMutation({
+    mutationFn: async (params: { effectId: string; fighterEquipmentId: string; effectName: string }) => {
+      const result = await deleteEquipmentEffect({
+        effect_id: params.effectId,
+        fighter_id: fighterId,
+        gang_id: gangId,
+        fighter_equipment_id: params.fighterEquipmentId
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete effect');
+      }
+      return result;
+    },
+    onMutate: async (params) => {
+      // Snapshot previous state
+      const previousEquipment = [...equipment];
+
+      // Optimistically remove the effect from the equipment
+      const updatedEquipment = equipment.map(item => {
+        if (item.fighter_equipment_id === params.fighterEquipmentId) {
+          return {
+            ...item,
+            equipment_effect: undefined,
+            effect_names: (item.effect_names || []).filter(name => name !== params.effectName)
+          };
+        }
+        return item;
+      });
+
+      onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
+
+      return { previousEquipment };
+    },
+    onError: (error, _variables, context) => {
+      // Rollback on error
+      if (context?.previousEquipment) {
+        onEquipmentUpdate(context.previousEquipment, fighterCredits, gangCredits);
+      }
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete effect',
+        variant: 'destructive'
+      });
+    },
+    onSuccess: (_data, params) => {
+      toast({
+        description: `${params.effectName} removed successfully`
+      });
+    }
+  });
+
+  const handleConfirmDeleteEffect = () => {
+    if (!deleteEffectModalData) return;
+
+    // Close modal immediately for instant UX
+    setDeleteEffectModalData(null);
+
+    // Fire mutation
+    deleteEffectMutation.mutate({
+      effectId: deleteEffectModalData.effectId,
+      fighterEquipmentId: deleteEffectModalData.fighterEquipmentId,
+      effectName: deleteEffectModalData.effectName
+    });
   };
 
   const renderRow = (item: Equipment, isChild: boolean = false) => (
@@ -619,7 +687,24 @@ export function WeaponList({
         </td>
         <td className="px-1 py-1">
           <div className="flex justify-end gap-1">
-            {/* Could add a remove effect button here if needed */}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (item.equipment_effect?.id) {
+                  setDeleteEffectModalData({
+                    effectId: item.equipment_effect.id,
+                    fighterEquipmentId: item.fighter_equipment_id,
+                    effectName: item.equipment_effect.effect_name
+                  });
+                }
+              }}
+              disabled={isLoading || !userPermissions.canEdit || deleteEffectMutation.isPending}
+              className="text-xs px-1.5 h-6"
+              title="Delete"
+            >
+              <LuTrash2 className="h-4 w-4" />
+            </Button>
           </div>
         </td>
       </tr>
@@ -784,6 +869,23 @@ export function WeaponList({
             />
           )}
         </Modal>
+      )}
+
+      {deleteEffectModalData && (
+        <Modal
+          title="Delete Effect"
+          content={
+            <div>
+              <p>Are you sure you want to delete <strong>{deleteEffectModalData.effectName}</strong>?</p>
+              <br />
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
+            </div>
+          }
+          onClose={() => setDeleteEffectModalData(null)}
+          onConfirm={handleConfirmDeleteEffect}
+        />
       )}
     </>
   );
