@@ -1408,9 +1408,13 @@ export async function applySelfUpgradeToEquipment(params: {
       return { success: false, error: result.error };
     }
 
-    // Invalidate caches
+    // Invalidate caches - use standard effect invalidation pattern
     try {
-      invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: params.gang_id,
+        advancementType: 'effect'
+      });
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }

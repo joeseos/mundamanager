@@ -452,9 +452,21 @@ export function WeaponList({
           const newEffectNames = selectedEffects.map(e => e.effect_name);
           const combinedEffectNames = [...existingEffectNames, ...newEffectNames];
 
+          // Construct optimistic equipment_effect like other effect flows
+          const firstEffect = selectedEffects[0];
+          const optimisticEquipmentEffect = firstEffect ? {
+            id: `temp-${Date.now()}`,
+            effect_name: firstEffect.effect_name,
+            fighter_equipment_id: equipmentData.fighter_equipment_id,
+            fighter_effect_type_id: firstEffect.id,
+            fighter_effect_modifiers: [],
+            type_specific_data: firstEffect.type_specific_data ?? undefined
+          } : item.equipment_effect;
+
           return {
             ...item,
-            effect_names: combinedEffectNames
+            effect_names: combinedEffectNames,
+            equipment_effect: optimisticEquipmentEffect
           };
         }
         return item;
