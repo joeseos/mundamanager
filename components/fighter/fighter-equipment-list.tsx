@@ -115,9 +115,7 @@ export function WeaponList({
   const [upgradeEffectTypes, setUpgradeEffectTypes] = useState<FighterEffectType[]>([]);
   const [loadingEffects, setLoadingEffects] = useState(false);
   const [isUpgradeValid, setIsUpgradeValid] = useState(false);
-  const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean }>(null);
-  const pendingEquipmentDataRef = React.useRef<Equipment | null>(null);
-  const pendingEffectTypesRef = React.useRef<FighterEffectType[]>([]);
+  const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
   const purchaseMutation = {
@@ -506,44 +504,31 @@ export function WeaponList({
     }
   });
 
-  // Handle applying effects - called after modal closes
-  const handleApplyEffect = async (selectedEffectIds: string[]) => {
-    if (selectedEffectIds.length === 0 || !pendingEquipmentDataRef.current) return;
-
-    const equipmentData = pendingEquipmentDataRef.current;
-    const effectTypesData = pendingEffectTypesRef.current;
-    pendingEquipmentDataRef.current = null; // Clear the refs
-    pendingEffectTypesRef.current = [];
-
-    // Trigger the mutation
-    applyEffectMutation.mutate({
-      selectedEffectIds,
-      equipmentData,
-      effectTypesData
-    });
-  };
-
-  // Handle confirm - close modal then trigger mutation
+  // Handle confirm - close modal and fire mutation directly (like skills pattern)
   const handleConfirmEffects = () => {
     if (!effectSelectionRef.current?.isValid() || !upgradeModalData) {
       return false;
     }
 
-    // Store equipment data and effect types in refs before closing modal
-    pendingEquipmentDataRef.current = upgradeModalData;
-    pendingEffectTypesRef.current = upgradeEffectTypes;
+    // Get selected effects directly from ref
+    const selectedEffectIds = effectSelectionRef.current.getSelectedEffects();
+    if (selectedEffectIds.length === 0) return false;
+
+    // Store data for mutation before clearing state
+    const equipmentData = upgradeModalData;
+    const effectTypesData = upgradeEffectTypes;
 
     // Close modal immediately for instant UX feedback
-    // Note: This creates a design trade-off - if the mutation fails, the modal is already closed.
-    // The user receives error feedback via toast notification (see handleApplyEffect).
-    // This approach prioritizes perceived performance over waiting for confirmation.
     setUpgradeModalData(null);
     setUpgradeEffectTypes([]);
     setIsUpgradeValid(false);
 
-    // Trigger mutation asynchronously (don't wait)
-    // This calls onSelectionComplete which triggers handleApplyEffect
-    void effectSelectionRef.current.handleConfirm();
+    // Fire mutation directly (like skills does) - onMutate runs synchronously
+    applyEffectMutation.mutate({
+      selectedEffectIds,
+      equipmentData,
+      effectTypesData
+    });
 
     return true;
   };
@@ -789,7 +774,7 @@ export function WeaponList({
               ref={effectSelectionRef}
               equipmentId={upgradeModalData.equipment_id}
               effectTypes={upgradeEffectTypes}
-              onSelectionComplete={handleApplyEffect}
+              onSelectionComplete={() => {}}
               onCancel={() => {
                 setUpgradeModalData(null);
                 setUpgradeEffectTypes([]);

@@ -26,7 +26,7 @@ interface FighterEffectSelectionProps {
 }
 
 const FighterEffectSelection = React.forwardRef<
-  { handleConfirm: () => Promise<boolean>; isValid: () => boolean },
+  { handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] },
   FighterEffectSelectionProps
 >(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons, effectName: propEffectName }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
@@ -230,10 +230,11 @@ const FighterEffectSelection = React.forwardRef<
     return true;
   };
 
-  // Expose handleConfirm and isValid to parent component via ref
+  // Expose handleConfirm, isValid, and getSelectedEffects to parent component via ref
   React.useImperativeHandle(ref, () => ({
     handleConfirm,
-    isValid
+    isValid,
+    getSelectedEffects: () => selectedEffects
   }));
 
   // Notify parent when validity changes

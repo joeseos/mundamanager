@@ -120,7 +120,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
   const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
-  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
 
   // Grants selection state
