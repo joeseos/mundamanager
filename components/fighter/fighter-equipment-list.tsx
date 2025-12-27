@@ -188,7 +188,6 @@ export function WeaponList({
         // Rollback
         onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
         toast({
-          title: 'Error',
           description: err instanceof Error ? err.message : 'Failed to buy equipment',
           variant: 'destructive'
         });
@@ -399,7 +398,6 @@ export function WeaponList({
       setUpgradeEffectTypes(effectTypes);
     } catch (error) {
       toast({
-        title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to load effect options',
         variant: 'destructive'
       });
@@ -499,7 +497,6 @@ export function WeaponList({
       }
 
       toast({
-        title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to apply effects',
         variant: 'destructive'
       });
@@ -575,7 +572,6 @@ export function WeaponList({
         onEquipmentUpdate(context.previousEquipment, fighterCredits, gangCredits);
       }
       toast({
-        title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to delete effect',
         variant: 'destructive'
       });
