@@ -1448,7 +1448,7 @@ export async function deleteEquipmentEffect(
     // Verify the effect exists and belongs to the specified equipment
     const { data: effect, error: effectError } = await supabase
       .from('fighter_effects')
-      .select('id, fighter_equipment_id, effect_name')
+      .select('id, fighter_equipment_id, effect_name, type_specific_data')
       .eq('id', params.effect_id)
       .eq('fighter_equipment_id', params.fighter_equipment_id)
       .single();
