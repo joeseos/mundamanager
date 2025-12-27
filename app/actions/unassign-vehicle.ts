@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface UnassignVehicleParams {
   vehicleId: string;
@@ -43,14 +44,11 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
     if (previousFighterId) {
       const { data: fighterData } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved')
+        .select('killed, retired, enslaved, captured')
         .eq('id', previousFighterId)
         .single();
 
-      wasFighterActive = !!(fighterData &&
-        !fighterData.killed &&
-        !fighterData.retired &&
-        !fighterData.enslaved);
+      wasFighterActive = countsTowardRating(fighterData);
     }
 
     // Get vehicle cost data before unassigning for rating calculation
@@ -67,23 +65,35 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       throw new Error(updateError.message || 'Failed to unassign vehicle');
     }
 
-    // Rating delta: only reduce rating if vehicle was assigned to an ACTIVE fighter
-    // If fighter is killed/retired/enslaved, their cost (including vehicle) is already removed from rating
-    if (wasFighterActive && vehicleCost > 0) {
+    // Calculate rating and wealth deltas using countsTowardRating helper
+    // When unassigning: vehicle enters the "unassigned pool" which counts toward wealth
+    let ratingDelta = 0;
+    if (wasFighterActive) {
+      ratingDelta = -vehicleCost;
+    }
+    // wealthDelta = ratingDelta + vehicleCost
+    // - Active fighter: -vehicleCost + vehicleCost = 0 (moves from rating to unassigned)
+    // - Inactive fighter: 0 + vehicleCost = +vehicleCost (enters unassigned pool)
+    const wealthDelta = ratingDelta + vehicleCost;
+
+    if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       try {
-        const { data: ratingRow } = await supabase
+        const { data: gangRow } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', params.gangId)
           .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
+
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating - vehicleCost) })
+          .update({
+            rating: Math.max(0, (gangRow?.rating ?? 0) + ratingDelta),
+            wealth: Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta)
+          })
           .eq('id', params.gangId);
         invalidateGangRating(params.gangId);
       } catch (e) {
-        console.error('Failed to update gang rating after vehicle unassignment:', e);
+        console.error('Failed to update gang rating/wealth after vehicle unassignment:', e);
       }
     }
 

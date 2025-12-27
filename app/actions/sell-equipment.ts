@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { logEquipmentAction } from './logs/equipment-logs';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -86,7 +87,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         throw new Error('Fighter not found for this equipment');
       }
       gangId = fighter.gang_id;
-      fighterIsActive = !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
+      fighterIsActive = countsTowardRating(fighter);
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle and whether vehicle is assigned
       const { data: vehicle, error: vehicleError } = await supabase
@@ -110,7 +111,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           .single();
 
         if (!vehicleFighterError && vehicleFighter) {
-          fighterIsActive = !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured;
+          fighterIsActive = countsTowardRating(vehicleFighter);
         }
       }
     } else {

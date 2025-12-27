@@ -7,6 +7,7 @@ import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -159,12 +160,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     switch (params.action) {
       case 'kill': {
         // Check if fighter is CURRENTLY active (before kill toggle)
-        const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const wasActive = countsTowardRating(fighter);
 
         const willBeKilled = !fighter.killed;
 
         // Check if fighter WILL BE active (after kill toggle)
-        const willBeActive = willBeKilled ? false : (!fighter.retired && !fighter.enslaved);
+        const willBeActive = willBeKilled ? false : countsTowardRating({ ...fighter, killed: false });
 
         // Delta = change in active status
         let delta = 0;
@@ -179,6 +180,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .from('fighters')
           .update({
             killed: willBeKilled,
+            recovery: willBeKilled ? false : fighter.recovery, // Clear recovery if killing
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
@@ -225,12 +227,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
       case 'retire': {
         // Check if fighter is CURRENTLY active (before retire toggle)
-        const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const wasActive = countsTowardRating(fighter);
 
         const willBeRetired = !fighter.retired;
 
         // Check if fighter WILL BE active (after retire toggle)
-        const willBeActive = willBeRetired ? false : (!fighter.killed && !fighter.enslaved);
+        const willBeActive = willBeRetired ? false : countsTowardRating({ ...fighter, retired: false });
 
         // Delta = change in active status
         let delta = 0;
@@ -245,6 +247,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .from('fighters')
           .update({
             retired: willBeRetired,
+            recovery: willBeRetired ? false : fighter.recovery, // Clear recovery if retiring
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
@@ -283,7 +286,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         // Only subtract cost if fighter is currently active
-        const isActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const isActive = countsTowardRating(fighter);
         const delta = isActive ? -(await getEffectiveCost()) : 0;
 
         // Update fighter to enslaved and add credits to gang
@@ -291,6 +294,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .from('fighters')
           .update({ 
             enslaved: true,
+            recovery: false, // Clear recovery when enslaving
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
@@ -341,7 +345,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
       case 'rescue': {
         // Check if fighter is CURRENTLY active (before rescue)
-        const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const wasActive = countsTowardRating(fighter);
 
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
@@ -356,7 +360,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         // Check if fighter WILL BE active (after rescue)
-        const willBeActive = !fighter.killed && !fighter.retired;
+        const willBeActive = countsTowardRating({ ...fighter, enslaved: false });
 
         // Delta = change in active status
         let delta = 0;
@@ -516,10 +520,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'capture': {
+        const willBeCaptured = !fighter.captured;
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 
-            captured: !fighter.captured,
+            captured: willBeCaptured,
+            recovery: willBeCaptured ? false : fighter.recovery, // Clear recovery if capturing
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
@@ -552,7 +558,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
       case 'delete': {
         // Subtract effective cost only if fighter is currently active
-        const isActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+        const isActive = countsTowardRating(fighter);
         const delta = isActive ? -(await getEffectiveCost()) : 0;
 
         // Delete the fighter
@@ -820,7 +826,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, cost_adjustment, kills, killed, retired, enslaved, fighter_name')
+      .select('id, gang_id, cost_adjustment, kills, killed, retired, enslaved, captured, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -828,7 +834,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       throw new Error('Fighter not found');
     }
 
-    const wasActive = !fighter.killed && !fighter.retired && !fighter.enslaved;
+    const wasActive = countsTowardRating(fighter);
     const previousAdjustment = fighter.cost_adjustment || 0;
     const previousKills: number = fighter.kills || 0;
 

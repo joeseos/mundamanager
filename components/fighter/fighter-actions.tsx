@@ -10,6 +10,7 @@ import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
 import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 import { useMutation } from '@tanstack/react-query';
+import { isStatusIncompatible } from '@/utils/fighter-status';
 
 interface Fighter {
   id: string;
@@ -188,7 +189,8 @@ export function FighterActions({
             variant="default"
             className="flex-1 bg-neutral-900 text-white hover:bg-gray-800"
             onClick={() => handleModalToggle('kill', true)}
-            disabled={!userPermissions.canEdit}
+            disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'kill')}
+            title={isStatusIncompatible(fighter, 'kill') ? 'Cannot kill: fighter is retired, enslaved, captured, or in recovery' : undefined}
           >
             {fighter?.killed ? 'Resurrect Fighter' : 'Kill Fighter'}
           </Button>
@@ -196,7 +198,8 @@ export function FighterActions({
             variant={fighter?.retired ? 'success' : 'default'}
             className="flex-1"
             onClick={() => handleModalToggle('retire', true)}
-            disabled={!userPermissions.canEdit}
+            disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'retire')}
+            title={isStatusIncompatible(fighter, 'retire') ? 'Cannot retire: fighter is killed, enslaved, captured, or in recovery' : undefined}
           >
             {fighter?.retired ? 'Unretire Fighter' : 'Retire Fighter'}
           </Button>
@@ -204,7 +207,8 @@ export function FighterActions({
             variant={fighter?.enslaved ? 'success' : 'default'}
             className="flex-1"
             onClick={() => handleModalToggle('enslave', true)}
-            disabled={!userPermissions.canEdit}
+            disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'enslave')}
+            title={isStatusIncompatible(fighter, 'enslave') ? 'Cannot sell to guilders: fighter is killed, retired, captured, or in recovery' : undefined}
           >
             {fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
           </Button>
@@ -223,7 +227,8 @@ export function FighterActions({
               variant={fighter?.recovery ? 'success' : 'default'}
               className="flex-1"
               onClick={() => handleModalToggle('recovery', true)}
-              disabled={!userPermissions.canEdit}
+              disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'recovery')}
+              title={isStatusIncompatible(fighter, 'recovery') ? 'Cannot send to recovery: fighter is killed, enslaved, retired, or captured' : undefined}
             >
               {fighter?.recovery ? 'Recover Fighter' : 'Send to Recovery'}
             </Button>
@@ -233,7 +238,8 @@ export function FighterActions({
               variant={fighter?.captured ? 'success' : 'default'}
               className="flex-1"
               onClick={() => handleModalToggle('captured', true)}
-              disabled={!userPermissions.canEdit}
+              disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'capture')}
+              title={isStatusIncompatible(fighter, 'capture') ? 'Cannot capture: fighter is killed, retired, enslaved, or in recovery' : undefined}
             >
               {fighter?.captured ? 'Rescue Fighter' : 'Capture Fighter'}
             </Button>

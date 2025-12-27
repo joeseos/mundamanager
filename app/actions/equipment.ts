@@ -14,6 +14,7 @@ import {
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -914,7 +915,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
         .eq('id', equipmentBefore.fighter_id)
         .single();
 
-      const fighterIsActive = fighter && !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
+      const fighterIsActive = countsTowardRating(fighter);
 
       if (fighterIsActive) {
         ratingDelta -= (equipmentBefore.purchase_cost || 0);
@@ -938,7 +939,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           .eq('id', veh.fighter_id)
           .single();
 
-        const vehicleFighterIsActive = vehicleFighter && !vehicleFighter.killed && !vehicleFighter.retired && !vehicleFighter.enslaved && !vehicleFighter.captured;
+        const vehicleFighterIsActive = countsTowardRating(vehicleFighter);
 
         if (vehicleFighterIsActive) {
           ratingDelta -= (equipmentBefore.purchase_cost || 0);
