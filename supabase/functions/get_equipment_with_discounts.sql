@@ -28,7 +28,8 @@ RETURNS TABLE (
     equipment_tradingpost boolean,
     is_custom boolean,
     weapon_profiles jsonb,
-    vehicle_upgrade_slot text
+    vehicle_upgrade_slot text,
+    is_editable boolean
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -41,6 +42,7 @@ AS $$
         -- Natural NULL handling for availability - gang origin takes precedence when available
         COALESCE(
             (SELECT availability FROM equipment_availability WHERE gang_origin_id = gang_data.gang_origin_id AND equipment_id = e.id LIMIT 1),
+            ea_variant.availability,
             ea.availability,
             e.availability
         ) as availability,
@@ -208,20 +210,27 @@ AS $$
                     END
             )
             ELSE NULL
-        END as vehicle_upgrade_slot
+        END as vehicle_upgrade_slot,
+        COALESCE(e.is_editable, false) as is_editable
     FROM equipment e
     -- Simplified LATERAL join - always executes, no conditionals
     LEFT JOIN LATERAL (
         SELECT
             g.gang_origin_id,
+            g.gang_variants,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id AS affiliation_ft_id
         FROM gangs g
-        LEFT JOIN fighters f ON (f.id = $6 AND f.gang_id = g.id)  -- Fighter must belong to this gang
+        LEFT JOIN fighters f ON (f.id = $6 AND f.gang_id = g.id)
         LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
-        WHERE g.id = $8  -- Always try to join gang data
+        WHERE g.id = $8
     ) gang_data ON TRUE
+    -- Join for gang variant availability
+    LEFT JOIN equipment_availability ea_variant ON e.id = ea_variant.equipment_id
+        AND ea_variant.gang_variant_id IS NOT NULL
+        AND gang_data.gang_variants IS NOT NULL
+        AND gang_data.gang_variants ? ea_variant.gang_variant_id::text
     -- Join with equipment_availability to get gang-specific availability
     LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
         AND ea.gang_type_id = $1
@@ -231,10 +240,8 @@ AS $$
              OR (gang_data.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.legacy_ft_id OR fte.vehicle_type_id = gang_data.legacy_ft_id) AND $4 = true)
              OR (gang_data.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.affiliation_ft_id OR fte.vehicle_type_id = gang_data.affiliation_ft_id)))
         AND (
-            -- If the row has gang_origin_id, it must match the gang's origin
             (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gang_data.gang_origin_id)
             AND
-            -- If the row has gang_type_id, it must match the gang's type
             (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
         )
     WHERE 
@@ -255,7 +262,10 @@ AS $$
             $4 IS NULL
             OR (
                 CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL THEN true
+                    WHEN fte.fighter_type_id IS NOT NULL 
+                         OR fte.vehicle_type_id IS NOT NULL 
+                         OR ea_variant.equipment_id IS NOT NULL
+                    THEN true
                     ELSE false
                 END
             ) = $4
@@ -264,7 +274,6 @@ AS $$
         (
             $5 IS NULL
             OR (
-                -- Simplified trading post logic - natural NULL handling
                 EXISTS (
                     SELECT 1
                     FROM gang_types gt, trading_post_equipment tpe
@@ -292,15 +301,14 @@ AS $$
         ce.equipment_name,
         ce.availability as availability,
         ce.cost::numeric as base_cost,
-        ce.cost::numeric as discounted_cost, -- No discounts for custom equipment
-        ce.cost::numeric as adjusted_cost,   -- No adjustments for custom equipment
+        ce.cost::numeric as discounted_cost,
+        ce.cost::numeric as adjusted_cost,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
-        true as fighter_type_equipment,      -- Custom equipment is available for fighters
-        true as equipment_tradingpost,       -- Custom equipment is available in trading post
+        true as fighter_type_equipment,
+        true as equipment_tradingpost,
         true as is_custom,
-        -- Custom equipment weapon profiles (if any)
         COALESCE(
             (
                 SELECT jsonb_agg(
@@ -325,11 +333,11 @@ AS $$
             ),
             '[]'::jsonb
         ) as weapon_profiles,
-        -- Custom equipment doesn't have vehicle upgrade slots
-        NULL as vehicle_upgrade_slot
+        NULL as vehicle_upgrade_slot,
+        COALESCE(ce.is_editable, false) as is_editable
     FROM custom_equipment ce
     WHERE 
-        ce.user_id = auth.uid() -- Only show user's own custom equipment
+        ce.user_id = auth.uid()
         AND ($2 IS NULL 
          OR trim(both from ce.equipment_category) = trim(both from $2))
         AND (only_equipment_id IS NULL OR ce.id = only_equipment_id)

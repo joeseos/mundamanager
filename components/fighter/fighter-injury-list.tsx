@@ -68,7 +68,7 @@ export function InjuriesList({
   const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
-  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean }>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
   const { toast} = useToast();
 
   // TanStack Query mutation for adding injuries

@@ -2,18 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
+import { useMutation } from '@tanstack/react-query';
 import Modal from '../ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
-import { deleteEquipmentFromFighter, buyEquipmentForFighter } from '@/app/actions/equipment';
+import { deleteEquipmentFromFighter, buyEquipmentForFighter, deleteEquipmentEffect } from '@/app/actions/equipment';
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuTrash2, LuSquarePen } from 'react-icons/lu';
 import { TbCornerLeftUp } from 'react-icons/tb';
 import { rollD6 } from '@/utils/dice';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
+import { FighterEffectType } from '@/types/fighter-effect';
+import { applySelfUpgradeToEquipment } from '@/app/actions/equipment';
 
 interface WeaponListProps {
   fighterId: string;
@@ -107,7 +111,13 @@ export function WeaponList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
-  
+  const [upgradeModalData, setUpgradeModalData] = useState<Equipment | null>(null);
+  const [upgradeEffectTypes, setUpgradeEffectTypes] = useState<FighterEffectType[]>([]);
+  const [loadingEffects, setLoadingEffects] = useState(false);
+  const [isUpgradeValid, setIsUpgradeValid] = useState(false);
+  const [deleteEffectModalData, setDeleteEffectModalData] = useState<{ effectId: string; fighterEquipmentId: string; effectName: string } | null>(null);
+  const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
+
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
   const purchaseMutation = {
     mutate: async ({ params, item }: { params: any; item: Equipment }) => {
@@ -178,7 +188,6 @@ export function WeaponList({
         // Rollback
         onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
         toast({
-          title: 'Error',
           description: err instanceof Error ? err.message : 'Failed to buy equipment',
           variant: 'destructive'
         });
@@ -375,6 +384,219 @@ export function WeaponList({
   const wargear = sortedParentEquipment.filter(item => item.equipment_type === 'wargear');
   const vehicleUpgrades = sortedParentEquipment.filter(item => item.equipment_type === 'vehicle_upgrade');
 
+  // Handle opening upgrade modal and fetching effect types
+  const handleOpenUpgradeModal = async (item: Equipment) => {
+    setUpgradeModalData(item);
+    setLoadingEffects(true);
+
+    try {
+      const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch effects');
+      }
+      const effectTypes = await response.json();
+      setUpgradeEffectTypes(effectTypes);
+    } catch (error) {
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to load effect options',
+        variant: 'destructive'
+      });
+      setUpgradeModalData(null);
+    } finally {
+      setLoadingEffects(false);
+    }
+  };
+
+  // TanStack Query mutation for applying effects with optimistic updates
+  const applyEffectMutation = useMutation({
+    mutationFn: async (variables: {
+      selectedEffectIds: string[];
+      equipmentData: Equipment;
+      effectTypesData: FighterEffectType[];
+    }) => {
+      // Apply each selected effect sequentially
+      for (const effectTypeId of variables.selectedEffectIds) {
+        const result = await applySelfUpgradeToEquipment({
+          fighter_equipment_id: variables.equipmentData.fighter_equipment_id,
+          effect_type_id: effectTypeId,
+          fighter_id: fighterId,
+          gang_id: gangId
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to apply effect');
+        }
+      }
+
+      return { success: true };
+    },
+    onMutate: async (variables) => {
+      const { equipmentData, effectTypesData, selectedEffectIds } = variables;
+
+      // Store previous state for rollback
+      const previousEquipment = [...equipment];
+      const previousFighterCredits = fighterCredits;
+      const previousGangCredits = gangCredits;
+
+      // Build optimistic effect data from selected effects
+      const selectedEffects = effectTypesData.filter(et => selectedEffectIds.includes(et.id));
+
+      // Apply optimistic update: add effects to equipment
+      const optimisticEquipment = equipment.map(item => {
+        if (item.fighter_equipment_id === equipmentData.fighter_equipment_id) {
+          // Add new effects to existing effects
+          const existingEffectNames = item.effect_names || [];
+          const newEffectNames = selectedEffects.map(e => e.effect_name);
+          const combinedEffectNames = [...existingEffectNames, ...newEffectNames];
+
+          // Construct optimistic equipment_effect like other effect flows
+          const firstEffect = selectedEffects[0];
+          const optimisticEquipmentEffect = firstEffect ? {
+            id: `temp-${Date.now()}`,
+            effect_name: firstEffect.effect_name,
+            fighter_equipment_id: equipmentData.fighter_equipment_id,
+            fighter_effect_type_id: firstEffect.id,
+            fighter_effect_modifiers: [],
+            type_specific_data: firstEffect.type_specific_data ?? undefined
+          } : item.equipment_effect;
+
+          return {
+            ...item,
+            effect_names: combinedEffectNames,
+            equipment_effect: optimisticEquipmentEffect
+          };
+        }
+        return item;
+      });
+
+      // Apply optimistic update immediately
+      onEquipmentUpdate(optimisticEquipment, previousFighterCredits, previousGangCredits);
+
+      // Return context for rollback
+      return {
+        previousEquipment,
+        previousFighterCredits,
+        previousGangCredits
+      };
+    },
+    onSuccess: (_data, variables) => {
+      const selectedEffects = variables.effectTypesData.filter(et => variables.selectedEffectIds.includes(et.id));
+      const effectName = selectedEffects[0]?.effect_name || 'Effect';
+      toast({
+        description: `${effectName} added successfully`
+      });
+    },
+    onError: (error, variables, context) => {
+      // Rollback to previous state on error
+      if (context) {
+        onEquipmentUpdate(
+          context.previousEquipment,
+          context.previousFighterCredits,
+          context.previousGangCredits
+        );
+      }
+
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to apply effects',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Handle confirm - close modal and fire mutation directly (like skills pattern)
+  const handleConfirmEffects = () => {
+    if (!effectSelectionRef.current?.isValid() || !upgradeModalData) {
+      return false;
+    }
+
+    // Get selected effects directly from ref
+    const selectedEffectIds = effectSelectionRef.current.getSelectedEffects();
+    if (selectedEffectIds.length === 0) return false;
+
+    // Store data for mutation before clearing state
+    const equipmentData = upgradeModalData;
+    const effectTypesData = upgradeEffectTypes;
+
+    // Close modal immediately for instant UX feedback
+    setUpgradeModalData(null);
+    setUpgradeEffectTypes([]);
+    setIsUpgradeValid(false);
+
+    // Fire mutation directly (like skills does) - onMutate runs synchronously
+    applyEffectMutation.mutate({
+      selectedEffectIds,
+      equipmentData,
+      effectTypesData
+    });
+
+    return true;
+  };
+
+  // Mutation for deleting equipment effects with optimistic update
+  const deleteEffectMutation = useMutation({
+    mutationFn: async (params: { effectId: string; fighterEquipmentId: string; effectName: string }) => {
+      const result = await deleteEquipmentEffect({
+        effect_id: params.effectId,
+        fighter_id: fighterId,
+        gang_id: gangId,
+        fighter_equipment_id: params.fighterEquipmentId
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete effect');
+      }
+      return result;
+    },
+    onMutate: async (params) => {
+      // Snapshot previous state
+      const previousEquipment = [...equipment];
+
+      // Optimistically remove the effect from the equipment
+      const updatedEquipment = equipment.map(item => {
+        if (item.fighter_equipment_id === params.fighterEquipmentId) {
+          return {
+            ...item,
+            equipment_effect: undefined,
+            effect_names: (item.effect_names || []).filter(name => name !== params.effectName)
+          };
+        }
+        return item;
+      });
+
+      onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
+
+      return { previousEquipment };
+    },
+    onError: (error, _variables, context) => {
+      // Rollback on error
+      if (context?.previousEquipment) {
+        onEquipmentUpdate(context.previousEquipment, fighterCredits, gangCredits);
+      }
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to delete effect',
+        variant: 'destructive'
+      });
+    },
+    onSuccess: (_data, params) => {
+      toast({
+        description: `${params.effectName} removed successfully`
+      });
+    }
+  });
+
+  const handleConfirmDeleteEffect = () => {
+    if (!deleteEffectModalData) return;
+
+    // Close modal immediately for instant UX
+    setDeleteEffectModalData(null);
+
+    // Fire mutation
+    deleteEffectMutation.mutate({
+      effectId: deleteEffectModalData.effectId,
+      fighterEquipmentId: deleteEffectModalData.fighterEquipmentId,
+      effectName: deleteEffectModalData.effectName
+    });
+  };
+
   const renderRow = (item: Equipment, isChild: boolean = false) => (
     <tr
       key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
@@ -389,6 +611,18 @@ export function WeaponList({
       </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
+          {item.is_editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenUpgradeModal(item)}
+              disabled={isLoading || !userPermissions.canEdit}
+              className="text-xs px-1.5 h-6"
+              title="Edit Equipment"
+            >
+              <LuSquarePen className="h-4 w-4" />
+            </Button>
+          )}
           {!item.core_equipment && (
             <>
               <Button
@@ -415,21 +649,6 @@ export function WeaponList({
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
-
-              {/* <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setDeleteModalData({
-                  id: item.fighter_equipment_id,
-                  equipmentId: item.equipment_id,
-                  name: item.equipment_name
-                })}
-                disabled={isLoading || !userPermissions.canEdit}
-                className="text-xs px-1.5 h-6"
-                title="Delete"
-              >
-                <LuTrash2 className="h-4 w-4" />
-              </Button> */}
             </>
           )}
         </div>
@@ -459,7 +678,24 @@ export function WeaponList({
         </td>
         <td className="px-1 py-1">
           <div className="flex justify-end gap-1">
-            {/* Could add a remove effect button here if needed */}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (item.equipment_effect?.id) {
+                  setDeleteEffectModalData({
+                    effectId: item.equipment_effect.id,
+                    fighterEquipmentId: item.fighter_equipment_id,
+                    effectName: item.equipment_effect.effect_name
+                  });
+                }
+              }}
+              disabled={isLoading || !userPermissions.canEdit || deleteEffectMutation.isPending}
+              className="text-xs px-1.5 h-6"
+              title="Delete"
+            >
+              <LuTrash2 className="h-4 w-4" />
+            </Button>
           </div>
         </td>
       </tr>
@@ -583,6 +819,63 @@ export function WeaponList({
             stashModalData.fighter_equipment_id,
             stashModalData.equipment_id
           ); return true; }}
+        />
+      )}
+
+      {upgradeModalData && (
+        <Modal
+          title={`Edit: ${upgradeModalData.equipment_name}`}
+          helper="Select effects to apply to this equipment"
+          onClose={() => {
+            setUpgradeModalData(null);
+            setUpgradeEffectTypes([]);
+            setIsUpgradeValid(false);
+          }}
+          onConfirm={handleConfirmEffects}
+          confirmDisabled={!isUpgradeValid}
+          width="lg"
+        >
+          {loadingEffects ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+            </div>
+          ) : upgradeEffectTypes.length === 0 ? (
+            <div className="p-4">
+              <p className="text-muted-foreground italic text-center py-8">
+                No effects available for this equipment.
+              </p>
+            </div>
+          ) : (
+            <FighterEffectSelection
+              ref={effectSelectionRef}
+              equipmentId={upgradeModalData.equipment_id}
+              effectTypes={upgradeEffectTypes}
+              onSelectionComplete={() => {}}
+              onCancel={() => {
+                setUpgradeModalData(null);
+                setUpgradeEffectTypes([]);
+                setIsUpgradeValid(false);
+              }}
+              onValidityChange={setIsUpgradeValid}
+            />
+          )}
+        </Modal>
+      )}
+
+      {deleteEffectModalData && (
+        <Modal
+          title="Delete Effect"
+          content={
+            <div>
+              <p>Are you sure you want to delete <strong>{deleteEffectModalData.effectName}</strong>?</p>
+              <br />
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
+            </div>
+          }
+          onClose={() => setDeleteEffectModalData(null)}
+          onConfirm={handleConfirmDeleteEffect}
         />
       )}
     </>

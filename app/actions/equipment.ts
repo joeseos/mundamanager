@@ -239,6 +239,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           equipment_name,
           equipment_type,
           cost,
+          is_editable,
           weapon_profiles (
             id,
             profile_name,
@@ -270,7 +271,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         // Custom equipment details
         supabase
           .from('custom_equipment')
-          .select('id, equipment_name, equipment_type, cost')
+          .select('id, equipment_name, equipment_type, cost, is_editable')
           .eq('id', params.custom_equipment_id)
           .eq('user_id', user.id)
           .single(),
@@ -351,7 +352,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           purchase_cost: ratingCost,
           gang_stash: true,
           user_id: user.id,
-          is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted
+          is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
+          is_editable: equipmentDetails.is_editable || false
         })
         .select('id')
         .single();
@@ -372,7 +374,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           original_cost: baseCost,
           purchase_cost: ratingCost,
           user_id: user.id,
-          is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted
+          is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
+          is_editable: equipmentDetails.is_editable || false
         })
         .select('id')
         .single();
@@ -429,8 +432,18 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           .in('id', params.selected_effect_ids);
 
         if (effectTypes && effectTypes.length > 0) {
+          // Validate that these are actually selectable effects
+          const selectableEffects = effectTypes.filter(et => {
+            const sel = et?.type_specific_data?.effect_selection;
+            return sel === 'single_select' || sel === 'multiple_select';
+          });
+
+          if (selectableEffects.length === 0) {
+            throw new Error('Invalid effect selection - effects must be selectable');
+          }
+
           // Insert each effect using helper function
-          for (const effectType of effectTypes) {
+          for (const effectType of selectableEffects) {
             const result = await insertEffectWithModifiers(
               supabase,
               {
@@ -800,6 +813,17 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         chosenEffectTypeId
       ) {
         try {
+          // Validate the effect type exists before applying
+          const { data: effectTypeValidation } = await supabase
+            .from('fighter_effect_types')
+            .select('id, type_specific_data')
+            .eq('id', chosenEffectTypeId)
+            .single();
+
+          if (!effectTypeValidation) {
+            throw new Error('Invalid effect type');
+          }
+
           // Insert equipment-to-equipment effect using helper function
           const result = await insertEffectWithModifiers(
             supabase,
@@ -1227,3 +1251,139 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
   }
 }
 
+/**
+ * Apply a self-upgrade effect to equipment (equipment upgrades itself)
+ * Used when equipment adds traits/modifiers to itself rather than to other equipment
+ */
+export async function applySelfUpgradeToEquipment(params: {
+  fighter_equipment_id: string;
+  effect_type_id: string;
+  fighter_id: string;
+  gang_id: string;
+}): Promise<EquipmentActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    // Validate ownership
+    const { data: equipmentRow, error: equipErr } = await supabase
+      .from('fighter_equipment')
+      .select('id, fighter_id, gang_id')
+      .eq('id', params.fighter_equipment_id)
+      .single();
+
+    if (equipErr || !equipmentRow) {
+      return { success: false, error: 'Equipment not found' };
+    }
+
+    if (equipmentRow.fighter_id !== params.fighter_id || equipmentRow.gang_id !== params.gang_id) {
+      return { success: false, error: 'Ownership mismatch' };
+    }
+
+    // Validate effect type exists
+    const { data: effectType, error: effectTypeError } = await supabase
+      .from('fighter_effect_types')
+      .select('id')
+      .eq('id', params.effect_type_id)
+      .single();
+
+    if (effectTypeError || !effectType) {
+      return { success: false, error: 'Effect type not found' };
+    }
+
+    // Insert effect using existing helper function
+    const result = await insertEffectWithModifiers(
+      supabase,
+      {
+        fighter_id: params.fighter_id,
+        vehicle_id: null,
+        fighter_equipment_id: params.fighter_equipment_id,
+        target_equipment_id: null, // Self-upgrades don't target another equipment (like glitch effects)
+        effect_type_id: params.effect_type_id,
+        user_id: user.id
+      },
+      {
+        checkDuplicate: true,
+        includeOperation: true
+      }
+    );
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    // Invalidate caches - use standard effect invalidation pattern
+    try {
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: params.gang_id,
+        advancementType: 'effect'
+      });
+    } catch (e) {
+      console.error('Cache invalidation failed:', e);
+    }
+
+    return { success: true, data: result };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+}
+
+interface DeleteEquipmentEffectParams {
+  effect_id: string;
+  fighter_id: string;
+  gang_id: string;
+  fighter_equipment_id: string;
+}
+
+/**
+ * Deletes an equipment effect (self-upgrade effect).
+ * This removes the effect from the fighter_effects table.
+ */
+export async function deleteEquipmentEffect(
+  params: DeleteEquipmentEffectParams
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+
+    // Check authentication
+    await getAuthenticatedUser(supabase);
+
+    // Verify the effect exists and belongs to the specified equipment
+    const { data: effect, error: effectError } = await supabase
+      .from('fighter_effects')
+      .select('id, fighter_equipment_id, effect_name, type_specific_data')
+      .eq('id', params.effect_id)
+      .eq('fighter_equipment_id', params.fighter_equipment_id)
+      .single();
+
+    if (effectError || !effect) {
+      return { success: false, error: 'Effect not found or does not belong to this equipment' };
+    }
+
+    // Delete the effect (cascade will handle modifiers)
+    const { error: deleteError } = await supabase
+      .from('fighter_effects')
+      .delete()
+      .eq('id', params.effect_id);
+
+    if (deleteError) {
+      return { success: false, error: `Failed to delete effect: ${deleteError.message}` };
+    }
+
+    // Invalidate caches
+    try {
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: params.gang_id,
+        advancementType: 'effect'
+      });
+    } catch (e) {
+      console.error('Cache invalidation failed:', e);
+    }
+
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+  }
+}
