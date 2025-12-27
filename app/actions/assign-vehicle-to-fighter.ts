@@ -72,40 +72,68 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     // Get vehicle cost data to return to frontend for immediate UI update
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
 
-    // Rating delta calculation:
-    // - If vehicle was unassigned and new fighter is active: ADD vehicle cost
-    // - If vehicle was assigned to active fighter and new fighter is inactive: SUBTRACT vehicle cost
-    // - If vehicle was assigned to inactive fighter and new fighter is active: ADD vehicle cost
-    // - Otherwise: no rating change
+    // Calculate rating and wealth deltas using countsTowardRating helper
+    // Key insight: unassigned vehicles count toward wealth, inactive fighter vehicles don't count anywhere
     let ratingDelta = 0;
+    let wealthDelta = 0;
 
-    if (!previousFighterId && isNewFighterActive) {
-      // Case 1: Unassigned → Active fighter (ADD)
-      ratingDelta = vehicleCost;
-    } else if (previousFighterId && wasPreviousFighterActive && !isNewFighterActive) {
-      // Case 2: Active fighter → Inactive fighter (SUBTRACT)
-      ratingDelta = -vehicleCost;
-    } else if (previousFighterId && !wasPreviousFighterActive && isNewFighterActive) {
-      // Case 3: Inactive fighter → Active fighter (ADD)
-      ratingDelta = vehicleCost;
+    const wasInUnassignedPool = !previousFighterId;
+    const wasInRating = previousFighterId && wasPreviousFighterActive;
+    const goesToRating = isNewFighterActive;
+
+    if (wasInUnassignedPool) {
+      // Vehicle was in unassigned pool (counted in wealth)
+      if (goesToRating) {
+        // Unassigned → Active: moves from unassigned pool to rating (both count toward wealth)
+        ratingDelta = vehicleCost;
+        wealthDelta = 0;
+      } else {
+        // Unassigned → Inactive: leaves unassigned pool, not counted anywhere
+        ratingDelta = 0;
+        wealthDelta = -vehicleCost;
+      }
+    } else if (wasInRating) {
+      // Vehicle was assigned to active fighter (counted in rating)
+      if (goesToRating) {
+        // Active → Active: stays in rating
+        ratingDelta = 0;
+        wealthDelta = 0;
+      } else {
+        // Active → Inactive: leaves rating, not counted anywhere
+        ratingDelta = -vehicleCost;
+        wealthDelta = -vehicleCost;
+      }
+    } else {
+      // Vehicle was assigned to inactive fighter (not counted anywhere)
+      if (goesToRating) {
+        // Inactive → Active: enters rating
+        ratingDelta = vehicleCost;
+        wealthDelta = vehicleCost;
+      } else {
+        // Inactive → Inactive: still not counted anywhere
+        ratingDelta = 0;
+        wealthDelta = 0;
+      }
     }
-    // Case 4: Active → Active fighter or Inactive → Inactive fighter: no change
 
-    if (ratingDelta !== 0) {
+    if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       try {
-        const { data: ratingRow } = await supabase
+        const { data: gangRow } = await supabase
           .from('gangs')
-          .select('rating')
+          .select('rating, wealth')
           .eq('id', params.gangId)
           .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
+
         await supabase
           .from('gangs')
-          .update({ rating: Math.max(0, currentRating + ratingDelta) })
+          .update({
+            rating: Math.max(0, (gangRow?.rating ?? 0) + ratingDelta),
+            wealth: Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta)
+          })
           .eq('id', params.gangId);
         invalidateGangRating(params.gangId);
       } catch (e) {
-        console.error('Failed to update gang rating after vehicle assignment:', e);
+        console.error('Failed to update gang rating/wealth after vehicle assignment:', e);
       }
     }
 

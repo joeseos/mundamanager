@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateFighterVehicleData, invalidateGangFinancials, invalidateGangRating } from '@/utils/cache-tags';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface SellVehicleParams {
   vehicleId: string;
@@ -98,41 +99,53 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
       throw new Error(`Failed to update gang credits: ${gangUpdateError?.message}`);
     }
 
-    // Update wealth regardless of assignment status
-    // For assigned vehicles: rating decreases, credits increase
-    // For unassigned vehicles: unassigned_vehicles_value decreases, credits increase
-    // In both cases: wealthDelta = -vehicleCost + sellValue
+    // Check if the vehicle was assigned to an active fighter
+    let wasAssignedToActiveFighter = false;
+    if (isAssigned && vehicle.fighter_id) {
+      const { data: fighterData } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved, captured')
+        .eq('id', vehicle.fighter_id)
+        .single();
+      wasAssignedToActiveFighter = countsTowardRating(fighterData);
+    }
+
+    // Calculate rating and wealth deltas
+    // Key insight: vehicles assigned to inactive fighters are not counted anywhere
+    let ratingDelta = 0;
+    let wealthDelta = 0;
+
+    if (!isAssigned) {
+      // Unassigned vehicle: was in unassigned pool (counted in wealth only)
+      // Selling removes vehicle value from wealth, adds sellValue via credits
+      wealthDelta = -vehicleCost + sellValue;
+    } else if (wasAssignedToActiveFighter) {
+      // Assigned to active fighter: was in rating (counted in wealth via rating)
+      // Selling removes vehicle from rating, adds sellValue via credits
+      ratingDelta = -vehicleCost;
+      wealthDelta = -vehicleCost + sellValue;
+    } else {
+      // Assigned to inactive fighter: wasn't counted anywhere
+      // Selling just adds sellValue via credits
+      wealthDelta = sellValue;
+    }
+
     let updatedGangRating: number | undefined = undefined;
     let updatedWealth: number | undefined = undefined;
 
     try {
-      if (isAssigned && vehicleCost > 0) {
-        // Rating decreases by vehicleCost, credits already increased by sellValue above
-        const ratingDelta = -vehicleCost;
-        const creditsDelta = sellValue;
-        const wealthDelta = ratingDelta + creditsDelta;
-
+      if (ratingDelta !== 0 || wealthDelta !== 0) {
         updatedGangRating = Math.max(0, (gangRow.rating || 0) + ratingDelta);
         updatedWealth = Math.max(0, (gangRow.wealth || 0) + wealthDelta);
 
-        await supabase
-          .from('gangs')
-          .update({
-            rating: updatedGangRating,
-            wealth: updatedWealth
-          })
-          .eq('id', gangId);
-        invalidateGangRating(gangId);
-      } else {
-        // Unassigned vehicle: rating unchanged, wealth still changes
-        const wealthDelta = -vehicleCost + sellValue;
-        updatedWealth = Math.max(0, (gangRow.wealth || 0) + wealthDelta);
+        const updateData: any = { wealth: updatedWealth };
+        if (ratingDelta !== 0) {
+          updateData.rating = updatedGangRating;
+        }
 
         await supabase
           .from('gangs')
-          .update({
-            wealth: updatedWealth
-          })
+          .update(updateData)
           .eq('id', gangId);
         invalidateGangRating(gangId);
       }

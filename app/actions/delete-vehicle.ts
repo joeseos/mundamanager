@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { revalidateTag } from 'next/cache';
 import { invalidateFighterVehicleData, invalidateGangRating, CACHE_TAGS } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 interface DeleteVehicleParams {
   vehicleId: string;
@@ -82,8 +83,34 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
       throw new Error(error.message || 'Failed to delete vehicle');
     }
 
+    // Check if the vehicle was assigned to an active fighter
+    let wasAssignedToActiveFighter = false;
+    if (wasAssigned && vehBefore?.fighter_id) {
+      const { data: fighterData } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved, captured')
+        .eq('id', vehBefore.fighter_id)
+        .single();
+      wasAssignedToActiveFighter = countsTowardRating(fighterData);
+    }
+
+    // Calculate rating and wealth deltas
+    // Key insight: vehicles assigned to inactive fighters are not counted anywhere
+    let ratingDelta = 0;
+    let wealthDelta = 0;
+
+    if (!wasAssigned) {
+      // Unassigned vehicle: was in unassigned pool (counted in wealth only)
+      wealthDelta = -vehicleCost;
+    } else if (wasAssignedToActiveFighter) {
+      // Assigned to active fighter: was in rating (counted in wealth via rating)
+      ratingDelta = -vehicleCost;
+      wealthDelta = -vehicleCost;
+    }
+    // Assigned to inactive fighter: wasn't counted anywhere, no change needed
+
     // Update rating and wealth after vehicle deletion
-    if (vehicleCost > 0) {
+    if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       try {
         const { data: gangRow } = await supabase
           .from('gangs')
@@ -92,15 +119,6 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
           .single();
         const currentRating = (gangRow?.rating ?? 0) as number;
         const currentWealth = (gangRow?.wealth ?? 0) as number;
-
-        let ratingDelta = 0;
-        let wealthDelta = -vehicleCost; // Wealth always decreases by vehicle cost
-
-        if (wasAssigned) {
-          // Assigned vehicle: rating decreases by vehicle cost
-          ratingDelta = -vehicleCost;
-        }
-        // Unassigned vehicle: rating unchanged (ratingDelta = 0)
 
         await supabase
           .from('gangs')
