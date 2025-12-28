@@ -38,6 +38,7 @@ export const CACHE_TAGS = {
   BASE_CAMPAIGN_BASIC: (id: string) => `base-campaign-basic-${id}`,   // name, settings
   BASE_CAMPAIGN_MEMBERS: (id: string) => `base-campaign-members-${id}`, // gang memberships
   BASE_CAMPAIGN_TERRITORIES: (id: string) => `base-campaign-territories-${id}`, // territory control
+  BASE_CAMPAIGN_ALLEGIANCES: (id: string) => `base-campaign-allegiances-${id}`, // campaign allegiances (predefined and custom)
   
   // Vehicle base data
   BASE_VEHICLE_BASIC: (id: string) => `base-vehicle-basic-${id}`,     // vehicle stats

@@ -102,7 +102,7 @@ export async function createCampaignAllegiance(params: CreateCampaignAllegianceP
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
     revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
     // Also invalidate the specific allegiance cache
-    revalidateTag(`campaign-allegiances-${params.campaignId}`);
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId));
 
     return { success: true, data };
   } catch (error) {
@@ -152,7 +152,7 @@ export async function updateCampaignAllegiance(params: UpdateCampaignAllegianceP
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
     revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
     // Also invalidate the specific allegiance cache
-    revalidateTag(`campaign-allegiances-${params.campaignId}`);
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId));
 
     // Invalidate all gangs in this campaign (allegiance name might have changed)
     const { data: campaignGangs } = await supabase
@@ -193,26 +193,21 @@ export async function deleteCampaignAllegiance(params: DeleteCampaignAllegianceP
       };
     }
 
-    // First, get gang IDs that are using this allegiance (before clearing)
+    // Get gang IDs that are using this allegiance (for cache invalidation)
+    // Note: We fetch this right before deletion to minimize race condition window.
+    // The database constraint ON DELETE SET NULL will automatically clear the allegiance
+    // from any gangs that reference it atomically, including any assigned between
+    // this fetch and deletion. This ensures data integrity at the database level.
     const { data: affectedGangs } = await supabase
       .from('campaign_gangs')
       .select('gang_id')
       .eq('campaign_id', params.campaignId)
       .eq('campaign_allegiance_id', params.allegianceId);
 
-    // Clear this allegiance from all gangs using it in this campaign
-    const { error: clearError } = await supabase
-      .from('campaign_gangs')
-      .update({
-        campaign_allegiance_id: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('campaign_id', params.campaignId)
-      .eq('campaign_allegiance_id', params.allegianceId);
-
-    if (clearError) throw clearError;
-
-    // Now delete the allegiance
+    // Delete the allegiance - the database constraint ON DELETE SET NULL will automatically
+    // set campaign_allegiance_id to NULL for all referencing rows atomically.
+    // This eliminates the race condition: even if a gang is assigned this allegiance
+    // between the fetch above and this delete, the database will handle it correctly.
     const { error } = await supabase
       .from('campaign_allegiances')
       .delete()
@@ -221,7 +216,10 @@ export async function deleteCampaignAllegiance(params: DeleteCampaignAllegianceP
 
     if (error) throw error;
 
-    // Invalidate caches for affected gangs
+    // Invalidate caches for affected gangs we found.
+    // Note: The database constraint ensures all gangs (including any assigned during
+    // the race window) are properly cleared. Cache invalidation here is for UI updates.
+    // Any gangs assigned during the race window will have correct data on next fetch.
     if (affectedGangs) {
       affectedGangs.forEach(gang => {
         revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id));
@@ -232,7 +230,7 @@ export async function deleteCampaignAllegiance(params: DeleteCampaignAllegianceP
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
     revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
     // Also invalidate the specific allegiance cache
-    revalidateTag(`campaign-allegiances-${params.campaignId}`);
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId));
 
     return { success: true };
   } catch (error) {

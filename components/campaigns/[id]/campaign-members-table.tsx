@@ -914,7 +914,7 @@ export default function MembersTable({
               </th>
               {availableAllegiances.length > 0 && (
                 <th 
-                  className="px-2 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                  className="px-4 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('allegiance')}
                 >
                   <div className="flex items-center gap-1">
@@ -1144,25 +1144,24 @@ export default function MembersTable({
                           {member.gangs[0]?.allegiance?.name ? (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                              className={`text-xs flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted group' : ''}`}
                               onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
                               title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
                             >
                               {member.gangs[0].allegiance.name}
                               {canEditAllegiance(member) && (
-                                <LuPencil className="size-3" />
+                                <LuPencil className="size-3 text-gray-400 group-hover:text-muted-foreground" />
                               )}
                             </Badge>
                           ) : (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                              className={`text-xs flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted group' : ''}`}
                               onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
                               title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
                             >
-                              -
                               {canEditAllegiance(member) && (
-                                <LuPencil className="size-3" />
+                                <LuPencil className="size-3 text-gray-400 group-hover:text-muted-foreground" />
                               )}
                             </Badge>
                           )}
@@ -1357,25 +1356,24 @@ export default function MembersTable({
                       {member.gangs[0]?.allegiance?.name ? (
                         <Badge 
                           variant="outline" 
-                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted group' : ''}`}
                           onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
                           title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
                         >
                           {member.gangs[0].allegiance.name}
                           {canEditAllegiance(member) && (
-                            <LuPencil className="size-3" />
+                            <LuPencil className="size-3 text-gray-400 group-hover:text-muted-foreground" />
                           )}
                         </Badge>
                       ) : (
                         <Badge 
                           variant="outline" 
-                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted group' : ''}`}
                           onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
                           title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
                         >
-                          -
                           {canEditAllegiance(member) && (
-                            <LuPencil className="size-3" />
+                            <LuPencil className="size-3 text-gray-400 group-hover:text-muted-foreground" />
                           )}
                         </Badge>
                       )}

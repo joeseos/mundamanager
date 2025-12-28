@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
-import { createClient } from '@/utils/supabase/client'
 import { Checkbox } from "@/components/ui/checkbox";
-import { campaignRank } from '@/utils/campaignRank';
+import { campaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign } from "@/app/actions/campaigns/[id]/campaign-territories";
 
 interface Territory {

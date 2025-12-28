@@ -11,7 +11,7 @@ import {
   updateCampaignAllegiance, 
   deleteCampaignAllegiance 
 } from "@/app/actions/campaigns/[id]/campaign-allegiances"
-import { LuTrash2, LuPencil, LuPlus } from 'react-icons/lu'
+import { LuTrash2, LuPencil } from 'react-icons/lu'
 
 interface Allegiance {
   id: string;
@@ -348,7 +348,8 @@ export default function CampaignAllegiancesActions({
         <Input
           value={editAllegianceName}
           onChange={(e) => setEditAllegianceName(e.target.value)}
-          placeholder="Enter allegiance name"
+          placeholder="Enter allegiance name (max 50 characters)"
+          maxLength={50}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleEdit()
