@@ -16,7 +16,8 @@ import {
   getCampaignTypes,
   getAllTerritories,
   getAllTerritoriesWithCustom,
-  getCampaignGangsForModal
+  getCampaignGangsForModal,
+  getCampaignAllegiances
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -86,7 +87,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignTriumphs,
       campaignTypes,
       allTerritories,
-      tradingPostTypesResult
+      tradingPostTypesResult,
+      campaignAllegiances
     ] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
@@ -94,7 +96,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       supabase
         .from('trading_post_types')
         .select('id, trading_post_name')
-        .order('trading_post_name')
+        .order('trading_post_name'),
+      getCampaignAllegiances(params.id, supabase)
     ]);
 
     const tradingPostTypes = tradingPostTypesResult.data || [];
@@ -138,6 +141,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
           tradingPostTypes={tradingPostTypes}
+          campaignAllegiances={campaignAllegiances}
         />
       </CampaignErrorBoundary>
     );

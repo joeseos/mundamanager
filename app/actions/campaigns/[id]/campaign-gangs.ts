@@ -8,6 +8,8 @@ import { getAuthenticatedUser } from '@/utils/auth';
 export interface AddGangToCampaignDirectParams {
   campaignId: string;
   gangId: string;
+  allegianceId?: string | null;
+  isCustomAllegiance?: boolean;
 }
 
 export interface RemoveGangFromCampaignDirectParams {
@@ -72,6 +74,18 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
       campaignMemberId = newMember.id;
     }
     
+    // Prepare allegiance fields
+    const allegianceData: any = {};
+    if (params.allegianceId) {
+      if (params.isCustomAllegiance) {
+        allegianceData.campaign_allegiance_id = params.allegianceId;
+        allegianceData.campaign_type_allegiance_id = null;
+      } else {
+        allegianceData.campaign_type_allegiance_id = params.allegianceId;
+        allegianceData.campaign_allegiance_id = null;
+      }
+    }
+
     // Add the gang to the campaign
     const now = new Date().toISOString();
     const { error: insertError } = await supabase
@@ -84,7 +98,8 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
         status: 'ACCEPTED',
         invited_at: now,
         joined_at: now,
-        invited_by: user.id
+        invited_by: user.id,
+        ...allegianceData
       });
     
     if (insertError) throw insertError;

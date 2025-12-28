@@ -2,18 +2,20 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/utils/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import Modal from "@/components/ui/modal"
 import Link from 'next/link'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { 
   addGangToCampaign, 
   removeMemberFromCampaign, 
   removeGangFromCampaign, 
   updateMemberRole 
 } from "@/app/actions/campaigns/[id]/campaign-members"
-import { LuTrash2 } from 'react-icons/lu'
+import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-allegiances"
+import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
 
@@ -52,6 +54,11 @@ interface Member {
     sustenance?: number | null;
     salvage?: number | null;
     territory_count?: number;
+    allegiance?: {
+      id: string;
+      name: string;
+      is_custom: boolean;
+    } | null;
   }[];
   index?: number;
 }
@@ -113,6 +120,7 @@ interface MembersTableProps {
   hasExplorationPoints?: boolean;
   hasMeat?: boolean;
   hasScavengingRolls?: boolean;
+  initialAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -138,7 +146,8 @@ export default function MembersTable({
   isCampaignOwner,
   hasExplorationPoints = false,
   hasMeat = false,
-  hasScavengingRolls = false
+  hasScavengingRolls = false,
+  initialAllegiances = []
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showGangModal, setShowGangModal] = useState(false)
@@ -146,6 +155,7 @@ export default function MembersTable({
   const [selectedMemberIndex, setSelectedMemberIndex] = useState<number | undefined>(undefined)
   const [userGangs, setUserGangs] = useState<Gang[]>([])
   const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
+  const [selectedAllegiance, setSelectedAllegiance] = useState<{ id: string; is_custom: boolean } | null>(null)
   const [showRemoveGangModal, setShowRemoveGangModal] = useState(false)
   const [gangToRemove, setGangToRemove] = useState<GangToRemove | null>(null)
   const [showRoleModal, setShowRoleModal] = useState(false)
@@ -157,8 +167,27 @@ export default function MembersTable({
   const [sortField, setSortField] = useState<string>('rating')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   
+  // Allegiance state
+  const [editingAllegiance, setEditingAllegiance] = useState<{ gangId: string; memberIndex: number } | null>(null)
+  
   const supabase = createClient()
   const { toast } = useToast()
+  
+  // Fetch allegiances using TanStack Query
+  // Shares the same query key as campaign-allegiances-actions to see optimistic updates
+  const { data: availableAllegiances = initialAllegiances } = useQuery({
+    queryKey: ['campaign-allegiances', campaignId],
+    queryFn: async () => {
+      const response = await fetch(`/api/campaigns/${campaignId}/allegiances`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch allegiances')
+      }
+      return response.json() as Promise<Array<{ id: string; allegiance_name: string; is_custom: boolean }>>
+    },
+    initialData: initialAllegiances, // Use server-provided data as initial data
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,  // 10 minutes
+  })
 
   useEffect(() => {
     setCurrentUserId(userId || null);
@@ -239,6 +268,10 @@ export default function MembersTable({
         case 'territory_count':
           aValue = a.gangs[0]?.territory_count ?? -1;
           bValue = b.gangs[0]?.territory_count ?? -1;
+          break;
+        case 'allegiance':
+          aValue = a.gangs[0]?.allegiance?.name || '';
+          bValue = b.gangs[0]?.allegiance?.name || '';
           break;
         default:
           aValue = a.gangs[0]?.rating ?? -1;
@@ -335,12 +368,16 @@ export default function MembersTable({
       userId: string; 
       campaignMemberId?: string; 
       gangData: Gang;
+      allegianceId?: string | null;
+      isCustomAllegiance?: boolean;
     }) => {
       const result = await addGangToCampaign({
         campaignId,
         gangId: variables.gangId,
         userId: variables.userId,
-        campaignMemberId: variables.campaignMemberId
+        campaignMemberId: variables.campaignMemberId,
+        allegianceId: variables.allegianceId,
+        isCustomAllegiance: variables.isCustomAllegiance
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to add gang to campaign');
@@ -350,6 +387,11 @@ export default function MembersTable({
     onMutate: async (variables) => {
       // Use variables.gangData instead of closure to avoid stale data
       const { gangData } = variables;
+
+      // Get allegiance data if provided
+      const allegianceData = variables.allegianceId && availableAllegiances.length > 0
+        ? availableAllegiances.find(a => a.id === variables.allegianceId)
+        : null;
 
       // Create optimistic gang object using all available data from variables
       const optimisticGang = {
@@ -368,15 +410,16 @@ export default function MembersTable({
         power: gangData.power ?? undefined,
         sustenance: gangData.sustenance ?? undefined,
         salvage: gangData.salvage ?? undefined,
-        territory_count: 0 // Will be updated when server responds
+        territory_count: 0, // Will be updated when server responds
+        allegiance: allegianceData ? {
+          id: allegianceData.id,
+          name: allegianceData.allegiance_name,
+          is_custom: allegianceData.is_custom
+        } : null
       };
 
-      // Find the member by campaignMemberId if available, fallback to userId
-      const memberIndex = members.findIndex(m =>
-        variables.campaignMemberId
-          ? m.id === variables.campaignMemberId
-          : m.user_id === variables.userId
-      );
+      // Find the member index in the members array
+      const memberIndex = members.findIndex(m => m.user_id === variables.userId);
       if (memberIndex === -1) return {};
 
       // Create updated member with the new gang
@@ -420,6 +463,7 @@ export default function MembersTable({
       // Close modal
       setShowGangModal(false);
       setSelectedGang(null);
+      setSelectedAllegiance(null);
       setSelectedMember(null);
     },
     onError: (error, variables, context) => {
@@ -450,7 +494,9 @@ export default function MembersTable({
       gangId: selectedGang.id,
       userId: selectedMember.user_id,
       campaignMemberId: selectedMember.id,
-      gangData: selectedGang
+      gangData: selectedGang,
+      allegianceId: selectedAllegiance?.id || null,
+      isCustomAllegiance: selectedAllegiance?.is_custom || false
     });
     
     return true;
@@ -652,8 +698,29 @@ export default function MembersTable({
       {userGangs.length === 0 && (
         <p className="text-sm text-muted-foreground text-center">No gangs available for this player.</p>
       )}
+      {selectedGang && !selectedGang.isInCampaign && availableAllegiances.length > 0 && (
+        <div className="space-y-2 pt-2 border-t">
+          <label className="text-sm font-medium">Allegiance (optional):</label>
+          <select
+            className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-black"
+            value={selectedAllegiance?.id || ''}
+            onChange={(e) => {
+              const selectedId = e.target.value || null;
+              const allegiance = availableAllegiances.find(a => a.id === selectedId);
+              setSelectedAllegiance(allegiance ? { id: allegiance.id, is_custom: allegiance.is_custom } : null);
+            }}
+          >
+            <option value="">No Allegiance</option>
+            {availableAllegiances.map(allegiance => (
+              <option key={allegiance.id} value={allegiance.id}>
+                {allegiance.allegiance_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
-  ), [userGangs, selectedGang]);
+  ), [userGangs, selectedGang, availableAllegiances, selectedAllegiance]);
 
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">
@@ -693,6 +760,112 @@ export default function MembersTable({
       </p>
     </div>
   ), [gangToRemove]);
+
+  // Handler for updating gang allegiance with proper immutability
+  const handleAllegianceChange = async (gangId: string, allegianceId: string | null, isCustom: boolean, memberIndex: number) => {
+    // Store previous state for rollback
+    const previousMembers = members.map(member => ({
+      ...member,
+      gangs: member.gangs.map(gang => ({ ...gang }))
+    }));
+
+    // Find the member and gang that need updating
+    const memberIndexToUpdate = members.findIndex(member => 
+      member.gangs.some(g => g.id === gangId)
+    );
+
+    if (memberIndexToUpdate === -1) {
+      // Gang not found, just refresh
+      onMemberUpdate({});
+      setEditingAllegiance(null);
+      return;
+    }
+
+    const memberToUpdate = members[memberIndexToUpdate];
+    
+    // Get the allegiance data if provided
+    const allegianceData = allegianceId 
+      ? availableAllegiances.find(a => a.id === allegianceId)
+      : null;
+
+    // Create updated member with immutable updates
+    // Use map() to ensure we create new objects at every level
+    // Explicitly preserve the member id to ensure proper matching in parent component
+    const updatedMember: Member = {
+      ...memberToUpdate,
+      id: memberToUpdate.id, // Explicitly preserve member id for parent component matching
+      gangs: memberToUpdate.gangs.map(gang => {
+        // Only update the specific gang that matches gangId
+        if (gang.id === gangId) {
+          return {
+            ...gang,
+            allegiance: allegianceData 
+              ? {
+                  id: allegianceData.id,
+                  name: allegianceData.allegiance_name,
+                  is_custom: allegianceData.is_custom
+                }
+              : null
+          };
+        }
+        // Return other gangs unchanged (but still create new object for immutability)
+        return { ...gang };
+      })
+    };
+
+    // Optimistic update: apply changes immediately
+    onMemberUpdate({ updatedMember });
+    setEditingAllegiance(null);
+
+    try {
+      // Then make the server call
+      const result = await updateGangAllegiance({
+        gangId,
+        campaignId,
+        allegianceId,
+        isCustom
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update allegiance');
+      }
+
+      // Server call succeeded - the optimistic update was correct
+      // Cache invalidation will ensure fresh data on next render
+      toast({
+        description: "Allegiance updated successfully"
+      });
+    } catch (error) {
+      console.error('Error updating allegiance:', error);
+      
+      // Rollback: restore previous state
+      // Find the previous member state
+      const previousMember = previousMembers.find(member => 
+        member.gangs.some(g => g.id === gangId)
+      );
+      
+      if (previousMember) {
+        onMemberUpdate({ updatedMember: previousMember });
+      } else {
+        // If we can't find the previous state, trigger a full refresh
+        onMemberUpdate({});
+      }
+
+      toast({
+        variant: "destructive",
+        description: error instanceof Error ? error.message : "Failed to update allegiance"
+      });
+    }
+  };
+
+  // Check if user can edit allegiance for a gang
+  const canEditAllegiance = (member: Member) => {
+    // Gang owner can edit their own gang's allegiance
+    if (member.user_id === currentUserId) return true;
+    // Arbitrators and owners can edit any gang's allegiance
+    if (isCampaignAdmin || isCampaignOwner) return true;
+    return false;
+  };
 
   return (
     <div>
@@ -739,6 +912,21 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {availableAllegiances.length > 0 && (
+                <th 
+                  className="px-2 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                  onClick={() => handleSort('allegiance')}
+                >
+                  <div className="flex items-center gap-1">
+                    Allegiance
+                    {sortField === 'allegiance' && (
+                      <span className="text-muted-foreground">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </th>
+              )}
               <th
                 className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('rating')}
@@ -924,6 +1112,67 @@ export default function MembersTable({
                     <span className="text-xs font-medium">{member.profile.username}</span>
                   </div>
                 </td>
+                {availableAllegiances.length > 0 && (
+                  <td className="px-2 py-2 max-w-[8rem]">
+                    {member.gangs[0]?.id ? (
+                      editingAllegiance?.gangId === member.gangs[0].id ? (
+                        <select
+                          className="w-full px-2 py-1 text-xs rounded-md border border-border bg-muted focus:outline-none focus:ring-2 focus:ring-black"
+                          value={member.gangs[0]?.allegiance?.id || ''}
+                          onChange={(e) => {
+                            const selectedId = e.target.value || null;
+                            const selectedAllegiance = availableAllegiances.find(a => a.id === selectedId);
+                            handleAllegianceChange(
+                              member.gangs[0].id,
+                              selectedId,
+                              selectedAllegiance?.is_custom || false,
+                              index
+                            );
+                          }}
+                          onBlur={() => setEditingAllegiance(null)}
+                          autoFocus
+                        >
+                          <option value="">No Allegiance</option>
+                          {availableAllegiances.map(allegiance => (
+                            <option key={allegiance.id} value={allegiance.id}>
+                              {allegiance.allegiance_name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          {member.gangs[0]?.allegiance?.name ? (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                              onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
+                              title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
+                            >
+                              {member.gangs[0].allegiance.name}
+                              {canEditAllegiance(member) && (
+                                <LuPencil className="size-3" />
+                              )}
+                            </Badge>
+                          ) : (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                              onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
+                              title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
+                            >
+                              -
+                              {canEditAllegiance(member) && (
+                                <LuPencil className="size-3" />
+                              )}
+                            </Badge>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </td>
+                )}
                 <td className="px-2 py-2 text-right max-w-[2rem]">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.rating || "-"}
@@ -1075,6 +1324,68 @@ export default function MembersTable({
                 {member.gangs[0]?.gang_type || "-"}
               </span>
             </div>
+            {availableAllegiances.length > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Allegiance</span>
+                {member.gangs[0]?.id ? (
+                  editingAllegiance?.gangId === member.gangs[0].id ? (
+                    <select
+                      className="px-2 py-1 text-sm rounded-md border border-border bg-muted focus:outline-none focus:ring-2 focus:ring-black"
+                      value={member.gangs[0]?.allegiance?.id || ''}
+                      onChange={(e) => {
+                        const selectedId = e.target.value || null;
+                        const selectedAllegiance = availableAllegiances.find(a => a.id === selectedId);
+                        handleAllegianceChange(
+                          member.gangs[0].id,
+                          selectedId,
+                          selectedAllegiance?.is_custom || false,
+                          index
+                        );
+                      }}
+                      onBlur={() => setEditingAllegiance(null)}
+                      autoFocus
+                    >
+                      <option value="">No Allegiance</option>
+                      {availableAllegiances.map(allegiance => (
+                        <option key={allegiance.id} value={allegiance.id}>
+                          {allegiance.allegiance_name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      {member.gangs[0]?.allegiance?.name ? (
+                        <Badge 
+                          variant="outline" 
+                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                          onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
+                          title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
+                        >
+                          {member.gangs[0].allegiance.name}
+                          {canEditAllegiance(member) && (
+                            <LuPencil className="size-3" />
+                          )}
+                        </Badge>
+                      ) : (
+                        <Badge 
+                          variant="outline" 
+                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted' : ''}`}
+                          onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
+                          title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
+                        >
+                          -
+                          {canEditAllegiance(member) && (
+                            <LuPencil className="size-3" />
+                          )}
+                        </Badge>
+                      )}
+                    </div>
+                  )
+                ) : (
+                  <span className="text-sm text-muted-foreground">-</span>
+                )}
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Rating</span>
               <span className="text-sm text-muted-foreground">
@@ -1151,6 +1462,7 @@ export default function MembersTable({
           onClose={() => {
             setShowGangModal(false);
             setSelectedGang(null);
+            setSelectedAllegiance(null);
             setSelectedMember(null);
           }}
           onConfirm={handleAddGang}
