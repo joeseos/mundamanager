@@ -47,6 +47,7 @@ BEGIN
 
   -- Get highest campaign role for this user across all campaigns containing this gang
   -- Role hierarchy: OWNER > ARBITRATOR > MEMBER
+  -- Only consider ACCEPTED gang assignments (security fix for PR 1)
   SELECT
     CASE
       WHEN bool_or(cm.role = 'OWNER') THEN 'OWNER'
@@ -56,7 +57,8 @@ BEGIN
     END INTO v_campaign_role
   FROM campaign_gangs cg
   INNER JOIN campaign_members cm ON cm.campaign_id = cg.campaign_id AND cm.user_id = p_user_id
-  WHERE cg.gang_id = p_gang_id;
+  WHERE cg.gang_id = p_gang_id
+    AND cg.status = 'ACCEPTED';
 
   -- Determine campaign permission flags
   v_is_campaign_owner := (v_campaign_role = 'OWNER');

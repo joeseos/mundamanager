@@ -958,6 +958,8 @@ export default function Gang({
             scavengingRolls={scavengingRolls}
             explorationPoints={explorationPoints}
             power={power}
+            isGangOwner={userPermissions?.isOwner}
+            isAdmin={userPermissions?.isAdmin}
             sustenance={sustenance}
             salvage={salvage}
             alignment={alignment}

@@ -47,24 +47,33 @@ export interface AddMemberToCampaignParams {
 export async function addGangToCampaign(params: AddGangToCampaignParams) {
   try {
     const supabase = await createClient();
-    
+
     // Authenticate user
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
     const { campaignId, gangId, userId, campaignMemberId } = params;
-    
+
     let targetMemberId = campaignMemberId;
+    let insertedCampaignGangId: string | null = null;
+    const now = new Date().toISOString();
 
     if (campaignMemberId) {
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('campaign_gangs')
         .insert({
           campaign_id: campaignId,
           gang_id: gangId,
           user_id: userId,
-          campaign_member_id: campaignMemberId
-        });
+          campaign_member_id: campaignMemberId,
+          status: 'ACCEPTED',
+          invited_at: now,
+          joined_at: now,
+          invited_by: user.id
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
+      insertedCampaignGangId = insertedData?.id || null;
     } else {
       const { data: memberEntries, error: fetchError } = await supabase
         .from('campaign_members')
@@ -80,16 +89,23 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 
       targetMemberId = memberEntries[0].id;
 
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('campaign_gangs')
         .insert({
           campaign_id: campaignId,
           gang_id: gangId,
           user_id: userId,
-          campaign_member_id: targetMemberId
-        });
+          campaign_member_id: targetMemberId,
+          status: 'ACCEPTED',
+          invited_at: now,
+          joined_at: now,
+          invited_by: user.id
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
+      insertedCampaignGangId = insertedData?.id || null;
     }
 
     try {
@@ -135,12 +151,12 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
       gangId: gangId
     });
 
-    return { success: true };
+    return { success: true, data: { id: insertedCampaignGangId } };
   } catch (error) {
     console.error('Error adding gang to campaign:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to add gang to campaign' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to add gang to campaign'
     };
   }
 }
