@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -852,69 +853,20 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
 export async function getCampaignAllegiances(campaignId: string, supabase: SupabaseClient) {
   return unstable_cache(
     async () => {
-      // First, get the campaign to determine its type
-      const { data: campaign, error: campaignError } = await supabase
-        .from('campaigns')
-        .select('campaign_type_id')
-        .eq('id', campaignId)
-        .single();
-
-      if (campaignError) throw campaignError;
-      if (!campaign || !campaign.campaign_type_id) {
-        return [];
+      try {
+        return await fetchCampaignAllegiances(campaignId, supabase);
+      } catch (error) {
+        // Return empty array if campaign not found (graceful degradation for server-side)
+        if (error instanceof Error && error.message === 'Campaign not found') {
+          return [];
+        }
+        // Re-throw other errors
+        throw error;
       }
-
-      // Get the campaign type to check if it's custom
-      const { data: campaignType, error: typeError } = await supabase
-        .from('campaign_types')
-        .select('campaign_type_name')
-        .eq('id', campaign.campaign_type_id)
-        .single();
-
-      if (typeError) throw typeError;
-      
-      const isCustomCampaign = campaignType?.campaign_type_name === 'Custom';
-
-      let allegiances: Array<{ id: string; allegiance_name: string; is_custom: boolean }> = [];
-
-      // Always fetch predefined campaign type allegiances (if not custom campaign)
-      if (!isCustomCampaign) {
-        const { data: typeAllegiances, error: typeAllegianceError } = await supabase
-          .from('campaign_type_allegiances')
-          .select('id, allegiance_name')
-          .eq('campaign_type_id', campaign.campaign_type_id)
-          .order('allegiance_name', { ascending: true });
-
-        if (typeAllegianceError) throw typeAllegianceError;
-        
-        allegiances = (typeAllegiances || []).map(a => ({
-          id: a.id,
-          allegiance_name: a.allegiance_name,
-          is_custom: false
-        }));
-      }
-
-      // Always fetch custom campaign allegiances (for all campaign types)
-      const { data: customAllegiances, error: customError } = await supabase
-        .from('campaign_allegiances')
-        .select('id, allegiance_name')
-        .eq('campaign_id', campaignId)
-        .order('allegiance_name', { ascending: true });
-
-      if (customError) throw customError;
-      
-      // Add custom allegiances to the list
-      const customAllegiancesList = (customAllegiances || []).map(a => ({
-        id: a.id,
-        allegiance_name: a.allegiance_name,
-        is_custom: true
-      }));
-      
-      return [...allegiances, ...customAllegiancesList];
     },
-    [`campaign-allegiances-${campaignId}`],
+    [CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
     {
-      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), `campaign-${campaignId}`],
+      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
       revalidate: false
     }
   )();

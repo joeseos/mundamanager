@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
-import { campaignRank } from '@/utils/campaignRank'
+import { campaignRank } from '@/utils/campaigns/campaignRank'
 import { ImInfo } from "react-icons/im"
 import { Tooltip } from 'react-tooltip'
 import React from "react"
