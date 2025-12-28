@@ -371,8 +371,12 @@ export default function MembersTable({
         territory_count: 0 // Will be updated when server responds
       };
 
-      // Find the member index in the members array
-      const memberIndex = members.findIndex(m => m.user_id === variables.userId);
+      // Find the member by campaignMemberId if available, fallback to userId
+      const memberIndex = members.findIndex(m =>
+        variables.campaignMemberId
+          ? m.id === variables.campaignMemberId
+          : m.user_id === variables.userId
+      );
       if (memberIndex === -1) return {};
 
       // Create updated member with the new gang

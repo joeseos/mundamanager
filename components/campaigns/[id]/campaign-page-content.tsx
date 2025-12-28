@@ -702,11 +702,11 @@ export default function CampaignPageContent({
                       )
                     }));
                   } else if (updatedMember) {
-                    // Optimistically update a specific member
+                    // Optimistically update a specific member (match by id, not user_id, for duplicate users)
                     setCampaignData(prev => ({
                       ...prev,
-                      members: prev.members.map(member => 
-                        member.user_id === updatedMember.user_id ? updatedMember : member
+                      members: prev.members.map(member =>
+                        member.id === updatedMember.id ? updatedMember : member
                       )
                     }));
                   } else {
