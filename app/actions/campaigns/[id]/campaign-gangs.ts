@@ -73,13 +73,18 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
     }
     
     // Add the gang to the campaign
+    const now = new Date().toISOString();
     const { error: insertError } = await supabase
       .from('campaign_gangs')
       .insert({
         campaign_id: campaignId,
         gang_id: gangId,
         user_id: userId,
-        campaign_member_id: campaignMemberId
+        campaign_member_id: campaignMemberId,
+        status: 'ACCEPTED',
+        invited_at: now,
+        joined_at: now,
+        invited_by: user.id
       });
     
     if (insertError) throw insertError;

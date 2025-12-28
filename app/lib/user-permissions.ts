@@ -45,11 +45,12 @@ export class PermissionService {
   async getUserRoleInGangCampaigns(userId: string, gangId: string): Promise<'OWNER' | 'ARBITRATOR' | 'MEMBER' | null> {
     const supabase = await createClient();
     
-    // First get campaign IDs for this gang
+    // First get campaign IDs for this gang (only ACCEPTED assignments)
     const { data: campaignGangs, error: campaignGangsError } = await supabase
       .from('campaign_gangs')
       .select('campaign_id')
-      .eq('gang_id', gangId);
+      .eq('gang_id', gangId)
+      .eq('status', 'ACCEPTED');
 
     if (campaignGangsError || !campaignGangs || campaignGangs.length === 0) {
       return null;

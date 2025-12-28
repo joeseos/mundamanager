@@ -393,12 +393,26 @@ export default function MembersTable({
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      // Server action handles cache invalidation
-      // The real data will replace our optimistic update
+      // Update the optimistic gang with the real campaign_gang_id from server
+      const realId = result.data?.id;
+      if (realId && context?.updatedMember?.gangs) {
+        const updatedGangs = context.updatedMember.gangs.map(gang =>
+          gang.id === variables.gangId
+            ? { ...gang, campaign_gang_id: realId }
+            : gang
+        );
+        onMemberUpdate({
+          updatedMember: {
+            ...context.updatedMember,
+            gangs: updatedGangs
+          }
+        });
+      }
+
       toast({
         description: `Added ${context?.gangName} to the campaign`
       });
-      
+
       // Close modal
       setShowGangModal(false);
       setSelectedGang(null);

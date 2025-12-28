@@ -54,7 +54,7 @@ interface GangEditModalProps {
   // Modal control
   isOpen: boolean;
   onClose: () => void;
-  
+
   // Gang data
   gangId: string;
   gangName: string;
@@ -83,6 +83,10 @@ interface GangEditModalProps {
 
   // Campaign features
   campaigns?: Campaign[];
+
+  // Permissions - controls Delete button visibility
+  isGangOwner?: boolean;
+  isAdmin?: boolean;
 
   // Callbacks
   onSave: (updates: GangUpdates) => Promise<boolean>;
@@ -127,6 +131,8 @@ export default function GangEditModal({
   gangTypeHasOrigin,
   hidden,
   campaigns,
+  isGangOwner = false,
+  isAdmin = false,
   onSave
 }: GangEditModalProps) {
   const { toast } = useToast();
@@ -813,8 +819,11 @@ export default function GangEditModal({
           </div>
         )}
       </div>
-      
-      <DeleteGangButton gangId={gangId} />
+
+      {/* Only gang owners and admins can delete gangs - not campaign owners/arbitrators */}
+      {(isGangOwner || isAdmin) && (
+        <DeleteGangButton gangId={gangId} />
+      )}
     </div>
   );
 
