@@ -11,6 +11,8 @@ import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
 import { tradingPostRank } from "@/utils/tradingPostRank";
+import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
+import { Badge } from "@/components/ui/badge";
 
 const RESOURCE_OPTIONS = [
   { key: 'explorationEnabled', label: 'Exploration Points' },
@@ -40,6 +42,8 @@ interface EditCampaignModalProps {
     has_salvage: boolean;
     status: string | null;
     trading_posts: string[];
+    campaign_type_name?: string;
+    campaign_type_id?: string;
   };
   onClose: () => void;
   onSave: (updatedData: {
@@ -55,7 +59,14 @@ interface EditCampaignModalProps {
     status: string;
   }) => Promise<boolean>;
   isOwner: boolean;
+  isArbitrator?: boolean;
+  isAdmin?: boolean;
   tradingPostTypes?: TradingPostType[];
+  campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
+  onAllegiancesChange?: () => void;
+  onMembersUpdate?: (allegianceId: string) => void;
+  onAllegianceRenamed?: (allegianceId: string, newName: string) => void;
+  predefinedAllegiances?: Array<{ id: string; allegiance_name: string }>;
 }
 
 export default function CampaignEditModal({
@@ -64,7 +75,14 @@ export default function CampaignEditModal({
   onClose,
   onSave,
   isOwner,
+  isArbitrator = false,
+  isAdmin = false,
   tradingPostTypes = [],
+  campaignAllegiances = [],
+  onAllegiancesChange,
+  onMembersUpdate,
+  onAllegianceRenamed,
+  predefinedAllegiances = [],
 }: EditCampaignModalProps) {
   // Local state for form values - initialized from props
   const [formValues, setFormValues] = useState({
@@ -335,6 +353,37 @@ export default function CampaignEditModal({
               />
 
             </div>
+
+            {/* Allegiances Section */}
+            <div>
+              <h3 className="text-sm font-medium">Allegiances</h3>
+              {/* Default Allegiances Section (for non-custom campaigns) */}
+              {predefinedAllegiances.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  <span className="text-xs text-muted-foreground">Predefined allegiances:</span>
+                  {predefinedAllegiances.map((allegiance: { id: string; allegiance_name: string }) => (
+                    <Badge key={allegiance.id} variant="outline">
+                      {allegiance.allegiance_name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Custom Allegiances Management Section */}
+            {(isOwner || isArbitrator || isAdmin) && (
+              <div>
+                <CampaignAllegiancesActions
+                  campaignId={campaignData.id}
+                  isCustomCampaign={campaignData.campaign_type_name === 'Custom'}
+                  canManage={true}
+                  initialAllegiances={campaignAllegiances.filter(a => a.is_custom)}
+                  onAllegiancesChange={onAllegiancesChange}
+                  onMembersUpdate={onMembersUpdate}
+                  onAllegianceRenamed={onAllegianceRenamed}
+                />
+              </div>
+            )}
 
             {isOwner && (
               <Button

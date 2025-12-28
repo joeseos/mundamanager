@@ -133,5 +133,12 @@ export interface Member {
     power?: number | null;
     sustenance?: number | null;
     salvage?: number | null;
+
+    // Allegiance information
+    allegiance?: {
+      id: string;
+      name: string;
+      is_custom: boolean;
+    } | null;
   }[];
 }

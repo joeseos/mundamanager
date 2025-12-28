@@ -11,6 +11,8 @@ export interface AddGangToCampaignParams {
   gangId: string;
   userId: string;
   campaignMemberId?: string;
+  allegianceId?: string | null;
+  isCustomAllegiance?: boolean;
 }
 
 export interface RemoveMemberParams {
@@ -50,11 +52,23 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
 
     // Authenticate user
     const user = await getAuthenticatedUser(supabase);
-    const { campaignId, gangId, userId, campaignMemberId } = params;
+    const { campaignId, gangId, userId, campaignMemberId, allegianceId, isCustomAllegiance } = params;
 
     let targetMemberId = campaignMemberId;
     let insertedCampaignGangId: string | null = null;
     const now = new Date().toISOString();
+
+    // Prepare allegiance fields
+    const allegianceData: any = {};
+    if (allegianceId) {
+      if (isCustomAllegiance) {
+        allegianceData.campaign_allegiance_id = allegianceId;
+        allegianceData.campaign_type_allegiance_id = null;
+      } else {
+        allegianceData.campaign_type_allegiance_id = allegianceId;
+        allegianceData.campaign_allegiance_id = null;
+      }
+    }
 
     if (campaignMemberId) {
       const { data: insertedData, error } = await supabase
@@ -67,7 +81,8 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
           status: 'ACCEPTED',
           invited_at: now,
           joined_at: now,
-          invited_by: user.id
+          invited_by: user.id,
+          ...allegianceData
         })
         .select('id')
         .single();
@@ -99,7 +114,8 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
           status: 'ACCEPTED',
           invited_at: now,
           joined_at: now,
-          invited_by: user.id
+          invited_by: user.id,
+          ...allegianceData
         })
         .select('id')
         .single();

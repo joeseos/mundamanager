@@ -103,7 +103,9 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       gang_id,
       user_id,
       campaign_member_id,
-      status
+      status,
+      campaign_type_allegiance_id,
+      campaign_allegiance_id
     `)
     .eq('campaign_id', campaignId);
 
@@ -134,6 +136,39 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
     if (gangsDetailError) throw gangsDetailError;
     gangsData = gangs || [];
+  }
+
+  // Fetch allegiance data separately
+  const typeAllegianceIds = campaignGangs?.map(cg => cg.campaign_type_allegiance_id).filter(Boolean) || [];
+  const customAllegianceIds = campaignGangs?.map(cg => cg.campaign_allegiance_id).filter(Boolean) || [];
+  
+  let typeAllegiancesMap: Record<string, { id: string; allegiance_name: string }> = {};
+  let customAllegiancesMap: Record<string, { id: string; allegiance_name: string }> = {};
+  
+  if (typeAllegianceIds.length > 0) {
+    const { data: typeAllegiances, error: typeError } = await supabase
+      .from('campaign_type_allegiances')
+      .select('id, allegiance_name')
+      .in('id', typeAllegianceIds);
+    
+    if (!typeError && typeAllegiances) {
+      typeAllegiancesMap = Object.fromEntries(
+        typeAllegiances.map(a => [a.id, { id: a.id, allegiance_name: a.allegiance_name }])
+      );
+    }
+  }
+  
+  if (customAllegianceIds.length > 0) {
+    const { data: customAllegiances, error: customError } = await supabase
+      .from('campaign_allegiances')
+      .select('id, allegiance_name')
+      .in('id', customAllegianceIds);
+    
+    if (!customError && customAllegiances) {
+      customAllegiancesMap = Object.fromEntries(
+        customAllegiances.map(a => [a.id, { id: a.id, allegiance_name: a.allegiance_name }])
+      );
+    }
   }
 
   // Fetch territory counts for each gang in this campaign
@@ -181,6 +216,13 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
     const gangs = memberGangs.map(cg => {
       const gangDetails = gangsData.find(g => g.id === cg.gang_id);
+      
+      // Get allegiance info from the maps
+      const typeAllegiance = cg.campaign_type_allegiance_id ? typeAllegiancesMap[cg.campaign_type_allegiance_id] : null;
+      const customAllegiance = cg.campaign_allegiance_id ? customAllegiancesMap[cg.campaign_allegiance_id] : null;
+      
+      const allegiance = typeAllegiance || customAllegiance;
+      
       return {
         // Relationship metadata
         campaign_gang_id: cg.id,
@@ -203,7 +245,14 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         scavenging_rolls: gangDetails?.scavenging_rolls ?? null,
         power: gangDetails?.power ?? null,
         sustenance: gangDetails?.sustenance ?? null,
-        salvage: gangDetails?.salvage ?? null
+        salvage: gangDetails?.salvage ?? null,
+        
+        // Allegiance information
+        allegiance: allegiance ? {
+          id: allegiance.id,
+          name: allegiance.allegiance_name,
+          is_custom: !!customAllegiance
+        } : null
       };
     });
 
@@ -795,3 +844,78 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
     }
   )();
 };
+
+/**
+ * Get available allegiances for a campaign
+ * Returns custom allegiances for custom campaigns, or predefined allegiances for other campaign types
+ */
+export async function getCampaignAllegiances(campaignId: string, supabase: SupabaseClient) {
+  return unstable_cache(
+    async () => {
+      // First, get the campaign to determine its type
+      const { data: campaign, error: campaignError } = await supabase
+        .from('campaigns')
+        .select('campaign_type_id')
+        .eq('id', campaignId)
+        .single();
+
+      if (campaignError) throw campaignError;
+      if (!campaign || !campaign.campaign_type_id) {
+        return [];
+      }
+
+      // Get the campaign type to check if it's custom
+      const { data: campaignType, error: typeError } = await supabase
+        .from('campaign_types')
+        .select('campaign_type_name')
+        .eq('id', campaign.campaign_type_id)
+        .single();
+
+      if (typeError) throw typeError;
+      
+      const isCustomCampaign = campaignType?.campaign_type_name === 'Custom';
+
+      let allegiances: Array<{ id: string; allegiance_name: string; is_custom: boolean }> = [];
+
+      // Always fetch predefined campaign type allegiances (if not custom campaign)
+      if (!isCustomCampaign) {
+        const { data: typeAllegiances, error: typeAllegianceError } = await supabase
+          .from('campaign_type_allegiances')
+          .select('id, allegiance_name')
+          .eq('campaign_type_id', campaign.campaign_type_id)
+          .order('allegiance_name', { ascending: true });
+
+        if (typeAllegianceError) throw typeAllegianceError;
+        
+        allegiances = (typeAllegiances || []).map(a => ({
+          id: a.id,
+          allegiance_name: a.allegiance_name,
+          is_custom: false
+        }));
+      }
+
+      // Always fetch custom campaign allegiances (for all campaign types)
+      const { data: customAllegiances, error: customError } = await supabase
+        .from('campaign_allegiances')
+        .select('id, allegiance_name')
+        .eq('campaign_id', campaignId)
+        .order('allegiance_name', { ascending: true });
+
+      if (customError) throw customError;
+      
+      // Add custom allegiances to the list
+      const customAllegiancesList = (customAllegiances || []).map(a => ({
+        id: a.id,
+        allegiance_name: a.allegiance_name,
+        is_custom: true
+      }));
+      
+      return [...allegiances, ...customAllegiancesList];
+    },
+    [`campaign-allegiances-${campaignId}`],
+    {
+      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), `campaign-${campaignId}`],
+      revalidate: false
+    }
+  )();
+}

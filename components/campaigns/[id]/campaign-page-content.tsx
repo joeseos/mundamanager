@@ -57,6 +57,11 @@ interface Member {
     status: string | null;
     rating?: number;
     reputation?: number;
+    allegiance?: {
+      id: string;
+      name: string;
+      is_custom: boolean;
+    } | null;
   }[];
 }
 
@@ -131,6 +136,7 @@ interface CampaignPageContentProps {
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
+  campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -145,7 +151,8 @@ export default function CampaignPageContent({
   permissions, 
   campaignTypes, 
   allTerritories,
-  tradingPostTypes
+  tradingPostTypes,
+  campaignAllegiances = []
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -678,6 +685,7 @@ export default function CampaignPageContent({
                 isAdmin={isAdmin}
                 members={campaignData.members}
                 userId={userId}
+                initialAllegiances={campaignAllegiances}
                 onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember }) => {
                   // For specific updates, we do optimistic updates (no startTransition needed for instant updates)
                   if (removedMemberId) {
@@ -702,11 +710,14 @@ export default function CampaignPageContent({
                       )
                     }));
                   } else if (updatedMember) {
-                    // Optimistically update a specific member (match by id, not user_id, for duplicate users)
+                    // Optimistically update a specific member by matching on unique member id
+                    // (not user_id, as a user can have multiple member entries)
                     setCampaignData(prev => ({
                       ...prev,
-                      members: prev.members.map(member =>
-                        member.id === updatedMember.id ? updatedMember : member
+                      members: prev.members.map(member => 
+                        member.id && updatedMember.id && member.id === updatedMember.id 
+                          ? updatedMember 
+                          : member
                       )
                     }));
                   } else {
@@ -738,6 +749,7 @@ export default function CampaignPageContent({
                 onTerritoryUpdate={handleTerritoryUpdate}
               />
             </div>
+
           </div>
           </>
         )}
@@ -889,13 +901,54 @@ export default function CampaignPageContent({
             has_power: campaignData.has_power,
             has_sustenance: campaignData.has_sustenance,
             has_salvage: campaignData.has_salvage,
-          trading_posts: campaignData.trading_posts || [],
-          status: campaignData.status
+            trading_posts: campaignData.trading_posts || [],
+            status: campaignData.status,
+            campaign_type_name: campaignData.campaign_type_name,
+            campaign_type_id: campaignData.campaign_type_id
           }}
           tradingPostTypes={tradingPostTypes || []}
           onClose={() => setShowEditModal(false)}
+          isArbitrator={!!safePermissions.isArbitrator}
+          isAdmin={isAdmin}
           onSave={handleSave}
           isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+          campaignAllegiances={campaignAllegiances}
+          predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
+          onAllegiancesChange={() => {
+            // Cache invalidation is handled by the mutation in campaign-allegiances-actions
+            // This callback is kept for potential future use
+          }}
+          onMembersUpdate={(allegianceId) => {
+            // Optimistically clear allegiance from all gangs that have it
+            setCampaignData(prev => ({
+              ...prev,
+              members: prev.members.map(member => ({
+                ...member,
+                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                  ...gang,
+                  allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+                }))
+              }))
+            }))
+          }}
+          onAllegianceRenamed={(allegianceId, newName) => {
+            // Optimistically update allegiance name for all gangs that have it
+            setCampaignData(prev => ({
+              ...prev,
+              members: prev.members.map(member => ({
+                ...member,
+                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                  ...gang,
+                  allegiance: gang.allegiance?.id === allegianceId 
+                    ? {
+                        ...gang.allegiance,
+                        name: newName
+                      }
+                    : gang.allegiance
+                }))
+              }))
+            }))
+          }}
         />
 
         <CampaignImageEditModal

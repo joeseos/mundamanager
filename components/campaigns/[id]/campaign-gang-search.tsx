@@ -26,8 +26,26 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
   const [searchResults, setSearchResults] = useState<Gang[]>([])
   const [campaignGangs, setCampaignGangs] = useState<Gang[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [availableAllegiances, setAvailableAllegiances] = useState<Array<{ id: string; allegiance_name: string; is_custom: boolean }>>([])
+  const [selectedAllegiances, setSelectedAllegiances] = useState<Record<string, { id: string; is_custom: boolean }>>({})
   const supabase = createClient()
   const { toast } = useToast()
+
+  // Fetch available allegiances
+  useEffect(() => {
+    const fetchAllegiances = async () => {
+      try {
+        const response = await fetch(`/api/campaigns/${campaignId}/allegiances`)
+        if (response.ok) {
+          const data = await response.json()
+          setAvailableAllegiances(data)
+        }
+      } catch (error) {
+        console.error('Error fetching allegiances:', error)
+      }
+    }
+    fetchAllegiances()
+  }, [campaignId])
 
   // Load existing campaign gangs
   useEffect(() => {
@@ -175,10 +193,12 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
 
   // TanStack Query mutation for adding gang
   const addGangMutation = useMutation({
-    mutationFn: async (variables: { gangId: string; gangData: Gang }) => {
+    mutationFn: async (variables: { gangId: string; gangData: Gang; allegianceId?: string | null; isCustomAllegiance?: boolean }) => {
       const result = await addGangToCampaignDirect({
         campaignId,
-        gangId: variables.gangId
+        gangId: variables.gangId,
+        allegianceId: variables.allegianceId,
+        isCustomAllegiance: variables.isCustomAllegiance
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to add gang to campaign');
@@ -195,9 +215,14 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
       // Optimistically add gang to the list using data from variables
       setCampaignGangs([...campaignGangs, gangData]);
       
-      // Clear search
+      // Clear search and selected allegiances for this gang
       setQuery('');
       setSearchResults([]);
+      setSelectedAllegiances(prev => {
+        const updated = { ...prev };
+        delete updated[variables.gangId];
+        return updated;
+      });
 
       return { previousGangs, gangName: gangData.name };
     },
@@ -263,10 +288,13 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
   });
 
   const handleAddGang = (gang: Database['public']['Tables']['gangs']['Row']) => {
+    const selectedAllegiance = selectedAllegiances[gang.id];
     // Pass gang data through variables to avoid stale closure
     addGangMutation.mutate({
       gangId: gang.id,
-      gangData: gang as Gang
+      gangData: gang as Gang,
+      allegianceId: selectedAllegiance?.id || null,
+      isCustomAllegiance: selectedAllegiance?.is_custom || false
     });
   };
 
@@ -297,19 +325,51 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
           <div className="absolute mt-1 w-full bg-card rounded-lg border shadow-lg z-10">
             <ul className="py-2">
               {searchResults.map(gang => (
-                <li key={gang.id}>
-                  <button
-                    onClick={() => handleAddGang(gang)}
-                    className="w-full px-4 py-2 text-left hover:bg-muted"
-                    disabled={addGangMutation.isPending || removeGangMutation.isPending}
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{gang.name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {gang.gang_type} - Owner: {gang.user?.username || 'Unknown'}
-                      </span>
+                <li key={gang.id} className="border-b last:border-0">
+                  <div className="px-4 py-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{gang.name}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {gang.gang_type} - Owner: {gang.user?.username || 'Unknown'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleAddGang(gang)}
+                        className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                        disabled={addGangMutation.isPending || removeGangMutation.isPending}
+                      >
+                        Add
+                      </button>
                     </div>
-                  </button>
+                    {availableAllegiances.length > 0 && (
+                      <select
+                        className="w-full px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-black"
+                        value={selectedAllegiances[gang.id]?.id || ''}
+                        onChange={(e) => {
+                          const selectedId = e.target.value || null;
+                          const allegiance = availableAllegiances.find(a => a.id === selectedId);
+                          setSelectedAllegiances(prev => {
+                            const updated = { ...prev };
+                            if (allegiance) {
+                              updated[gang.id] = { id: allegiance.id, is_custom: allegiance.is_custom };
+                            } else {
+                              delete updated[gang.id];
+                            }
+                            return updated;
+                          });
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <option value="">No Allegiance</option>
+                        {availableAllegiances.map(allegiance => (
+                          <option key={allegiance.id} value={allegiance.id}>
+                            {allegiance.allegiance_name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

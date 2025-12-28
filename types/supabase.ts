@@ -102,6 +102,102 @@ export interface Database {
           updated_at?: string | null
         }
       }
+      campaign_gangs: {
+        Row: {
+          id: string
+          campaign_id: string
+          user_id: string
+          role: string | null
+          status: string | null
+          invited_at: string | null
+          joined_at: string | null
+          invited_by: string | null
+          gang_id: string | null
+          created_at: string | null
+          updated_at: string | null
+          campaign_member_id: string | null
+          campaign_type_allegiance_id: string | null
+          campaign_allegiance_id: string | null
+        }
+        Insert: {
+          id?: string
+          campaign_id: string
+          user_id: string
+          role?: string | null
+          status?: string | null
+          invited_at?: string | null
+          joined_at?: string | null
+          invited_by?: string | null
+          gang_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          campaign_member_id?: string | null
+          campaign_type_allegiance_id?: string | null
+          campaign_allegiance_id?: string | null
+        }
+        Update: {
+          id?: string
+          campaign_id?: string
+          user_id?: string
+          role?: string | null
+          status?: string | null
+          invited_at?: string | null
+          joined_at?: string | null
+          invited_by?: string | null
+          gang_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          campaign_member_id?: string | null
+          campaign_type_allegiance_id?: string | null
+          campaign_allegiance_id?: string | null
+        }
+      }
+      campaign_type_allegiances: {
+        Row: {
+          id: string
+          campaign_type_id: string
+          allegiance_name: string
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          campaign_type_id: string
+          allegiance_name: string
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          campaign_type_id?: string
+          allegiance_name?: string
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      campaign_allegiances: {
+        Row: {
+          id: string
+          campaign_id: string
+          allegiance_name: string
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          campaign_id: string
+          allegiance_name: string
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          campaign_id?: string
+          allegiance_name?: string
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
       equipment: {
         Row: {
           id: string
