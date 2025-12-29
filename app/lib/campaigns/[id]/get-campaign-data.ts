@@ -97,6 +97,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     }
   }
 
+  // Get all gangs (ACCEPTED and PENDING) - we'll show pending with a label
   const { data: campaignGangs, error: gangsError } = await supabase
     .from('campaign_gangs')
     .select(`
@@ -108,7 +109,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
       campaign_type_allegiance_id,
       campaign_allegiance_id
     `)
-    .eq('campaign_id', campaignId);
+    .eq('campaign_id', campaignId)
+    .in('status', ['ACCEPTED', 'PENDING']);
 
   if (gangsError) throw gangsError;
 

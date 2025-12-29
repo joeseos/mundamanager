@@ -394,13 +394,15 @@ export default function MembersTable({
         : null;
 
       // Create optimistic gang object using all available data from variables
+      // If adding your own gang, it's ACCEPTED immediately; otherwise PENDING
+      const isOwnGang = currentUserId === variables.userId;
       const optimisticGang = {
         campaign_gang_id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
         id: variables.gangId,
         name: gangData.name,
         gang_type: gangData.gang_type,
         gang_colour: gangData.gang_colour || '#000000',
-        status: null,
+        status: isOwnGang ? 'ACCEPTED' : 'PENDING',
         rating: gangData.rating || 0,
         wealth: gangData.wealth || 0,
         reputation: gangData.reputation || 0,
@@ -1062,6 +1064,9 @@ export default function MembersTable({
                         >
                           {member.gangs[0].name}
                         </Link>
+                        {member.gangs[0].status === 'PENDING' && (
+                          <span className="ml-1.5 text-xs text-orange-500 font-medium">(Pending)</span>
+                        )}
                         {(currentUserId === member.user_id || isAdmin) && (
                           <button
                             onClick={() => {
@@ -1265,6 +1270,166 @@ export default function MembersTable({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile rendering */}
+      <div className="md:hidden space-y-4">
+        {sortedMembers.map((member, index) => (
+          <div key={`${member.user_id}-${index}`} className="bg-card rounded-lg border p-4">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                {member.gangs[0]?.name ? (
+                  <div className="flex items-center gap-1">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-muted"
+                      style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
+                    >
+                      <Link
+                        href={`/gang/${member.gangs[0].id}`}
+                        prefetch={false}
+                        className="hover:text-muted-foreground transition-colors"
+                      >
+                        {member.gangs[0].name}
+                      </Link>
+                      {member.gangs[0].status === 'PENDING' && (
+                        <span className="ml-1.5 text-xs text-orange-500 font-medium">(Pending)</span>
+                      )}
+                      {(currentUserId === member.user_id || isAdmin) && (
+                        <button
+                          onClick={() => {
+                            setGangToRemove({
+                              memberId: member.user_id,
+                              gangId: member.gangs[0].id,
+                              gangName: member.gangs[0].name,
+                              memberIndex: member.index,
+                              id: member.gangs[0].campaign_gang_id
+                            });
+                            setShowRemoveGangModal(true);
+                          }}
+                          className="ml-1.5 text-gray-400 hover:text-muted-foreground"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    {(currentUserId === member.user_id || isAdmin) ? (
+                      <button
+                        onClick={() => handleGangClick(member)}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950 text-green-800 hover:bg-green-200 transition-colors"
+                      >
+                        {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
+                      </button>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">No gang selected.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground text-base">Player</span>
+                <div className="flex items-center gap-2 text-sm text-base">
+                  {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
+                    <button
+                      onClick={() => {
+                        setRoleChange({
+                          memberId: member.user_id,
+                          username: member.profile.username,
+                          currentRole: member.role || 'MEMBER',
+                          newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                        });
+                        setShowRoleModal(true);
+                      }}
+                      className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-secondary transition-colors group"
+                    >
+                      {formatRole(member.role)}
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
+                      {formatRole(member.role)}
+                    </span>
+                  )}
+                  {member.profile.username}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Type</span>
+              <span className="text-sm text-muted-foreground">
+                {member.gangs[0]?.gang_type || "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Rating</span>
+              <span className="text-sm text-muted-foreground">
+                {member.gangs[0]?.rating || "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Wealth</span>
+              <span className="text-sm text-muted-foreground">
+                {member.gangs[0]?.wealth ?? "-"}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Reputation</span>
+              <span className="text-sm text-muted-foreground">
+                {member.gangs[0]?.reputation ?? "-"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Territories</span>
+              <span className="text-sm text-muted-foreground">
+                {member.gangs[0]?.territory_count ?? "-"}
+              </span>
+            </div>
+            {hasExplorationPoints && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Exploration Points</span>
+                <span className="text-sm text-muted-foreground">
+                  {member.gangs[0]?.exploration_points ?? "-"}
+                </span>
+              </div>
+            )}
+            {hasMeat && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Meat</span>
+                <span className="text-sm text-muted-foreground">
+                  {member.gangs[0]?.meat ?? "-"}
+                </span>
+              </div>
+            )}
+            {hasScavengingRolls && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Scavenging Rolls</span>
+                <span className="text-sm text-muted-foreground">
+                  {member.gangs[0]?.scavenging_rolls ?? "-"}
+                </span>
+              </div>
+            )}
+            {(isAdmin || member.user_id === currentUserId) && (
+              <div className="flex justify-end mt-3">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-xs px-1.5 h-6"
+                  onClick={() => {
+                    setMemberToRemove({...member, index});
+                    setShowRemoveMemberModal(true);
+                  }}
+                  disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
+                >
+                  <LuTrash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {showGangModal && (
