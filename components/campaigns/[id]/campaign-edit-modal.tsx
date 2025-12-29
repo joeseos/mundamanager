@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
+import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
@@ -100,6 +101,7 @@ export default function CampaignEditModal({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
+  const [confirmText, setConfirmText] = useState('');
   const { toast } = useToast();
   const router = useRouter();
 
@@ -180,6 +182,8 @@ export default function CampaignEditModal({
       return false;
     } finally {
       setIsDeleting(false);
+      setShowDeleteModal(false);
+      setConfirmText('');
     }
   };
 
@@ -360,9 +364,9 @@ export default function CampaignEditModal({
               {/* Default Allegiances Section (for non-custom campaigns) */}
               {predefinedAllegiances.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
                 <div className="flex items-center gap-2 flex-wrap mt-2">
-                  <span className="text-xs text-muted-foreground">Predefined allegiances:</span>
+                  <span className="text-xs text-muted-foreground">Default:</span>
                   {predefinedAllegiances.map((allegiance: { id: string; allegiance_name: string }) => (
-                    <Badge key={allegiance.id} variant="outline">
+                    <Badge key={allegiance.id} variant="secondary">
                       {allegiance.allegiance_name}
                     </Badge>
                   ))}
@@ -407,16 +411,34 @@ export default function CampaignEditModal({
         <Modal
           title="Delete Campaign"
           content={
-            <div>
-              <p>Are you sure you want to permanently delete this campaign?</p>
-              <br />
-              <p>This action cannot be undone and will permanently delete all campaign data, including territories, members, and gang assignments.</p>
+            <div className="space-y-4">
+              <p>
+                Are you sure you want to permanently delete the campaign <strong>{campaignData.campaign_name}</strong>?
+              </p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone and will permanently delete all campaign data, including territories, members, and gang assignments.
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Type <span className="font-bold">Delete</span> to confirm:
+                </p>
+                <Input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="Delete"
+                  className="w-full"
+                />
+              </div>
             </div>
           }
-          onClose={() => setShowDeleteModal(false)}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setConfirmText('');
+          }}
           onConfirm={handleDeleteCampaign}
           confirmText="Delete Campaign"
-          confirmDisabled={isDeleting}
+          confirmDisabled={confirmText !== 'Delete' || isDeleting}
         />
       )}
       <Tooltip
