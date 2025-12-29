@@ -11,7 +11,7 @@ import {
   updateCampaignAllegiance, 
   deleteCampaignAllegiance 
 } from "@/app/actions/campaigns/[id]/campaign-allegiances"
-import { LuTrash2, LuPencil } from 'react-icons/lu'
+import { LuTrash2, LuPencil, LuCheck, LuX } from 'react-icons/lu'
 
 interface Allegiance {
   id: string;
@@ -38,10 +38,8 @@ export default function CampaignAllegiancesActions({
   onMembersUpdate,
   onAllegianceRenamed
 }: CampaignAllegiancesActionsProps) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [editingAllegiance, setEditingAllegiance] = useState<Allegiance | null>(null)
+  const [editingAllegianceId, setEditingAllegianceId] = useState<string | null>(null)
   const [deletingAllegiance, setDeletingAllegiance] = useState<Allegiance | null>(null)
   const [newAllegianceName, setNewAllegianceName] = useState('')
   const [editAllegianceName, setEditAllegianceName] = useState('')
@@ -127,7 +125,6 @@ export default function CampaignAllegiancesActions({
       })
 
       setNewAllegianceName('')
-      setShowAddModal(false)
       // Notify parent to refresh allegiance lists
       onAllegiancesChange?.()
     },
@@ -144,17 +141,22 @@ export default function CampaignAllegiancesActions({
     }
   })
 
-  const handleCreate = async () => {
+  const handleAddAllegiance = () => {
     if (!newAllegianceName.trim()) {
+      return
+    }
+
+    // Check for duplicates
+    if (allegiances.some(a => a.allegiance_name.toLowerCase() === newAllegianceName.trim().toLowerCase())) {
       toast({
         variant: "destructive",
-        description: "Allegiance name cannot be empty"
+        description: "This allegiance already exists"
       })
-      return false
+      setNewAllegianceName('')
+      return
     }
 
     createMutation.mutate(newAllegianceName.trim())
-    return true
   }
 
   // Mutation for updating allegiance with optimistic update
@@ -200,9 +202,8 @@ export default function CampaignAllegiancesActions({
         description: "Allegiance updated successfully"
       })
 
-      setEditingAllegiance(null)
+      setEditingAllegianceId(null)
       setEditAllegianceName('')
-      setShowEditModal(false)
       // Notify parent to refresh allegiance lists
       onAllegiancesChange?.()
     },
@@ -218,6 +219,7 @@ export default function CampaignAllegiancesActions({
         onAllegianceRenamed?.(variables.allegianceId, oldAllegiance.allegiance_name)
       }
 
+      // Keep editing mode on error so user can fix and retry
       toast({
         variant: "destructive",
         description: error instanceof Error ? error.message : "Failed to update allegiance"
@@ -225,20 +227,36 @@ export default function CampaignAllegiancesActions({
     }
   })
 
-  const handleEdit = async () => {
-    if (!editingAllegiance || !editAllegianceName.trim()) {
+  const handleSaveEdit = () => {
+    if (!editingAllegianceId || !editAllegianceName.trim()) {
       toast({
         variant: "destructive",
         description: "Allegiance name cannot be empty"
       })
-      return false
+      return
+    }
+
+    // Check for duplicates (excluding the current allegiance being edited)
+    if (allegiances.some(a => 
+      a.id !== editingAllegianceId && 
+      a.allegiance_name.toLowerCase() === editAllegianceName.trim().toLowerCase()
+    )) {
+      toast({
+        variant: "destructive",
+        description: "This allegiance already exists"
+      })
+      return
     }
 
     updateMutation.mutate({
-      allegianceId: editingAllegiance.id,
+      allegianceId: editingAllegianceId,
       allegianceName: editAllegianceName.trim()
     })
-    return true
+  }
+
+  const handleCancelEdit = () => {
+    setEditingAllegianceId(null)
+    setEditAllegianceName('')
   }
 
   // Mutation for deleting allegiance with optimistic update
@@ -307,10 +325,9 @@ export default function CampaignAllegiancesActions({
     return true
   }
 
-  const openEditModal = (allegiance: Allegiance) => {
-    setEditingAllegiance(allegiance)
+  const startEditing = (allegiance: Allegiance) => {
+    setEditingAllegianceId(allegiance.id)
     setEditAllegianceName(allegiance.allegiance_name)
-    setShowEditModal(true)
   }
 
   const openDeleteModal = (allegiance: Allegiance) => {
@@ -321,45 +338,6 @@ export default function CampaignAllegiancesActions({
   if (!canManage) {
     return null
   }
-
-  const addModalContent = (
-    <div className="space-y-4">
-      <div>
-        <label className="text-sm font-medium mb-2 block">Allegiance Name</label>
-        <Input
-          value={newAllegianceName}
-          onChange={(e) => setNewAllegianceName(e.target.value)}
-          placeholder="Enter allegiance name"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleCreate()
-            }
-          }}
-          autoFocus
-        />
-      </div>
-    </div>
-  )
-
-  const editModalContent = editingAllegiance ? (
-    <div className="space-y-4">
-      <div>
-        <label className="text-sm font-medium mb-2 block">Allegiance Name</label>
-        <Input
-          value={editAllegianceName}
-          onChange={(e) => setEditAllegianceName(e.target.value)}
-          placeholder="Enter allegiance name (max 50 characters)"
-          maxLength={50}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleEdit()
-            }
-          }}
-          autoFocus
-        />
-      </div>
-    </div>
-  ) : null
 
   const deleteModalContent = deletingAllegiance ? (
     <div className="space-y-4">
@@ -374,12 +352,28 @@ export default function CampaignAllegiancesActions({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      {/* Add Allegiance Input */}
+      <div className="flex space-x-2 mb-4">
+        <Input
+          type="text"
+          value={newAllegianceName}
+          onChange={(e) => setNewAllegianceName(e.target.value)}
+          placeholder="Add an Allegiance (max 50 characters)"
+          maxLength={50}
+          className="flex-grow text-sm"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              handleAddAllegiance()
+            }
+          }}
+        />
         <Button
-          onClick={() => setShowAddModal(true)}
-          size="sm"
+          onClick={handleAddAllegiance}
+          type="button"
+          disabled={!newAllegianceName.trim() || createMutation.isPending}
         >
-          Add Custom Allegiance
+          Add
         </Button>
       </div>
 
@@ -387,64 +381,89 @@ export default function CampaignAllegiancesActions({
         <div className="text-sm text-muted-foreground">Loading allegiances...</div>
       ) : allegiances.length > 0 && (
         <div className="space-y-2">
-          {allegiances.map((allegiance) => (
-            <div
-              key={allegiance.id}
-              className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted transition-colors"
-            >
-              <span className="font-medium">{allegiance.allegiance_name}</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openEditModal(allegiance)}
-                  className="h-8 w-8 p-0"
-                  title="Edit allegiance"
-                >
-                  <LuPencil className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openDeleteModal(allegiance)}
-                  className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  title="Delete allegiance"
-                >
-                  <LuTrash2 className="size-4" />
-                </Button>
+          {allegiances.map((allegiance) => {
+            const isEditing = editingAllegianceId === allegiance.id
+            
+            return (
+              <div
+                key={allegiance.id}
+                className="flex items-center justify-between p-1 pl-4 border rounded-lg hover:bg-muted transition-colors"
+              >
+                {isEditing ? (
+                  <>
+                    <Input
+                      value={editAllegianceName}
+                      onChange={(e) => setEditAllegianceName(e.target.value)}
+                      placeholder="Enter allegiance name (max 50 characters)"
+                      maxLength={50}
+                      className="flex-grow mr-2 h-7 text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleSaveEdit()
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault()
+                          handleCancelEdit()
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        title="Save"
+                        disabled={!editAllegianceName.trim() || updateMutation.isPending}
+                      >
+                        <LuCheck className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                        className="h-8 w-8 p-0 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                        title="Cancel"
+                        disabled={updateMutation.isPending}
+                      >
+                        <LuX className="size-4" />
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm" title={allegiance.allegiance_name}>
+                      {allegiance.allegiance_name.length > 30 
+                        ? `${allegiance.allegiance_name.substring(0, 30)}...` 
+                        : allegiance.allegiance_name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => startEditing(allegiance)}
+                        className="h-8 w-8 p-0"
+                        title="Edit allegiance"
+                      >
+                        <LuPencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => openDeleteModal(allegiance)}
+                        title="Delete allegiance"
+                      >
+                        <LuTrash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
-      )}
-
-      {showAddModal && (
-        <Modal
-          title="Add Custom Allegiance"
-          content={addModalContent}
-          onClose={() => {
-            setShowAddModal(false)
-            setNewAllegianceName('')
-          }}
-          onConfirm={handleCreate}
-          confirmText="Create"
-          confirmDisabled={!newAllegianceName.trim()}
-        />
-      )}
-
-      {showEditModal && editingAllegiance && (
-        <Modal
-          title="Edit Custom Allegiance"
-          content={editModalContent}
-          onClose={() => {
-            setShowEditModal(false)
-            setEditingAllegiance(null)
-            setEditAllegianceName('')
-          }}
-          onConfirm={handleEdit}
-          confirmText="Save"
-          confirmDisabled={!editAllegianceName.trim() || updateMutation.isPending}
-        />
       )}
 
       {showDeleteModal && deletingAllegiance && (

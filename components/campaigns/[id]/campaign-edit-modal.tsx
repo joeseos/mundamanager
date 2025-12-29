@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
+import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
@@ -100,6 +101,7 @@ export default function CampaignEditModal({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
+  const [confirmText, setConfirmText] = useState('');
   const { toast } = useToast();
   const router = useRouter();
 
@@ -180,6 +182,8 @@ export default function CampaignEditModal({
       return false;
     } finally {
       setIsDeleting(false);
+      setShowDeleteModal(false);
+      setConfirmText('');
     }
   };
 
@@ -330,39 +334,26 @@ export default function CampaignEditModal({
               )}
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="flex justify-between items-center text-sm font-medium mb-1">
-                <span>Description</span>
-                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                  {charCount}/1500 characters
-                </span>
-              </label>
-              <textarea
-                value={formValues.description}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormValues(prev => ({
-                    ...prev,
-                    description: value
-                  }));
-                  setCharCount(value.length); // ✅ update the count
-                }}
-                className="w-full p-2 border rounded min-h-[200px]"
-                placeholder="Enter campaign description..."
-              />
-
-            </div>
-
             {/* Allegiances Section */}
             <div>
-              <h3 className="text-sm font-medium">Allegiances</h3>
+              <h3 className="text-sm font-medium flex items-center space-x-2">
+                <span>Allegiances</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html={
+                      'Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.<br/><br/>When adding a gang to a campaign, an allegiance can be selected for the gang directly. Players can edit their own gang\'s allegiance, and arbitrators can update the allegiance of every gang in a campaign.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+              </h3>
               {/* Default Allegiances Section (for non-custom campaigns) */}
               {predefinedAllegiances.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
                 <div className="flex items-center gap-2 flex-wrap mt-2">
-                  <span className="text-xs text-muted-foreground">Predefined allegiances:</span>
+                  <span className="text-xs text-muted-foreground">Default:</span>
                   {predefinedAllegiances.map((allegiance: { id: string; allegiance_name: string }) => (
-                    <Badge key={allegiance.id} variant="outline">
+                    <Badge key={allegiance.id} variant="secondary">
                       {allegiance.allegiance_name}
                     </Badge>
                   ))}
@@ -384,6 +375,40 @@ export default function CampaignEditModal({
                 />
               </div>
             )}
+
+            {/* Description */}
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium mb-1">
+                <div className="flex items-center space-x-2">
+                  <span>Description</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html={
+                      'The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+                </div>
+                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {charCount}/1500 characters
+                </span>
+              </label>
+              <textarea
+                value={formValues.description}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormValues(prev => ({
+                    ...prev,
+                    description: value
+                  }));
+                  setCharCount(value.length);
+                }}
+                className="w-full p-2 border rounded min-h-[200px]"
+                placeholder="Enter campaign description..."
+              />
+            </div>
 
             {isOwner && (
               <Button
@@ -407,16 +432,34 @@ export default function CampaignEditModal({
         <Modal
           title="Delete Campaign"
           content={
-            <div>
-              <p>Are you sure you want to permanently delete this campaign?</p>
-              <br />
-              <p>This action cannot be undone and will permanently delete all campaign data, including territories, members, and gang assignments.</p>
+            <div className="space-y-4">
+              <p>
+                Are you sure you want to permanently delete the campaign <strong>{campaignData.campaign_name}</strong>?
+              </p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone and will permanently delete all campaign data, including territories, members, and gang assignments.
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Type <span className="font-bold">Delete</span> to confirm:
+                </p>
+                <Input
+                  type="text"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="Delete"
+                  className="w-full"
+                />
+              </div>
             </div>
           }
-          onClose={() => setShowDeleteModal(false)}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setConfirmText('');
+          }}
           onConfirm={handleDeleteCampaign}
           confirmText="Delete Campaign"
-          confirmDisabled={isDeleting}
+          confirmDisabled={confirmText !== 'Delete' || isDeleting}
         />
       )}
       <Tooltip
