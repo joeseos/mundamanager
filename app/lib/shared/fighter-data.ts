@@ -520,7 +520,8 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
             id,
             fighter_effect_id,
             stat_name,
-            numeric_value
+            numeric_value,
+            operation
           )
         `)
         .eq('fighter_id', fighterId)
@@ -630,7 +631,8 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
               id,
               fighter_effect_id,
               stat_name,
-              numeric_value
+              numeric_value,
+              operation
             )
           `)
           .eq('vehicle_id', vehicle.id)

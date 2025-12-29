@@ -437,9 +437,14 @@ export function WeaponList({
     </tr>
   );
 
-  // Render equipment effect as a pseudo-child row
+  // Render equipment effect as a pseudo-child row (only if it targets equipment, not fighter stats)
   const renderEffectRow = (item: Equipment) => {
-    if (!item.equipment_effect) return null;
+    // Only show effect under equipment if it actually targets equipment (weapon profiles)
+    const typeData = item.equipment_effect?.type_specific_data;
+    const appliesToEquipment = typeof typeData === 'object' && typeData?.applies_to === 'equipment';
+    if (!item.equipment_effect || !appliesToEquipment) {
+      return null;
+    }
 
     return (
       <tr
