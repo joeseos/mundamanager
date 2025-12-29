@@ -870,7 +870,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
               id,
               fighter_effect_id,
               stat_name,
-              numeric_value
+              numeric_value,
+              operation
             )
           `)
           .in('fighter_id', fighterIds)
@@ -1016,7 +1017,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
                   id,
                   fighter_effect_id,
                   stat_name,
-                  numeric_value
+                  numeric_value,
+                  operation
                 )
               `)
               .in('vehicle_id', vehicleIds)
@@ -1724,7 +1726,8 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
         id,
         fighter_effect_id,
         stat_name,
-        numeric_value
+        numeric_value,
+        operation
       )
     `)
     .eq('vehicle_id', vehicleId);
