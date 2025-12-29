@@ -334,33 +334,20 @@ export default function CampaignEditModal({
               )}
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="flex justify-between items-center text-sm font-medium mb-1">
-                <span>Description</span>
-                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                  {charCount}/1500 characters
-                </span>
-              </label>
-              <textarea
-                value={formValues.description}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setFormValues(prev => ({
-                    ...prev,
-                    description: value
-                  }));
-                  setCharCount(value.length); // ✅ update the count
-                }}
-                className="w-full p-2 border rounded min-h-[200px]"
-                placeholder="Enter campaign description..."
-              />
-
-            </div>
-
             {/* Allegiances Section */}
             <div>
-              <h3 className="text-sm font-medium">Allegiances</h3>
+              <h3 className="text-sm font-medium flex items-center space-x-2">
+                <span>Allegiances</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html={
+                      'Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.<br/><br/>When adding a gang to a campaign, an allegiance can be selected for the gang directly. Players can edit their own gang\'s allegiance, and arbitrators can update the allegiance of every gang in a campaign.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+              </h3>
               {/* Default Allegiances Section (for non-custom campaigns) */}
               {predefinedAllegiances.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
                 <div className="flex items-center gap-2 flex-wrap mt-2">
@@ -388,6 +375,40 @@ export default function CampaignEditModal({
                 />
               </div>
             )}
+
+            {/* Description */}
+            <div>
+              <label className="flex justify-between items-center text-sm font-medium mb-1">
+                <div className="flex items-center space-x-2">
+                  <span>Description</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html={
+                      'The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+                </div>
+                <span className={`text-sm ${charCount > 1500 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {charCount}/1500 characters
+                </span>
+              </label>
+              <textarea
+                value={formValues.description}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormValues(prev => ({
+                    ...prev,
+                    description: value
+                  }));
+                  setCharCount(value.length);
+                }}
+                className="w-full p-2 border rounded min-h-[200px]"
+                placeholder="Enter campaign description..."
+              />
+            </div>
 
             {isOwner && (
               <Button
