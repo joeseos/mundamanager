@@ -822,7 +822,7 @@ export default function GangEditModal({
 
       {/* Only gang owners and admins can delete gangs - not campaign owners/arbitrators */}
       {(isGangOwner || isAdmin) && (
-        <DeleteGangButton gangId={gangId} />
+        <DeleteGangButton gangId={gangId} gangName={gangName} />
       )}
     </div>
   );
