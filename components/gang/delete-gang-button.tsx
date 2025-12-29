@@ -10,9 +10,10 @@ import { deleteGang } from '@/app/actions/delete-gang';
 
 interface DeleteGangButtonProps {
   gangId: string;
+  gangName?: string;
 }
 
-export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
+export default function DeleteGangButton({ gangId, gangName }: DeleteGangButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -72,19 +73,21 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
           title="Delete Gang"
           content={
             <div className="space-y-4">
-              <p>Are you sure you want to delete this gang?</p>
+              <p>
+                Are you sure you want to delete the gang <strong>{gangName || 'this gang'}</strong>?
+              </p>
               <p className="text-sm text-red-600">
                 This action cannot be undone.
               </p>
               <div className="space-y-2">
                 <p className="text-sm font-medium">
-                  Type <span className="font-bold">DELETE</span> to confirm:
+                  Type <span className="font-bold">Delete</span> to confirm:
                 </p>
                 <Input
                   type="text"
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="DELETE"
+                  placeholder="Delete"
                   className="w-full"
                 />
               </div>
@@ -95,7 +98,7 @@ export default function DeleteGangButton({ gangId }: DeleteGangButtonProps) {
             setConfirmText('');
           }}
           onConfirm={handleDelete}
-          confirmDisabled={confirmText !== 'DELETE'}
+          confirmDisabled={confirmText !== 'Delete'}
         />
       )}
     </>
