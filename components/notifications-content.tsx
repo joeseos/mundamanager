@@ -103,9 +103,13 @@ export default function NotificationsContent({ userId }: { userId: string }) {
 
     setProcessingRequest(notificationId);
     try {
-      await acceptGangInvite(params);
-      await deleteNotification(notificationId);
-      router.refresh();
+      const result = await acceptGangInvite(params);
+      if (result.success) {
+        await deleteNotification(notificationId);
+        router.refresh();
+      } else {
+        console.error('Error accepting gang invite:', result.error);
+      }
     } catch (error) {
       console.error('Error accepting gang invite:', error);
     } finally {
@@ -123,9 +127,13 @@ export default function NotificationsContent({ userId }: { userId: string }) {
 
     setProcessingRequest(notificationId);
     try {
-      await declineGangInvite(params);
-      await deleteNotification(notificationId);
-      router.refresh();
+      const result = await declineGangInvite(params);
+      if (result.success) {
+        await deleteNotification(notificationId);
+        router.refresh();
+      } else {
+        console.error('Error declining gang invite:', result.error);
+      }
     } catch (error) {
       console.error('Error declining gang invite:', error);
     } finally {

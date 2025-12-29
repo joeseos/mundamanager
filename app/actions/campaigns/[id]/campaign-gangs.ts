@@ -207,10 +207,13 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
 
     if (campaignArbitrators) {
       for (const arbitrator of campaignArbitrators) {
-        invalidateGangPermissionsForUser({
-          userId: arbitrator.user_id,
-          gangId: gangId
-        });
+        // Skip gang owner - already invalidated above
+        if (arbitrator.user_id !== gangData.user_id) {
+          invalidateGangPermissionsForUser({
+            userId: arbitrator.user_id,
+            gangId: gangId
+          });
+        }
       }
     }
 
@@ -319,10 +322,13 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
 
     if (campaignArbitrators) {
       for (const arbitrator of campaignArbitrators) {
-        invalidateGangPermissionsForUser({
-          userId: arbitrator.user_id,
-          gangId: gangId
-        });
+        // Skip gang owner - already invalidated above
+        if (arbitrator.user_id !== user.id) {
+          invalidateGangPermissionsForUser({
+            userId: arbitrator.user_id,
+            gangId: gangId
+          });
+        }
       }
     }
 
