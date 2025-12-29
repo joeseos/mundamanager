@@ -102,7 +102,8 @@ export function AdminFighterEffects({
     max_selections: 1,
     selection_group: '',
     traits_to_add: '',
-    traits_to_remove: ''
+    traits_to_remove: '',
+    credits_increase: ''
   });
 
   // New modifier form state
@@ -163,7 +164,8 @@ export function AdminFighterEffects({
         ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
-        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove })
+        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
+        ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) })
       };
 
       // Create effect with temp ID - will be saved when parent saves
@@ -193,7 +195,8 @@ export function AdminFighterEffects({
         max_selections: 1,
         selection_group: '',
         traits_to_add: '',
-        traits_to_remove: ''
+        traits_to_remove: '',
+        credits_increase: ''
       });
 
       if (onUpdate) {
@@ -226,7 +229,8 @@ export function AdminFighterEffects({
       max_selections: 1,
       selection_group: '',
       traits_to_add: '',
-      traits_to_remove: ''
+      traits_to_remove: '',
+      credits_increase: ''
     });
   };
 
@@ -241,7 +245,8 @@ export function AdminFighterEffects({
       max_selections: effect.type_specific_data?.max_selections || 1,
       selection_group: effect.type_specific_data?.selection_group || '',
       traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
-      traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || ''
+      traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
+      credits_increase: effect.type_specific_data?.credits_increase?.toString() || ''
     });
     setShowEditEffectDialog(true);
   };
@@ -273,7 +278,8 @@ export function AdminFighterEffects({
         ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
-        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove })
+        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
+        ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) })
       };
 
       // Call PATCH API
@@ -730,6 +736,22 @@ export function AdminFighterEffects({
               />
               <p className="text-xs text-muted-foreground">
                 Effects with the same selection group are mutually exclusive within single_select mode
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-muted-foreground">
+                Credits Increase (optional)
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={newEffect.credits_increase}
+                onChange={(e) => setNewEffect(prev => ({ ...prev, credits_increase: e.target.value }))}
+                placeholder="e.g., 30"
+              />
+              <p className="text-xs text-muted-foreground">
+                Credits added to fighter value when this effect is applied
               </p>
             </div>
 

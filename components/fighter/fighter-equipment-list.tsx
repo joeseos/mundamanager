@@ -469,8 +469,14 @@ export function WeaponList({
         return item;
       });
 
+      // Calculate total credits increase from selected effects
+      const totalCreditsIncrease = selectedEffects.reduce((sum, effect) => {
+        const creditsIncrease = effect.type_specific_data?.credits_increase;
+        return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+      }, 0);
+
       // Apply optimistic update immediately
-      onEquipmentUpdate(optimisticEquipment, previousFighterCredits, previousGangCredits);
+      onEquipmentUpdate(optimisticEquipment, previousFighterCredits + totalCreditsIncrease, previousGangCredits);
 
       // Return context for rollback
       return {
@@ -679,7 +685,11 @@ export function WeaponList({
           </span>
         </td>
         <td className="px-1 py-1 text-right">
-          <span className="text-sm">-</span>
+          <span className="text-sm">
+            {typeof typeData === 'object' && typeData?.credits_increase != null
+              ? typeData.credits_increase
+              : '-'}
+          </span>
         </td>
         <td className="px-1 py-1">
           <div className="flex justify-end gap-1">
