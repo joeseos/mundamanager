@@ -860,6 +860,63 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   weapon_profiles: itemWeaponProfiles
                 };
               });
+
+              // Handle equipment grants (equipment that automatically includes another item)
+              const standardEquipmentItems = insertedEquipment.filter(
+                (item: any) => item.equipment_id && !item.custom_equipment_id
+              );
+
+              if (standardEquipmentItems.length > 0) {
+                const equipmentIds = standardEquipmentItems.map((item: any) => item.equipment_id);
+
+                // Fetch equipment that grants other equipment
+                const { data: equipmentWithGrantsData } = await supabase
+                  .from('equipment')
+                  .select('id, grants_equipment_id')
+                  .in('id', equipmentIds)
+                  .not('grants_equipment_id', 'is', null);
+
+                if (equipmentWithGrantsData && equipmentWithGrantsData.length > 0) {
+                  const grantedEquipmentIds = equipmentWithGrantsData.map(e => e.grants_equipment_id);
+
+                  // Fetch granted equipment details
+                  const { data: grantedEquipmentDetails } = await supabase
+                    .from('equipment')
+                    .select('id, equipment_name, cost')
+                    .in('id', grantedEquipmentIds);
+
+                  if (grantedEquipmentDetails && grantedEquipmentDetails.length > 0) {
+                    const grantedInserts = [];
+
+                    for (const parentEquip of equipmentWithGrantsData) {
+                      const grantedEquip = grantedEquipmentDetails.find(
+                        g => g.id === parentEquip.grants_equipment_id
+                      );
+                      const parentFighterEquip = standardEquipmentItems.find(
+                        (item: any) => item.equipment_id === parentEquip.id
+                      );
+
+                      if (grantedEquip && parentFighterEquip) {
+                        grantedInserts.push({
+                          fighter_id: fighterId,
+                          equipment_id: grantedEquip.id,
+                          original_cost: grantedEquip.cost,
+                          purchase_cost: 0,
+                          granted_by_equipment_id: parentFighterEquip.id,
+                          gang_id: params.gang_id,
+                          user_id: gangData.user_id
+                        });
+                      }
+                    }
+
+                    if (grantedInserts.length > 0) {
+                      await supabase
+                        .from('fighter_equipment')
+                        .insert(grantedInserts);
+                    }
+                  }
+                }
+              }
             } else if (queryResult.error) {
               console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
             }

@@ -380,6 +380,12 @@ export async function GET(request: Request) {
         console.warn('Error in fighter types fetch:', error);
       }
 
+      // Fetch all equipment for the grants dropdown
+      const { data: allEquipment } = await supabase
+        .from('equipment')
+        .select('id, equipment_name')
+        .order('equipment_name');
+
       return NextResponse.json({
         ...equipment,
         gang_adjusted_costs: formattedAdjustedCosts,
@@ -394,6 +400,7 @@ export async function GET(request: Request) {
         weapon_profiles: weaponProfiles,
         all_fighter_types: allFighterTypes,
         fighter_types_with_equipment: fighterTypesWithEquipment,
+        all_equipment: allEquipment || [],
       });
 
     } else if (equipment_category) {
@@ -808,7 +815,8 @@ export async function PATCH(request: Request) {
       equipment_availabilities,
       equipment_origin_availabilities,
       equipment_variant_availabilities,
-      fighter_effects
+      fighter_effects,
+      grants_equipment_id
     } = data;
 
     // Update equipment
@@ -824,6 +832,7 @@ export async function PATCH(request: Request) {
         equipment_category_id,
         equipment_type,
         core_equipment,
+        grants_equipment_id: grants_equipment_id || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);
