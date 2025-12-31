@@ -11,6 +11,7 @@ import { fighterTypeRank } from "@/utils/fighterTypeRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { addFighterToGang } from '@/app/actions/add-fighter';
 
@@ -336,69 +337,6 @@ export default function AddFighter({
       }
     }
   }, [availableSubTypes, selectedSubTypeId, fighterTypes]);
-
-  const handleFighterTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const typeId = e.target.value;
-    setSelectedFighterTypeId(typeId);
-    setSelectedSubTypeId(''); // Reset sub-type selection
-    setSelectedLegacyId(''); // Reset legacy selection
-    setSelectedEquipmentIds([]); // Reset equipment selections when type changes
-    setSelectedEquipment([]); // Reset equipment with costs
-    
-    if (typeId) {
-      // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
-      const selectedType = fighterTypes.find(t => t.id === typeId);
-      const fighterTypeGroup = fighterTypes.filter(t => 
-        t.fighter_type === selectedType?.fighter_type &&
-        t.fighter_class === selectedType?.fighter_class
-      );
-      
-      // If we have multiple entries with the same fighter_type + class, they have sub-types
-      if (fighterTypeGroup.length > 1) {
-        const subTypes = fighterTypeGroup.map(ft => ({
-          id: ft.id,
-          sub_type_name: ft.sub_type?.sub_type_name || 'Default',
-          cost: ft.total_cost
-        }));
-        
-        setAvailableSubTypes(subTypes);
-        
-        // Set cost to the fighter with the ID we selected initially
-        setFighterCost(selectedType?.total_cost.toString() || '');
-        
-        // Auto-selection will happen in the useEffect
-      } else {
-        // No sub-types, just set the cost directly
-        setFighterCost(selectedType?.total_cost.toString() || '');
-        setAvailableSubTypes([]);
-      }
-    } else {
-      setFighterCost('');
-      setAvailableSubTypes([]);
-    }
-  };
-
-  const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const subTypeId = e.target.value;
-    setSelectedSubTypeId(subTypeId);
-    setSelectedLegacyId(''); // Reset legacy selection
-    setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
-    setSelectedEquipment([]); // Reset equipment with costs
-    
-    if (subTypeId) {
-      // Don't change the selectedFighterTypeId, just update the cost
-      const selectedType = fighterTypes.find(t => t.id === subTypeId);
-      if (selectedType) {
-        setFighterCost(selectedType.total_cost.toString() || '');
-      }
-    } else {
-      // If no sub-type is selected, revert to the main fighter type's cost
-      const mainType = fighterTypes.find(t => t.id === selectedFighterTypeId);
-      if (mainType) {
-        setFighterCost(mainType.total_cost.toString() || '');
-      }
-    }
-  };
 
   // Simple helper function to infer category from name when API doesn't provide it
   const inferCategoryFromEquipmentName = (name: string): string => {
@@ -1131,30 +1069,53 @@ export default function AddFighter({
 
   const addFighterModalContent = (
     <div className="space-y-4">
+      {/* Fighter Type */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-muted-foreground">
-          Fighter Name
+          Fighter Type *
         </label>
-        <Input
-          type="text"
-          placeholder="Fighter name"
-          value={fighterName}
-          onChange={(e) => setFighterName(e.target.value)}
-          className="w-full"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted-foreground">
-          Fighter Type
-        </label>
-        <select
+        <Combobox
           value={selectedFighterTypeId}
-          onChange={handleFighterTypeChange}
-          className="w-full p-2 border rounded"
-        >
-          <option value="">Select fighter type</option>
-          {(() => {
+          onValueChange={(value) => {
+            const typeId = value;
+            setSelectedFighterTypeId(typeId);
+            setSelectedSubTypeId(''); // Reset sub-type selection
+            setSelectedLegacyId(''); // Reset legacy selection
+            setSelectedEquipmentIds([]); // Reset equipment selections when type changes
+            setSelectedEquipment([]); // Reset equipment with costs
+            
+            if (typeId) {
+              // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
+              const selectedType = fighterTypes.find(t => t.id === typeId);
+              const fighterTypeGroup = fighterTypes.filter(t => 
+                t.fighter_type === selectedType?.fighter_type &&
+                t.fighter_class === selectedType?.fighter_class
+              );
+              
+              // If we have multiple entries with the same fighter_type + class, they have sub-types
+              if (fighterTypeGroup.length > 1) {
+                const subTypes = fighterTypeGroup.map(ft => ({
+                  id: ft.id,
+                  sub_type_name: ft.sub_type?.sub_type_name || 'Default',
+                  cost: ft.total_cost
+                }));
+                
+                setAvailableSubTypes(subTypes);
+                
+                // Set cost to the fighter with the ID we selected initially
+                setFighterCost(selectedType?.total_cost.toString() || '');
+              } else {
+                // No sub-types, just set the cost directly
+                setFighterCost(selectedType?.total_cost.toString() || '');
+                setAvailableSubTypes([]);
+              }
+            } else {
+              setFighterCost('');
+              setAvailableSubTypes([]);
+            }
+          }}
+          placeholder="Select fighter type"
+          options={(() => {
             // Create a map to group fighters by type+class and find default/cheapest for each
             const typeClassMap = new Map();
 
@@ -1215,13 +1176,15 @@ export default function AddFighter({
                 return rankA - rankB;
               });
 
+            const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
             // If no groups, return empty array
             if (sortedGroups.length === 0) {
-              return [];
+              return options;
             }
 
             if (!hasMultipleGroups) {
-              // If only one group, don't use optgroups - just show options directly
+              // If only one group, don't use headers - just show options directly
               const groupKey = sortedGroups[0];
               const fighters = (groupedByType[groupKey] || [])
                 .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
@@ -1240,19 +1203,19 @@ export default function AddFighter({
                   return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
                 });
 
-              return fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
+              fighters.forEach(({ fighter, cost }: { fighter: any; cost: number }) => {
                 const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
-
-                return (
-                  <option key={fighter.id} value={fighter.id}>
-                    {displayName}
-                  </option>
-                );
+                options.push({
+                  value: fighter.id,
+                  label: displayName
+                });
               });
+
+              return options;
             }
 
-            // If multiple groups, use optgroups
-            return sortedGroups.map((groupKey) => {
+            // If multiple groups, use headers
+            sortedGroups.forEach((groupKey) => {
               const fighters = (groupedByType[groupKey] || [])
                 .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
                   const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
@@ -1270,94 +1233,123 @@ export default function AddFighter({
                   return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
                 });
 
-              return (
-                <optgroup key={groupKey} label={groupDisplayNames[groupKey]}>
-                  {fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
-                    const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
+              // Add group header as disabled option
+              options.push({
+                value: `header-${groupKey}`,
+                label: <span className="font-bold">{groupDisplayNames[groupKey]}</span>,
+                displayValue: groupDisplayNames[groupKey],
+                disabled: true
+              });
 
-                    return (
-                      <option key={fighter.id} value={fighter.id}>
-                        {displayName}
-                      </option>
-                    );
-                  })}
-                </optgroup>
-              );
+              // Add fighters in this group
+              fighters.forEach(({ fighter, cost }: { fighter: any; cost: number }) => {
+                const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
+                options.push({
+                  value: fighter.id,
+                  label: <span className="ml-3">{displayName}</span>,
+                  displayValue: displayName
+                });
+              });
             });
+
+            return options;
           })()}
-        </select>
-      </div>
-
-      {/* Conditionally show sub-type dropdown if there are available sub-types */}
-      {availableSubTypes.length > 0 && (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-muted-foreground">
-            Fighter Sub-type
-          </label>
-          <select
-            value={selectedSubTypeId}
-            onChange={handleSubTypeChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Select fighter sub-type</option>
-            {[...availableSubTypes]
-              .sort((a, b) => {
-                const aName = a.sub_type_name.toLowerCase();
-                const bName = b.sub_type_name.toLowerCase();
-
-                // Always keep "Default" first
-                if (aName === 'default') return -1;
-                if (bName === 'default') return 1;
-
-                // Otherwise sort by cost, then name
-                const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
-                const bCost = fighterTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
-                if (aCost !== bCost) return aCost - bCost;
-
-                return aName.localeCompare(bName);
-              })
-              .map((subType) => {
-                const subTypeCost = fighterTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
-                const lowestSubTypeCost = Math.min(
-                  ...availableSubTypes.map(sub =>
-                    fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
-                  )
-                );
-                const diff = subTypeCost - lowestSubTypeCost;
-                const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
-
-                // Display "Default" for the null/empty sub-type, otherwise use the actual sub-type name
-                const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
-
-                return (
-                  <option key={subType.id} value={subType.id}>
-                    {displayName} {costLabel}
-                  </option>
-                );
-              })}
-          </select>
-        </div>
-      )}
-
-      <div className="flex items-center space-x-2 mb-4">
-        <Checkbox
-          id="include-custom-fighters"
-          checked={includeCustomFighters}
-          onCheckedChange={(checked) => setIncludeCustomFighters(checked as boolean)}
         />
-        <label
-          htmlFor="include-custom-fighters"
-          className="text-sm font-medium text-muted-foreground cursor-pointer"
-        >
-          Include Custom Fighter Types
-        </label>
-        <div className="relative group">
-          <ImInfo />
-          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
-            When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
+
+        {/* Checkox: Include Custom Fighter Types */}
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="include-custom-fighters"
+            checked={includeCustomFighters}
+            onCheckedChange={(checked) => setIncludeCustomFighters(checked as boolean)}
+          />
+          <label
+            htmlFor="include-custom-fighters"
+            className="text-sm font-medium text-muted-foreground cursor-pointer"
+          >
+            Include Custom Fighter Types
+          </label>
+          <div className="relative group">
+            <ImInfo />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+              When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
+            </div>
           </div>
         </div>
       </div>
+
+
+
+      {/* Fighter sub-type: Conditionally show dropdown if there are available sub-types */}
+      {availableSubTypes.length > 0 && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-muted-foreground">
+            Fighter Sub-type *
+          </label>
+          <Combobox
+            value={selectedSubTypeId}
+            onValueChange={(value) => {
+              const subTypeId = value;
+              setSelectedSubTypeId(subTypeId);
+              setSelectedLegacyId(''); // Reset legacy selection
+              setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
+              setSelectedEquipment([]); // Reset equipment with costs
+              
+              if (subTypeId) {
+                // Don't change the selectedFighterTypeId, just update the cost
+                const selectedType = fighterTypes.find(t => t.id === subTypeId);
+                if (selectedType) {
+                  setFighterCost(selectedType.total_cost.toString() || '');
+                }
+              } else {
+                // If no sub-type is selected, revert to the main fighter type's cost
+                const mainType = fighterTypes.find(t => t.id === selectedFighterTypeId);
+                if (mainType) {
+                  setFighterCost(mainType.total_cost.toString() || '');
+                }
+              }
+            }}
+            placeholder="Select fighter sub-type"
+            options={(() => {
+              const lowestSubTypeCost = Math.min(
+                ...availableSubTypes.map(sub =>
+                  fighterTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
+                )
+              );
+
+              return [...availableSubTypes]
+                .sort((a, b) => {
+                  const aName = a.sub_type_name.toLowerCase();
+                  const bName = b.sub_type_name.toLowerCase();
+
+                  // Always keep "Default" first
+                  if (aName === 'default') return -1;
+                  if (bName === 'default') return 1;
+
+                  // Otherwise sort by cost, then name
+                  const aCost = fighterTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
+                  const bCost = fighterTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
+                  if (aCost !== bCost) return aCost - bCost;
+
+                  return aName.localeCompare(bName);
+                })
+                .map((subType) => {
+                  const subTypeCost = fighterTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
+                  const diff = subTypeCost - lowestSubTypeCost;
+                  const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
+
+                  // Display "Default" for the null/empty sub-type, otherwise use the actual sub-type name
+                  const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
+
+                  return {
+                    value: subType.id,
+                    label: `${displayName} ${costLabel}`
+                  };
+                });
+            })()}
+          />
+        </div>
+      )}
 
       {/* Gang Legacy Selection */}
       {(() => {
@@ -1371,57 +1363,76 @@ export default function AddFighter({
             <label className="block text-sm font-medium text-muted-foreground">
               Gang Legacy
             </label>
-            <select
+            <Combobox
               value={selectedLegacyId}
-              onChange={(e) => setSelectedLegacyId(e.target.value)}
-              className="w-full p-2 border rounded"
-            >
-              <option value="">No Legacy</option>
-              {availableLegacies.map((legacy) => (
-                <option key={legacy.id} value={legacy.id}>
-                  {legacy.name}
-                </option>
-              ))}
-            </select>
+              onValueChange={(value) => setSelectedLegacyId(value)}
+              placeholder="No Legacy"
+              options={[
+                { value: "", label: "No Legacy" },
+                ...availableLegacies.map((legacy) => ({
+                  value: legacy.id,
+                  label: legacy.name
+                }))
+              ]}
+            />
           </div>
         ) : null;
       })()}
 
+      {/* Fighter Cost */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-muted-foreground">
-          Cost (credits)
+          Cost (credits) *
         </label>
         <Input
           type="number"
+          placeholder="Enter fighter cost"
           value={fighterCost}
           onChange={(e) => setFighterCost(e.target.value)}
           className="w-full"
           min={0}
         />
-      </div>
 
-      <div className="flex items-center space-x-2 mb-4 mt-2">
-        <Checkbox 
-          id="use-base-cost-for-rating"
-          checked={useBaseCostForRating}
-          onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
-        />
-        <label 
-          htmlFor="use-base-cost-for-rating" 
-          className="text-sm font-medium text-muted-foreground cursor-pointer"
-        >
-          Use Listed Cost for Rating
-        </label>
-        <div className="relative group">
-          <ImInfo />
-          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
-            When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+        {/* Checkbox:Use Listed Cost for Rating */}
+        <div className="flex items-center space-x-2 mb-4 mt-2">
+          <Checkbox 
+            id="use-base-cost-for-rating"
+            checked={useBaseCostForRating}
+            onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+          />
+          <label 
+            htmlFor="use-base-cost-for-rating" 
+            className="text-sm font-medium text-muted-foreground cursor-pointer"
+          >
+            Use Listed Cost for Rating
+          </label>
+          <div className="relative group">
+            <ImInfo />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+              When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+            </div>
           </div>
         </div>
       </div>
 
+
+
       {/* Equipment selection */}
       {renderEquipmentSelection()}
+
+      {/* Fighter Name */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-muted-foreground">
+          Fighter Name *
+        </label>
+        <Input
+          type="text"
+          placeholder="Enter fighter name"
+          value={fighterName}
+          onChange={(e) => setFighterName(e.target.value)}
+          className="w-full"
+        />
+      </div>
 
       {fetchError && <p className="text-red-500">{fetchError}</p>}
     </div>

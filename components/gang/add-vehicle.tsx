@@ -4,6 +4,7 @@ import Modal from '@/components/ui/modal';
 import { useToast } from "@/components/ui/use-toast";
 import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
@@ -206,37 +207,26 @@ export default function AddVehicle({
       }
       content={
         <div className="space-y-4">
+          {/* Vehicle Type */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-muted-foreground">
-              Vehicle Name
+              Vehicle Type *
             </label>
-            <Input
-              type="text"
-              placeholder="Enter vehicle name"
-              value={vehicleName}
-              onChange={(e) => setVehicleName(e.target.value)}
-              className="w-full"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-muted-foreground">
-              Vehicle Type
-            </label>
-            <select
+            <Combobox
               value={selectedVehicleTypeId}
-              onChange={(e) => {
-                setSelectedVehicleTypeId(e.target.value);
-                const vehicle = vehicleTypes.find(v => v.id === e.target.value);
+              onValueChange={(value) => {
+                setSelectedVehicleTypeId(value);
+                const vehicle = vehicleTypes.find(v => v.id === value);
                 if (vehicle) {
                   setVehicleCost(vehicle.cost.toString());
                 }
               }}
-              className="w-full p-2 border rounded"
-            >
-              <option value="">Select vehicle type</option>
-              {Object.entries(
-                vehicleTypes
+              placeholder="Select vehicle type"
+              options={(() => {
+                const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+                
+                // Group vehicles by category
+                const groupedVehicles = vehicleTypes
                   .slice() // Shallow copy
                   .sort((a, b) => {
                     const rankA = vehicleTypeRank[a.vehicle_type.toLowerCase()] ?? Infinity;
@@ -255,25 +245,48 @@ export default function AddVehicle({
                     if (!groups[groupLabel]) groups[groupLabel] = [];
                     groups[groupLabel].push(type);
                     return groups;
-                  }, {} as Record<string, VehicleType[]>)
-              ).map(([groupLabel, types]) => (
-                <optgroup key={groupLabel} label={groupLabel}>
-                  {types.map(type => (
-                    <option key={type.id} value={type.id}>
-                      {type.vehicle_type} - {type.cost} credits
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+                  }, {} as Record<string, VehicleType[]>);
+
+                // Define group order
+                const groupOrder = ["Gang Vehicles", "Universal Vehicles", "Base Vehicle Templates", "Sump Sea Vehicles", "Misc."];
+
+                // Build options with headers
+                groupOrder.forEach(groupLabel => {
+                  const types = groupedVehicles[groupLabel];
+                  if (types && types.length > 0) {
+                    // Add group header as disabled option
+                    options.push({
+                      value: `header-${groupLabel}`,
+                      label: <span className="font-bold">{groupLabel}</span>,
+                      displayValue: groupLabel,
+                      disabled: true
+                    });
+
+                    // Add vehicles in this group
+                    types.forEach(type => {
+                      const displayName = `${type.vehicle_type} - ${type.cost} credits`;
+                      options.push({
+                        value: type.id,
+                        label: <span className="ml-3">{displayName}</span>,
+                        displayValue: displayName
+                      });
+                    });
+                  }
+                });
+
+                return options;
+              })()}
+            />
           </div>
 
+          {/* Vehicle Cost */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-muted-foreground">
-              Cost (credits)
+              Cost (credits) *
             </label>
             <Input
               type="number"
+              placeholder="Enter vehicle cost"
               value={vehicleCost}
               onChange={handleCostChange}
               className="w-full"
@@ -284,26 +297,41 @@ export default function AddVehicle({
                 Base cost: {vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.cost} credits
               </p>
             )}
-          </div>
 
-          <div className="flex items-center space-x-2 mb-4 mt-2">
-            <Checkbox 
-              id="baseCostCheckbox" 
-              checked={useBaseCost}
-              onCheckedChange={(checked) => setUseBaseCost(checked as boolean)}
-            />
-            <label 
-              htmlFor="baseCostCheckbox" 
-              className="text-sm font-medium text-muted-foreground cursor-pointer"
-            >
-              Use Listed Cost for Rating
-            </label>
-            <div className="relative group">
-              <ImInfo />
-              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
-                When enabled, the vehicle's rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
+            {/* Checkbox:Use Listed Cost for Rating */}
+            <div className="flex items-center space-x-2 mb-4 mt-2">
+              <Checkbox 
+                id="baseCostCheckbox" 
+                checked={useBaseCost}
+                onCheckedChange={(checked) => setUseBaseCost(checked as boolean)}
+              />
+              <label 
+                htmlFor="baseCostCheckbox" 
+                className="text-sm font-medium text-muted-foreground cursor-pointer"
+              >
+                Use Listed Cost for Rating
+              </label>
+              <div className="relative group">
+                <ImInfo />
+                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                  When enabled, the vehicle's rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Vehicle Name */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-muted-foreground">
+              Vehicle Name *
+            </label>
+            <Input
+              type="text"
+              placeholder="Enter vehicle name"
+              value={vehicleName}
+              onChange={(e) => setVehicleName(e.target.value)}
+              className="w-full"
+            />
           </div>
 
           {vehicleError && <p className="text-red-500">{vehicleError}</p>}

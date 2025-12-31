@@ -11,6 +11,7 @@ import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { addFighterToGang } from '@/app/actions/add-fighter';
 
@@ -336,78 +337,6 @@ export default function GangAdditions({
         description: "Failed to load gang additions",
         variant: "destructive"
       });
-    }
-  };
-
-  const handleGangAdditionClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedGangAdditionClass(e.target.value);
-    setSelectedGangAdditionTypeId(''); // Reset Gang Addition type when class changes
-  };
-
-  const handleGangAdditionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const typeId = e.target.value;
-    setSelectedGangAdditionTypeId(typeId);
-    setSelectedFighterTypeId(typeId);
-    setSelectedSubTypeId(''); // Reset sub-type selection
-    setSelectedEquipmentIds([]); // Reset equipment selections when type changes
-    setSelectedEquipment([]); // Reset equipment with costs
-    
-    if (typeId) {
-      // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
-      const selectedType = gangAdditionTypes.find(t => t.id === typeId);
-      const fighterTypeGroup = gangAdditionTypes.filter(t => 
-        t.fighter_type === selectedType?.fighter_type &&
-        t.fighter_class === selectedType?.fighter_class
-      );
-      
-      // If we have multiple entries with the same fighter_type + class, they have sub-types
-      if (fighterTypeGroup.length > 1) {
-        const subTypes = fighterTypeGroup.map(ft => ({
-          id: ft.id,
-          sub_type_name: ft.sub_type?.sub_type_name || 'Default',
-          cost: ft.total_cost
-        }));
-        
-        setAvailableSubTypes(subTypes);
-        
-        // Set cost to the fighter with the ID we selected initially
-        setGangAdditionCost(selectedType?.total_cost.toString() || '');
-        setFighterCost(selectedType?.total_cost.toString() || '');
-        
-        // Auto-selection will happen in the useEffect
-      } else {
-        // No sub-types, just set the cost directly
-        setGangAdditionCost(selectedType?.total_cost.toString() || '');
-        setFighterCost(selectedType?.total_cost.toString() || '');
-        setAvailableSubTypes([]);
-      }
-    } else {
-      setGangAdditionCost('');
-      setFighterCost('');
-      setAvailableSubTypes([]);
-    }
-  };
-
-  const handleSubTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const subTypeId = e.target.value;
-    setSelectedSubTypeId(subTypeId);
-    setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
-    setSelectedEquipment([]); // Reset equipment with costs
-    
-    if (subTypeId) {
-      // Don't change the selectedGangAdditionTypeId, just update the cost
-      const selectedType = gangAdditionTypes.find(t => t.id === subTypeId);
-      if (selectedType) {
-        setGangAdditionCost(selectedType.total_cost.toString() || '');
-        setFighterCost(selectedType.total_cost.toString() || '');
-      }
-    } else {
-      // If no sub-type is selected, revert to the main fighter type's cost
-      const mainType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-      if (mainType) {
-        setGangAdditionCost(mainType.total_cost.toString() || '');
-        setFighterCost(mainType.total_cost.toString() || '');
-      }
     }
   };
 
@@ -1236,127 +1165,164 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
   const gangAdditionsModalContent = (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-muted-foreground">
-          Fighter Name *
-        </label>
-        <Input
-          type="text"
-          placeholder="Fighter name"
-          value={fighterName}
-          onChange={(e) => setFighterName(e.target.value)}
-          className="w-full"
-        />
-      </div>
-
+      {/* Fighter Class */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-muted-foreground">
           Fighter Class *
         </label>
-        <select
+        <Combobox
           value={selectedGangAdditionClass}
-          onChange={handleGangAdditionClassChange}
-          className="w-full p-2 border rounded"
-        >
-          <option value="">Select Fighter Class</option>
-          {
-            ((): React.ReactElement[] => {
-              const nonAlliances = gangAdditionTypes.filter(t => !t.alliance_id);
-              const alliances = gangAdditionTypes.filter(t => t.alliance_id);
+          onValueChange={(value) => {
+            setSelectedGangAdditionClass(value);
+            setSelectedGangAdditionTypeId(''); // Reset Gang Addition type when class changes
+          }}
+          placeholder="Select Fighter Class"
+          options={(() => {
+            const nonAlliances = gangAdditionTypes.filter(t => !t.alliance_id);
+            const alliances = gangAdditionTypes.filter(t => t.alliance_id);
 
-              const groupLabelConfig = [
-                { label: "Hangers-on & Brutes", maxRank: 2, alliance: false },
-                { label: "Vehicle Crews", maxRank: 10, alliance: false },
-                { label: "Hired Guns", maxRank: 29, alliance: false },
-                { label: "Equipment", maxRank: 39, alliance: false },
-                { label: "Misc.", maxRank: Infinity, alliance: false },
+            const groupLabelConfig = [
+              { label: "Hangers-on & Brutes", maxRank: 2, alliance: false },
+              { label: "Vehicle Crews", maxRank: 10, alliance: false },
+              { label: "Hired Guns", maxRank: 29, alliance: false },
+              { label: "Equipment", maxRank: 39, alliance: false },
+              { label: "Misc.", maxRank: Infinity, alliance: false },
+              { label: "Alliances: Criminal Organisations", maxRank: 49, alliance: true },
+              { label: "Alliances: Merchant Guilds", maxRank: 59, alliance: true },
+              { label: "Alliances: Noble Houses", maxRank: 69, alliance: true },
+              { label: "Alliances: Other", maxRank: Infinity, alliance: true },
+            ];
 
-                { label: "Alliances: Criminal Organisations", maxRank: 49, alliance: true },
-                { label: "Alliances: Merchant Guilds", maxRank: 59, alliance: true },
-                { label: "Alliances: Noble Houses", maxRank: 69, alliance: true },
-                { label: "Alliances: Other", maxRank: Infinity, alliance: true },
-              ];
-
-              const getGroupLabelFromRank = (rank: number, isAlliance: boolean): string => {
-                for (const entry of groupLabelConfig) {
-                  if (entry.alliance === isAlliance && rank <= entry.maxRank) {
-                    return entry.label;
-                  }
+            const getGroupLabelFromRank = (rank: number, isAlliance: boolean): string => {
+              for (const entry of groupLabelConfig) {
+                if (entry.alliance === isAlliance && rank <= entry.maxRank) {
+                  return entry.label;
                 }
-                return "Misc.";
-              };
+              }
+              return "Misc.";
+            };
 
-              const groupLabelRank: Record<string, number> = Object.fromEntries(
-                groupLabelConfig.map((entry, index) => [entry.label, index + 1])
-              );
+            const groupLabelRank: Record<string, number> = Object.fromEntries(
+              groupLabelConfig.map((entry, index) => [entry.label, index + 1])
+            );
 
-              const nonAllianceGroups = nonAlliances.reduce((groups, type) => {
-                const classType = type.fighter_class;
-                const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
-                const groupLabel = getGroupLabelFromRank(rank, false);
+            const nonAllianceGroups = nonAlliances.reduce((groups, type) => {
+              const classType = type.fighter_class;
+              const rank = gangAdditionRank[classType.toLowerCase()] ?? Infinity;
+              const groupLabel = getGroupLabelFromRank(rank, false);
 
-                if (!groups[groupLabel]) groups[groupLabel] = new Set();
-                groups[groupLabel].add(classType);
-                return groups;
-              }, {} as Record<string, Set<string>>);
+              if (!groups[groupLabel]) groups[groupLabel] = new Set();
+              groups[groupLabel].add(classType);
+              return groups;
+            }, {} as Record<string, Set<string>>);
 
-              const allianceGroups = alliances.reduce((groups, type) => {
-                const crewName = type.alliance_crew_name || "Unnamed Delegation";
-                const rank = gangAdditionRank[crewName.toLowerCase()] ?? Infinity;
-                const groupLabel = getGroupLabelFromRank(rank, true);
+            const allianceGroups = alliances.reduce((groups, type) => {
+              const crewName = type.alliance_crew_name || "Unnamed Delegation";
+              const rank = gangAdditionRank[crewName.toLowerCase()] ?? Infinity;
+              const groupLabel = getGroupLabelFromRank(rank, true);
 
-                if (!groups[groupLabel]) groups[groupLabel] = new Set();
-                groups[groupLabel].add(crewName);
-                return groups;
-              }, {} as Record<string, Set<string>>);
+              if (!groups[groupLabel]) groups[groupLabel] = new Set();
+              groups[groupLabel].add(crewName);
+              return groups;
+            }, {} as Record<string, Set<string>>);
 
-              const mergedGroups: Record<string, Set<string>> = {};
-              [nonAllianceGroups, allianceGroups].forEach(source => {
-                for (const [label, set] of Object.entries(source)) {
-                  if (!mergedGroups[label]) mergedGroups[label] = new Set(set);
-                  else set.forEach(v => mergedGroups[label].add(v));
-                }
+            const mergedGroups: Record<string, Set<string>> = {};
+            [nonAllianceGroups, allianceGroups].forEach(source => {
+              for (const [label, set] of Object.entries(source)) {
+                if (!mergedGroups[label]) mergedGroups[label] = new Set(set);
+                else set.forEach(v => mergedGroups[label].add(v));
+              }
+            });
+
+            const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
+            Object.entries(mergedGroups)
+              .sort(([a], [b]) => {
+                const rankA = groupLabelRank[a] ?? 999;
+                const rankB = groupLabelRank[b] ?? 999;
+                return rankA - rankB;
+              })
+              .forEach(([groupLabel, classSet]) => {
+                // Add group header as disabled option
+                options.push({
+                  value: `header-${groupLabel}`,
+                  label: <span className="font-bold">{groupLabel}</span>,
+                  displayValue: groupLabel,
+                  disabled: true
+                });
+
+                // Add items in this group
+                Array.from(classSet)
+                  .sort((a, b) => {
+                    const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
+                    const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
+                    return rankA - rankB;
+                  })
+                  .forEach(classType => {
+                    options.push({
+                      value: classType,
+                      label: <span className="ml-3">{classType}</span>,
+                      displayValue: classType
+                    });
+                  });
               });
 
-              return Object.entries(mergedGroups)
-                .sort(([a], [b]) => {
-                  const rankA = groupLabelRank[a] ?? 999;
-                  const rankB = groupLabelRank[b] ?? 999;
-                  return rankA - rankB;
-                })
-                .map(([groupLabel, classSet]) => (
-                  <optgroup key={groupLabel} label={groupLabel}>
-                    {Array.from(classSet)
-                      .sort((a, b) => {
-                        const rankA = gangAdditionRank[a.toLowerCase()] ?? Infinity;
-                        const rankB = gangAdditionRank[b.toLowerCase()] ?? Infinity;
-                        return rankA - rankB;
-                      })
-                      .map(classType => (
-                        <option key={classType} value={classType}>
-                          {classType}
-                        </option>
-                      ))}
-                  </optgroup>
-                ));
-            })()
-          }
-        </select>
+            return options;
+          })()}
+        />
       </div>
 
+      {/* Fighter Type */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-muted-foreground">
           Fighter Type *
         </label>
-        <select
+        <Combobox
           value={selectedGangAdditionTypeId}
-          onChange={handleGangAdditionTypeChange}
-          className="w-full p-2 border rounded"
+          onValueChange={(value) => {
+            const typeId = value;
+            setSelectedGangAdditionTypeId(typeId);
+            setSelectedFighterTypeId(typeId);
+            setSelectedSubTypeId(''); // Reset sub-type selection
+            setSelectedEquipmentIds([]); // Reset equipment selections when type changes
+            setSelectedEquipment([]); // Reset equipment with costs
+            
+            if (typeId) {
+              // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
+              const selectedType = gangAdditionTypes.find(t => t.id === typeId);
+              const fighterTypeGroup = gangAdditionTypes.filter(t => 
+                t.fighter_type === selectedType?.fighter_type &&
+                t.fighter_class === selectedType?.fighter_class
+              );
+              
+              // If we have multiple entries with the same fighter_type + class, they have sub-types
+              if (fighterTypeGroup.length > 1) {
+                const subTypes = fighterTypeGroup.map(ft => ({
+                  id: ft.id,
+                  sub_type_name: ft.sub_type?.sub_type_name || 'Default',
+                  cost: ft.total_cost
+                }));
+                
+                setAvailableSubTypes(subTypes);
+                
+                // Set cost to the fighter with the ID we selected initially
+                setGangAdditionCost(selectedType?.total_cost.toString() || '');
+                setFighterCost(selectedType?.total_cost.toString() || '');
+              } else {
+                // No sub-types, just set the cost directly
+                setGangAdditionCost(selectedType?.total_cost.toString() || '');
+                setFighterCost(selectedType?.total_cost.toString() || '');
+                setAvailableSubTypes([]);
+              }
+            } else {
+              setGangAdditionCost('');
+              setFighterCost('');
+              setAvailableSubTypes([]);
+            }
+          }}
+          placeholder="Select Fighter Type"
           disabled={!selectedGangAdditionClass}
-        >
-          <option value="">Select Fighter Type</option>
-
-          {((): React.ReactElement[] => {
+          options={(() => {
             // Create a map to group fighters by type+class and find default/cheapest for each
             const typeClassMap = new Map();
             
@@ -1411,83 +1377,113 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
               "unaligned": "Unaligned",
             };
 
+            const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
             // Sort alignments by order, then sort fighters within each group alphabetically
-            return Object.keys(groupedByAlignment)
+            Object.keys(groupedByAlignment)
               .sort((a: string, b: string) => {
                 const orderA = alignmentOrder[a] ?? 4;
                 const orderB = alignmentOrder[b] ?? 4;
                 return orderA - orderB;
               })
-              .map((alignment: string) => {
+              .forEach((alignment: string) => {
                 const fighters = groupedByAlignment[alignment]
                   .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => a.fighter.fighter_type.localeCompare(b.fighter.fighter_type));
 
-                return (
-                  <optgroup key={alignment} label={alignmentDisplayNames[alignment]}>
-                    {fighters.map(({ fighter, cost }: { fighter: any; cost: number }) => {
-                      const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} (${cost} credits)`;
-                      
-                      return (
-                        <option key={fighter.id} value={fighter.id}>
-                          {displayName}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                );
+                // Add alignment header as disabled option
+                options.push({
+                  value: `header-${alignment}`,
+                  label: <span className="font-bold">{alignmentDisplayNames[alignment]}</span>,
+                  displayValue: alignmentDisplayNames[alignment],
+                  disabled: true
+                });
+
+                // Add fighters in this group
+                fighters.forEach(({ fighter, cost }: { fighter: any; cost: number }) => {
+                  const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${cost} credits`;
+                  
+                  options.push({
+                    value: fighter.id,
+                    label: <span className="ml-3">{displayName}</span>,
+                    displayValue: displayName
+                  });
+                });
               });
+
+            return options;
           })()}
-        </select>
+        />
       </div>
 
-      {/* Conditionally show sub-type dropdown if there are available sub-types */}
+      {/* Fighter sub-type: Conditionally show dropdown if there are available sub-types */}
       {availableSubTypes.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-muted-foreground">
             Fighter Sub-type
           </label>
-          <select
+          <Combobox
             value={selectedSubTypeId}
-            onChange={handleSubTypeChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Select fighter sub-type</option>
-            {[...availableSubTypes]
-              .sort((a, b) => {
-                const aName = a.sub_type_name.toLowerCase();
-                const bName = b.sub_type_name.toLowerCase();
+            onValueChange={(value) => {
+              const subTypeId = value;
+              setSelectedSubTypeId(subTypeId);
+              setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
+              setSelectedEquipment([]); // Reset equipment with costs
+              
+              if (subTypeId) {
+                // Don't change the selectedGangAdditionTypeId, just update the cost
+                const selectedType = gangAdditionTypes.find(t => t.id === subTypeId);
+                if (selectedType) {
+                  setGangAdditionCost(selectedType.total_cost.toString() || '');
+                  setFighterCost(selectedType.total_cost.toString() || '');
+                }
+              } else {
+                // If no sub-type is selected, revert to the main fighter type's cost
+                const mainType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                if (mainType) {
+                  setGangAdditionCost(mainType.total_cost.toString() || '');
+                  setFighterCost(mainType.total_cost.toString() || '');
+                }
+              }
+            }}
+            placeholder="Select fighter sub-type"
+            options={(() => {
+              const lowestSubTypeCost = Math.min(
+                ...availableSubTypes.map(sub =>
+                  gangAdditionTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
+                )
+              );
 
-                // Always keep "Default" first
-                if (aName === 'default') return -1;
-                if (bName === 'default') return 1;
+              return [...availableSubTypes]
+                .sort((a, b) => {
+                  const aName = a.sub_type_name.toLowerCase();
+                  const bName = b.sub_type_name.toLowerCase();
 
-                // Otherwise sort by cost, then name
-                const aCost = gangAdditionTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
-                const bCost = gangAdditionTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
-                if (aCost !== bCost) return aCost - bCost;
+                  // Always keep "Default" first
+                  if (aName === 'default') return -1;
+                  if (bName === 'default') return 1;
 
-                return aName.localeCompare(bName);
-              })
-              .map((subType) => {
-                const subTypeCost = gangAdditionTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
-                const lowestSubTypeCost = Math.min(
-                  ...availableSubTypes.map(sub =>
-                    gangAdditionTypes.find(ft => ft.id === sub.id)?.total_cost ?? Infinity
-                  )
-                );
-                const diff = subTypeCost - lowestSubTypeCost;
-                const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
+                  // Otherwise sort by cost, then name
+                  const aCost = gangAdditionTypes.find(ft => ft.id === a.id)?.total_cost ?? 0;
+                  const bCost = gangAdditionTypes.find(ft => ft.id === b.id)?.total_cost ?? 0;
+                  if (aCost !== bCost) return aCost - bCost;
 
-                // Display "Default" for the null/empty sub-type, otherwise use the actual sub-type name
-                const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
+                  return aName.localeCompare(bName);
+                })
+                .map((subType) => {
+                  const subTypeCost = gangAdditionTypes.find(ft => ft.id === subType.id)?.total_cost ?? 0;
+                  const diff = subTypeCost - lowestSubTypeCost;
+                  const costLabel = diff === 0 ? "(+0 credits)" : (diff > 0 ? `(+${diff} credits)` : `(${diff} credits)`);
 
-                return (
-                  <option key={subType.id} value={subType.id}>
-                    {displayName} {costLabel}
-                  </option>
-                );
-              })}
-          </select>
+                  // Display "Default" for the null/empty sub-type, otherwise use the actual sub-type name
+                  const displayName = subType.sub_type_name === 'Default' ? 'Default' : subType.sub_type_name;
+
+                  return {
+                    value: subType.id,
+                    label: `${displayName} ${costLabel}`
+                  };
+                });
+            })()}
+          />
         </div>
       )}
 
@@ -1495,10 +1491,11 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-muted-foreground">
-          Total Cost (credits)
+          Total Cost (credits) *
         </label>
         <Input
           type="number"
+          placeholder="Enter total fightercost"
           value={fighterCost}
           onChange={handleCostChange}
           className="w-full"
@@ -1512,26 +1509,41 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             )}
           </p>
         )}
-      </div>
 
-      <div className="flex items-center space-x-2 mb-4 mt-2">
-        <Checkbox 
-          id="use-base-cost-for-rating"
-          checked={useBaseCostForRating}
-          onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
-        />
-        <label 
-          htmlFor="use-base-cost-for-rating" 
-          className="text-sm font-medium text-muted-foreground cursor-pointer"
-        >
-          Use Listed Cost for Rating
-        </label>
-        <div className="relative group">
-          <ImInfo />
-          <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
-            When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+        {/* Checkbox:Use Listed Cost for Rating */}
+        <div className="flex items-center space-x-2 mb-4 mt-2">
+          <Checkbox 
+            id="use-base-cost-for-rating"
+            checked={useBaseCostForRating}
+            onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
+          />
+          <label 
+            htmlFor="use-base-cost-for-rating" 
+            className="text-sm font-medium text-muted-foreground cursor-pointer"
+          >
+            Use Listed Cost for Rating
+          </label>
+          <div className="relative group">
+            <ImInfo />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+              When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Fighter Name */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-muted-foreground">
+          Fighter Name *
+        </label>
+        <Input
+          type="text"
+          placeholder="Enter fighter name"
+          value={fighterName}
+          onChange={(e) => setFighterName(e.target.value)}
+          className="w-full"
+        />
       </div>
 
       {fetchError && <p className="text-red-500">{fetchError}</p>}
