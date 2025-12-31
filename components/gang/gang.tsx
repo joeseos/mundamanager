@@ -295,6 +295,31 @@ export default function Gang({
     return `${title}${rows}${footer}`;
   }, [fighterTypeClassCounts]);
 
+  // Wealth breakdown tooltip HTML
+  const wealthTooltipHtml = useMemo(() => {
+    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Wealth Breakdown</div>';
+    const rows = [
+      { label: 'Gang Rating', value: rating },
+      { label: 'Credits', value: credits },
+      { label: 'Stash', value: totalStashValue },
+      { label: 'Vehicles (without crew)', value: unassignedVehiclesValue },
+    ]
+      .map(({ label, value }) =>
+        `<div style="display:flex;justify-content:space-between;gap:12px;">` +
+          `<span>${escapeHtml(label)}</span>` +
+          `<span>${value}</span>` +
+        `</div>`
+      )
+      .join('');
+    const total = credits + totalStashValue + unassignedVehiclesValue + rating;
+    const footer =
+      `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
+        `<span>Total :</span>` +
+        `<span>${total}</span>` +
+      `</div>`;
+    return `${title}${rows}${footer}`;
+  }, [credits, totalStashValue, unassignedVehiclesValue, rating]);
+
 
   // Save to localStorage and update DOM (skip first render)
   useEffect(() => {
@@ -869,14 +894,18 @@ export default function Gang({
                 {/* 1st Column */}
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Credits:</span>
-                    <span className="font-semibold">{credits != null ? credits : 0}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Rating:</span>
                     <span className="font-semibold">{rating != null ? rating : 0}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">Credits:</span>
+                    <span className="font-semibold">{credits != null ? credits : 0}</span>
+                  </div>
+                  <div
+                    className="flex justify-between cursor-help"
+                    data-tooltip-id="wealth-breakdown-tooltip"
+                    data-tooltip-html={wealthTooltipHtml}
+                  >
                     <span className="text-muted-foreground">Wealth:</span>
                     <span className="font-semibold">{wealth ?? 0}</span>
                   </div>
@@ -1061,6 +1090,17 @@ export default function Gang({
           />
           <Tooltip
             id="gang-composition-tooltip"
+            place="top"
+            className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+            delayHide={100}
+            clickable={true}
+            style={{
+              padding: '6px',
+              maxWidth: '24rem'
+            }}
+          />
+          <Tooltip
+            id="wealth-breakdown-tooltip"
             place="top"
             className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
             delayHide={100}
