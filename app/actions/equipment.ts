@@ -399,52 +399,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       console.error('Failed to log equipment action:', logError);
     }
 
-    // Handle equipment grants (equipment that automatically includes another item)
-    if (params.equipment_id && !params.buy_for_gang_stash) {
-      const { data: sourceEquip } = await supabase
-        .from('equipment')
-        .select('grants_equipment_id')
-        .eq('id', params.equipment_id)
-        .single();
-
-      if (sourceEquip?.grants_equipment_id) {
-        const { data: grantedEquip } = await supabase
-          .from('equipment')
-          .select('id, equipment_name, cost')
-          .eq('id', sourceEquip.grants_equipment_id)
-          .single();
-
-        if (grantedEquip) {
-          await supabase
-            .from('fighter_equipment')
-            .insert({
-              gang_id: params.gang_id,
-              fighter_id: params.fighter_id,
-              vehicle_id: params.vehicle_id,
-              equipment_id: grantedEquip.id,
-              original_cost: grantedEquip.cost,
-              purchase_cost: 0,
-              granted_by_equipment_id: newEquipmentId,
-              user_id: user.id
-            });
-
-          try {
-            await logEquipmentAction({
-              gang_id: params.gang_id,
-              fighter_id: params.fighter_id,
-              vehicle_id: params.vehicle_id,
-              equipment_name: grantedEquip.equipment_name,
-              purchase_cost: 0,
-              action_type: 'granted',
-              user_id: user.id
-            });
-          } catch (logError) {
-            console.error('Failed to log granted equipment:', logError);
-          }
-        }
-      }
-    }
-
     // Initialize rating delta
     let ratingDelta = 0;
     if (!params.buy_for_gang_stash) {

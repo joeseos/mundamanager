@@ -72,7 +72,6 @@ export interface Equipment {
   vehicle_upgrade_slot?: string;
   target_equipment_id?: string | null; // For equipment-to-equipment upgrades
   effect_names?: string[]; // Names of effects that target this equipment
-  granted_by_equipment_id?: string | null; // ID of parent equipment that granted this item
 
   master_crafted?: boolean;
   is_master_crafted?: boolean;
