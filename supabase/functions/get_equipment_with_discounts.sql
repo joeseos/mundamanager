@@ -28,7 +28,8 @@ RETURNS TABLE (
     equipment_tradingpost boolean,
     is_custom boolean,
     weapon_profiles jsonb,
-    vehicle_upgrade_slot text
+    vehicle_upgrade_slot text,
+    grants_equipment_id uuid
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -208,7 +209,8 @@ AS $$
                     END
             )
             ELSE NULL
-        END as vehicle_upgrade_slot
+        END as vehicle_upgrade_slot,
+        e.grants_equipment_id
     FROM equipment e
     -- Simplified LATERAL join - always executes, no conditionals
     LEFT JOIN LATERAL (
@@ -326,7 +328,8 @@ AS $$
             '[]'::jsonb
         ) as weapon_profiles,
         -- Custom equipment doesn't have vehicle upgrade slots
-        NULL as vehicle_upgrade_slot
+        NULL as vehicle_upgrade_slot,
+        NULL::uuid as grants_equipment_id
     FROM custom_equipment ce
     WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment
