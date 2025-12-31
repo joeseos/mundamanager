@@ -80,8 +80,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
-  const [grantsEquipmentId, setGrantsEquipmentId] = useState<string | null>(null);
-  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string}>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
   const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
@@ -193,7 +191,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setVariants('');
         setEquipmentType('');
         setCoreEquipment(false);
-        setGrantsEquipmentId(null);
         setWeaponProfiles([{
           profile_name: '',
           range_short: '',
@@ -235,16 +232,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentCategory(data.equipment_category_id);
         setEquipmentType(data.equipment_type);
         setCoreEquipment(data.core_equipment || false);
-
-        // Set grants equipment ID if it exists
-        if (data.grants_equipment_id) {
-          setGrantsEquipmentId(data.grants_equipment_id);
-        }
-
-        // Set all equipment for the grants dropdown
-        if (data.all_equipment) {
-          setAllEquipment(data.all_equipment);
-        }
 
         // Set Gang adjusted cost if they exist
         if (data.gang_adjusted_costs) {
@@ -527,7 +514,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_category_id: equipmentCategory,
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
-        grants_equipment_id: grantsEquipmentId,
         ...(equipmentType === 'weapon' ? { 
           weapon_profiles: weaponProfiles.map(profile => ({
             ...profile,
@@ -772,33 +758,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       </p>
                     </div>
                   </label>
-                </div>
-              )}
-
-              {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-1">
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Grants Equipment
-                  </label>
-                  <select
-                    value={grantsEquipmentId || ''}
-                    onChange={(e) => setGrantsEquipmentId(e.target.value || null)}
-                    className="w-full p-2 border rounded-md"
-                    disabled={!selectedEquipmentId}
-                  >
-                    <option value="">None</option>
-                    {allEquipment
-                      .filter(e => e.id !== selectedEquipmentId)
-                      .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
-                      .map((equip) => (
-                        <option key={equip.id} value={equip.id}>
-                          {equip.equipment_name}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Select equipment automatically granted when this item is purchased.
-                  </p>
                 </div>
               )}
 

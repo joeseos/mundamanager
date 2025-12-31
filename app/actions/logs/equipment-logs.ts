@@ -9,7 +9,7 @@ export interface EquipmentLogParams {
   vehicle_id?: string;
   equipment_name: string;
   purchase_cost: number;
-  action_type: 'purchased' | 'sold' | 'moved_from_stash' | 'moved_to_stash' | 'granted';
+  action_type: 'purchased' | 'sold' | 'moved_from_stash' | 'moved_to_stash';
   user_id?: string;
 }
 
@@ -85,10 +85,6 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
       case 'moved_to_stash':
         actionType = isVehicleEquipment ? 'vehicle_equipment_moved_to_stash' : 'equipment_moved_to_stash';
         description = `${targetType} "${targetName}" moved ${params.equipment_name} (${params.purchase_cost} credits) to gang stash. New gang rating: ${newGangRating}`;
-        break;
-      case 'granted':
-        actionType = isVehicleEquipment ? 'vehicle_equipment_granted' : 'equipment_granted';
-        description = `${targetType} "${targetName}" received ${params.equipment_name} for free. New gang rating: ${newGangRating}`;
         break;
       default:
         throw new Error(`Unknown action type: ${params.action_type}`);
