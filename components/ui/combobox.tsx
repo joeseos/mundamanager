@@ -197,7 +197,7 @@ export function Combobox({
         {selectedOption && typeof selectedOption.label !== 'string' && !open && (
           <div className="absolute inset-0 flex items-center px-3 py-2 pointer-events-none">
             <span className="flex items-center gap-1 text-sm">
-              {selectedOption.label}
+              {selectedOption.displayValue || selectedOption.label}
             </span>
           </div>
         )}
@@ -214,7 +214,7 @@ export function Combobox({
       {open && createPortal(
         <div 
           data-combobox-dropdown
-          className="fixed z-[110] bg-card border border-border rounded-md shadow-lg max-h-60 overflow-auto"
+          className="fixed z-[110] bg-card border border-border rounded-md shadow-lg max-h-96 overflow-auto"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -231,7 +231,7 @@ export function Combobox({
                   className={cn(
                     "w-full px-3 py-2 text-left text-sm flex items-center justify-between",
                     option.disabled 
-                      ? "cursor-default bg-muted" 
+                      ? "cursor-default" 
                       : "hover:bg-muted focus:bg-muted focus:outline-none cursor-pointer",
                     value === option.value && !option.disabled && "bg-muted"
                   )}
