@@ -772,68 +772,93 @@ export default function Gang({
               </Button>
             </div>
 
-            <div className="text-muted-foreground text-sm mb-1">
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-1">
-                  Type: <Badge variant="secondary">{gang_type}</Badge>
-                </div>
-                {gang_type_has_origin && gang_origin_name && (<div className="flex items-center gap-1">
-                  {gangOriginCategoryName}: <Badge variant="secondary">{gang_origin_name}</Badge>
-                </div>)}
-                {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
-                  <div className="flex items-center gap-1">
-                    Variants:
-                    {gangVariants
-                      .filter((variant) => variant.variant !== 'Outlaw')
-                      .map((variant) => (
-                        <Badge key={variant.id} variant="secondary">
-                          {variant.variant}
+            <div className="flex flex-col gap-2 mb-4">
+              {/* Owner */}
+              <div className="text-muted-foreground">
+                {username && (
+                  <div className="flex items-center gap-1 text-sm mt-1">
+                    Owner: 
+                      <Link href={`/user/${user_id}`}>
+                        <Badge variant="outline" className="flex items-center gap-1 hover:bg-accent transition-colors">
+                          {patreon_tier_id && (
+                            <PatreonSupporterIcon
+                              patreonTierId={patreon_tier_id}
+                              patreonTierTitle={patreon_tier_title}
+                            />
+                          )}
+                          {username}
                         </Badge>
-                      ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="text-muted-foreground text-sm mb-1">
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-1 text-sm">
-                  Alignment:
-                  <Badge variant="secondary">{alignment}</Badge>
-                </div>
-                {allianceId && allianceName && (
-                  <div className="flex items-center gap-1 text-sm">
-                    Alliance:
-                    <Badge variant="secondary">{allianceName}</Badge>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="text-muted-foreground mb-4">
-              <div className="flex flex-wrap gap-4">
-                {campaigns?.[0] && (
-                  <div className="flex items-center gap-1 text-sm">
-                    Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                      <Link href={`/campaigns/${campaigns[0].campaign_id}`} className="flex items-center">
-                        {campaigns[0].campaign_name}
                       </Link>
-                    </Badge>
                   </div>
                 )}
               </div>
-              {username && (
-                <div className="flex items-center gap-1 text-sm mt-1">
-                  Owner: 
-                    <Link href={`/user/${user_id}`}>
-                      <Badge variant="outline" className="flex items-center gap-1 hover:bg-accent transition-colors">
-                        {patreon_tier_id && (
-                          <PatreonSupporterIcon
-                            patreonTierId={patreon_tier_id}
-                            patreonTierTitle={patreon_tier_title}
-                          />
-                        )}
-                        {username}
-                      </Badge>
-                    </Link>
+
+              {/* Gang Attributes */}
+              <div className="text-muted-foreground">
+                <div className="text-muted-foreground text-sm mb-1">
+                  <div className="flex flex-wrap gap-x-2 gap-y-1">
+                    {/* Gang Type */}
+                    <div className="flex items-center gap-1">
+                      Type: <Badge variant="secondary">{gang_type}</Badge>
+                    </div>
+                    {gang_type_has_origin && gang_origin_name && (<div className="flex items-center gap-1">
+                      {gangOriginCategoryName}: <Badge variant="secondary">{gang_origin_name}</Badge>
+                    </div>)}
+                    {/* Gang Variants */}
+                    {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
+                      <div className="flex items-center gap-1">
+                        Variants:
+                        {gangVariants
+                          .filter((variant) => variant.variant !== 'Outlaw')
+                          .map((variant) => (
+                            <Badge key={variant.id} variant="secondary">
+                              {variant.variant}
+                            </Badge>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                  
+                <div className="text-muted-foreground text-sm">
+                  <div className="flex flex-wrap gap-x-2 gap-y-1">
+                    {/* Alignment */}
+                    <div className="flex items-center gap-1 text-sm">
+                      Alignment:
+                      <Badge variant="secondary">{alignment}</Badge>
+                    </div>
+                    {/* Alliance */}
+                    {allianceId && allianceName && (
+                      <div className="flex items-center gap-1 text-sm">
+                        Alliance:
+                        <Badge variant="secondary">{allianceName}</Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Campaign Attributes */}
+              {campaigns?.[0] && (
+                <div className="text-muted-foreground">
+                  <div className="flex flex-wrap gap-x-2 gap-y-1">
+                    {/* Campaign Name */}
+                      <div className="flex items-center gap-1 text-sm">
+                        Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                          <Link 
+                            href={`/campaigns/${campaigns[0].campaign_id}`} 
+                            className="flex items-center"
+                            data-tooltip-id={`campaign-name-tooltip-${id}`}
+                            data-tooltip-content={campaigns[0].campaign_name.length > 30 ? campaigns[0].campaign_name : undefined}
+                          >
+                            {campaigns[0].campaign_name.length > 30 
+                              ? `${campaigns[0].campaign_name.substring(0, 30)}...` 
+                              : campaigns[0].campaign_name}
+                          </Link>
+                        </Badge>
+                      </div>
+                    {/* Allegiance Placeholder*/}
+                  </div>
                 </div>
               )}
             </div>
