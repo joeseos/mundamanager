@@ -861,7 +861,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 };
               });
 
-              // Handle equipment grants (equipment that automatically includes another item)
+              // Handle equipment grants (equipment that automatically includes other items)
+              // Only process fixed type grants during fighter creation (no UI selection available)
               const standardEquipmentItems = insertedEquipment.filter(
                 (item: any) => item.equipment_id && !item.custom_equipment_id
               );
@@ -869,50 +870,76 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               if (standardEquipmentItems.length > 0) {
                 const equipmentIds = standardEquipmentItems.map((item: any) => item.equipment_id);
 
-                // Fetch equipment that grants other equipment
+                // Fetch equipment that grants other equipment (JSONB grants_equipment)
                 const { data: equipmentWithGrantsData } = await supabase
                   .from('equipment')
-                  .select('id, grants_equipment_id')
+                  .select('id, grants_equipment')
                   .in('id', equipmentIds)
-                  .not('grants_equipment_id', 'is', null);
+                  .not('grants_equipment', 'is', null);
 
                 if (equipmentWithGrantsData && equipmentWithGrantsData.length > 0) {
-                  const grantedEquipmentIds = equipmentWithGrantsData.map(e => e.grants_equipment_id);
+                  // Collect all equipment IDs that need to be granted (only fixed type)
+                  const allGrantedEquipmentIds: string[] = [];
+                  const grantsMap: Map<string, { parentEquipId: string; additionalCost: number }[]> = new Map();
 
-                  // Fetch granted equipment details
-                  const { data: grantedEquipmentDetails } = await supabase
-                    .from('equipment')
-                    .select('id, equipment_name, cost')
-                    .in('id', grantedEquipmentIds);
+                  for (const parentEquip of equipmentWithGrantsData) {
+                    const grantsConfig = parentEquip.grants_equipment as {
+                      selection_type: string;
+                      options: { equipment_id: string; additional_cost: number }[];
+                    } | null;
 
-                  if (grantedEquipmentDetails && grantedEquipmentDetails.length > 0) {
-                    const grantedInserts = [];
-
-                    for (const parentEquip of equipmentWithGrantsData) {
-                      const grantedEquip = grantedEquipmentDetails.find(
-                        g => g.id === parentEquip.grants_equipment_id
-                      );
-                      const parentFighterEquip = standardEquipmentItems.find(
-                        (item: any) => item.equipment_id === parentEquip.id
-                      );
-
-                      if (grantedEquip && parentFighterEquip) {
-                        grantedInserts.push({
-                          fighter_id: fighterId,
-                          equipment_id: grantedEquip.id,
-                          original_cost: grantedEquip.cost,
-                          purchase_cost: 0,
-                          granted_by_equipment_id: parentFighterEquip.id,
-                          gang_id: params.gang_id,
-                          user_id: gangData.user_id
+                    // Only process fixed type grants
+                    if (grantsConfig?.selection_type === 'fixed' && grantsConfig.options?.length > 0) {
+                      for (const option of grantsConfig.options) {
+                        allGrantedEquipmentIds.push(option.equipment_id);
+                        if (!grantsMap.has(option.equipment_id)) {
+                          grantsMap.set(option.equipment_id, []);
+                        }
+                        grantsMap.get(option.equipment_id)!.push({
+                          parentEquipId: parentEquip.id,
+                          additionalCost: option.additional_cost
                         });
                       }
                     }
+                  }
 
-                    if (grantedInserts.length > 0) {
-                      await supabase
-                        .from('fighter_equipment')
-                        .insert(grantedInserts);
+                  if (allGrantedEquipmentIds.length > 0) {
+                    // Fetch granted equipment details
+                    const { data: grantedEquipmentDetails } = await supabase
+                      .from('equipment')
+                      .select('id, equipment_name, cost')
+                      .in('id', allGrantedEquipmentIds);
+
+                    if (grantedEquipmentDetails && grantedEquipmentDetails.length > 0) {
+                      const grantedInserts = [];
+
+                      for (const grantedEquip of grantedEquipmentDetails) {
+                        const parentInfos = grantsMap.get(grantedEquip.id) || [];
+
+                        for (const parentInfo of parentInfos) {
+                          const parentFighterEquip = standardEquipmentItems.find(
+                            (item: any) => item.equipment_id === parentInfo.parentEquipId
+                          );
+
+                          if (parentFighterEquip) {
+                            grantedInserts.push({
+                              fighter_id: fighterId,
+                              equipment_id: grantedEquip.id,
+                              original_cost: grantedEquip.cost,
+                              purchase_cost: parentInfo.additionalCost,
+                              granted_by_equipment_id: parentFighterEquip.id,
+                              gang_id: params.gang_id,
+                              user_id: gangData.user_id
+                            });
+                          }
+                        }
+                      }
+
+                      if (grantedInserts.length > 0) {
+                        await supabase
+                          .from('fighter_equipment')
+                          .insert(grantedInserts);
+                      }
                     }
                   }
                 }

@@ -16,6 +16,17 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 
+interface EquipmentGrantOption {
+  equipment_id: string;
+  additional_cost: number;
+}
+
+interface EquipmentGrants {
+  selection_type: "fixed" | "single_select" | "multiple_select";
+  max_selections?: number;
+  options: EquipmentGrantOption[];
+}
+
 interface BuyEquipmentParams {
   equipment_id?: string;
   custom_equipment_id?: string;
@@ -30,6 +41,7 @@ interface BuyEquipmentParams {
   equipment_target?: { target_equipment_id: string; effect_type_id: string };
   target_equipment_id?: string; // existing purchase flow carries the chosen target
   listed_cost?: number; // the adjusted cost as displayed in UI, includes all discounts
+  selected_grant_equipment_ids?: string[]; // IDs of selected granted equipment options
 }
 
 interface DeleteEquipmentParams {
@@ -399,47 +411,68 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       console.error('Failed to log equipment action:', logError);
     }
 
-    // Handle equipment grants (equipment that automatically includes another item)
+    // Handle equipment grants (equipment that automatically includes other items)
+    let grantsRatingDelta = 0;
     if (params.equipment_id && !params.buy_for_gang_stash) {
       const { data: sourceEquip } = await supabase
         .from('equipment')
-        .select('grants_equipment_id')
+        .select('grants_equipment')
         .eq('id', params.equipment_id)
         .single();
 
-      if (sourceEquip?.grants_equipment_id) {
-        const { data: grantedEquip } = await supabase
-          .from('equipment')
-          .select('id, equipment_name, cost')
-          .eq('id', sourceEquip.grants_equipment_id)
-          .single();
+      const grantsConfig = sourceEquip?.grants_equipment as EquipmentGrants | null;
 
-        if (grantedEquip) {
-          await supabase
-            .from('fighter_equipment')
-            .insert({
-              gang_id: params.gang_id,
-              fighter_id: params.fighter_id,
-              vehicle_id: params.vehicle_id,
-              equipment_id: grantedEquip.id,
-              original_cost: grantedEquip.cost,
-              purchase_cost: 0,
-              granted_by_equipment_id: newEquipmentId,
-              user_id: user.id
-            });
+      if (grantsConfig && grantsConfig.options && grantsConfig.options.length > 0) {
+        // Determine which options to grant based on selection type
+        let optionsToGrant = grantsConfig.options;
 
-          try {
-            await logEquipmentAction({
-              gang_id: params.gang_id,
-              fighter_id: params.fighter_id,
-              vehicle_id: params.vehicle_id,
-              equipment_name: grantedEquip.equipment_name,
-              purchase_cost: 0,
-              action_type: 'granted',
-              user_id: user.id
-            });
-          } catch (logError) {
-            console.error('Failed to log granted equipment:', logError);
+        if (grantsConfig.selection_type !== 'fixed') {
+          // For single_select and multiple_select, filter to only selected options
+          optionsToGrant = grantsConfig.options.filter(
+            opt => params.selected_grant_equipment_ids?.includes(opt.equipment_id)
+          );
+        }
+
+        // Insert each granted equipment
+        for (const option of optionsToGrant) {
+          const { data: grantedEquip } = await supabase
+            .from('equipment')
+            .select('id, equipment_name, cost')
+            .eq('id', option.equipment_id)
+            .single();
+
+          if (grantedEquip) {
+            await supabase
+              .from('fighter_equipment')
+              .insert({
+                gang_id: params.gang_id,
+                fighter_id: params.fighter_id,
+                vehicle_id: params.vehicle_id,
+                equipment_id: grantedEquip.id,
+                original_cost: grantedEquip.cost,
+                purchase_cost: option.additional_cost,
+                granted_by_equipment_id: newEquipmentId,
+                user_id: user.id
+              });
+
+            // Add to rating delta for granted equipment (fighters and assigned vehicles)
+            if (params.fighter_id || (params.vehicle_id && vehicleAssignedFighterId)) {
+              grantsRatingDelta += option.additional_cost;
+            }
+
+            try {
+              await logEquipmentAction({
+                gang_id: params.gang_id,
+                fighter_id: params.fighter_id,
+                vehicle_id: params.vehicle_id,
+                equipment_name: grantedEquip.equipment_name,
+                purchase_cost: option.additional_cost,
+                action_type: 'granted',
+                user_id: user.id
+              });
+            } catch (logError) {
+              console.error('Failed to log granted equipment:', logError);
+            }
           }
         }
       }
@@ -660,7 +693,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate and apply all gang updates in a single operation
-    const totalRatingDelta = ratingDelta + createdBeastsRatingDelta;
+    const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
     const wealthDelta = totalRatingDelta + (-finalPurchaseCost) + stashValueDelta;
 

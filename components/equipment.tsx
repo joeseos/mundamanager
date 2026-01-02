@@ -47,6 +47,18 @@ interface ItemModalProps {
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
 }
 
+interface EquipmentGrantOption {
+  equipment_id: string;
+  additional_cost: number;
+  equipment_name?: string;
+}
+
+interface EquipmentGrants {
+  selection_type: "fixed" | "single_select" | "multiple_select";
+  max_selections?: number;
+  options: EquipmentGrantOption[];
+}
+
 interface RawEquipmentData {
   id: string;
   equipment_name: string;
@@ -65,6 +77,7 @@ interface RawEquipmentData {
   master_crafted?: boolean;
   is_custom: boolean;
   vehicle_upgrade_slot?: string;
+  grants_equipment?: EquipmentGrants;
 }
 
 interface PurchaseModalProps {
@@ -76,7 +89,8 @@ interface PurchaseModalProps {
     isMasterCrafted: boolean,
     useBaseCostForRating: boolean,
     selectedEffectIds?: string[],
-    equipmentTarget?: { target_equipment_id: string; effect_type_id: string }
+    equipmentTarget?: { target_equipment_id: string; effect_type_id: string },
+    selectedGrantEquipmentIds?: string[]
   ) => void;
   isStashPurchase?: boolean;
   fighterId?: string;
@@ -105,6 +119,7 @@ interface BuyEquipmentParams {
     effect_type_id: string;
   };
   listed_cost?: number;
+  selected_grant_equipment_ids?: string[];
 }
 
 function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons }: PurchaseModalProps) {
@@ -119,6 +134,12 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
   const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
+
+  // Grants selection state
+  const [showGrantsSelection, setShowGrantsSelection] = useState(false);
+  const [selectedGrantIds, setSelectedGrantIds] = useState<string[]>([]);
+  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; name: string; cost: number; additional_cost: number }>>([]);
+  const [grantsConfig, setGrantsConfig] = useState<EquipmentGrants | null>(null);
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -135,6 +156,40 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
     setManualCost(String(newCost));
   }, [isMasterCrafted, item]);
 
+  // Helper to check and show grants selection if needed
+  const checkAndShowGrantsSelection = async (effectIds: string[], equipmentTarget?: { target_equipment_id: string; effect_type_id: string }) => {
+    const parsedCost = Number(manualCost);
+
+    // Check if this equipment has grants with selection
+    if (!item.is_custom && item.grants_equipment) {
+      const grants = item.grants_equipment as EquipmentGrants;
+
+      if (grants.selection_type === 'single_select' || grants.selection_type === 'multiple_select') {
+        // Use equipment names from the RPC data (already enriched)
+        const options = grants.options.map((opt: any) => ({
+          id: opt.equipment_id,
+          name: opt.equipment_name || 'Unknown',
+          cost: 0, // Not needed for display
+          additional_cost: opt.additional_cost
+        }));
+
+        setGrantOptions(options);
+        setGrantsConfig(grants);
+        setSelectedEffectIds(effectIds);
+        setShowGrantsSelection(true);
+        return false; // Don't close modal, show grants selection
+      } else if (grants.selection_type === 'fixed') {
+        // Fixed grants are handled server-side, proceed with purchase
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, []);
+        return true;
+      }
+    }
+
+    // No grants selection needed
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, []);
+    return true;
+  };
+
   const handleConfirm = async () => {
     const parsedCost = Number(manualCost);
 
@@ -148,14 +203,14 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
 
     setCreditError(null);
 
-    // If buying to stash, skip effect selection entirely
+    // If buying to stash, skip effect and grants selection entirely
     if (isStashPurchase) {
-      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, []);
+      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, [], undefined, []);
       return true;
     }
 
     // Pre-check: fetch all effects for this equipment (both equipment upgrades and fighter effects)
-    if (!item.is_custom && !showTargetSelection && !showEffectSelection) {
+    if (!item.is_custom && !showTargetSelection && !showEffectSelection && !showGrantsSelection) {
       try {
         // Fetch all effect types for this equipment (single API call)
         const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
@@ -194,7 +249,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
           setIsEffectSelectionValid(false);
           return false;
         } else {
-          // All effects are fixed, collect them and proceed directly with purchase
+          // All effects are fixed, collect them and check for grants selection
           const fixedEffects = fighterEffects
             ?.filter((effect: any) =>
               effect.type_specific_data?.effect_selection === 'fixed' ||
@@ -202,30 +257,29 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
             )
             .map((effect: any) => effect.id) || [];
 
-          onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, fixedEffects);
-          return true;
+          return await checkAndShowGrantsSelection(fixedEffects);
         }
       } catch (error) {
         console.error('Error checking effects:', error);
         // On error, proceed with purchase to avoid blocking the user
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds);
         return true;
       }
     }
 
-    // Note: showTargetSelection and showEffectSelection are handled by separate modal render paths
-    // If we reach here, it means neither target selection nor effect selection is needed
+    // Note: showTargetSelection, showEffectSelection, and showGrantsSelection are handled by separate modal render paths
+    // If we reach here, it means no additional selection is needed
     // Just proceed with purchase
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds);
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds);
     return true; // Allow modal to close
   };
 
-  const handleEffectSelectionComplete = (effectIds: string[]) => {
+  const handleEffectSelectionComplete = async (effectIds: string[]) => {
     setSelectedEffectIds(effectIds);
     setShowEffectSelection(false);
     setEffectTypes([]);
-    // Proceed with purchase
-    onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, effectIds);
+    // Check for grants selection before proceeding
+    await checkAndShowGrantsSelection(effectIds);
   };
 
   const handleEffectSelectionCancel = () => {
@@ -304,6 +358,98 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
         confirmText="Confirm Selection"
         confirmDisabled={!isEffectSelectionValid}
         width="lg"
+      />
+    );
+  }
+
+  if (showGrantsSelection && grantsConfig) {
+    const isMultiple = grantsConfig.selection_type === 'multiple_select';
+    const maxSelections = grantsConfig.max_selections || grantOptions.length;
+    const isValid = isMultiple
+      ? selectedGrantIds.length > 0 && selectedGrantIds.length <= maxSelections
+      : selectedGrantIds.length === 1;
+
+    // Calculate total additional cost from selected options
+    const totalAdditionalCost = grantOptions
+      .filter(opt => selectedGrantIds.includes(opt.id))
+      .reduce((sum, opt) => sum + opt.additional_cost, 0);
+
+    return (
+      <Modal
+        title={isMultiple ? "Select Equipment Options" : "Select Equipment"}
+        content={
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {isMultiple
+                ? `Choose up to ${maxSelections} equipment option${maxSelections > 1 ? 's' : ''} to receive with your purchase:`
+                : 'Choose one equipment option to receive with your purchase:'}
+            </p>
+
+            <div className="space-y-2">
+              {grantOptions.map((option) => (
+                <label
+                  key={option.id}
+                  className={`flex items-center p-3 border rounded-lg cursor-pointer hover:bg-muted/50 ${
+                    selectedGrantIds.includes(option.id) ? 'border-primary bg-primary/5' : ''
+                  }`}
+                >
+                  {isMultiple ? (
+                    <Checkbox
+                      checked={selectedGrantIds.includes(option.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          if (selectedGrantIds.length < maxSelections) {
+                            setSelectedGrantIds([...selectedGrantIds, option.id]);
+                          }
+                        } else {
+                          setSelectedGrantIds(selectedGrantIds.filter(id => id !== option.id));
+                        }
+                      }}
+                      disabled={!selectedGrantIds.includes(option.id) && selectedGrantIds.length >= maxSelections}
+                      className="mr-3"
+                    />
+                  ) : (
+                    <input
+                      type="radio"
+                      name="grant-selection"
+                      checked={selectedGrantIds.includes(option.id)}
+                      onChange={() => setSelectedGrantIds([option.id])}
+                      className="mr-3"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <span className="font-medium">{option.name}</span>
+                    {option.additional_cost > 0 && (
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        (+{option.additional_cost} credits)
+                      </span>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {totalAdditionalCost > 0 && (
+              <p className="text-sm font-medium">
+                Additional cost: +{totalAdditionalCost} credits
+              </p>
+            )}
+          </div>
+        }
+        onClose={onClose}
+        onConfirm={() => {
+          onConfirm(
+            Number(manualCost),
+            isMasterCrafted,
+            useBaseCostForRating,
+            selectedEffectIds,
+            undefined,
+            selectedGrantIds
+          );
+          return true;
+        }}
+        confirmText="Confirm Purchase"
+        confirmDisabled={!isValid}
       />
     );
   }
@@ -729,7 +875,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return gangCredits >= (item.adjusted_cost ?? item.cost);
   };
 
-  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = [], equipmentTarget?: { target_equipment_id: string; effect_type_id: string }) => {
+  const handleBuyEquipment = async (item: Equipment, manualCost: number, isMasterCrafted: boolean = false, useBaseCostForRating: boolean = true, selectedEffectIds: string[] = [], equipmentTarget?: { target_equipment_id: string; effect_type_id: string }, selectedGrantEquipmentIds: string[] = []) => {
     if (!session) return;
     try {
       // Determine if this is a gang stash purchase
@@ -755,6 +901,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         // Include equipment_target if provided (for equipment-to-equipment upgrades)
         ...(equipmentTarget && equipmentTarget.target_equipment_id && equipmentTarget.effect_type_id && {
           equipment_target: equipmentTarget
+        }),
+        // Include selected grant equipment IDs if any
+        ...(selectedGrantEquipmentIds.length > 0 && {
+          selected_grant_equipment_ids: selectedGrantEquipmentIds
         })
       };
       // Delegate to parent mutation if provided (optimistic path). Modal closes immediately.
@@ -1283,8 +1433,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget) => {
-                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [], equipmentTarget);
+                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds) => {
+                  handleBuyEquipment(buyModalData!, cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds || [], equipmentTarget, selectedGrantEquipmentIds || []);
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
                 fighterId={fighterId}

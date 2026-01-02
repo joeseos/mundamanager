@@ -816,7 +816,7 @@ export async function PATCH(request: Request) {
       equipment_origin_availabilities,
       equipment_variant_availabilities,
       fighter_effects,
-      grants_equipment_id
+      grants_equipment
     } = data;
 
     // Update equipment
@@ -832,7 +832,7 @@ export async function PATCH(request: Request) {
         equipment_category_id,
         equipment_type,
         core_equipment,
-        grants_equipment_id: grants_equipment_id || null,
+        grants_equipment: grants_equipment || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);

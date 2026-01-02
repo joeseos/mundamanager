@@ -29,7 +29,7 @@ RETURNS TABLE (
     is_custom boolean,
     weapon_profiles jsonb,
     vehicle_upgrade_slot text,
-    grants_equipment_id uuid
+    grants_equipment jsonb
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -210,7 +210,23 @@ AS $$
             )
             ELSE NULL
         END as vehicle_upgrade_slot,
-        e.grants_equipment_id
+        -- Enrich grants_equipment options with equipment names
+        CASE
+            WHEN e.grants_equipment IS NOT NULL AND e.grants_equipment->'options' IS NOT NULL THEN
+                jsonb_set(
+                    e.grants_equipment,
+                    '{options}',
+                    COALESCE(
+                        (SELECT jsonb_agg(
+                            opt || jsonb_build_object('equipment_name', COALESCE(eq.equipment_name, 'Unknown'))
+                        )
+                        FROM jsonb_array_elements(e.grants_equipment->'options') opt
+                        LEFT JOIN equipment eq ON eq.id = (opt->>'equipment_id')::uuid),
+                        '[]'::jsonb
+                    )
+                )
+            ELSE e.grants_equipment
+        END as grants_equipment
     FROM equipment e
     -- Simplified LATERAL join - always executes, no conditionals
     LEFT JOIN LATERAL (
@@ -329,7 +345,7 @@ AS $$
         ) as weapon_profiles,
         -- Custom equipment doesn't have vehicle upgrade slots
         NULL as vehicle_upgrade_slot,
-        NULL::uuid as grants_equipment_id
+        NULL::jsonb as grants_equipment
     FROM custom_equipment ce
     WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment
