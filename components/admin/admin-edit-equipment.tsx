@@ -53,6 +53,17 @@ interface EquipmentVariantAvailability {
   availability: string;
 }
 
+interface EquipmentGrantOption {
+  equipment_id: string;
+  additional_cost: number;
+}
+
+interface EquipmentGrants {
+  selection_type: "fixed" | "single_select" | "multiple_select";
+  max_selections?: number;
+  options: EquipmentGrantOption[];
+}
+
 interface Equipment {
   id: string;
   equipment_name: string;
@@ -80,8 +91,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
-  const [grantsEquipmentId, setGrantsEquipmentId] = useState<string | null>(null);
-  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string}>>([]);
+  const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
+  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, cost?: number}>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEquipmentDetailsLoading, setIsEquipmentDetailsLoading] = useState(false);
   const [isWeaponsLoading, setIsWeaponsLoading] = useState(false);
@@ -193,7 +204,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setVariants('');
         setEquipmentType('');
         setCoreEquipment(false);
-        setGrantsEquipmentId(null);
+        setGrantsEquipment(null);
         setWeaponProfiles([{
           profile_name: '',
           range_short: '',
@@ -236,9 +247,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentType(data.equipment_type);
         setCoreEquipment(data.core_equipment || false);
 
-        // Set grants equipment ID if it exists
-        if (data.grants_equipment_id) {
-          setGrantsEquipmentId(data.grants_equipment_id);
+        // Set grants equipment config if it exists
+        if (data.grants_equipment) {
+          setGrantsEquipment(data.grants_equipment);
         }
 
         // Set all equipment for the grants dropdown
@@ -527,7 +538,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_category_id: equipmentCategory,
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
-        grants_equipment_id: grantsEquipmentId,
+        grants_equipment: grantsEquipment,
         ...(equipmentType === 'weapon' ? { 
           weapon_profiles: weaponProfiles.map(profile => ({
             ...profile,
@@ -776,29 +787,153 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               )}
 
               {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-1">
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                <div className="col-span-3 border rounded-lg p-4 bg-muted/30">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Grants Equipment
                   </label>
-                  <select
-                    value={grantsEquipmentId || ''}
-                    onChange={(e) => setGrantsEquipmentId(e.target.value || null)}
-                    className="w-full p-2 border rounded-md"
-                    disabled={!selectedEquipmentId}
-                  >
-                    <option value="">None</option>
-                    {allEquipment
-                      .filter(e => e.id !== selectedEquipmentId)
-                      .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
-                      .map((equip) => (
-                        <option key={equip.id} value={equip.id}>
-                          {equip.equipment_name}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Select equipment automatically granted when this item is purchased.
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Configure equipment automatically granted or selectable when this item is purchased.
                   </p>
+
+                  {/* Selection Type */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Selection Type
+                    </label>
+                    <select
+                      value={grantsEquipment?.selection_type || ''}
+                      onChange={(e) => {
+                        const value = e.target.value as "" | "fixed" | "single_select" | "multiple_select";
+                        if (value === '') {
+                          setGrantsEquipment(null);
+                        } else {
+                          setGrantsEquipment({
+                            selection_type: value,
+                            max_selections: value === 'multiple_select' ? 2 : undefined,
+                            options: grantsEquipment?.options || []
+                          });
+                        }
+                      }}
+                      className="w-full p-2 border rounded-md max-w-xs"
+                      disabled={!selectedEquipmentId}
+                    >
+                      <option value="">None</option>
+                      <option value="fixed">Fixed (auto-granted)</option>
+                      <option value="single_select">Single Select (user picks one)</option>
+                      <option value="multiple_select">Multiple Select (user picks several)</option>
+                    </select>
+                  </div>
+
+                  {/* Max Selections (only for multiple_select) */}
+                  {grantsEquipment?.selection_type === 'multiple_select' && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-muted-foreground mb-1">
+                        Max Selections
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={grantsEquipment.max_selections || ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setGrantsEquipment({
+                            ...grantsEquipment,
+                            max_selections: isNaN(val) ? undefined : val
+                          });
+                        }}
+                        className="w-24"
+                        placeholder="e.g. 2"
+                        disabled={!selectedEquipmentId}
+                      />
+                    </div>
+                  )}
+
+                  {/* Options List */}
+                  {grantsEquipment && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-muted-foreground">
+                          Equipment Options
+                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setGrantsEquipment({
+                              ...grantsEquipment,
+                              options: [...grantsEquipment.options, { equipment_id: '', additional_cost: 0 }]
+                            });
+                          }}
+                          disabled={!selectedEquipmentId}
+                        >
+                          Add Option
+                        </Button>
+                      </div>
+
+                      {grantsEquipment.options.length === 0 && (
+                        <p className="text-sm text-muted-foreground italic">
+                          No equipment options configured. Click "Add Option" to add one.
+                        </p>
+                      )}
+
+                      {grantsEquipment.options.map((option, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2 bg-card rounded border">
+                          <select
+                            value={option.equipment_id}
+                            onChange={(e) => {
+                              const newOptions = [...grantsEquipment.options];
+                              newOptions[index] = { ...newOptions[index], equipment_id: e.target.value };
+                              setGrantsEquipment({ ...grantsEquipment, options: newOptions });
+                            }}
+                            className="flex-1 p-2 border rounded-md"
+                            disabled={!selectedEquipmentId}
+                          >
+                            <option value="">Select equipment...</option>
+                            {allEquipment
+                              .filter(e => e.id !== selectedEquipmentId)
+                              .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name))
+                              .map((equip) => (
+                                <option key={equip.id} value={equip.id}>
+                                  {equip.equipment_name}
+                                </option>
+                              ))}
+                          </select>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-muted-foreground">+</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={option.additional_cost}
+                              onChange={(e) => {
+                                const newOptions = [...grantsEquipment.options];
+                                newOptions[index] = {
+                                  ...newOptions[index],
+                                  additional_cost: parseInt(e.target.value) || 0
+                                };
+                                setGrantsEquipment({ ...grantsEquipment, options: newOptions });
+                              }}
+                              className="w-20"
+                              placeholder="0"
+                              disabled={!selectedEquipmentId}
+                            />
+                            <span className="text-sm text-muted-foreground">credits</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newOptions = grantsEquipment.options.filter((_, i) => i !== index);
+                              setGrantsEquipment({ ...grantsEquipment, options: newOptions });
+                            }}
+                            className="hover:text-red-500 focus:outline-none p-1"
+                            disabled={!selectedEquipmentId}
+                          >
+                            <HiX className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

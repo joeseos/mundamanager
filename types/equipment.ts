@@ -73,6 +73,11 @@ export interface Equipment {
   target_equipment_id?: string | null; // For equipment-to-equipment upgrades
   effect_names?: string[]; // Names of effects that target this equipment
   granted_by_equipment_id?: string | null; // ID of parent equipment that granted this item
+  grants_equipment?: {
+    selection_type: "fixed" | "single_select" | "multiple_select";
+    max_selections?: number;
+    options: { equipment_id: string; additional_cost: number; equipment_name?: string }[];
+  } | null;
 
   master_crafted?: boolean;
   is_master_crafted?: boolean;
