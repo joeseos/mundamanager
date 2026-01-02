@@ -1,6 +1,27 @@
 import { TypeSpecificData, FighterEffectModifier } from '@/types/fighter-effect';
 
 /**
+ * EquipmentGrantOption - a single option in an equipment grants configuration
+ */
+export interface EquipmentGrantOption {
+  equipment_id: string;
+  additional_cost: number;
+  equipment_name?: string; // Enriched by RPC
+}
+
+/**
+ * EquipmentGrants - configuration for equipment that grants other equipment
+ * - fixed: Automatically grants all options, no user choice
+ * - single_select: User must choose exactly one option
+ * - multiple_select: User can choose up to max_selections options
+ */
+export interface EquipmentGrants {
+  selection_type: "fixed" | "single_select" | "multiple_select";
+  max_selections?: number;
+  options: EquipmentGrantOption[];
+}
+
+/**
  * WeaponProfile - canonical type for weapon profiles
  * Fields are flexible (number | string | null) because:
  * - Database can return either format
@@ -73,11 +94,7 @@ export interface Equipment {
   target_equipment_id?: string | null; // For equipment-to-equipment upgrades
   effect_names?: string[]; // Names of effects that target this equipment
   granted_by_equipment_id?: string | null; // ID of parent equipment that granted this item
-  grants_equipment?: {
-    selection_type: "fixed" | "single_select" | "multiple_select";
-    max_selections?: number;
-    options: { equipment_id: string; additional_cost: number; equipment_name?: string }[];
-  } | null;
+  grants_equipment?: EquipmentGrants | null;
 
   master_crafted?: boolean;
   is_master_crafted?: boolean;

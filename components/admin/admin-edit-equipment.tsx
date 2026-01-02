@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput } from "@/types/equipment";
+import { WeaponProfileInput, EquipmentGrants } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -51,17 +51,6 @@ interface EquipmentVariantAvailability {
   variant: string;
   gang_variant_id: string;
   availability: string;
-}
-
-interface EquipmentGrantOption {
-  equipment_id: string;
-  additional_cost: number;
-}
-
-interface EquipmentGrants {
-  selection_type: "fixed" | "single_select" | "multiple_select";
-  max_selections?: number;
-  options: EquipmentGrantOption[];
 }
 
 interface Equipment {
@@ -527,7 +516,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       const hasEditedFighterTypes = selectedFighterTypes.length !== fighterTypes.filter(ft => selectedFighterTypes.includes(ft.id)).length;
-      
+
+      // Validate and normalize grants_equipment - treat empty options as no grants
+      const normalizedGrantsEquipment = grantsEquipment?.options?.length
+        ? grantsEquipment
+        : null;
+
       const requestBody = {
         equipment_name: equipmentName,
         availability,
@@ -538,7 +532,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_category_id: equipmentCategory,
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
-        grants_equipment: grantsEquipment,
+        grants_equipment: normalizedGrantsEquipment,
         ...(equipmentType === 'weapon' ? { 
           weapon_profiles: weaponProfiles.map(profile => ({
             ...profile,

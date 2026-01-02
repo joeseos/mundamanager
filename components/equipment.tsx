@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
-import { Equipment, WeaponProfile } from '@/types/equipment';
+import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { useToast } from "@/components/ui/use-toast";
@@ -45,18 +45,6 @@ interface ItemModalProps {
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
-}
-
-interface EquipmentGrantOption {
-  equipment_id: string;
-  additional_cost: number;
-  equipment_name?: string;
-}
-
-interface EquipmentGrants {
-  selection_type: "fixed" | "single_select" | "multiple_select";
-  max_selections?: number;
-  options: EquipmentGrantOption[];
 }
 
 interface RawEquipmentData {
@@ -365,7 +353,7 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
   if (showGrantsSelection && grantsConfig) {
     const isMultiple = grantsConfig.selection_type === 'multiple_select';
     const maxSelections = grantsConfig.max_selections || grantOptions.length;
-    const isValid = isMultiple
+    const selectionIsValid = isMultiple
       ? selectedGrantIds.length > 0 && selectedGrantIds.length <= maxSelections
       : selectedGrantIds.length === 1;
 
@@ -373,6 +361,12 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
     const totalAdditionalCost = grantOptions
       .filter(opt => selectedGrantIds.includes(opt.id))
       .reduce((sum, opt) => sum + opt.additional_cost, 0);
+
+    // Check if user can afford the total cost (base + additional)
+    const baseCost = Number(manualCost);
+    const totalCost = baseCost + totalAdditionalCost;
+    const canAfford = gangCredits >= totalCost;
+    const isValid = selectionIsValid && canAfford;
 
     return (
       <Modal
@@ -431,7 +425,13 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
 
             {totalAdditionalCost > 0 && (
               <p className="text-sm font-medium">
-                Additional cost: +{totalAdditionalCost} credits
+                Total cost: {baseCost} + {totalAdditionalCost} = {totalCost} credits
+              </p>
+            )}
+
+            {!canAfford && selectionIsValid && (
+              <p className="text-sm text-destructive">
+                Insufficient credits (need {totalCost}, have {gangCredits})
               </p>
             )}
           </div>

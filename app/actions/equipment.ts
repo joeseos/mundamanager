@@ -15,17 +15,7 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
-
-interface EquipmentGrantOption {
-  equipment_id: string;
-  additional_cost: number;
-}
-
-interface EquipmentGrants {
-  selection_type: "fixed" | "single_select" | "multiple_select";
-  max_selections?: number;
-  options: EquipmentGrantOption[];
-}
+import { EquipmentGrants } from '@/types/equipment';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -411,8 +401,20 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       console.error('Failed to log equipment action:', logError);
     }
 
-    // Handle equipment grants (equipment that automatically includes other items)
+    // Initialize rating deltas
+    let ratingDelta = 0;
     let grantsRatingDelta = 0;
+
+    // Calculate base rating delta for the main equipment purchase
+    if (!params.buy_for_gang_stash) {
+      if (params.fighter_id) {
+        ratingDelta += ratingCost;
+      } else if (params.vehicle_id && vehicleAssignedFighterId) {
+        ratingDelta += ratingCost;
+      }
+    }
+
+    // Handle equipment grants (equipment that automatically includes other items)
     if (params.equipment_id && !params.buy_for_gang_stash) {
       const { data: sourceEquip } = await supabase
         .from('equipment')
@@ -431,6 +433,20 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           optionsToGrant = grantsConfig.options.filter(
             opt => params.selected_grant_equipment_ids?.includes(opt.equipment_id)
           );
+
+          // Validate selection counts
+          if (grantsConfig.selection_type === 'single_select' && optionsToGrant.length !== 1) {
+            throw new Error('Single select requires exactly one option to be selected');
+          }
+          if (grantsConfig.selection_type === 'multiple_select') {
+            const maxSelections = grantsConfig.max_selections || grantsConfig.options.length;
+            if (optionsToGrant.length === 0) {
+              throw new Error('At least one option must be selected');
+            }
+            if (optionsToGrant.length > maxSelections) {
+              throw new Error(`Cannot select more than ${maxSelections} options`);
+            }
+          }
         }
 
         // Insert each granted equipment
@@ -475,16 +491,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             }
           }
         }
-      }
-    }
-
-    // Initialize rating delta
-    let ratingDelta = 0;
-    if (!params.buy_for_gang_stash) {
-      if (params.fighter_id) {
-        ratingDelta += ratingCost;
-      } else if (params.vehicle_id && vehicleAssignedFighterId) {
-        ratingDelta += ratingCost;
       }
     }
 
