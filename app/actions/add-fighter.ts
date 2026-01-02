@@ -862,7 +862,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               });
 
               // Handle equipment grants (equipment that automatically includes other items)
-              // Only process fixed type grants during fighter creation (no UI selection available)
+              // NOTE: Only "fixed" type grants are processed during fighter creation because:
+              // - There's no UI flow to show selection options during the add-fighter process
+              // - "single_select" and "multiple_select" grants require user interaction
+              // - For equipment with selection-based grants purchased during fighter creation,
+              //   those grants will be skipped (the equipment itself is still added)
+              // - Users can later purchase equipment with selection grants via the normal purchase flow
               const standardEquipmentItems = insertedEquipment.filter(
                 (item: any) => item.equipment_id && !item.custom_equipment_id
               );
