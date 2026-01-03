@@ -781,7 +781,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               )}
 
               {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-3 border rounded-lg p-4 bg-muted/30">
+                <div className="col-span-3">
                   <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Grants Equipment
                   </label>
@@ -894,10 +894,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               ))}
                           </select>
                           <div className="flex items-center gap-1">
-                            <span className="text-sm text-muted-foreground">+</span>
+                            <span className="text-sm text-muted-foreground">Cost:</span>
                             <Input
                               type="number"
-                              min="0"
                               value={option.additional_cost}
                               onChange={(e) => {
                                 const newOptions = [...grantsEquipment.options];
@@ -907,11 +906,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 };
                                 setGrantsEquipment({ ...grantsEquipment, options: newOptions });
                               }}
-                              className="w-20"
-                              placeholder="0"
+                              className="w-24"
+                              placeholder="E.g. 130"
                               disabled={!selectedEquipmentId}
                             />
-                            <span className="text-sm text-muted-foreground">credits</span>
                           </div>
                           <button
                             type="button"
