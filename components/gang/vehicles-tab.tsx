@@ -719,132 +719,134 @@ export default function GangVehicles({
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 mx-auto">
-      <div className="bg-card rounded-lg shadow-md p-4">
-        <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
-        
-        {allVehicles.length === 0 ? (
-          <p className="text-muted-foreground italic text-center">No vehicles available.</p>
-        ) : (
-          <>
-            <div className="mb-4">
-              <div className="flex items-center text-sm font-medium text-muted-foreground px-0 py-2">
-                <div className="w-4 mr-5" />
-                <div className="flex w-64">Name</div>
-                <div className="w-64">Type</div>
-                <div className="w-64">Crew</div>
-                <div className="flex-1" />
-                <div className="w-48 text-right">Actions</div>
-                <div className="w-20 text-right mr-2">Value</div>
-              </div>
-              
-              <div className="space-y-2 px-0">
-                {allVehicles.map((vehicle, index) => (
-                  <label
-                    key={`${vehicle.id}-${vehicle.assigned_to || 'unassigned'}`}
-                    className="flex items-center p-2 bg-muted rounded-md cursor-pointer"
-                    onClick={() => setSelectedVehicle(index)}
-                  >
-                    <input
-                      type="radio"
-                      name="vehicle-item"
-                      checked={selectedVehicle === index}
-                      onChange={() => setSelectedVehicle(index)}
-                      className="h-3 w-3 max-w-3 min-w-3 border-border text-foreground focus:ring-black mr-3"
-                    />
-                    <span className="flex w-64 overflow-hidden text-ellipsis">
-                      {vehicle.vehicle_name || vehicle.vehicle_type}
-                    </span>
-                    <span className="w-64 overflow-hidden text-ellipsis text-nowrap">
-                      {vehicle.vehicle_type}
-                    </span>
-                    <span className="w-64 overflow-hidden text-ellipsis text-muted-foreground">
-                      {vehicle.assigned_to || '-'}
-                    </span>
-                    <div className="flex-1" />
-                    <div className="w-48 flex justify-end gap-1">
-                      {vehicle.assigned_to && (
+    <>
+      <div className="container max-w-5xl w-full space-y-4 mx-auto">
+        <div className="bg-card rounded-lg shadow-md p-4">
+          <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
+
+          {allVehicles.length === 0 ? (
+            <p className="text-muted-foreground italic text-center">No vehicles available.</p>
+          ) : (
+            <>
+              <div className="mb-4">
+                <div className="flex items-center text-sm font-medium text-muted-foreground px-0 py-2">
+                  <div className="w-4 mr-5" />
+                  <div className="flex w-64">Name</div>
+                  <div className="w-64">Type</div>
+                  <div className="w-64">Crew</div>
+                  <div className="flex-1" />
+                  <div className="w-48 text-right">Actions</div>
+                  <div className="w-20 text-right mr-2">Value</div>
+                </div>
+
+                <div className="space-y-2 px-0">
+                  {allVehicles.map((vehicle, index) => (
+                    <label
+                      key={`${vehicle.id}-${vehicle.assigned_to || 'unassigned'}`}
+                      className="flex items-center p-2 bg-muted rounded-md cursor-pointer"
+                      onClick={() => setSelectedVehicle(index)}
+                    >
+                      <input
+                        type="radio"
+                        name="vehicle-item"
+                        checked={selectedVehicle === index}
+                        onChange={() => setSelectedVehicle(index)}
+                        className="h-3 w-3 max-w-3 min-w-3 border-border text-foreground focus:ring-black mr-3"
+                      />
+                      <span className="flex w-64 overflow-hidden text-ellipsis">
+                        {vehicle.vehicle_name || vehicle.vehicle_type}
+                      </span>
+                      <span className="w-64 overflow-hidden text-ellipsis text-nowrap">
+                        {vehicle.vehicle_type}
+                      </span>
+                      <span className="w-64 overflow-hidden text-ellipsis text-muted-foreground">
+                        {vehicle.assigned_to || '-'}
+                      </span>
+                      <div className="flex-1" />
+                      <div className="w-48 flex justify-end gap-1">
+                        {vehicle.assigned_to && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs py-0"
+                            onClick={(e) => handleUnassignVehicle(e, vehicle)}
+                            disabled={isLoading || isUnassignLoading || !userPermissions?.canEdit}
+                            title="Unassign Vehicle"
+                          >
+                            <HiUserRemove className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-6 px-2 text-xs py-0"
-                          onClick={(e) => handleUnassignVehicle(e, vehicle)}
-                          disabled={isLoading || isUnassignLoading || !userPermissions?.canEdit}
-                          title="Unassign Vehicle"
+                          onClick={(e) => handleEditClick(e, vehicle)}
+                          disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
+                          title="Edit"
                         >
-                          <HiUserRemove className="h-4 w-4" />
+                          <LuSquarePen className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs py-0"
-                        onClick={(e) => handleEditClick(e, vehicle)}
-                        disabled={isLoading || isEditLoading || !userPermissions?.canEdit}
-                        title="Edit"
-                      >
-                        <LuSquarePen className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs py-0"
-                        onClick={(e) => handleSellClick(e, vehicle)}
-                        disabled={isLoading || isSellLoading || !userPermissions?.canEdit}
-                        title="Sell"
-                      >
-                        <MdCurrencyExchange className="h-4 w-4" />
-                      </Button>
-                      {/* <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-6 px-2 text-xs py-0"
-                        onClick={(e) => handleDeleteClick(e, vehicle)}
-                        disabled={isLoading || isDeleteLoading || !userPermissions?.canEdit}
-                        title="Delete"
-                      >
-                        <LuTrash2 className="h-4 w-4" />
-                      </Button> */}
-                    </div>
-                    <span className="w-20 text-right">{calculateVehicleTotalValue(vehicle)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="px-0">
-              <div className="border-t pt-4">
-                <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
-                  Assign Vehicle to a Crew
-                </label>
-                <select
-                  id="fighter-select"
-                  value={selectedFighter}
-                  onChange={(e) => setSelectedFighter(e.target.value)}
-                  className="w-full p-2 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black mb-4"
-                >
-                  <option value="">Select a Crew</option>
-                  {crewFighters.map((fighter) => (
-                    <option 
-                      key={fighter.id} 
-                      value={fighter.id}
-                    >
-                      {fighter.fighter_name}
-                    </option>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs py-0"
+                          onClick={(e) => handleSellClick(e, vehicle)}
+                          disabled={isLoading || isSellLoading || !userPermissions?.canEdit}
+                          title="Sell"
+                        >
+                          <MdCurrencyExchange className="h-4 w-4" />
+                        </Button>
+                        {/* <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-6 px-2 text-xs py-0"
+                          onClick={(e) => handleDeleteClick(e, vehicle)}
+                          disabled={isLoading || isDeleteLoading || !userPermissions?.canEdit}
+                          title="Delete"
+                        >
+                          <LuTrash2 className="h-4 w-4" />
+                        </Button> */}
+                      </div>
+                      <span className="w-20 text-right">{calculateVehicleTotalValue(vehicle)}</span>
+                    </label>
                   ))}
-                </select>
-
-                <Button
-                  onClick={handleMoveToFighter}
-                  disabled={selectedVehicle === null || !selectedFighter || isLoading || !userPermissions?.canEdit}
-                  className="w-full"
-                >
-                  Assign to Crew
-                </Button>
+                </div>
               </div>
-            </div>
-          </>
-        )}
+
+              <div className="px-0">
+                <div className="border-t pt-4">
+                  <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
+                    Assign Vehicle to a Crew
+                  </label>
+                  <select
+                    id="fighter-select"
+                    value={selectedFighter}
+                    onChange={(e) => setSelectedFighter(e.target.value)}
+                    className="w-full p-2 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black mb-4"
+                  >
+                    <option value="">Select a Crew</option>
+                    {crewFighters.map((fighter) => (
+                      <option
+                        key={fighter.id}
+                        value={fighter.id}
+                      >
+                        {fighter.fighter_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Button
+                    onClick={handleMoveToFighter}
+                    disabled={selectedVehicle === null || !selectedFighter || isLoading || !userPermissions?.canEdit}
+                    className="w-full"
+                  >
+                    Assign to Crew
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <VehicleEdit
         vehicle={editingVehicle}
@@ -900,6 +902,6 @@ export default function GangVehicles({
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 }
