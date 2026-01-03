@@ -1365,7 +1365,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
                                   className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-muted"
                                 >
-                                  <div className="flex-1 pl-4 leading-none cursor-help" {...tooltipProps}>
+                                  <div className={`flex-1 pl-4 leading-none ${tooltipProps['data-tooltip-id'] ? 'cursor-help' : ''}`} {...tooltipProps}>
                                     <span className="text-sm font-medium">
                                       {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
                                         ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}` 
