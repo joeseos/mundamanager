@@ -42,6 +42,7 @@ AS $$
         -- Natural NULL handling for availability - gang origin takes precedence when available
         COALESCE(
             (SELECT availability FROM equipment_availability WHERE gang_origin_id = gang_data.gang_origin_id AND equipment_id = e.id LIMIT 1),
+            ea_var.availability,
             ea.availability,
             e.availability
         ) as availability,
@@ -130,7 +131,7 @@ AS $$
         e.equipment_type,
         e.created_at,
         CASE
-            WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL THEN true
+            WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL OR ea_var.id IS NOT NULL THEN true
             ELSE false
         END as fighter_type_equipment,
         (
@@ -232,6 +233,7 @@ AS $$
     LEFT JOIN LATERAL (
         SELECT
             g.gang_origin_id,
+            g.gang_variants,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id AS affiliation_ft_id
         FROM gangs g
@@ -241,8 +243,11 @@ AS $$
         WHERE g.id = $8  -- Always try to join gang data
     ) gang_data ON TRUE
     -- Join with equipment_availability to get gang-specific availability
-    LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id 
+    LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id
         AND ea.gang_type_id = $1
+    LEFT JOIN equipment_availability ea_var ON e.id = ea_var.equipment_id
+        AND ea_var.gang_variant_id IS NOT NULL
+        AND gang_data.gang_variants ? ea_var.gang_variant_id::text
     LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
         AND (fte.fighter_type_id = $3
              OR fte.vehicle_type_id = $3
@@ -273,7 +278,7 @@ AS $$
             $4 IS NULL
             OR (
                 CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL THEN true
+                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL OR ea_var.id IS NOT NULL THEN true
                     ELSE false
                 END
             ) = $4
