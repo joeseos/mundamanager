@@ -157,22 +157,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
     }
 
-    // Log equipment sale
-    try {
-      await logEquipmentAction({
-        gang_id: gangId,
-        fighter_id: equipmentData.fighter_id,
-        vehicle_id: equipmentData.vehicle_id,
-        equipment_name: equipmentName,
-        purchase_cost: sellValue,
-        action_type: 'sold',
-        user_id: user.id
-      });
-    } catch (logError) {
-      console.error('Failed to log equipment sale:', logError);
-      // Don't fail the main operation for logging errors
-    }
-
     // Update gang credits - get current credits and update manually
     const { data: currentGang, error: getCurrentError } = await supabase
       .from('gangs')
@@ -233,6 +217,22 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       invalidateGangRating(gangId);
     } catch (e) {
       console.error('Failed to update gang rating/wealth after selling equipment:', e);
+    }
+
+    // Log equipment sale AFTER rating is updated (so logs show correct rating)
+    try {
+      await logEquipmentAction({
+        gang_id: gangId,
+        fighter_id: equipmentData.fighter_id,
+        vehicle_id: equipmentData.vehicle_id,
+        equipment_name: equipmentName,
+        purchase_cost: sellValue,
+        action_type: 'sold',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment sale:', logError);
+      // Don't fail the main operation for logging errors
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects

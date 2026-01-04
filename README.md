@@ -473,17 +473,11 @@ CREATE TRIGGER gang_changes_trigger
     FOR EACH ROW
     EXECUTE FUNCTION auto_log_gang_changes();
 
--- Fighter changes trigger  
+-- Fighter changes trigger
 CREATE TRIGGER fighter_changes_trigger
     AFTER INSERT OR UPDATE OR DELETE ON fighters
     FOR EACH ROW
     EXECUTE FUNCTION fighter_logs();
-
--- Equipment triggers
-CREATE TRIGGER fighter_equipment_trigger
-    AFTER INSERT OR DELETE ON fighter_equipment
-    FOR EACH ROW
-    EXECUTE FUNCTION fighter_equipment_logs();
 ```
 
 #### Smart Duplicate Prevention

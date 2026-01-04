@@ -385,25 +385,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       newEquipmentId = fighterEquip.id;
     }
 
-
-    // Log equipment action
-    try {
-      await logEquipmentAction({
-        gang_id: params.gang_id,
-        fighter_id: params.fighter_id,
-        vehicle_id: params.vehicle_id,
-        equipment_name: equipmentDetails.equipment_name,
-        purchase_cost: ratingCost,
-        action_type: 'purchased',
-        user_id: user.id
-      });
-    } catch (logError) {
-      console.error('Failed to log equipment action:', logError);
-    }
-
     // Initialize rating deltas
     let ratingDelta = 0;
     let grantsRatingDelta = 0;
+
+    // Track granted equipment for logging after gang update
+    const grantedEquipmentForLogging: Array<{ equipment_name: string; purchase_cost: number }> = [];
 
     // Calculate base rating delta for the main equipment purchase
     if (!params.buy_for_gang_stash) {
@@ -476,19 +463,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
               grantsRatingDelta += option.additional_cost;
             }
 
-            try {
-              await logEquipmentAction({
-                gang_id: params.gang_id,
-                fighter_id: params.fighter_id,
-                vehicle_id: params.vehicle_id,
-                equipment_name: grantedEquip.equipment_name,
-                purchase_cost: option.additional_cost,
-                action_type: 'granted',
-                user_id: user.id
-              });
-            } catch (logError) {
-              console.error('Failed to log granted equipment:', logError);
-            }
+            // Track for logging after gang update
+            grantedEquipmentForLogging.push({
+              equipment_name: grantedEquip.equipment_name,
+              purchase_cost: option.additional_cost
+            });
           }
         }
       }
@@ -722,6 +701,38 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         invalidateGangRating(params.gang_id);
       } catch (e) {
         console.error('Failed to invalidate gang rating cache:', e);
+      }
+    }
+
+    // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
+    try {
+      await logEquipmentAction({
+        gang_id: params.gang_id,
+        fighter_id: params.fighter_id,
+        vehicle_id: params.vehicle_id,
+        equipment_name: equipmentDetails.equipment_name,
+        purchase_cost: ratingCost,
+        action_type: 'purchased',
+        user_id: user.id
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment action:', logError);
+    }
+
+    // Log granted equipment
+    for (const grantedItem of grantedEquipmentForLogging) {
+      try {
+        await logEquipmentAction({
+          gang_id: params.gang_id,
+          fighter_id: params.fighter_id,
+          vehicle_id: params.vehicle_id,
+          equipment_name: grantedItem.equipment_name,
+          purchase_cost: grantedItem.purchase_cost,
+          action_type: 'granted',
+          user_id: user.id
+        });
+      } catch (logError) {
+        console.error('Failed to log granted equipment:', logError);
       }
     }
 
