@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
+import { getGangRatingAndWealth } from "@/app/lib/shared/gang-data";
 
 export interface EquipmentLogParams {
   gang_id: string;
@@ -16,19 +17,9 @@ export interface EquipmentLogParams {
 export async function logEquipmentAction(params: EquipmentLogParams): Promise<GangLogActionResult> {
   try {
     const supabase = await createClient();
-    
-    // Get current gang rating
-    const { data: gangData, error: ratingError } = await supabase
-      .from('gangs')
-      .select('rating')
-      .eq('id', params.gang_id)
-      .single();
 
-    if (ratingError) {
-      console.error('Error fetching gang rating:', ratingError);
-    }
-
-    const newGangRating = gangData?.rating || 0;
+    // Get current gang rating using cached function (consistent with gang-fighter-logs.ts)
+    const { rating: newGangRating } = await getGangRatingAndWealth(params.gang_id, supabase);
 
     // Get fighter/vehicle names for logging
     let fighterName = 'Unknown Fighter';
@@ -90,7 +81,7 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
         actionType = isVehicleEquipment ? 'vehicle_equipment_granted' : 'equipment_granted';
         description = params.purchase_cost > 0
           ? `${targetType} "${targetName}" received ${params.equipment_name} (+${params.purchase_cost} credits). New gang rating: ${newGangRating}`
-          : `${targetType} "${targetName}" received ${params.equipment_name} for free. New gang rating: ${newGangRating}`;
+          : `${targetType} "${targetName}" received ${params.equipment_name}. New gang rating: ${newGangRating}`;
         break;
       default:
         throw new Error(`Unknown action type: ${params.action_type}`);

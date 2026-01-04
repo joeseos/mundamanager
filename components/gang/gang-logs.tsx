@@ -80,6 +80,8 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'Equipment removed': 'Equipment removed',
       'equipment_moved_to_stash': 'Equipment moved to stash',
       'equipment_moved_from_stash': 'Equipment moved from stash',
+      'equipment_granted': 'Equipment granted',
+      'vehicle_equipment_granted': 'Vehicle equipment granted',
       'vehicle_added': 'Vehicle added',
       'vehicle_deleted': 'Vehicle removed',
       'vehicle_updated': 'Vehicle updated',
