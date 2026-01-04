@@ -711,7 +711,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         fighter_id: params.fighter_id,
         vehicle_id: params.vehicle_id,
         equipment_name: equipmentDetails.equipment_name,
-        purchase_cost: ratingCost,
+        purchase_cost: finalPurchaseCost,
         action_type: 'purchased',
         user_id: user.id
       });
