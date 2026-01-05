@@ -1356,6 +1356,7 @@ export async function applySelfUpgradesToEquipment(params: {
   effect_type_ids: string[];
   fighter_id: string;
   gang_id: string;
+  credits_increase?: number;
 }): Promise<EquipmentActionResult> {
   if (params.effect_type_ids.length === 0) {
     return { success: false, error: 'No effects to apply' };
@@ -1418,6 +1419,36 @@ export async function applySelfUpgradesToEquipment(params: {
       };
     }
 
+    // Update gang rating/wealth only if there's a credits_increase
+    if (params.credits_increase && params.credits_increase !== 0) {
+      try {
+        const { data: fighter } = await supabase
+          .from('fighters')
+          .select('killed, retired, enslaved, captured')
+          .eq('id', params.fighter_id)
+          .single();
+
+        if (fighter && countsTowardRating(fighter)) {
+          const { data: curr } = await supabase
+            .from('gangs')
+            .select('rating, wealth')
+            .eq('id', params.gang_id)
+            .single();
+
+          if (curr) {
+            await supabase.from('gangs').update({
+              rating: Math.max(0, (curr.rating || 0) + params.credits_increase),
+              wealth: Math.max(0, (curr.wealth || 0) + params.credits_increase)
+            }).eq('id', params.gang_id);
+
+            invalidateGangRating(params.gang_id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update gang rating/wealth:', e);
+      }
+    }
+
     // Invalidate caches once at the end
     try {
       invalidateFighterAdvancement({
@@ -1440,6 +1471,7 @@ interface DeleteEquipmentEffectParams {
   fighter_id: string;
   gang_id: string;
   fighter_equipment_id: string;
+  credits_increase?: number;
 }
 
 /**
@@ -1475,6 +1507,36 @@ export async function deleteEquipmentEffect(
 
     if (deleteError) {
       return { success: false, error: `Failed to delete effect: ${deleteError.message}` };
+    }
+
+    // Update gang rating/wealth only if there's a credits_increase to subtract
+    if (params.credits_increase && params.credits_increase !== 0) {
+      try {
+        const { data: fighter } = await supabase
+          .from('fighters')
+          .select('killed, retired, enslaved, captured')
+          .eq('id', params.fighter_id)
+          .single();
+
+        if (fighter && countsTowardRating(fighter)) {
+          const { data: curr } = await supabase
+            .from('gangs')
+            .select('rating, wealth')
+            .eq('id', params.gang_id)
+            .single();
+
+          if (curr) {
+            await supabase.from('gangs').update({
+              rating: Math.max(0, (curr.rating || 0) - params.credits_increase),
+              wealth: Math.max(0, (curr.wealth || 0) - params.credits_increase)
+            }).eq('id', params.gang_id);
+
+            invalidateGangRating(params.gang_id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update gang rating/wealth:', e);
+      }
     }
 
     // Invalidate caches

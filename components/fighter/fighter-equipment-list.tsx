@@ -119,7 +119,7 @@ export function WeaponList({
   const [upgradeEffectTypes, setUpgradeEffectTypes] = useState<FighterEffectType[]>([]);
   const [loadingEffects, setLoadingEffects] = useState(false);
   const [isUpgradeValid, setIsUpgradeValid] = useState(false);
-  const [deleteEffectModalData, setDeleteEffectModalData] = useState<{ effectId: string; fighterEquipmentId: string; effectName: string } | null>(null);
+  const [deleteEffectModalData, setDeleteEffectModalData] = useState<{ effectId: string; fighterEquipmentId: string; effectName: string; creditsIncrease: number } | null>(null);
   const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
@@ -421,12 +421,20 @@ export function WeaponList({
       equipmentData: Equipment;
       effectTypesData: FighterEffectType[];
     }) => {
+      // Calculate total credits_increase from selected effects
+      const selectedEffects = variables.effectTypesData.filter(et => variables.selectedEffectIds.includes(et.id));
+      const totalCreditsIncrease = selectedEffects.reduce((sum, effect) => {
+        const creditsIncrease = effect.type_specific_data?.credits_increase;
+        return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
+      }, 0);
+
       // Apply all effects in a single batch call
       const result = await applySelfUpgradesToEquipment({
         fighter_equipment_id: variables.equipmentData.fighter_equipment_id,
         effect_type_ids: variables.selectedEffectIds,
         fighter_id: fighterId,
-        gang_id: gangId
+        gang_id: gangId,
+        credits_increase: totalCreditsIncrease
       });
 
       if (!result.success) {
@@ -556,12 +564,13 @@ export function WeaponList({
 
   // Mutation for deleting equipment effects with optimistic update
   const deleteEffectMutation = useMutation({
-    mutationFn: async (params: { effectId: string; fighterEquipmentId: string; effectName: string }) => {
+    mutationFn: async (params: { effectId: string; fighterEquipmentId: string; effectName: string; creditsIncrease: number }) => {
       const result = await deleteEquipmentEffect({
         effect_id: params.effectId,
         fighter_id: fighterId,
         gang_id: gangId,
-        fighter_equipment_id: params.fighterEquipmentId
+        fighter_equipment_id: params.fighterEquipmentId,
+        credits_increase: params.creditsIncrease
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete effect');
@@ -627,7 +636,8 @@ export function WeaponList({
     deleteEffectMutation.mutate({
       effectId: deleteEffectModalData.effectId,
       fighterEquipmentId: deleteEffectModalData.fighterEquipmentId,
-      effectName: deleteEffectModalData.effectName
+      effectName: deleteEffectModalData.effectName,
+      creditsIncrease: deleteEffectModalData.creditsIncrease
     });
   };
 
@@ -738,7 +748,8 @@ export function WeaponList({
                   setDeleteEffectModalData({
                     effectId: effect.id,
                     fighterEquipmentId: item.fighter_equipment_id,
-                    effectName: effect.effect_name
+                    effectName: effect.effect_name,
+                    creditsIncrease: typeof typeData === 'object' && typeof typeData?.credits_increase === 'number' ? typeData.credits_increase : 0
                   });
                 }}
                 disabled={isLoading || !userPermissions.canEdit || deleteEffectMutation.isPending}
