@@ -743,7 +743,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     Array.from(effectsByEquipment.entries()).forEach(([equipmentId, effects]) => {
                       const fixedEffects = effects.filter((et: any) => {
                         const sel = et?.type_specific_data?.effect_selection;
-                        return sel !== 'single_select' && sel !== 'multiple_select';
+                        return sel !== 'single_select' && sel !== 'multiple_select' && et?.type_specific_data?.is_editable !== true;
                       });
 
                       if (fixedEffects.length > 0) {

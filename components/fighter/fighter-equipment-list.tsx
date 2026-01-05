@@ -16,7 +16,7 @@ import { LuTrash2, LuSquarePen } from 'react-icons/lu';
 import { TbCornerLeftUp } from 'react-icons/tb';
 import { rollD6 } from '@/utils/dice';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
-import { FighterEffectType } from '@/types/fighter-effect';
+import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradeToEquipment } from '@/app/actions/equipment';
 
 interface WeaponListProps {
@@ -24,11 +24,13 @@ interface WeaponListProps {
   gangId: string;
   gangCredits: number;
   fighterCredits: number;
-  onEquipmentUpdate: (updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number) => void;
+  onEquipmentUpdate: (updatedEquipment: Equipment[], newFighterCredits: number, newGangCredits: number, deletedEffects?: string[]) => void;
   equipment?: Equipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
   onRegisterPurchase?: (fn: (payload: { params: any; item: Equipment }) => void) => void;
+  fighterEffects?: Record<string, FighterEffect[]>;
+  onEffectsUpdate?: (updatedEffects: Record<string, FighterEffect[]>) => void;
 }
 
 interface SellModalProps {
@@ -95,16 +97,18 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
   );
 }
 
-export function WeaponList({ 
-  fighterId, 
-  gangId, 
-  gangCredits, 
-  fighterCredits, 
+export function WeaponList({
+  fighterId,
+  gangId,
+  gangCredits,
+  fighterCredits,
   onEquipmentUpdate,
   equipment = [],
   onAddEquipment,
   userPermissions,
-  onRegisterPurchase
+  onRegisterPurchase,
+  fighterEffects = {},
+  onEffectsUpdate
 }: WeaponListProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -171,7 +175,6 @@ export function WeaponList({
           fighter_equipment_id: newEquipmentId || tempId,
           cost: serverRatingCost,
           is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
-          equipment_effect: data?.equipment_effect,
           target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
         } as Equipment];
 
@@ -395,7 +398,11 @@ export function WeaponList({
         throw new Error('Failed to fetch effects');
       }
       const effectTypes = await response.json();
-      setUpgradeEffectTypes(effectTypes);
+      // Filter to only show editable effects (is_editable: true in type_specific_data)
+      const editableEffects = effectTypes.filter((et: any) =>
+        et.type_specific_data?.is_editable === true
+      );
+      setUpgradeEffectTypes(editableEffects);
     } catch (error) {
       toast({
         description: error instanceof Error ? error.message : 'Failed to load effect options',
@@ -437,37 +444,41 @@ export function WeaponList({
       const previousEquipment = [...equipment];
       const previousFighterCredits = fighterCredits;
       const previousGangCredits = gangCredits;
+      const previousFighterEffects = { ...fighterEffects };
 
       // Build optimistic effect data from selected effects
       const selectedEffects = effectTypesData.filter(et => selectedEffectIds.includes(et.id));
 
-      // Apply optimistic update: add effects to equipment
+      // Apply optimistic update: add effect_names to equipment
       const optimisticEquipment = equipment.map(item => {
         if (item.fighter_equipment_id === equipmentData.fighter_equipment_id) {
-          // Add new effects to existing effects
           const existingEffectNames = item.effect_names || [];
           const newEffectNames = selectedEffects.map(e => e.effect_name);
           const combinedEffectNames = [...existingEffectNames, ...newEffectNames];
 
-          // Construct optimistic equipment_effect like other effect flows
-          const firstEffect = selectedEffects[0];
-          const optimisticEquipmentEffect = firstEffect ? {
-            id: `temp-${Date.now()}`,
-            effect_name: firstEffect.effect_name,
-            fighter_equipment_id: equipmentData.fighter_equipment_id,
-            fighter_effect_type_id: firstEffect.id,
-            fighter_effect_modifiers: [],
-            type_specific_data: firstEffect.type_specific_data ?? undefined
-          } : item.equipment_effect;
-
           return {
             ...item,
-            effect_names: combinedEffectNames,
-            equipment_effect: optimisticEquipmentEffect
+            effect_names: combinedEffectNames
           };
         }
         return item;
       });
+
+      // Build optimistic FighterEffect objects and add to fighterEffects
+      const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => ({
+        id: `temp-${Date.now()}-${index}`,
+        effect_name: effect.effect_name,
+        fighter_equipment_id: equipmentData.fighter_equipment_id,
+        fighter_effect_type_id: effect.id,
+        fighter_effect_modifiers: [],
+        type_specific_data: effect.type_specific_data ?? undefined
+      }));
+
+      // Add new effects to 'equipment' category (or create it)
+      const updatedFighterEffects = {
+        ...fighterEffects,
+        equipment: [...(fighterEffects.equipment || []), ...newEffects]
+      };
 
       // Calculate total credits increase from selected effects
       const totalCreditsIncrease = selectedEffects.reduce((sum, effect) => {
@@ -475,14 +486,18 @@ export function WeaponList({
         return sum + (typeof creditsIncrease === 'number' ? creditsIncrease : 0);
       }, 0);
 
-      // Apply optimistic update immediately
+      // Apply optimistic updates
       onEquipmentUpdate(optimisticEquipment, previousFighterCredits + totalCreditsIncrease, previousGangCredits);
+      if (onEffectsUpdate) {
+        onEffectsUpdate(updatedFighterEffects);
+      }
 
       // Return context for rollback
       return {
         previousEquipment,
         previousFighterCredits,
-        previousGangCredits
+        previousGangCredits,
+        previousFighterEffects
       };
     },
     onSuccess: (_data, variables) => {
@@ -492,7 +507,7 @@ export function WeaponList({
         description: `${effectName} added successfully`
       });
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       // Rollback to previous state on error
       if (context) {
         onEquipmentUpdate(
@@ -500,6 +515,9 @@ export function WeaponList({
           context.previousFighterCredits,
           context.previousGangCredits
         );
+        if (onEffectsUpdate && context.previousFighterEffects) {
+          onEffectsUpdate(context.previousFighterEffects);
+        }
       }
 
       toast({
@@ -555,27 +573,39 @@ export function WeaponList({
     onMutate: async (params) => {
       // Snapshot previous state
       const previousEquipment = [...equipment];
+      const previousFighterEffects = { ...fighterEffects };
 
-      // Optimistically remove the effect from the equipment
+      // Optimistically remove the effect_name from the equipment
       const updatedEquipment = equipment.map(item => {
         if (item.fighter_equipment_id === params.fighterEquipmentId) {
           return {
             ...item,
-            equipment_effect: undefined,
             effect_names: (item.effect_names || []).filter(name => name !== params.effectName)
           };
         }
         return item;
       });
 
-      onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
+      // Optimistically remove the effect from fighterEffects
+      const updatedFighterEffects: Record<string, FighterEffect[]> = {};
+      for (const [category, effects] of Object.entries(fighterEffects)) {
+        updatedFighterEffects[category] = effects.filter(e => e.id !== params.effectId);
+      }
 
-      return { previousEquipment };
+      onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
+      if (onEffectsUpdate) {
+        onEffectsUpdate(updatedFighterEffects);
+      }
+
+      return { previousEquipment, previousFighterEffects };
     },
     onError: (error, _variables, context) => {
       // Rollback on error
       if (context?.previousEquipment) {
         onEquipmentUpdate(context.previousEquipment, fighterCredits, gangCredits);
+      }
+      if (context?.previousFighterEffects && onEffectsUpdate) {
+        onEffectsUpdate(context.previousFighterEffects);
       }
       toast({
         description: error instanceof Error ? error.message : 'Failed to delete effect',
@@ -662,68 +692,77 @@ export function WeaponList({
     </tr>
   );
 
-  // Render equipment effect as a pseudo-child row (only if it targets equipment, not fighter stats)
-  const renderEffectRow = (item: Equipment) => {
-    // Only show effect under equipment if it actually targets equipment (weapon profiles)
-    const typeData = item.equipment_effect?.type_specific_data;
-    const appliesToEquipment = typeof typeData === 'object' && typeData?.applies_to === 'equipment';
-    if (!item.equipment_effect || !appliesToEquipment) {
-      return null;
-    }
-
-    return (
-      <tr
-        key={`${item.fighter_equipment_id}-effect`}
-        className="border-b bg-muted/20"
-      >
-        <td className="px-1 py-1">
-          <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
-            <TbCornerLeftUp className="inline" />
-          </span>
-          <span className="text-sm">
-            {item.equipment_effect.effect_name}
-          </span>
-        </td>
-        <td className="px-1 py-1 text-right">
-          <span className="text-sm">
-            {typeof typeData === 'object' && typeData?.credits_increase != null
-              ? typeData.credits_increase
-              : '-'}
-          </span>
-        </td>
-        <td className="px-1 py-1">
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                if (item.equipment_effect?.id) {
-                  setDeleteEffectModalData({
-                    effectId: item.equipment_effect.id,
-                    fighterEquipmentId: item.fighter_equipment_id,
-                    effectName: item.equipment_effect.effect_name
-                  });
-                }
-              }}
-              disabled={isLoading || !userPermissions.canEdit || deleteEffectMutation.isPending}
-              className="text-xs px-1.5 h-6"
-              title="Delete"
-            >
-              <LuTrash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </td>
-      </tr>
+  // Render equipment effects as pseudo-child rows (only if they target equipment, not fighter stats)
+  const renderEffectRows = (item: Equipment) => {
+    // Get all effects from fighterEffects and filter by fighter_equipment_id
+    const allEffects = Object.values(fighterEffects).flat();
+    const equipmentEffects = allEffects.filter(
+      (e) => e.fighter_equipment_id === item.fighter_equipment_id
     );
+
+    if (equipmentEffects.length === 0) return null;
+
+    return equipmentEffects.map((effect) => {
+      // Only show effect under equipment if it actually targets equipment (weapon profiles)
+      const typeData = typeof effect.type_specific_data === 'string'
+        ? null
+        : effect.type_specific_data;
+      const appliesToEquipment = typeof typeData === 'object' && typeData?.applies_to === 'equipment';
+
+      if (!appliesToEquipment) return null;
+
+      return (
+        <tr
+          key={`${item.fighter_equipment_id}-effect-${effect.id}`}
+          className="border-b bg-muted/20"
+        >
+          <td className="px-1 py-1">
+            <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
+              <TbCornerLeftUp className="inline" />
+            </span>
+            <span className="text-sm">
+              {effect.effect_name}
+            </span>
+          </td>
+          <td className="px-1 py-1 text-right">
+            <span className="text-sm">
+              {typeof typeData === 'object' && typeData?.credits_increase != null
+                ? typeData.credits_increase
+                : '-'}
+            </span>
+          </td>
+          <td className="px-1 py-1">
+            <div className="flex justify-end gap-1">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setDeleteEffectModalData({
+                    effectId: effect.id,
+                    fighterEquipmentId: item.fighter_equipment_id,
+                    effectName: effect.effect_name
+                  });
+                }}
+                disabled={isLoading || !userPermissions.canEdit || deleteEffectMutation.isPending}
+                className="text-xs px-1.5 h-6"
+                title="Delete"
+              >
+                <LuTrash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </td>
+        </tr>
+      );
+    });
   };
 
-  // Helper to render a parent item, its effect (if any), and its children
+  // Helper to render a parent item, its effects (if any), and its children
   const renderItemWithChildren = (item: Equipment) => {
     const children = equipmentTree.get(item.fighter_equipment_id) || [];
     return (
       <React.Fragment key={item.fighter_equipment_id}>
         {renderRow(item, false)}
-        {renderEffectRow(item)}
+        {renderEffectRows(item)}
         {children.map(child => renderRow(child, true))}
       </React.Fragment>
     );

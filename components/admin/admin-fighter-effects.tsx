@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { ImInfo } from "react-icons/im";
@@ -103,7 +104,8 @@ export function AdminFighterEffects({
     selection_group: '',
     traits_to_add: '',
     traits_to_remove: '',
-    credits_increase: ''
+    credits_increase: '',
+    is_editable: false
   });
 
   // New modifier form state
@@ -165,7 +167,8 @@ export function AdminFighterEffects({
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
-        ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) })
+        ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) }),
+        ...(newEffect.is_editable && { is_editable: true })
       };
 
       // Create effect with temp ID - will be saved when parent saves
@@ -196,7 +199,8 @@ export function AdminFighterEffects({
         selection_group: '',
         traits_to_add: '',
         traits_to_remove: '',
-        credits_increase: ''
+        credits_increase: '',
+        is_editable: false
       });
 
       if (onUpdate) {
@@ -230,7 +234,8 @@ export function AdminFighterEffects({
       selection_group: '',
       traits_to_add: '',
       traits_to_remove: '',
-      credits_increase: ''
+      credits_increase: '',
+      is_editable: false
     });
   };
 
@@ -246,12 +251,13 @@ export function AdminFighterEffects({
       selection_group: effect.type_specific_data?.selection_group || '',
       traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
-      credits_increase: effect.type_specific_data?.credits_increase?.toString() || ''
+      credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
+      is_editable: effect.type_specific_data?.is_editable === true
     });
     setShowEditEffectDialog(true);
   };
 
-  const handleUpdateEffect = async () => {
+  const handleUpdateEffect = () => {
     if (!editingEffect) return false;
 
     if (!newEffect.effect_name) {
@@ -262,78 +268,70 @@ export function AdminFighterEffects({
       return false;
     }
 
-    try {
-      // Parse traits from comma-separated strings to arrays
-      const traitsToAdd = newEffect.traits_to_add
-        ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
-      const traitsToRemove = newEffect.traits_to_remove
-        ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
+    // Parse traits from comma-separated strings to arrays
+    const traitsToAdd = newEffect.traits_to_add
+      ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
+    const traitsToRemove = newEffect.traits_to_remove
+      ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
 
-      const typeSpecificData: any = {
-        ...editingEffect.type_specific_data,
-        ...(newEffect.applies_to && { applies_to: newEffect.applies_to }),
-        effect_selection: newEffect.effect_selection,
-        ...(newEffect.effect_selection === 'multiple_select' && { max_selections: newEffect.max_selections }),
-        ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
-        ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
-        ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
-        ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) })
-      };
+    // Build type_specific_data - explicitly set all fields to handle cleared values
+    const typeSpecificData: any = {
+      ...editingEffect.type_specific_data,
+      effect_selection: newEffect.effect_selection,
+      // Set applies_to to the value or remove it if empty
+      ...(newEffect.applies_to ? { applies_to: newEffect.applies_to } : { applies_to: undefined }),
+      // Set max_selections only for multiple_select
+      ...(newEffect.effect_selection === 'multiple_select'
+        ? { max_selections: newEffect.max_selections }
+        : { max_selections: undefined }),
+      // Set selection_group or remove it if empty
+      ...(newEffect.selection_group ? { selection_group: newEffect.selection_group } : { selection_group: undefined }),
+      // Set traits arrays - use empty arrays when cleared
+      traits_to_add: traitsToAdd.length > 0 ? traitsToAdd : undefined,
+      traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
+      // Set credits_increase or remove it if empty
+      ...(newEffect.credits_increase ? { credits_increase: parseInt(newEffect.credits_increase) } : { credits_increase: undefined }),
+      // Set is_editable or remove it if false
+      ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined })
+    };
 
-      // Call PATCH API
-      const response = await fetch(`/api/admin/fighter-effects?id=${editingEffect.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          effect_name: newEffect.effect_name,
-          fighter_effect_category_id: newEffect.fighter_effect_category_id || null,
-          type_specific_data: typeSpecificData
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update effect');
+    // Clean undefined values from typeSpecificData
+    Object.keys(typeSpecificData).forEach(key => {
+      if (typeSpecificData[key] === undefined) {
+        delete typeSpecificData[key];
       }
+    });
 
-      const updatedEffect = await response.json();
+    // Build the updated effect - just update local state, parent will save
+    const updatedEffect: FighterEffectType = {
+      ...editingEffect,
+      effect_name: newEffect.effect_name,
+      fighter_effect_category_id: newEffect.fighter_effect_category_id || null,
+      type_specific_data: typeSpecificData
+    };
 
-      // Update local state
-      const updatedEffects = fighterEffectTypes.map(e =>
-        e.id === editingEffect.id ? { ...e, ...updatedEffect, modifiers: e.modifiers } : e
-      );
-      setFighterEffectTypes(updatedEffects);
+    // Update local state
+    const updatedEffects = fighterEffectTypes.map(e =>
+      e.id === editingEffect.id ? updatedEffect : e
+    );
+    setFighterEffectTypes(updatedEffects);
 
-      if (onChange) {
-        onChange(updatedEffects);
-      }
-
-      toast({
-        description: "Effect updated successfully",
-        variant: "default"
-      });
-
-      setShowEditEffectDialog(false);
-      setEditingEffect(null);
-      resetForm();
-
-      if (onUpdate) {
-        onUpdate();
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error updating effect:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to update effect',
-        variant: "destructive"
-      });
-      return false;
+    // Notify parent of changes
+    if (onChange) {
+      onChange(updatedEffects);
     }
+
+    setShowEditEffectDialog(false);
+    setEditingEffect(null);
+    resetForm();
+
+    if (onUpdate) {
+      onUpdate();
+    }
+
+    return true;
   };
 
   const handleDeleteEffect = async (effectId: string) => {
@@ -529,6 +527,12 @@ export function AdminFighterEffects({
                           </Badge>
                         )}
 
+                        {effect.type_specific_data?.is_editable === true && (
+                          <Badge variant="outline" className="border-orange-500 text-orange-600">
+                            Editable After Purchase
+                          </Badge>
+                        )}
+
                         {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
                           <Badge variant="default" className="bg-green-600">
                             Adds: {effect.type_specific_data.traits_to_add.join(', ')}
@@ -675,14 +679,12 @@ export function AdminFighterEffects({
             {!hideEquipmentOption && (
               <div className="space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={newEffect.applies_to === 'equipment'}
-                    onChange={(e) => setNewEffect(prev => ({
+                    onCheckedChange={(checked) => setNewEffect(prev => ({
                       ...prev,
-                      applies_to: e.target.checked ? 'equipment' : ''
+                      applies_to: checked === true ? 'equipment' : ''
                     }))}
-                    className="w-4 h-4 rounded border-gray-300"
                   />
                   <span className="text-sm font-medium">
                     Applies to Equipment
@@ -693,6 +695,24 @@ export function AdminFighterEffects({
                 </p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={newEffect.is_editable}
+                  onCheckedChange={(checked) => setNewEffect(prev => ({
+                    ...prev,
+                    is_editable: checked === true
+                  }))}
+                />
+                <span className="text-sm font-medium">
+                  Editable After Purchase
+                </span>
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Check this to hide this effect during purchase but show it in the edit equipment modal after purchase
+              </p>
+            </div>
 
             <div>
               <label className="block text-sm font-medium mb-1">Selection Type *</label>

@@ -185,19 +185,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     Object.assign(transformedSkills, fighterData.fighter.skills);
   }
 
-  // Collect all effects that are attached to equipment (have fighter_equipment_id)
-  const allEffects = Object.values(fighterData.fighter?.effects || {}).flat();
-  const equipmentEffectsMap = new Map();
-  allEffects.forEach((effect: any) => {
-    if (effect.fighter_equipment_id) {
-      equipmentEffectsMap.set(effect.fighter_equipment_id, effect);
-    }
-  });
-
-  // Transform equipment and attach matching effects
+  // Transform equipment
   const transformedEquipment = (fighterData.equipment || []).map((item: any) => {
-    const equipmentEffect = equipmentEffectsMap.get(item.fighter_equipment_id);
-
     return {
       fighter_equipment_id: item.fighter_equipment_id,
       equipment_id: item.equipment_id,
@@ -213,8 +202,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       is_master_crafted: item.is_master_crafted,
       is_editable: item.is_editable || false,
       target_equipment_id: item.target_equipment_id,
-      effect_names: item.effect_names,
-      equipment_effect: equipmentEffect || undefined
+      effect_names: item.effect_names
     };
   });
 
@@ -233,8 +221,11 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     vehicle_equipment_id: item.vehicle_weapon_id || item.id
   }));
 
-  // Calculate effects cost by summing credits_increase from all effects
+  // Preserve all effects from server, with defaults for required categories
   const effects = {
+    // Preserve all categories from server (including any custom/non-standard categories)
+    ...fighterData.fighter.effects,
+    // Ensure required categories have defaults
     injuries: fighterData.fighter.effects?.injuries || [],
     advancements: fighterData.fighter.effects?.advancements || [],
     bionics: fighterData.fighter.effects?.bionics || [],
@@ -250,7 +241,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 
   const effectsCost = Object.values(effects)
     .flat()
-    .reduce((sum, effect: any) => sum + ((effect.type_specific_data?.credits_increase as number) || 0), 0);
+    .reduce((sum: number, effect: any) => sum + ((effect.type_specific_data?.credits_increase as number) || 0), 0);
 
   const baseCost = (fighterData.fighter.credits || 0) - effectsCost;
 
@@ -463,19 +454,8 @@ export default function FighterPage({
       if (isVehicleEquipment && updatedVehicles?.[0]) {
         const vehicle = updatedVehicles[0];
 
-        // Handle vehicle effects if equipment has effects
-        let updatedVehicleEffects = vehicle.effects || {};
-        if (boughtEquipment.equipment_effect) {
-          const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase() || 'vehicle upgrades';
-          updatedVehicleEffects = {
-            ...updatedVehicleEffects,
-            [categoryName]: [...(updatedVehicleEffects[categoryName] || []), boughtEquipment.equipment_effect]
-          };
-        }
-
         updatedVehicles = [{
           ...vehicle,
-          effects: updatedVehicleEffects,
           equipment: [...(vehicle.equipment || []), {
             fighter_equipment_id: boughtEquipment.fighter_equipment_id || boughtEquipment.equipment_id,
             equipment_id: boughtEquipment.equipment_id,
@@ -488,47 +468,12 @@ export default function FighterPage({
         }];
       }
 
-      let updatedEffects = prev.fighter.effects;
-      if (boughtEquipment.equipment_effect && !isVehicleEquipment) {
-        // Determine the correct category based on the equipment effect's category_name
-        const categoryName = boughtEquipment.equipment_effect.category_name?.toLowerCase();
-        let targetCategory: keyof typeof updatedEffects = 'user'; // default fallback
-        
-        // Map category names to effect categories
-        if (categoryName === 'bionics') {
-          targetCategory = 'bionics';
-        } else if (categoryName === 'cyberteknika' || categoryName === 'archaeo-cyberteknika') {
-          targetCategory = 'cyberteknika';
-        } else if (categoryName === 'gene-smithing') {
-          targetCategory = 'gene-smithing';
-        } else if (categoryName === 'rig-glitches') {
-          targetCategory = 'rig-glitches';
-        } else if (categoryName === 'augmentations') {
-          targetCategory = 'augmentations';
-        } else if (categoryName === 'equipment') {
-          targetCategory = 'equipment';
-        } else if (categoryName === 'injuries') {
-          targetCategory = 'injuries';
-        } else if (categoryName === 'advancements') {
-          targetCategory = 'advancements';
-        } else if (categoryName === 'power-boosts') {
-          targetCategory = 'power-boosts';
-        }
-        // If no match, it will default to 'user'
-        
-        updatedEffects = {
-          ...updatedEffects,
-          [targetCategory]: [...(updatedEffects[targetCategory] || []), boughtEquipment.equipment_effect]
-        };
-      }
-
       return {
         ...prev,
         fighter: {
           ...prev.fighter,
           credits: newFighterCredits,
-          vehicles: updatedVehicles,
-          effects: updatedEffects
+          vehicles: updatedVehicles
         },
         gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
         vehicleEquipment: isVehicleEquipment ? [
@@ -797,6 +742,19 @@ export default function FighterPage({
             onAddEquipment={() => handleModalToggle('addWeapon', true)}
             userPermissions={userPermissions}
             onRegisterPurchase={(fn) => { purchaseHandlerRef.current = fn; }}
+            fighterEffects={fighterData.fighter?.effects || {}}
+            onEffectsUpdate={(updatedEffects) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  effects: {
+                    ...prev.fighter.effects,
+                    ...updatedEffects
+                  }
+                } : null
+              }));
+            }}
           />
 
           <SkillsList
@@ -914,48 +872,75 @@ export default function FighterPage({
               }))}
             onEquipmentEffectUpdate={(fighterEquipmentId, effectData) => {
               setFighterData(prev => {
-                // Update equipment to add/remove equipment_effect and recalculate weapon profiles
+                if (!prev.fighter) return prev;
+
+                // Update equipment to recalculate weapon profiles
                 const updatedEquipment = prev.equipment.map((item: Equipment): Equipment => {
                   if (item.fighter_equipment_id === fighterEquipmentId) {
                     if (effectData === null) {
-                      // Remove equipment_effect and restore base weapon profiles
-                      const { equipment_effect, ...itemWithoutEffect } = item;
                       // Restore base profiles by removing the effect modifiers
                       const baseProfiles = item.base_weapon_profiles || item.weapon_profiles;
                       return {
-                        ...itemWithoutEffect,
+                        ...item,
                         weapon_profiles: baseProfiles
                       };
                     } else {
-                      // Add equipment_effect and apply modifiers to weapon profiles
+                      // Apply modifiers to weapon profiles
                       const effect = {
                         id: effectData.id,
                         effect_name: effectData.effect_name,
                         fighter_effect_type_id: effectData.fighter_effect_type_id,
                         fighter_equipment_id: fighterEquipmentId,
-                        category_name: effectData.category_name,
                         fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
                         type_specific_data: effectData.type_specific_data,
                         created_at: effectData.created_at
                       };
-                      
+
                       // Store base profiles if not already stored, then apply modifiers
                       const baseProfiles = item.base_weapon_profiles || item.weapon_profiles || [];
                       const modifiedProfiles = applyWeaponModifiers(baseProfiles, [effect]);
-                      
+
                       return {
                         ...item,
                         base_weapon_profiles: baseProfiles,
-                        weapon_profiles: modifiedProfiles,
-                        equipment_effect: effect
+                        weapon_profiles: modifiedProfiles
                       };
                     }
                   }
                   return item;
                 });
 
+                // Update fighter effects - add/remove effect from equipment category
+                let updatedEffects = prev.fighter.effects;
+                if (effectData === null) {
+                  // Remove effect with matching fighter_equipment_id from equipment category
+                  updatedEffects = {
+                    ...updatedEffects,
+                    equipment: updatedEffects.equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId)
+                  };
+                } else {
+                  // Add new effect to equipment category
+                  const newEffect: FighterEffect = {
+                    id: effectData.id,
+                    effect_name: effectData.effect_name,
+                    fighter_effect_type_id: effectData.fighter_effect_type_id,
+                    fighter_equipment_id: fighterEquipmentId ?? undefined,
+                    fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
+                    type_specific_data: effectData.type_specific_data,
+                    created_at: effectData.created_at
+                  };
+                  updatedEffects = {
+                    ...updatedEffects,
+                    equipment: [...updatedEffects.equipment, newEffect]
+                  };
+                }
+
                 return {
                   ...prev,
+                  fighter: {
+                    ...prev.fighter,
+                    effects: updatedEffects
+                  },
                   equipment: updatedEquipment
                 };
               });

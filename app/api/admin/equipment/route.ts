@@ -808,6 +808,7 @@ export async function PATCH(request: Request) {
       equipment_category_id,
       equipment_type,
       core_equipment,
+      is_editable,
       weapon_profiles,
       fighter_types,
       gang_adjusted_costs,
@@ -816,8 +817,7 @@ export async function PATCH(request: Request) {
       equipment_origin_availabilities,
       equipment_variant_availabilities,
       fighter_effects,
-      grants_equipment,
-      is_editable
+      grants_equipment
     } = data;
 
     // Update equipment

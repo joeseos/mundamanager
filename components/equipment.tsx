@@ -215,7 +215,8 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
         );
 
         const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
-          effect.type_specific_data?.applies_to !== 'equipment'
+          effect.type_specific_data?.applies_to !== 'equipment' &&
+          effect.type_specific_data?.is_editable !== true
         );
 
         // Priority 1: Check for equipment upgrade (applies_to=equipment)
@@ -950,8 +951,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         is_master_crafted: equipmentRecord.is_master_crafted,
         equipment_name: equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
           ? `${item.equipment_name} (Master-crafted)`
-          : item.equipment_name,
-        equipment_effect: data.equipment_effect
+          : item.equipment_name
       }, newGangRating, newGangWealth);
 
       toast({
