@@ -816,7 +816,8 @@ export async function PATCH(request: Request) {
       equipment_origin_availabilities,
       equipment_variant_availabilities,
       fighter_effects,
-      grants_equipment
+      grants_equipment,
+      is_editable
     } = data;
 
     // Update equipment
@@ -833,6 +834,7 @@ export async function PATCH(request: Request) {
         equipment_type,
         core_equipment,
         grants_equipment: grants_equipment || null,
+        is_editable,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);

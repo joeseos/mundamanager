@@ -80,6 +80,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
+  const [isEditable, setIsEditable] = useState(false);
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
   const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, cost?: number}>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -193,6 +194,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setVariants('');
         setEquipmentType('');
         setCoreEquipment(false);
+        setIsEditable(false);
         setGrantsEquipment(null);
         setWeaponProfiles([{
           profile_name: '',
@@ -235,6 +237,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentCategory(data.equipment_category_id);
         setEquipmentType(data.equipment_type);
         setCoreEquipment(data.core_equipment || false);
+        setIsEditable(data.is_editable || false);
 
         // Set grants equipment config if it exists
         if (data.grants_equipment) {
@@ -532,6 +535,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_category_id: equipmentCategory,
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
+        is_editable: isEditable,
         grants_equipment: normalizedGrantsEquipment,
         ...(equipmentType === 'weapon' ? { 
           weapon_profiles: weaponProfiles.map(profile => ({
@@ -779,6 +783,23 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                   </label>
                 </div>
               )}
+
+              <div className="col-span-1">
+                <label className="flex items-start space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={isEditable}
+                    onChange={(e) => setIsEditable(e.target.checked)}
+                    className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Editable After Purchase</span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Allows adding/removing effects on this equipment after purchase.
+                    </p>
+                  </div>
+                </label>
+              </div>
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">

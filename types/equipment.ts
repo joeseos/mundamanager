@@ -99,6 +99,7 @@ export interface Equipment {
   master_crafted?: boolean;
   is_master_crafted?: boolean;
   is_custom?: boolean;
+  is_editable?: boolean;
   equipment_effect?: {
     id: string;
     effect_name: string;

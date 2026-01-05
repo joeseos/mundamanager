@@ -11,9 +11,12 @@ import { deleteEquipmentFromFighter, buyEquipmentForFighter } from '@/app/action
 import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuTrash2, LuSquarePen } from 'react-icons/lu';
 import { TbCornerLeftUp } from 'react-icons/tb';
 import { rollD6 } from '@/utils/dice';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
+import { FighterEffectType } from '@/types/fighter-effect';
+import { applySelfUpgradeToEquipment } from '@/app/actions/equipment';
 
 interface WeaponListProps {
   fighterId: string;
@@ -107,7 +110,13 @@ export function WeaponList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);
-  
+  const [upgradeModalData, setUpgradeModalData] = useState<Equipment | null>(null);
+  const [upgradeEffectTypes, setUpgradeEffectTypes] = useState<FighterEffectType[]>([]);
+  const [loadingEffects, setLoadingEffects] = useState(false);
+  const [isUpgradeValid, setIsUpgradeValid] = useState(false);
+  const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean }>(null);
+  const pendingEquipmentDataRef = React.useRef<Equipment | null>(null);
+
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
   const purchaseMutation = {
     mutate: async ({ params, item }: { params: any; item: Equipment }) => {
@@ -375,6 +384,88 @@ export function WeaponList({
   const wargear = sortedParentEquipment.filter(item => item.equipment_type === 'wargear');
   const vehicleUpgrades = sortedParentEquipment.filter(item => item.equipment_type === 'vehicle_upgrade');
 
+  // Handle opening upgrade modal and fetching effect types
+  const handleOpenUpgradeModal = async (item: Equipment) => {
+    setUpgradeModalData(item);
+    setLoadingEffects(true);
+
+    try {
+      const response = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch effects');
+      }
+      const effectTypes = await response.json();
+      setUpgradeEffectTypes(effectTypes);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to load effect options',
+        variant: 'destructive'
+      });
+      setUpgradeModalData(null);
+    } finally {
+      setLoadingEffects(false);
+    }
+  };
+
+  // Handle applying effects - called after modal closes
+  const handleApplyEffect = async (selectedEffectIds: string[]) => {
+    if (selectedEffectIds.length === 0 || !pendingEquipmentDataRef.current) return;
+
+    const equipmentData = pendingEquipmentDataRef.current;
+    pendingEquipmentDataRef.current = null; // Clear the ref
+
+    try {
+      // Apply each selected effect
+      for (const effectTypeId of selectedEffectIds) {
+        const result = await applySelfUpgradeToEquipment({
+          fighter_equipment_id: equipmentData.fighter_equipment_id,
+          effect_type_id: effectTypeId,
+          fighter_id: fighterId,
+          gang_id: gangId
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to apply effect');
+        }
+      }
+
+      toast({
+        description: 'Effects applied successfully',
+        variant: 'default'
+      });
+
+      // The cache invalidation in the server action will trigger a refresh
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to apply effects',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Handle confirm - close modal then trigger mutation
+  const handleConfirmEffects = () => {
+    if (!effectSelectionRef.current?.isValid() || !upgradeModalData) {
+      return false;
+    }
+
+    // Store equipment data in ref before closing modal
+    pendingEquipmentDataRef.current = upgradeModalData;
+
+    // Close modal immediately for instant UX feedback
+    setUpgradeModalData(null);
+    setUpgradeEffectTypes([]);
+    setIsUpgradeValid(false);
+
+    // Trigger mutation asynchronously (don't wait)
+    // This calls onSelectionComplete which triggers handleApplyEffect
+    void effectSelectionRef.current.handleConfirm();
+
+    return true;
+  };
+
   const renderRow = (item: Equipment, isChild: boolean = false) => (
     <tr
       key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
@@ -389,6 +480,18 @@ export function WeaponList({
       </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
+          {item.is_editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenUpgradeModal(item)}
+              disabled={isLoading || !userPermissions.canEdit}
+              className="text-xs px-1.5 h-6"
+              title="Edit Equipment"
+            >
+              <LuSquarePen className="h-4 w-4" />
+            </Button>
+          )}
           {!item.core_equipment && (
             <>
               <Button
@@ -415,7 +518,10 @@ export function WeaponList({
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
-
+            </>
+          )}
+          {!item.core_equipment && (
+            <>
               {/* <Button
                 variant="destructive"
                 size="sm"
@@ -589,6 +695,46 @@ export function WeaponList({
             stashModalData.equipment_id
           ); return true; }}
         />
+      )}
+
+      {upgradeModalData && (
+        <Modal
+          title={`Edit: ${upgradeModalData.equipment_name}`}
+          helper="Select effects to apply to this equipment"
+          onClose={() => {
+            setUpgradeModalData(null);
+            setUpgradeEffectTypes([]);
+            setIsUpgradeValid(false);
+          }}
+          onConfirm={handleConfirmEffects}
+          confirmDisabled={!isUpgradeValid}
+          width="lg"
+        >
+          {loadingEffects ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+            </div>
+          ) : upgradeEffectTypes.length === 0 ? (
+            <div className="p-4">
+              <p className="text-muted-foreground italic text-center py-8">
+                No effects available for this equipment.
+              </p>
+            </div>
+          ) : (
+            <FighterEffectSelection
+              ref={effectSelectionRef}
+              equipmentId={upgradeModalData.equipment_id}
+              effectTypes={upgradeEffectTypes}
+              onSelectionComplete={handleApplyEffect}
+              onCancel={() => {
+                setUpgradeModalData(null);
+                setUpgradeEffectTypes([]);
+                setIsUpgradeValid(false);
+              }}
+              onValidityChange={setIsUpgradeValid}
+            />
+          )}
+        </Modal>
       )}
     </>
   );

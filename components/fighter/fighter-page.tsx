@@ -211,6 +211,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       weapon_profiles: item.weapon_profiles,
       core_equipment: item.core_equipment,
       is_master_crafted: item.is_master_crafted,
+      is_editable: item.is_editable || false,
       target_equipment_id: item.target_equipment_id,
       effect_names: item.effect_names,
       equipment_effect: equipmentEffect || undefined
