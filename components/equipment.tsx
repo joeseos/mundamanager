@@ -211,7 +211,8 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
 
         // Separate equipment upgrades from fighter effects
         const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
-          effect.type_specific_data?.applies_to === 'equipment'
+          effect.type_specific_data?.applies_to === 'equipment' &&
+          !effect.type_specific_data?.is_editable
         );
 
         const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>

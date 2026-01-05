@@ -678,13 +678,14 @@ export function AdminFighterEffects({
 
             {!hideEquipmentOption && (
               <div className="space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className={`flex items-center gap-2 ${newEffect.is_editable ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
                   <Checkbox
                     checked={newEffect.applies_to === 'equipment'}
                     onCheckedChange={(checked) => setNewEffect(prev => ({
                       ...prev,
                       applies_to: checked === true ? 'equipment' : ''
                     }))}
+                    disabled={newEffect.is_editable}
                   />
                   <span className="text-sm font-medium">
                     Applies to Equipment
@@ -702,7 +703,9 @@ export function AdminFighterEffects({
                   checked={newEffect.is_editable}
                   onCheckedChange={(checked) => setNewEffect(prev => ({
                     ...prev,
-                    is_editable: checked === true
+                    is_editable: checked === true,
+                    // Auto-check applies_to when is_editable is checked
+                    applies_to: checked === true ? 'equipment' : prev.applies_to
                   }))}
                 />
                 <span className="text-sm font-medium">
@@ -710,7 +713,7 @@ export function AdminFighterEffects({
                 </span>
               </label>
               <p className="text-xs text-muted-foreground">
-                Check this to hide this effect during purchase but show it in the edit equipment modal after purchase
+                Check this to hide this effect during purchase but show it in the edit equipment modal after purchase. Requires "Applies to Equipment" to be enabled.
               </p>
             </div>
 
