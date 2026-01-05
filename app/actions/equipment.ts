@@ -1348,20 +1348,24 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 }
 
 /**
- * Apply a self-upgrade effect to equipment (equipment upgrades itself)
- * Used when equipment adds traits/modifiers to itself rather than to other equipment
+ * Apply multiple self-upgrade effects to equipment in a single batch operation.
+ * This avoids race conditions from sequential calls and reduces network overhead.
  */
-export async function applySelfUpgradeToEquipment(params: {
+export async function applySelfUpgradesToEquipment(params: {
   fighter_equipment_id: string;
-  effect_type_id: string;
+  effect_type_ids: string[];
   fighter_id: string;
   gang_id: string;
 }): Promise<EquipmentActionResult> {
+  if (params.effect_type_ids.length === 0) {
+    return { success: false, error: 'No effects to apply' };
+  }
+
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    // Validate ownership
+    // Validate ownership once
     const { data: equipmentRow, error: equipErr } = await supabase
       .from('fighter_equipment')
       .select('id, fighter_id, gang_id')
@@ -1376,39 +1380,45 @@ export async function applySelfUpgradeToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
-    // Validate effect type exists
-    const { data: effectType, error: effectTypeError } = await supabase
-      .from('fighter_effect_types')
-      .select('id')
-      .eq('id', params.effect_type_id)
-      .single();
+    // Insert all effects
+    const results: { effect_type_id: string; success: boolean; error?: string }[] = [];
 
-    if (effectTypeError || !effectType) {
-      return { success: false, error: 'Effect type not found' };
+    for (const effect_type_id of params.effect_type_ids) {
+      const result = await insertEffectWithModifiers(
+        supabase,
+        {
+          fighter_id: params.fighter_id,
+          vehicle_id: null,
+          fighter_equipment_id: params.fighter_equipment_id,
+          target_equipment_id: null,
+          effect_type_id,
+          user_id: user.id
+        },
+        {
+          checkDuplicate: true,
+          includeOperation: true
+        }
+      );
+
+      results.push({
+        effect_type_id,
+        success: result.success,
+        error: result.error
+      });
     }
 
-    // Insert effect using existing helper function
-    const result = await insertEffectWithModifiers(
-      supabase,
-      {
-        fighter_id: params.fighter_id,
-        vehicle_id: null,
-        fighter_equipment_id: params.fighter_equipment_id,
-        target_equipment_id: null, // Self-upgrades don't target another equipment (like glitch effects)
-        effect_type_id: params.effect_type_id,
-        user_id: user.id
-      },
-      {
-        checkDuplicate: true,
-        includeOperation: true
-      }
-    );
-
-    if (!result.success) {
-      return { success: false, error: result.error };
+    // Check if any failed
+    const failures = results.filter(r => !r.success);
+    if (failures.length > 0) {
+      const appliedCount = results.length - failures.length;
+      return {
+        success: false,
+        error: `${failures.length} effect(s) failed to apply${appliedCount > 0 ? ` (${appliedCount} succeeded)` : ''}: ${failures.map(f => f.error).join(', ')}`,
+        data: { results }
+      };
     }
 
-    // Invalidate caches - use standard effect invalidation pattern
+    // Invalidate caches once at the end
     try {
       invalidateFighterAdvancement({
         fighterId: params.fighter_id,
@@ -1419,7 +1429,7 @@ export async function applySelfUpgradeToEquipment(params: {
       console.error('Cache invalidation failed:', e);
     }
 
-    return { success: true, data: result };
+    return { success: true, data: { results } };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }

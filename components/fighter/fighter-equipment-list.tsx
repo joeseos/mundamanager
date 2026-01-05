@@ -17,7 +17,7 @@ import { TbCornerLeftUp } from 'react-icons/tb';
 import { rollD6 } from '@/utils/dice';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
-import { applySelfUpgradeToEquipment } from '@/app/actions/equipment';
+import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
 
 interface WeaponListProps {
   fighterId: string;
@@ -421,18 +421,16 @@ export function WeaponList({
       equipmentData: Equipment;
       effectTypesData: FighterEffectType[];
     }) => {
-      // Apply each selected effect sequentially
-      for (const effectTypeId of variables.selectedEffectIds) {
-        const result = await applySelfUpgradeToEquipment({
-          fighter_equipment_id: variables.equipmentData.fighter_equipment_id,
-          effect_type_id: effectTypeId,
-          fighter_id: fighterId,
-          gang_id: gangId
-        });
+      // Apply all effects in a single batch call
+      const result = await applySelfUpgradesToEquipment({
+        fighter_equipment_id: variables.equipmentData.fighter_equipment_id,
+        effect_type_ids: variables.selectedEffectIds,
+        fighter_id: fighterId,
+        gang_id: gangId
+      });
 
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to apply effect');
-        }
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to apply effects');
       }
 
       return { success: true };
