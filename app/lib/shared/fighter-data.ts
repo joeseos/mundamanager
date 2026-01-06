@@ -189,6 +189,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
           purchase_cost,
           original_cost,
           is_master_crafted,
+          is_editable,
           equipment:equipment_id (
             equipment_name,
             equipment_type,
@@ -419,6 +420,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             purchase_cost: item.purchase_cost || 0,
             original_cost: item.original_cost,
             is_master_crafted: item.is_master_crafted || false,
+            is_editable: item.is_editable || false,
             weapon_profiles: weaponProfiles,
             target_equipment_id: targetEquipmentId,
             effect_names: effectNames.length > 0 ? effectNames : undefined
@@ -602,6 +604,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
             custom_equipment_id,
             purchase_cost,
             is_master_crafted,
+            is_editable,
             equipment:equipment_id (
               equipment_name,
               equipment_type,
@@ -749,6 +752,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           equipment_type: equipmentType || 'unknown',
           equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
           purchase_cost: item.purchase_cost || 0,
+          is_editable: item.is_editable || false,
           weapon_profiles: weaponProfiles
         };
       });

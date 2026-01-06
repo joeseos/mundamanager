@@ -26,7 +26,7 @@ interface FighterEffectSelectionProps {
 }
 
 const FighterEffectSelection = React.forwardRef<
-  { handleConfirm: () => Promise<boolean>; isValid: () => boolean },
+  { handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] },
   FighterEffectSelectionProps
 >(({ equipmentId, effectTypes, onSelectionComplete, onCancel, onValidityChange, targetSelectionOnly = false, fighterId, modifierEquipmentId, effectTypeId, onApplyToTarget, fighterWeapons, effectName: propEffectName }, ref) => {
   const [selectedEffects, setSelectedEffects] = useState<string[]>([]);
@@ -230,10 +230,11 @@ const FighterEffectSelection = React.forwardRef<
     return true;
   };
 
-  // Expose handleConfirm and isValid to parent component via ref
+  // Expose handleConfirm, isValid, and getSelectedEffects to parent component via ref
   React.useImperativeHandle(ref, () => ({
     handleConfirm,
-    isValid
+    isValid,
+    getSelectedEffects: () => selectedEffects
   }));
 
   // Notify parent when validity changes
@@ -420,13 +421,27 @@ const FighterEffectSelection = React.forwardRef<
                           )}
 
                           <div className="flex-1">
-                            {effect.modifiers.length > 0 ? (
-                              <div className="text-muted-foreground">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{effect.effect_name}</span>
+                              {effect.type_specific_data?.credits_increase && (
+                                <span className="text-sm text-muted-foreground">
+                                  (+{effect.type_specific_data.credits_increase} credits)
+                                </span>
+                              )}
+                            </div>
+                            {effect.modifiers.length > 0 && (
+                              <div className="text-muted-foreground text-sm">
                                 {renderEffectModifiers(effect.modifiers)}
                               </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span>{effect.effect_name}</span>
+                            )}
+                            {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
+                              <div className="text-sm text-green-600">
+                                +{effect.type_specific_data.traits_to_add.join(', ')}
+                              </div>
+                            )}
+                            {effect.type_specific_data?.traits_to_remove && effect.type_specific_data.traits_to_remove.length > 0 && (
+                              <div className="text-sm text-red-600">
+                                -{effect.type_specific_data.traits_to_remove.join(', ')}
                               </div>
                             )}
                           </div>

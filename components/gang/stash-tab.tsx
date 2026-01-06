@@ -81,7 +81,7 @@ export default function GangInventory({
   const [effectModalOpen, setEffectModalOpen] = useState(false);
   const [effectModalTypes, setEffectModalTypes] = useState<any[]>([]);
   const [effectModalStashIdx, setEffectModalStashIdx] = useState<number | null>(null);
-  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const effectResolveRef = useRef<((ids: string[] | null) => void) | null>(null);
 
@@ -90,7 +90,7 @@ export default function GangInventory({
   const [targetModalEffectTypeId, setTargetModalEffectTypeId] = useState<string | null>(null);
   const [targetModalEffectName, setTargetModalEffectName] = useState<string | null>(null);
   const [targetModalStashIdx, setTargetModalStashIdx] = useState<number | null>(null);
-  const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
   

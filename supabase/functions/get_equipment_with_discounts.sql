@@ -29,7 +29,8 @@ RETURNS TABLE (
     is_custom boolean,
     weapon_profiles jsonb,
     vehicle_upgrade_slot text,
-    grants_equipment jsonb
+    grants_equipment jsonb,
+    is_editable boolean
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -227,7 +228,8 @@ AS $$
                     )
                 )
             ELSE e.grants_equipment
-        END as grants_equipment
+        END as grants_equipment,
+        COALESCE(e.is_editable, false) as is_editable
     FROM equipment e
     -- Simplified LATERAL join - always executes, no conditionals
     LEFT JOIN LATERAL (
@@ -350,7 +352,8 @@ AS $$
         ) as weapon_profiles,
         -- Custom equipment doesn't have vehicle upgrade slots
         NULL as vehicle_upgrade_slot,
-        NULL::jsonb as grants_equipment
+        NULL::jsonb as grants_equipment,
+        COALESCE(ce.is_editable, false) as is_editable
     FROM custom_equipment ce
     WHERE 
         ce.user_id = auth.uid() -- Only show user's own custom equipment

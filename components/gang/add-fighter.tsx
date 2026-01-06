@@ -34,6 +34,7 @@ interface GangEquipmentOption {
   cost: number;
   max_quantity: number;
   displayCategory?: string;
+  is_editable?: boolean;
 }
 
 interface EquipmentDefaultItem {
@@ -42,6 +43,7 @@ interface EquipmentDefaultItem {
   equipment_type?: string;
   equipment_category?: string;
   quantity: number;
+  is_editable?: boolean;
 }
 
 interface EquipmentSelectionCategory {
@@ -107,7 +109,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                             equipment_type: replacement.equipment_type,
                             equipment_category: replacement.equipment_category,
                             cost: replacement.cost || 0,
-                            max_quantity: replacement.max_quantity || 1
+                            max_quantity: replacement.max_quantity || 1,
+                            is_editable: replacement.is_editable || false
                           });
                         });
                       }
@@ -121,7 +124,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                         equipment_name: item.equipment_name,
                         equipment_type: item.equipment_type,
                         equipment_category: item.equipment_category,
-                        quantity: item.quantity || 1
+                        quantity: item.quantity || 1,
+                        is_editable: item.is_editable || false
                       })),
                       options: allReplacements
                     };
@@ -137,7 +141,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                         equipment_type: item.equipment_type,
                         equipment_category: item.equipment_category,
                         cost: item.cost || 0,
-                        max_quantity: item.max_quantity || 1
+                        max_quantity: item.max_quantity || 1,
+                        is_editable: item.is_editable || false
                       }))
                     };
                   }
@@ -162,7 +167,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                         equipment_type: replacement.equipment_type,
                         equipment_category: replacement.equipment_category,
                         cost: replacement.cost || 0,
-                        max_quantity: replacement.max_quantity || 1
+                        max_quantity: replacement.max_quantity || 1,
+                        is_editable: replacement.is_editable || false
                       });
                     });
                   }
@@ -186,14 +192,15 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                   name: categoryName.charAt(0).toUpperCase() + categoryName.slice(1),
                   select_type: selectType,
                   default: [],
-                  options: categoryData.map((item: any) => ({
-                    id: item.id,
-                    equipment_name: item.equipment_name,
-                    equipment_type: item.equipment_type,
-                    equipment_category: item.equipment_category,
-                    cost: item.cost || 0,
-                    max_quantity: item.max_quantity || 1
-                  }))
+                      options: categoryData.map((item: any) => ({
+                        id: item.id,
+                        equipment_name: item.equipment_name,
+                        equipment_type: item.equipment_type,
+                        equipment_category: item.equipment_category,
+                        cost: item.cost || 0,
+                        max_quantity: item.max_quantity || 1,
+                        is_editable: item.is_editable || false
+                      }))
                 };
               }
             }
@@ -237,6 +244,7 @@ export default function AddFighter({
     equipment_id: string;
     cost: number;
     quantity: number;
+    is_editable?: boolean;
   }>>([]);
 
   // Fetch fighter types when modal opens or includeCustomFighters changes
@@ -503,7 +511,8 @@ export default function AddFighter({
                                     filtered.push({
                                       equipment_id: defaultItem.id,
                                       cost: 0, // Default equipment has cost 0
-                                      quantity: defaultItem.quantity || 1
+                                      quantity: defaultItem.quantity || 1,
+                                      is_editable: defaultItem.is_editable || false
                                     });
                                   }
                                 });
@@ -590,11 +599,12 @@ export default function AddFighter({
                                     filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
                                   });
                                 }
-                                
+
                                 return [...filtered, {
                                   equipment_id: option.id,
                                   cost: option.cost || 0,
-                                  quantity: 1
+                                  quantity: 1,
+                                  is_editable: option.is_editable || false
                                 }];
                               });
 
@@ -638,7 +648,8 @@ export default function AddFighter({
                                     return [...filtered, {
                                       equipment_id: option.id,
                                       cost: optionCost,
-                                      quantity: 1
+                                      quantity: 1,
+                                      is_editable: option.is_editable || false
                                     }];
                                   });
                                 } else {
@@ -646,7 +657,8 @@ export default function AddFighter({
                                   setSelectedEquipment([...selectedEquipment, {
                                     equipment_id: option.id,
                                     cost: optionCost,
-                                    quantity: 1
+                                    quantity: 1,
+                                    is_editable: option.is_editable || false
                                   }]);
                                 }
                                 
@@ -665,7 +677,8 @@ export default function AddFighter({
                                     return [...filtered, {
                                       equipment_id: defaultItem.id,
                                       cost: 0, // Default items have cost 0
-                                      quantity: defaultItem.quantity || 1
+                                      quantity: defaultItem.quantity || 1,
+                                      is_editable: defaultItem.is_editable || false
                                     }];
                                   });
                                 } else {
@@ -696,14 +709,14 @@ export default function AddFighter({
   };
 
   // Helper function to get default equipment from equipment selection
-  const getDefaultEquipment = (equipmentSelection: any): Array<{equipment_id: string, cost: number, quantity: number}> => {
-    const defaults: Array<{equipment_id: string, cost: number, quantity: number}> = [];
-    
+  const getDefaultEquipment = (equipmentSelection: any): Array<{equipment_id: string, cost: number, quantity: number, is_editable?: boolean}> => {
+    const defaults: Array<{equipment_id: string, cost: number, quantity: number, is_editable?: boolean}> = [];
+
     if (!equipmentSelection) return defaults;
-    
+
     // Normalize equipment_selection to UI format
     const normalizedSelection = normalizeEquipmentSelection(equipmentSelection);
-    
+
     Object.entries(normalizedSelection).forEach(([categoryId, categoryData]) => {
       if (categoryData?.default && Array.isArray(categoryData.default)) {
         categoryData.default.forEach((item: EquipmentDefaultItem) => {
@@ -711,12 +724,13 @@ export default function AddFighter({
           defaults.push({
             equipment_id: defaultItem.id,
             cost: 0, // Default equipment from equipment selections should have cost 0
-            quantity: defaultItem.quantity || 1
+            quantity: defaultItem.quantity || 1,
+            is_editable: defaultItem.is_editable || false
           });
         });
       }
     });
-    
+
     return defaults;
   };
 
@@ -796,7 +810,8 @@ export default function AddFighter({
       const defaultEquipment = fighterTypeForEquipment?.default_equipment?.map(item => ({
         equipment_id: item.id,
         cost: item.cost || 0,
-        quantity: 1
+        quantity: 1,
+        is_editable: item.is_editable || false
       })) || [];
       
 

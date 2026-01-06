@@ -10,6 +10,7 @@ interface SelectedEquipment {
   cost: number;
   quantity?: number;
   effect_ids?: string[];
+  is_editable?: boolean;
 }
 
 interface AddFighterParams {
@@ -478,13 +479,15 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           id,
           equipment_name,
           cost,
-          equipment_type
+          equipment_type,
+          is_editable
         ),
         custom_equipment!custom_equipment_id(
           id,
           equipment_name,
           cost,
-          equipment_type
+          equipment_type,
+          is_editable
         )
       `)
       .eq(isCustomFighter ? 'custom_fighter_type_id' : 'fighter_type_id', params.fighter_type_id);
@@ -498,7 +501,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         if (item.equipment_id && item.equipment) {
           return {
             equipment_id: item.equipment_id,
-            equipment: item.equipment
+            equipment: item.equipment,
+            is_editable: (item.equipment as any)?.is_editable || false
           };
         } else if (item.custom_equipment_id && item.custom_equipment) {
           return {
@@ -507,7 +511,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               id: `custom_${item.custom_equipment_id}`,
               equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
               cost: (item.custom_equipment as any)?.cost || 0
-            }
+            },
+            is_editable: (item.custom_equipment as any)?.is_editable || false
           };
         }
         return null;
@@ -522,13 +527,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       purchase_cost: number;
       gang_id: string;
       user_id: string;
+      is_editable?: boolean;
     }> = [];
 
     // Track added equipment to prevent duplicates
     const addedEquipment = new Set<string>();
 
     // Helper function to add equipment if not already added
-    const addEquipment = (equipmentId: string, isCustom: boolean, cost: number, purchaseCost: number) => {
+    const addEquipment = (equipmentId: string, isCustom: boolean, cost: number, purchaseCost: number, isEditable: boolean = false) => {
       if (!addedEquipment.has(equipmentId)) {
         addedEquipment.add(equipmentId);
         equipmentInserts.push({
@@ -538,20 +544,22 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           original_cost: cost,
           purchase_cost: purchaseCost,
           gang_id: params.gang_id,
-          user_id: gangData.user_id
+          user_id: gangData.user_id,
+          is_editable: isEditable
         });
       }
     };
 
     // Add default equipment from fighter_defaults table (highest priority)
     if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
-      fighterDefaultEquipmentData.forEach((defaultEquipment) => {
+      fighterDefaultEquipmentData.forEach((defaultEquipment: any) => {
         const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
         addEquipment(
           defaultEquipment.equipment_id,
           isCustomEquipment,
           (defaultEquipment.equipment as any)?.cost || 0,
-          0 // Default equipment is free
+          0, // Default equipment is free
+          defaultEquipment.is_editable || false
         );
       });
     }
@@ -565,7 +573,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             defaultItem.equipment_id,
             isCustomEquipment,
             defaultItem.cost || 0,
-            0 // Default equipment is free
+            0, // Default equipment is free
+            defaultItem.is_editable || false
           );
         }
       });
@@ -577,8 +586,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         for (let i = 0; i < (selectedItem.quantity || 1); i++) {
           const isCustomEquipment = selectedItem.equipment_id.startsWith('custom_');
           // Don't deduplicate selected equipment - user explicitly chose these
-          const equipmentKey = `${selectedItem.equipment_id}_selected_${i}`;
-
           equipmentInserts.push({
             fighter_id: fighterId,
             equipment_id: isCustomEquipment ? null : selectedItem.equipment_id,
@@ -586,7 +593,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             original_cost: selectedItem.cost,
             purchase_cost: 0, // Equipment selections are already paid for in the fighter cost
             gang_id: params.gang_id,
-            user_id: gangData.user_id
+            user_id: gangData.user_id,
+            is_editable: selectedItem.is_editable || false
           });
         }
       });
@@ -608,6 +616,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               custom_equipment_id,
               original_cost,
               purchase_cost,
+              is_editable,
               equipment!equipment_id(
                 id,
                 equipment_name,
@@ -729,11 +738,24 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       }
                     });
 
+                    // Filter to ONLY auto-apply fixed effects (exclude user-selectable)
+                    const fixedEffectsByEquipment = new Map<string, any[]>();
+                    Array.from(effectsByEquipment.entries()).forEach(([equipmentId, effects]) => {
+                      const fixedEffects = effects.filter((et: any) => {
+                        const sel = et?.type_specific_data?.effect_selection;
+                        return sel !== 'single_select' && sel !== 'multiple_select' && et?.type_specific_data?.is_editable !== true;
+                      });
+
+                      if (fixedEffects.length > 0) {
+                        fixedEffectsByEquipment.set(equipmentId, fixedEffects);
+                      }
+                    });
+
                     // Apply effects for each equipment piece
                     for (const equipmentItem of insertedEquipment) {
                       if (!equipmentItem.equipment_id || equipmentItem.custom_equipment_id) continue;
 
-                      const effectsForThisEquipment = effectsByEquipment.get(equipmentItem.equipment_id) || [];
+                      const effectsForThisEquipment = fixedEffectsByEquipment.get(equipmentItem.equipment_id) || [];
 
                       if (effectsForThisEquipment.length > 0) {
                         try {
@@ -857,7 +879,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   equipment_type: equipmentType || 'unknown',
                   equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
                   cost: item.purchase_cost,
-                  weapon_profiles: itemWeaponProfiles
+                  weapon_profiles: itemWeaponProfiles,
+                  is_editable: item.is_editable || false
                 };
               });
 
