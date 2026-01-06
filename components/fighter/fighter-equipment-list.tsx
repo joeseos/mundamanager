@@ -700,9 +700,9 @@ export function WeaponList({
     </tr>
   );
 
-  // Render equipment effects as pseudo-child rows (only if they target equipment, not fighter stats)
+  // Render equipment effects as child rows beneath the equipment they apply to
   const renderEffectRows = (item: Equipment) => {
-    // Get all effects from fighterEffects and filter by fighter_equipment_id
+    // Get all effects linked to this equipment via fighter_equipment_id
     const allEffects = Object.values(fighterEffects).flat();
     const equipmentEffects = allEffects.filter(
       (e) => e.fighter_equipment_id === item.fighter_equipment_id
@@ -711,13 +711,9 @@ export function WeaponList({
     if (equipmentEffects.length === 0) return null;
 
     return equipmentEffects.map((effect) => {
-      // Only show effect under equipment if it actually targets equipment (weapon profiles)
       const typeData = typeof effect.type_specific_data === 'string'
         ? null
         : effect.type_specific_data;
-      const appliesToEquipment = typeof typeData === 'object' && typeData?.applies_to === 'equipment';
-
-      if (!appliesToEquipment) return null;
 
       return (
         <tr
