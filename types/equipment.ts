@@ -1,3 +1,5 @@
+import { TypeSpecificData, FighterEffectModifier } from '@/types/fighter-effect';
+
 /**
  * EquipmentGrantOption - a single option in an equipment grants configuration
  */
@@ -97,7 +99,16 @@ export interface Equipment {
   master_crafted?: boolean;
   is_master_crafted?: boolean;
   is_custom?: boolean;
-  is_editable?: boolean;
+  equipment_effect?: {
+    id: string;
+    effect_name: string;
+    fighter_effect_type_id?: string;
+    fighter_equipment_id: string;
+    category_name?: string;
+    fighter_effect_modifiers: FighterEffectModifier[];
+    type_specific_data?: TypeSpecificData | string;
+    created_at?: string;
+  };
 }
 
 /**
