@@ -869,12 +869,13 @@ export default function MembersTable({
 
   return (
     <div>
-      <div className="hidden md:block overflow-hidden rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted border-b">
+              {/* Gang column */}
               <th 
-                className="px-4 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-4 py-2 text-left font-medium md:min-w-[10rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('gang')}
               >
                 <div className="flex items-center gap-1">
@@ -886,8 +887,9 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Gang Type column */}
               <th 
-                className="px-2 py-2 text-left font-medium max-w-[5rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-2 py-2 text-left font-medium md:min-w-[5rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('type')}
               >
                 <div className="flex items-center gap-1">
@@ -899,8 +901,9 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Player column */}
               <th 
-                className="px-3 py-2 text-left font-medium max-w-[6rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-3 py-2 text-left font-medium md:min-w-[7rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('player')}
               >
                 <div className="flex items-center gap-1">
@@ -912,9 +915,10 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Allegiance column */}
               {availableAllegiances.length > 0 && (
                 <th 
-                  className="px-4 py-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                  className="px-4 py-2 text-left font-medium min-w-[6rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('allegiance')}
                 >
                   <div className="flex items-center gap-1">
@@ -927,8 +931,9 @@ export default function MembersTable({
                   </div>
                 </th>
               )}
+              {/* Rating column */}
               <th
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('rating')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -940,8 +945,9 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Wealth column */}
               <th
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('wealth')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -953,8 +959,9 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Reputation column */}
               <th
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('reputation')}
                 title="Reputation"
               >
@@ -967,8 +974,9 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Territories Count column */}
               <th 
-                className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                 onClick={() => handleSort('territory_count')}
                 title="Territories"
               >
@@ -981,9 +989,10 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
+              {/* Exploration Points column */}
               {hasExplorationPoints && (
                 <th 
-                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                  className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('exploration_points')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -996,9 +1005,10 @@ export default function MembersTable({
                   </div>
                 </th>
               )}
+              {/* Meat column */}
               {hasMeat && (
                 <th 
-                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                  className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('meat')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -1011,9 +1021,10 @@ export default function MembersTable({
                   </div>
                 </th>
               )}
+              {/* Scavenging Rolls column */}
               {hasScavengingRolls && (
                 <th 
-                  className="px-2 py-2 text-right font-medium max-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                  className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
                   onClick={() => handleSort('scavenging_rolls')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -1026,13 +1037,17 @@ export default function MembersTable({
                   </div>
                 </th>
               )}
-              {(isAdmin || sortedMembers.some(member => member.user_id === currentUserId)) && <th className="px-2 py-2 text-right font-medium max-w-[2.5rem]">Action</th>}
+              {/* Action column */}
+              {(isAdmin || sortedMembers.some(member => member.user_id === currentUserId)) && <th className="px-2 py-2 text-right font-medium min-w-[2.5rem]">
+                Action
+              </th>}
             </tr>
           </thead>
           <tbody>
             {sortedMembers.map((member, index) => (
               <tr key={`${member.user_id}-${index}`} className="border-b last:border-0">
-                <td className="px-2 py-2 max-w-[8rem]">
+                {/* Gang column */}
+                <td className="px-2 py-2">
                   {member.gangs[0]?.name ? (
                     <div className="flex items-center gap-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
@@ -1081,12 +1096,14 @@ export default function MembersTable({
                     </div>
                   )}
                 </td>
-                <td className="px-2 py-2 max-w-[5rem]">
+                {/* Gang Type column */}
+                <td className="px-2 py-2">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.gang_type || "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2 max-w-[6rem]">
+                {/* Player column */}
+                <td className="px-2 py-2">
                   <div className="flex items-center gap-2">
                     {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
                       <button
@@ -1099,7 +1116,7 @@ export default function MembersTable({
                           });
                           setShowRoleModal(true);
                         }}
-                        className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-secondary transition-colors group"
+                        className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted hover:text-muted-foreground transition-colors group"
                       >
                         {formatRole(member.role)}
 
@@ -1109,11 +1126,18 @@ export default function MembersTable({
                         {formatRole(member.role)}
                       </span>
                     )}
-                    <span className="text-xs font-medium">{member.profile.username}</span>
+                    <Link
+                      href={`/user/${member.user_id}`}
+                      prefetch={false}
+                      className="text-xs font-medium hover:text-muted-foreground transition-colors"
+                    >
+                      {member.profile.username}
+                    </Link>
                   </div>
                 </td>
+                {/* Allegiance column */}
                 {availableAllegiances.length > 0 && (
-                  <td className="px-2 py-2 max-w-[8rem]">
+                  <td className="px-2 py-2">
                     {member.gangs[0]?.id ? (
                       editingAllegiance?.gangId === member.gangs[0].id ? (
                         <select
@@ -1172,49 +1196,57 @@ export default function MembersTable({
                     )}
                   </td>
                 )}
-                <td className="px-2 py-2 text-right max-w-[2rem]">
+                {/* Rating column */}
+                <td className="px-2 py-2 text-right">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.rating || "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2 text-right max-w-[3rem]">
+                {/* Wealth column */}
+                <td className="px-2 py-2 text-right">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.wealth ?? "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2 text-right max-w-[3rem]">
+                {/* Reputation column */}
+                <td className="px-2 py-2 text-right">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.reputation ?? "-"}
                   </span>
                 </td>
-                <td className="px-2 py-2 text-right max-w-[3rem]">
+                {/* Territories Count column */}
+                <td className="px-2 py-2 text-right">
                   <span className="text-muted-foreground">
                     {member.gangs[0]?.territory_count ?? "-"}
                   </span>
                 </td>
+                {/* Exploration Points column */}
                 {hasExplorationPoints && (
-                  <td className="px-2 py-2 text-right max-w-[3rem]">
+                  <td className="px-2 py-2 text-right">
                     <span className="text-muted-foreground">
                       {member.gangs[0]?.exploration_points ?? "-"}
                     </span>
                   </td>
                 )}
+                {/* Meat column */}
                 {hasMeat && (
-                  <td className="px-2 py-2 text-right max-w-[3rem]">
+                  <td className="px-2 py-2 text-right">
                     <span className="text-muted-foreground">
                       {member.gangs[0]?.meat ?? "-"}
                     </span>
                   </td>
                 )}
+                {/* Scavenging Rolls column */}
                 {hasScavengingRolls && (
-                  <td className="px-2 py-2 text-right max-w-[3rem]">
+                  <td className="px-2 py-2 text-right">
                     <span className="text-muted-foreground">
                       {member.gangs[0]?.scavenging_rolls ?? "-"}
                     </span>
                   </td>
                 )}
+                {/* Action column */}
                 {(isAdmin || member.user_id === currentUserId) && (
-                  <td className="px-2 py-2 text-right max-w-[2.5rem]">
+                  <td className="px-2 py-2 text-right">
                     <Button
                       variant="outline"
                       size="sm"
@@ -1233,224 +1265,6 @@ export default function MembersTable({
             ))}
           </tbody>
         </table>
-      </div>
-
-      {/* Mobile rendering */}
-      <div className="md:hidden space-y-4">
-        {sortedMembers.map((member, index) => (
-          <div key={`${member.user_id}-${index}`} className="bg-card rounded-lg border p-4">
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                {member.gangs[0]?.name ? (
-                  <div className="flex items-center gap-1">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-small font-semibold bg-muted"
-                      style={{ color: member.gangs[0]?.gang_colour || '#000000' }}
-                    >
-                      <Link
-                        href={`/gang/${member.gangs[0].id}`}
-                        prefetch={false}
-                        className="hover:text-muted-foreground transition-colors"
-                      >
-                        {member.gangs[0].name}
-                      </Link>
-                      {(currentUserId === member.user_id || isAdmin) && (
-                        <button
-                          onClick={() => {
-                            setGangToRemove({
-                              memberId: member.user_id,
-                              gangId: member.gangs[0].id,
-                              gangName: member.gangs[0].name,
-                              memberIndex: member.index,
-                              id: member.gangs[0].campaign_gang_id
-                            });
-                            setShowRemoveGangModal(true);
-                          }}
-                          className="ml-1.5 text-gray-400 hover:text-muted-foreground"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center">
-                    {(currentUserId === member.user_id || isAdmin) ? (
-                      <button
-                        onClick={() => handleGangClick(member)}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-950 text-green-800 hover:bg-green-200 transition-colors"
-                      >
-                        {currentUserId === member.user_id ? 'Add your gang' : 'Add gang'}
-                      </button>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">No gang selected.</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground text-base">Player</span>
-                <div className="flex items-center gap-2 text-sm text-base">
-                  {isAdmin && member.user_id !== currentUserId && member.role && member.role !== 'OWNER' ? (
-                    <button
-                      onClick={() => {
-                        setRoleChange({
-                          memberId: member.user_id,
-                          username: member.profile.username,
-                          currentRole: member.role || 'MEMBER',
-                          newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
-                        });
-                        setShowRoleModal(true);
-                      }}
-                      className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground hover:bg-secondary transition-colors group"
-                    >
-                      {formatRole(member.role)}
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
-                      {formatRole(member.role)}
-                    </span>
-                  )}
-                  {member.profile.username}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Type</span>
-              <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.gang_type || "-"}
-              </span>
-            </div>
-            {availableAllegiances.length > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Allegiance</span>
-                {member.gangs[0]?.id ? (
-                  editingAllegiance?.gangId === member.gangs[0].id ? (
-                    <select
-                      className="px-2 py-1 text-sm rounded-md border border-border bg-muted focus:outline-none focus:ring-2 focus:ring-black"
-                      value={member.gangs[0]?.allegiance?.id || ''}
-                      onChange={(e) => {
-                        const selectedId = e.target.value || null;
-                        const selectedAllegiance = availableAllegiances.find(a => a.id === selectedId);
-                        handleAllegianceChange(
-                          member.gangs[0].id,
-                          selectedId,
-                          selectedAllegiance?.is_custom || false,
-                          index
-                        );
-                      }}
-                      onBlur={() => setEditingAllegiance(null)}
-                      autoFocus
-                    >
-                      <option value="">No Allegiance</option>
-                      {availableAllegiances.map(allegiance => (
-                        <option key={allegiance.id} value={allegiance.id}>
-                          {allegiance.allegiance_name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      {member.gangs[0]?.allegiance?.name ? (
-                        <Badge 
-                          variant="outline" 
-                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted group' : ''}`}
-                          onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
-                          title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
-                        >
-                          {member.gangs[0].allegiance.name}
-                          {canEditAllegiance(member) && (
-                            <LuPencil className="size-3 text-gray-400 group-hover:text-muted-foreground" />
-                          )}
-                        </Badge>
-                      ) : (
-                        <Badge 
-                          variant="outline" 
-                          className={`text-sm flex items-center gap-1 ${canEditAllegiance(member) ? 'cursor-pointer hover:bg-muted group' : ''}`}
-                          onClick={canEditAllegiance(member) ? () => setEditingAllegiance({ gangId: member.gangs[0].id, memberIndex: index }) : undefined}
-                          title={canEditAllegiance(member) ? "Edit allegiance" : undefined}
-                        >
-                          {canEditAllegiance(member) && (
-                            <LuPencil className="size-3 text-gray-400 group-hover:text-muted-foreground" />
-                          )}
-                        </Badge>
-                      )}
-                    </div>
-                  )
-                ) : (
-                  <span className="text-sm text-muted-foreground">-</span>
-                )}
-              </div>
-            )}
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Rating</span>
-              <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.rating || "-"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Wealth</span>
-              <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.wealth ?? "-"}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Reputation</span>
-              <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.reputation ?? "-"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Territories</span>
-              <span className="text-sm text-muted-foreground">
-                {member.gangs[0]?.territory_count ?? "-"}
-              </span>
-            </div>
-            {hasExplorationPoints && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Exploration Points</span>
-                <span className="text-sm text-muted-foreground">
-                  {member.gangs[0]?.exploration_points ?? "-"}
-                </span>
-              </div>
-            )}
-            {hasMeat && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Meat</span>
-                <span className="text-sm text-muted-foreground">
-                  {member.gangs[0]?.meat ?? "-"}
-                </span>
-              </div>
-            )}
-            {hasScavengingRolls && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Scavenging Rolls</span>
-                <span className="text-sm text-muted-foreground">
-                  {member.gangs[0]?.scavenging_rolls ?? "-"}
-                </span>
-              </div>
-            )}
-            {(isAdmin || member.user_id === currentUserId) && (
-              <div className="flex justify-end mt-3">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="text-xs px-1.5 h-6"
-                  onClick={() => {
-                    setMemberToRemove({...member, index});
-                    setShowRemoveMemberModal(true);
-                  }}
-                  disabled={member.role === 'OWNER' && members.filter(m => m.role === 'OWNER').length <= 1}
-                >
-                  <LuTrash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
       </div>
 
       {showGangModal && (
