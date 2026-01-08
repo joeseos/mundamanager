@@ -496,18 +496,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           .in('id', params.selected_effect_ids);
 
         if (effectTypes && effectTypes.length > 0) {
-          // Validate that these are actually selectable effects
-          const selectableEffects = effectTypes.filter(et => {
-            const sel = et?.type_specific_data?.effect_selection;
-            return sel === 'single_select' || sel === 'multiple_select';
-          });
-
-          if (selectableEffects.length === 0) {
-            throw new Error('Invalid effect selection - effects must be selectable');
-          }
-
           // Insert each effect using helper function
-          for (const effectType of selectableEffects) {
+          for (const effectType of effectTypes) {
             const result = await insertEffectWithModifiers(
               supabase,
               {

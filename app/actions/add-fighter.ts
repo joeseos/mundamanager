@@ -738,12 +738,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       }
                     });
 
-                    // Filter to ONLY auto-apply fixed effects (exclude user-selectable)
+                    // Filter to ONLY auto-apply fixed effects (exclude editable effects that user adds later)
                     const fixedEffectsByEquipment = new Map<string, any[]>();
                     Array.from(effectsByEquipment.entries()).forEach(([equipmentId, effects]) => {
                       const fixedEffects = effects.filter((et: any) => {
-                        const sel = et?.type_specific_data?.effect_selection;
-                        return sel !== 'single_select' && sel !== 'multiple_select' && et?.type_specific_data?.is_editable !== true;
+                        // Only exclude effects marked as editable (user adds these via edit modal after purchase)
+                        return et?.type_specific_data?.is_editable !== true;
                       });
 
                       if (fixedEffects.length > 0) {
