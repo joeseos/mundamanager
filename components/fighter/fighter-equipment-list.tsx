@@ -701,12 +701,15 @@ export function WeaponList({
   );
 
   // Render equipment effects as child rows beneath the equipment they apply to
+  // Only show editable effects (user-added via edit modal)
   const renderEffectRows = (item: Equipment) => {
-    // Get all effects linked to this equipment via fighter_equipment_id
     const allEffects = Object.values(fighterEffects).flat();
-    const equipmentEffects = allEffects.filter(
-      (e) => e.fighter_equipment_id === item.fighter_equipment_id
-    );
+    const equipmentEffects = allEffects.filter((e) => {
+      if (e.fighter_equipment_id !== item.fighter_equipment_id) return false;
+
+      const typeData = typeof e.type_specific_data === 'object' ? e.type_specific_data : null;
+      return typeData?.is_editable === true;
+    });
 
     if (equipmentEffects.length === 0) return null;
 
