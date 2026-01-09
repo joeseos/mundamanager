@@ -530,52 +530,48 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       is_editable?: boolean;
     }> = [];
 
-    // Track added equipment to prevent duplicates
+    // Track added equipment to prevent cross-source duplicates
     const addedEquipment = new Set<string>();
 
-    // Helper function to add equipment if not already added
-    const addEquipment = (equipmentId: string, isCustom: boolean, cost: number, purchaseCost: number, isEditable: boolean = false) => {
-      if (!addedEquipment.has(equipmentId)) {
-        addedEquipment.add(equipmentId);
-        equipmentInserts.push({
-          fighter_id: fighterId,
-          equipment_id: isCustom ? null : equipmentId,
-          custom_equipment_id: isCustom ? equipmentId.replace('custom_', '') : null,
-          original_cost: cost,
-          purchase_cost: purchaseCost,
-          gang_id: params.gang_id,
-          user_id: gangData.user_id,
-          is_editable: isEditable
-        });
-      }
-    };
-
     // Add default equipment from fighter_defaults table (highest priority)
+    // Push directly to allow multiple copies of the same equipment
     if (fighterDefaultEquipmentData && fighterDefaultEquipmentData.length > 0) {
       fighterDefaultEquipmentData.forEach((defaultEquipment: any) => {
         const isCustomEquipment = defaultEquipment.equipment_id.startsWith('custom_');
-        addEquipment(
-          defaultEquipment.equipment_id,
-          isCustomEquipment,
-          (defaultEquipment.equipment as any)?.cost || 0,
-          0, // Default equipment is free
-          defaultEquipment.is_editable || false
-        );
+        // Track for cross-source deduplication (prevents params.default_equipment from duplicating)
+        addedEquipment.add(defaultEquipment.equipment_id);
+        equipmentInserts.push({
+          fighter_id: fighterId,
+          equipment_id: isCustomEquipment ? null : defaultEquipment.equipment_id,
+          custom_equipment_id: isCustomEquipment ? defaultEquipment.equipment_id.replace('custom_', '') : null,
+          original_cost: (defaultEquipment.equipment as any)?.cost || 0,
+          purchase_cost: 0, // Default equipment is free
+          gang_id: params.gang_id,
+          user_id: gangData.user_id,
+          is_editable: defaultEquipment.is_editable || false
+        });
       });
     }
 
-    // Add default equipment (from params.default_equipment) - only if not already added
+    // Add default equipment (from params.default_equipment) - only if not already added from fighter_defaults
     if (params.default_equipment && params.default_equipment.length > 0) {
       params.default_equipment.forEach((defaultItem) => {
-        for (let i = 0; i < (defaultItem.quantity || 1); i++) {
-          const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
-          addEquipment(
-            defaultItem.equipment_id,
-            isCustomEquipment,
-            defaultItem.cost || 0,
-            0, // Default equipment is free
-            defaultItem.is_editable || false
-          );
+        // Check once before the loop - if already from fighter_defaults, skip entirely
+        if (!addedEquipment.has(defaultItem.equipment_id)) {
+          addedEquipment.add(defaultItem.equipment_id);
+          for (let i = 0; i < (defaultItem.quantity || 1); i++) {
+            const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
+            equipmentInserts.push({
+              fighter_id: fighterId,
+              equipment_id: isCustomEquipment ? null : defaultItem.equipment_id,
+              custom_equipment_id: isCustomEquipment ? defaultItem.equipment_id.replace('custom_', '') : null,
+              original_cost: defaultItem.cost || 0,
+              purchase_cost: 0, // Default equipment is free
+              gang_id: params.gang_id,
+              user_id: gangData.user_id,
+              is_editable: defaultItem.is_editable || false
+            });
+          }
         }
       });
     }
