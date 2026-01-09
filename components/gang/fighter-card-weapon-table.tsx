@@ -31,7 +31,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       return /\d$/.test(strValue) ? `${strValue}"` : strValue;
     },
     formatAccuracy: (value: number | string | null | undefined): string => {
-      if (value === null || value === undefined) return '-';
+      if (value === null || value === undefined || value === 0 || value === '0') return '-';
       const strValue = value.toString();
       // If strValue is empty, return as is without prefix
       if (strValue === '') return strValue;
