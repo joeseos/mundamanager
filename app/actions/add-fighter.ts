@@ -558,6 +558,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       params.default_equipment.forEach((defaultItem) => {
         // Check once before the loop - if already from fighter_defaults, skip entirely
         if (!addedEquipment.has(defaultItem.equipment_id)) {
+          addedEquipment.add(defaultItem.equipment_id);
           for (let i = 0; i < (defaultItem.quantity || 1); i++) {
             const isCustomEquipment = defaultItem.equipment_id.startsWith('custom_');
             equipmentInserts.push({
@@ -571,7 +572,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               is_editable: defaultItem.is_editable || false
             });
           }
-          addedEquipment.add(defaultItem.equipment_id);
         }
       });
     }
