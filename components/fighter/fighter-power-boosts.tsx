@@ -64,7 +64,7 @@ export function PowerBoostsList({
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
-  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean } | null>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const { toast } = useToast();
 
   // TanStack Query mutation for adding power boosts

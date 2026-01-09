@@ -3,11 +3,13 @@ export interface EquipmentOption {
   cost: number;
   max_quantity: number;
   equipment_name?: string;
+  is_editable?: boolean;
 }
 
 export interface DefaultEquipment {
   id: string;
   quantity: number;
+  is_editable?: boolean;
 }
 
 export interface WeaponsSelection {
