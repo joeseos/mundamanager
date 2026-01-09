@@ -11,16 +11,17 @@ import { useRouter, usePathname } from 'next/navigation';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
+import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { LuTrash2 } from "react-icons/lu";
 
 type Notification = {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request';
+  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite';
   created_at: string;
   dismissed: boolean;
   link: string | null;
-  sender_id?: string; // Add sender_id for friend requests
+  sender_id?: string; // Add sender_id for friend requests and gang invites
 };
 
 export default function NotificationsContent({ userId }: { userId: string }) {
@@ -75,6 +76,71 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     }
   };
 
+  // Parse campaignId and gangId from notification link
+  const parseGangInviteLink = (link: string | null): { campaignId: string; gangId: string } | null => {
+    if (!link) return null;
+    try {
+      const url = new URL(link);
+      const pathParts = url.pathname.split('/');
+      const campaignId = pathParts[pathParts.length - 1];
+      const gangId = url.searchParams.get('gangId');
+      if (campaignId && gangId) {
+        return { campaignId, gangId };
+      }
+    } catch {
+      // Invalid URL
+    }
+    return null;
+  };
+
+  // Handle gang invite acceptance
+  const handleAcceptGangInvite = async (notificationId: string, link: string | null) => {
+    const params = parseGangInviteLink(link);
+    if (!params) {
+      console.error('Invalid gang invite link');
+      return;
+    }
+
+    setProcessingRequest(notificationId);
+    try {
+      const result = await acceptGangInvite(params);
+      if (result.success) {
+        await deleteNotification(notificationId);
+        router.refresh();
+      } else {
+        console.error('Error accepting gang invite:', result.error);
+      }
+    } catch (error) {
+      console.error('Error accepting gang invite:', error);
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // Handle gang invite decline
+  const handleDeclineGangInvite = async (notificationId: string, link: string | null) => {
+    const params = parseGangInviteLink(link);
+    if (!params) {
+      console.error('Invalid gang invite link');
+      return;
+    }
+
+    setProcessingRequest(notificationId);
+    try {
+      const result = await declineGangInvite(params);
+      if (result.success) {
+        await deleteNotification(notificationId);
+        router.refresh();
+      } else {
+        console.error('Error declining gang invite:', result.error);
+      }
+    } catch (error) {
+      console.error('Error declining gang invite:', error);
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
   // Handle deleting a notification
   const handleDelete = async () => {
     if (notificationToDelete === null) return false;
@@ -110,7 +176,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request') => {
+  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite') => {
     switch (type) {
       case 'error':
         return <LuOctagonX className="h-5 w-5 text-red-500" />;
@@ -120,6 +186,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
       case 'friend_request':
         return <LuUserPlus className="h-5 w-5 text-green-500" />;
+      case 'gang_invite':
+        return <LuUserPlus className="h-5 w-5 text-orange-500" />;
       default:
         return <ImInfo className="h-5 w-5 text-blue-500" />;
     }
@@ -141,14 +209,14 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                 key={notification.id}
                 className={cn(
                   "p-4 rounded-lg border transition-colors",
-                  notification.dismissed 
-                    ? "bg-muted" 
+                  notification.dismissed
+                    ? "bg-muted"
                     : "hover:bg-muted",
-                  notification.link && notification.type !== 'friend_request' && "cursor-pointer"
+                  notification.link && notification.type !== 'friend_request' && notification.type !== 'gang_invite' && "cursor-pointer"
                 )}
                 onClick={() => {
-                  // Only navigate on click if it's not a friend request and has a link
-                  if (notification.link && notification.type !== 'friend_request') {
+                  // Only navigate on click if it's not a friend/gang request and has a link
+                  if (notification.link && notification.type !== 'friend_request' && notification.type !== 'gang_invite') {
                     router.push(notification.link);
                     if (!notification.dismissed) {
                       dismissNotification(notification.id);
@@ -168,7 +236,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       {timeAgo(notification.created_at)}
                     </p>
                   </div>
-                  {/* Friend Request Action Buttons (moved to the right, now using Button) */}
+                  {/* Friend Request Action Buttons */}
                   {notification.type === 'friend_request' && notification.sender_id && (
                     <div className="flex gap-2 items-center ml-2 self-center mt-2">
                       <Button
@@ -199,7 +267,38 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       </Button>
                     </div>
                   )}
-                  {notification.type !== 'friend_request' && (
+                  {/* Gang Invite Action Buttons */}
+                  {notification.type === 'gang_invite' && notification.link && (
+                    <div className="flex gap-2 items-center ml-2 self-center mt-2">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeclineGangInvite(notification.id, notification.link);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <HiX className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Declining...' : 'Decline'}
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptGangInvite(notification.id, notification.link);
+                        }}
+                        disabled={processingRequest === notification.id}
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <LuCheck className="h-3 w-3" />
+                        {processingRequest === notification.id ? 'Accepting...' : 'Accept'}
+                      </Button>
+                    </div>
+                  )}
+                  {notification.type !== 'friend_request' && notification.type !== 'gang_invite' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

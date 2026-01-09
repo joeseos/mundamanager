@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
 
     // Single optimized query: get campaign gangs with gangs and profiles joined
+    // Only show ACCEPTED gangs (PENDING gangs require approval first)
     const { data: campaignGangs, error: campaignGangsError } = await supabase
       .from('campaign_gangs')
       .select(`
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
         gangs!inner(id, name, gang_type, gang_colour)
       `)
       .eq('campaign_id', campaignId)
+      .eq('status', 'ACCEPTED')
       .returns<CampaignGangWithGang[]>();
 
     if (campaignGangsError) {

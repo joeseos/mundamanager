@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 type Notification = {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite';
+  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite';
   created_at: string;
   dismissed: boolean;
   link: string | null;
