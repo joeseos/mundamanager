@@ -319,7 +319,7 @@ export function applyWeaponModifiers(
         if (fieldName === 'strength') {
           const userStrength = parseUserStrength(baseValue);
           if (userStrength) {
-            (modified as any)[fieldName] = applyUserStrengthModifiers(userStrength, fieldModifiers);
+            modified.strength = applyUserStrengthModifiers(userStrength, fieldModifiers);
             return; // Skip standard numeric processing
           }
         }
