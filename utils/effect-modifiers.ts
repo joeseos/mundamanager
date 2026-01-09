@@ -219,6 +219,68 @@ export function calculateAdjustedStats(fighter: FighterProps) {
 // =============================================================================
 
 /**
+ * Parse strength value that may be "S", "S+N", "S-N", or a plain number
+ * Returns the numeric part (0 for plain "S") if it's a user-strength value,
+ * or null if it's a plain numeric value that should use standard parsing
+ */
+function parseUserStrength(value: string | number | null | undefined): { isUserStrength: boolean; numericPart: number } | null {
+  if (value === null || value === undefined) return null;
+
+  const strValue = String(value).trim().toUpperCase();
+
+  // Check for "S", "S+N", or "S-N" patterns
+  const match = strValue.match(/^S([+-]\d+)?$/);
+  if (!match) return null;
+
+  // Plain "S" has numericPart 0, "S+N" or "S-N" extracts the number
+  const numericPart = match[1] ? parseInt(match[1], 10) : 0;
+  return { isUserStrength: true, numericPart };
+}
+
+/**
+ * Format strength back to string representation
+ * 0 → "S", positive → "S+N", negative → "S-N"
+ */
+function formatUserStrength(numericPart: number): string {
+  if (numericPart === 0) return 'S';
+  if (numericPart > 0) return `S+${numericPart}`;
+  return `S${numericPart}`; // negative already includes the minus sign
+}
+
+/**
+ * Apply modifiers to a user-strength value ("S", "S+N", "S-N")
+ * Returns the modified strength string
+ */
+function applyUserStrengthModifiers(
+  parsed: { isUserStrength: boolean; numericPart: number },
+  modifiers: EffectModifier[]
+): string {
+  let result = parsed.numericPart;
+  let finalSetValue: number | null = null;
+
+  modifiers.forEach(m => {
+    const operation = m.operation || 'add';
+    const value = Number(m.numeric_value);
+
+    if (!Number.isFinite(value)) return;
+
+    if (operation === 'add') {
+      result += value;
+    } else if (operation === 'set') {
+      // For "set" on user-strength, we set the numeric modifier part
+      finalSetValue = value;
+    }
+  });
+
+  // If there was a SET operation, use that value
+  if (finalSetValue !== null) {
+    result = finalSetValue;
+  }
+
+  return formatUserStrength(result);
+}
+
+/**
  * Apply equipment→equipment effect modifiers to weapon profiles
  * Handles numeric fields (strength, ap, damage, ammo) and traits
  * SAFE: Defaults to 'add' operation for backward compatibility
@@ -253,6 +315,15 @@ export function applyWeaponModifiers(
       });
 
       if (fieldModifiers.length > 0) {
+        // Special handling for strength field with "S" (user strength) values
+        if (fieldName === 'strength') {
+          const userStrength = parseUserStrength(baseValue);
+          if (userStrength) {
+            (modified as any)[fieldName] = applyUserStrengthModifiers(userStrength, fieldModifiers);
+            return; // Skip standard numeric processing
+          }
+        }
+
         // Apply modifiers using shared logic
         const result = applyNumericModifiers(baseValue, fieldModifiers, {
           parseStrings: true,
