@@ -174,7 +174,10 @@ export function Combobox({
           type="text"
           className={cn(
             "flex h-10 w-full rounded-md border border-border bg-muted px-3 py-2 text-base md:text-sm",
-            "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
+            selectedOption && typeof selectedOption.label === 'string' && !open
+              ? "placeholder:text-foreground"
+              : "placeholder:text-muted-foreground",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
             "pr-10",
             selectedOption && typeof selectedOption.label !== 'string' && !open && "text-transparent placeholder:text-transparent"
@@ -196,7 +199,7 @@ export function Combobox({
         />
         {selectedOption && typeof selectedOption.label !== 'string' && !open && (
           <div className="absolute inset-0 flex items-center px-3 py-2 pointer-events-none">
-            <span className="flex items-center gap-1 text-sm">
+            <span className="flex items-center gap-1 text-sm text-foreground">
               {selectedOption.displayValue || selectedOption.label}
             </span>
           </div>
