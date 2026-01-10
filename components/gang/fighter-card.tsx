@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
