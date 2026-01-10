@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { useToast } from "@/components/ui/use-toast";
 import { LuSquarePen } from "react-icons/lu";
@@ -9,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { GiAncientRuins } from "react-icons/gi";
 import { IoHome } from "react-icons/io5";
 import { Tooltip } from "react-tooltip";
-import Link from "next/link";
 import Modal from "@/components/ui/modal";
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
 import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
@@ -91,7 +91,15 @@ export default function CampaignTerritoryList({
   onTerritoryUpdate
 }: CampaignTerritoryListProps) {
   const { toast } = useToast();
-  
+  const router = useRouter();
+
+  // Use programmatic navigation to avoid Link prefetching
+  const handleGangClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, gangId: string) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    router.push(`/gang/${gangId}`);
+  }, [router]);
+
   // State management
   const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
   const [showGangModal, setShowGangModal] = useState(false);
@@ -547,12 +555,13 @@ export default function CampaignTerritoryList({
                             className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                             style={{ color: gang.gang_colour || '#000000' }}
                           >
-                            <Link 
-                              href={`/gang/${gang.id}`} 
+                            <a
+                              href={`/gang/${gang.id}`}
                               className="hover:text-muted-foreground transition-colors"
+                              onClick={(e) => handleGangClick(e, gang.id)}
                             >
                               {gang.name}
-                            </Link>
+                            </a>
                             {permissions.canClaimTerritories && (
                               <button
                                 onClick={(e) => {

@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
@@ -56,6 +56,14 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
+
+  // Use programmatic navigation to avoid Link prefetching
+  const handleGangClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, gangId: string) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    router.push(`/gang/${gangId}`);
+  }, [router]);
 
   // Local state for optimistic updates
   const [localBattles, setLocalBattles] = useState<Battle[]>(battles);
@@ -488,13 +496,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                     style={{ color: getGangColour(participant.gang_id) }}
                   >
-                    <Link
+                    <a
                       href={`/gang/${participant.gang_id}`}
-                      prefetch={false}
                       className="hover:text-muted-foreground transition-colors"
+                      onClick={(e) => handleGangClick(e, participant.gang_id)}
                     >
                       {gangName}
-                    </Link>
+                    </a>
                   </span>
                 </div>
               </div>
@@ -560,12 +568,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   {roleLetter}
                 </span>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
-                  <Link
+                  <a
                     href={`/gang/${gang.id}`}
                     className="hover:text-muted-foreground transition-colors"
+                    onClick={(e) => handleGangClick(e, gang.id)}
                   >
                     {gang.name}
-                  </Link>
+                  </a>
                 </span>
               </div>
             </div>
@@ -889,12 +898,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                         style={{ color: getGangColour(battle.winner.id) }}
                       >
-                        <Link
+                        <a
                           href={`/gang/${battle.winner.id}`}
                           className="hover:text-muted-foreground transition-colors"
+                          onClick={(e) => handleGangClick(e, battle.winner!.id)}
                         >
                           {battle.winner.name || 'Unknown'}
-                        </Link>
+                        </a>
                       </span>
                     ) : battle.winner_id === null ? (
                       <span className="ml-2 text-xs">Draw</span>

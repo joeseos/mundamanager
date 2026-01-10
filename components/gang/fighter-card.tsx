@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
+'use client'
+
+import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
-import Link from 'next/link';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
@@ -382,6 +384,15 @@ const FighterCard = memo(function FighterCard({
     };
   }, [special_rules]);
 
+  // Use programmatic navigation to avoid Link prefetching
+  const router = useRouter();
+  const handleCardClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Allow right-click, middle-click, and modifier keys for native behavior
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    router.push(`/fighter/${id}`);
+  }, [id, router]);
+
   const cardContent = (
     <div
       id={fighterCardId}
@@ -698,11 +709,12 @@ const FighterCard = memo(function FighterCard({
       )}
     </div>
   );
-  //this link check is needed to prevent the card from being clickable when it's being dragged. Unless there is some other way to do this?
+  // This check is needed to prevent the card from being clickable when it's being dragged
+  // Using <a> + onClick instead of <Link> to avoid prefetching on page load and hover
   return disableLink ? cardContent : (
-    <Link href={`/fighter/${id}`}>
+    <a href={`/fighter/${id}`} onClick={handleCardClick}>
       {cardContent}
-    </Link>
+    </a>
   );
 });
 

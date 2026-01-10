@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/utils/supabase/client"
@@ -10,7 +10,6 @@ import { deleteFriend } from '@/app/actions/friends'
 import { HiX } from "react-icons/hi";
 import { useTransition, useOptimistic } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 
 interface Friend {
   id: string;
@@ -201,6 +200,13 @@ export default function FriendsSearchBar({
   const pendingIncoming = optimisticFriends.filter(f => f.status === 'pending' && f.direction === 'incoming');
   const pendingOutgoing = optimisticFriends.filter(f => f.status === 'pending' && f.direction === 'outgoing');
 
+  // Use programmatic navigation to avoid Link prefetching
+  const handleUserClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, userId: string) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    router.push(`/user/${userId}`);
+  }, [router]);
+
   return (
     <div className="relative mb-4">
       {/* Accepted Friends List */}
@@ -209,9 +215,9 @@ export default function FriendsSearchBar({
           <div className="flex flex-wrap gap-2">
             {acceptedFriends.map(friend => (
               <Badge key={friend.id} variant="secondary" className="flex items-center gap-1">
-                <Link href={`/user/${friend.id}`} className="hover:underline">
+                <a href={`/user/${friend.id}`} className="hover:underline" onClick={(e) => handleUserClick(e, friend.id)}>
                   {friend.username}
-                </Link>
+                </a>
                 <button
                   className="ml-1 text-gray-500 hover:text-red-500"
                   onClick={() => setFriendToDelete(friend)}
@@ -230,9 +236,9 @@ export default function FriendsSearchBar({
           <div className="flex flex-wrap gap-2">
             {pendingIncoming.map(friend => (
               <Badge key={friend.id} variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-800 flex items-center gap-1">
-                <Link href={`/user/${friend.id}`} className="hover:underline">
+                <a href={`/user/${friend.id}`} className="hover:underline" onClick={(e) => handleUserClick(e, friend.id)}>
                   {friend.username}
-                </Link> <span className="text-xs text-yellow-600">(pending)</span>
+                </a> <span className="text-xs text-yellow-600">(pending)</span>
               </Badge>
             ))}
           </div>
@@ -244,9 +250,9 @@ export default function FriendsSearchBar({
           <div className="flex flex-wrap gap-2">
             {pendingOutgoing.map(friend => (
               <Badge key={friend.id} variant="outline" className="flex items-center gap-1">
-                <Link href={`/user/${friend.id}`} className="hover:underline">
+                <a href={`/user/${friend.id}`} className="hover:underline" onClick={(e) => handleUserClick(e, friend.id)}>
                   {friend.username}
-                </Link> <span className="text-xs text-muted-foreground">(pending)</span>
+                </a> <span className="text-xs text-muted-foreground">(pending)</span>
                 <button
                   className="ml-1 text-gray-500 hover:text-red-500"
                   onClick={() => setFriendToDelete(friend)}
