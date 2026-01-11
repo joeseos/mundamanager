@@ -10,6 +10,7 @@ interface CampaignImageEditModalProps {
   currentImageUrl?: string;
   campaignId: string;
   onImageUpdate: (newImageUrl: string) => void;
+  defaultImageUrl?: string;
 }
 
 export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
@@ -18,6 +19,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
   currentImageUrl,
   campaignId,
   onImageUpdate,
+  defaultImageUrl,
 }) => {
   return (
     <ImageEditModal
@@ -26,6 +28,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
       currentImageUrl={currentImageUrl}
       title="Edit Campaign Image"
       onImageUpdate={onImageUpdate}
+      defaultImageUrl={defaultImageUrl}
       uploadConfig={{
         entityId: campaignId,
         storagePath: `campaigns/${campaignId}`,

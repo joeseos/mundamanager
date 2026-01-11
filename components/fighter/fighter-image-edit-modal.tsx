@@ -21,6 +21,8 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
   gangId,
   onImageUpdate,
 }) => {
+  const defaultFighterImageUrl = 'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif';
+
   return (
     <ImageEditModal
       isOpen={isOpen}
@@ -28,6 +30,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
       currentImageUrl={currentImageUrl}
       title="Edit Fighter Image"
       onImageUpdate={onImageUpdate}
+      defaultImageUrl={defaultFighterImageUrl}
       uploadConfig={{
         entityId: fighterId,
         storagePath: `gangs/${gangId}/fighters`,
