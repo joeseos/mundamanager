@@ -131,9 +131,15 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .eq('id', stashData.gang_id)
         .single();
 
-      if (!gangError && gang) {
-        fighterOwnerId = gang.user_id;
+      if (gangError || !gang) {
+        throw new Error('Gang not found');
       }
+      fighterOwnerId = gang.user_id;
+    }
+
+    // Ensure we have fighterOwnerId before proceeding
+    if (!fighterOwnerId) {
+      throw new Error('Could not determine equipment owner');
     }
 
     // If user is not an admin, check if they have permission for this gang
