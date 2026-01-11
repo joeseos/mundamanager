@@ -35,6 +35,34 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     });
   };
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value;
+    // Only show error if email is not empty and invalid
+    // Clear error if email is empty or valid
+    if (email && !validateEmail(email)) {
+      setEmailError("Please enter a valid email address");
+    } else {
+      setEmailError("");
+    }
+  };
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const username = e.target.value;
+    // Only show error if username is not empty and invalid
+    // Clear error if username is empty or valid
+    const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
+    if (username && !isValidUsername) {
+      setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+    } else {
+      setUsernameError("");
+    }
+  };
+
   if ("message" in searchParams) {
     return (
       <main className="flex min-h-screen flex-col items-center">
@@ -65,6 +93,12 @@ export default function Page(props: { searchParams: Promise<Message> }) {
     const isValidUsername = /^[a-zA-Z0-9_-]{3,20}$/.test(username);
     if (!isValidUsername) {
       setUsernameError("Username must be 3-20 characters and can only contain letters, numbers, underscores, and hyphens");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setEmailError("Please enter a valid email address");
       setIsSubmitting(false);
       return;
     }
@@ -113,6 +147,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           onSubmit={handleSubmit}
+          noValidate
         >
           <h1 className="text-2xl font-medium text-white mb-2">Sign Up</h1>
           <p className="text-sm text-white mb-8">
@@ -134,6 +169,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 minLength={3}
                 maxLength={20}
                 autoComplete="username"
+                onChange={handleUsernameChange}
               />
               {usernameError && (
                 <p className="text-red-400 text-sm mt-1">{usernameError}</p>
@@ -150,6 +186,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
                 required 
                 className="text-foreground mt-1" 
                 autoComplete="email"
+                onChange={handleEmailChange}
               />
               {emailError && (
                 <p className="text-red-400 text-sm mt-1">{emailError}</p>
