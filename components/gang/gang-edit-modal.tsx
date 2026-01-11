@@ -477,138 +477,147 @@ export default function GangEditModal({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Credits
-          <span className="text-xs text-muted-foreground"> (Current: {credits})</span>
-        </p>
-        <Input
-          type="tel"
-          inputMode="url"
-          pattern="-?[0-9]+"
-          value={formState.credits}
-          onChange={(e) => setFormState(prev => ({ ...prev, credits: e.target.value }))}
-          className="flex-1"
-          placeholder="Add or remove credits (e.g. 25 or -50)"
-        />
+      {/* Resources Section */}
+      <div className="space-y-4">
+        <div>
+          <p className="text-base font-medium">Resources</p>
+          <p className="text-xs text-muted-foreground mt-1">Add or remove (e.g. 5 or -5)</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <p className="text-xs font-medium">Credits
+              <span className="text-xs text-muted-foreground"> (Current: {credits})</span>
+            </p>
+            <Input
+              type="tel"
+              inputMode="url"
+              pattern="-?[0-9]+"
+              value={formState.credits}
+              onChange={(e) => setFormState(prev => ({ ...prev, credits: e.target.value }))}
+              className="flex-1"
+              placeholder="0"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-medium">
+              Reputation
+              <span className="text-xs text-muted-foreground"> (Current: {reputation})</span>
+            </p>
+            <Input
+              type="tel"
+              inputMode="url"
+              pattern="-?[0-9]+"
+              value={formState.reputation}
+              onChange={(e) => setFormState(prev => ({ ...prev, reputation: e.target.value }))}
+              className="flex-1"
+              placeholder="0"
+            />
+          </div>
+
+          {campaigns?.[0]?.has_exploration_points && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Exploration Points
+              <span className="text-xs text-muted-foreground"> (Current: {explorationPoints})</span>
+            </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.explorationPoints}
+                onChange={(e) => setFormState(prev => ({ ...prev, explorationPoints: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
+
+          {campaigns?.[0]?.has_meat && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Meat
+              <span className="text-xs text-muted-foreground"> (Current: {meat})</span>
+            </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.meat}
+                onChange={(e) => setFormState(prev => ({ ...prev, meat: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
+          
+          {campaigns?.[0]?.has_scavenging_rolls && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Scavenging Rolls
+              <span className="text-xs text-muted-foreground"> (Current: {scavengingRolls})</span>
+            </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.scavengingRolls}
+                onChange={(e) => setFormState(prev => ({ ...prev, scavengingRolls: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
+
+          {campaigns?.[0]?.has_power && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Power
+              <span className="text-xs text-muted-foreground"> (Current: {power})</span>
+            </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.power}
+                onChange={(e) => setFormState(prev => ({ ...prev, power: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
+
+          {campaigns?.[0]?.has_sustenance && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Sustenance
+              <span className="text-xs text-muted-foreground"> (Current: {sustenance})</span>
+            </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.sustenance}
+                onChange={(e) => setFormState(prev => ({ ...prev, sustenance: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
+
+          {campaigns?.[0]?.has_salvage && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Salvage
+              <span className="text-xs text-muted-foreground"> (Current: {salvage})</span>
+            </p>
+              <Input
+                type="tel"
+                inputMode="url"
+                pattern="-?[0-9]+"
+                value={formState.salvage}
+                onChange={(e) => setFormState(prev => ({ ...prev, salvage: e.target.value }))}
+                className="flex-1"
+                placeholder="0"
+              />
+            </div>
+          )}
+        </div>
       </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium">
-          Reputation
-          <span className="text-xs text-muted-foreground"> (Current: {reputation})</span>
-        </p>
-        <Input
-          type="tel"
-          inputMode="url"
-          pattern="-?[0-9]+"
-          value={formState.reputation}
-          onChange={(e) => setFormState(prev => ({ ...prev, reputation: e.target.value }))}
-          className="flex-1"
-          placeholder="Add or remove reputation (e.g. 1 or -2)"
-        />
-      </div>
-
-      {campaigns?.[0]?.has_exploration_points && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Exploration Points
-          <span className="text-xs text-muted-foreground"> (Current: {explorationPoints})</span>
-        </p>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={formState.explorationPoints}
-            onChange={(e) => setFormState(prev => ({ ...prev, explorationPoints: e.target.value }))}
-            className="flex-1"
-            placeholder="Add or remove exploration points (e.g. 1 or -2)"
-          />
-        </div>
-      )}
-
-      {campaigns?.[0]?.has_meat && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Meat
-          <span className="text-xs text-muted-foreground"> (Current: {meat})</span>
-        </p>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={formState.meat}
-            onChange={(e) => setFormState(prev => ({ ...prev, meat: e.target.value }))}
-            className="flex-1"
-            placeholder="Add or remove meat (e.g. 1 or -2)"
-          />
-        </div>
-      )}
-      
-      {campaigns?.[0]?.has_scavenging_rolls && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Scavenging Rolls
-          <span className="text-xs text-muted-foreground"> (Current: {scavengingRolls})</span>
-        </p>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={formState.scavengingRolls}
-            onChange={(e) => setFormState(prev => ({ ...prev, scavengingRolls: e.target.value }))}
-            className="flex-1"
-            placeholder="Add or remove scavenging rolls (e.g. 1 or -2)"
-          />
-        </div>
-      )}
-
-      {campaigns?.[0]?.has_power && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Power
-          <span className="text-xs text-muted-foreground"> (Current: {power})</span>
-        </p>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={formState.power}
-            onChange={(e) => setFormState(prev => ({ ...prev, power: e.target.value }))}
-            className="flex-1"
-            placeholder="Add or remove power (e.g. 1 or -2)"
-          />
-        </div>
-      )}
-
-      {campaigns?.[0]?.has_sustenance && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Sustenance
-          <span className="text-xs text-muted-foreground"> (Current: {sustenance})</span>
-        </p>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={formState.sustenance}
-            onChange={(e) => setFormState(prev => ({ ...prev, sustenance: e.target.value }))}
-            className="flex-1"
-            placeholder="Add or remove sustenance (e.g. 1 or -2)"
-          />
-        </div>
-      )}
-
-      {campaigns?.[0]?.has_salvage && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Salvage
-          <span className="text-xs text-muted-foreground"> (Current: {salvage})</span>
-        </p>
-          <Input
-            type="tel"
-            inputMode="url"
-            pattern="-?[0-9]+"
-            value={formState.salvage}
-            onChange={(e) => setFormState(prev => ({ ...prev, salvage: e.target.value }))}
-            className="flex-1"
-            placeholder="Add or remove salvage (e.g. 1 or -2)"
-          />
-        </div>
-      )}
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Gang Visibility</p>
