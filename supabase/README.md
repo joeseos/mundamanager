@@ -22,18 +22,19 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | get_gang_permissions               | p_user_id uuid, p_gang_id uuid                                                                         | json | Definer |
 | repair_vehicle_damage              | damage_ids uuid[], repair_cost integer, in_user_id uuid                                                | json | Definer |
 
-### Helper Functions (used by other SQL functions)
+### Helper Functions
 
-| Name     | Arguments          | Return type | Security |
-|----------|--------------------|-------------|----------|
-| is_admin | -                  | boolean     | Definer  |
-| is_arb   | gang_id_param uuid | boolean     | Definer  |
-| gang_logs | p_gang_id uuid, p_action_type text, p_description text, p_fighter_id uuid DEFAULT NULL, p_vehicle_id uuid DEFAULT NULL | uuid | Definer |
+| Name          | Arguments                                                                                                           | Return type | Security |
+|---------------|---------------------------------------------------------------------------------------------------------------------|-------------|----------|
+| gang_logs     | p_gang_id uuid, p_action_type text, p_description text, p_fighter_id uuid DEFAULT NULL, p_vehicle_id uuid DEFAULT NULL | uuid | Definer |
+| safe_to_numeric | v text                                                                                                            | numeric | Invoker |
 
 ### Trigger Functions
 
-| Name                          | Trigger on       | Description                              |
-|-------------------------------|------------------|------------------------------------------|
-| fighter_logs                  | fighters table   | Logs fighter changes                     |
-| vehicle_logs                  | vehicles table   | Logs vehicle changes                     |
-| notify_campaign_member_added  | campaign_members | Sends notification when member is added  |
+| Name                         | Trigger on         | Description                               |
+|------------------------------|--------------------|-------------------------------------------|
+| fighter_logs                 | fighters table     | Logs fighter changes                      |
+| vehicle_logs                 | vehicles table     | Logs vehicle changes                      |
+| notify_campaign_member_added | campaign_members   | Sends notification when member is added   |
+| notify_friend_request_sent   | friend_requests    | Sends notification for friend requests    |
+| notify_gang_invite           | campaign_gangs     | Sends notification for gang invites       |
