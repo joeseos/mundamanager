@@ -91,10 +91,12 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     }
 
     // Verify fighter/vehicle belongs to same gang as stash item
+    let fighterOwnerId: string | null = null;
+
     if (params.fighter_id) {
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id')
+        .select('gang_id, user_id')
         .eq('id', params.fighter_id)
         .single();
 
@@ -105,6 +107,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (fighter.gang_id !== stashData.gang_id) {
         throw new Error('Fighter does not belong to the same gang');
       }
+
+      fighterOwnerId = fighter.user_id;
     } else if (params.vehicle_id) {
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
@@ -119,6 +123,17 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (vehicle.gang_id !== stashData.gang_id) {
         throw new Error('Vehicle does not belong to the same gang');
       }
+
+      // For vehicles, get owner from gang
+      const { data: gang, error: gangError } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', stashData.gang_id)
+        .single();
+
+      if (!gangError && gang) {
+        fighterOwnerId = gang.user_id;
+      }
     }
 
     // If user is not an admin, check if they have permission for this gang
@@ -131,6 +146,11 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
       if (gangError || !gang) {
         throw new Error('Gang not found');
+      }
+
+      // Ensure we have fighterOwnerId set (handles case where fighter_id is set)
+      if (!fighterOwnerId) {
+        fighterOwnerId = gang.user_id;
       }
     }
 
@@ -212,7 +232,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               effect_name: et.effect_name,
               type_specific_data: et.type_specific_data,
               fighter_equipment_id: equipmentData.id,
-              user_id: user.id
+              user_id: fighterOwnerId
             }));
 
             const { data: insertedEffects, error: insertErr } = await supabase
@@ -286,7 +306,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             fighter_equipment_id: equipmentData.id,
             target_equipment_id: target_equipment_id,
             effect_type_id: effect_type_id,
-            user_id: user.id
+            user_id: fighterOwnerId
           },
           { checkDuplicate: true, includeOperation: true }
         );

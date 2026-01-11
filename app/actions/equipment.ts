@@ -353,7 +353,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           original_cost: baseCost,
           purchase_cost: ratingCost,
           gang_stash: true,
-          user_id: user.id,
+          user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
           is_editable: equipmentDetails.is_editable || false
         })
@@ -375,7 +375,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           custom_equipment_id: params.custom_equipment_id,
           original_cost: baseCost,
           purchase_cost: ratingCost,
-          user_id: user.id,
+          user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
           is_editable: equipmentDetails.is_editable || false
         })
@@ -458,7 +458,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 original_cost: grantedEquip.cost,
                 purchase_cost: option.additional_cost,
                 granted_by_equipment_id: newEquipmentId,
-                user_id: user.id
+                user_id: gang.user_id
               });
 
             // Add to rating delta for granted equipment (fighters and assigned vehicles)
@@ -635,7 +635,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                       equipment_id: defaultItem.equipment_id,
                       purchase_cost: 0,
                       original_cost: (defaultItem.equipment as any)?.cost || 0,
-                      user_id: user.id
+                      user_id: gang.user_id
                     });
                 }
               }

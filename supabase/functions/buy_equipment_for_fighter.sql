@@ -374,8 +374,8 @@ BEGIN
       rating_cost, -- Use rating_cost for purchase_cost based on the flag
       now(),
       now(),
-      v_user_id,
-      CASE 
+      v_gang.user_id,  -- Use gang owner's user_id, not acting user
+      CASE
         WHEN v_equipment_type = 'weapon' AND buy_equipment_for_fighter.master_crafted = TRUE THEN TRUE
         ELSE FALSE
       END
