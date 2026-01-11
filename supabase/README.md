@@ -6,11 +6,34 @@ https://supabase.com/dashboard/project/iojoritxhpijprgkjfre/database/functions
 
 Syncing of those files is not automatic. If you update a function on Supabase, make sure to update it here as well.
 
-| Name                                 | Arguments                                                                                                                                                                                | Return type                                                                                                                                                                                                                                                                                                                                                                                                     | Security |
-|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| add_fighter_injury                   | input_fighter_id uuid, input_injury_id uuid                                                                                                                                              | TABLE(result json)                                                                                                                                                                                                                                                                                                                                                                                              | Definer  |
-| get_available_skills                 | fighter_id uuid                                                                                                                                                                          | jsonb                                                                                                                                                                                                                                                                                                                                                                                                           | Definer  |
-| get_equipment_with_discounts         | gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid                                                                | TABLE(id uuid, equipment_name text, availability text, base_cost numeric, discounted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean)                                                                                                                                                               | Definer  |
-| get_fighter_available_advancements   | fighter_id uuid                                                                                                                                                                          | jsonb                                                                                                                                                                                                                                                                                                                                                                                                           | Definer  |
-| is_admin                             | \-                                                                                                                                                                                       | boolean                                                                                                                                                                                                                                                                                                                                                                                                         | Definer  |
-| is_arb                               | gang_id_param uuid                                                                                                                                                                       | boolean                                                                                                                                                                                                                                                                                                                                                                                                         | Definer  |
+### RPC Functions
+
+| Name                               | Arguments                                                                                              | Return type | Security |
+|------------------------------------|--------------------------------------------------------------------------------------------------------|-------------|----------|
+| add_fighter_injury                 | input_fighter_id uuid, input_injury_id uuid                                                            | TABLE(result json) | Definer |
+| add_vehicle_effect                 | in_vehicle_id uuid, in_fighter_effect_type_id uuid, in_user_id uuid, in_fighter_effect_category_id uuid DEFAULT NULL | json | Definer |
+| assign_crew_to_vehicle             | p_vehicle_id uuid, p_fighter_id uuid                                                                   | jsonb | Definer |
+| get_add_fighter_details            | p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL                                           | TABLE(...) | Definer |
+| get_available_skills               | fighter_id uuid                                                                                        | jsonb | Definer |
+| get_equipment_with_discounts       | gang_type_id uuid DEFAULT NULL, equipment_category text DEFAULT NULL, fighter_type_id uuid DEFAULT NULL | TABLE(...) | Definer |
+| get_fighter_available_advancements | fighter_id uuid                                                                                        | jsonb | Definer |
+| get_fighter_types_with_cost        | p_gang_type_id uuid DEFAULT NULL, p_gang_affiliation_id uuid DEFAULT NULL, p_is_gang_addition boolean DEFAULT NULL | TABLE(...) | Definer |
+| get_gang_details                   | p_gang_id uuid                                                                                         | TABLE(...) | Definer |
+| get_gang_permissions               | p_user_id uuid, p_gang_id uuid                                                                         | json | Definer |
+| repair_vehicle_damage              | damage_ids uuid[], repair_cost integer, in_user_id uuid                                                | json | Definer |
+
+### Helper Functions (used by other SQL functions)
+
+| Name     | Arguments          | Return type | Security |
+|----------|--------------------|-------------|----------|
+| is_admin | -                  | boolean     | Definer  |
+| is_arb   | gang_id_param uuid | boolean     | Definer  |
+| gang_logs | p_gang_id uuid, p_action_type text, p_description text, p_fighter_id uuid DEFAULT NULL, p_vehicle_id uuid DEFAULT NULL | uuid | Definer |
+
+### Trigger Functions
+
+| Name                          | Trigger on       | Description                              |
+|-------------------------------|------------------|------------------------------------------|
+| fighter_logs                  | fighters table   | Logs fighter changes                     |
+| vehicle_logs                  | vehicles table   | Logs vehicle changes                     |
+| notify_campaign_member_added  | campaign_members | Sends notification when member is added  |
