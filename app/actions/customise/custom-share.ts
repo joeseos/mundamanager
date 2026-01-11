@@ -65,3 +65,65 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
     };
   }
 }
+
+/**
+ * Share custom equipment to selected campaigns
+ */
+export async function shareCustomEquipment(customEquipmentId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    // Verify the custom equipment belongs to the user
+    const { data: customEquipment, error: equipmentError } = await supabase
+      .from('custom_equipment')
+      .select('id, user_id')
+      .eq('id', customEquipmentId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (equipmentError || !customEquipment) {
+      return { success: false, error: 'Custom equipment not found or not owned by user' };
+    }
+
+    // Delete existing shares for this equipment
+    const { error: deleteError } = await supabase
+      .from('custom_shared')
+      .delete()
+      .eq('custom_equipment_id', customEquipmentId)
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      console.error('Error deleting existing shares:', deleteError);
+      return { success: false, error: `Failed to update shares: ${deleteError.message}` };
+    }
+
+    // Insert new shares if any campaigns selected
+    if (campaignIds.length > 0) {
+      const shareRows = campaignIds.map(campaignId => ({
+        custom_equipment_id: customEquipmentId,
+        campaign_id: campaignId,
+        user_id: user.id
+      }));
+
+      const { error: insertError } = await supabase
+        .from('custom_shared')
+        .insert(shareRows);
+
+      if (insertError) {
+        console.error('Error inserting shares:', insertError);
+        return { success: false, error: `Failed to share equipment: ${insertError.message}` };
+      }
+    }
+
+    // Ensure the home page (customise tab) reflects new sharing state
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Error in shareCustomEquipment:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}

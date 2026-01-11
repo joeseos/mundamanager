@@ -355,9 +355,15 @@ AS $$
         NULL::jsonb as grants_equipment,
         COALESCE(ce.is_editable, false) as is_editable
     FROM custom_equipment ce
-    WHERE 
-        ce.user_id = auth.uid() -- Only show user's own custom equipment
-        AND ($2 IS NULL 
+    LEFT JOIN (
+        SELECT cs.custom_equipment_id
+        FROM custom_shared cs
+        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
+        WHERE cg.gang_id = $8  -- gang_id parameter
+    ) shared ON shared.custom_equipment_id = ce.id
+    WHERE
+        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL) -- User's own or shared to gang's campaign
+        AND ($2 IS NULL
          OR trim(both from ce.equipment_category) = trim(both from $2))
         AND (only_equipment_id IS NULL OR ce.id = only_equipment_id)
 $$;

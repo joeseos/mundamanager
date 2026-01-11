@@ -256,7 +256,11 @@ export default function HomeTabs({
               </p>
             </div>
 
-            <CustomiseEquipment initialEquipment={customEquipment} />
+            <CustomiseEquipment
+              initialEquipment={customEquipment}
+              userId={userId}
+              userCampaigns={userCampaigns}
+            />
 
             <CustomiseFighters
               initialFighters={customFighterTypes}
