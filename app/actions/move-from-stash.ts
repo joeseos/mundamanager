@@ -238,7 +238,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               effect_name: et.effect_name,
               type_specific_data: et.type_specific_data,
               fighter_equipment_id: equipmentData.id,
-              user_id: fighterOwnerId
+              user_id: fighterOwnerId!  // Validated non-null at line 141
             }));
 
             const { data: insertedEffects, error: insertErr } = await supabase
@@ -312,7 +312,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             fighter_equipment_id: equipmentData.id,
             target_equipment_id: target_equipment_id,
             effect_type_id: effect_type_id,
-            user_id: fighterOwnerId
+            user_id: fighterOwnerId!  // Validated non-null at line 141
           },
           { checkDuplicate: true, includeOperation: true }
         );
