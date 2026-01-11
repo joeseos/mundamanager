@@ -60,6 +60,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Get the fighter owner's user_id
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('user_id')
+      .eq('id', fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      return NextResponse.json({ error: "Fighter not found" }, { status: 404 });
+    }
+
+    const fighterOwnerId = fighter.user_id;
+
     // First, get all effect types for user modifications
     const { data: effectTypes, error: typesError } = await supabase
       .from('fighter_effect_types')
@@ -79,7 +92,7 @@ export async function POST(request: Request) {
       throw typesError;
     }
 
-    // Fetch existing user effects for this fighter
+    // Fetch existing user effects for this fighter (using fighter owner's user_id)
     const { data: existingEffects, error: fetchError } = await supabase
       .from('fighter_effects')
       .select(`
@@ -92,7 +105,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq('fighter_id', fighter_id)
-      .eq('user_id', userId)
+      .eq('user_id', fighterOwnerId)
       .in('fighter_effect_type_id', (effectTypes as EffectType[]).map(et => et.id));
 
     if (fetchError) {
@@ -246,7 +259,7 @@ export async function POST(request: Request) {
             await createNewEffect(
               supabase,
               fighter_id,
-              userId,
+              fighterOwnerId,
               statName,
               remainingChange,
               effectTypes as EffectType[]
@@ -261,7 +274,7 @@ export async function POST(request: Request) {
         await createNewEffect(
           supabase,
           fighter_id,
-          userId,
+          fighterOwnerId,
           statName,
           changeValue,
           effectTypes as EffectType[]
@@ -298,7 +311,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fetch the complete updated fighter effects
+    // Fetch the complete updated fighter effects (using fighter owner's user_id)
     const { data: updatedEffects, error: fetchUpdatedError } = await supabase
       .from('fighter_effects')
       .select(`
@@ -312,7 +325,7 @@ export async function POST(request: Request) {
         )
       `)
       .eq('fighter_id', fighter_id)
-      .eq('user_id', userId)
+      .eq('user_id', fighterOwnerId)
       .in('fighter_effect_type_id', (effectTypes as EffectType[]).map(et => et.id));
 
     if (fetchUpdatedError) {

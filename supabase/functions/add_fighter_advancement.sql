@@ -24,6 +24,7 @@ DECLARE
     v_modifier_value INTEGER;
     v_raw_response TEXT;
     current_user_id UUID;
+    v_fighter_owner_id UUID;
 BEGIN
     -- Get the current user ID from auth context
     current_user_id := auth.uid();
@@ -49,6 +50,11 @@ BEGIN
             'error', 'Fighter not found or access denied'
         );
     END IF;
+
+    -- Get the fighter owner's user_id for the insert
+    SELECT user_id INTO v_fighter_owner_id
+    FROM fighters
+    WHERE id = p_fighter_id;
 
     -- Check if fighter has enough XP
     SELECT (xp >= p_xp_cost) INTO has_enough_xp
@@ -90,7 +96,7 @@ BEGIN
         'credits_increase', p_credits_increase
     );
 
-    -- Insert the new advancement as a fighter effect
+    -- Insert the new advancement as a fighter effect with fighter owner's user_id
     INSERT INTO fighter_effects (
         fighter_id,
         fighter_effect_type_id,
@@ -107,7 +113,7 @@ BEGIN
         v_merged_type_data,
         NOW(),
         NOW(),
-        current_user_id
+        v_fighter_owner_id
     )
     RETURNING id INTO inserted_effect_id;
 

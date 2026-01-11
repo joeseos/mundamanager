@@ -826,7 +826,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       ownerFighterId: fighterId,
                       ownerFighterName: insertedFighter.fighter_name,
                       gangId: params.gang_id,
-                      userId: effectiveUserId,
+                      userId: gangData.user_id,
                       fighterEquipmentId: equipmentItem.id
                     });
 

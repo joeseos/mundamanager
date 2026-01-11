@@ -826,7 +826,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, cost_adjustment, kills, killed, retired, enslaved, captured, fighter_name')
+      .select('id, gang_id, user_id, cost_adjustment, kills, killed, retired, enslaved, captured, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -931,14 +931,14 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           const effectType = findEffectTypeFor(statName, changeValue);
           if (!effectType) continue;
 
-          // Create effect row
+          // Create effect row with fighter owner's user_id
           const { data: newEffect, error: effectError } = await supabase
             .from('fighter_effects')
             .insert({
               fighter_id: params.fighter_id,
               fighter_effect_type_id: effectType.id,
               effect_name: effectType.effect_name,
-              user_id: user.id
+              user_id: fighter.user_id
             })
             .select('id')
             .single();
