@@ -1087,6 +1087,7 @@ export default function Gang({
             currentImageUrl={currentGangImageUrl}
             gangId={id}
             onImageUpdate={handleGangImageUpdate}
+            defaultImageUrl={gang_type_image_url}
           />
           <Tooltip
             id="gang-composition-tooltip"

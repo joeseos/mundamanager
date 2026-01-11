@@ -957,6 +957,7 @@ export default function CampaignPageContent({
           currentImageUrl={campaignData.image_url || ''}
           campaignId={campaignData.id}
           onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
+          defaultImageUrl={campaignData.campaign_type_image_url}
         />
 
         <CampaignAddTerritoryModal

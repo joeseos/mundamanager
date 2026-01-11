@@ -10,6 +10,7 @@ interface GangImageEditModalProps {
   currentImageUrl?: string;
   gangId: string;
   onImageUpdate: (newImageUrl: string) => void;
+  defaultImageUrl?: string;
 }
 
 export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
@@ -18,6 +19,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   currentImageUrl,
   gangId,
   onImageUpdate,
+  defaultImageUrl,
 }) => {
   return (
     <ImageEditModal
@@ -26,6 +28,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
       currentImageUrl={currentImageUrl}
       title="Edit Gang Image"
       onImageUpdate={onImageUpdate}
+      defaultImageUrl={defaultImageUrl}
       uploadConfig={{
         entityId: gangId,
         storagePath: `gangs/${gangId}`,

@@ -17,6 +17,7 @@ interface ImageEditModalProps {
   onImageUpdate: (newImageUrl: string) => void;
   confirmButtonText?: string;
   showRemoveButton?: boolean;
+  defaultImageUrl?: string;
 }
 
 export const ImageEditModal: React.FC<ImageEditModalProps> = ({
@@ -29,6 +30,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   onImageUpdate,
   confirmButtonText,
   showRemoveButton = true,
+  defaultImageUrl,
 }) => {
   const {
     image,
@@ -94,6 +96,17 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
               >
                 Remove Image
               </Button>
+            </div>
+          </div>
+        )}
+        {!currentImageUrl && !image && defaultImageUrl && (
+          <div className="mb-4">
+            <div className="flex items-center justify-center">
+              <img
+                src={defaultImageUrl}
+                alt="Default"
+                className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+              />
             </div>
           </div>
         )}
