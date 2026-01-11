@@ -229,12 +229,13 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           }
         });
 
-        // Insert default equipment
+        // Insert default equipment with gang owner's user_id
         const defaultEquipment = defaultEquipmentDetails.map(equip => ({
           fighter_id: fighter.id,
           equipment_id: equip.id,
           purchase_cost: 0,
-          original_cost: 0
+          original_cost: 0,
+          user_id: gang.user_id
         }));
 
         const { error: defaultEquipError } = await supabase
@@ -247,7 +248,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         }
       }
 
-      // Add default skills to fighter_skills
+      // Add default skills to fighter_skills with gang owner's user_id
       const defaultSkills = fighterDefaults
         .filter(def => def.skill_id)
         .map(def => ({
@@ -256,7 +257,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           is_advance: false,
           credits_increase: 0,
           xp_cost: '0',
-          fighter_injury_id: null
+          fighter_injury_id: null,
+          user_id: gang.user_id
         }));
 
       if (defaultSkills.length > 0) {
@@ -356,7 +358,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               fighter_id: fighter.id,
               equipment_id: weapon.weapon_id,
               purchase_cost: weapon.cost,
-              original_cost: weapon.cost
+              original_cost: weapon.cost,
+              user_id: gang.user_id
             }))
           );
 

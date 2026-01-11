@@ -25,6 +25,7 @@ DECLARE
     v_is_admin BOOLEAN;
     v_user_has_access BOOLEAN;
     v_gang_id UUID;
+    v_fighter_owner_id UUID;
     injury_count INTEGER;
     is_partially_deafened BOOLEAN;
 BEGIN
@@ -34,8 +35,8 @@ BEGIN
     -- Check if user is an admin
     SELECT private.is_admin() INTO v_is_admin;
     
-    -- Get the gang_id for the fighter
-    SELECT gang_id INTO v_gang_id
+    -- Get the gang_id and user_id for the fighter
+    SELECT gang_id, user_id INTO v_gang_id, v_fighter_owner_id
     FROM fighters
     WHERE id = in_fighter_id;
     
@@ -82,7 +83,7 @@ BEGIN
     WHERE fighter_id = in_fighter_id 
     AND fighter_effect_type_id = in_injury_type_id;
     
-    -- Insert the new fighter effect with user_id
+    -- Insert the new fighter effect with fighter owner's user_id
     INSERT INTO fighter_effects (
         fighter_id,
         fighter_effect_type_id,
@@ -96,7 +97,7 @@ BEGIN
         in_injury_type_id,
         effect_type_record.effect_name,
         effect_type_record.type_specific_data,
-        in_user_id,
+        v_fighter_owner_id,
         in_target_equipment_id
     )
     RETURNING id INTO new_effect_id;
@@ -133,10 +134,10 @@ BEGIN
             user_id,
             fighter_effect_skill_id
         )
-        SELECT 
+        SELECT
             in_fighter_id,
             skill_id_val,
-            in_user_id,
+            v_fighter_owner_id,
             NULL  -- Initially NULL, will update after creating relation
         WHERE 
             NOT EXISTS (

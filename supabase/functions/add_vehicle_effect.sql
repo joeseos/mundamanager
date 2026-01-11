@@ -15,6 +15,7 @@ DECLARE
     v_is_admin BOOLEAN;
     v_user_has_access BOOLEAN;
     v_gang_id UUID;
+    v_gang_owner_id UUID;
     v_category_id UUID;
 BEGIN
     -- Validate inputs
@@ -34,10 +35,11 @@ BEGIN
     -- Admin check
     SELECT private.is_admin() INTO v_is_admin;
 
-    -- Authorize via vehicle.gang_id
-    SELECT gang_id INTO v_gang_id
-    FROM vehicles
-    WHERE id = in_vehicle_id;
+    -- Authorize via vehicle.gang_id and get gang owner's user_id
+    SELECT v.gang_id, g.user_id INTO v_gang_id, v_gang_owner_id
+    FROM vehicles v
+    JOIN gangs g ON v.gang_id = g.id
+    WHERE v.id = in_vehicle_id;
 
     IF v_gang_id IS NULL THEN
         RAISE EXCEPTION 'Vehicle not found';
@@ -76,7 +78,7 @@ BEGIN
         END IF;
     END IF;
 
-    -- Insert effect linked only to vehicle_id (fighter_id = NULL)
+    -- Insert effect linked only to vehicle_id (fighter_id = NULL) with gang owner's user_id
     INSERT INTO fighter_effects (
         fighter_id,
         fighter_effect_type_id,
@@ -90,7 +92,7 @@ BEGIN
         in_fighter_effect_type_id,
         effect_type_record.effect_name,
         effect_type_record.type_specific_data,
-        in_user_id,
+        v_gang_owner_id,
         in_vehicle_id
     )
     RETURNING id INTO new_effect_id;

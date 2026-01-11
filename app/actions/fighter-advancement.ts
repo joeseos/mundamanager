@@ -144,7 +144,7 @@ export async function addCharacteristicAdvancement(
       credits_increase: params.credits_increase
     };
 
-    // Insert the new advancement as a fighter effect
+    // Insert the new advancement as a fighter effect with fighter owner's user_id
     const { data: insertedEffect, error: insertError } = await supabase
       .from('fighter_effects')
       .insert({
@@ -152,7 +152,7 @@ export async function addCharacteristicAdvancement(
         fighter_effect_type_id: params.fighter_effect_type_id,
         effect_name: effectType.effect_name,
         type_specific_data: mergedTypeData,
-        user_id: user.id
+        user_id: fighter.user_id
       })
       .select('id')
       .single();
@@ -316,7 +316,7 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Insufficient XP' };
     }
 
-    // Insert the new skill advancement
+    // Insert the new skill advancement with fighter owner's user_id
     const { data: insertedSkill, error: insertError } = await supabase
       .from('fighter_skills')
       .insert({
@@ -325,7 +325,7 @@ export async function addSkillAdvancement(
         credits_increase: params.credits_increase,
         xp_cost: params.xp_cost,
         is_advance: params.is_advance ?? true,
-        user_id: user.id,
+        user_id: fighter.user_id,
         updated_at: new Date().toISOString()
       })
       .select('id, fighter_id, skill_id, credits_increase, xp_cost, is_advance')
@@ -784,7 +784,7 @@ export async function addPowerBoost(
       kill_cost: params.kill_cost
     };
 
-    // Insert the new power boost as a fighter effect
+    // Insert the new power boost as a fighter effect with fighter owner's user_id
     const { data: insertedEffect, error: insertError } = await supabase
       .from('fighter_effects')
       .insert({
@@ -792,7 +792,7 @@ export async function addPowerBoost(
         fighter_effect_type_id: params.power_boost_type_id,
         effect_name: effectType.effect_name,
         type_specific_data: mergedTypeData,
-        user_id: user.id
+        user_id: fighter.user_id
       })
       .select('id')
       .single();
@@ -847,7 +847,7 @@ export async function addPowerBoost(
           continue;
         }
 
-        // Insert the child effect
+        // Insert the child effect with fighter owner's user_id
         const { data: childEffect, error: childEffectError } = await supabase
           .from('fighter_effects')
           .insert({
@@ -855,7 +855,7 @@ export async function addPowerBoost(
             fighter_effect_type_id: effectTypeId,
             effect_name: childEffectType.effect_name,
             type_specific_data: childEffectType.type_specific_data,
-            user_id: user.id
+            user_id: fighter.user_id
           })
           .select('id')
           .single();
