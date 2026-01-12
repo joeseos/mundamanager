@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { UseImageEditorOptions } from '@/hooks/use-image-editor';
 import { useImageEditor } from '@/hooks/use-image-editor';
+import { LuChevronLeft, LuChevronRight } from 'react-icons/lu';
 
 interface ImageEditModalProps {
   isOpen: boolean;
@@ -18,6 +19,9 @@ interface ImageEditModalProps {
   confirmButtonText?: string;
   showRemoveButton?: boolean;
   defaultImageUrl?: string;
+  defaultImageUrls?: string[];
+  currentDefaultImageIndex?: number | null;
+  onDefaultImageIndexChange?: (index: number) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const ImageEditModal: React.FC<ImageEditModalProps> = ({
@@ -31,7 +35,23 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   confirmButtonText,
   showRemoveButton = true,
   defaultImageUrl,
+  defaultImageUrls,
+  currentDefaultImageIndex,
+  onDefaultImageIndexChange,
 }) => {
+  const [selectedDefaultImageIndex, setSelectedDefaultImageIndex] = useState<number | null>(
+    currentDefaultImageIndex ?? null
+  );
+  const [isSavingDefaultImage, setIsSavingDefaultImage] = useState(false);
+
+  // Reset selected index when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedDefaultImageIndex(currentDefaultImageIndex ?? null);
+      setIsSavingDefaultImage(false);
+    }
+  }, [isOpen, currentDefaultImageIndex]);
+
   const {
     image,
     crop,
@@ -58,24 +78,86 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   if (!isOpen) return null;
 
-  const defaultConfirmText = isRemoving
-    ? 'Removing image...'
-    : isUploading
-      ? 'Uploading...'
-      : 'Upload Image';
+  // Check if default image index has changed
+  const defaultImageIndexChanged = 
+    defaultImageUrls && 
+    selectedDefaultImageIndex !== null &&
+    selectedDefaultImageIndex !== currentDefaultImageIndex;
 
+  // Determine if confirm button should be enabled
+  const hasImageToSave = image && ((enableCrop && croppedAreaPixels) || !enableCrop);
   const confirmDisabled =
     isUploading ||
     isRemoving ||
     isProcessing ||
-    (enableCrop && (!image || !croppedAreaPixels)) ||
-    (!enableCrop && !image);
+    isSavingDefaultImage ||
+    (!hasImageToSave && !defaultImageIndexChanged);
+
+  const defaultConfirmText = isRemoving
+    ? 'Removing image...'
+    : isUploading
+      ? 'Uploading...'
+      : isSavingDefaultImage
+        ? 'Saving...'
+        : defaultImageIndexChanged
+          ? 'Set Image'
+          : confirmDisabled || (!currentImageUrl && !image)
+            ? 'Set Image'
+            : 'Upload Image';
+
+  const handleConfirm = async () => {
+    if (isRemoving) {
+      await handleRemoveImage();
+    } else if (hasImageToSave) {
+      await handleSave();
+    } else if (defaultImageIndexChanged && onDefaultImageIndexChange && selectedDefaultImageIndex !== null) {
+      setIsSavingDefaultImage(true);
+      try {
+        const result = await onDefaultImageIndexChange(selectedDefaultImageIndex);
+        if (result.success) {
+          onClose();
+        }
+      } catch (error) {
+        console.error('Error saving default image index:', error);
+      } finally {
+        setIsSavingDefaultImage(false);
+      }
+    }
+  };
+
+  const handlePreviousImage = () => {
+    if (defaultImageUrls && defaultImageUrls.length > 0) {
+      setSelectedDefaultImageIndex((prev) => 
+        prev === null || prev === 0 ? defaultImageUrls.length - 1 : prev - 1
+      );
+    }
+  };
+
+  const handleNextImage = () => {
+    if (defaultImageUrls && defaultImageUrls.length > 0) {
+      setSelectedDefaultImageIndex((prev) => 
+        prev === null || prev === defaultImageUrls.length - 1 ? 0 : (prev ?? 0) + 1
+      );
+    }
+  };
+
+  // Get the display image URL for default images
+  const getDisplayDefaultImageUrl = (): string | undefined => {
+    if (defaultImageUrls && selectedDefaultImageIndex !== null && 
+        selectedDefaultImageIndex >= 0 && selectedDefaultImageIndex < defaultImageUrls.length) {
+      return defaultImageUrls[selectedDefaultImageIndex];
+    }
+    return defaultImageUrl;
+  };
+
+  const displayDefaultImageUrl = getDisplayDefaultImageUrl();
+  const hasMultipleDefaultImages = defaultImageUrls && defaultImageUrls.length > 1;
 
   return (
     <Modal
       title={title}
       onClose={onClose}
-      onConfirm={isRemoving ? handleRemoveImage : handleSave}
+      onConfirm={handleConfirm}
       confirmText={confirmButtonText || defaultConfirmText}
       confirmDisabled={confirmDisabled}
       width="2xl"
@@ -99,14 +181,40 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
             </div>
           </div>
         )}
-        {!currentImageUrl && !image && defaultImageUrl && (
+        {!currentImageUrl && !image && displayDefaultImageUrl && (
           <div className="mb-4">
-            <div className="flex items-center justify-center">
-              <img
-                src={defaultImageUrl}
-                alt="Default"
-                className="bg-secondary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
-              />
+            <div className="flex items-center justify-center relative">
+              <div className="relative flex items-center justify-center">
+                {/* Left Arrow */}
+                {hasMultipleDefaultImages && (
+                  <button
+                    onClick={handlePreviousImage}
+                    className="absolute -left-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
+                    aria-label="Previous default image"
+                    disabled={isSavingDefaultImage}
+                  >
+                    <LuChevronLeft className="w-5 h-5" />
+                  </button>
+                )}
+                
+                <img
+                  src={displayDefaultImageUrl}
+                  alt="Default"
+                  className="bg-secondary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+                />
+                
+                {/* Right Arrow */}
+                {hasMultipleDefaultImages && (
+                  <button
+                    onClick={handleNextImage}
+                    className="absolute -right-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
+                    aria-label="Next default image"
+                    disabled={isSavingDefaultImage}
+                  >
+                    <LuChevronRight className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
