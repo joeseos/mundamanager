@@ -516,7 +516,8 @@ export default function MembersTable({
       const result = await updateMemberRole({
         campaignId,
         userId: roleChange.memberId,
-        newRole: roleChange.newRole
+        newRole: roleChange.newRole,
+        previousRole: roleChange.currentRole
       });
 
       if (!result.success) {

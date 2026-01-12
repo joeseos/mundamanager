@@ -12,13 +12,7 @@ import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
 import { createClient } from '@/utils/supabase/client';
-import { ShareCustomEquipmentModal } from './custom-shared';
-
-interface UserCampaign {
-  id: string;
-  campaign_name: string;
-  status: string | null;
-}
+import { ShareCustomEquipmentModal, UserCampaign } from './custom-shared';
 
 interface CustomiseEquipmentProps {
   className?: string;
@@ -1002,7 +996,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       {shareModalData && userId && (
         <ShareCustomEquipmentModal
           equipment={shareModalData}
-          userId={userId}
           userCampaigns={userCampaigns}
           onClose={() => setShareModalData(null)}
         />

@@ -34,6 +34,7 @@ export interface UpdateMemberRoleParams {
   campaignId: string;
   userId: string;
   newRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  previousRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
 
 export interface AddMemberToCampaignParams {
@@ -239,6 +240,13 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
       if (territoryResult.error) throw territoryResult.error;
       if (gangResult.error) throw gangResult.error;
     }
+
+    // Cleanup any custom_shared records for this user in this campaign
+    await supabase
+      .from('custom_shared')
+      .delete()
+      .eq('user_id', userId)
+      .eq('campaign_id', campaignId);
 
     // Finally delete the campaign member
     const { error } = await supabase
@@ -464,10 +472,10 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
 export async function updateMemberRole(params: UpdateMemberRoleParams) {
   try {
     const supabase = await createClient();
-    
+
     // Authenticate user
     await getAuthenticatedUser(supabase);
-    const { campaignId, userId, newRole } = params;
+    const { campaignId, userId, newRole, previousRole } = params;
 
     const { error } = await supabase
       .from('campaign_members')
@@ -476,6 +484,15 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
       .eq('user_id', userId);
 
     if (error) throw error;
+
+    // If demoting from ARBITRATOR/OWNER to MEMBER, cleanup their custom_shared records
+    if ((previousRole === 'ARBITRATOR' || previousRole === 'OWNER') && newRole === 'MEMBER') {
+      await supabase
+        .from('custom_shared')
+        .delete()
+        .eq('user_id', userId)
+        .eq('campaign_id', campaignId);
+    }
 
     // Get ALL gangs in this campaign (not just the user's gangs)
     // When a user becomes ARBITRATOR/OWNER, they gain permissions on all campaign gangs

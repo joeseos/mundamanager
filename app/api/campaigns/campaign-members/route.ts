@@ -30,6 +30,16 @@ export async function PATCH(request: Request) {
       );
     }
 
+    // Get the current role before updating
+    const { data: currentRoleData } = await supabase
+      .from('campaign_members')
+      .select('role')
+      .eq('campaign_id', campaignId)
+      .eq('user_id', userId)
+      .single();
+
+    const previousRole = currentRoleData?.role;
+
     // Update the role
     const { data, error } = await supabase
       .from('campaign_members')
@@ -39,6 +49,15 @@ export async function PATCH(request: Request) {
       .select();
 
     if (error) throw error;
+
+    // If demoting from ARBITRATOR/OWNER to MEMBER, cleanup custom_shared records
+    if ((previousRole === 'ARBITRATOR' || previousRole === 'OWNER') && newRole === 'MEMBER') {
+      await supabase
+        .from('custom_shared')
+        .delete()
+        .eq('user_id', userId)
+        .eq('campaign_id', campaignId);
+    }
 
     return NextResponse.json(data);
   } catch (error) {
@@ -77,14 +96,15 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Get the role of the member to be removed
+    // Get the role and user_id of the member to be removed
     const { data: memberRows } = await supabase
       .from('campaign_members')
-      .select('role')
+      .select('role, user_id')
       .eq('campaign_id', campaignId)
       .eq('id', memberId);
 
     const memberRole = memberRows?.[0]?.role;
+    const memberUserId = memberRows?.[0]?.user_id;
 
     if (memberRole === 'OWNER') {
       // Count how many OWNERs are left
@@ -100,6 +120,15 @@ export async function DELETE(request: Request) {
           { status: 403 }
         );
       }
+    }
+
+    // Cleanup custom_shared records for this user in this campaign
+    if (memberUserId) {
+      await supabase
+        .from('custom_shared')
+        .delete()
+        .eq('user_id', memberUserId)
+        .eq('campaign_id', campaignId);
     }
 
     // Proceed to delete the member by memberId

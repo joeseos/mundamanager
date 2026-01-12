@@ -8,8 +8,9 @@ import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { shareCustomFighter, shareCustomEquipment } from '@/app/actions/customise/custom-share';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@/utils/supabase/client';
 
-interface UserCampaign {
+export interface UserCampaign {
   id: string;
   campaign_name: string;
   status: string | null;
@@ -68,7 +69,6 @@ export function ShareCustomFighterModal({
     const loadSharedCampaigns = async () => {
       setIsLoading(true);
       try {
-        const { createClient } = await import('@/utils/supabase/client');
         const supabase = createClient();
 
         // Fetch which campaigns this fighter is already shared to
@@ -170,7 +170,6 @@ export function ShareCustomFighterModal({
 
 interface ShareCustomEquipmentModalProps {
   equipment: CustomEquipment;
-  userId: string;
   userCampaigns: UserCampaign[];
   onClose: () => void;
   onSuccess?: () => void;
@@ -178,7 +177,6 @@ interface ShareCustomEquipmentModalProps {
 
 export function ShareCustomEquipmentModal({
   equipment,
-  userId,
   userCampaigns,
   onClose,
   onSuccess
@@ -221,7 +219,6 @@ export function ShareCustomEquipmentModal({
     const loadSharedCampaigns = async () => {
       setIsLoading(true);
       try {
-        const { createClient } = await import('@/utils/supabase/client');
         const supabase = createClient();
 
         // Fetch which campaigns this equipment is already shared to
