@@ -105,7 +105,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
               <img
                 src={defaultImageUrl}
                 alt="Default"
-                className="bg-black rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
+                className="bg-secondary rounded-full shadow-md border-4 border-black size-[85px] rounded-full object-cover overflow-hidden"
               />
             </div>
           </div>

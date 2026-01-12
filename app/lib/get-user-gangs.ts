@@ -12,6 +12,8 @@ export type Gang = {
   gang_type_id: string;
   image_url: string;
   gang_type_image_url: string;
+  default_gang_image?: number | null;
+  gang_type_default_image_urls?: string[];
   credits: number;
   reputation: number;
   meat: number;
@@ -35,8 +37,10 @@ type RawGangData = {
   exploration_points: number;
   created_at: string;
   last_updated: string;
+  default_gang_image?: number | null;
   gang_types: {
     image_url: string;
+    default_image_urls?: string[] | null;
   };
 };
 
@@ -77,6 +81,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
         gang_type,
         gang_type_id,
         image_url,
+        default_gang_image,
         credits,
         reputation,
         meat,
@@ -85,7 +90,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
         created_at,
         last_updated,
         gang_variants,
-        gang_types!gang_type_id(image_url)
+        gang_types!gang_type_id(image_url, default_image_urls)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
@@ -167,6 +172,8 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
       gang_type_id: gang.gang_type_id,
       image_url: gang.image_url || '',
       gang_type_image_url: gang.gang_types?.image_url || '',
+      default_gang_image: gang.default_gang_image ?? null,
+      gang_type_default_image_urls: gang.gang_types?.default_image_urls ?? null,
       credits: gang.credits,
       reputation: gang.reputation,
       meat: gang.meat,

@@ -41,6 +41,8 @@ interface GangProps {
   gang_type?: string;
   gang_type_image_url: string;
   image_url?: string;
+  default_gang_image?: number | null;
+  gang_type_default_image_urls?: string[];
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
@@ -109,6 +111,8 @@ export default function Gang({
   gang_type,
   gang_type_image_url,
   image_url,
+  default_gang_image,
+  gang_type_default_image_urls,
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
@@ -352,6 +356,26 @@ export default function Gang({
     console.error('Failed to load image:', e.currentTarget.src);
     e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
   };
+
+  // Helper function to get the default image URL
+  const getDefaultImageUrl = useCallback((): string | null => {
+    // If custom image exists, use it
+    if (currentGangImageUrl) {
+      return currentGangImageUrl;
+    }
+    
+    // If default_gang_image is set and gang_type_default_image_urls exists and index is valid
+    if (default_gang_image !== null && default_gang_image !== undefined && 
+        gang_type_default_image_urls && 
+        Array.isArray(gang_type_default_image_urls) &&
+        default_gang_image >= 0 && 
+        default_gang_image < gang_type_default_image_urls.length) {
+      return gang_type_default_image_urls[default_gang_image];
+    }
+    
+    // No valid image found
+    return null;
+  }, [currentGangImageUrl, default_gang_image, gang_type_default_image_urls]);
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -670,9 +694,9 @@ export default function Gang({
         <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Gang Image */}
           <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
-            {currentGangImageUrl || gang_type_image_url ? (
+            {getDefaultImageUrl() ? (
               <Image
-                src={currentGangImageUrl || gang_type_image_url}
+                src={getDefaultImageUrl()!}
                 alt={name}
                 width={180}
                 height={180}
@@ -1087,7 +1111,7 @@ export default function Gang({
             currentImageUrl={currentGangImageUrl}
             gangId={id}
             onImageUpdate={handleGangImageUpdate}
-            defaultImageUrl={gang_type_image_url}
+            defaultImageUrl={getDefaultImageUrl() || undefined}
           />
           <Tooltip
             id="gang-composition-tooltip"

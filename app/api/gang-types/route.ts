@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     // Build query - include gang origin data
     let query = supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type, alignment, image_url, affiliation, gang_origin_category_id')
+      .select('gang_type_id, gang_type, alignment, image_url, default_image_urls, affiliation, gang_origin_category_id')
       .order('gang_type');
 
     // Only filter out hidden types if user is not admin
