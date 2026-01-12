@@ -429,13 +429,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         
           {/* Profile picture of the fighter */}
           <div 
-            className={`bg-black rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 hover:bg-neutral-400 transition-colors' : ''}`}
+            className={`bg-secondary rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 hover:bg-neutral-400 transition-colors' : ''}`}
             onClick={handleImageClick}
           >
           {currentImageUrl ? (
             <img src={currentImageUrl} alt="Fighter" className="object-cover rounded-full" />
           ) : (
-            <img src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif" alt="Fighter" className="object-cover rounded-full" />
+            <img src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_fighter_cropped_web.webp" alt="Fighter" className="object-cover rounded-full" />
           )}
           </div>
           <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
