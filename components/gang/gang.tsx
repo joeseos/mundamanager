@@ -196,6 +196,7 @@ export default function Gang({
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
+  const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
   // Page view mode - start as null until loaded from localStorage
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large' | null>(null);
   const isFirstRender = useRef(true);
@@ -225,6 +226,11 @@ export default function Gang({
   useEffect(() => {
     setWealth(initialWealth ?? 0);
   }, [initialWealth]);
+
+  // Sync default_gang_image state with prop changes from parent
+  useEffect(() => {
+    setCurrentDefaultGangImage(default_gang_image);
+  }, [default_gang_image]);
 
   // Calculate the total value of unassigned vehicles including equipment
   const unassignedVehiclesValue = useMemo(() => {
@@ -364,18 +370,18 @@ export default function Gang({
       return currentGangImageUrl;
     }
     
-    // If default_gang_image is set and gang_type_default_image_urls exists and index is valid
-    if (default_gang_image !== null && default_gang_image !== undefined && 
+    // If currentDefaultGangImage is set and gang_type_default_image_urls exists and index is valid
+    if (currentDefaultGangImage !== null && currentDefaultGangImage !== undefined && 
         gang_type_default_image_urls && 
         Array.isArray(gang_type_default_image_urls) &&
-        default_gang_image >= 0 && 
-        default_gang_image < gang_type_default_image_urls.length) {
-      return gang_type_default_image_urls[default_gang_image];
+        currentDefaultGangImage >= 0 && 
+        currentDefaultGangImage < gang_type_default_image_urls.length) {
+      return gang_type_default_image_urls[currentDefaultGangImage];
     }
     
     // No valid image found
     return null;
-  }, [currentGangImageUrl, default_gang_image, gang_type_default_image_urls]);
+  }, [currentGangImageUrl, currentDefaultGangImage, gang_type_default_image_urls]);
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -639,8 +645,19 @@ export default function Gang({
     }
   };
 
-  const handleGangImageUpdate = (newImageUrl: string) => {
-    setCurrentGangImageUrl(newImageUrl);
+  const handleGangImageUpdate = (newImageUrl: string, newDefaultImageIndex?: number | null) => {
+    if (newDefaultImageIndex !== undefined) {
+      // Updating default image index
+      setCurrentGangImageUrl(undefined); // Clear custom image URL
+      setCurrentDefaultGangImage(newDefaultImageIndex); // Update default image index
+    } else {
+      // Updating custom image URL
+      setCurrentGangImageUrl(newImageUrl || undefined);
+      // If setting a custom image, clear the default image index
+      if (newImageUrl) {
+        setCurrentDefaultGangImage(null);
+      }
+    }
   };
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
@@ -1112,6 +1129,8 @@ export default function Gang({
             gangId={id}
             onImageUpdate={handleGangImageUpdate}
             defaultImageUrl={getDefaultImageUrl() || undefined}
+            defaultImageUrls={gang_type_default_image_urls}
+            currentDefaultImageIndex={currentDefaultGangImage}
           />
           <Tooltip
             id="gang-composition-tooltip"

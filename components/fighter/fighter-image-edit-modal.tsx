@@ -21,7 +21,7 @@ export const FighterImageEditModal: React.FC<FighterImageEditModalProps> = ({
   gangId,
   onImageUpdate,
 }) => {
-  const defaultFighterImageUrl = 'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif';
+  const defaultFighterImageUrl = 'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_fighter_cropped_web.webp';
 
   return (
     <ImageEditModal
