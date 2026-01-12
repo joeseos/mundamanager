@@ -49,6 +49,7 @@ export interface GangBasic {
     } | null;
   } | null;
   image_url?: string;
+  default_gang_image?: number | null;
   hidden: boolean;
 }
 
@@ -56,6 +57,7 @@ export interface GangType {
   id: string;
   gang_type: string;
   image_url: string;
+  default_image_urls?: string[];
 }
 
 export interface Alliance {
@@ -201,6 +203,7 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
             )
           ),
           image_url,
+          default_gang_image,
           hidden
         `)
         .eq('id', gangId)
@@ -362,7 +365,7 @@ export const getGangType = async (gangTypeId: string, supabase: any): Promise<Ga
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
-        .select('gang_type_id, gang_type, image_url')
+        .select('gang_type_id, gang_type, image_url, default_image_urls')
         .eq('gang_type_id', gangTypeId)
         .single();
 
@@ -370,7 +373,8 @@ export const getGangType = async (gangTypeId: string, supabase: any): Promise<Ga
       return {
         id: data.gang_type_id,
         gang_type: data.gang_type,
-        image_url: data.image_url
+        image_url: data.image_url,
+        default_image_urls: data.default_image_urls ?? undefined
       };
     },
     [`gang-type-${gangTypeId}`],

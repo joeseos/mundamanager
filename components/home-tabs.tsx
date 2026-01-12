@@ -127,24 +127,42 @@ export default function HomeTabs({
                   <li key={gang.id}>
                     <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-muted rounded-md hover:bg-muted transition-colors duration-200">
                       <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
-                        {gang.image_url || gang.gang_type_image_url ? (
-                          <Image
-                            src={gang.image_url || gang.gang_type_image_url}
-                            alt={gang.name}
-                            width={60}
-                            height={60}
-                            className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
-                            priority={false}
-                            onError={(e) => {
-                              console.error('Failed to load image:', e.currentTarget.src);
-                              e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
-                            }}
-                          />
-                        ) : (
-                          <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                            {gang.name.charAt(0)}
-                          </div>
-                        )}
+                        {(() => {
+                          // Helper function to get the default image URL
+                          let imageUrl: string | null = null;
+                          
+                          // If custom image exists, use it
+                          if (gang.image_url) {
+                            imageUrl = gang.image_url;
+                          }
+                          // Else if default_gang_image is set and gang_type_default_image_urls exists and index is valid
+                          else if (gang.default_gang_image !== null && gang.default_gang_image !== undefined && 
+                                   gang.gang_type_default_image_urls && 
+                                   Array.isArray(gang.gang_type_default_image_urls) &&
+                                   gang.default_gang_image >= 0 && 
+                                   gang.default_gang_image < gang.gang_type_default_image_urls.length) {
+                            imageUrl = gang.gang_type_default_image_urls[gang.default_gang_image];
+                          }
+                          
+                          return imageUrl ? (
+                            <Image
+                              src={imageUrl}
+                              alt={gang.name}
+                              width={60}
+                              height={60}
+                              className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
+                              priority={false}
+                              onError={(e) => {
+                                console.error('Failed to load image:', e.currentTarget.src);
+                                e.currentTarget.src = "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp";
+                              }}
+                            />
+                          ) : (
+                            <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
+                              {gang.name.charAt(0)}
+                            </div>
+                          );
+                        })()}
                         <Image
                           src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
                           alt=""

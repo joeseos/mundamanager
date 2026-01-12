@@ -14,6 +14,8 @@ import { gangVariantRank } from "@/utils/gangVariantRank"
 import { createGang } from "@/app/actions/create-gang"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
+import Image from 'next/image'
+import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
 
 type Gang = {
   id: string;
@@ -35,6 +37,7 @@ type GangType = {
   gang_type: string;
   alignment: string;
   image_url?: string;
+  default_image_urls?: string[];
   affiliation: boolean;
   available_affiliations: Array<{
     id: string;
@@ -56,6 +59,9 @@ type GangVariant = {
 interface CreateGangModalProps {
   onClose: () => void;
 }
+
+// Default image index to display (0 = Silhouette image, 1 = Gang image by Djidiouf)
+const DEFAULT_IMAGE_INDEX = 1;
 
 // Button component that opens the modal
 export function CreateGangButton() {
@@ -97,13 +103,14 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
-  const [gangTypeImages, setGangTypeImages] = useState<Record<string, string>>({});
+  const [gangTypeImageArrays, setGangTypeImageArrays] = useState<Record<string, string[]>>({});
   
   // Gang variants state
   const [availableVariants, setAvailableVariants] = useState<GangVariant[]>([]);
   const [isLoadingVariants, setIsLoadingVariants] = useState(false);
   const [selectedVariants, setSelectedVariants] = useState<GangVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(DEFAULT_IMAGE_INDEX);
 
   useEffect(() => {
     const fetchGangTypes = async () => {
@@ -123,14 +130,19 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             return true; // For now, assume API handles filtering
           });
           
-          // Create a map of gang_type_id to image_url
-          const imageMap: Record<string, string> = {};
+          // Create a map of gang_type_id to array of image URLs
+          const imageArrayMap: Record<string, string[]> = {};
           visibleGangTypes.forEach((type: GangType) => {
-            if (type.image_url) {
-              imageMap[type.gang_type_id] = type.image_url;
+            if (type.default_image_urls && Array.isArray(type.default_image_urls) && type.default_image_urls.length > 0) {
+              imageArrayMap[type.gang_type_id] = type.default_image_urls;
+            } else if (type.image_url) {
+              // Fallback to legacy image_url if default_image_urls is not available
+              imageArrayMap[type.gang_type_id] = [type.image_url];
+            } else {
+              imageArrayMap[type.gang_type_id] = [];
             }
           });
-          setGangTypeImages(imageMap);
+          setGangTypeImageArrays(imageArrayMap);
           setGangTypes(visibleGangTypes);
         } catch (err) {
           console.error('Error fetching gang types:', err);
@@ -172,7 +184,15 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   useEffect(() => {
     setSelectedAffiliation("");
     setSelectedOrigin("");
-  }, [gangType]);
+    
+    // Reset image index to default if current index is out of bounds for the new gang type
+    if (gangType) {
+      const imageUrls = gangTypeImageArrays[gangType] || [];
+      if (imageUrls.length > 0 && currentImageIndex >= imageUrls.length) {
+        setCurrentImageIndex(DEFAULT_IMAGE_INDEX);
+      }
+    }
+  }, [gangType, gangTypeImageArrays, currentImageIndex]);
 
   // Update credits when Wasteland variant is selected/deselected
   useEffect(() => {
@@ -254,7 +274,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           gangAffiliationId: selectedAffiliation || null,
           gangOriginId: selectedOrigin || null,
           credits: parseInt(credits),
-          gangVariants: selectedVariants.map(v => v.id)
+          gangVariants: selectedVariants.map(v => v.id),
+          defaultGangImage: currentImageIndex
         });
 
         if (!result.success) {
@@ -304,6 +325,11 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     if (e.target === e.currentTarget) {
       onClose();
     }
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.error('Failed to load image:', e.currentTarget.src);
+    e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
   };
 
   return (
@@ -509,6 +535,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             )}
           </div>
 
+          {/* Starting Credits Input */}
           <div>
             <label htmlFor="gang-credits" className="block text-sm font-medium text-muted-foreground mb-1">
               Starting Credits
@@ -523,6 +550,87 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             />
           </div>
 
+          {/* Gang Image Display */}
+          {gangType && (() => {
+            const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
+            const imageUrls = gangTypeImageArrays[gangType] || [];
+            const gangTypeName = selectedGangType?.gang_type || '';
+            const displayImageUrl = imageUrls.length > 0 && currentImageIndex < imageUrls.length 
+              ? imageUrls[currentImageIndex] 
+              : null;
+            const hasMultipleImages = imageUrls.length > 1;
+            
+            const handlePreviousImage = () => {
+              if (imageUrls.length > 0) {
+                setCurrentImageIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+              }
+            };
+            
+            const handleNextImage = () => {
+              if (imageUrls.length > 0) {
+                setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+              }
+            };
+            
+            return (
+              <div className="flex justify-center my-4">
+                <div className="flex relative size-[200px] md:size-[250px] flex-shrink-0 items-center justify-center">
+                  {/* Left Arrow */}
+                  {hasMultipleImages && (
+                    <button
+                      onClick={handlePreviousImage}
+                      className="absolute -left-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
+                      aria-label="Previous gang image"
+                    >
+                      <LuChevronLeft className="w-5 h-5" />
+                    </button>
+                  )}
+                  
+                  {displayImageUrl ? (
+                    <Image
+                      src={displayImageUrl}
+                      alt={gangTypeName}
+                      width={180}
+                      height={180}
+                      className="size-[145px] md:size-[180px] absolute rounded-full object-cover mt-1 z-10"
+                      priority={false}
+                      quality={100}
+                      onError={handleImageError}
+                    />
+                  ) : (
+                    <div className="absolute size-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
+                      {gangTypeName.charAt(0)}
+                    </div>
+                  )}
+                  <div className="absolute z-20 size-[200px] md:size-[250px]">
+                    <Image
+                      src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
+                      alt="Cogwheel"
+                      width={250}
+                      height={250}
+                      className="absolute z-20"
+                      priority
+                      quality={100}
+                    />
+                  </div>
+                  
+                  {/* Right Arrow */}
+                  {hasMultipleImages && (
+                    <button
+                      onClick={handleNextImage}
+                      className="absolute -right-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
+                      aria-label="Next gang image"
+                    >
+                      <LuChevronRight className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          <p className="text-xs text-center text-muted-foreground">You'll be able to upload a custom image once your gang is created.</p>
+
+          {/* Gang Name Input */}
           <div>
             <label htmlFor="gang-name" className="block text-sm font-medium text-muted-foreground mb-1">
               Gang Name *
