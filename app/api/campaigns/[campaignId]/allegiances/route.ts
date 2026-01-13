@@ -1,12 +1,12 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { fetchCampaignAllegiances } from "@/utils/campaigns/allegiances";
+import { getCampaignAllegiances } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export type { CampaignAllegiance as Allegiance } from "@/utils/campaigns/allegiances";
 
 /**
  * GET /api/campaigns/[campaignId]/allegiances
- * Fetches available allegiances for a campaign
+ * Fetches available allegiances for a campaign (with server-side caching)
  * - For all campaigns: returns both predefined campaign type allegiances (if applicable) and custom campaign allegiances
  */
 export async function GET(
@@ -25,7 +25,7 @@ export async function GET(
   }
 
   try {
-    const allegiances = await fetchCampaignAllegiances(campaignId, supabase);
+    const allegiances = await getCampaignAllegiances(campaignId, supabase);
     return NextResponse.json(allegiances);
   } catch (error: any) {
     console.error('Error fetching allegiances:', error);
