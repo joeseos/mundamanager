@@ -94,6 +94,10 @@ export interface GangCampaign {
   trading_posts?: string[] | null;
   trading_post_names?: string[];
   territories: any[];
+  allegiance?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface GangVariant {
@@ -462,6 +466,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         .from('campaign_gangs')
         .select(`
           user_id,
+          campaign_type_allegiance_id,
+          campaign_allegiance_id,
           campaign_members!campaign_member_id (
             role,
             status,
@@ -535,6 +541,43 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         }
       }
 
+      // Collect all allegiance IDs for batch fetch
+      const customAllegianceIds = (data || [])
+        .map((cg: any) => cg.campaign_allegiance_id)
+        .filter(Boolean);
+      const typeAllegianceIds = (data || [])
+        .map((cg: any) => cg.campaign_type_allegiance_id)
+        .filter(Boolean);
+
+      // Batch fetch allegiance names
+      let allegianceNamesMap: Record<string, string> = {};
+      
+      if (customAllegianceIds.length > 0) {
+        const { data: customAllegiances } = await supabase
+          .from('campaign_allegiances')
+          .select('id, allegiance_name')
+          .in('id', customAllegianceIds);
+
+        if (customAllegiances) {
+          customAllegiances.forEach((a: any) => {
+            allegianceNamesMap[a.id] = a.allegiance_name;
+          });
+        }
+      }
+
+      if (typeAllegianceIds.length > 0) {
+        const { data: typeAllegiances } = await supabase
+          .from('campaign_type_allegiances')
+          .select('id, allegiance_name')
+          .in('id', typeAllegianceIds);
+
+        if (typeAllegiances) {
+          typeAllegiances.forEach((a: any) => {
+            allegianceNamesMap[a.id] = a.allegiance_name;
+          });
+        }
+      }
+
       for (const cg of data || []) {
         if (cg.campaigns) {
           // Get member data - need to fetch ALL entries for this user in this campaign
@@ -572,6 +615,12 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             .map((id: string) => tradingPostNamesMap[id])
             .filter(Boolean);
 
+          // Get allegiance (custom takes precedence over type)
+          const allegianceId = (cg as any).campaign_allegiance_id || (cg as any).campaign_type_allegiance_id;
+          const allegiance = allegianceId && allegianceNamesMap[allegianceId]
+            ? { id: allegianceId, name: allegianceNamesMap[allegianceId] }
+            : null;
+
           campaigns.push({
             campaign_id: (cg.campaigns as any).id,
             campaign_name: (cg.campaigns as any).campaign_name,
@@ -587,7 +636,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_salvage: (cg.campaigns as any).has_salvage,
             trading_posts: tradingPosts,
             trading_post_names,
-            territories: territoriesByCampaign[(cg.campaigns as any).id] || []
+            territories: territoriesByCampaign[(cg.campaigns as any).id] || [],
+            allegiance
           });
         }
       }

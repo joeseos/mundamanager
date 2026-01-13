@@ -31,7 +31,7 @@ import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 
 interface GangProps {
@@ -86,6 +86,10 @@ interface GangProps {
       territory_name: string;
       ruined: boolean | null;
       }[];
+    allegiance?: {
+      id: string;
+      name: string;
+    } | null;
   }[];
   note?: string;
   stash: StashItem[];
@@ -183,6 +187,28 @@ export default function Gang({
   const [gangOriginName, setGangOriginName] = useState(gang_origin_name || '');
   const [gangOriginCategoryName, setGangOriginCategoryName] = useState(gang_origin_category_name || '');
   const [hidden, setHidden] = useState(initialHidden);
+  // Track allegiance for optimistic updates
+  // Use undefined to indicate "not yet set" vs null which means "explicitly cleared"
+  const [currentAllegiance, setCurrentAllegiance] = useState<{ id: string; name: string } | null | undefined>(
+    campaigns?.[0]?.allegiance ?? undefined
+  );
+  const queryClient = useQueryClient();
+  
+  // Create updated campaigns prop with optimistic allegiance
+  const campaignsWithAllegiance = useMemo(() => {
+    if (!campaigns || campaigns.length === 0) return campaigns;
+    return campaigns.map((campaign, index) => {
+      if (index === 0) {
+        // Use optimistic allegiance if set, otherwise fall back to prop
+        const allegiance = currentAllegiance !== undefined ? currentAllegiance : campaign.allegiance;
+        return {
+          ...campaign,
+          allegiance
+        };
+      }
+      return campaign;
+    });
+  }, [campaigns, currentAllegiance]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
@@ -200,6 +226,10 @@ export default function Gang({
   // Page view mode - start as null until loaded from localStorage
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large' | null>(null);
   const isFirstRender = useRef(true);
+
+  // Get campaign ID if gang is in a campaign
+  const campaignId = campaigns?.[0]?.campaign_id;
+
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -231,6 +261,14 @@ export default function Gang({
   useEffect(() => {
     setCurrentDefaultGangImage(default_gang_image);
   }, [default_gang_image]);
+
+  // Sync allegiance state with prop changes from parent
+  // Only sync if we haven't made an optimistic update (currentAllegiance is undefined)
+  useEffect(() => {
+    if (currentAllegiance === undefined) {
+      setCurrentAllegiance(campaigns?.[0]?.allegiance ?? null);
+    }
+  }, [campaigns, currentAllegiance]);
 
   // Calculate the total value of unassigned vehicles including equipment
   const unassignedVehiclesValue = useMemo(() => {
@@ -570,7 +608,72 @@ export default function Gang({
 
   const handleGangUpdate = async (updates: any): Promise<boolean> => {
     try {
-      await updateGangMutation.mutateAsync(updates);
+      // Extract allegiance-related fields (stored in campaign_gangs table, not gangs table)
+      const { campaign_id, campaign_allegiance_id, campaign_allegiance_is_custom, ...gangUpdates } = updates;
+      
+      // Snapshot previous allegiance for rollback
+      const previousAllegiance = currentAllegiance;
+      
+      // Handle allegiance update separately if present
+      if (campaign_id && campaign_allegiance_id !== undefined) {
+        // Optimistic update: find the allegiance name from available allegiances
+        // We'll fetch it from the cache or use a placeholder
+        // Optimistic update: find the allegiance name from cached allegiances
+        if (campaign_allegiance_id === null) {
+          // Setting to null - clear allegiance
+          setCurrentAllegiance(null);
+        } else {
+          // Try to get the name from TanStack Query cache
+          const cachedAllegiances = queryClient.getQueryData<Array<{ id: string; allegiance_name: string; is_custom: boolean }>>(
+            ['campaign-allegiances', campaign_id]
+          );
+          
+          if (cachedAllegiances) {
+            const foundAllegiance = cachedAllegiances.find((a: { id: string; allegiance_name: string; is_custom: boolean }) => a.id === campaign_allegiance_id);
+            if (foundAllegiance) {
+              setCurrentAllegiance({ id: campaign_allegiance_id, name: foundAllegiance.allegiance_name });
+            } else {
+              // If not found in cache, use a placeholder
+              setCurrentAllegiance({ id: campaign_allegiance_id, name: 'Loading...' });
+            }
+          } else {
+            // If not in cache, use a placeholder
+            setCurrentAllegiance({ id: campaign_allegiance_id, name: 'Loading...' });
+          }
+        }
+        
+        try {
+          const { updateGangAllegiance } = await import('@/app/actions/campaigns/[id]/campaign-allegiances');
+          const allegianceResult = await updateGangAllegiance({
+            gangId: id,
+            campaignId: campaign_id,
+            allegianceId: campaign_allegiance_id,
+            isCustom: campaign_allegiance_is_custom || false
+          });
+          
+          if (!allegianceResult.success) {
+            // Rollback on error
+            setCurrentAllegiance(previousAllegiance);
+            throw new Error(allegianceResult.error || 'Failed to update allegiance');
+          }
+          
+          // If success, keep the optimistic update (it should already be correct from cache)
+          // If it was a placeholder, it will be corrected when the page refreshes or cache updates
+          if (campaign_allegiance_id === null) {
+            setCurrentAllegiance(null);
+          }
+        } catch (error) {
+          // Rollback on error
+          setCurrentAllegiance(previousAllegiance);
+          throw error;
+        }
+      }
+      
+      // Update gang fields (only if there are any non-allegiance updates)
+      if (Object.keys(gangUpdates).length > 0) {
+        await updateGangMutation.mutateAsync(gangUpdates);
+      }
+      
       return true;
     } catch (error) {
       console.error('Error updating gang:', error);
@@ -923,7 +1026,13 @@ export default function Gang({
                           </Link>
                         </Badge>
                       </div>
-                    {/* Allegiance Placeholder*/}
+                    {/* Allegiance */}
+                    {currentAllegiance !== null && (currentAllegiance || campaigns?.[0]?.allegiance) && (
+                      <div className="flex items-center gap-1 text-sm">
+                        Allegiance:
+                        <Badge variant="secondary">{(currentAllegiance || campaigns?.[0]?.allegiance)?.name}</Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1071,7 +1180,7 @@ export default function Gang({
             gangOriginCategoryName={gangOriginCategoryName}
             gangTypeHasOrigin={gang_type_has_origin || false}
             hidden={hidden}
-            campaigns={campaigns}
+            campaigns={campaignsWithAllegiance}
             onSave={handleGangUpdate}
           />
 

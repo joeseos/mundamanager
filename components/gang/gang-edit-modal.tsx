@@ -4,12 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
 import DeleteGangButton from "./delete-gang-button";
 import { useToast } from "@/components/ui/use-toast";
 import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface GangUpdates {
   name?: string;
@@ -39,15 +41,23 @@ interface GangUpdates {
   gang_origin_id?: string | null;
   gang_origin_name?: string;
   hidden?: boolean;
+  campaign_allegiance_id?: string | null;
+  campaign_allegiance_is_custom?: boolean;
+  campaign_id?: string;
 }
 
 interface Campaign {
+  campaign_id: string;
   has_meat: boolean;
   has_scavenging_rolls: boolean;
   has_exploration_points: boolean;
   has_power: boolean;
   has_sustenance: boolean;
   has_salvage: boolean;
+  allegiance?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface GangEditModalProps {
@@ -136,6 +146,12 @@ export default function GangEditModal({
   onSave
 }: GangEditModalProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Get campaign ID and current allegiance if gang is in a campaign
+  const campaignId = campaigns?.[0]?.campaign_id;
+  const currentAllegianceFromCampaign = campaigns?.[0]?.allegiance;
+  const effectiveCurrentAllegianceId = currentAllegianceFromCampaign?.id || null;
   
   // Store initial values in ref (doesn't trigger re-renders)
   const initialValuesRef = useRef({
@@ -147,7 +163,8 @@ export default function GangEditModal({
     gangVariants: gangVariants,
     gangAffiliationId: gangAffiliationId || '',
     gangOriginId: gangOriginId || '',
-    hidden: hidden
+    hidden: hidden,
+    campaignAllegianceId: effectiveCurrentAllegianceId
   });
 
   // Single form state object instead of multiple individual states
@@ -168,7 +185,8 @@ export default function GangEditModal({
     gangVariants: gangVariants,
     gangAffiliationId: gangAffiliationId || '',
     gangOriginId: gangOriginId || '',
-    hidden: hidden
+    hidden: hidden,
+    campaignAllegianceId: effectiveCurrentAllegianceId
   });
 
   // Alliance management state
@@ -185,8 +203,37 @@ export default function GangEditModal({
 
   // Colour picker modal state
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
+
+  // Fetch allegiances using TanStack Query (shares cache with campaign-members-table)
+  // Only fetch when modal is open AND gang is in a campaign
+  const { data: availableAllegiances = [], isLoading: isLoadingAllegiances, isFetching: isFetchingAllegiances } = useQuery({
+    queryKey: ['campaign-allegiances', campaignId],
+    queryFn: async () => {
+      if (!campaignId) return [];
+      const response = await fetch(`/api/campaigns/${campaignId}/allegiances`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch allegiances');
+      }
+      return response.json() as Promise<Array<{ id: string; allegiance_name: string; is_custom: boolean }>>;
+    },
+    enabled: !!campaignId && isOpen, // Only fetch when modal is open AND campaignId exists
+    staleTime: 5 * 60 * 1000, // 5 minutes - data is considered fresh for 5 minutes
+    gcTime: 10 * 60 * 1000,  // 10 minutes - cache is kept for 10 minutes
+    // Refetch stale data when modal opens (e.g., after allegiance deletion)
+    refetchOnMount: true, // Refetch when component mounts if data is stale
+    refetchOnWindowFocus: true, // Refetch when window regains focus if data is stale
+  });
   
-  // Initialize form data when modal opens
+  // Manually refetch allegiances when modal opens to ensure fresh data
+  // This is an extra safeguard in case cache invalidation happened while modal was closed
+  useEffect(() => {
+    if (isOpen && campaignId) {
+      // Refetch allegiances to ensure we have the latest data
+      queryClient.invalidateQueries({ queryKey: ['campaign-allegiances', campaignId] });
+    }
+  }, [isOpen, campaignId, queryClient]);
+  
+  // Initialize form data when modal opens or when allegiance changes
   useEffect(() => {
     if (isOpen) {
       // Update ref with current props
@@ -199,11 +246,13 @@ export default function GangEditModal({
         gangVariants: gangVariants,
         gangAffiliationId: gangAffiliationId || '',
         gangOriginId: gangOriginId || '',
-        hidden: hidden
+        hidden: hidden,
+        campaignAllegianceId: effectiveCurrentAllegianceId
       };
       
-      // Reset form state
-      setFormState({
+      // Reset form state (including allegiance)
+      setFormState(prev => ({
+        ...prev,
         name: gangName,
         credits: '',
         reputation: '',
@@ -220,10 +269,25 @@ export default function GangEditModal({
         gangVariants: gangVariants,
         gangAffiliationId: gangAffiliationId || '',
         gangOriginId: gangOriginId || '',
-        hidden: hidden
-      });
+        hidden: hidden,
+        campaignAllegianceId: effectiveCurrentAllegianceId
+      }));
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden]);
+  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden, effectiveCurrentAllegianceId, campaigns]);
+
+  // Sync allegiance when it changes externally (e.g., from optimistic update)
+  // Only sync if user hasn't made changes (form state still matches initial)
+  // This prevents overwriting user's changes
+  useEffect(() => {
+    if (isOpen && 
+        effectiveCurrentAllegianceId !== formState.campaignAllegianceId &&
+        formState.campaignAllegianceId === initialValuesRef.current.campaignAllegianceId) {
+      setFormState(prev => ({
+        ...prev,
+        campaignAllegianceId: effectiveCurrentAllegianceId
+      }));
+    }
+  }, [isOpen, effectiveCurrentAllegianceId]);
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -370,6 +434,15 @@ export default function GangEditModal({
       updates.hidden = formState.hidden;
     }
 
+    // Only include campaign allegiance if changed
+    if (formState.campaignAllegianceId !== initial.campaignAllegianceId && campaignId) {
+      updates.campaign_id = campaignId;
+      updates.campaign_allegiance_id = formState.campaignAllegianceId;
+      // Determine if allegiance is custom by checking availableAllegiances
+      const selectedAllegiance = availableAllegiances.find(a => a.id === formState.campaignAllegianceId);
+      updates.campaign_allegiance_is_custom = selectedAllegiance?.is_custom || false;
+    }
+
     // Only include gang variants if changed (bidirectional check)
     const variantsChanged = formState.gangVariants.length !== initial.gangVariants.length ||
       formState.gangVariants.some(v => !initial.gangVariants.some(iv => iv.id === v.id)) ||
@@ -476,6 +549,29 @@ export default function GangEditModal({
           </div>
         </div>
       </div>
+
+      {/* Campaign Allegiance Section */}
+      {campaignId && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Campaign Allegiance</p>
+          <Combobox
+            options={[
+              { value: 'none', label: 'No Allegiance' },
+              ...availableAllegiances.map(allegiance => ({
+                value: allegiance.id,
+                label: allegiance.allegiance_name
+              }))
+            ]}
+            value={formState.campaignAllegianceId || undefined}
+            onValueChange={(value) => setFormState(prev => ({ 
+              ...prev, 
+              campaignAllegianceId: value === 'none' ? null : value 
+            }))}
+            placeholder={isLoadingAllegiances && availableAllegiances.length === 0 ? "Loading Campaign Allegiances..." : "Select Allegiance..."}
+            disabled={isLoadingAllegiances && availableAllegiances.length === 0}
+          />
+        </div>
+      )}
 
       {/* Resources Section */}
       <div className="space-y-4">
