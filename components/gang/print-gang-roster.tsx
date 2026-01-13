@@ -132,7 +132,7 @@ export default function GangRoster({ gang }: GangRosterProps) {
     });
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       <div className="bg-white text-black border border-black print:border-0">
         {/* Header */}
         <div className="border-b border-black px-4 flex flex-col gap-2">
@@ -191,7 +191,7 @@ export default function GangRoster({ gang }: GangRosterProps) {
               max-width: 80px;
             }
           `}</style>
-          <table className="w-full border-collapse text-[10px]">
+          <table className="w-full table-fixed text-[10px] ">
             <thead>
               <tr>
                 <th className="border border-black px-1 py-1 text-center w-6">ID</th>
