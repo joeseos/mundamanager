@@ -938,6 +938,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
       // This value will be the adjusted_cost when use_base_cost_for_rating is true
       // or the manual_cost when use_base_cost_for_rating is false
       const ratingCost = data.rating_cost;
+      // Use the purchase cost from the backend response (actual amount deducted from gang credits)
+      // This ensures toast shows the same value that was logged
+      const serverPurchaseCost = data.purchase_cost ?? manualCost;
 
       // Calculate new fighter credits adding the rating cost, not the manual cost
       // This ensures the fighter's rating is correctly updated
@@ -959,7 +962,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
         title: "Equipment purchased",
         description: `Successfully bought ${equipmentRecord.is_master_crafted && item.equipment_type === 'weapon' 
           ? `${item.equipment_name} (Master-crafted)` 
-          : item.equipment_name} for ${manualCost} credits`,
+          : item.equipment_name} for ${serverPurchaseCost} credits`,
         variant: "default",
       });
 
