@@ -814,7 +814,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             }
           }]
         },
-        rating_cost: ratingCost
+        rating_cost: ratingCost,
+        purchase_cost: finalPurchaseCost
       };
     } else {
       // Fighter/vehicle equipment response format
@@ -854,7 +855,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           insertIntofighter_equipmentCollection: {
             records: [newEquipment]
           },
-          rating_cost: ratingCost
+          rating_cost: ratingCost,
+          purchase_cost: finalPurchaseCost
         };
       } else if (params.vehicle_id) {
         responseData = {
@@ -872,7 +874,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           insertIntofighter_equipmentCollection: {
             records: [newEquipment]
           },
-          rating_cost: ratingCost
+          rating_cost: ratingCost,
+          purchase_cost: finalPurchaseCost
         };
       }
 

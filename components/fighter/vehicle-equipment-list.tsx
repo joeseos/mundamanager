@@ -122,6 +122,7 @@ export function VehicleEquipmentList({
         const data = result.data;
         const newGangCredits = data?.updategangsCollection?.records?.[0]?.credits ?? previousGangCredits;
         const serverRatingCost = data?.rating_cost ?? ratingCostGuess;
+        const serverPurchaseCost = data?.purchase_cost ?? params.manual_cost ?? serverRatingCost;
         const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
 
         const updated = [...previousEquipment, {
@@ -139,7 +140,7 @@ export function VehicleEquipmentList({
 
         toast({
           title: 'Equipment purchased',
-          description: `Successfully bought ${item.equipment_name} for ${params.manual_cost || serverRatingCost} credits`,
+          description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits`,
           variant: 'default'
         });
       } catch (err) {
