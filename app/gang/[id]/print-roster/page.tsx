@@ -116,7 +116,7 @@ export default async function GangRosterPage(props: {
     };
 
     return (
-      <div className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[calc(-50vw+50%)]">
+      <div className="w-full relative left-0 right-auto ml-0 mr-0">
         <GangRoster gang={gangDataForClient} />
       </div>
     );
