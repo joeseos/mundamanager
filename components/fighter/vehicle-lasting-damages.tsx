@@ -5,12 +5,13 @@ import { useToast } from '@/components/ui/use-toast';
 import Modal from '../ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
-import { rollD6 } from '@/utils/dice';
+import { rollD6, resolveVehicleDamageFromUtil, getVehicleDamageRollForName } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { addVehicleDamage } from '@/app/actions/add-vehicle-damage';
 import { removeVehicleDamage, repairVehicleDamage } from '@/app/actions/remove-vehicle-damage';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Combobox } from '@/components/ui/combobox';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
@@ -249,6 +250,12 @@ export function VehicleDamagesList({
     return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
   }
 
+  // Helper function to format vehicle damage range (D6 roll value)
+  const formatVehicleDamageRange = (damageName: string): string => {
+    const roll = getVehicleDamageRollForName(damageName);
+    return roll ? `${roll}` : '';
+  };
+
   // Fetch available damages using TanStack Query - only when modal is opened
   const { data: availableDamages = [], isLoading: isLoadingDamages, error: damagesError } = useQuery({
     queryKey: ['vehicle-lasting-damages'],
@@ -463,62 +470,45 @@ export function VehicleDamagesList({
 
       {isAddModalOpen && (
         <Modal
-          title="Add Lasting Damage"
+          title="Lasting Damage"
           content={
             <div className="space-y-4">
               <div>
                 <DiceRoller
                   items={availableDamages}
                   ensureItems={undefined}
-                  getRange={(i: FighterEffect) => null}
+                  getRange={(i: FighterEffect) => {
+                    const roll = getVehicleDamageRollForName((i as any).effect_name);
+                    return roll ? { min: roll, max: roll } : null;
+                  }}
                   getName={(i: FighterEffect) => (i as any).effect_name}
                   inline
                   rollFn={rollD6}
                   resolveNameForRoll={(roll) => {
-                    const map: Record<number, string> = {
-                      1: 'Persistent Rattle',
-                      2: 'Handling Glitch',
-                      3: 'Unreliable',
-                      4: 'Loss of Power',
-                      5: 'Damaged Bodywork',
-                      6: 'Damaged Frame',
-                    };
-                    return map[roll as 1|2|3|4|5|6];
+                    return resolveVehicleDamageFromUtil(roll);
                   }}
                   buttonText="Roll D6"
                   disabled={!userPermissions.canEdit}
                   onRolled={(rolled) => {
                     if (rolled.length === 0) return;
                     const roll = rolled[0].roll;
-                    const map: Record<number, string> = {
-                      1: 'Persistent Rattle',
-                      2: 'Handling Glitch',
-                      3: 'Unreliable',
-                      4: 'Loss of Power',
-                      5: 'Damaged Bodywork',
-                      6: 'Damaged Frame',
-                    };
-                    const name = map[roll as 1|2|3|4|5|6];
-                    const match = availableDamages.find((d: any) => d.effect_name === name);
-                    if (match) {
-                      setSelectedDamageId(match.id);
-                      toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                    const name = resolveVehicleDamageFromUtil(roll);
+                    if (name) {
+                      const match = availableDamages.find((d: any) => d.effect_name === name);
+                      if (match) {
+                        setSelectedDamageId(match.id);
+                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                      }
                     }
                   }}
                   onRoll={(roll) => {
-                    const map: Record<number, string> = {
-                      1: 'Persistent Rattle',
-                      2: 'Handling Glitch',
-                      3: 'Unreliable',
-                      4: 'Loss of Power',
-                      5: 'Damaged Bodywork',
-                      6: 'Damaged Frame',
-                    };
-                    const name = map[roll as 1|2|3|4|5|6];
-                    const match = availableDamages.find((d: any) => d.effect_name === name);
-                    if (match) {
-                      setSelectedDamageId(match.id);
-                      toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                    const name = resolveVehicleDamageFromUtil(roll);
+                    if (name) {
+                      const match = availableDamages.find((d: any) => d.effect_name === name);
+                      if (match) {
+                        setSelectedDamageId(match.id);
+                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                      }
                     }
                   }}
                 />
@@ -528,25 +518,43 @@ export function VehicleDamagesList({
                 <label htmlFor="damageSelect" className="text-sm font-medium">
                   Lasting Damage
                 </label>
-                <select
-                  id="damageSelect"
+                <Combobox
                   value={selectedDamageId}
-                  onChange={(e) => setSelectedDamageId(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                  disabled={isLoadingDamages}
-                >
-                  <option value="">
-                    {isLoadingDamages 
-                      ? "Loading damages..." 
-                      : "Select a Lasting Damage"
-                    }
-                  </option>
-                  {availableDamages.map((damage: any) => (
-                    <option key={damage.id} value={damage.id}>
-                      {damage.effect_name}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => {
+                    setSelectedDamageId(value);
+                  }}
+                  placeholder={isLoadingDamages && availableDamages.length === 0
+                    ? "Loading damages..."
+                    : "Select a Lasting Damage"
+                  }
+                  disabled={isLoadingDamages && availableDamages.length === 0}
+                  options={availableDamages
+                    .slice()
+                    .sort((a: any, b: any) => {
+                      // Sort by D6 roll value (1-6)
+                      const rollA = getVehicleDamageRollForName(a.effect_name);
+                      const rollB = getVehicleDamageRollForName(b.effect_name);
+                      
+                      if (!rollA && !rollB) return 0;
+                      if (!rollA) return 1;
+                      if (!rollB) return -1;
+                      
+                      return rollA - rollB;
+                    })
+                    .map((damage: any) => {
+                      const range = formatVehicleDamageRange(damage.effect_name);
+                      const displayText = range ? `${range} ${damage.effect_name}` : damage.effect_name;
+                      return {
+                        value: damage.id,
+                        label: range ? (
+                          <>
+                            <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{damage.effect_name}
+                          </>
+                        ) : damage.effect_name,
+                        displayValue: displayText
+                      };
+                    })}
+                />
               </div>
             </div>
           }
