@@ -9,9 +9,10 @@ export const allianceRank: { [key: string]: number } = {
   "corpse guild": 10,
   "guild of coin": 11,
   "iron guild": 12,
-  "promethium guild": 13,
-  "slave guild": 14,
-  "water guild": 15,
+  "justicar courts": 13,
+  "promethium guild": 14,
+  "slave guild": 15,
+  "water guild": 16,
   //
   "house catallus": 20,
   "house greim": 21,
