@@ -141,6 +141,27 @@ export const getVehicleDamageRollForName = (name: string): number | undefined =>
 };
 
 // ============================================================================
+// Vehicle Repair - D6 table and resolver
+// ============================================================================
+
+export const VEHICLE_REPAIR_TABLE: TableEntry[] = [
+  { range: [1, 3], name: 'Almost like new' },
+  { range: [4, 5], name: 'Quality repairs' },
+  { range: [6, 6], name: 'Superficial Damage' },
+];
+
+export const resolveVehicleRepairFromUtil = (d6: number): string | undefined => {
+  const entry = VEHICLE_REPAIR_TABLE.find((e) => d6 >= e.range[0] && d6 <= e.range[1]);
+  return entry?.name;
+};
+
+// Utility to look up the D6 value by repair name (optional)
+export const getVehicleRepairRollForName = (name: string): number | undefined => {
+  const entry = VEHICLE_REPAIR_TABLE.find((e) => e.name === name);
+  return entry ? entry.range[0] : undefined;
+};
+
+// ============================================================================
 // Power Boosts for Spyrers - D6 table and resolver
 // ============================================================================
 
