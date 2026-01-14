@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/use-toast';
 import Modal from '../ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
-import { rollD6, resolveVehicleDamageFromUtil, getVehicleDamageRollForName } from '@/utils/dice';
+import { rollD6, resolveVehicleDamageFromUtil, getVehicleDamageRollForName, resolveVehicleRepairFromUtil, getVehicleRepairRollForName, VEHICLE_REPAIR_TABLE } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { addVehicleDamage } from '@/app/actions/add-vehicle-damage';
@@ -27,6 +27,13 @@ interface VehicleDamagesListProps {
 
 type RepairCondition = "Almost like new" | "Quality repairs" | "Superficial Damage";
 
+// Static array of repair types based on VEHICLE_REPAIR_TABLE
+const repairTypes = VEHICLE_REPAIR_TABLE.map((entry) => ({
+  id: `repair-${entry.name.toLowerCase().replace(/\s+/g, '-')}`,
+  effect_name: entry.name,
+  range: entry.range
+}));
+
 export function VehicleDamagesList({ 
   damages = [],
   onDamageUpdate,
@@ -46,6 +53,7 @@ export function VehicleDamagesList({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
+  const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -199,26 +207,28 @@ export function VehicleDamagesList({
         variant: 'default'
       });
 
-       if (repairType === 'Almost like new') {
+      // If repair type is "Almost like new", add "Persistent Rattle" damage
+      if (variables.repairType === 'Almost like new') {
         try {
-        const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
-         const damageId = match?.id;
+          const match = availableDamages.find((d: any) => d.effect_name === 'Persistent Rattle');
+          const damageId = match?.id;
   
-         // Call handleAddDamage with the ID directly
-         if (damageId) {
-           addDamageMutation.mutate({
-             vehicleId,
-             fighterId,
-             gangId,
-             damageId: damageId,
-             damageName: 'Persistent Rattle'
-           });
-         }
+          // Call addDamageMutation with the ID directly
+          if (damageId) {
+            addDamageMutation.mutate({
+              vehicleId,
+              fighterId,
+              gangId,
+              damageId: damageId,
+              damageName: 'Persistent Rattle'
+            });
+          } else {
+            console.warn('Persistent Rattle damage type not found in availableDamages');
+          }
         } catch (error) {
           console.error('Error adding Persistent Rattle:', error);
         }
-         
-       }
+      }
 
       // Close repair modal
       setIsRepairModalOpen(false);
@@ -256,7 +266,15 @@ export function VehicleDamagesList({
     return roll ? `${roll}` : '';
   };
 
-  // Fetch available damages using TanStack Query - only when modal is opened
+  // Helper function to format vehicle repair range (D6 roll range)
+  const formatVehicleRepairRange = (repairName: string): string => {
+    const entry = VEHICLE_REPAIR_TABLE.find((e) => e.name === repairName);
+    if (!entry) return '';
+    const [min, max] = entry.range;
+    return min === max ? `${min}` : `${min}-${max}`;
+  };
+
+  // Fetch available damages using TanStack Query - when add modal or repair modal is opened
   const { data: availableDamages = [], isLoading: isLoadingDamages, error: damagesError } = useQuery({
     queryKey: ['vehicle-lasting-damages'],
     queryFn: async () => {
@@ -266,7 +284,7 @@ export function VehicleDamagesList({
       }
       return response.json();
     },
-    enabled: isAddModalOpen, // Only fetch when modal is open
+    enabled: isAddModalOpen || isRepairModalOpen, // Fetch when either modal is open
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,  // 10 minutes
   });
@@ -599,107 +617,142 @@ export function VehicleDamagesList({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">The following damages will be repaired:</label>
-                <ul className="divide-y divide-gray-200 mb-4">
-                  {uniqueDamages.map((damage: FighterEffect) => (
-                    <li key={damage.id} className="flex items-center justify-between py-2">
-                      <div>
-                        <span className="text-base">{damage.effect_name}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full table-auto">
+                    <tbody>
+                      {uniqueDamages.map((damage: FighterEffect) => (
+                        <tr key={damage.id} className="border-t">
+                          <td className="px-1 py-1">{damage.effect_name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 {/* Repair type selection */}
                 <div className="space-y-2 pt-3 border-t">
                   <label htmlFor="repairTypeSelect" className="text-sm font-medium">
                     Repair Type
                   </label>
                   <DiceRoller
-                    items={[
-                      { id: 'repair-almost', effect_name: 'Almost like new' },
-                      { id: 'repair-quality', effect_name: 'Quality repairs' },
-                      { id: 'repair-superficial', effect_name: 'Superficial Damage' },
-                    ]}
-                    getRange={() => null}
+                    items={repairTypes}
+                    getRange={(i: { id: string; effect_name: string; range: [number, number] }) => {
+                      const [min, max] = i.range;
+                      return { min, max };
+                    }}
                     getName={(i: { id: string; effect_name: string }) => i.effect_name}
                     rollFn={rollD6}
                     resolveNameForRoll={(roll) => {
-                      const map: Record<number, string> = {
-                        1: 'Almost like new',
-                        2: 'Almost like new',
-                        3: 'Almost like new',
-                        4: 'Quality repairs',
-                        5: 'Quality repairs',
-                        6: 'Superficial Damage',
-                      };
-                      return map[roll as 1|2|3|4|5|6];
+                      return resolveVehicleRepairFromUtil(roll);
                     }}
                     buttonText="Roll D6"
                     inline
                     disabled={!userPermissions.canEdit}
-                    onRoll={(roll) => {
-                      const map: Record<number, string> = {
-                        1: 'Almost like new',
-                        2: 'Almost like new',
-                        3: 'Almost like new',
-                        4: 'Quality repairs',
-                        5: 'Quality repairs',
-                        6: 'Superficial Damage',
-                      };
-                      var name =  map[roll as 1|2|3|4|5|6];
+                    onRolled={(rolled) => {
+                      if (rolled.length === 0) return;
+                      const roll = rolled[0].roll;
+                      const name = resolveVehicleRepairFromUtil(roll);
                       if (name) {
-                        toast({ description: `Roll ${roll}: ${name as typeof repairType}` });
-                      }                      
-                      if (name === 'Superficial Damage') {
-                        setRepairType('Superficial Damage');
-                        setRepairPercent(10);
-                      } else if (name === 'Quality repairs') {
-                        setRepairType('Quality repairs');
-                        setRepairPercent(25);
-                      } else if (name ==='Almost like new'){
-                        setRepairType('Almost like new')
-                        setRepairPercent(25) 
+                        const match = repairTypes.find((r) => r.effect_name === name);
+                        if (match) {
+                          setSelectedRepairTypeId(match.id);
+                          setRepairType(name as RepairCondition);
+                          if (name === 'Superficial Damage') {
+                            setRepairPercent(10);
+                          } else {
+                            setRepairPercent(25);
+                          }
+                          toast({ description: `Roll ${roll}: ${name}` });
+                        }
+                      }
+                    }}
+                    onRoll={(roll) => {
+                      const name = resolveVehicleRepairFromUtil(roll);
+                      if (name) {
+                        const match = repairTypes.find((r) => r.effect_name === name);
+                        if (match) {
+                          setSelectedRepairTypeId(match.id);
+                          setRepairType(name as RepairCondition);
+                          if (name === 'Superficial Damage') {
+                            setRepairPercent(10);
+                          } else {
+                            setRepairPercent(25);
+                          }
+                          toast({ description: `Roll ${roll}: ${name}` });
+                        }
                       }
                     }}
                   />
-                  <select
-                    id="repairTypeSelect"
-                    value={repairType}
-                    onChange={(e) => {
-                      const selectedType = e.target.value as RepairCondition;
-                      setRepairType(selectedType);
-                      if (selectedType === 'Superficial Damage') {
-                        setRepairPercent(10);
-                      } else {
-                        setRepairPercent(25);
+                  <Combobox
+                    value={selectedRepairTypeId}
+                    onValueChange={(value) => {
+                      setSelectedRepairTypeId(value);
+                      const selectedRepair = repairTypes.find((r) => r.id === value);
+                      if (selectedRepair) {
+                        const selectedType = selectedRepair.effect_name as RepairCondition;
+                        setRepairType(selectedType);
+                        if (selectedType === 'Superficial Damage') {
+                          setRepairPercent(10);
+                        } else {
+                          setRepairPercent(25);
+                        }
                       }
                     }}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="Almost like new">1|2|3 - Almost like new</option>
-                    <option value="Quality repairs">4|5 - Quality repairs</option>
-                    <option value="Superficial Damage">6 - Superficial Damage</option>
-                  </select>
+                    placeholder="Select a Repair Type"
+                    options={repairTypes
+                      .slice()
+                      .sort((a, b) => {
+                        // Sort by range minimum value
+                        const minA = a.range[0];
+                        const minB = b.range[0];
+                        return minA - minB;
+                      })
+                      .map((repair) => {
+                        const range = formatVehicleRepairRange(repair.effect_name);
+                        const displayText = range ? `${range} ${repair.effect_name}` : repair.effect_name;
+                        return {
+                          value: repair.id,
+                          label: range ? (
+                            <>
+                              <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{repair.effect_name}
+                            </>
+                          ) : repair.effect_name,
+                          displayValue: displayText
+                        };
+                      })}
+                  />
                 </div>
                 {/* Calculate vehicle cost + upgrades (excluding weapons) */}
-                <div className="mt-4 flex items-center gap-2">
-                  <label htmlFor="repairTotalCost" className="block text-sm font-medium text-muted-foreground">
-                    Total Cost
-                  </label>
-                  <input
-                    id="repairTotalCost"
-                    type="number"
-                    min="0"
-                    value={repairCost}
-                    onChange={e => setRepairCost(Number(e.target.value))}
-                    className="w-24 p-2 border rounded focus:ring-2 focus:ring-black focus:border-black text-base"
-                  />
-                  
+                <div className="mt-4">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="repairTotalCost" className="block text-sm font-medium text-muted-foreground">
+                      Total Cost
+                    </label>
+                    <input
+                      id="repairTotalCost"
+                      type="number"
+                      min="0"
+                      value={repairCost}
+                      onChange={e => setRepairCost(Number(e.target.value))}
+                      className="w-24 p-2 border rounded focus:ring-2 focus:ring-black focus:border-black text-base"
+                    />
+                  </div>
+                  {selectedRepairTypeId && (
+                    <p className={`mt-2 text-xs ${repairType === 'Almost like new' ? 'text-amber-700' : ''}`}>
+                      {repairType === 'Almost like new' 
+                        ? 'All Lasting Damage will be replaced with a Persistent Rattle.'
+                        : 'All Lasting Damage will be repaired.'}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
           }
           onClose={() => {
             setIsRepairModalOpen(false);
+            setSelectedRepairTypeId('');
+            setRepairCost(0);
+            setRepairPercent(0);
+            setRepairType("Superficial Damage");
           }}
           onConfirm={handleRepairDamage}
           confirmText="Repair"
