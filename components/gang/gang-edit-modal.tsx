@@ -205,8 +205,8 @@ export default function GangEditModal({
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
 
   // Fetch allegiances using TanStack Query (shares cache with campaign-members-table)
-  // Only fetch when modal is open AND gang is in a campaign
-  const { data: availableAllegiances = [], isLoading: isLoadingAllegiances, isFetching: isFetchingAllegiances } = useQuery({
+  // Lazy load: only fetch when user focuses on the field
+  const { data: availableAllegiances = [], isLoading: isLoadingAllegiances, refetch: refetchAllegiances } = useQuery({
     queryKey: ['campaign-allegiances', campaignId],
     queryFn: async () => {
       if (!campaignId) return [];
@@ -216,22 +216,10 @@ export default function GangEditModal({
       }
       return response.json() as Promise<Array<{ id: string; allegiance_name: string; is_custom: boolean }>>;
     },
-    enabled: !!campaignId && isOpen, // Only fetch when modal is open AND campaignId exists
+    enabled: false, // Disabled by default - will be fetched on focus
     staleTime: 5 * 60 * 1000, // 5 minutes - data is considered fresh for 5 minutes
     gcTime: 10 * 60 * 1000,  // 10 minutes - cache is kept for 10 minutes
-    // Refetch stale data when modal opens (e.g., after allegiance deletion)
-    refetchOnMount: true, // Refetch when component mounts if data is stale
-    refetchOnWindowFocus: true, // Refetch when window regains focus if data is stale
   });
-  
-  // Manually refetch allegiances when modal opens to ensure fresh data
-  // This is an extra safeguard in case cache invalidation happened while modal was closed
-  useEffect(() => {
-    if (isOpen && campaignId) {
-      // Refetch allegiances to ensure we have the latest data
-      queryClient.invalidateQueries({ queryKey: ['campaign-allegiances', campaignId] });
-    }
-  }, [isOpen, campaignId, queryClient]);
   
   // Initialize form data when modal opens or when allegiance changes
   useEffect(() => {
@@ -525,15 +513,15 @@ export default function GangEditModal({
         {/* Alignment Section */}
         <div className="flex-1 space-y-2">
           <p className="text-sm font-medium">Alignment</p>
-          <select
-            value={formState.alignment || ''}
-            onChange={(e) => handleAlignmentChange(e.target.value)}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Select Alignment</option>
-            <option value="Law Abiding">Law Abiding</option>
-            <option value="Outlaw">Outlaw</option>
-          </select>
+          <Combobox
+            options={[
+              { value: 'Law Abiding', label: 'Law Abiding' },
+              { value: 'Outlaw', label: 'Outlaw' }
+            ]}
+            value={formState.alignment || undefined}
+            onValueChange={(value) => handleAlignmentChange(value || '')}
+            placeholder="Select Alignment"
+          />
         </div>
 
         {/* Gang Colour Section */}
@@ -560,15 +548,29 @@ export default function GangEditModal({
               ...availableAllegiances.map(allegiance => ({
                 value: allegiance.id,
                 label: allegiance.allegiance_name
-              }))
+              })),
+              // Include current allegiance in options if it's not in the fetched list
+              // This ensures the Combobox can display the current value even if data hasn't loaded yet
+              ...(formState.campaignAllegianceId && 
+                  currentAllegianceFromCampaign &&
+                  !availableAllegiances.some(a => a.id === formState.campaignAllegianceId)
+                  ? [{
+                      value: currentAllegianceFromCampaign.id,
+                      label: currentAllegianceFromCampaign.name
+                    }]
+                  : [])
             ]}
             value={formState.campaignAllegianceId || undefined}
             onValueChange={(value) => setFormState(prev => ({ 
               ...prev, 
               campaignAllegianceId: value === 'none' ? null : value 
             }))}
-            placeholder={isLoadingAllegiances && availableAllegiances.length === 0 ? "Loading Campaign Allegiances..." : "Select Allegiance..."}
-            disabled={isLoadingAllegiances && availableAllegiances.length === 0}
+            onFocus={() => {
+              if (campaignId && !isLoadingAllegiances) {
+                refetchAllegiances();
+              }
+            }}
+            placeholder="Select Allegiance..."
           />
         </div>
       )}
@@ -731,52 +733,96 @@ export default function GangEditModal({
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Alliance</p>
-        <select
+        <Combobox
           value={formState.allianceId || ""}
-          onChange={(e) => setFormState(prev => ({ ...prev, allianceId: e.target.value }))}
+          onValueChange={(value) => setFormState(prev => ({ ...prev, allianceId: value }))}
           onFocus={fetchAlliances}
-          className="w-full p-2 border rounded-md"
-        >
-          {/* Default "None" option */}
-          <option value="">None</option>
+          placeholder={allianceListLoaded ? "Select Alliance" : "Select Alliance"}
+          options={(() => {
+            if (!allianceListLoaded) {
+              // Show current selection if available, otherwise empty array
+              if (allianceId) {
+                return [{
+                  value: allianceId,
+                  label: allianceName,
+                  displayValue: allianceName
+                }];
+              }
+              return [];
+            }
 
-          {/* Display alliances after they are loaded */}
-          {allianceListLoaded ? (
-            Object.entries(
-              allianceList
-                .sort((a, b) => {
-                  const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
-                  const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
-                  return rankA - rankB;
-                })
-                .reduce((groups, type) => {
-                  const rank = allianceRank[type.alliance_name.toLowerCase()] ?? Infinity;
-                  let groupLabel = "Other Alliances"; // Default category for unlisted alliances
+            const groupLabelConfig = [
+              { label: "Criminal Organisations", maxRank: 9 },
+              { label: "Merchant Guilds", maxRank: 19 },
+              { label: "Noble Houses", maxRank: 29 },
+              { label: "Other Alliances", maxRank: Infinity },
+            ];
 
-                  if (rank <= 9) groupLabel = "Criminal Organisations";
-                  else if (rank <= 19) groupLabel = "Merchant Guilds";
-                  else if (rank <= 29) groupLabel = "Noble Houses";
+            const getGroupLabelFromRank = (rank: number): string => {
+              for (const entry of groupLabelConfig) {
+                if (rank <= entry.maxRank) {
+                  return entry.label;
+                }
+              }
+              return "Other Alliances";
+            };
 
-                  if (!groups[groupLabel]) groups[groupLabel] = [];
-                  groups[groupLabel].push(type);
-                  return groups;
-                }, {} as Record<string, typeof allianceList>)
-            ).map(([groupLabel, allianceList]) => (
-              <optgroup key={groupLabel} label={groupLabel}>
-                {allianceList.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.alliance_name}
-                  </option>
-                ))}
-              </optgroup>
-            ))
-          ) : (
-            <>
-              {allianceId && <option value={allianceId}>{allianceName}</option>}
-              <option value="" disabled>Loading Alliances...</option>
-            </>
-          )}
-        </select>
+            const groupLabelRank: Record<string, number> = Object.fromEntries(
+              groupLabelConfig.map((entry, index) => [entry.label, index + 1])
+            );
+
+            const groupedAlliances = allianceList.reduce((groups, alliance) => {
+              const rank = allianceRank[alliance.alliance_name.toLowerCase()] ?? Infinity;
+              const groupLabel = getGroupLabelFromRank(rank);
+
+              if (!groups[groupLabel]) groups[groupLabel] = [];
+              groups[groupLabel].push(alliance);
+              return groups;
+            }, {} as Record<string, typeof allianceList>);
+
+            const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
+            // Add "None" option at the beginning
+            options.push({
+              value: "",
+              label: "None",
+              displayValue: "None"
+            });
+
+            Object.entries(groupedAlliances)
+              .sort(([a], [b]) => {
+                const rankA = groupLabelRank[a] ?? 999;
+                const rankB = groupLabelRank[b] ?? 999;
+                return rankA - rankB;
+              })
+              .forEach(([groupLabel, allianceList]) => {
+                // Add group header as disabled option
+                options.push({
+                  value: `header-${groupLabel}`,
+                  label: <span className="font-bold">{groupLabel}</span>,
+                  displayValue: groupLabel,
+                  disabled: true
+                });
+
+                // Add alliances in this group
+                allianceList
+                  .sort((a, b) => {
+                    const rankA = allianceRank[a.alliance_name.toLowerCase()] ?? Infinity;
+                    const rankB = allianceRank[b.alliance_name.toLowerCase()] ?? Infinity;
+                    return rankA - rankB;
+                  })
+                  .forEach(alliance => {
+                    options.push({
+                      value: alliance.id,
+                      label: <span className="ml-3">{alliance.alliance_name}</span>,
+                      displayValue: alliance.alliance_name
+                    });
+                  });
+              });
+
+            return options;
+          })()}
+        />
       </div>
 
       {/* Gang Affiliation Section - Only show if gang type supports affiliations */}
