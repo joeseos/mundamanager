@@ -38,6 +38,7 @@ interface ComboboxProps {
   className?: string
   allowCustom?: boolean
   customPlaceholder?: string
+  onFocus?: () => void
 }
 
 export function Combobox({
@@ -48,7 +49,8 @@ export function Combobox({
   disabled = false,
   className,
   allowCustom = false,
-  customPlaceholder = "Enter custom value..."
+  customPlaceholder = "Enter custom value...",
+  onFocus
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
@@ -194,7 +196,10 @@ export function Combobox({
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            onFocus?.();
+            setOpen(true);
+          }}
           disabled={disabled}
         />
         {selectedOption && typeof selectedOption.label !== 'string' && !open && (
