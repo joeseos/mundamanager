@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS, invalidateCampaignMembership, invalidateGangPermissionsForUser, invalidateCampaignMemberPermissions } from "@/utils/cache-tags";
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
@@ -242,7 +242,9 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
     }
 
     // Cleanup any custom_shared records for this user in this campaign
-    await supabase
+    // Use service role client to bypass RLS (owner deleting another user's shares)
+    const serviceClient = createServiceRoleClient();
+    await serviceClient
       .from('custom_shared')
       .delete()
       .eq('user_id', userId)
@@ -486,8 +488,10 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     if (error) throw error;
 
     // If demoting from ARBITRATOR/OWNER to MEMBER, cleanup their custom_shared records
+    // Use service role client to bypass RLS (owner deleting another user's shares)
     if ((previousRole === 'ARBITRATOR' || previousRole === 'OWNER') && newRole === 'MEMBER') {
-      await supabase
+      const serviceClient = createServiceRoleClient();
+      await serviceClient
         .from('custom_shared')
         .delete()
         .eq('user_id', userId)

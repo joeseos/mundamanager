@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
@@ -51,8 +51,10 @@ export async function PATCH(request: Request) {
     if (error) throw error;
 
     // If demoting from ARBITRATOR/OWNER to MEMBER, cleanup custom_shared records
+    // Use service role client to bypass RLS (owner deleting another user's shares)
     if ((previousRole === 'ARBITRATOR' || previousRole === 'OWNER') && newRole === 'MEMBER') {
-      await supabase
+      const serviceClient = createServiceRoleClient();
+      await serviceClient
         .from('custom_shared')
         .delete()
         .eq('user_id', userId)
@@ -123,8 +125,10 @@ export async function DELETE(request: Request) {
     }
 
     // Cleanup custom_shared records for this user in this campaign
+    // Use service role client to bypass RLS (owner deleting another user's shares)
     if (memberUserId) {
-      await supabase
+      const serviceClient = createServiceRoleClient();
+      await serviceClient
         .from('custom_shared')
         .delete()
         .eq('user_id', memberUserId)
