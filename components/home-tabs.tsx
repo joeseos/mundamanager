@@ -125,7 +125,7 @@ export default function HomeTabs({
                   return dateA - dateB;
                 }).map((gang) => (
                   <li key={gang.id}>
-                    <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 bg-muted rounded-md hover:bg-muted transition-colors duration-200">
+                    <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200">
                       <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                         {(() => {
                           // Helper function to get the default image URL
@@ -209,7 +209,7 @@ export default function HomeTabs({
                   return dateB - dateA;
                 }).map((campaign) => (
                   <li key={campaign.campaign_member_id}>
-                    <a href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 bg-muted rounded-md hover:bg-muted transition-colors duration-200">
+                    <a href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200">
                       <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
                         {campaign.image_url || campaign.campaign_type_image_url ? (
                           <Image
