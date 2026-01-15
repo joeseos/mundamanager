@@ -676,21 +676,23 @@ export default function MembersTable({
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
             disabled={gang.isInCampaign}
             className={`w-full p-3 text-left border rounded-lg transition-colors ${
-              gang.isInCampaign 
-                ? 'bg-muted cursor-not-allowed' 
-                : selectedGang?.id === gang.id 
-                  ? 'border-black bg-muted' 
+              gang.isInCampaign
+                ? 'bg-muted cursor-not-allowed'
+                : selectedGang?.id === gang.id
+                  ? 'border-gray-400 bg-muted'
                   : 'hover:border-gray-400'
             }`}
           >
             <div className="flex items-center justify-between">
               <div>
-                <span className="font-medium">{gang.name}</span>
-                <span className="text-sm text-muted-foreground ml-2">{gang.gang_type || "-"}</span>
+                <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
+                <p className="text-sm text-muted-foreground">{gang.gang_type || "-"}</p>
               </div>
+              <div className="w-20 flex-none text-right">
               {gang.isInCampaign && (
-                <span className="text-xs text-muted-foreground">Already in a campaign.</span>
+                <p className="text-xs text-muted-foreground italic font-light">Already in a campaign</p>
               )}
+              </div>
             </div>
           </button>
         ))}

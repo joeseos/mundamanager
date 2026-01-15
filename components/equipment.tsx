@@ -1278,7 +1278,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     </Button>
 
                     {expandedCategories.has(category.category_name) && (
-                      <div className="bg-muted">
+                      <div>
                         {categoryLoadingStates[category.category_name] ? (
                           <div className="flex justify-center py-4">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
@@ -1385,12 +1385,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         }`}>
                                           <span className="text-[10px] font-medium">{item.adjusted_cost}</span>
                                         </div>
-                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white line-through">
+                                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary text-primary-foreground line-through">
                                           <span className="text-[10px] font-medium">{item.base_cost}</span>
                                         </div>
                                       </div>
                                     ) : (
-                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-black text-white">
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary text-primary-foreground">
                                         <span className="text-[10px] font-medium">{item.cost}</span>
                                       </div>
                                     )}
