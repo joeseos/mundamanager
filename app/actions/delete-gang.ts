@@ -6,12 +6,16 @@ import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS, invalidateGangCount, invalidateGangPermissionsForUser, invalidateCampaignMembership } from '@/utils/cache-tags';
 
 export async function deleteGang(gangId: string) {
+  let step = 'init';
   try {
+    step = 'createClient';
     const supabase = await createClient();
-    
+
+    step = 'authenticate';
     // Authenticate user
     await getAuthenticatedUser(supabase);
 
+    step = 'fetchGang';
     // Get gang information to verify ownership
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
@@ -20,15 +24,17 @@ export async function deleteGang(gangId: string) {
       .single();
 
     if (gangError || !gang) {
-      throw new Error('Gang not found');
+      throw new Error(gangError?.message || 'Gang not found');
     }
 
+    step = 'fetchCampaigns';
     // Fetch campaign associations BEFORE delete (in case of CASCADE)
     const { data: campaigns } = await supabase
       .from('campaign_gangs')
       .select('campaign_id, user_id')
       .eq('gang_id', gangId);
 
+    step = 'deleteGang';
     // Delete the gang
     const { error: deleteError } = await supabase
       .from('gangs')
@@ -36,12 +42,12 @@ export async function deleteGang(gangId: string) {
       .eq('id', gangId);
 
     if (deleteError) {
-      console.error('Failed to delete gang:', {
+      console.error('[deleteGang] Supabase delete failed:', {
         code: deleteError.code,
         message: deleteError.message,
         details: deleteError.details,
         hint: deleteError.hint,
-        gangId: gangId
+        gangId
       });
       throw deleteError;
     }
@@ -119,14 +125,22 @@ export async function deleteGang(gangId: string) {
 
     return { success: true };
   } catch (error) {
-    console.error('Error deleting gang:', error);
+    const errorInfo = {
+      step,
+      gangId,
+      message: error instanceof Error ? error.message : String(error),
+      code: error && typeof error === 'object' && 'code' in error ? (error as any).code : undefined,
+      hint: error && typeof error === 'object' && 'hint' in error ? (error as any).hint : undefined,
+      details: error && typeof error === 'object' && 'details' in error ? (error as any).details : undefined,
+    };
+    console.error('[deleteGang] Error:', errorInfo);
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete gang',
-      details: error && typeof error === 'object' && 'code' in error ? {
-        code: (error as any).code,
-        hint: (error as any).hint
-      } : undefined
+      error: errorInfo.message,
+      step: errorInfo.step,
+      code: errorInfo.code,
+      hint: errorInfo.hint,
     };
   }
 }

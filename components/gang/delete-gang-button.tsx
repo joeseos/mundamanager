@@ -25,9 +25,10 @@ export default function DeleteGangButton({ gangId, gangName }: DeleteGangButtonP
       setIsDeleting(true);
 
       const result = await deleteGang(gangId);
-      console.log('Delete gang result:', result);
+      console.log('[DeleteGang] Server action result:', JSON.stringify(result, null, 2));
 
       if (!result.success) {
+        console.error('[DeleteGang] Failed at step:', result.step, 'code:', result.code, 'hint:', result.hint);
         throw new Error(result.error || 'Failed to delete gang');
       }
 
