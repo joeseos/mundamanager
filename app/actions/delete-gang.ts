@@ -36,6 +36,13 @@ export async function deleteGang(gangId: string) {
       .eq('id', gangId);
 
     if (deleteError) {
+      console.error('Failed to delete gang:', {
+        code: deleteError.code,
+        message: deleteError.message,
+        details: deleteError.details,
+        hint: deleteError.hint,
+        gangId: gangId
+      });
       throw deleteError;
     }
 
@@ -113,9 +120,13 @@ export async function deleteGang(gangId: string) {
     return { success: true };
   } catch (error) {
     console.error('Error deleting gang:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to delete gang' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete gang',
+      details: error && typeof error === 'object' && 'code' in error ? {
+        code: (error as any).code,
+        hint: (error as any).hint
+      } : undefined
     };
   }
 }
