@@ -216,10 +216,10 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       { data: winner },
       { data: campaign }
     ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).single(),
-      supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null }),
-      supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
+      supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle(),
+      supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle(),
+      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle()
     ]);
 
     // Log battle results for all participating gangs
@@ -352,10 +352,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       { data: winner },
       { data: campaign }
     ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).single(),
-      supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null }),
-      supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
+      supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle(),
+      supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle(),
+      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle()
     ]);
 
     // Log battle results for all participating gangs

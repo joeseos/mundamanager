@@ -124,9 +124,9 @@ export async function POST(
       { data: defender },
       { data: winner }
     ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).single(),
-      supabase.from('gangs').select('name').eq('id', defender_id).single(),
-      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).single() : Promise.resolve({ data: null })
+      supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle(),
+      supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle(),
+      winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).maybeSingle() : Promise.resolve({ data: null })
     ]);
 
     // Transform the response to match the expected format

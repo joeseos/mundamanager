@@ -130,9 +130,9 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
         { data: campaignData, error: campaignError },
         { data: userData, error: userError }
       ] = await Promise.all([
-        supabase.from('gangs').select('name').eq('id', gangId).single(),
-        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single(),
-        supabase.from('profiles').select('username').eq('id', userId).single()
+        supabase.from('gangs').select('name').eq('id', gangId).maybeSingle(),
+        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
+        supabase.from('profiles').select('username').eq('id', userId).maybeSingle()
       ]);
             
       if (gangError) console.error('Error fetching gang data:', gangError);
@@ -340,8 +340,8 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
         { data: gangData, error: gangError },
         { data: campaignData, error: campaignError }
       ] = await Promise.all([
-        supabase.from('gangs').select('name').eq('id', gangId).single(),
-        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).single()
+        supabase.from('gangs').select('name').eq('id', gangId).maybeSingle(),
+        supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle()
       ]);
 
       if (gangError) console.error('Error fetching gang data:', gangError);
