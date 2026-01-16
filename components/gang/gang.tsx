@@ -223,8 +223,8 @@ export default function Gang({
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
-  // Page view mode - start as null until loaded from localStorage
-  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large' | null>(null);
+  // Page view mode - default to 'normal' to avoid hydration mismatch
+  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
   const isFirstRender = useRef(true);
 
   // Get campaign ID if gang is in a campaign
@@ -234,7 +234,9 @@ export default function Gang({
   // Load from localStorage on mount
   useEffect(() => {
     const savedViewMode = localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large';
-    setViewMode(savedViewMode || 'normal');
+    if (savedViewMode && savedViewMode !== viewMode) {
+      setViewMode(savedViewMode);
+    }
   }, []);
 
   // Sync fighters state with prop changes from parent
@@ -371,8 +373,6 @@ export default function Gang({
 
   // Save to localStorage and update DOM (skip first render)
   useEffect(() => {
-    if (viewMode === null) return; // Not yet loaded from localStorage
-
     const wrapper = document.getElementById('main-content-wrapper');
     if (wrapper) {
       if (viewMode !== 'normal') {
@@ -390,10 +390,7 @@ export default function Gang({
       return;
     }
 
-    // Type guard to ensure viewMode is not null before saving
-    if (viewMode) {
-      localStorage.setItem('gang_view_mode', viewMode);
-    }
+    localStorage.setItem('gang_view_mode', viewMode);
   }, [viewMode]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -808,7 +805,7 @@ export default function Gang({
   return (
     <div
       ref={gangContentRef}
-      className={`space-y-4 print:space-y-[5px] ${viewMode !== null && viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}
+      className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}
     >
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
         <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
@@ -852,13 +849,11 @@ export default function Gang({
               <div className="flex gap-2 print:hidden">
 
                 {/* View Mode Dropdown - only show on desktop */}
-                {viewMode !== null && (
-                  <ViewModeDropdown
-                    viewMode={viewMode}
-                    setViewMode={setViewMode}
-                    className="hidden sm:block max-w-[120px] md:max-w-full md:w-full"
-                  />
-                )}
+                <ViewModeDropdown
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  className="hidden sm:block max-w-[120px] md:max-w-full md:w-full"
+                />
 
                 <div className="flex gap-2">
                   {additionalButtons}
@@ -875,15 +870,13 @@ export default function Gang({
 
             <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
               {/* View Mode Dropdown - show on mobile */}
-              {viewMode !== null && (
-                <div className="sm:hidden w-auto print:hidden mr-auto">
-                  <ViewModeDropdown
-                    viewMode={viewMode}
-                    setViewMode={setViewMode}
-                    className="sm:hidden w-auto mr-auto"
-                  />
-                </div>
-              )}
+              <div className="sm:hidden w-auto print:hidden mr-auto">
+                <ViewModeDropdown
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  className="sm:hidden w-auto mr-auto"
+                />
+              </div>
 
               {/* Copy button */}
               <Button
@@ -1319,7 +1312,7 @@ export default function Gang({
           </div>
         </div>
       </div>
-      <div className={`print:visible ${viewMode !== null && viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
+      <div className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
         {(() => {
           // Filter out exotic beasts whose granting equipment is in stash
           const visibleFighters = useMemo(() => {
@@ -1338,7 +1331,7 @@ export default function Gang({
             onPositionsUpdate={handlePositionsUpdate}
             onFightersReorder={handleFightersReorder}
             initialPositions={positions}
-            viewMode={viewMode ?? 'normal'}
+            viewMode={viewMode}
             userPermissions={userPermissions}
           />
         ) : (
