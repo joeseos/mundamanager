@@ -6,9 +6,11 @@ import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS, invalidateGangCount, invalidateGangPermissionsForUser, invalidateCampaignMembership } from '@/utils/cache-tags';
 
 export async function deleteGang(gangId: string) {
+  console.log('[deleteGang] Starting:', gangId);
+
   try {
     const supabase = await createClient();
-    
+
     // Authenticate user
     await getAuthenticatedUser(supabase);
 
@@ -35,8 +37,13 @@ export async function deleteGang(gangId: string) {
       .delete()
       .eq('id', gangId);
 
+    // Handle delete error inline - don't throw
     if (deleteError) {
-      throw deleteError;
+      console.error('[deleteGang] Delete failed:', deleteError);
+      return {
+        success: false,
+        error: deleteError.message || 'Database error during delete'
+      };
     }
 
     // Clean up all images for this gang (both gang image and fighter images)
@@ -110,12 +117,13 @@ export async function deleteGang(gangId: string) {
     // Invalidate global gang count
     invalidateGangCount();
 
+    console.log('[deleteGang] Success:', gangId);
     return { success: true };
   } catch (error) {
-    console.error('Error deleting gang:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to delete gang' 
+    console.error('[deleteGang] Caught error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An error occurred'
     };
   }
 }
