@@ -1270,6 +1270,11 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             return options;
           })()}
         />
+        {selectedGangAdditionClass === "Exotic Beast" && (
+          <p className="text-amber-500 text-xs">
+            Exotic Beasts should be acquired by adding them as Equipment to a fighter, which automatically creates their Fighter card. They are listed here to allow flexibility and house rules.
+          </p>
+        )}
       </div>
 
       {/* Fighter Type */}
