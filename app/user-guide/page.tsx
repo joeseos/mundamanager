@@ -123,6 +123,7 @@ export default function UserGuidePage() {
                 <ul className="list-disc marker:text-red-800 pl-6 mt-2 space-y-1">
                   <li><a href="#custom-equipment" className="underline hover:text-red-800">Custom Equipment</a></li>
                   <li><a href="#custom-fighters" className="underline hover:text-red-800">Custom Fighters</a></li>
+                  <li><a href="#sharing-custom-assets" className="underline hover:text-red-800">Sharing Custom Assets</a></li>
                 </ul>
               </li>
             </ul>
@@ -346,6 +347,33 @@ export default function UserGuidePage() {
                     style={{ maxWidth: '100%', height: 'auto' }}
                   />
                 </div>
+
+              <h3 id="sharing-custom-assets" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Sharing Custom Assets</h3>
+                <p className="text-muted-foreground mb-2">
+                  You can share your custom equipment and fighters with campaigns you're an arbitrator or owner of. Click the share icon to open the share menu.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-equipment-table.webp"
+                    alt="Custom equipment table showing the share icon button to share equipment with campaigns"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  In the share menu, select the campaigns you want to share the asset to using the checkboxes and confirm your selection.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-asset-share.webp"
+                    alt="Campaign selection modal with checkboxes for choosing which campaigns to share custom assets with"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  Once shared, all campaign members will be able to access and use the shared custom assets in their gangs.
+                </p>
             </section>
           </div>
         </div>
