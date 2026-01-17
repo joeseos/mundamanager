@@ -169,6 +169,9 @@
     .print-fighters {
       zoom: 0.55;
     }
+    .print-gang-roster {
+      zoom: 0.88;
+    }
     .table-weapons th, .table-weapons td {
       padding: 1px !important;
       padding-left: 2px !important;
