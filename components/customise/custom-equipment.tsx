@@ -10,12 +10,16 @@ import Modal from '@/components/ui/modal';
 import { useToast } from '@/components/ui/use-toast';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
+import { FiShare2 } from 'react-icons/fi';
 import { createClient } from '@/utils/supabase/client';
+import { ShareCustomEquipmentModal, UserCampaign } from './custom-shared';
 
 interface CustomiseEquipmentProps {
   className?: string;
   initialEquipment?: CustomEquipment[];
   readOnly?: boolean;
+  userId?: string;
+  userCampaigns?: UserCampaign[];
 }
 
 interface EquipmentCategory {
@@ -23,7 +27,7 @@ interface EquipmentCategory {
   category_name: string;
 }
 
-export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false }: CustomiseEquipmentProps) {
+export function CustomiseEquipment({ className, initialEquipment = [], readOnly = false, userId, userCampaigns = [] }: CustomiseEquipmentProps) {
   const [equipment, setEquipment] = useState<CustomEquipment[]>(initialEquipment);
   const [isLoading, setIsLoading] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomEquipment | null>(null);
@@ -31,6 +35,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [viewModalData, setViewModalData] = useState<CustomEquipment | null>(null);
   const [copyModalData, setCopyModalData] = useState<CustomEquipment | null>(null);
+  const [shareModalData, setShareModalData] = useState<CustomEquipment | null>(null);
   const supabase = createClient();
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [editForm, setEditForm] = useState({
@@ -225,6 +230,13 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       className: 'text-xs px-1.5 h-6'
     }
   ] : [
+    {
+      icon: <FiShare2 className="h-4 w-4" />,
+      onClick: (item: CustomEquipment) => setShareModalData(item),
+      variant: 'outline',
+      size: 'sm',
+      className: 'text-xs px-1.5 h-6'
+    },
     {
       icon: <LuSquarePen className="h-4 w-4" />,
       onClick: (item: CustomEquipment) => handleEditEquipment(item),
@@ -978,6 +990,14 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           onConfirm={handleCreateModalConfirm}
           confirmText="Create Equipment"
           confirmDisabled={!isCreateFormValid() || isLoading}
+        />
+      )}
+
+      {shareModalData && userId && (
+        <ShareCustomEquipmentModal
+          equipment={shareModalData}
+          userCampaigns={userCampaigns}
+          onClose={() => setShareModalData(null)}
         />
       )}
     </div>

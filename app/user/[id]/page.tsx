@@ -117,6 +117,17 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
   const { profile, gangs, campaigns, customAssets, customAssetsData } = userData;
 
+  // Get arbitrator campaigns for sharing custom assets (only when viewing own profile)
+  const userCampaigns = currentUserId === profile.id
+    ? campaigns
+        .filter(c => c.role === 'arbitrator' && c.campaign)
+        .map(c => ({
+          id: c.campaign!.id,
+          campaign_name: c.campaign!.campaign_name,
+          status: c.campaign!.status
+        }))
+    : [];
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-6 mt-2">
@@ -275,9 +286,11 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <div className="space-y-6">
               {/* Custom Equipment */}
               {customAssetsData.equipment.length > 0 && (
-                <CustomiseEquipment 
-                  initialEquipment={customAssetsData.equipment} 
+                <CustomiseEquipment
+                  initialEquipment={customAssetsData.equipment}
                   readOnly={currentUserId !== profile.id}
+                  userId={currentUserId || undefined}
+                  userCampaigns={userCampaigns}
                 />
               )}
 
