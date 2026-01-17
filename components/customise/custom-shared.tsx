@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { shareCustomFighter, shareCustomEquipment } from '@/app/actions/customise/custom-share';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 
 export interface UserCampaign {
@@ -32,9 +32,42 @@ export function ShareCustomFighterModal({
   onSuccess
 }: ShareCustomFighterModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch shared campaigns using TanStack Query
+  const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
+    queryKey: ['customSharedCampaigns', 'fighter', fighter.id],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('custom_shared')
+        .select('campaign_id')
+        .eq('custom_fighter_type_id', fighter.id);
+
+      if (error) throw error;
+      return data?.map(share => share.campaign_id) || [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Sync fetched data to selectedCampaigns state when query succeeds
+  useEffect(() => {
+    if (isSuccess) {
+      setSelectedCampaigns(sharedCampaignIds);
+    }
+  }, [isSuccess, sharedCampaignIds]);
+
+  // Show error toast if fetch failed
+  useEffect(() => {
+    if (fetchError) {
+      toast({
+        description: 'Failed to load shared campaigns',
+        variant: 'destructive'
+      });
+    }
+  }, [fetchError, toast]);
 
   // TanStack Query mutation for sharing custom fighters
   const shareFighterMutation = useMutation({
@@ -48,6 +81,7 @@ export function ShareCustomFighterModal({
           variant: 'default'
         });
         queryClient.invalidateQueries({ queryKey: ['customFighters'] });
+        queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'fighter', fighter.id] });
         onSuccess?.();
         onClose();
       } else {
@@ -64,38 +98,6 @@ export function ShareCustomFighterModal({
       });
     }
   });
-
-  useEffect(() => {
-    const loadSharedCampaigns = async () => {
-      setIsLoading(true);
-      try {
-        const supabase = createClient();
-
-        // Fetch which campaigns this fighter is already shared to
-        const { data: shares, error } = await supabase
-          .from('custom_shared')
-          .select('campaign_id')
-          .eq('custom_fighter_type_id', fighter.id);
-
-        if (error) {
-          console.error('Error fetching shared campaigns:', error);
-        } else {
-          const campaignIds = shares?.map(share => share.campaign_id) || [];
-          setSelectedCampaigns(campaignIds);
-        }
-      } catch (error) {
-        console.error('Error loading shared campaigns:', error);
-        toast({
-          description: 'Failed to load shared campaigns',
-          variant: 'destructive'
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadSharedCampaigns();
-  }, [fighter.id, toast]);
 
   const handleToggleCampaign = (campaignId: string) => {
     setSelectedCampaigns(prev => {
@@ -182,9 +184,42 @@ export function ShareCustomEquipmentModal({
   onSuccess
 }: ShareCustomEquipmentModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch shared campaigns using TanStack Query
+  const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
+    queryKey: ['customSharedCampaigns', 'equipment', equipment.id],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('custom_shared')
+        .select('campaign_id')
+        .eq('custom_equipment_id', equipment.id);
+
+      if (error) throw error;
+      return data?.map(share => share.campaign_id) || [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // Sync fetched data to selectedCampaigns state when query succeeds
+  useEffect(() => {
+    if (isSuccess) {
+      setSelectedCampaigns(sharedCampaignIds);
+    }
+  }, [isSuccess, sharedCampaignIds]);
+
+  // Show error toast if fetch failed
+  useEffect(() => {
+    if (fetchError) {
+      toast({
+        description: 'Failed to load shared campaigns',
+        variant: 'destructive'
+      });
+    }
+  }, [fetchError, toast]);
 
   // TanStack Query mutation for sharing custom equipment
   const shareEquipmentMutation = useMutation({
@@ -198,6 +233,7 @@ export function ShareCustomEquipmentModal({
           variant: 'default'
         });
         queryClient.invalidateQueries({ queryKey: ['customEquipment'] });
+        queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'equipment', equipment.id] });
         onSuccess?.();
         onClose();
       } else {
@@ -214,38 +250,6 @@ export function ShareCustomEquipmentModal({
       });
     }
   });
-
-  useEffect(() => {
-    const loadSharedCampaigns = async () => {
-      setIsLoading(true);
-      try {
-        const supabase = createClient();
-
-        // Fetch which campaigns this equipment is already shared to
-        const { data: shares, error } = await supabase
-          .from('custom_shared')
-          .select('campaign_id')
-          .eq('custom_equipment_id', equipment.id);
-
-        if (error) {
-          console.error('Error fetching shared campaigns:', error);
-        } else {
-          const campaignIds = shares?.map(share => share.campaign_id) || [];
-          setSelectedCampaigns(campaignIds);
-        }
-      } catch (error) {
-        console.error('Error loading shared campaigns:', error);
-        toast({
-          description: 'Failed to load shared campaigns',
-          variant: 'destructive'
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadSharedCampaigns();
-  }, [equipment.id, toast]);
 
   const handleToggleCampaign = (campaignId: string) => {
     setSelectedCampaigns(prev => {
