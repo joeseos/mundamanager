@@ -62,6 +62,7 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
   const rigGlitchesEffects = useMemo(() => calculateEffectsForCategory('rig-glitches'), [calculateEffectsForCategory]);
   const augmentationsEffects = useMemo(() => calculateEffectsForCategory('augmentations'), [calculateEffectsForCategory]);
   const equipmentEffects = useMemo(() => calculateEffectsForCategory('equipment'), [calculateEffectsForCategory]);
+  const powerBoostsEffects = useMemo(() => calculateEffectsForCategory('power-boosts'), [calculateEffectsForCategory]);
 
   return (
     <div className="w-full overflow-x-auto">
@@ -188,7 +189,19 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               ))}
             </tr>
           )}
-          
+
+          {/* Power Boosts row - only show if fighter has power-boosts effects */}
+          {fighter.effects?.['power-boosts'] && fighter.effects['power-boosts'].length > 0 && (
+            <tr className="bg-cyan-50 dark:bg-cyan-950">
+              <td className="px-1 py-1 font-medium text-xs">Power Boosts</td>
+              {stats.map(stat => (
+                <td key={stat.key} className="border-l border-border text-center text-xs">
+                  {powerBoostsEffects[stat.key] ? powerBoostsEffects[stat.key] : '-'}
+                </td>
+              ))}
+            </tr>
+          )}
+
           {/* Total row - always shown */}
           <tr className="bg-muted font-bold">
             <td className="px-1 py-1 text-xs">Total</td>
@@ -202,7 +215,8 @@ function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
               const rigGlitchesValue = rigGlitchesEffects[stat.key] || 0;
               const augmentationsValue = augmentationsEffects[stat.key] || 0;
               const equipmentValue = equipmentEffects[stat.key] || 0;
-              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue;
+              const powerBoostsValue = powerBoostsEffects[stat.key] || 0;
+              const total = baseValue + injuryValue + advancementValue + bionicsValue + userValue + geneSmithingValue + rigGlitchesValue + augmentationsValue + equipmentValue + powerBoostsValue;
               
               return (
                 <td key={stat.key} className="border-l border-border text-center text-xs">
