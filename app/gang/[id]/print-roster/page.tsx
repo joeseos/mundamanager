@@ -116,7 +116,7 @@ export default async function GangRosterPage(props: {
     };
 
     return (
-      <div className="w-full relative left-0 right-auto ml-0 mr-0">
+      <div className="w-full relative">
         <GangRoster gang={gangDataForClient} />
       </div>
     );

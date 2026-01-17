@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
@@ -8,6 +9,8 @@ import WeaponTable from "./fighter-card-weapon-table";
 import { Weapon } from "@/types/equipment";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 
 interface GangRosterProps {
   gang: {
@@ -115,16 +118,34 @@ export default function GangRoster({ gang }: GangRosterProps) {
     gang_variants,
   } = gang;
 
-  // Order fighters by positioning and filter to active ones
+  // Print options state
+  const [showFightersInRecovery, setShowFightersInRecovery] = useState(false);
+  const [showInactiveFighters, setShowInactiveFighters] = useState(false);
+  const [showXPBoxes, setShowXPBoxes] = useState(true);
+  const [showWFWBoxes, setShowWFWBoxes] = useState(true);
+
+  // Order fighters by positioning and filter based on options
   const positionMap: Record<string, number> = {};
   Object.entries(positioning || {}).forEach(([pos, fighterId]) => {
     positionMap[fighterId] = Number(pos);
   });
 
   const sortedFighters = [...fighters]
-    .filter(
-      (f) => !f.killed && !f.enslaved && !f.retired && !f.captured, // active only
-    )
+    .filter((f) => {
+      // Filter out inactive fighters if option is disabled
+      if (!showInactiveFighters && (f.killed || f.enslaved || f.retired || f.captured)) {
+        return false;
+      }
+      // Filter out fighters in recovery if option is disabled
+      if (!showFightersInRecovery && f.recovery) {
+        return false;
+      }
+      // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
+      if (!showInactiveFighters && !showFightersInRecovery) {
+        return !f.killed && !f.enslaved && !f.retired && !f.captured && !f.recovery;
+      }
+      return true;
+    })
     .sort((a, b) => {
       const posA = positionMap[a.id] ?? Number.MAX_SAFE_INTEGER;
       const posB = positionMap[b.id] ?? Number.MAX_SAFE_INTEGER;
@@ -132,8 +153,54 @@ export default function GangRoster({ gang }: GangRosterProps) {
     });
 
   return (
-    <div className="min-h-screen text-foreground">
-      <div className="bg-white text-black border border-black print:border-0">
+    <div className="min-h-screen text-foreground w-full">
+      <div className="bg-card rounded-lg shadow-md p-4 mb-6 print:hidden">
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Print Options</h2>
+          </div>
+          <p className="text-sm">Include the following:</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={showFightersInRecovery}
+                onCheckedChange={(checked) => setShowFightersInRecovery(checked === true)}
+              />
+              <span className="text-sm">Fighters in Recovery</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={showInactiveFighters}
+                onCheckedChange={(checked) => setShowInactiveFighters(checked === true)}
+              />
+              <span className="text-sm">Inactive Fighters (Killed/Retired/Enslaved/Captured)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={showXPBoxes}
+                onCheckedChange={(checked) => setShowXPBoxes(checked === true)}
+              />
+              <span className="text-sm">XP Boxes</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={showWFWBoxes}
+                onCheckedChange={(checked) => setShowWFWBoxes(checked === true)}
+              />
+              <span className="text-sm">Wounds/Flesh Wounds Boxes</span>
+            </label>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button
+              onClick={() => window.print()}
+              className="bg-neutral-900 text-white hover:bg-gray-800"
+            >
+              Print
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="min-w-fit bg-white text-black border border-black print:border-0 print-gang-roster">
         {/* Header */}
         <div className="border-b border-black px-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
@@ -181,7 +248,7 @@ export default function GangRoster({ gang }: GangRosterProps) {
         <div>
           <style>{`
             .roster-weapons-table colgroup col:first-child {
-              width: 80px !important;
+              max-width: 80px !important;
             }
             .roster-weapons-table table td:first-child,
             .roster-weapons-table table th:first-child {
@@ -390,48 +457,52 @@ export default function GangRoster({ gang }: GangRosterProps) {
                              : ""}
                          </div>
                          {/* W/FW boxes */}
-                         {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
-                           <div className="flex items-center gap-2 text-[9px] flex-shrink-0">
-                             {adjustedStats.wounds > 1 && (
-                               <div className="flex items-center gap-1">
-                                 <span className="font-semibold whitespace-nowrap">W:</span>
-                                 <div className="flex items-center gap-0.5">
-                                   {Array.from({ length: adjustedStats.wounds - 1 }).map((_, i) => (
-                                     <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                                   ))}
+                         {showWFWBoxes && (
+                           <div>
+                             {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
+                               <div className="flex items-center gap-2 text-[9px] flex-shrink-0">
+                                 {adjustedStats.wounds > 1 && (
+                                   <div className="flex items-center gap-1">
+                                     <span className="font-semibold whitespace-nowrap">W:</span>
+                                     <div className="flex items-center gap-0.5">
+                                       {Array.from({ length: adjustedStats.wounds - 1 }).map((_, i) => (
+                                         <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                       ))}
+                                     </div>
+                                   </div>
+                                 )}
+                                 {adjustedStats.toughness > 1 && (
+                                   <div className="flex items-center gap-1">
+                                     <span className="font-semibold whitespace-nowrap">FW:</span>
+                                     <div className="flex items-center gap-0.5">
+                                       {Array.from({ length: adjustedStats.toughness - 1 }).map((_, i) => (
+                                         <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                       ))}
+                                     </div>
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                             {isCrew && (
+                               <div className="flex items-center gap-2 text-[9px] flex-shrink-0">
+                                 <div className="flex items-center gap-1">
+                                   <span className="font-semibold whitespace-nowrap">W:</span>
+                                   <div className="flex items-center gap-0.5">
+                                     {Array.from({ length: 3 }).map((_, i) => (
+                                       <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                     ))}
+                                   </div>
+                                 </div>
+                                 <div className="flex items-center gap-1">
+                                   <span className="font-semibold whitespace-nowrap">FW:</span>
+                                   <div className="flex items-center gap-0.5">
+                                     {Array.from({ length: 3 }).map((_, i) => (
+                                       <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                     ))}
+                                   </div>
                                  </div>
                                </div>
                              )}
-                             {adjustedStats.toughness > 1 && (
-                               <div className="flex items-center gap-1">
-                                 <span className="font-semibold whitespace-nowrap">FW:</span>
-                                 <div className="flex items-center gap-0.5">
-                                   {Array.from({ length: adjustedStats.toughness - 1 }).map((_, i) => (
-                                     <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                                   ))}
-                                 </div>
-                               </div>
-                             )}
-                           </div>
-                         )}
-                         {isCrew && (
-                           <div className="flex items-center gap-2 text-[9px] flex-shrink-0">
-                             <div className="flex items-center gap-1">
-                               <span className="font-semibold whitespace-nowrap">W:</span>
-                               <div className="flex items-center gap-0.5">
-                                 {Array.from({ length: 3 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1">
-                               <span className="font-semibold whitespace-nowrap">FW:</span>
-                               <div className="flex items-center gap-0.5">
-                                 {Array.from({ length: 3 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
                            </div>
                          )}
                        </div>
@@ -557,54 +628,56 @@ export default function GangRoster({ gang }: GangRosterProps) {
                            <div>—</div>
                          )}
                          {/* XP boxes */}
-                         <div className="mt-4 grid gap-x-1 grid-cols-3 text-[9px]">
-                           <div className="flex items-center gap-1 min-w-0">
-                             <span className="font-semibold whitespace-nowrap flex-shrink-0">SI</span>
-                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                               {Array.from({ length: 6 }).map((_, i) => (
-                                 <MdCheckBoxOutlineBlank key={`si-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                               ))}
+                         {showXPBoxes && (
+                           <div className="mt-4 grid gap-x-1 grid-cols-3 text-[9px]">
+                             <div className="flex items-center gap-1 min-w-0">
+                               <span className="font-semibold whitespace-nowrap flex-shrink-0">SI</span>
+                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                 {Array.from({ length: 6 }).map((_, i) => (
+                                   <MdCheckBoxOutlineBlank key={`si-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                 ))}
+                               </div>
+                             </div>
+                             <div className="flex items-center gap-1 min-w-0">
+                               <span className="font-semibold whitespace-nowrap flex-shrink-0">OOA</span>
+                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                 {Array.from({ length: 6 }).map((_, i) => (
+                                   <MdCheckBoxOutlineBlank key={`ooa-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                 ))}
+                               </div>
+                             </div>
+                             <div className="flex items-center gap-1 min-w-0">
+                               <span className="font-semibold whitespace-nowrap flex-shrink-0">R/A</span>
+                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                 {Array.from({ length: 5 }).map((_, i) => (
+                                   <MdCheckBoxOutlineBlank key={`rally-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                 ))}
+                               </div>
+                             </div>
+                             <div className="flex items-center gap-1 min-w-0">
+                               <span className="font-semibold whitespace-nowrap flex-shrink-0">Ld/Ch</span>
+                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                 {Array.from({ length: 5 }).map((_, i) => (
+                                   <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                 ))}
+                               </div>
+                             </div>
+                             <div className="flex items-center gap-1 min-w-0">
+                               <span className="font-semibold whitespace-nowrap flex-shrink-0">Misc</span>
+                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                 {Array.from({ length: 6 }).map((_, i) => (
+                                   <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                 ))}
+                               </div>
+                             </div>
+                             <div className="flex items-center gap-1 min-w-0">
+                               <span className="font-semibold whitespace-nowrap flex-shrink-0">Participation</span>
+                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                                 <MdCheckBoxOutlineBlank key="xp-fielded" className="text-black w-2 h-2 flex-shrink-0" />
+                               </div>
                              </div>
                            </div>
-                           <div className="flex items-center gap-1 min-w-0">
-                             <span className="font-semibold whitespace-nowrap flex-shrink-0">OOA</span>
-                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                               {Array.from({ length: 6 }).map((_, i) => (
-                                 <MdCheckBoxOutlineBlank key={`ooa-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                               ))}
-                             </div>
-                           </div>
-                           <div className="flex items-center gap-1 min-w-0">
-                             <span className="font-semibold whitespace-nowrap flex-shrink-0">R/A</span>
-                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                               {Array.from({ length: 5 }).map((_, i) => (
-                                 <MdCheckBoxOutlineBlank key={`rally-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                               ))}
-                             </div>
-                           </div>
-                           <div className="flex items-center gap-1 min-w-0">
-                             <span className="font-semibold whitespace-nowrap flex-shrink-0">Ld/Ch</span>
-                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                               {Array.from({ length: 5 }).map((_, i) => (
-                                 <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                               ))}
-                             </div>
-                           </div>
-                           <div className="flex items-center gap-1 min-w-0">
-                             <span className="font-semibold whitespace-nowrap flex-shrink-0">Misc</span>
-                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                               {Array.from({ length: 6 }).map((_, i) => (
-                                 <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
-                               ))}
-                             </div>
-                           </div>
-                           <div className="flex items-center gap-1 min-w-0">
-                             <span className="font-semibold whitespace-nowrap flex-shrink-0">Participation</span>
-                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                               <MdCheckBoxOutlineBlank key="xp-fielded" className="text-black w-2 h-2 flex-shrink-0" />
-                             </div>
-                           </div>
-                         </div>
+                         )}
                        </div>
                     </td>
                   </tr>
