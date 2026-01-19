@@ -39,6 +39,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   const [convalescence, setConvalescence] = useState<boolean>(false);
   const [appliesToEquipment, setAppliesToEquipment] = useState<boolean>(false);
   const [effectSelection, setEffectSelection] = useState<'fixed' | 'single_select' | 'multiple_select'>('fixed');
+  const [addsToGlitchCount, setAddsToGlitchCount] = useState<boolean>(false);
 
   const { toast } = useToast();
 
@@ -108,6 +109,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
     setConvalescence(false);
     setAppliesToEquipment(false);
     setEffectSelection('fixed');
+    setAddsToGlitchCount(false);
   };
 
   const handleEffectSelect = (effectId: string) => {
@@ -125,6 +127,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       setConvalescence(typeData?.convalescence === 'true' || typeData?.convalescence === true);
       setAppliesToEquipment(typeData?.applies_to === 'equipment');
       setEffectSelection(typeData?.effect_selection || 'fixed');
+      setAddsToGlitchCount(typeData?.adds_to_glitch_count === true);
     } else {
       setEffectName('');
       setIsCreateMode(false);
@@ -146,6 +149,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
     setConvalescence(false);
     setAppliesToEquipment(false);
     setEffectSelection('fixed');
+    setAddsToGlitchCount(false);
   };
 
   const handleSubmitEffect = async (operation: OperationType) => {
@@ -178,7 +182,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
         recovery: recovery ? 'true' : 'false',
         convalescence: convalescence ? 'true' : 'false',
         effect_selection: effectSelection,
-        ...(appliesToEquipment && { applies_to: 'equipment' as const })
+        ...(appliesToEquipment && { applies_to: 'equipment' as const }),
+        ...(addsToGlitchCount && { adds_to_glitch_count: true })
       };
 
       switch (operation) {
@@ -458,6 +463,21 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                     Goes into convalescence
                   </label>
                 </div>
+
+                {/* Adds to Glitch Count - only for rig-glitches */}
+                {selectedCategory === 'rig-glitches' && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="adds-to-glitch-count"
+                      checked={addsToGlitchCount}
+                      onCheckedChange={(checked) => setAddsToGlitchCount(checked === true)}
+                      disabled={isFormDisabled}
+                    />
+                    <label htmlFor="adds-to-glitch-count" className="text-sm font-medium cursor-pointer">
+                      Adds to Glitch Count
+                    </label>
+                  </div>
+                )}
 
                 {/* Effect Selection */}
                 <div>

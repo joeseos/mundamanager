@@ -755,7 +755,7 @@ export function AdminFighterEffects({
                 className="w-full p-2 border rounded-md"
               />
               <p className="text-xs text-muted-foreground">
-                Effects with the same selection group are mutually exclusive within single_select mode
+                Effects with the same selection group are mutually exclusive within single_select mode.
               </p>
             </div>
 
@@ -771,7 +771,7 @@ export function AdminFighterEffects({
                 placeholder="e.g., 30"
               />
               <p className="text-xs text-muted-foreground">
-                Credits added to fighter value when this effect is applied
+                Credits added to fighter value when this effect is applied.
               </p>
             </div>
 
