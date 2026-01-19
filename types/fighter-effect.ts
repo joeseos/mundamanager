@@ -29,6 +29,7 @@ export interface TypeSpecificData extends TraitModificationData {
   captured?: 'true' | 'false' | string;
   d66_min?: number;  // Dice roll range for injury tables
   d66_max?: number;
+  adds_to_glitch_count?: boolean;  // For Spyrer rig glitches
   // Advancement fields
   xp_cost?: number;
   credits_increase?: number;

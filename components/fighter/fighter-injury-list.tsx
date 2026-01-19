@@ -587,7 +587,14 @@ export function InjuriesList({
     });
   };
 
-  const glitchCount = is_spyrer ? injuries.length : 0;
+  const glitchCount = is_spyrer
+    ? injuries.filter(inj => {
+        const typeData = inj.type_specific_data && typeof inj.type_specific_data === 'object'
+          ? inj.type_specific_data
+          : {};
+        return typeData.adds_to_glitch_count === true;
+      }).length
+    : 0;
   const title = is_spyrer
     ? (
         <>
