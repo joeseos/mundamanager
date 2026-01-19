@@ -19,7 +19,7 @@ import {
   createExoticBeastsForEquipment, 
   invalidateCacheForBeastCreation,
   type CreatedBeast 
-} from '@/app/lib/exotic-beasts';
+} from '@/utils/exotic-beasts';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
 import { countsTowardRating } from '@/utils/fighter-status';
