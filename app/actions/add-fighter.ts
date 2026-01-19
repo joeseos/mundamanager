@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateGangRating } from '@/utils/cache-tags';
-import { createExoticBeastsForEquipment } from '@/app/lib/exotic-beasts';
+import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 
 interface SelectedEquipment {
   equipment_id: string;
