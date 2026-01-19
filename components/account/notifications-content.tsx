@@ -6,7 +6,7 @@ import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
-import { useFetchNotifications } from '../hooks/use-notifications';
+import { useFetchNotifications } from '../../hooks/use-notifications';
 import { useRouter, usePathname } from 'next/navigation';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
