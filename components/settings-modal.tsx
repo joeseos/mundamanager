@@ -24,7 +24,7 @@ import { TbDiamondFilled } from "react-icons/tb";
 import { getPatreonTierColor } from "@/utils/patreon";
 
 // Import the notifications' content component with SSR disabled
-const NotificationsContent = dynamic(() => import('./notifications-content'), {
+const NotificationsContent = dynamic(() => import('./account/notifications-content'), {
   ssr: false
 });
 
