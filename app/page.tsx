@@ -95,7 +95,7 @@ export default async function Home() {
             </p>
             <div>
               <div className="flex gap-1 justify-center">
-                <Link href="/user-guide" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
+                <Link href="/user-guide" prefetch={false} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
                   <GrHelpBook className="mr-1 size-4" />
                   <span className="sm:hidden">Guide</span>
                   <span className="hidden sm:inline">User Guide</span>
