@@ -32,16 +32,16 @@ export default function Footer() {
           <nav className="flex flex-col gap-2" aria-label="Footer navigation">
             <h3 className="text-sm font-semibold mb-1">Resources</h3>
             <div className="flex flex-col gap-2">
-              <Link href="/user-guide" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/user-guide" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 User Guide
               </Link>
-              <Link href="/api-access" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/api-access" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 API Access
               </Link>
-              <Link href="/contributors" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/contributors" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Contributors
               </Link>
-              <Link href="/merch" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/merch" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Merch
               </Link>
             </div>
@@ -51,13 +51,13 @@ export default function Footer() {
           <nav className="flex flex-col gap-2" aria-label="Information">
             <h3 className="text-sm font-semibold mb-1">Info</h3>
             <div className="flex flex-col gap-2">
-              <Link href="/about" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/about" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 About
               </Link>
-              <Link href="/contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/contact" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Contact
               </Link>
-              <Link href="/join-the-team" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/join-the-team" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 Join the Team
               </Link>
             </div>
@@ -112,11 +112,11 @@ export default function Footer() {
           <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-xs text-muted-foreground">
             <span>© {new Date().getFullYear()} Munda Manager</span>
             <span className="text-muted-foreground">/</span>
-            <Link href="/terms" className="text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/terms" prefetch={false} className="text-muted-foreground hover:text-primary transition-colors">
               Terms
             </Link>
             <span className="text-muted-foreground">/</span>
-            <Link href="/privacy-policy" className="text-muted-foreground hover:text-primary transition-colors">
+            <Link href="/privacy-policy" prefetch={false} className="text-muted-foreground hover:text-primary transition-colors">
               Privacy Policy
             </Link>
           </div>
@@ -125,4 +125,3 @@ export default function Footer() {
     </footer>
   );
 }
-
