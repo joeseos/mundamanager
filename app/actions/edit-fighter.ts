@@ -446,7 +446,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           }
 
           invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
             success: true,
@@ -479,7 +479,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           }
 
           invalidateFighterData(params.fighter_id, gangId);
-        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
             success: true,
@@ -870,28 +870,36 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (updateError) throw updateError;
 
-    // If cost_adjustment changed and fighter is active, update rating by delta
-    let costAdjustmentDelta = 0;
-    if (params.cost_adjustment !== undefined && wasActive) {
-      costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
-      if (costAdjustmentDelta !== 0) {
-        try {
-          const { data: ratingRow } = await supabase
-            .from('gangs')
-            .select('rating')
-            .eq('id', fighter.gang_id)
-            .single();
-          const currentRating = (ratingRow?.rating ?? 0) as number;
-          await supabase
-            .from('gangs')
-            .update({ rating: Math.max(0, currentRating + costAdjustmentDelta) })
-            .eq('id', fighter.gang_id);
-          invalidateGangRating(fighter.gang_id);
-        } catch (e) {
-          console.error('Failed to update rating after cost_adjustment change:', e);
-        }
-      }
+// If cost_adjustment changed and fighter is active, update rating by delta
+let costAdjustmentDelta = 0;
+if (params.cost_adjustment !== undefined && wasActive) {
+  costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
+  if (costAdjustmentDelta !== 0) {
+    try {
+      const { data: ratingRow } = await supabase
+        .from('gangs')
+        .select('rating, wealth')
+        .eq('id', fighter.gang_id)
+        .single();
+
+      const currentRating = (ratingRow?.rating ?? 0) as number;
+      const currentWealth = (ratingRow?.wealth ?? 0) as number;
+
+      await supabase
+        .from('gangs')
+        .update({
+          rating: Math.max(0, currentRating + costAdjustmentDelta),
+          wealth: Math.max(0, currentWealth + costAdjustmentDelta),
+          last_updated: new Date().toISOString()
+        })
+        .eq('id', fighter.gang_id);
+
+      invalidateGangRating(fighter.gang_id);
+    } catch (e) {
+      console.error('Failed to update rating after cost_adjustment change:', e);
     }
+  }
+}
 
     // If there are stat adjustments, apply them using the existing effects system (user effects via fighter_effect_types)
     if (params.stat_adjustments && Object.keys(params.stat_adjustments).length > 0) {
@@ -1034,4 +1042,4 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
-} 
+}
