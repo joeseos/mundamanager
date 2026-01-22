@@ -32,7 +32,7 @@ export default function DeleteGangButton({ gangId, gangName }: DeleteGangButtonP
       }
 
       toast({
-        description: "Gang successfully deleted. You'll be automatically redirected to the home page in a few secondsy.",
+        description: "Gang successfully deleted. You'll be automatically redirected to the home page in a few seconds.",
         variant: "default"
       });
 
