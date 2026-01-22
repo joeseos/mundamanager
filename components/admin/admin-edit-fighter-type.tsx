@@ -14,7 +14,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import Modal from '@/components/ui/modal';
-import { AdminFighterTradingPost } from "@/components/admin/admin-fighter-trading-post";
+import { AdminFighterTradingPostAccess } from "@/components/admin/admin-fighter-trading-post-access";
 
 interface FighterSubType {
   id: string;
@@ -2308,7 +2308,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 {isEquipmentLoaded && (
-                  <AdminFighterTradingPost
+                  <AdminFighterTradingPostAccess
                     equipment={equipment}
                     tradingPostEquipment={tradingPostEquipment}
                     setTradingPostEquipment={setTradingPostEquipment}
