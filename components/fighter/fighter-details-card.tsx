@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
 import { memo } from 'react';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
@@ -83,6 +84,11 @@ interface FighterDetailsCardProps {
   userPermissions: UserPermissions;
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
+  fighter_gang_legacy?: {
+    id: string;
+    fighter_type_id: string;
+    name?: string;
+  } | null;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -243,7 +249,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   gangId,
   userPermissions,
   owner_name,
-  image_url
+  image_url,
+  fighter_gang_legacy
 }: FighterDetailsCardProps) {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
@@ -492,33 +499,45 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       {owner_name && (
         <div className="mt-2 text-left">
           <div className="text-sm text-foreground">
-            Owned by <span className="font-semibold">{owner_name}</span>
+            Owned by <Badge variant="secondary">{owner_name}</Badge>
           </div>
         </div>
       )}
       
-        <div className="mt-4">
-          {fighter_class === 'Crew' && (
-            <p className="text-base text-muted-foreground">
-              {vehicles?.[0]
-                ? vehicles[0].vehicle_name
-                  ? `Vehicle: ${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
-                  : `Vehicle: ${vehicles[0].vehicle_type || 'None'}`
-                : 'Vehicle: None'}
-            </p>
-          )}
-          {fighter_class === 'Crew' && vehicles?.[0] && vehicleStats && (() => {
-            const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
-            return (
-              <div className="flex items-center gap-1 mt-2">
-                <h3 className="text-base text-muted-foreground">Upgrade Slots:</h3>
-                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}</span>
-                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicleStats.drive_slots}</span>
-                <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicleStats.engine_slots}</span>
-              </div>
-            );
-          })()}
+      {/* Show Gang Legacy information */}
+      {fighter_gang_legacy && (
+        <div className="mt-2 text-left">
+          <div className="text-sm text-muted-foreground">
+            Gang Legacy: <Badge variant="secondary">{fighter_gang_legacy.name}</Badge>
+          </div>
         </div>
+      )}
+
+      {/* Show vehicle information for crew fighters */}
+      <div className="mt-4">
+      {fighter_class === 'Crew' && (
+          <div className="text-sm text-muted-foreground">
+            Vehicle:{' '}
+            {vehicles?.[0]
+              ? vehicles[0].vehicle_name
+                ? <Badge variant="secondary">{vehicles[0].vehicle_name} - {vehicles[0].vehicle_type}</Badge>
+                : <Badge variant="secondary">{vehicles[0].vehicle_type || 'None'}</Badge>
+              : <Badge variant="secondary">None</Badge>
+            }
+          </div>
+        )}
+        {fighter_class === 'Crew' && vehicles?.[0] && vehicleStats && (() => {
+          const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
+          return (
+            <div className="flex items-center gap-1 mt-2">
+              <h3 className="text-sm text-muted-foreground">Upgrade Slots:</h3>
+              <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}</span>
+              <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicleStats.drive_slots}</span>
+              <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicleStats.engine_slots}</span>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Image Edit Modal */}
       <FighterImageEditModal
