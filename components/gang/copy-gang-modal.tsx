@@ -62,6 +62,7 @@ export default function CopyGangModal({
       <div className="space-y-2">
         <label className="text-sm font-medium">New gang name</label>
         <Input value={name} onChange={e => setName(e.target.value)} placeholder={`${currentName} copy`} />
+        <p className="text-sm text-amber-500">The new gang will take a few seconds to copy. Please do not close this window.</p>
       </div>
     </Modal>
   );

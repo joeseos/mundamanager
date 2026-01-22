@@ -54,6 +54,8 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         image_url: sourceGang.image_url || null,
         rating: sourceGang.rating ?? 0,
         gang_origin_id: sourceGang.gang_origin_id,
+        gang_affiliation_id: sourceGang.gang_affiliation_id,
+        alliance_id: sourceGang.alliance_id,
         power: sourceGang.power,
         sustenance: sourceGang.sustenance,
         salvage: sourceGang.salvage,
