@@ -463,237 +463,24 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       // Silently continue if wealth fetch fails
     }
 
-    // Check for affected exotic beasts (equipment that was previously granting beasts)
+    // Update beast ownership when moving equipment from stash
     let affectedBeastIds: string[] = [];
 
-    // Handle existing beast reactivation for fighter equipment moves (not custom equipment)
     if (params.fighter_id && !isCustomEquipment && stashData.equipment_id) {
-      // Check if beasts already exist for this equipment and update their ownership
-      const { data: existingBeastOwnership } = await supabase
+      // Get existing beast ownership records for this equipment
+      const { data: beastOwnership } = await supabase
         .from('fighter_exotic_beasts')
-        .select('fighter_pet_id, fighter_owner_id')
+        .select('id, fighter_pet_id')
         .eq('fighter_equipment_id', params.stash_id);
 
-      if (existingBeastOwnership && existingBeastOwnership.length > 0) {
-        // Beasts already exist, just update their ownership
-        
-        for (const ownership of existingBeastOwnership) {
-          await supabase
-            .from('fighter_exotic_beasts')
-            .update({ fighter_owner_id: params.fighter_id })
-            .eq('fighter_pet_id', ownership.fighter_pet_id)
-            .eq('fighter_equipment_id', params.stash_id);
-            
-          affectedBeastIds.push(ownership.fighter_pet_id);
-        }
-        
-        // Get complete beast data to return to frontend
-        if (affectedBeastIds.length > 0) {
-          const { getFighterBasic, getFighterEquipment, getFighterSkills, getFighterEffects, getFighterVehicles, getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
-          
-          const completeBeastData = [];
-          for (const beastId of affectedBeastIds) {
-            try {
-              const [fighterBasic, equipment, skills, effects, vehicles, totalCost] = await Promise.all([
-                getFighterBasic(beastId, supabase),
-                getFighterEquipment(beastId, supabase),
-                getFighterSkills(beastId, supabase),
-                getFighterEffects(beastId, supabase),
-                getFighterVehicles(beastId, supabase),
-                getFighterTotalCost(beastId, supabase)
-              ]);
+      if (beastOwnership && beastOwnership.length > 0) {
+        // Update ownership to new fighter
+        await supabase
+          .from('fighter_exotic_beasts')
+          .update({ fighter_owner_id: params.fighter_id })
+          .eq('fighter_equipment_id', params.stash_id);
 
-              // Skip if beast not found
-              if (!fighterBasic) {
-                continue;
-              }
-
-              // Get fighter type info
-              const { data: fighterTypeData } = await supabase
-                .from('fighter_types')
-                .select('fighter_type, alliance_crew_name')
-                .eq('id', fighterBasic.fighter_type_id)
-                .single();
-
-              // Get owner name
-              let ownerName: string | undefined;
-              if (fighterBasic.fighter_pet_id) {
-                const { data: ownershipData } = await supabase
-                  .from('fighter_exotic_beasts')
-                  .select(`
-                    fighter_owner_id,
-                    fighters!fighter_owner_id (
-                      fighter_name
-                    )
-                  `)
-                  .eq('id', fighterBasic.fighter_pet_id)
-                  .single();
-
-                if (ownershipData) {
-                  ownerName = (ownershipData.fighters as any)?.fighter_name;
-                }
-              }
-
-              const completeBeast = {
-                id: fighterBasic.id,
-                fighter_name: fighterBasic.fighter_name,
-                fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
-                fighter_class: fighterBasic.fighter_class || 'exotic beast',
-                credits: totalCost,
-                beast_equipment_stashed: false, // Equipment was just moved from stash
-                owner_name: ownerName,
-                // Add all the required fighter properties
-                movement: fighterBasic.movement,
-                weapon_skill: fighterBasic.weapon_skill,
-                ballistic_skill: fighterBasic.ballistic_skill,
-                strength: fighterBasic.strength,
-                toughness: fighterBasic.toughness,
-                wounds: fighterBasic.wounds,
-                initiative: fighterBasic.initiative,
-                attacks: fighterBasic.attacks,
-                leadership: fighterBasic.leadership,
-                cool: fighterBasic.cool,
-                willpower: fighterBasic.willpower,
-                intelligence: fighterBasic.intelligence,
-                xp: fighterBasic.xp,
-                kills: fighterBasic.kills || 0,
-                special_rules: fighterBasic.special_rules || [],
-                // Transform equipment into weapons and wargear arrays
-                weapons: equipment
-                  .filter(item => item.equipment_type === 'weapon')
-                  .map(weapon => ({
-                    fighter_weapon_id: weapon.fighter_equipment_id,
-                    weapon_id: weapon.equipment_id || weapon.custom_equipment_id || '',
-                    weapon_name: weapon.equipment_name,
-                    cost: weapon.purchase_cost,
-                    weapon_profiles: weapon.weapon_profiles || [],
-                    is_master_crafted: weapon.is_master_crafted || false
-                  })),
-                wargear: equipment
-                  .filter(item => item.equipment_type === 'wargear')
-                  .map(wargear => ({
-                    fighter_weapon_id: wargear.fighter_equipment_id,
-                    wargear_id: wargear.equipment_id || wargear.custom_equipment_id || '',
-                    wargear_name: wargear.equipment_name,
-                    cost: wargear.purchase_cost,
-                    is_master_crafted: wargear.is_master_crafted || false
-                  })),
-                advancements: { characteristics: {}, skills: {} },
-                effects,
-                skills,
-                vehicles: vehicles || [],
-                base_stats: {
-                  movement: fighterBasic.movement,
-                  weapon_skill: fighterBasic.weapon_skill,
-                  ballistic_skill: fighterBasic.ballistic_skill,
-                  strength: fighterBasic.strength,
-                  toughness: fighterBasic.toughness,
-                  wounds: fighterBasic.wounds,
-                  initiative: fighterBasic.initiative,
-                  attacks: fighterBasic.attacks,
-                  leadership: fighterBasic.leadership,
-                  cool: fighterBasic.cool,
-                  willpower: fighterBasic.willpower,
-                  intelligence: fighterBasic.intelligence,
-                },
-                current_stats: {
-                  movement: fighterBasic.movement,
-                  weapon_skill: fighterBasic.weapon_skill,
-                  ballistic_skill: fighterBasic.ballistic_skill,
-                  strength: fighterBasic.strength,
-                  toughness: fighterBasic.toughness,
-                  wounds: fighterBasic.wounds,
-                  initiative: fighterBasic.initiative,
-                  attacks: fighterBasic.attacks,
-                  leadership: fighterBasic.leadership,
-                  cool: fighterBasic.cool,
-                  willpower: fighterBasic.willpower,
-                  intelligence: fighterBasic.intelligence,
-                },
-                killed: fighterBasic.killed || false,
-                retired: fighterBasic.retired || false,
-                enslaved: fighterBasic.enslaved || false,
-                starved: fighterBasic.starved || false,
-                recovery: fighterBasic.recovery || false,
-                free_skill: fighterBasic.free_skill || false,
-                image_url: fighterBasic.image_url
-              };
-
-              completeBeastData.push(completeBeast);
-            } catch (error) {
-              console.error(`Error fetching complete data for beast ${beastId}:`, error);
-            }
-          }
-          
-          // Add complete beast data to response
-          if (completeBeastData.length > 0) {
-    // Invalidate equipment caches for the fighter who received the equipment
-    if (params.fighter_id) {
-      invalidateFighterEquipment(params.fighter_id, stashData.gang_id);
-      // If effects were applied from stash, also invalidate fighter effects
-      if ((appliedEffects?.length || 0) > 0) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: stashData.gang_id,
-          advancementType: 'effect'
-        });
-      }
-    }
-            
-            // Invalidate gang stash since equipment was moved
-            invalidateGangStash({
-              gangId: stashData.gang_id,
-              userId: user.id
-            });
-            
-            // Invalidate caches for affected exotic beasts (they are now visible)
-            affectedBeastIds.forEach(beastId => {
-              addBeastToGangCache(beastId, stashData.gang_id);
-            });
-            
-            // Get updated gang rating AFTER all cache invalidations
-            let updatedGangRating: number | undefined;
-            try {
-              const { getGangRating } = await import('@/app/lib/shared/gang-data');
-              updatedGangRating = await getGangRating(stashData.gang_id, supabase);
-            } catch (error) {
-              // Silently continue if gang rating fetch fails
-            }
-
-            return {
-              success: true,
-              data: {
-                equipment_id: equipmentData.id,
-                weapon_profiles: weaponProfiles,
-                updated_gang_rating: updatedGangRating,
-                updated_gang_wealth: updatedGangWealth,
-                affected_beast_ids: affectedBeastIds,
-                updated_fighters: completeBeastData,
-                ...(appliedEffects.length > 0 && { applied_effects: appliedEffects })
-              }
-            };
-          }
-        }
-      } else {
-        // No existing beasts found for this equipment - this is expected for non-beast-granting equipment
-      }
-    }
-    // Also check for existing beasts that were previously granted by this equipment
-    if (params.fighter_id && !isCustomEquipment && stashData.equipment_id) {
-      // Check if this equipment was granting any exotic beasts
-      const { data: existingBeasts } = await supabase
-        .from('fighter_exotic_beasts')
-        .select('fighter_pet_id')
-        .eq('fighter_equipment_id', params.stash_id);
-
-      if (existingBeasts && existingBeasts.length > 0) {
-        const existingBeastIds = existingBeasts.map(beast => beast.fighter_pet_id);
-        // Add to affected beasts list (avoid duplicates)
-        existingBeastIds.forEach(id => {
-          if (!affectedBeastIds.includes(id)) {
-            affectedBeastIds.push(id);
-          }
-        });
+        affectedBeastIds = beastOwnership.map(b => b.fighter_pet_id);
       }
     }
 

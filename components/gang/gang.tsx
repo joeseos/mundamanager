@@ -1318,7 +1318,7 @@ export default function Gang({
           const visibleFighters = useMemo(() => {
             return fighters.filter(fighter => {
               // Hide exotic beasts whose granting equipment is in stash
-              if (fighter.fighter_class === 'exotic beast' && fighter.beast_equipment_stashed) {
+              if (fighter.fighter_class.toLowerCase() === 'exotic beast' && fighter.beast_equipment_stashed) {
                 return false;
               }
               return true;

@@ -158,6 +158,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
+    // Clear beast owner when moving equipment to stash
+    // Keep the fighter_exotic_beasts row (tracks beast_equipment_stashed via fighter_equipment.gang_stash)
+    await supabase
+      .from('fighter_exotic_beasts')
+      .update({ fighter_owner_id: null })
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
+
     // Update the equipment to move it to stash
     const { data: stashData, error: updateError } = await supabase
       .from('fighter_equipment')
