@@ -9,19 +9,19 @@ interface EquipmentWithId extends Equipment {
   id: string;
 }
 
-interface AdminFighterTradingPostProps {
+interface AdminFighterTradingPostAccessProps {
   equipment: EquipmentWithId[];
   tradingPostEquipment: string[];
   setTradingPostEquipment: (equipment: string[] | ((prev: string[]) => string[])) => void;
   disabled?: boolean;
 }
 
-export function AdminFighterTradingPost({
+export function AdminFighterTradingPostAccess({
   equipment,
   tradingPostEquipment,
   setTradingPostEquipment,
   disabled = false
-}: AdminFighterTradingPostProps) {
+}: AdminFighterTradingPostAccessProps) {
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
@@ -67,7 +67,7 @@ export function AdminFighterTradingPost({
           onCheckedChange={checked => setExcludeExclusive(!!checked)}
         />
         <label htmlFor="exclude-exclusive-checkbox" className="text-sm font-medium select-none cursor-pointer">
-          Exclude exclusive equipment
+          Exclude Exclusive equipment
         </label>
       </div>
       <p className="text-sm text-muted-foreground">Select equipment items that should be available in the Trading Post for this fighter type.</p>
@@ -200,7 +200,7 @@ export function AdminFighterTradingPost({
   return (
     <div>
       <label className="block text-sm font-medium text-muted-foreground mb-1">
-        Trading Post
+        Trading Post Access
       </label>
       <Button
         onClick={() => setShowTradingPostDialog(true)}
@@ -209,7 +209,7 @@ export function AdminFighterTradingPost({
         className="mb-2"
         disabled={disabled}
       >
-        Open Trading Post Menu
+        Open Trading Post Access Selection
       </Button>
       {disabled && (
         <p className="text-sm text-muted-foreground mb-2">
@@ -219,7 +219,7 @@ export function AdminFighterTradingPost({
 
       {showTradingPostDialog && (
         <Modal
-          title="Trading Post Options"
+          title="Trading Post Access Options"
           content={modalContent}
           onClose={() => setShowTradingPostDialog(false)}
           onConfirm={handleSave}

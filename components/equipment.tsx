@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
@@ -714,7 +715,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
         requestBody.fighter_type_equipment = true;
       }
       if (equipmentListType === 'fighters-tradingpost') {
-        requestBody.equipment_tradingpost = true;
+        // In Trading Post mode with fighter type, we want both trading post AND fighter's list items
+        if (resolvedTypeId && !isVehicleEquipment && !isCustomFighter) {
+          // Pass both filters - SQL will use OR logic to return items in EITHER trading post OR fighter's list
+          // fighters_tradingpost_only ensures only fighter-specific trading post items are shown (not gang-level)
+          requestBody.equipment_tradingpost = true;
+          requestBody.fighter_type_equipment = true;
+          requestBody.fighters_tradingpost_only = true;
+        } else {
+          // For vehicle/custom/gang-level, use standard trading post filter
+          requestBody.equipment_tradingpost = true;
+        }
       }
 
       // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
@@ -725,9 +736,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
         requestBody.fighter_id = fighterId;
       }
 
-
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_with_discounts`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_data`,
         {
           method: 'POST',
           headers: {
@@ -745,10 +755,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       const data: RawEquipmentData[] = await response.json();
 
-
-
       // Format and organize equipment by category
-      const formattedData = data
+      // When in Trading Post mode with fighter type, we fetched trading post items
+      // Use the returned boolean fields to determine source:
+      // - items with equipment_tradingpost=true are from Trading Post (may also be in fighter's list)
+      // - we also need to fetch fighter's list items that aren't in trading post
+      let formattedData = data
         .map((item: RawEquipmentData) => ({
           ...item,
           equipment_id: item.id,
@@ -760,9 +772,21 @@ const ItemModal: React.FC<ItemModalProps> = ({
           fighter_weapon_id: item.fighter_weapon_id || undefined,
           master_crafted: item.master_crafted || false,
           is_custom: item.is_custom,
-          vehicle_upgrade_slot: item.vehicle_upgrade_slot || undefined
-        }))
-        // Remove duplicates based on equipment_id
+          vehicle_upgrade_slot: item.vehicle_upgrade_slot || undefined,
+          from_fighters_list: false
+        }));
+
+      // When in Trading Post mode with fighter type, mark items that are in fighter's list
+      // The SQL returns computed fighter_type_equipment field for all items
+      if (equipmentListType === 'fighters-tradingpost' && resolvedTypeId && !isVehicleEquipment && !isCustomFighter) {
+        formattedData = formattedData.map(item => ({
+          ...item,
+          from_fighters_list: item.fighter_type_equipment
+        }));
+      }
+
+      // Remove duplicates based on equipment_id
+      formattedData = formattedData
         .filter((item, index, array) => 
           array.findIndex(i => i.equipment_id === item.equipment_id) === index
         )
@@ -997,7 +1021,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setEquipment(cachedEquipment.fighter);
       return;
     } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
-      
       setAvailableCategories(cachedFighterTPCategories);
       setEquipment(cachedEquipment.tradingpost);
       return;
@@ -1370,12 +1393,23 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-muted"
                                 >
                                   <div className={`flex-1 pl-4 leading-none ${tooltipProps['data-tooltip-id'] ? 'cursor-help' : ''}`} {...tooltipProps}>
-                                    <span className="text-sm font-medium">
-                                      {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
-                                        ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}` 
-                                        : `${item.equipment_name}${item.is_custom ? ' (Custom)' : ''}`
-                                      }
-                                    </span>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-medium">
+                                        {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
+                                          ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}`
+                                          : item.equipment_name}
+                                      </span>
+                                      {item.is_custom && (
+                                        <Badge variant="discreet">
+                                          Custom
+                                        </Badge>
+                                      )}
+                                      {(item as any).from_fighters_list && (
+                                        <Badge variant="discreet">
+                                          {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
@@ -1399,6 +1433,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         item.availability?.startsWith('R') ? 'bg-sky-500' :
                                         item.availability?.startsWith('I') ? 'bg-orange-500' :
                                         item.availability?.startsWith('S') ? 'bg-purple-500' :
+                                        item.availability?.startsWith('E') ? 'bg-rose-500' :
                                         'bg-sky-500'
                                       }`}>
                                         <span className="text-[10px] font-medium">{item.availability}</span>

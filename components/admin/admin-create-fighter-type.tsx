@@ -1134,7 +1134,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Trading Post
+                Trading Post Access
               </label>
               <Button
                 onClick={() => {
@@ -1146,7 +1146,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 className="mb-2"
                 disabled={!selectedGangType}
               >
-                Open Trading Post Menu
+                Open Trading Post Access Selection
               </Button>
             </div>
 
@@ -1160,7 +1160,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                 }}
               >
                 <div className="bg-card p-6 rounded-lg shadow-lg w-[700px] max-h-[80vh] overflow-y-auto">
-                  <h3 className="text-xl font-bold mb-4">Trading Post Options</h3>
+                  <h3 className="text-xl font-bold mb-4">Trading Post Access Options</h3>
                   <p className="text-sm text-muted-foreground mb-4">Select equipment items that should be available in the Trading Post for this fighter type.</p>
                   
                   <div className="border rounded-lg overflow-hidden">
