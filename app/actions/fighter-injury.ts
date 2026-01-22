@@ -1,7 +1,8 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterData } from '@/utils/cache-tags';
+import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
@@ -151,23 +152,9 @@ export async function addFighterInjury(
     const injuryData = data[0]?.result || data;
 
     // Update rating based on injury credits_increase (if any)
-    try {
-      const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
-      if (delta) {
-        const { data: ratingRow } = await supabase
-          .from('gangs')
-          .select('rating')
-          .eq('id', fighter.gang_id)
-          .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
-        await supabase
-          .from('gangs')
-          .update({ rating: Math.max(0, currentRating + delta) })
-          .eq('id', fighter.gang_id);
-        invalidateGangRating(fighter.gang_id);
-      }
-    } catch (e) {
-      console.error('Failed to update rating for injury addition:', e);
+    const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
+    if (delta) {
+      await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
     
     // Handle status updates from parameters
@@ -296,23 +283,9 @@ export async function deleteFighterInjury(
     }
 
     // Decrease rating by injury credits_increase if present
-    try {
-      const delta = -(injury?.type_specific_data?.credits_increase || 0) as number;
-      if (delta) {
-        const { data: ratingRow } = await supabase
-          .from('gangs')
-          .select('rating')
-          .eq('id', fighter.gang_id)
-          .single();
-        const currentRating = (ratingRow?.rating ?? 0) as number;
-        await supabase
-          .from('gangs')
-          .update({ rating: Math.max(0, currentRating + delta) })
-          .eq('id', fighter.gang_id);
-        invalidateGangRating(fighter.gang_id);
-      }
-    } catch (e) {
-      console.error('Failed to update rating after injury delete:', e);
+    const delta = -(injury?.type_specific_data?.credits_increase || 0) as number;
+    if (delta) {
+      await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
 
     // Log the injury removal as recovery

@@ -2,8 +2,9 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterAddition, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterAddition } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -996,32 +997,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
     }
 
-    // NEW: Update gang rating and wealth by fighter rating cost
-    try {
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', params.gang_id)
-        .single();
-      const currentRating = (gangRow?.rating ?? 0) as number;
-      const currentWealth = (gangRow?.wealth ?? 0) as number;
-
-      const ratingDelta = ratingCost + totalBeastsRatingDelta;
-      const creditsDelta = -fighterCost; // Negative because credits were spent
-      const wealthDelta = ratingDelta + creditsDelta;
-
-      await supabase
-        .from('gangs')
-        .update({
-          rating: Math.max(0, currentRating + ratingDelta),
-          wealth: Math.max(0, currentWealth + wealthDelta),
-          last_updated: new Date().toISOString()
-        })
-        .eq('id', params.gang_id);
-      invalidateGangRating(params.gang_id);
-    } catch (e) {
-      console.error('Failed to update gang rating/wealth after fighter addition:', e);
-    }
+    // Update gang rating and wealth by fighter rating cost
+    await updateGangFinancials(supabase, {
+      gangId: params.gang_id,
+      ratingDelta: ratingCost + totalBeastsRatingDelta,
+      creditsDelta: -fighterCost // Negative because credits were spent
+    });
 
     // Use granular cache invalidation for fighter addition
     invalidateFighterAddition({

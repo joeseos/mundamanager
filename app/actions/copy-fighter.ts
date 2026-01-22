@@ -2,7 +2,8 @@
 
 import {createClient} from "@/utils/supabase/server";
 import {checkAdminOptimized, getAuthenticatedUser} from "@/utils/auth";
-import {invalidateFighterAddition, invalidateGangRating} from '@/utils/cache-tags';
+import {invalidateFighterAddition} from '@/utils/cache-tags';
+import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 
 interface CopyFighterParams {
@@ -295,22 +296,23 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     // Update gang credits and rating
     const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
-    const updateData: any = {};
 
-    if (params.add_to_rating !== false) {
-      updateData.rating = (gang.rating || 0) + cost;
-    }
+    // Update rating/wealth using helper (handles cache invalidation)
+    await updateGangFinancials(supabase, {
+      gangId: params.target_gang_id,
+      ratingDelta: cost,
+      applyToRating: params.add_to_rating !== false
+    });
 
+    // Update credits separately if needed
     if (params.deduct_credits) {
       const currentCredits = gang.credits || 0;
-      updateData.credits = currentCredits - cost;
-    }
-
-    if (Object.keys(updateData).length > 0) {
-      updateData.last_updated = new Date().toISOString();
       await supabase
         .from('gangs')
-        .update(updateData)
+        .update({
+          credits: currentCredits - cost,
+          last_updated: new Date().toISOString()
+        })
         .eq('id', params.target_gang_id);
     }
 
@@ -319,10 +321,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       gangId: params.target_gang_id,
       userId: gang.user_id
     });
-
-    if (params.add_to_rating !== false) {
-      invalidateGangRating(params.target_gang_id);
-    }
 
     await logFighterAction({
       gang_id: params.target_gang_id,

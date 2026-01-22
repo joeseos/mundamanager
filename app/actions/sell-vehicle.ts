@@ -2,7 +2,8 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateFighterVehicleData, invalidateGangFinancials, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 
 interface SellVehicleParams {
@@ -130,27 +131,17 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
       wealthDelta = sellValue;
     }
 
-    let updatedGangRating: number | undefined = undefined;
-    let updatedWealth: number | undefined = undefined;
+    // Compute updated values for return (helper will apply the actual update)
+    const updatedGangRating = ratingDelta !== 0 ? Math.max(0, (gangRow.rating || 0) + ratingDelta) : undefined;
+    const updatedWealth = wealthDelta !== 0 ? Math.max(0, (gangRow.wealth || 0) + wealthDelta) : undefined;
 
-    try {
-      if (ratingDelta !== 0 || wealthDelta !== 0) {
-        updatedGangRating = Math.max(0, (gangRow.rating || 0) + ratingDelta);
-        updatedWealth = Math.max(0, (gangRow.wealth || 0) + wealthDelta);
-
-        const updateData: any = { wealth: updatedWealth };
-        if (ratingDelta !== 0) {
-          updateData.rating = updatedGangRating;
-        }
-
-        await supabase
-          .from('gangs')
-          .update(updateData)
-          .eq('id', gangId);
-        invalidateGangRating(gangId);
-      }
-    } catch (e) {
-      console.error('Failed to update gang rating/wealth after selling vehicle:', e);
+    if (ratingDelta !== 0 || wealthDelta !== 0) {
+      // Use creditsDelta to adjust wealth independently from rating
+      await updateGangFinancials(supabase, {
+        gangId,
+        ratingDelta,
+        creditsDelta: wealthDelta - ratingDelta
+      });
     }
 
     // Invalidate caches (credits + rating + fighter vehicles if assigned)
