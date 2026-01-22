@@ -639,6 +639,7 @@ export default function FighterPage({
             vehicleEquipment={fighterData.vehicleEquipment}
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
+            fighter_gang_legacy={(fighterData as any)?.fighter?.fighter_gang_legacy}
             image_url={fighterData.fighter?.image_url}
           />
 

@@ -981,7 +981,19 @@ export default function Gang({
                     )}
                   </div>
                 </div>
-                  
+
+                {/* Affiliation */}
+                {gang_type_has_affiliation && gangAffiliationName && (
+                <div className="text-muted-foreground text-sm mb-1">
+                  <div className="flex flex-wrap gap-x-2 gap-y-1">
+                    <div className="flex items-center gap-1">
+                      Affiliation: <Badge variant="secondary">{gangAffiliationName}</Badge>
+                    </div>
+                  </div>
+                </div>
+                )}
+
+                {/* Alignment, Alliance */}
                 <div className="text-muted-foreground text-sm">
                   <div className="flex flex-wrap gap-x-2 gap-y-1">
                     {/* Alignment */}
