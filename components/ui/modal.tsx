@@ -118,7 +118,7 @@ export default function Modal({
                 (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isSubmitting ? 'Confirming...' : confirmText}
+              {isSubmitting && confirmText === 'Confirm' ? 'Confirming...' : confirmText}
             </Button>
           </div>
         )}
