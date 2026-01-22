@@ -32,7 +32,7 @@ export default function DeleteGangButton({ gangId, gangName }: DeleteGangButtonP
       }
 
       toast({
-        description: "Gang successfully deleted",
+        description: "Gang successfully deleted. You'll be automatically redirected to the home page in a few secondsy.",
         variant: "default"
       });
 
@@ -92,6 +92,9 @@ export default function DeleteGangButton({ gangId, gangName }: DeleteGangButtonP
                   className="w-full"
                 />
               </div>
+              {isDeleting && (
+                <p className="text-sm text-amber-500">This action will take a few seconds to complete. You'll be automatically redirected to the home page once it's complete.</p>
+              )}
             </div>
           }
           onClose={() => {
@@ -99,6 +102,7 @@ export default function DeleteGangButton({ gangId, gangName }: DeleteGangButtonP
             setConfirmText('');
           }}
           onConfirm={handleDelete}
+          confirmText={isDeleting ? 'Deleting...' : 'Delete'}
           confirmDisabled={confirmText !== 'Delete'}
         />
       )}
