@@ -870,7 +870,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (updateError) throw updateError;
 
-// If cost_adjustment changed and fighter is active, update rating by delta
+// If cost_adjustment changed and fighter is active, update rating and wealth by delta
 let costAdjustmentDelta = 0;
 if (params.cost_adjustment !== undefined && wasActive) {
   costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
