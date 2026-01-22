@@ -1238,7 +1238,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           const effectsData = effectsByFighter[fighterId] || [];
           const vehicles = vehiclesByFighter[fighterId] || [];
           const ownedBeasts = beastsByOwner[fighterId] || [];
-          const ownershipInfo = fighter.fighter_pet_id ? ownershipInfoMap.get(fighter.fighter_pet_id) : null;
+          const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
 
         // Process skills into the expected format
         const skills: Record<string, any> = {};

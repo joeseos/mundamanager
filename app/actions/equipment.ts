@@ -16,6 +16,7 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants } from '@/types/equipment';
+import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -536,147 +537,64 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
+    // Get fighter name for beast creation (if applicable)
+    let fighterName: string | null = null;
+    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
+      const { data: fighterData } = await supabase
+        .from('fighters')
+        .select('fighter_name')
+        .eq('id', params.fighter_id)
+        .single();
+      fighterName = fighterData?.fighter_name || null;
+    }
+
     // Handle beast creation for fighter equipment purchases
     let createdBeasts: any[] = [];
     let createdBeastsRatingDelta = 0;
-    
-    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
+
+    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id && fighterName) {
       try {
-        // Check if this equipment can grant exotic beasts
-        const { data: beastConfigs } = await supabase
-          .from('exotic_beasts')
-          .select(`
-            *,
-            fighter_types (
-              id,
-              fighter_type,
-              fighter_class_id,
-              cost,
-              movement,
-              weapon_skill,
-              ballistic_skill,
-              strength,
-              toughness,
-              wounds,
-              initiative,
-              attacks,
-              leadership,
-              cool,
-              willpower,
-              intelligence,
-              special_rules
-            )
-          `)
-          .eq('equipment_id', params.equipment_id);
+        const beastResult = await createExoticBeastsForEquipment({
+          equipmentId: params.equipment_id,
+          ownerFighterId: params.fighter_id,
+          ownerFighterName: fighterName,
+          gangId: params.gang_id,
+          userId: gang.user_id,
+          fighterEquipmentId: newEquipmentId
+        });
 
-        if (beastConfigs && beastConfigs.length > 0) {
-          // Create beast fighters for each beast config
-          for (const beastConfig of beastConfigs) {
-            const fighterType = beastConfig.fighter_types;
-            if (fighterType) {
-              // Create the beast fighter
-              const { data: newFighter, error: createError } = await supabase
-                .from('fighters')
-                .insert({
-                  fighter_name: fighterType.fighter_type,
-                  fighter_type: fighterType.fighter_type,
-                  fighter_type_id: beastConfig.fighter_type_id,
-                  fighter_class: 'Exotic Beast',
-                  fighter_class_id: 'bb723bee-883c-4e84-9136-be30ed195023',
-                  gang_id: params.gang_id,
-                  credits: 0,
-                  movement: fighterType.movement,
-                  weapon_skill: fighterType.weapon_skill,
-                  ballistic_skill: fighterType.ballistic_skill,
-                  strength: fighterType.strength,
-                  toughness: fighterType.toughness,
-                  wounds: fighterType.wounds,
-                  initiative: fighterType.initiative,
-                  attacks: fighterType.attacks,
-                  leadership: fighterType.leadership,
-                  cool: fighterType.cool,
-                  willpower: fighterType.willpower,
-                  intelligence: fighterType.intelligence,
-                  special_rules: fighterType.special_rules || [],
-                  xp: 0
-                })
-                .select('id, fighter_name, fighter_type, fighter_class, credits, created_at')
-                .single();
+        if (beastResult.success && beastResult.createdBeasts.length > 0) {
+          createdBeasts = beastResult.createdBeasts;
 
-              if (createError || !newFighter) {
-                console.error('Error creating beast fighter:', createError);
-                continue;
-              }
-
-              // Add default equipment for the beast
-              const { data: defaultEquipmentData } = await supabase
-                .from('fighter_defaults')
-                .select(`
-                  equipment_id,
-                  equipment:equipment_id (
-                    id,
-                    equipment_name,
-                    equipment_type,
-                    equipment_category,
-                    cost
-                  )
-                `)
-                .eq('fighter_type_id', beastConfig.fighter_type_id)
-                .not('equipment_id', 'is', null);
-
-              // Add each default equipment item
-              if (defaultEquipmentData && defaultEquipmentData.length > 0) {
-                for (const defaultItem of defaultEquipmentData) {
-                  await supabase
-                    .from('fighter_equipment')
-                    .insert({
-                      gang_id: params.gang_id,
-                      fighter_id: newFighter.id,
-                      equipment_id: defaultItem.equipment_id,
-                      purchase_cost: 0,
-                      original_cost: (defaultItem.equipment as any)?.cost || 0,
-                      user_id: gang.user_id
-                    });
-                }
-              }
-
-              // Create ownership record
-              const { data: ownershipRecord } = await supabase
-                .from('fighter_exotic_beasts')
-                .insert({
-                  fighter_owner_id: params.fighter_id,
-                  fighter_pet_id: newFighter.id,
-                  fighter_equipment_id: newEquipmentId
-                })
-                .select('id')
-                .single();
-
-              if (ownershipRecord) {
-                // Link the beast to its ownership record for cascade deletion
-                await supabase
-                  .from('fighters')
-                  .update({ fighter_pet_id: ownershipRecord.id })
-                  .eq('id', newFighter.id);
-
-                createdBeasts.push({
-                  id: newFighter.id,
-                  fighter_name: newFighter.fighter_name,
-                  fighter_type: newFighter.fighter_type,
-                  fighter_class: newFighter.fighter_class,
-                  credits: newFighter.credits,
-                  equipment_source: 'Granted by equipment',
-                  created_at: newFighter.created_at
-                });
-
-                // Increase rating by base beast cost (counted via owner semantics)
-                const baseBeastCost = (fighterType.cost || 0);
-                createdBeastsRatingDelta += baseBeastCost;
-              }
-            }
-          }
+          // Calculate rating delta from beast costs
+          createdBeastsRatingDelta = createdBeasts.reduce(
+            (sum, beast) => sum + (beast.credits || 0),
+            0
+          );
         }
       } catch (beastCreationError) {
         console.error('Error in beast creation process:', beastCreationError);
+      }
+    }
+
+    // Handle beast creation for STASH equipment purchases
+    if (params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
+      try {
+        const beastResult = await createExoticBeastsForEquipment({
+          equipmentId: params.equipment_id,
+          ownerFighterId: null,  // No owner for stash
+          ownerFighterName: null,
+          gangId: params.gang_id,
+          userId: gang.user_id,
+          fighterEquipmentId: newEquipmentId
+        });
+
+        if (beastResult.success && beastResult.createdBeasts.length > 0) {
+          createdBeasts = beastResult.createdBeasts;
+          // Note: Don't add to rating since equipment is in stash
+        }
+      } catch (error) {
+        console.error('Error creating beasts for stash equipment:', error);
       }
     }
 

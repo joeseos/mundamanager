@@ -9,8 +9,8 @@ import {
 
 export interface ExoticBeastCreationParams {
   equipmentId: string;
-  ownerFighterId: string;
-  ownerFighterName: string;
+  ownerFighterId?: string | null;  // Optional for stash purchases
+  ownerFighterName?: string | null;
   gangId: string;
   userId: string;
   fighterEquipmentId: string; // The equipment that grants the beast
@@ -89,6 +89,7 @@ export async function createExoticBeastsForEquipment(
         fighter_types (
           id,
           fighter_type,
+          fighter_class_id,
           cost,
           movement,
           weapon_skill,
@@ -129,6 +130,7 @@ export async function createExoticBeastsForEquipment(
           fighter_type: fighterType.fighter_type,
           fighter_type_id: beastConfig.fighter_type_id,
           fighter_class: 'Exotic Beast',
+          fighter_class_id: fighterType.fighter_class_id,
           gang_id: params.gangId,
           credits: 0,
           movement: fighterType.movement,
@@ -164,7 +166,7 @@ export async function createExoticBeastsForEquipment(
       const { data: ownershipRecord } = await supabase
         .from('fighter_exotic_beasts')
         .insert({
-          fighter_owner_id: params.ownerFighterId,
+          fighter_owner_id: params.ownerFighterId || null,  // null for stash
           fighter_pet_id: newFighter.id,
           fighter_equipment_id: params.fighterEquipmentId
         })
@@ -185,13 +187,13 @@ export async function createExoticBeastsForEquipment(
           fighter_type: newFighter.fighter_type,
           fighter_class: newFighter.fighter_class,
           fighter_type_id: beastConfig.fighter_type_id,
-          credits: newFighter.credits,
+          credits: fighterType.cost || 0,
           equipment_source: 'Granted by equipment',
           created_at: newFighter.created_at,
-          // Owner information
+          // Owner information (may be null for stash purchases)
           owner: {
-            id: params.ownerFighterId,
-            fighter_name: params.ownerFighterName
+            id: params.ownerFighterId || '',
+            fighter_name: params.ownerFighterName || ''
           },
           // Complete stats from the fighter type
           movement: fighterType.movement,
