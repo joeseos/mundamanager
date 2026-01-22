@@ -158,13 +158,6 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
-    // Clear beast owner when moving equipment to stash
-    // Keep the fighter_exotic_beasts row (tracks beast_equipment_stashed via fighter_equipment.gang_stash)
-    await supabase
-      .from('fighter_exotic_beasts')
-      .update({ fighter_owner_id: null })
-      .eq('fighter_equipment_id', params.fighter_equipment_id);
-
     // Update the equipment to move it to stash
     const { data: stashData, error: updateError } = await supabase
       .from('fighter_equipment')
@@ -180,6 +173,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     if (updateError || !stashData) {
       throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
     }
+
+    // Clear beast owner AFTER successful stash update (prevents data loss if stash update fails)
+    // Keep the fighter_exotic_beasts row (tracks beast_equipment_stashed via fighter_equipment.gang_stash)
+    await supabase
+      .from('fighter_exotic_beasts')
+      .update({ fighter_owner_id: null })
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
 
     // Rating delta: subtract equipment purchase_cost and removed effects if from fighter or assigned vehicle
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)

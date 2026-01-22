@@ -9,8 +9,8 @@ import {
 
 export interface ExoticBeastCreationParams {
   equipmentId: string;
-  ownerFighterId?: string | null;  // Optional for stash purchases
-  ownerFighterName?: string | null;
+  ownerFighterId: string | null;  // null for stash purchases
+  ownerFighterName: string | null;
   gangId: string;
   userId: string;
   fighterEquipmentId: string; // The equipment that grants the beast
@@ -25,11 +25,11 @@ export interface CreatedBeast {
   credits: number;
   equipment_source: string;
   created_at: string;
-  // Owner information
+  // Owner information (null for stash purchases)
   owner: {
     id: string;
     fighter_name: string;
-  };
+  } | null;
   // Complete fighter stats
   movement: number;
   weapon_skill: number;
@@ -130,7 +130,7 @@ export async function createExoticBeastsForEquipment(
           fighter_type: fighterType.fighter_type,
           fighter_type_id: beastConfig.fighter_type_id,
           fighter_class: 'Exotic Beast',
-          fighter_class_id: fighterType.fighter_class_id,
+          fighter_class_id: fighterType.fighter_class_id || 'bb723bee-883c-4e84-9136-be30ed195023',
           gang_id: params.gangId,
           credits: 0,
           movement: fighterType.movement,
@@ -190,11 +190,11 @@ export async function createExoticBeastsForEquipment(
           credits: fighterType.cost || 0,
           equipment_source: 'Granted by equipment',
           created_at: newFighter.created_at,
-          // Owner information (may be null for stash purchases)
-          owner: {
-            id: params.ownerFighterId || '',
+          // Owner information (null for stash purchases)
+          owner: params.ownerFighterId ? {
+            id: params.ownerFighterId,
             fighter_name: params.ownerFighterName || ''
-          },
+          } : null,
           // Complete stats from the fighter type
           movement: fighterType.movement,
           weapon_skill: fighterType.weapon_skill,
