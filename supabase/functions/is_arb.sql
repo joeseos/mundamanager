@@ -8,7 +8,7 @@ AS $$
     SELECT 1 
     FROM campaign_members cm
     WHERE cm.campaign_id = campaign_id_param
-    AND cm.user_id = auth.uid()
+    AND cm.user_id = (SELECT auth.uid())
     AND cm.role IN ('OWNER', 'ARBITRATOR')
   );
 $$;
