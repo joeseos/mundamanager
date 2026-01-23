@@ -96,6 +96,7 @@ interface GangProps {
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
+  onGangWealthUpdate?: (newWealth: number) => void;
   positioning: Record<number, string>;
   gang_variants: Array<{id: string, variant: string}> | null;
   vehicles?: VehicleProps[];
@@ -148,6 +149,7 @@ export default function Gang({
   onVehicleAdd,
   onFighterAdd,
   onGangCreditsUpdate,
+  onGangWealthUpdate,
   positioning,
   gang_variants,
   vehicles,
@@ -1210,6 +1212,7 @@ export default function Gang({
               initialCredits={credits}
               onVehicleAdd={handleVehicleAdded}
               onGangCreditsUpdate={onGangCreditsUpdate}
+              onGangWealthUpdate={onGangWealthUpdate}
             />
           )}
 

@@ -3,7 +3,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
-import { CACHE_TAGS, invalidateGangCredits } from "@/utils/cache-tags";
+import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
+import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -18,6 +19,7 @@ interface AddGangVehicleResult {
   error?: string;
   vehicle?: any;
   gangCredits?: number;
+  gangWealth?: number;
   paymentCost?: number;
   baseCost?: number;
 }
@@ -110,25 +112,13 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
-    // Update gang credits and wealth
+    // Update gang credits
     const newCredits = gang.credits - vehicleCost;
-
-    // Fetch current wealth for update
-    const { data: gangRow } = await supabase
-      .from('gangs')
-      .select('wealth')
-      .eq('id', params.gangId)
-      .single();
-
-    const creditsDelta = -vehicleCost; // Negative because credits were spent
-    // For unassigned vehicles, wealth delta includes vehicle cost offset
-    const wealthDelta = creditsDelta + vehicleBaseCost; // Credits -X, unassigned vehicles +X = net 0
 
     const { error: gangUpdateError } = await supabase
       .from('gangs')
       .update({
         credits: newCredits,
-        wealth: Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta),
         last_updated: new Date().toISOString()
       })
       .eq('id', params.gangId);
@@ -143,8 +133,25 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
+    // Update wealth via helper (unassigned vehicle: credits down, vehicle value up = net 0)
+    // creditsDelta represents the net wealth change: -vehicleCost (spent) + vehicleBaseCost (gained asset)
+    const wealthImpact = -vehicleCost + vehicleBaseCost;
+    if (wealthImpact !== 0) {
+      await updateGangFinancials(supabase, {
+        gangId: params.gangId,
+        creditsDelta: wealthImpact
+      });
+    }
+
+    // Fetch updated wealth for client-side optimistic update
+    const { data: updatedGangData } = await supabase
+      .from('gangs')
+      .select('wealth')
+      .eq('id', params.gangId)
+      .single();
+
     // Invalidate relevant cache tags
-    invalidateGangCredits(params.gangId);
+    invalidateGangFinancials(params.gangId);
     revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_GANG_VEHICLES
 
@@ -160,6 +167,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
         base_cost: vehicleBaseCost
       },
       gangCredits: newCredits,
+      gangWealth: updatedGangData?.wealth,
       paymentCost: vehicleCost,
       baseCost: vehicleBaseCost
     };

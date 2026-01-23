@@ -32,7 +32,8 @@ interface AddVehicleProps {
   gangId: string;
   initialCredits: number;
   onVehicleAdd: (newVehicle: VehicleProps) => void;
-  onGangCreditsUpdate?: (newCredits: number) => void; // NEW
+  onGangCreditsUpdate?: (newCredits: number) => void;
+  onGangWealthUpdate?: (newWealth: number) => void;
 }
 
 export default function AddVehicle({ 
@@ -41,7 +42,8 @@ export default function AddVehicle({
   gangId,
   initialCredits,
   onVehicleAdd,
-  onGangCreditsUpdate
+  onGangCreditsUpdate,
+  onGangWealthUpdate
 }: AddVehicleProps) {
   const { toast } = useToast();
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
@@ -162,6 +164,11 @@ export default function AddVehicle({
       // Also update credits from server authoritative value if provided
       if (typeof onGangCreditsUpdate === 'function' && typeof result.gangCredits === 'number') {
         onGangCreditsUpdate(result.gangCredits);
+      }
+
+      // Update wealth from server authoritative value if provided
+      if (typeof onGangWealthUpdate === 'function' && typeof result.gangWealth === 'number') {
+        onGangWealthUpdate(result.gangWealth);
       }
 
       // Create a more informative success message when base cost is different from payment
