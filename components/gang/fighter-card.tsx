@@ -436,7 +436,7 @@ const FighterCard = memo(function FighterCard({
           </div>
         </div>
         <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-[10px]'}`}>
-          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+          <div className="relative flex flex-col flex-shrink gap-0 z-11 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-muted-foreground" />}
             {enslaved && <GiCrossedChains className="text-sky-200" />}
@@ -450,11 +450,13 @@ const FighterCard = memo(function FighterCard({
               <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
             </div>
           )}
-          {!isInactive && (
+          {!isInactive ? (
             <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
               <span className="leading-6 font-bold md:text-3xl text-2xl">{credits === 0 ? '*' : credits}</span>
               <span className="leading-3 md:font-bold text-xs">Credits</span>
             </div>
+          ) : (
+            <div className="md:h-[85px] h-[64px] w-3 flex-shrink-0 relative z-10" /> // Empty space to allow centering the status icons
           )}
         </div>
       </div>
