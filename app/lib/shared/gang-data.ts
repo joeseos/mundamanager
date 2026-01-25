@@ -120,6 +120,7 @@ export interface GangFighter {
   xp: number;
   kills: number;
   credits: number;
+  loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -1504,10 +1505,14 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         const isInActiveLoadout = (fighterEquipmentId: string) =>
           activeLoadoutEquipmentIds === null || activeLoadoutEquipmentIds.has(fighterEquipmentId);
 
+        // Calculate loadout cost for display (only equipment in active loadout)
+        const loadoutEquipmentCost = processedEquipment
+          .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
+          .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+
         if (!isOwnedBeast) {
-          // Only count equipment that's in the active loadout (if one is set)
-          const equipmentCost = processedEquipment
-            .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
+          // All equipment cost - for gang rating (never filtered by loadout)
+          const allEquipmentCost = processedEquipment
             .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
           const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
           const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
@@ -1533,7 +1538,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             return sum + vehicleTotal;
           }, 0);
 
-          totalCost = fighter.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
+          // Total cost for gang rating uses ALL equipment (not filtered by loadout)
+          totalCost = fighter.credits + allEquipmentCost + skillsCost + effectsCost + vehicleCost +
                       (fighter.cost_adjustment || 0) + beastCosts;
         }
 
@@ -1565,6 +1571,30 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         const fighterTypeInfo = fighter.fighter_types || {};
         const fighterSubTypeInfo = fighter.fighter_sub_types || null;
 
+        // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
+        // This shows what the fighter costs with the current loadout
+        const skillsCostForDisplay = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+        const effectsCostForDisplay = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+          return sum + (effect.type_specific_data?.credits_increase || 0);
+        }, 0);
+        const vehicleCostForDisplay = processedVehicles.reduce((sum: number, vehicle: any) => {
+          let vehicleTotal = vehicle.cost || 0;
+          if (vehicle.equipment) {
+            vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => equipSum + (eq.purchase_cost || 0), 0);
+          }
+          if (vehicle.effects) {
+            vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+              return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
+            }, 0);
+          }
+          return sum + vehicleTotal;
+        }, 0);
+
+        // Loadout cost for fighter card display (only active loadout equipment)
+        const displayLoadoutCost = !isOwnedBeast
+          ? fighter.credits + loadoutEquipmentCost + skillsCostForDisplay + effectsCostForDisplay + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts
+          : 0;
+
         return {
           id: fighter.id,
           fighter_name: fighter.fighter_name,
@@ -1580,6 +1610,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           xp: fighter.xp,
           kills: fighter.kills || 0,
           credits: totalCost,
+          loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
           movement: fighter.movement,
           weapon_skill: fighter.weapon_skill,
           ballistic_skill: fighter.ballistic_skill,

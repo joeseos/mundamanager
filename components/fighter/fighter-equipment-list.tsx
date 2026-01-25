@@ -807,7 +807,7 @@ export function WeaponList({
           <div className="flex gap-2">
             <Button
               onClick={() => setShowLoadoutsModal(true)}
-              variant="outline"
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
               disabled={isLoading || !userPermissions.canEdit}
             >
               Loadouts

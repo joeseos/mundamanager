@@ -33,6 +33,7 @@ export const CACHE_TAGS = {
   BASE_FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`, // effects/injuries
   BASE_FIGHTER_VEHICLES: (id: string) => `base-fighter-vehicles-${id}`, // assigned vehicles
   BASE_FIGHTER_OWNED_BEASTS: (id: string) => `base-fighter-owned-beasts-${id}`, // exotic beasts owned by fighter
+  BASE_FIGHTER_LOADOUTS: (id: string) => `base-fighter-loadouts-${id}`, // fighter equipment loadouts
   
   // Campaign base data
   BASE_CAMPAIGN_BASIC: (id: string) => `base-campaign-basic-${id}`,   // name, settings
@@ -525,26 +526,23 @@ export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) =>
 /**
  * Fighter Loadouts Invalidation Pattern
  * Triggered when: Loadout created/updated/deleted or active loadout changed
- * Data changed: Fighter equipment display, fighter cost, gang rating
+ * Data changed: Fighter equipment display (loadout_cost for display only)
+ * Note: Gang rating uses ALL equipment, so loadout changes don't affect it
  */
 export function invalidateFighterLoadouts(params: {
   fighterId: string;
   gangId: string;
 }) {
-  // Base data changes - loadouts affect equipment display
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  // Base data changes - loadouts have their own dedicated cache tag
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_LOADOUTS(params.fighterId));
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));  // for active_loadout_id
 
-  // Computed data changes - cost depends on active loadout
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
-
-  // Shared data changes
-  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
-
-  // Composite data changes - gang page fighter cards
+  // Composite data changes - gang page fighter cards (display only, not rating)
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+
+  // Note: COMPUTED_GANG_RATING and SHARED_GANG_RATING are NOT invalidated here
+  // because gang rating uses ALL equipment regardless of loadout selection
+  // Note: BASE_FIGHTER_EQUIPMENT is NOT invalidated here to avoid over-invalidation
 }
 
 /**

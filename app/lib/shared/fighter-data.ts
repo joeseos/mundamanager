@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterEffect } from '@/types/fighter';
+import { FighterLoadout } from '@/types/equipment';
 
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
@@ -85,12 +86,7 @@ export interface FighterEquipment {
   loadout_ids?: string[]; // Which loadouts this equipment belongs to
 }
 
-export interface FighterLoadout {
-  id: string;
-  fighter_id: string;
-  loadout_name: string;
-  equipment_ids: string[];  // fighter_equipment_ids in this loadout
-}
+// FighterLoadout imported from @/types/equipment
 
 export interface FighterSkill {
   id: string;
@@ -824,7 +820,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
 
 /**
  * Get fighter loadouts with equipment IDs
- * Cache: BASE_FIGHTER_EQUIPMENT (loadouts are part of equipment data)
+ * Cache: BASE_FIGHTER_LOADOUTS (dedicated tag to avoid over-invalidation)
  */
 export const getFighterLoadouts = async (fighterId: string, supabase: any): Promise<FighterLoadout[]> => {
   return unstable_cache(
@@ -848,7 +844,7 @@ export const getFighterLoadouts = async (fighterId: string, supabase: any): Prom
         .in('loadout_id', loadoutIds);
 
       if (junctionError) {
-        console.error('Error fetching loadout equipment:', junctionError);
+        throw new Error(`Error fetching loadout equipment: ${junctionError.message}`);
       }
 
       // Build map of loadout_id -> equipment_ids
@@ -870,7 +866,7 @@ export const getFighterLoadouts = async (fighterId: string, supabase: any): Prom
     },
     [`fighter-loadouts-${fighterId}`],
     {
-      tags: [CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(fighterId)],
+      tags: [CACHE_TAGS.BASE_FIGHTER_LOADOUTS(fighterId)],
       revalidate: false
     }
   )();

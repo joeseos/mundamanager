@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import Modal from '@/components/ui/modal';
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { createLoadout, updateLoadout, deleteLoadout, setActiveLoadout } from '@/app/actions/loadouts';
 import { useToast } from '@/components/ui/use-toast';
 import { LuTrash2, LuPlus, LuCheck } from 'react-icons/lu';
+
+type ConfirmationType = 'delete' | 'discard' | null;
 
 interface FighterLoadoutsModalProps {
   fighterId: string;
@@ -37,9 +40,15 @@ export default function FighterLoadoutsModal({
   const [editingName, setEditingName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Map<string, Set<string>>>(new Map());
+  const [confirmationType, setConfirmationType] = useState<ConfirmationType>(null);
+  const [pendingDeleteLoadoutId, setPendingDeleteLoadoutId] = useState<string | null>(null);
+  const [pendingDiscardAction, setPendingDiscardAction] = useState<(() => void) | null>(null);
 
   // Filter out vehicle upgrades (always shown, not part of loadouts)
-  const loadoutEquipment = equipment.filter(e => e.equipment_type !== 'vehicle_upgrade');
+  const loadoutEquipment = useMemo(
+    () => equipment.filter(e => e.equipment_type !== 'vehicle_upgrade'),
+    [equipment]
+  );
 
   // Get the selected loadout
   const selectedLoadout = selectedLoadoutId
@@ -47,13 +56,13 @@ export default function FighterLoadoutsModal({
     : null;
 
   // Get equipment IDs for the selected loadout (with pending changes)
-  const getLoadoutEquipmentIds = (loadoutId: string): Set<string> => {
+  const getLoadoutEquipmentIds = useCallback((loadoutId: string): Set<string> => {
     if (pendingChanges.has(loadoutId)) {
       return pendingChanges.get(loadoutId)!;
     }
     const loadout = loadouts.find(l => l.id === loadoutId);
     return new Set(loadout?.equipment_ids || []);
-  };
+  }, [pendingChanges, loadouts]);
 
   const handleEquipmentToggle = (equipmentId: string) => {
     if (!selectedLoadoutId) return;
@@ -145,9 +154,12 @@ export default function FighterLoadoutsModal({
     }
   };
 
-  const handleDeleteLoadout = async (loadoutId: string) => {
-    if (!confirm('Are you sure you want to delete this loadout?')) return;
+  const requestDeleteLoadout = (loadoutId: string) => {
+    setPendingDeleteLoadoutId(loadoutId);
+    setConfirmationType('delete');
+  };
 
+  const handleDeleteLoadout = async (loadoutId: string) => {
     setIsSaving(true);
     try {
       const result = await deleteLoadout({
@@ -261,30 +273,72 @@ export default function FighterLoadoutsModal({
 
   const hasUnsavedChanges = pendingChanges.size > 0;
 
+  const requestCloseWithUnsavedChanges = (action: () => void) => {
+    if (hasUnsavedChanges) {
+      setPendingDiscardAction(() => action);
+      setConfirmationType('discard');
+    } else {
+      action();
+    }
+  };
+
+  const handleConfirmationConfirm = async () => {
+    if (confirmationType === 'delete' && pendingDeleteLoadoutId) {
+      await handleDeleteLoadout(pendingDeleteLoadoutId);
+    } else if (confirmationType === 'discard' && pendingDiscardAction) {
+      pendingDiscardAction();
+    }
+    setConfirmationType(null);
+    setPendingDeleteLoadoutId(null);
+    setPendingDiscardAction(null);
+  };
+
+  const handleConfirmationCancel = () => {
+    setConfirmationType(null);
+    setPendingDeleteLoadoutId(null);
+    setPendingDiscardAction(null);
+  };
+
   return (
-    <div
-      className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-neutral-300 bg-opacity-50 dark:bg-neutral-700 dark:bg-opacity-50"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          if (hasUnsavedChanges && !confirm('You have unsaved changes. Discard them?')) return;
-          onClose();
-        }
-      }}
-    >
-      <div className="bg-card rounded-lg shadow-xl w-full max-w-2xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
-        <div className="border-b px-[10px] py-2 flex justify-between items-center">
-          <h3 className="text-xl md:text-2xl font-bold text-foreground">Equipment Loadouts</h3>
-          <button
-            type="button"
-            onClick={() => {
-              if (hasUnsavedChanges && !confirm('You have unsaved changes. Discard them?')) return;
-              onClose();
-            }}
-            className="text-muted-foreground hover:text-muted-foreground text-xl"
-          >
-            ×
-          </button>
-        </div>
+    <>
+      {/* Confirmation Modal */}
+      {confirmationType && (
+        <Modal
+          title={confirmationType === 'delete' ? 'Delete Loadout' : 'Unsaved Changes'}
+          content={
+            <p className="text-muted-foreground">
+              {confirmationType === 'delete'
+                ? 'Are you sure you want to delete this loadout? This action cannot be undone.'
+                : 'You have unsaved changes. Are you sure you want to discard them?'}
+            </p>
+          }
+          onClose={handleConfirmationCancel}
+          onConfirm={handleConfirmationConfirm}
+          confirmText={confirmationType === 'delete' ? 'Delete' : 'Discard'}
+          width="sm"
+        />
+      )}
+
+      <div
+        className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-neutral-300 bg-opacity-50 dark:bg-neutral-700 dark:bg-opacity-50"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            requestCloseWithUnsavedChanges(onClose);
+          }
+        }}
+      >
+        <div className="bg-card rounded-lg shadow-xl w-full max-w-2xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
+          <div className="border-b px-[10px] py-2 flex justify-between items-center">
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">Equipment Loadouts</h3>
+            <button
+              type="button"
+              onClick={() => requestCloseWithUnsavedChanges(onClose)}
+              aria-label="Close"
+              className="text-muted-foreground hover:text-muted-foreground text-xl"
+            >
+              ×
+            </button>
+          </div>
 
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -390,10 +444,11 @@ export default function FighterLoadoutsModal({
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteLoadout(loadout.id);
+                            requestDeleteLoadout(loadout.id);
                           }}
                           disabled={isSaving}
                           className="text-destructive hover:text-destructive"
+                          aria-label={`Delete ${loadout.loadout_name}`}
                         >
                           <LuTrash2 className="h-4 w-4" />
                         </Button>
@@ -449,13 +504,16 @@ export default function FighterLoadoutsModal({
                   {loadoutEquipment.map(item => {
                     const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
                     const isInLoadout = equipmentIds.has(item.fighter_equipment_id);
+                    const checkboxId = `loadout-equipment-${item.fighter_equipment_id}`;
 
                     return (
                       <label
                         key={item.fighter_equipment_id}
+                        htmlFor={checkboxId}
                         className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-muted"
                       >
                         <Checkbox
+                          id={checkboxId}
                           checked={isInLoadout}
                           onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
                         />
@@ -479,10 +537,7 @@ export default function FighterLoadoutsModal({
         <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
           <Button
             variant="outline"
-            onClick={() => {
-              if (hasUnsavedChanges && !confirm('You have unsaved changes. Discard them?')) return;
-              onClose();
-            }}
+            onClick={() => requestCloseWithUnsavedChanges(onClose)}
             disabled={isSaving}
           >
             Cancel
@@ -497,5 +552,6 @@ export default function FighterLoadoutsModal({
         </div>
       </div>
     </div>
+    </>
   );
 }
