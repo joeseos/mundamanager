@@ -11,10 +11,10 @@ import {
   addBeastToGangCache,
   invalidateFighterOwnedBeasts,
   invalidateGangStash,
-  invalidateGangRating,
   invalidateFighterAdvancement,
   invalidateVehicleData
 } from '@/utils/cache-tags';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { 
   createExoticBeastsForEquipment, 
   invalidateCacheForBeastCreation,
@@ -421,34 +421,13 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     // Always update wealth when moving equipment from stash (stash value is part of wealth)
     // Only update rating if it changed (active fighter case)
-    // Note: wealthDelta will always be non-zero when moving from stash (stash value decreases)
-    try {
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', stashData.gang_id)
-        .single();
-      const currentRating = (gangRow?.rating ?? 0) as number;
-      const currentWealth = (gangRow?.wealth ?? 0) as number;
-      
-      const updateData: any = {
-        wealth: Math.max(0, currentWealth + wealthDelta),
-        last_updated: new Date().toISOString()
-      };
-      
-      // Only update rating if it changed (active fighter case)
-      if (ratingDelta !== 0) {
-        updateData.rating = Math.max(0, currentRating + ratingDelta);
-      }
-      
-      await supabase
-        .from('gangs')
-        .update(updateData)
-        .eq('id', stashData.gang_id);
-      invalidateGangRating(stashData.gang_id);
-    } catch (e) {
-      console.error('Failed to update gang rating/wealth after moving from stash:', e);
-    }
+    // Use stashValueDelta since equipment is leaving stash
+    // wealthDelta = ratingDelta - equipmentValue, so stashValueDelta = -equipmentValue
+    await updateGangFinancials(supabase, {
+      gangId: stashData.gang_id,
+      ratingDelta,
+      stashValueDelta: -equipmentValue
+    });
 
     // Fetch updated wealth after the update
     let updatedGangWealth: number | undefined;

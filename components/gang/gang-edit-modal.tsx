@@ -13,6 +13,12 @@ import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+interface ResourceUpdate {
+  resource_id: string;
+  is_custom: boolean;
+  quantity_delta: number;
+}
+
 interface GangUpdates {
   name?: string;
   credits?: number;
@@ -22,6 +28,7 @@ interface GangUpdates {
   alliance_name?: string;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
+  // Legacy resource fields - kept for backward compatibility
   meat?: number;
   meat_operation?: 'add' | 'subtract';
   scavenging_rolls?: number;
@@ -44,10 +51,21 @@ interface GangUpdates {
   campaign_allegiance_id?: string | null;
   campaign_allegiance_is_custom?: boolean;
   campaign_id?: string;
+  // New resource updates from normalised tables
+  resourceUpdates?: ResourceUpdate[];
+}
+
+interface CampaignResource {
+  resource_id: string;
+  resource_name: string;
+  quantity: number;
+  is_custom: boolean;
 }
 
 interface Campaign {
   campaign_id: string;
+  campaign_gang_id: string;
+  // Legacy flags - kept for backward compatibility
   has_meat: boolean;
   has_scavenging_rolls: boolean;
   has_exploration_points: boolean;
@@ -58,6 +76,8 @@ interface Campaign {
     id: string;
     name: string;
   } | null;
+  // Normalised resources
+  resources?: CampaignResource[];
 }
 
 interface GangEditModalProps {
@@ -70,6 +90,7 @@ interface GangEditModalProps {
   gangName: string;
   credits: number;
   reputation: number;
+  // Legacy resource props - kept for backward compatibility
   meat: number;
   scavengingRolls: number;
   explorationPoints: number;
@@ -91,7 +112,7 @@ interface GangEditModalProps {
   gangTypeHasOrigin: boolean;
   hidden: boolean;
 
-  // Campaign features
+  // Campaign features (includes dynamic resources)
   campaigns?: Campaign[];
 
   // Permissions - controls Delete button visibility
@@ -172,6 +193,7 @@ export default function GangEditModal({
     name: gangName,
     credits: '',  // delta inputs start empty
     reputation: '',
+    // Legacy resource deltas - kept for backward compatibility
     meat: '',
     scavengingRolls: '',
     explorationPoints: '',
@@ -188,6 +210,10 @@ export default function GangEditModal({
     hidden: hidden,
     campaignAllegianceId: effectiveCurrentAllegianceId
   });
+  
+  // Dynamic resource deltas state - tracks changes for each normalised resource
+  // Key: resource_id, Value: delta string (for input field)
+  const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
 
   // Alliance management state
   const [allianceList, setAllianceList] = useState<Array<{id: string, alliance_name: string, strong_alliance: string}>>([]);
@@ -260,6 +286,9 @@ export default function GangEditModal({
         hidden: hidden,
         campaignAllegianceId: effectiveCurrentAllegianceId
       }));
+      
+      // Reset resource deltas
+      setResourceDeltas({});
     }
   }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden, effectiveCurrentAllegianceId, campaigns]);
 
@@ -452,40 +481,24 @@ export default function GangEditModal({
       updates.reputation_operation = reputationDifference >= 0 ? 'add' : 'subtract';
     }
 
-    const meatDifference = parseInt(formState.meat) || 0;
-    if (meatDifference !== 0) {
-      updates.meat = Math.abs(meatDifference);
-      updates.meat_operation = meatDifference >= 0 ? 'add' : 'subtract';
+    // Handle dynamic resource deltas from normalised tables
+    const resourceUpdatesList: ResourceUpdate[] = [];
+    const campaignResources = campaigns?.[0]?.resources || [];
+    
+    for (const resource of campaignResources) {
+      const deltaStr = resourceDeltas[resource.resource_id];
+      const delta = parseInt(deltaStr) || 0;
+      if (delta !== 0) {
+        resourceUpdatesList.push({
+          resource_id: resource.resource_id,
+          is_custom: resource.is_custom,
+          quantity_delta: delta
+        });
+      }
     }
-
-    const scavengingRollsDifference = parseInt(formState.scavengingRolls) || 0;
-    if (scavengingRollsDifference !== 0) {
-      updates.scavenging_rolls = Math.abs(scavengingRollsDifference);
-      updates.scavenging_rolls_operation = scavengingRollsDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    const explorationPointsDifference = parseInt(formState.explorationPoints) || 0;
-    if (explorationPointsDifference !== 0) {
-      updates.exploration_points = Math.abs(explorationPointsDifference);
-      updates.exploration_points_operation = explorationPointsDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    const powerDifference = parseInt(formState.power) || 0;
-    if (powerDifference !== 0) {
-      updates.power = Math.abs(powerDifference);
-      updates.power_operation = powerDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    const sustenanceDifference = parseInt(formState.sustenance) || 0;
-    if (sustenanceDifference !== 0) {
-      updates.sustenance = Math.abs(sustenanceDifference);
-      updates.sustenance_operation = sustenanceDifference >= 0 ? 'add' : 'subtract';
-    }
-
-    const salvageDifference = parseInt(formState.salvage) || 0;
-    if (salvageDifference !== 0) {
-      updates.salvage = Math.abs(salvageDifference);
-      updates.salvage_operation = salvageDifference >= 0 ? 'add' : 'subtract';
+    
+    if (resourceUpdatesList.length > 0) {
+      updates.resourceUpdates = resourceUpdatesList;
     }
 
     // Close modal immediately for instant UX (optimistic update will handle UI)
@@ -613,107 +626,27 @@ export default function GangEditModal({
             />
           </div>
 
-          {campaigns?.[0]?.has_exploration_points && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">Exploration Points
-              <span className="text-xs text-muted-foreground"> (Current: {explorationPoints})</span>
-            </p>
+          {/* Dynamic Campaign Resources */}
+          {campaigns?.[0]?.resources?.map((resource) => (
+            <div key={resource.resource_id} className="space-y-2">
+              <p className="text-xs font-medium">
+                {resource.resource_name}
+                <span className="text-xs text-muted-foreground"> (Current: {resource.quantity})</span>
+              </p>
               <Input
                 type="tel"
                 inputMode="url"
                 pattern="-?[0-9]+"
-                value={formState.explorationPoints}
-                onChange={(e) => setFormState(prev => ({ ...prev, explorationPoints: e.target.value }))}
+                value={resourceDeltas[resource.resource_id] || ''}
+                onChange={(e) => setResourceDeltas(prev => ({
+                  ...prev,
+                  [resource.resource_id]: e.target.value
+                }))}
                 className="flex-1"
                 placeholder="0"
               />
             </div>
-          )}
-
-          {campaigns?.[0]?.has_meat && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">Meat
-              <span className="text-xs text-muted-foreground"> (Current: {meat})</span>
-            </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.meat}
-                onChange={(e) => setFormState(prev => ({ ...prev, meat: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          )}
-          
-          {campaigns?.[0]?.has_scavenging_rolls && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">Scavenging Rolls
-              <span className="text-xs text-muted-foreground"> (Current: {scavengingRolls})</span>
-            </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.scavengingRolls}
-                onChange={(e) => setFormState(prev => ({ ...prev, scavengingRolls: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          )}
-
-          {campaigns?.[0]?.has_power && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">Power
-              <span className="text-xs text-muted-foreground"> (Current: {power})</span>
-            </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.power}
-                onChange={(e) => setFormState(prev => ({ ...prev, power: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          )}
-
-          {campaigns?.[0]?.has_sustenance && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">Sustenance
-              <span className="text-xs text-muted-foreground"> (Current: {sustenance})</span>
-            </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.sustenance}
-                onChange={(e) => setFormState(prev => ({ ...prev, sustenance: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          )}
-
-          {campaigns?.[0]?.has_salvage && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium">Salvage
-              <span className="text-xs text-muted-foreground"> (Current: {salvage})</span>
-            </p>
-              <Input
-                type="tel"
-                inputMode="url"
-                pattern="-?[0-9]+"
-                value={formState.salvage}
-                onChange={(e) => setFormState(prev => ({ ...prev, salvage: e.target.value }))}
-                className="flex-1"
-                placeholder="0"
-              />
-            </div>
-          )}
+          ))}
         </div>
       </div>
 

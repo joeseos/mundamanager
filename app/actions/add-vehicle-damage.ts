@@ -1,9 +1,10 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateVehicleEffects, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateVehicleEffects } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
+import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 
 interface AddVehicleDamageParams {
   vehicleId: string;
@@ -49,23 +50,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
       if (veh?.fighter_id) {
         const delta = (eff?.type_specific_data?.credits_increase || 0) as number;
         if (delta) {
-          const { data: gangRow } = await supabase
-            .from('gangs')
-            .select('rating, wealth')
-            .eq('id', params.gangId)
-            .single();
-          const currentRating = (gangRow?.rating ?? 0) as number;
-          const currentWealth = (gangRow?.wealth ?? 0) as number;
-
-          // Vehicle damage: rating delta = wealth delta (no credits change)
-          await supabase
-            .from('gangs')
-            .update({
-              rating: Math.max(0, currentRating + delta),
-              wealth: Math.max(0, currentWealth + delta)
-            })
-            .eq('id', params.gangId);
-          invalidateGangRating(params.gangId);
+          await updateGangRatingSimple(supabase, params.gangId, delta);
         }
       }
     } catch (e) {

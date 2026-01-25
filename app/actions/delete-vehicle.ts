@@ -2,9 +2,10 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidateTag } from 'next/cache';
-import { invalidateFighterVehicleData, invalidateGangRating, CACHE_TAGS } from '@/utils/cache-tags';
+import { invalidateFighterVehicleData, CACHE_TAGS } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 interface DeleteVehicleParams {
   vehicleId: string;
@@ -111,26 +112,12 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
 
     // Update rating and wealth after vehicle deletion
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
-      try {
-        const { data: gangRow } = await supabase
-          .from('gangs')
-          .select('rating, wealth')
-          .eq('id', params.gangId)
-          .single();
-        const currentRating = (gangRow?.rating ?? 0) as number;
-        const currentWealth = (gangRow?.wealth ?? 0) as number;
-
-        await supabase
-          .from('gangs')
-          .update({
-            rating: Math.max(0, currentRating + ratingDelta),
-            wealth: Math.max(0, currentWealth + wealthDelta)
-          })
-          .eq('id', params.gangId);
-        invalidateGangRating(params.gangId);
-      } catch (e) {
-        console.error('Failed to update gang rating/wealth after vehicle deletion:', e);
-      }
+      // stashValueDelta accounts for unassigned vehicles (wealthDelta but no ratingDelta)
+      await updateGangFinancials(supabase, {
+        gangId: params.gangId,
+        ratingDelta,
+        stashValueDelta: wealthDelta - ratingDelta
+      });
     }
 
     // Invalidate cache for the fighter and gang if the vehicle was assigned to a fighter

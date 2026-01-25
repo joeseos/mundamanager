@@ -28,3 +28,10 @@ BEGIN
    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Trigger on campaign_members table
+DROP TRIGGER IF EXISTS trigger_campaign_member_notification ON campaign_members;
+CREATE TRIGGER trigger_campaign_member_notification
+    AFTER INSERT ON campaign_members
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_campaign_member_added();

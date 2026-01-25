@@ -268,4 +268,12 @@ BEGIN
 
     RETURN NULL;
 END;
-$function$ 
+$function$
+
+-- Trigger on fighters table (BEFORE DELETE to capture vehicle assignments)
+DROP TRIGGER IF EXISTS fighter_delete_log_trigger ON public.fighters;
+CREATE TRIGGER fighter_delete_log_trigger
+    BEFORE DELETE
+    ON public.fighters
+    FOR EACH ROW
+    EXECUTE FUNCTION fighter_logs();

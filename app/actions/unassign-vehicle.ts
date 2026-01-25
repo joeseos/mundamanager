@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 
@@ -77,24 +78,12 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
     const wealthDelta = ratingDelta + vehicleCost;
 
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
-      try {
-        const { data: gangRow } = await supabase
-          .from('gangs')
-          .select('rating, wealth')
-          .eq('id', params.gangId)
-          .single();
-
-        await supabase
-          .from('gangs')
-          .update({
-            rating: Math.max(0, (gangRow?.rating ?? 0) + ratingDelta),
-            wealth: Math.max(0, (gangRow?.wealth ?? 0) + wealthDelta)
-          })
-          .eq('id', params.gangId);
-        invalidateGangRating(params.gangId);
-      } catch (e) {
-        console.error('Failed to update gang rating/wealth after vehicle unassignment:', e);
-      }
+      // wealthDelta = ratingDelta + vehicleCost, so creditsDelta = vehicleCost
+      await updateGangFinancials(supabase, {
+        gangId: params.gangId,
+        ratingDelta,
+        creditsDelta: vehicleCost
+      });
     }
 
     // Invalidate cache for the fighter and gang

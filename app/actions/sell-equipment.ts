@@ -2,9 +2,10 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangRating, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -193,31 +194,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Note: Credits were already updated above, so wealth delta should account for:
     // - Rating decrease (equipment cost removed from gang)
     // - Credits increase (sell value already added to credits above)
-    // Since credits were updated separately, wealthDelta = ratingDelta + sellValue
-    try {
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', gangId)
-        .single();
-      const currentRating = (gangRow?.rating ?? 0) as number;
-      const currentWealth = (gangRow?.wealth ?? 0) as number;
-
-      // Wealth delta = rating change + credits change
-      // Rating decreases by purchase_cost, credits increase by sellValue
-      const wealthDelta = ratingDelta + sellValue;
-
-      await supabase
-        .from('gangs')
-        .update({
-          rating: Math.max(0, currentRating + ratingDelta),
-          wealth: Math.max(0, currentWealth + wealthDelta)
-        })
-        .eq('id', gangId);
-      invalidateGangRating(gangId);
-    } catch (e) {
-      console.error('Failed to update gang rating/wealth after selling equipment:', e);
-    }
+    await updateGangFinancials(supabase, {
+      gangId,
+      ratingDelta,
+      creditsDelta: sellValue
+    });
 
     // Log equipment sale AFTER rating is updated (so logs show correct rating)
     try {
@@ -327,32 +308,37 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     const sellValue = Math.floor(params.manual_cost || 0);
     const purchaseCost = row.purchase_cost || 0;
 
-    // Update gang credits and wealth
+    // Update gang credits
     const { data: currentGang, error: gangErr } = await supabase
       .from('gangs')
-      .select('credits, wealth')
+      .select('credits')
       .eq('id', row.gang_id)
       .single();
     if (gangErr || !currentGang) return { success: false, error: 'Gang not found' };
 
-    // When selling from stash:
-    // - Credits increase by sellValue
-    // - Stash value decreases by purchaseCost (what was originally paid)
-    // - Wealth delta = creditsDelta - purchaseCost = sellValue - purchaseCost
-    const creditsDelta = sellValue;
-    const stashValueDelta = -purchaseCost;
-    const wealthDelta = creditsDelta + stashValueDelta;
-
-    const { data: updatedGang, error: updErr } = await supabase
+    const { error: creditsErr } = await supabase
       .from('gangs')
-      .update({
-        credits: (currentGang.credits || 0) + sellValue,
-        wealth: Math.max(0, (currentGang.wealth || 0) + wealthDelta)
-      })
-      .eq('id', row.gang_id)
+      .update({ credits: (currentGang.credits || 0) + sellValue })
+      .eq('id', row.gang_id);
+    if (creditsErr) return { success: false, error: 'Failed updating credits' };
+
+    // Update wealth using centralized helper
+    // When selling from stash:
+    // - Credits increase by sellValue (already updated above)
+    // - Stash value decreases by purchaseCost (what was originally paid)
+    await updateGangFinancials(supabase, {
+      gangId: row.gang_id,
+      creditsDelta: sellValue,
+      stashValueDelta: -purchaseCost
+    });
+
+    // Fetch updated gang values for response
+    const { data: updatedGang, error: fetchErr2 } = await supabase
+      .from('gangs')
       .select('id, credits, wealth')
+      .eq('id', row.gang_id)
       .single();
-    if (updErr || !updatedGang) return { success: false, error: 'Failed updating credits' };
+    if (fetchErr2 || !updatedGang) return { success: false, error: 'Failed to fetch updated gang' };
 
     // Delete the stash item
     const { error: delErr } = await supabase

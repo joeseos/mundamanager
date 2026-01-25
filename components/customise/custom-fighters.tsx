@@ -365,13 +365,15 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       key: 'fighter_class',
       label: 'Class',
       align: 'left',
-      width: '20%'
+      width: '20%',
+      cellClassName: 'text-sm text-muted-foreground'
     },
     {
       key: 'gang_type',
       label: 'Gang',
       align: 'left',
-      width: '15%'
+      width: '15%',
+      cellClassName: 'text-sm text-muted-foreground'
     },
     {
       key: '',
@@ -384,6 +386,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       label: 'Cost',
       align: 'right',
       width: '10%',
+      cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value ? `${value}` : '-',
     },
   ];
@@ -421,7 +424,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     {
       icon: <LuTrash2 className="h-4 w-4" />,
       onClick: (item: CustomFighterType) => handleDelete(item),
-      variant: 'destructive',
+      variant: 'outline_remove',
       size: 'sm',
       className: 'text-xs px-1.5 h-6'
     }

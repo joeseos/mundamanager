@@ -137,6 +137,7 @@ interface CampaignPageContentProps {
   allTerritories: AllTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
+  campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -152,7 +153,8 @@ export default function CampaignPageContent({
   campaignTypes, 
   allTerritories,
   tradingPostTypes,
-  campaignAllegiances = []
+  campaignAllegiances = [],
+  campaignResources = []
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -282,12 +284,6 @@ export default function CampaignPageContent({
   const handleSave = async (formValues: {
     campaign_name: string;
     description: string;
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-    has_power: boolean;
-    has_sustenance: boolean;
-    has_salvage: boolean;
     status: string;
     trading_posts: string[];
   }) => {
@@ -296,12 +292,6 @@ export default function CampaignPageContent({
         campaignId: campaignData.id,
         campaign_name: formValues.campaign_name,
         description: formValues.description,
-        has_meat: formValues.has_meat,
-        has_exploration_points: formValues.has_exploration_points,
-        has_scavenging_rolls: formValues.has_scavenging_rolls,
-        has_power: formValues.has_power,
-        has_sustenance: formValues.has_sustenance,
-        has_salvage: formValues.has_salvage,
         trading_posts: formValues.trading_posts,
         status: formValues.status
       });
@@ -317,12 +307,6 @@ export default function CampaignPageContent({
         ...prev,
         campaign_name: formValues.campaign_name,
         description: formValues.description,
-        has_meat: formValues.has_meat,
-        has_exploration_points: formValues.has_exploration_points,
-        has_scavenging_rolls: formValues.has_scavenging_rolls,
-        has_power: formValues.has_power,
-        has_sustenance: formValues.has_sustenance,
-        has_salvage: formValues.has_salvage,
         trading_posts: formValues.trading_posts,
         status: formValues.status,
         updated_at: now,
@@ -566,15 +550,7 @@ export default function CampaignPageContent({
               </div>
 
               <div className="text-muted-foreground text-sm mb-4">
-                <div className="flex flex-wrap gap-2 mb-1">
-                  <div className="flex items-center gap-1">
-                    Type: <Badge variant="secondary">{campaignData.campaign_type_name}</Badge>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-2">
                   {(() => {
                     const owner = campaignData.members.find(member => member.role === 'OWNER')?.username;
                     const arbitrators = campaignData.members.filter(member => member.role === 'ARBITRATOR');
@@ -600,6 +576,33 @@ export default function CampaignPageContent({
                       </div>
                     ) : null;
                   })()}
+                </div>
+                <div className="flex flex-wrap gap-2 mb-1">
+                  <div className="flex items-center gap-1">
+                    Type: <Badge variant="secondary">{campaignData.campaign_type_name}</Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="whitespace-nowrap">
+                      {(campaignData.trading_posts?.length ?? 0) === 1 ? 'Trading Post: ' : 'Trading Posts: '}
+                    </span>
+                    {(campaignData.trading_posts || []).length > 0 ? (
+                      (campaignData.trading_posts || []).map((id) => {
+                        const name = tradingPostTypes?.find(tp => tp.id === id)?.trading_post_name ?? id;
+                        return (
+                          <Badge key={id} variant="secondary">
+                            {name}
+                          </Badge>
+                        );
+                      })
+                    ) : (
+                      <Badge variant="outline">None</Badge>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -727,9 +730,7 @@ export default function CampaignPageContent({
                 }}
                 isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                 isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
-                hasExplorationPoints={campaignData.has_exploration_points}
-                hasMeat={campaignData.has_meat}
-                hasScavengingRolls={campaignData.has_scavenging_rolls}
+                availableResources={campaignResources}
               />
             </div>
   
@@ -895,12 +896,6 @@ export default function CampaignPageContent({
             id: campaignData.id,
             campaign_name: campaignData.campaign_name,
             description: campaignData.description,
-            has_meat: campaignData.has_meat,
-            has_exploration_points: campaignData.has_exploration_points,
-            has_scavenging_rolls: campaignData.has_scavenging_rolls,
-            has_power: campaignData.has_power,
-            has_sustenance: campaignData.has_sustenance,
-            has_salvage: campaignData.has_salvage,
             trading_posts: campaignData.trading_posts || [],
             status: campaignData.status,
             campaign_type_name: campaignData.campaign_type_name,
@@ -948,6 +943,12 @@ export default function CampaignPageContent({
                 }))
               }))
             }))
+          }}
+          campaignResources={campaignResources}
+          predefinedResources={campaignResources.filter(r => !r.is_custom)}
+          onResourcesChange={() => {
+            // Cache invalidation is handled by the mutation in campaign-resources-actions
+            // This callback is kept for potential future use
           }}
         />
 

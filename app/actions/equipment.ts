@@ -1,9 +1,9 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { 
-  invalidateFighterDataWithFinancials, 
-  invalidateVehicleData, 
+import {
+  invalidateFighterDataWithFinancials,
+  invalidateVehicleData,
   invalidateFighterVehicleData,
   invalidateEquipmentPurchase,
   invalidateEquipmentDeletion,
@@ -11,6 +11,7 @@ import {
   invalidateGangRating,
   invalidateFighterAdvancement
 } from '@/utils/cache-tags';
+import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -598,32 +599,30 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Calculate and apply all gang updates in a single operation
+    // Calculate deltas for gang updates
     const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
     const wealthDelta = totalRatingDelta + (-finalPurchaseCost) + stashValueDelta;
 
-    // Only update if something actually changed
-    if (finalPurchaseCost !== 0 || totalRatingDelta !== 0 || wealthDelta !== 0) {
-      const { error: gangUpdateError } = await supabase
+    // Update gang credits if purchase cost > 0
+    if (finalPurchaseCost !== 0) {
+      const { error: creditsUpdateError } = await supabase
         .from('gangs')
-        .update({
-          credits: gang.credits - finalPurchaseCost,
-          rating: Math.max(0, (gang.rating || 0) + totalRatingDelta),
-          wealth: Math.max(0, (gang.wealth || 0) + wealthDelta)
-        })
+        .update({ credits: gang.credits - finalPurchaseCost })
         .eq('id', params.gang_id);
 
-      if (gangUpdateError) {
-        throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
-      }
-
-      try {
-        invalidateGangRating(params.gang_id);
-      } catch (e) {
-        console.error('Failed to invalidate gang rating cache:', e);
+      if (creditsUpdateError) {
+        throw new Error(`Failed to update gang credits: ${creditsUpdateError.message}`);
       }
     }
+
+    // Update gang rating and wealth using centralized helper
+    await updateGangFinancials(supabase, {
+      gangId: params.gang_id,
+      ratingDelta: totalRatingDelta,
+      creditsDelta: -finalPurchaseCost,
+      stashValueDelta
+    });
 
     // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
     try {
@@ -1014,30 +1013,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     // Update rating and wealth if needed
     if (ratingDelta !== 0) {
-      try {
-        // Get current rating and wealth and update
-        const { data: curr } = await supabase
-          .from('gangs')
-          .select('rating, wealth')
-          .eq('id', params.gang_id)
-          .single();
-        const currentRating = (curr?.rating ?? 0) as number;
-        const currentWealth = (curr?.wealth ?? 0) as number;
-
-        // Wealth delta = rating delta (no credits change on deletion)
-        const wealthDelta = ratingDelta;
-
-        await supabase
-          .from('gangs')
-          .update({
-            rating: Math.max(0, currentRating + ratingDelta),
-            wealth: Math.max(0, currentWealth + wealthDelta)
-          })
-          .eq('id', params.gang_id);
-        invalidateGangRating(params.gang_id);
-      } catch (e) {
-        console.error('Failed to update gang rating and wealth after equipment deletion:', e);
-      }
+      await updateGangRatingSimple(supabase, params.gang_id, ratingDelta);
     }
 
     // Get fresh fighter total cost after deletion for accurate response
@@ -1231,24 +1207,10 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 
     // Update wealth (stash value decreases, so wealth decreases)
     if (purchaseCost !== 0) {
-      try {
-        const { data: curr } = await supabase
-          .from('gangs')
-          .select('wealth')
-          .eq('id', row.gang_id)
-          .single();
-        const currentWealth = (curr?.wealth ?? 0) as number;
-
-        await supabase
-          .from('gangs')
-          .update({
-            wealth: Math.max(0, currentWealth - purchaseCost)
-          })
-          .eq('id', row.gang_id);
-        invalidateGangRating(row.gang_id);
-      } catch (e) {
-        console.error('Failed to update gang wealth after stash deletion:', e);
-      }
+      await updateGangFinancials(supabase, {
+        gangId: row.gang_id,
+        stashValueDelta: -purchaseCost
+      });
     }
 
     invalidateGangStash({ gangId: row.gang_id, userId: user.id });
@@ -1339,22 +1301,12 @@ export async function applySelfUpgradesToEquipment(params: {
           .eq('id', params.fighter_id)
           .single();
 
-        if (fighter && countsTowardRating(fighter)) {
-          const { data: curr } = await supabase
-            .from('gangs')
-            .select('rating, wealth')
-            .eq('id', params.gang_id)
-            .single();
-
-          if (curr) {
-            await supabase.from('gangs').update({
-              rating: Math.max(0, (curr.rating || 0) + params.credits_increase),
-              wealth: Math.max(0, (curr.wealth || 0) + params.credits_increase)
-            }).eq('id', params.gang_id);
-
-            invalidateGangRating(params.gang_id);
-          }
-        }
+        const fighterIsActive = fighter && countsTowardRating(fighter);
+        await updateGangFinancials(supabase, {
+          gangId: params.gang_id,
+          ratingDelta: params.credits_increase,
+          applyToRating: fighterIsActive ?? false
+        });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
       }
@@ -1429,22 +1381,12 @@ export async function deleteEquipmentEffect(
           .eq('id', params.fighter_id)
           .single();
 
-        if (fighter && countsTowardRating(fighter)) {
-          const { data: curr } = await supabase
-            .from('gangs')
-            .select('rating, wealth')
-            .eq('id', params.gang_id)
-            .single();
-
-          if (curr) {
-            await supabase.from('gangs').update({
-              rating: Math.max(0, (curr.rating || 0) - params.credits_increase),
-              wealth: Math.max(0, (curr.wealth || 0) - params.credits_increase)
-            }).eq('id', params.gang_id);
-
-            invalidateGangRating(params.gang_id);
-          }
-        }
+        const fighterIsActive = fighter && countsTowardRating(fighter);
+        await updateGangFinancials(supabase, {
+          gangId: params.gang_id,
+          ratingDelta: -params.credits_increase,
+          applyToRating: fighterIsActive ?? false
+        });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
       }

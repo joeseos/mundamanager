@@ -8,6 +8,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -129,21 +130,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     const gangId = fighter.gang_id;
     const gangCredits = gang.credits;
 
-    // Helper to adjust rating and wealth by delta
+    // Helper to adjust rating and wealth by delta - uses centralized helper
     const adjustRating = async (delta: number, creditsDelta: number = 0) => {
-      if (!delta && !creditsDelta) return;
-      const newRating = Math.max(0, (gang.rating || 0) + delta);
-      const newWealth = Math.max(0, (gang.wealth || 0) + delta + creditsDelta);
-
-      await supabase
-        .from('gangs')
-        .update({
-          rating: newRating,
-          wealth: newWealth,
-          last_updated: new Date().toISOString()
-        })
-        .eq('id', gangId);
-      invalidateGangRating(gangId);
+      await updateGangFinancials(supabase, {
+        gangId,
+        ratingDelta: delta,
+        creditsDelta
+      });
     };
 
     // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
@@ -870,36 +863,14 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     if (updateError) throw updateError;
 
-// If cost_adjustment changed and fighter is active, update rating and wealth by delta
-let costAdjustmentDelta = 0;
-if (params.cost_adjustment !== undefined && wasActive) {
-  costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
-  if (costAdjustmentDelta !== 0) {
-    try {
-      const { data: ratingRow } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', fighter.gang_id)
-        .single();
-
-      const currentRating = (ratingRow?.rating ?? 0) as number;
-      const currentWealth = (ratingRow?.wealth ?? 0) as number;
-
-      await supabase
-        .from('gangs')
-        .update({
-          rating: Math.max(0, currentRating + costAdjustmentDelta),
-          wealth: Math.max(0, currentWealth + costAdjustmentDelta),
-          last_updated: new Date().toISOString()
-        })
-        .eq('id', fighter.gang_id);
-
-      invalidateGangRating(fighter.gang_id);
-    } catch (e) {
-      console.error('Failed to update rating after cost_adjustment change:', e);
+    // If cost_adjustment changed and fighter is active, update rating and wealth by delta
+    let costAdjustmentDelta = 0;
+    if (params.cost_adjustment !== undefined && wasActive) {
+      costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
+      if (costAdjustmentDelta !== 0) {
+        await updateGangRatingSimple(supabase, fighter.gang_id, costAdjustmentDelta);
+      }
     }
-  }
-}
 
     // If there are stat adjustments, apply them using the existing effects system (user effects via fighter_effect_types)
     if (params.stat_adjustments && Object.keys(params.stat_adjustments).length > 0) {

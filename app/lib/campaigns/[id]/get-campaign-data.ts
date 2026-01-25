@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
+import { fetchCampaignResources } from '@/utils/campaigns/resources';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -193,6 +194,83 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
     }
   }
 
+  // Fetch resource data from campaign_gang_resources for each gang
+  // This is keyed by campaign_gang_id, so we need the campaign_gangs.id values
+  const campaignGangIds = campaignGangs?.map(cg => cg.id) || [];
+  let gangResourcesMap: Record<string, Array<{ resource_id: string; resource_name: string; quantity: number; is_custom: boolean }>> = {};
+  
+  if (campaignGangIds.length > 0) {
+    // Fetch all gang resources for this campaign's gangs
+    const { data: gangResources, error: gangResourcesError } = await supabase
+      .from('campaign_gang_resources')
+      .select(`
+        id,
+        campaign_gang_id,
+        campaign_type_resource_id,
+        campaign_resource_id,
+        quantity
+      `)
+      .in('campaign_gang_id', campaignGangIds);
+
+    if (!gangResourcesError && gangResources) {
+      // Fetch resource names for type resources
+      const typeResourceIds = gangResources.map(gr => gr.campaign_type_resource_id).filter(Boolean);
+      const customResourceIds = gangResources.map(gr => gr.campaign_resource_id).filter(Boolean);
+      
+      let typeResourcesMap: Record<string, string> = {};
+      let customResourcesMap: Record<string, string> = {};
+      
+      if (typeResourceIds.length > 0) {
+        const { data: typeResources, error: typeResourcesError } = await supabase
+          .from('campaign_type_resources')
+          .select('id, resource_name')
+          .in('id', typeResourceIds);
+        
+        if (!typeResourcesError && typeResources) {
+          typeResourcesMap = Object.fromEntries(
+            typeResources.map(r => [r.id, r.resource_name])
+          );
+        }
+      }
+      
+      if (customResourceIds.length > 0) {
+        const { data: customResources, error: customResourcesError } = await supabase
+          .from('campaign_resources')
+          .select('id, resource_name')
+          .in('id', customResourceIds);
+        
+        if (!customResourcesError && customResources) {
+          customResourcesMap = Object.fromEntries(
+            customResources.map(r => [r.id, r.resource_name])
+          );
+        }
+      }
+      
+      // Build the resources map keyed by campaign_gang_id
+      gangResources.forEach(gr => {
+        const campaignGangId = gr.campaign_gang_id;
+        if (!gangResourcesMap[campaignGangId]) {
+          gangResourcesMap[campaignGangId] = [];
+        }
+        
+        const isCustom = !!gr.campaign_resource_id;
+        const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
+        const resourceName = isCustom 
+          ? customResourcesMap[resourceId] 
+          : typeResourcesMap[resourceId];
+        
+        if (resourceId && resourceName) {
+          gangResourcesMap[campaignGangId].push({
+            resource_id: resourceId,
+            resource_name: resourceName,
+            quantity: Number(gr.quantity) || 0,
+            is_custom: isCustom
+          });
+        }
+      });
+    }
+  }
+
   // Rating now comes directly from the gangs query above; no per-gang fetches needed
 
   const membersWithGangs = members?.map(member => {
@@ -242,13 +320,16 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         reputation: gangDetails?.reputation || 0,
         territory_count: territoryCounts[cg.gang_id] || 0,
 
-        // Optional campaign resources
+        // Optional campaign resources (legacy - kept for backwards compatibility during sync trigger phase)
         exploration_points: gangDetails?.exploration_points ?? null,
         meat: gangDetails?.meat ?? null,
         scavenging_rolls: gangDetails?.scavenging_rolls ?? null,
         power: gangDetails?.power ?? null,
         sustenance: gangDetails?.sustenance ?? null,
         salvage: gangDetails?.salvage ?? null,
+        
+        // Normalised resources from campaign_gang_resources table
+        resources: gangResourcesMap[cg.id] || [],
         
         // Allegiance information
         allegiance: allegiance ? {
@@ -869,6 +950,32 @@ export async function getCampaignAllegiances(campaignId: string, supabase: Supab
     [CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
     {
       tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
+      revalidate: false
+    }
+  )();
+}
+
+/**
+ * Get available resources for a campaign
+ * Returns predefined campaign type resources and custom campaign resources
+ */
+export async function getCampaignResources(campaignId: string, supabase: SupabaseClient) {
+  return unstable_cache(
+    async () => {
+      try {
+        return await fetchCampaignResources(campaignId, supabase);
+      } catch (error) {
+        // Return empty array if campaign not found (graceful degradation for server-side)
+        if (error instanceof Error && error.message === 'Campaign not found') {
+          return [];
+        }
+        // Re-throw other errors
+        throw error;
+      }
+    },
+    [CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId)],
+    {
+      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId)],
       revalidate: false
     }
   )();

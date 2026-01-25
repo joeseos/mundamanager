@@ -95,6 +95,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
     {
       key: 'territory_name',
       label: 'Name',
+      align: 'left',
       width: '100%'
     }
   ];
@@ -126,7 +127,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
     {
       icon: <LuTrash2 className="h-4 w-4" />,
       onClick: (item: CustomTerritory) => handleDeleteTerritory(item),
-      variant: 'destructive',
+      variant: 'outline_remove',
       size: 'sm',
       className: 'text-xs px-1.5 h-6'
     }

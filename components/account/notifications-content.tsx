@@ -245,7 +245,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                           handleDeclineFriendRequest(notification.id, notification.sender_id!);
                         }}
                         disabled={processingRequest === notification.id}
-                        variant="outline"
+                        variant="outline_remove"
                         size="sm"
                         className="flex items-center gap-1"
                       >
@@ -258,7 +258,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                           handleAcceptFriendRequest(notification.id, notification.sender_id!);
                         }}
                         disabled={processingRequest === notification.id}
-                        variant="default"
+                        variant="outline_accept"
                         size="sm"
                         className="flex items-center gap-1"
                       >
@@ -276,7 +276,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                           handleDeclineGangInvite(notification.id, notification.link);
                         }}
                         disabled={processingRequest === notification.id}
-                        variant="outline"
+                        variant="outline_remove"
                         size="sm"
                         className="flex items-center gap-1"
                       >
@@ -289,7 +289,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                           handleAcceptGangInvite(notification.id, notification.link);
                         }}
                         disabled={processingRequest === notification.id}
-                        variant="default"
+                        variant="outline_accept"
                         size="sm"
                         className="flex items-center gap-1"
                       >
@@ -299,16 +299,18 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     </div>
                   )}
                   {notification.type !== 'friend_request' && notification.type !== 'gang_invite' && (
-                    <button
+                    <Button
                       onClick={(e) => {
                         e.stopPropagation();
                         setNotificationToDelete(notification.id);
                       }}
-                      className="ml-2 p-1 flex-shrink-0 text-gray-400 hover:text-red-500"
+                      variant="ghost"
+                      size="icon"
+                      className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-500 hover:bg-transparent"
                       aria-label="Delete notification"
                     >
                       <LuTrash2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

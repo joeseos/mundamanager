@@ -78,13 +78,22 @@ export interface GangStashItem {
   type: 'equipment';
 }
 
+export interface GangCampaignResource {
+  resource_id: string;
+  resource_name: string;
+  quantity: number;
+  is_custom: boolean;
+}
+
 export interface GangCampaign {
   campaign_id: string;
+  campaign_gang_id: string;
   campaign_name: string;
   role: string;
   status: string;
   invited_at?: string;
   invited_by?: string;
+  // Legacy flags - kept for backward compatibility during transition
   has_meat: boolean;
   has_exploration_points: boolean;
   has_scavenging_rolls: boolean;
@@ -98,6 +107,8 @@ export interface GangCampaign {
     id: string;
     name: string;
   } | null;
+  // New normalised resources from campaign_gang_resources
+  resources: GangCampaignResource[];
 }
 
 export interface GangVariant {
@@ -467,6 +478,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
       const { data, error } = await supabase
         .from('campaign_gangs')
         .select(`
+          id,
           user_id,
           campaign_type_allegiance_id,
           campaign_allegiance_id,
@@ -479,6 +491,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
           campaigns!campaign_id (
             id,
             campaign_name,
+            campaign_type_id,
             has_meat,
             has_exploration_points,
             has_scavenging_rolls,
@@ -495,9 +508,13 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         return [];
       }
 
-      // Get all campaign IDs first
+      // Get all campaign IDs and campaign_gang IDs first
       const campaignIds = (data || [])
         .map((cg: any) => (cg.campaigns as any)?.id)
+        .filter(Boolean);
+      
+      const campaignGangIds = (data || [])
+        .map((cg: any) => cg.id)
         .filter(Boolean);
 
       // Single batch query for all territories
@@ -580,6 +597,95 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         }
       }
 
+      // Fetch ALL available resources for campaigns and gang's current quantities
+      let resourcesByCampaignGang: Record<string, GangCampaignResource[]> = {};
+      
+      if (campaignGangIds.length > 0 && campaignIds.length > 0) {
+        // Get campaign_type_ids for fetching predefined resources
+        const campaignTypeIds = (data || [])
+          .map((cg: any) => (cg.campaigns as any)?.campaign_type_id)
+          .filter(Boolean);
+        
+        // Fetch predefined resources for all campaign types
+        let predefinedResources: Array<{ id: string; resource_name: string; campaign_type_id: string }> = [];
+        if (campaignTypeIds.length > 0) {
+          const { data: typeResources } = await supabase
+            .from('campaign_type_resources')
+            .select('id, resource_name, campaign_type_id')
+            .in('campaign_type_id', campaignTypeIds);
+          predefinedResources = typeResources || [];
+        }
+        
+        // Fetch custom resources for all campaigns
+        let customResources: Array<{ id: string; resource_name: string; campaign_id: string }> = [];
+        if (campaignIds.length > 0) {
+          const { data: campResources } = await supabase
+            .from('campaign_resources')
+            .select('id, resource_name, campaign_id')
+            .in('campaign_id', campaignIds);
+          customResources = campResources || [];
+        }
+        
+        // Fetch gang's current resource quantities
+        const { data: gangResources } = await supabase
+          .from('campaign_gang_resources')
+          .select(`
+            id,
+            campaign_gang_id,
+            campaign_type_resource_id,
+            campaign_resource_id,
+            quantity
+          `)
+          .in('campaign_gang_id', campaignGangIds);
+        
+        // Build quantity lookup: resourceId -> { campaignGangId -> quantity }
+        const quantityLookup: Record<string, Record<string, number>> = {};
+        (gangResources || []).forEach((gr: any) => {
+          const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
+          if (resourceId) {
+            if (!quantityLookup[resourceId]) {
+              quantityLookup[resourceId] = {};
+            }
+            quantityLookup[resourceId][gr.campaign_gang_id] = Number(gr.quantity) || 0;
+          }
+        });
+        
+        // Build resources for each campaign_gang
+        for (const cg of data || []) {
+          const campaignGangId = cg.id;
+          const campaignTypeId = (cg.campaigns as any)?.campaign_type_id;
+          const campaignId = (cg.campaigns as any)?.id;
+          
+          if (!resourcesByCampaignGang[campaignGangId]) {
+            resourcesByCampaignGang[campaignGangId] = [];
+          }
+          
+          // Add predefined resources for this campaign's type
+          const relevantPredefined = predefinedResources.filter(r => r.campaign_type_id === campaignTypeId);
+          for (const resource of relevantPredefined) {
+            const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
+            resourcesByCampaignGang[campaignGangId].push({
+              resource_id: resource.id,
+              resource_name: resource.resource_name,
+              quantity,
+              is_custom: false
+            });
+          }
+          
+          // Add custom resources for this campaign
+          const relevantCustom = customResources.filter(r => r.campaign_id === campaignId);
+          for (const resource of relevantCustom) {
+            const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
+            resourcesByCampaignGang[campaignGangId].push({
+              resource_id: resource.id,
+              resource_name: resource.resource_name,
+              quantity,
+              is_custom: true
+            });
+          }
+        }
+      }
+
       for (const cg of data || []) {
         if (cg.campaigns) {
           // Get member data - need to fetch ALL entries for this user in this campaign
@@ -625,6 +731,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
           campaigns.push({
             campaign_id: (cg.campaigns as any).id,
+            campaign_gang_id: cg.id,
             campaign_name: (cg.campaigns as any).campaign_name,
             role: (memberData as any)?.role,
             status: (memberData as any)?.status,
@@ -639,7 +746,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             trading_posts: tradingPosts,
             trading_post_names,
             territories: territoriesByCampaign[(cg.campaigns as any).id] || [],
-            allegiance
+            allegiance,
+            resources: resourcesByCampaignGang[cg.id] || []
           });
         }
       }
