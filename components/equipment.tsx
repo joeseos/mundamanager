@@ -1390,7 +1390,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                               return (
                                 <div
                                   key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
-                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-muted"
+                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-muted gap-1"
                                 >
                                   <div className={`flex-1 pl-4 leading-none ${tooltipProps['data-tooltip-id'] ? 'cursor-help' : ''}`} {...tooltipProps}>
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -1411,7 +1411,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       )}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1">
                                     {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
                                       <div className="flex items-center gap-1">
                                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
