@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { createLoadout, updateLoadout, deleteLoadout, setActiveLoadout } from '@/app/actions/loadouts';
 import { useToast } from '@/components/ui/use-toast';
@@ -454,14 +455,12 @@ export default function FighterLoadoutsModal({
                         key={item.fighter_equipment_id}
                         className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-muted"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={isInLoadout}
-                          onChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
-                          className="rounded"
+                          onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
                         />
                         <span className="flex-1">{item.equipment_name}</span>
-                        <span className="text-muted-foreground text-sm">{item.cost} cr</span>
+                        <span className="text-muted-foreground text-sm">{item.cost}</span>
                       </label>
                     );
                   })}
