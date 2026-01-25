@@ -13,16 +13,8 @@ import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
 import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
+import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
-
-const RESOURCE_OPTIONS = [
-  { key: 'explorationEnabled', label: 'Exploration Points' },
-  { key: 'meatEnabled', label: 'Meat' },
-  { key: 'scavengingEnabled', label: 'Scavenging Rolls' },
-  { key: 'powerEnabled', label: 'Power' },
-  { key: 'sustenanceEnabled', label: 'Sustenance' },
-  { key: 'salvageEnabled', label: 'Salvage' },
-] as const;
 
 interface TradingPostType {
   id: string;
@@ -35,12 +27,6 @@ interface EditCampaignModalProps {
     id: string;
     campaign_name: string;
     description: string;
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-    has_power: boolean;
-    has_sustenance: boolean;
-    has_salvage: boolean;
     status: string | null;
     trading_posts: string[];
     campaign_type_name?: string;
@@ -50,12 +36,6 @@ interface EditCampaignModalProps {
   onSave: (updatedData: {
     campaign_name: string;
     description: string;
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-    has_power: boolean;
-    has_sustenance: boolean;
-    has_salvage: boolean;
     trading_posts: string[];
     status: string;
   }) => Promise<boolean>;
@@ -68,6 +48,9 @@ interface EditCampaignModalProps {
   onMembersUpdate?: (allegianceId: string) => void;
   onAllegianceRenamed?: (allegianceId: string, newName: string) => void;
   predefinedAllegiances?: Array<{ id: string; allegiance_name: string }>;
+  campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
+  onResourcesChange?: () => void;
+  predefinedResources?: Array<{ id: string; resource_name: string }>;
 }
 
 export default function CampaignEditModal({
@@ -84,17 +67,14 @@ export default function CampaignEditModal({
   onMembersUpdate,
   onAllegianceRenamed,
   predefinedAllegiances = [],
+  campaignResources = [],
+  onResourcesChange,
+  predefinedResources = [],
 }: EditCampaignModalProps) {
   // Local state for form values - initialized from props
   const [formValues, setFormValues] = useState({
     campaignName: campaignData.campaign_name,
     description: campaignData.description ?? '',
-    meatEnabled: campaignData.has_meat ?? false,
-    explorationEnabled: campaignData.has_exploration_points ?? false,
-    scavengingEnabled: campaignData.has_scavenging_rolls ?? false,
-    powerEnabled: campaignData.has_power ?? false,
-    sustenanceEnabled: campaignData.has_sustenance ?? false,
-    salvageEnabled: campaignData.has_salvage ?? false,
     status: campaignData.status || 'Active',
     tradingPosts: campaignData.trading_posts || [],
   });
@@ -110,12 +90,6 @@ export default function CampaignEditModal({
     setFormValues({
       campaignName: campaignData.campaign_name,
       description: campaignData.description ?? '',
-      meatEnabled: campaignData.has_meat ?? false,
-      explorationEnabled: campaignData.has_exploration_points ?? false,
-      scavengingEnabled: campaignData.has_scavenging_rolls ?? false,
-      powerEnabled: campaignData.has_power ?? false,
-      sustenanceEnabled: campaignData.has_sustenance ?? false,
-      salvageEnabled: campaignData.has_salvage ?? false,
       status: campaignData.status || 'Active',
       tradingPosts: campaignData.trading_posts || [],
     });
@@ -128,12 +102,6 @@ export default function CampaignEditModal({
     const result = await onSave({
       campaign_name: formValues.campaignName,
       description: formValues.description,
-      has_meat: formValues.meatEnabled,
-      has_exploration_points: formValues.explorationEnabled,
-      has_scavenging_rolls: formValues.scavengingEnabled,
-      has_power: formValues.powerEnabled,
-      has_sustenance: formValues.sustenanceEnabled,
-      has_salvage: formValues.salvageEnabled,
       trading_posts: formValues.tradingPosts,
       status: formValues.status,
     });
@@ -228,48 +196,45 @@ export default function CampaignEditModal({
               />
             </div>
 
-            {/* Resources */}
-          <div className="space-y-2 text-sm font-medium mb-1">
-            <label className="flex items-center justify-between text-sm font-medium">
-              <div className="flex items-center space-x-2">
+            {/* Resources Section */}
+            <div>
+              <h3 className="text-sm font-medium flex items-center space-x-2">
                 <span>Resources</span>
-                <span
-                  className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-                  data-tooltip-id="resources-tooltip"
-                  data-tooltip-html={
-                    'Exploration Points: Underhells campaign.<br/>Meat and Scavenging Rolls: Uprising campaign.'
-                  }
-                >
-                  <ImInfo />
-                </span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {RESOURCE_OPTIONS.reduce((count, option) => (
-                  formValues[option.key] ? count + 1 : count
-                ), 0)}{' '}
-                selected
-              </span>
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {RESOURCE_OPTIONS.map(option => (
-                <label
-                  key={option.key}
-                  htmlFor={`resource-${option.key}`}
-                  className="flex items-center space-x-2 cursor-pointer"
-                >
-                  <Checkbox
-                    id={`resource-${option.key}`}
-                    checked={formValues[option.key]}
-                    onCheckedChange={(checked) => setFormValues(prev => ({
-                      ...prev,
-                      [option.key]: checked === true
-                    }))}
-                  />
-                  <span className="text-xs">{option.label}</span>
-                </label>
-              ))}
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html={
+                      'Resources are campaign-specific currencies that gangs can accumulate. Predefined resources come from the campaign type (e.g., Exploration Points for Underhells, Meat and Scavenging Rolls for Uprising). Campaign owners and arbitrators can also add custom resources.'
+                    }
+                  >
+                    <ImInfo />
+                  </span>
+              </h3>
+              {/* Default Resources Section (for non-custom campaigns) */}
+              {predefinedResources.length > 0 && campaignData.campaign_type_name !== 'Custom' && (
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  <span className="text-xs text-muted-foreground">Default:</span>
+                  {predefinedResources.map((resource: { id: string; resource_name: string }) => (
+                    <Badge key={resource.id} variant="secondary">
+                      {resource.resource_name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+
+            {/* Custom Resources Management Section */}
+            {(isOwner || isArbitrator || isAdmin) && (
+              <div>
+                <CampaignResourcesActions
+                  campaignId={campaignData.id}
+                  isCustomCampaign={campaignData.campaign_type_name === 'Custom'}
+                  canManage={true}
+                  initialResources={campaignResources.filter(r => r.is_custom)}
+                  onResourcesChange={onResourcesChange}
+                />
+              </div>
+            )}
 
             {/* Trading Posts */}
             <div className="space-y-2 text-sm font-medium mb-1">
