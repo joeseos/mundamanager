@@ -2,7 +2,8 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateGangRating, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 
@@ -206,33 +207,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     // Always update wealth when moving equipment to stash (stash value is part of wealth)
     // Only update rating if it changed (active fighter)
     if (ratingDelta !== 0 || wealthDelta !== 0) {
-      try {
-        const { data: gangRow } = await supabase
-          .from('gangs')
-          .select('rating, wealth')
-          .eq('id', gangId)
-          .single();
-        const currentRating = (gangRow?.rating ?? 0) as number;
-        const currentWealth = (gangRow?.wealth ?? 0) as number;
-        
-        const updateData: any = {
-          wealth: Math.max(0, currentWealth + wealthDelta),
-          last_updated: new Date().toISOString()
-        };
-        
-        // Only update rating if it changed (active fighter case)
-        if (ratingDelta !== 0) {
-          updateData.rating = Math.max(0, currentRating + ratingDelta);
-        }
-        
-        await supabase
-          .from('gangs')
-          .update(updateData)
-          .eq('id', gangId);
-        invalidateGangRating(gangId);
-      } catch (e) {
-        console.error('Failed to update gang rating/wealth after moving equipment to stash:', e);
-      }
+      // Use stashValueDelta since equipment is moving to stash
+      // wealthDelta = ratingDelta + equipmentValue, so stashValueDelta = equipmentValue
+      await updateGangFinancials(supabase, {
+        gangId,
+        ratingDelta,
+        stashValueDelta: equipmentValue
+      });
     }
 
     // Invalidate appropriate caches - moving equipment to stash affects gang overview

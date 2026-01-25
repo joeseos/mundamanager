@@ -1,9 +1,10 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateVehicleEffects, invalidateVehicleRepair, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateVehicleEffects, invalidateVehicleRepair } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
+import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 
 interface RemoveVehicleDamageParams {
   damageId: string;
@@ -68,23 +69,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
         if (veh?.fighter_id) {
           const delta = -(effectRow?.type_specific_data?.credits_increase || 0);
           if (delta) {
-            const { data: gangRow } = await supabase
-              .from('gangs')
-              .select('rating, wealth')
-              .eq('id', params.gangId)
-              .single();
-            const currentRating = (gangRow?.rating ?? 0) as number;
-            const currentWealth = (gangRow?.wealth ?? 0) as number;
-
-            // Remove vehicle damage: rating delta = wealth delta (no credits change)
-            await supabase
-              .from('gangs')
-              .update({
-                rating: Math.max(0, currentRating + delta),
-                wealth: Math.max(0, currentWealth + delta)
-              })
-              .eq('id', params.gangId);
-            invalidateGangRating(params.gangId);
+            await updateGangRatingSimple(supabase, params.gangId, delta);
           }
         }
       }
