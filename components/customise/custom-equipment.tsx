@@ -189,26 +189,30 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       key: 'equipment_category',
       label: 'Category',
       align: 'left',
-      width: '20%'
+      width: '20%',
+      cellClassName: 'text-sm text-muted-foreground'
     },
     {
       key: 'equipment_type',
       label: 'Type',
       align: 'left',
       width: '15%',
+      cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '-'
     },
     {
       key: 'availability',
       label: 'AL',
       align: 'right',
-      width: '15%'
+      width: '15%',
+      cellClassName: 'text-sm text-muted-foreground'
     },
     {
       key: 'cost',
       label: 'Cost',
       align: 'right',
       width: '10%',
+      cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value ? String(value) : '-'
     },
   ];
@@ -247,7 +251,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     {
       icon: <LuTrash2 className="h-4 w-4" />,
       onClick: (item: CustomEquipment) => handleDeleteEquipment(item),
-      variant: 'destructive',
+      variant: 'outline_remove',
       size: 'sm',
       className: 'text-xs px-1.5 h-6'
     }

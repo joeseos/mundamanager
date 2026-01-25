@@ -674,7 +674,7 @@ export function InjuriesList({
                           <td className="px-1 py-1">
                             <div className="flex justify-end gap-1">
                               <Button
-                                variant="destructive"
+                                variant="outline_remove"
                                 size="sm"
                                 onClick={() => setDeleteModalData({
                                   id: injury.id,
@@ -722,7 +722,7 @@ export function InjuriesList({
             {
               icon: <LuTrash2 className="h-4 w-4" />,
               title: "Delete",
-              variant: 'destructive',
+              variant: 'outline_remove',
               onClick: (item) => setDeleteModalData({
                 id: item.injury_id,
                 name: item.name

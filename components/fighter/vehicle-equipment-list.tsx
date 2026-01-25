@@ -406,7 +406,7 @@ export function VehicleEquipmentList({
           // Delete Action Removed - Not needed for now
           // {
           //   icon: <LuTrash2 className="h-4 w-4" />,
-          //   variant: 'destructive',
+          //   variant: 'outline_remove',
           //   onClick: (item) => setDeleteModalData({
           //     id: item.fighter_equipment_id,
           //     equipmentId: item.equipment_id,

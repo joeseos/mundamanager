@@ -475,7 +475,7 @@ export function PowerBoostsList({
           {
             icon: <LuUndo2 className="h-4 w-4" />,
             title: "Undo",
-            variant: 'destructive',
+            variant: 'outline_remove',
             onClick: (item) => item.boost_id ? setDeleteModalData({
               id: item.boost_id,
               name: item.name

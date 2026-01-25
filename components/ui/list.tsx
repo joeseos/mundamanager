@@ -8,6 +8,7 @@ export interface ListColumn {
   label: string;
   align?: 'left' | 'right' | 'center';
   width?: string;
+  cellClassName?: string;
   render?: (value: any, item: any, index?: number) => React.ReactNode;
 }
 
@@ -15,7 +16,7 @@ export interface ListAction {
   label?: string;
   icon?: React.ReactNode;
   onClick: (item: any) => void;
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'success' | 'outline_accept' | 'outline_cancel' | 'outline_remove';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   disabled?: (item: any) => boolean;
   className?: string;
@@ -127,7 +128,7 @@ export function List<T = any>({
                     {columns.map((column) => (
                       <td 
                         key={column.key}
-                        className={`px-1 py-1 ${getAlignmentClass(column.align)}`}
+                        className={`px-1 py-1 ${getAlignmentClass(column.align)} ${column.cellClassName || ''}`}
                       >
                         {renderCellContent(column, item, index)}
                       </td>

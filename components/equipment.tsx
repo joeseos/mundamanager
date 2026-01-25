@@ -1400,12 +1400,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                           : item.equipment_name}
                                       </span>
                                       {item.is_custom && (
-                                        <Badge variant="discreet">
+                                        <Badge variant="discreet" className="px-1 text-[0.6rem]">
                                           Custom
                                         </Badge>
                                       )}
                                       {(item as any).from_fighters_list && (
-                                        <Badge variant="discreet">
+                                        <Badge variant="discreet" className="px-1 text-[0.6rem]">
                                           {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                                         </Badge>
                                       )}
