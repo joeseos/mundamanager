@@ -696,6 +696,7 @@ BEGIN
                    'role', cg.role,
                    'status', cg.status,
                    'invited_at', cg.invited_at,
+                   'joined_at', cg.joined_at,
                    'invited_by', cg.invited_by,
                    'has_meat', c.has_meat,
                    'has_exploration_points', c.has_exploration_points,
