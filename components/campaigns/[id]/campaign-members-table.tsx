@@ -21,6 +21,13 @@ import { HiUser } from "react-icons/hi2";
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
+interface GangResource {
+  resource_id: string;
+  resource_name: string;
+  quantity: number;
+  is_custom: boolean;
+}
+
 interface Member {
   id?: string;
   user_id: string;
@@ -54,6 +61,7 @@ interface Member {
     sustenance?: number | null;
     salvage?: number | null;
     territory_count?: number;
+    resources?: GangResource[];
     allegiance?: {
       id: string;
       name: string;
@@ -117,9 +125,7 @@ interface MembersTableProps {
   }) => void;
   isCampaignAdmin: boolean;
   isCampaignOwner: boolean;
-  hasExplorationPoints?: boolean;
-  hasMeat?: boolean;
-  hasScavengingRolls?: boolean;
+  availableResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
   initialAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
 }
 
@@ -144,9 +150,7 @@ export default function MembersTable({
   onMemberUpdate,
   isCampaignAdmin,
   isCampaignOwner,
-  hasExplorationPoints = false,
-  hasMeat = false,
-  hasScavengingRolls = false,
+  availableResources = [],
   initialAllegiances = []
 }: MembersTableProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -253,18 +257,6 @@ export default function MembersTable({
           aValue = a.gangs[0]?.reputation ?? -1;
           bValue = b.gangs[0]?.reputation ?? -1;
           break;
-        case 'exploration_points':
-          aValue = a.gangs[0]?.exploration_points ?? -1;
-          bValue = b.gangs[0]?.exploration_points ?? -1;
-          break;
-        case 'meat':
-          aValue = a.gangs[0]?.meat ?? -1;
-          bValue = b.gangs[0]?.meat ?? -1;
-          break;
-        case 'scavenging_rolls':
-          aValue = a.gangs[0]?.scavenging_rolls ?? -1;
-          bValue = b.gangs[0]?.scavenging_rolls ?? -1;
-          break;
         case 'territory_count':
           aValue = a.gangs[0]?.territory_count ?? -1;
           bValue = b.gangs[0]?.territory_count ?? -1;
@@ -274,8 +266,17 @@ export default function MembersTable({
           bValue = b.gangs[0]?.allegiance?.name || '';
           break;
         default:
-          aValue = a.gangs[0]?.rating ?? -1;
-          bValue = b.gangs[0]?.rating ?? -1;
+          // Check if sorting by a resource field (resource_<id>)
+          if (sortField.startsWith('resource_')) {
+            const resourceId = sortField.replace('resource_', '');
+            const aResource = a.gangs[0]?.resources?.find(r => r.resource_id === resourceId);
+            const bResource = b.gangs[0]?.resources?.find(r => r.resource_id === resourceId);
+            aValue = aResource?.quantity ?? -1;
+            bValue = bResource?.quantity ?? -1;
+          } else {
+            aValue = a.gangs[0]?.rating ?? -1;
+            bValue = b.gangs[0]?.rating ?? -1;
+          }
       }
       
        // Handle string comparison
@@ -297,8 +298,10 @@ export default function MembersTable({
     } else {
       setSortField(field);
       // Set default direction based on field type
-      const numericalFields = ['rating', 'wealth', 'reputation', 'exploration_points', 'meat', 'scavenging_rolls', 'territory_count'];
-      setSortDirection(numericalFields.includes(field) ? 'desc' : 'asc');
+      // Resource fields (resource_*) are also numerical
+      const numericalFields = ['rating', 'wealth', 'reputation', 'territory_count'];
+      const isNumerical = numericalFields.includes(field) || field.startsWith('resource_');
+      setSortDirection(isNumerical ? 'desc' : 'asc');
     }
   };
 
@@ -994,54 +997,31 @@ export default function MembersTable({
                   )}
                 </div>
               </th>
-              {/* Exploration Points column */}
-              {hasExplorationPoints && (
-                <th 
-                  className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                  onClick={() => handleSort('exploration_points')}
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    Expl.
-                    {sortField === 'exploration_points' && (
-                      <span className="text-muted-foreground">
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </div>
-                </th>
-              )}
-              {/* Meat column */}
-              {hasMeat && (
-                <th 
-                  className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                  onClick={() => handleSort('meat')}
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    Meat
-                    {sortField === 'meat' && (
-                      <span className="text-muted-foreground">
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </div>
-                </th>
-              )}
-              {/* Scavenging Rolls column */}
-              {hasScavengingRolls && (
-                <th 
-                  className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                  onClick={() => handleSort('scavenging_rolls')}
-                >
-                  <div className="flex items-center justify-end gap-1">
-                    Scav.
-                    {sortField === 'scavenging_rolls' && (
-                      <span className="text-muted-foreground">
-                        {sortDirection === 'asc' ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </div>
-                </th>
-              )}
+              {/* Dynamic Resource columns */}
+              {availableResources.map(resource => {
+                // Abbreviate long resource names for column headers
+                const shortName = resource.resource_name.length > 6 
+                  ? resource.resource_name.substring(0, 5) + '.' 
+                  : resource.resource_name;
+                const sortKey = `resource_${resource.id}`;
+                return (
+                  <th 
+                    key={resource.id}
+                    className="px-2 py-2 text-right font-medium min-w-[2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+                    onClick={() => handleSort(sortKey)}
+                    title={resource.resource_name}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      {shortName}
+                      {sortField === sortKey && (
+                        <span className="text-muted-foreground">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
               {/* Action column */}
               {(isAdmin || sortedMembers.some(member => member.user_id === currentUserId)) && <th className="px-2 py-2 text-right font-medium min-w-[2.5rem]">
                 Action
@@ -1228,30 +1208,17 @@ export default function MembersTable({
                     {member.gangs[0]?.territory_count ?? "-"}
                   </span>
                 </td>
-                {/* Exploration Points column */}
-                {hasExplorationPoints && (
-                  <td className="px-2 py-2 text-right">
-                    <span className="text-muted-foreground">
-                      {member.gangs[0]?.exploration_points ?? "-"}
-                    </span>
-                  </td>
-                )}
-                {/* Meat column */}
-                {hasMeat && (
-                  <td className="px-2 py-2 text-right">
-                    <span className="text-muted-foreground">
-                      {member.gangs[0]?.meat ?? "-"}
-                    </span>
-                  </td>
-                )}
-                {/* Scavenging Rolls column */}
-                {hasScavengingRolls && (
-                  <td className="px-2 py-2 text-right">
-                    <span className="text-muted-foreground">
-                      {member.gangs[0]?.scavenging_rolls ?? "-"}
-                    </span>
-                  </td>
-                )}
+                {/* Dynamic Resource columns */}
+                {availableResources.map(resource => {
+                  const gangResource = member.gangs[0]?.resources?.find(r => r.resource_id === resource.id);
+                  return (
+                    <td key={resource.id} className="px-2 py-2 text-right">
+                      <span className="text-muted-foreground">
+                        {gangResource?.quantity ?? "-"}
+                      </span>
+                    </td>
+                  );
+                })}
                 {/* Action column */}
                 {(isAdmin || member.user_id === currentUserId) && (
                   <td className="px-2 py-2 text-right">

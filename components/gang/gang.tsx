@@ -70,9 +70,11 @@ interface GangProps {
   additionalButtons?: React.ReactNode;
   campaigns?: {
     campaign_id: string;
+    campaign_gang_id: string;
     campaign_name: string;
     role: string | null;
     status: string | null;
+    // Legacy flags - kept for backward compatibility
     has_meat: boolean;
     has_exploration_points: boolean;
     has_scavenging_rolls: boolean;
@@ -90,6 +92,13 @@ interface GangProps {
       id: string;
       name: string;
     } | null;
+    // Normalised resources from campaign_gang_resources
+    resources?: Array<{
+      resource_id: string;
+      resource_name: string;
+      quantity: number;
+      is_custom: boolean;
+    }>;
   }[];
   note?: string;
   stash: StashItem[];
@@ -169,12 +178,20 @@ export default function Gang({
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
+  // Legacy resource states - kept for backward compatibility during transition
   const [meat, setMeat] = useState(initialMeat ?? 0)
   const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
   const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
   const [power, setPower] = useState(initialPower ?? 0)
   const [sustenance, setSustenance] = useState(initialSustenance ?? 0)
   const [salvage, setSalvage] = useState(initialSalvage ?? 0)
+  // Dynamic resources from normalised tables
+  const [campaignResources, setCampaignResources] = useState<Array<{
+    resource_id: string;
+    resource_name: string;
+    quantity: number;
+    is_custom: boolean;
+  }>>(campaigns?.[0]?.resources || [])
   const [rating, setRating] = useState<number>(initialRating ?? 0)
   const [wealth, setWealth] = useState<number>(initialWealth ?? 0)
   const [lastUpdated, setLastUpdated] = useState(initialLastUpdated)
@@ -196,21 +213,23 @@ export default function Gang({
   );
   const queryClient = useQueryClient();
   
-  // Create updated campaigns prop with optimistic allegiance
-  const campaignsWithAllegiance = useMemo(() => {
+  // Create updated campaigns prop with optimistic allegiance and resources
+  const campaignsWithOptimisticData = useMemo(() => {
     if (!campaigns || campaigns.length === 0) return campaigns;
     return campaigns.map((campaign, index) => {
       if (index === 0) {
         // Use optimistic allegiance if set, otherwise fall back to prop
         const allegiance = currentAllegiance !== undefined ? currentAllegiance : campaign.allegiance;
+        // Use current resources state for optimistic updates
         return {
           ...campaign,
-          allegiance
+          allegiance,
+          resources: campaignResources
         };
       }
       return campaign;
     });
-  }, [campaigns, currentAllegiance]);
+  }, [campaigns, currentAllegiance, campaignResources]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddFighterModal, setShowAddFighterModal] = useState(false);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
@@ -471,7 +490,8 @@ export default function Gang({
         name, credits, wealth, alignment, allianceId, allianceName,
         gangAffiliationId, gangAffiliationName, gangOriginId, gangOriginName,
         reputation, meat, scavengingRolls, explorationPoints, power, sustenance, salvage,
-        gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden
+        gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden,
+        campaignResources: [...campaignResources]
       };
 
       // Apply optimistic updates
@@ -575,6 +595,7 @@ export default function Gang({
         setGangIsVariant(s.gangIsVariant);
         setGangColour(s.gangColour);
         setHidden(s.hidden);
+        setCampaignResources(s.campaignResources);
       }
 
       // Show error toast
@@ -601,6 +622,63 @@ export default function Gang({
       // Show success toast
       toast({
         description: "Gang updated successfully"
+      });
+    }
+  });
+
+  // TanStack Query mutation for resource updates with optimistic updates
+  const updateResourceMutation = useMutation({
+    mutationFn: async (resourceUpdates: Array<{
+      campaign_gang_id: string;
+      resource_id: string;
+      is_custom: boolean;
+      quantity_delta: number;
+    }>) => {
+      const { updateGangResources } = await import('@/app/actions/update-gang-resource');
+      if (resourceUpdates.length === 0) return { success: true };
+      
+      const campaignGangId = resourceUpdates[0].campaign_gang_id;
+      const updates = resourceUpdates.map(r => ({
+        resource_id: r.resource_id,
+        is_custom: r.is_custom,
+        quantity_delta: r.quantity_delta
+      }));
+      
+      return updateGangResources(campaignGangId, updates);
+    },
+    onMutate: async (resourceUpdates) => {
+      // Snapshot previous resources for rollback
+      const snapshot = { campaignResources: [...campaignResources] };
+
+      // Apply optimistic updates
+      const updatedResources = campaignResources.map(resource => {
+        const update = resourceUpdates.find(u => u.resource_id === resource.resource_id);
+        if (update) {
+          return {
+            ...resource,
+            quantity: resource.quantity + update.quantity_delta
+          };
+        }
+        return resource;
+      });
+      setCampaignResources(updatedResources);
+
+      return { snapshot };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.snapshot) {
+        setCampaignResources(context.snapshot.campaignResources);
+      }
+      console.error('Error updating resources:', error);
+      toast({
+        variant: "destructive",
+        description: error instanceof Error ? error.message : 'Failed to update resources'
+      });
+    },
+    onSuccess: () => {
+      toast({
+        description: "Resources updated successfully"
       });
     }
   });
@@ -666,6 +744,22 @@ export default function Gang({
           setCurrentAllegiance(previousAllegiance);
           throw error;
         }
+      }
+      
+      // Handle resource updates if present
+      if (updates.resourceUpdates && updates.resourceUpdates.length > 0) {
+        const campaignGangId = campaigns?.[0]?.campaign_gang_id;
+        if (campaignGangId) {
+          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: any) => ({
+            campaign_gang_id: campaignGangId,
+            resource_id: r.resource_id,
+            is_custom: r.is_custom,
+            quantity_delta: r.quantity_delta
+          }));
+          await updateResourceMutation.mutateAsync(resourceUpdatesWithCampaignGang);
+        }
+        // Remove resourceUpdates from gangUpdates since they're handled separately
+        delete gangUpdates.resourceUpdates;
       }
       
       // Update gang fields (only if there are any non-allegiance updates)
@@ -1074,44 +1168,17 @@ export default function Gang({
                     <span className="text-muted-foreground">Reputation:</span>
                     <span className="font-semibold">{reputation != null ? reputation : 0}</span>
                   </div>
-                  {campaigns?.[0]?.has_exploration_points && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground hidden sm:inline">Exploration Points:</span>
-                      <span className="text-muted-foreground inline sm:hidden">Expl. Pts:</span>
-                      <span className="font-semibold">{explorationPoints != null ? explorationPoints : 0}</span>
+                  {/* Dynamic Campaign Resources */}
+                  {campaignResources.map((resource) => (
+                    <div key={resource.resource_id} className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        {resource.resource_name.length > 12 
+                          ? `${resource.resource_name.substring(0, 10)}...` 
+                          : resource.resource_name}:
+                      </span>
+                      <span className="font-semibold">{resource.quantity}</span>
                     </div>
-                  )}
-                  {campaigns?.[0]?.has_meat && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Meat:</span>
-                      <span className="font-semibold">{meat != null ? meat : 0}</span>
-                    </div>
-                  )}
-                  {campaigns?.[0]?.has_scavenging_rolls && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground hidden sm:inline">Scavenging Rolls:</span>
-                      <span className="text-muted-foreground inline sm:hidden">Scav. Rolls:</span>
-                      <span className="font-semibold">{scavengingRolls != null ? scavengingRolls : 0}</span>
-                    </div>
-                  )}
-                  {campaigns?.[0]?.has_power && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Power:</span>
-                      <span className="font-semibold">{power != null ? power : 0}</span>
-                    </div>
-                  )}
-                  {campaigns?.[0]?.has_sustenance && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Sustenance:</span>
-                      <span className="font-semibold">{sustenance != null ? sustenance : 0}</span>
-                    </div>
-                  )}
-                  {campaigns?.[0]?.has_salvage && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Salvage:</span>
-                      <span className="font-semibold">{salvage != null ? salvage : 0}</span>
-                    </div>
-                  )}
+                  ))}
                   {/* Gang Composition */}
                   <div
                     className="flex justify-between cursor-help"
@@ -1187,7 +1254,7 @@ export default function Gang({
             gangOriginCategoryName={gangOriginCategoryName}
             gangTypeHasOrigin={gang_type_has_origin || false}
             hidden={hidden}
-            campaigns={campaignsWithAllegiance}
+            campaigns={campaignsWithOptimisticData}
             onSave={handleGangUpdate}
           />
 
