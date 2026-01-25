@@ -530,7 +530,7 @@ export function SkillsList({
           {
             icon: <LuTrash2 className="h-4 w-4" />,
             title: "Delete",
-            variant: 'destructive' as const,
+            variant: 'outline_remove' as const,
             onClick: (item: any) => handleDeleteClick(item.id, item.name),
             disabled: (item: any) => !!item.fighter_injury_id || !!item.is_advance || !userPermissions.canEdit || deleteSkillMutation.isPending
           }

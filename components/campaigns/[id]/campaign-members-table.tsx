@@ -1223,9 +1223,9 @@ export default function MembersTable({
                 {(isAdmin || member.user_id === currentUserId) && (
                   <td className="px-2 py-2 text-right">
                     <Button
-                      variant="outline"
+                      variant="outline_remove"
                       size="sm"
-                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="h-8 w-8 p-0"
                       onClick={() => {
                         setMemberToRemove({...member, index});
                         setShowRemoveMemberModal(true);

@@ -391,20 +391,20 @@ export default function CampaignResourcesActions({
                     />
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="outline"
+                        variant="outline_accept"
                         size="sm"
                         onClick={handleSaveEdit}
-                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        className="h-8 w-8 p-0"
                         title="Save"
                         disabled={!editResourceName.trim() || updateMutation.isPending}
                       >
                         <LuCheck className="size-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="outline_cancel"
                         size="sm"
                         onClick={handleCancelEdit}
-                        className="h-8 w-8 p-0 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                        className="h-8 w-8 p-0"
                         title="Cancel"
                         disabled={updateMutation.isPending}
                       >
@@ -430,9 +430,9 @@ export default function CampaignResourcesActions({
                         <LuPencil className="size-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="outline_remove"
                         size="sm"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="h-8 w-8 p-0"
                         onClick={() => openDeleteModal(resource)}
                         title="Delete resource"
                       >

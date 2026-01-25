@@ -85,7 +85,7 @@ export default function ResetPassword() {
               )}
             </>
           ) : (
-            <p className="text-sm text-white mb-8">Check your email for the password reset link.</p>
+            <p className="text-sm text-white mb-8 text-center">Check your email for the password reset link.</p>
           )}
           <div className="text-center mt-2">
             <Link href="/sign-in" className="text-sm text-white underline hover:underline">

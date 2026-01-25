@@ -605,10 +605,10 @@ export default function CampaignTerritoryList({
                       )}
                       {permissions.canDeleteTerritories && (
                         <Button
-                          variant="outline"
+                          variant="outline_remove"
                           size="sm"
                           onClick={() => handleDeleteClick(item.territory.id, item.territory.territory_name)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="h-8 w-8 p-0"
                           aria-label="Delete territory"
                         >
                           <LuTrash2 className="h-4 w-4" />
