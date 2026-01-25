@@ -54,6 +54,7 @@ export interface FighterBasic {
   fighter_pet_id?: string;
   image_url?: string;
   position?: string;
+  active_loadout_id?: string | null;
 }
 
 export interface FighterType {
@@ -81,6 +82,14 @@ export interface FighterEquipment {
   weapon_profiles?: any[];
   target_equipment_id?: string | null;
   effect_names?: string[]; // Names of effects that target this weapon
+  loadout_ids?: string[]; // Which loadouts this equipment belongs to
+}
+
+export interface FighterLoadout {
+  id: string;
+  fighter_id: string;
+  loadout_name: string;
+  equipment_ids: string[];  // fighter_equipment_ids in this loadout
 }
 
 export interface FighterSkill {
@@ -153,7 +162,8 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           gang_id,
           fighter_pet_id,
           image_url,
-          position
+          position,
+          active_loadout_id
         `)
         .eq('id', fighterId)
         .single();
@@ -212,7 +222,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
       const customEquipmentIds = (data || []).filter((item: any) => item.custom_equipment_id).map((item: any) => item.custom_equipment_id);
 
       // Batch fetch all queries in parallel
-      const [targetEffectsData, standardProfilesData, customProfilesData, targetingEffectsData] = await Promise.all([
+      const [targetEffectsData, standardProfilesData, customProfilesData, targetingEffectsData, loadoutAssignmentsData] = await Promise.all([
         // Batch fetch target relationships (equipment-to-equipment upgrades)
         fighterEquipmentIds.length > 0
           ? supabase
@@ -318,6 +328,14 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                 fighter_effect_modifiers ( stat_name, numeric_value, operation )
               `)
               .in('target_equipment_id', fighterEquipmentIds)
+          : Promise.resolve({ data: [] }),
+
+        // Batch fetch loadout assignments (which loadouts each equipment belongs to)
+        fighterEquipmentIds.length > 0
+          ? supabase
+              .from('fighter_loadout_equipment')
+              .select('loadout_id, fighter_equipment_id')
+              .in('fighter_equipment_id', fighterEquipmentIds)
           : Promise.resolve({ data: [] })
       ]);
 
@@ -368,6 +386,15 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
         }
       });
 
+      // Map fighter_equipment_id -> loadout_ids[]
+      const loadoutAssignmentsMap = new Map<string, string[]>();
+      (loadoutAssignmentsData.data || []).forEach((assignment: any) => {
+        if (!loadoutAssignmentsMap.has(assignment.fighter_equipment_id)) {
+          loadoutAssignmentsMap.set(assignment.fighter_equipment_id, []);
+        }
+        loadoutAssignmentsMap.get(assignment.fighter_equipment_id)!.push(assignment.loadout_id);
+      });
+
       // Process each equipment item and add weapon profiles + target equipment relationship
       const equipmentWithProfiles = await Promise.all(
         (data || []).map(async (item: any) => {
@@ -410,6 +437,9 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
           // Get effect names that target this weapon
           const effectNames = targetingEffectNamesMap.get(fighterEquipmentId) || [];
 
+          // Get loadout assignments for this equipment
+          const loadoutIds = loadoutAssignmentsMap.get(fighterEquipmentId) || [];
+
           return {
             fighter_equipment_id: item.id,
             equipment_id: item.equipment_id || undefined,
@@ -423,7 +453,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             is_editable: item.is_editable || false,
             weapon_profiles: weaponProfiles,
             target_equipment_id: targetEquipmentId,
-            effect_names: effectNames.length > 0 ? effectNames : undefined
+            effect_names: effectNames.length > 0 ? effectNames : undefined,
+            loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined
           };
         })
       );
@@ -786,6 +817,60 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
     [`fighter-vehicles-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get fighter loadouts with equipment IDs
+ * Cache: BASE_FIGHTER_EQUIPMENT (loadouts are part of equipment data)
+ */
+export const getFighterLoadouts = async (fighterId: string, supabase: any): Promise<FighterLoadout[]> => {
+  return unstable_cache(
+    async () => {
+      // Fetch all loadouts for this fighter
+      const { data: loadouts, error: loadoutsError } = await supabase
+        .from('fighter_loadouts')
+        .select('id, fighter_id, loadout_name')
+        .eq('fighter_id', fighterId)
+        .order('created_at', { ascending: true });
+
+      if (loadoutsError || !loadouts || loadouts.length === 0) {
+        return [];
+      }
+
+      // Fetch all equipment assignments for these loadouts
+      const loadoutIds = loadouts.map((l: any) => l.id);
+      const { data: junctionData, error: junctionError } = await supabase
+        .from('fighter_loadout_equipment')
+        .select('loadout_id, fighter_equipment_id')
+        .in('loadout_id', loadoutIds);
+
+      if (junctionError) {
+        console.error('Error fetching loadout equipment:', junctionError);
+      }
+
+      // Build map of loadout_id -> equipment_ids
+      const equipmentByLoadout = new Map<string, string[]>();
+      (junctionData || []).forEach((row: any) => {
+        if (!equipmentByLoadout.has(row.loadout_id)) {
+          equipmentByLoadout.set(row.loadout_id, []);
+        }
+        equipmentByLoadout.get(row.loadout_id)!.push(row.fighter_equipment_id);
+      });
+
+      // Return loadouts with equipment_ids
+      return loadouts.map((loadout: any) => ({
+        id: loadout.id,
+        fighter_id: loadout.fighter_id,
+        loadout_name: loadout.loadout_name,
+        equipment_ids: equipmentByLoadout.get(loadout.id) || []
+      }));
+    },
+    [`fighter-loadouts-${fighterId}`],
+    {
+      tags: [CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(fighterId)],
       revalidate: false
     }
   )();

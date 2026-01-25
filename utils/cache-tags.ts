@@ -523,6 +523,31 @@ export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) =>
 };
 
 /**
+ * Fighter Loadouts Invalidation Pattern
+ * Triggered when: Loadout created/updated/deleted or active loadout changed
+ * Data changed: Fighter equipment display, fighter cost, gang rating
+ */
+export function invalidateFighterLoadouts(params: {
+  fighterId: string;
+  gangId: string;
+}) {
+  // Base data changes - loadouts affect equipment display
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));  // for active_loadout_id
+
+  // Computed data changes - cost depends on active loadout
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+
+  // Shared data changes
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
+
+  // Composite data changes - gang page fighter cards
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+}
+
+/**
  * Patreon Supporters Invalidation Pattern
  * Triggered when: Webhook updates Patreon supporter data
  * Data changed: Global Patreon supporters list on about page

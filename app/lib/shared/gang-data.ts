@@ -150,6 +150,7 @@ export interface GangFighter {
   image_url?: string;
   owner_name?: string;
   beast_equipment_stashed?: boolean;
+  active_loadout_id?: string;
 }
 
 // =============================================================================
@@ -830,6 +831,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           fighter_pet_id,
           image_url,
           position,
+          active_loadout_id,
           fighter_types!fighter_type_id (
             fighter_type,
             alliance_crew_name,
@@ -849,6 +851,11 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       // Extract all fighter IDs for batch queries
       const fighterIds = fighters.map((f: any) => f.id);
 
+      // Collect active loadout IDs for batch fetch
+      const activeLoadoutIds = fighters
+        .map((f: any) => f.active_loadout_id)
+        .filter((id: any) => id != null);
+
       // Step 2: Batch fetch ALL related data in parallel
       const [
         allEquipment,
@@ -857,7 +864,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         allVehicles,
         allBeastRelationships,
         allBeastOwnershipInfo,
-        allEquipmentTargetingEffects
+        allEquipmentTargetingEffects,
+        allLoadoutEquipment
       ] = await Promise.all([
         // Batch fetch all equipment for all fighters
         supabase
@@ -993,7 +1001,15 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             fighter_effect_modifiers ( stat_name, numeric_value, operation )
           `)
           .in('fighter_id', fighterIds)
-          .not('fighter_equipment_id', 'is', null)
+          .not('fighter_equipment_id', 'is', null),
+
+        // Batch fetch loadout equipment assignments (which equipment belongs to which active loadouts)
+        activeLoadoutIds.length > 0
+          ? supabase
+              .from('fighter_loadout_equipment')
+              .select('loadout_id, fighter_equipment_id')
+              .in('loadout_id', activeLoadoutIds)
+          : Promise.resolve({ data: [] })
       ]);
 
       // Step 3: Fetch weapon profiles in batch for all weapons found
@@ -1183,6 +1199,15 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         }
       });
 
+      // Create loadout equipment map: loadout_id -> Set<fighter_equipment_id>
+      const loadoutEquipmentMap = new Map<string, Set<string>>();
+      (allLoadoutEquipment.data || []).forEach((assignment: any) => {
+        if (!loadoutEquipmentMap.has(assignment.loadout_id)) {
+          loadoutEquipmentMap.set(assignment.loadout_id, new Set());
+        }
+        loadoutEquipmentMap.get(assignment.loadout_id)!.add(assignment.fighter_equipment_id);
+      });
+
       // Create fighter lookup map for O(1) beast lookups
       const fighterLookup = new Map(fighters.map((f: any) => [f.id, f]));
 
@@ -1239,6 +1264,12 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           const vehicles = vehiclesByFighter[fighterId] || [];
           const ownedBeasts = beastsByOwner[fighterId] || [];
           const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
+
+          // Get active loadout equipment filter (if loadout is set)
+          const activeLoadoutId = fighter.active_loadout_id;
+          const activeLoadoutEquipmentIds = activeLoadoutId
+            ? loadoutEquipmentMap.get(activeLoadoutId) || new Set<string>()
+            : null; // null means show all equipment (no loadout filter)
 
         // Process skills into the expected format
         const skills: Record<string, any> = {};
@@ -1469,8 +1500,15 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           };
         });
 
+        // Helper to check if equipment is in active loadout
+        const isInActiveLoadout = (fighterEquipmentId: string) =>
+          activeLoadoutEquipmentIds === null || activeLoadoutEquipmentIds.has(fighterEquipmentId);
+
         if (!isOwnedBeast) {
-          const equipmentCost = processedEquipment.reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+          // Only count equipment that's in the active loadout (if one is set)
+          const equipmentCost = processedEquipment
+            .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
+            .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
           const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
           const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
             return sum + (effect.type_specific_data?.credits_increase || 0);
@@ -1499,9 +1537,9 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
                       (fighter.cost_adjustment || 0) + beastCosts;
         }
 
-        // Separate equipment into weapons and wargear
+        // Separate equipment into weapons and wargear (filtered by active loadout if set)
         const weapons: WeaponProps[] = processedEquipment
-          .filter((item: any) => item.equipment_type === 'weapon')
+          .filter((item: any) => item.equipment_type === 'weapon' && isInActiveLoadout(item.fighter_equipment_id))
           .map((item: any) => ({
             fighter_weapon_id: item.fighter_equipment_id,
             weapon_id: item.equipment_id || item.custom_equipment_id || '',
@@ -1514,7 +1552,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           }));
 
         const wargear: WargearItem[] = processedEquipment
-          .filter((item: any) => item.equipment_type === 'wargear')
+          .filter((item: any) => item.equipment_type === 'wargear' && isInActiveLoadout(item.fighter_equipment_id))
           .map((item: any) => ({
             fighter_weapon_id: item.fighter_equipment_id,
             wargear_id: item.equipment_id || item.custom_equipment_id || '',
@@ -1571,7 +1609,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           free_skill: fighter.free_skill || false,
           image_url: fighter.image_url,
           owner_name: ownershipInfo?.owner_name,
-          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false
+          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+          active_loadout_id: activeLoadoutId || undefined
         };
         } catch (error) {
           console.error(`Error processing fighter ${fighter.id}:`, error);

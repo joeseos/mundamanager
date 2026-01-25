@@ -33,7 +33,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       getFighterTypeInfo,
       getFighterSubTypeInfo,
       getFighterOwnedBeastsData,
-      getFighterOwnershipInfo
+      getFighterOwnershipInfo,
+      getFighterLoadouts
     } = await import('@/app/lib/shared/fighter-data');
 
     const {
@@ -65,7 +66,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       gangCampaigns,
       beastDataResult,
       ownershipDataResult,
-      gangFighters
+      gangFighters,
+      loadouts
     ] = await Promise.all([
       // Gang data
       getGangBasic(fighterBasic.gang_id, supabase),
@@ -91,7 +93,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase) :
         Promise.resolve(null),
       // Gang fighters list
-      getGangFighters(fighterBasic.gang_id, supabase)
+      getGangFighters(fighterBasic.gang_id, supabase),
+      // Fighter loadouts
+      getFighterLoadouts(id, supabase)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -246,6 +250,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         gang_variants: [] as any[] // Will be populated below if needed
       },
       equipment,
+      loadouts,
     };
 
     // Process gang variants
