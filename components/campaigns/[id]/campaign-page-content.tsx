@@ -550,15 +550,7 @@ export default function CampaignPageContent({
               </div>
 
               <div className="text-muted-foreground text-sm mb-4">
-                <div className="flex flex-wrap gap-2 mb-1">
-                  <div className="flex items-center gap-1">
-                    Type: <Badge variant="secondary">{campaignData.campaign_type_name}</Badge>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-2">
                   {(() => {
                     const owner = campaignData.members.find(member => member.role === 'OWNER')?.username;
                     const arbitrators = campaignData.members.filter(member => member.role === 'ARBITRATOR');
@@ -584,6 +576,33 @@ export default function CampaignPageContent({
                       </div>
                     ) : null;
                   })()}
+                </div>
+                <div className="flex flex-wrap gap-2 mb-1">
+                  <div className="flex items-center gap-1">
+                    Type: <Badge variant="secondary">{campaignData.campaign_type_name}</Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="whitespace-nowrap">
+                      {(campaignData.trading_posts?.length ?? 0) === 1 ? 'Trading Post: ' : 'Trading Posts: '}
+                    </span>
+                    {(campaignData.trading_posts || []).length > 0 ? (
+                      (campaignData.trading_posts || []).map((id) => {
+                        const name = tradingPostTypes?.find(tp => tp.id === id)?.trading_post_name ?? id;
+                        return (
+                          <Badge key={id} variant="secondary">
+                            {name}
+                          </Badge>
+                        );
+                      })
+                    ) : (
+                      <Badge variant="outline">None</Badge>
+                    )}
+                  </div>
                 </div>
               </div>
 
