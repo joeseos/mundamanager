@@ -8,6 +8,7 @@ import { Equipment, FighterLoadout } from '@/types/equipment';
 import { createLoadout, updateLoadout, deleteLoadout, setActiveLoadout } from '@/app/actions/loadouts';
 import { useToast } from '@/components/ui/use-toast';
 import { LuTrash2, LuPlus, LuCheck } from 'react-icons/lu';
+import { useMutation } from '@tanstack/react-query';
 
 type ConfirmationType = 'delete' | 'discard' | null;
 
@@ -38,7 +39,6 @@ export default function FighterLoadoutsModal({
   const [newLoadoutName, setNewLoadoutName] = useState('');
   const [editingLoadoutId, setEditingLoadoutId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Map<string, Set<string>>>(new Map());
   const [confirmationType, setConfirmationType] = useState<ConfirmationType>(null);
   const [pendingDeleteLoadoutId, setPendingDeleteLoadoutId] = useState<string | null>(null);
@@ -79,79 +79,101 @@ export default function FighterLoadoutsModal({
     setPendingChanges(prev => new Map(prev).set(selectedLoadoutId, newIds));
   };
 
-  const handleCreateLoadout = async () => {
-    if (!newLoadoutName.trim()) {
-      toast({ description: 'Please enter a loadout name', variant: 'destructive' });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
+  // TanStack Query mutation for creating loadouts with optimistic update
+  const createLoadoutMutation = useMutation({
+    mutationFn: async (loadoutName: string) => {
       const result = await createLoadout({
         fighter_id: fighterId,
         gang_id: gangId,
-        loadout_name: newLoadoutName.trim()
+        loadout_name: loadoutName
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create loadout');
-      }
-
-      const newLoadout: FighterLoadout = {
-        id: result.data.loadout_id,
+      if (!result.success) throw new Error(result.error || 'Failed to create loadout');
+      return result.data;
+    },
+    onMutate: async (loadoutName) => {
+      const tempId = `temp-${Date.now()}`;
+      const optimisticLoadout: FighterLoadout = {
+        id: tempId,
         fighter_id: fighterId,
-        loadout_name: result.data.loadout_name,
+        loadout_name: loadoutName,
         equipment_ids: []
       };
-
-      setLoadouts([...loadouts, newLoadout]);
+      const previousLoadouts = [...loadouts];
+      setLoadouts([...loadouts, optimisticLoadout]);
       setNewLoadoutName('');
       setIsCreating(false);
-      setSelectedLoadoutId(newLoadout.id);
-      toast({ description: `Created loadout "${newLoadout.loadout_name}"` });
-    } catch (error) {
+      setSelectedLoadoutId(tempId);
+      return { previousLoadouts, tempId, loadoutName };
+    },
+    onError: (error, _loadoutName, context) => {
+      if (context) {
+        setLoadouts(context.previousLoadouts);
+        setSelectedLoadoutId(null);
+      }
       toast({
         description: error instanceof Error ? error.message : 'Failed to create loadout',
         variant: 'destructive'
       });
-    } finally {
-      setIsSaving(false);
+    },
+    onSuccess: (data, _loadoutName, context) => {
+      // Replace temp ID with real ID from server
+      if (context) {
+        setLoadouts(prev => prev.map(l =>
+          l.id === context.tempId ? { ...l, id: data.loadout_id, loadout_name: data.loadout_name } : l
+        ));
+        setSelectedLoadoutId(data.loadout_id);
+      }
+      toast({ description: `Created loadout "${data.loadout_name}"` });
     }
-  };
+  });
 
-  const handleRenameLoadout = async (loadoutId: string) => {
-    if (!editingName.trim()) {
+  const handleCreateLoadout = () => {
+    if (!newLoadoutName.trim()) {
       toast({ description: 'Please enter a loadout name', variant: 'destructive' });
       return;
     }
+    createLoadoutMutation.mutate(newLoadoutName.trim());
+  };
 
-    setIsSaving(true);
-    try {
+  // TanStack Query mutation for renaming loadouts with optimistic update
+  const renameLoadoutMutation = useMutation({
+    mutationFn: async ({ loadoutId, newName }: { loadoutId: string; newName: string }) => {
       const result = await updateLoadout({
         loadout_id: loadoutId,
         fighter_id: fighterId,
         gang_id: gangId,
-        loadout_name: editingName.trim()
+        loadout_name: newName
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to rename loadout');
-      }
-
+      if (!result.success) throw new Error(result.error || 'Failed to rename loadout');
+      return { loadoutId, newName };
+    },
+    onMutate: async ({ loadoutId, newName }) => {
+      const previousLoadouts = [...loadouts];
       setLoadouts(loadouts.map(l =>
-        l.id === loadoutId ? { ...l, loadout_name: editingName.trim() } : l
+        l.id === loadoutId ? { ...l, loadout_name: newName } : l
       ));
       setEditingLoadoutId(null);
       setEditingName('');
-      toast({ description: 'Loadout renamed' });
-    } catch (error) {
+      return { previousLoadouts };
+    },
+    onError: (error, _vars, context) => {
+      if (context) setLoadouts(context.previousLoadouts);
       toast({
         description: error instanceof Error ? error.message : 'Failed to rename loadout',
         variant: 'destructive'
       });
-    } finally {
-      setIsSaving(false);
+    },
+    onSuccess: () => {
+      toast({ description: 'Loadout renamed' });
     }
+  });
+
+  const handleRenameLoadout = (loadoutId: string) => {
+    if (!editingName.trim()) {
+      toast({ description: 'Please enter a loadout name', variant: 'destructive' });
+      return;
+    }
+    renameLoadoutMutation.mutate({ loadoutId, newName: editingName.trim() });
   };
 
   const requestDeleteLoadout = (loadoutId: string) => {
@@ -159,20 +181,24 @@ export default function FighterLoadoutsModal({
     setConfirmationType('delete');
   };
 
-  const handleDeleteLoadout = async (loadoutId: string) => {
-    setIsSaving(true);
-    try {
+  // TanStack Query mutation for deleting loadouts with optimistic update
+  const deleteLoadoutMutation = useMutation({
+    mutationFn: async (loadoutId: string) => {
       const result = await deleteLoadout({
         loadout_id: loadoutId,
         fighter_id: fighterId,
         gang_id: gangId
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete loadout');
-      }
-
+      if (!result.success) throw new Error(result.error || 'Failed to delete loadout');
+      return { loadoutId };
+    },
+    onMutate: async (loadoutId) => {
+      const previousLoadouts = [...loadouts];
+      const previousActiveLoadoutId = activeLoadoutId;
+      const previousSelectedLoadoutId = selectedLoadoutId;
+      const previousPendingChanges = new Map(pendingChanges);
       const deletedLoadout = loadouts.find(l => l.id === loadoutId);
+
       setLoadouts(loadouts.filter(l => l.id !== loadoutId));
 
       // If this was the active or selected loadout, clear selection
@@ -190,88 +216,119 @@ export default function FighterLoadoutsModal({
         return newMap;
       });
 
-      toast({ description: `Deleted loadout "${deletedLoadout?.loadout_name}"` });
-    } catch (error) {
+      return { previousLoadouts, previousActiveLoadoutId, previousSelectedLoadoutId, previousPendingChanges, deletedLoadout };
+    },
+    onError: (error, _loadoutId, context) => {
+      if (context) {
+        setLoadouts(context.previousLoadouts);
+        setActiveLoadoutIdState(context.previousActiveLoadoutId);
+        setSelectedLoadoutId(context.previousSelectedLoadoutId);
+        setPendingChanges(context.previousPendingChanges);
+      }
       toast({
         description: error instanceof Error ? error.message : 'Failed to delete loadout',
         variant: 'destructive'
       });
-    } finally {
-      setIsSaving(false);
+    },
+    onSuccess: (_data, _loadoutId, context) => {
+      toast({ description: `Deleted loadout "${context?.deletedLoadout?.loadout_name}"` });
     }
+  });
+
+  const handleDeleteLoadout = (loadoutId: string) => {
+    deleteLoadoutMutation.mutate(loadoutId);
   };
 
-  const handleSetActiveLoadout = async (loadoutId: string | null) => {
-    setIsSaving(true);
-    try {
+  // TanStack Query mutation for setting active loadout with optimistic update
+  const setActiveLoadoutMutation = useMutation({
+    mutationFn: async (loadoutId: string | null) => {
       const result = await setActiveLoadout({
         loadout_id: loadoutId,
         fighter_id: fighterId,
         gang_id: gangId
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to set active loadout');
-      }
-
+      if (!result.success) throw new Error(result.error || 'Failed to set active loadout');
+      return { loadoutId };
+    },
+    onMutate: async (loadoutId) => {
+      const previousActiveLoadoutId = activeLoadoutId;
       setActiveLoadoutIdState(loadoutId);
-      const loadoutName = loadoutId
-        ? loadouts.find(l => l.id === loadoutId)?.loadout_name
-        : 'Show All Equipment';
-      toast({ description: `Active loadout: ${loadoutName}` });
-    } catch (error) {
+      return { previousActiveLoadoutId };
+    },
+    onError: (error, _loadoutId, context) => {
+      if (context) setActiveLoadoutIdState(context.previousActiveLoadoutId);
       toast({
         description: error instanceof Error ? error.message : 'Failed to set active loadout',
         variant: 'destructive'
       });
-    } finally {
-      setIsSaving(false);
+    },
+    onSuccess: (_data, loadoutId) => {
+      const loadoutName = loadoutId
+        ? loadouts.find(l => l.id === loadoutId)?.loadout_name
+        : 'Show All Equipment';
+      toast({ description: `Active loadout: ${loadoutName}` });
     }
+  });
+
+  const handleSetActiveLoadout = (loadoutId: string | null) => {
+    setActiveLoadoutMutation.mutate(loadoutId);
   };
 
-  const handleSaveChanges = async () => {
-    if (pendingChanges.size === 0) {
-      onLoadoutsUpdate(loadouts, activeLoadoutId);
-      return;
-    }
-
-    setIsSaving(true);
-    try {
+  // TanStack Query mutation for saving all pending changes
+  const saveChangesMutation = useMutation({
+    mutationFn: async (changes: Map<string, Set<string>>) => {
       // Save all pending changes
-      for (const [loadoutId, equipmentIds] of Array.from(pendingChanges.entries())) {
+      for (const [loadoutId, equipmentIds] of Array.from(changes.entries())) {
         const result = await updateLoadout({
           loadout_id: loadoutId,
           fighter_id: fighterId,
           gang_id: gangId,
           equipment_ids: Array.from(equipmentIds)
         });
-
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to save loadout changes');
-        }
+        if (!result.success) throw new Error(result.error || 'Failed to save loadout changes');
       }
-
-      // Update local state with pending changes
+      return { changes };
+    },
+    onMutate: async (changes) => {
+      // Optimistically update loadouts with pending changes
       const updatedLoadouts = loadouts.map(l => {
-        if (pendingChanges.has(l.id)) {
-          return { ...l, equipment_ids: Array.from(pendingChanges.get(l.id)!) };
+        if (changes.has(l.id)) {
+          return { ...l, equipment_ids: Array.from(changes.get(l.id)!) };
         }
         return l;
       });
-
-      toast({ description: 'Loadout changes saved' });
-      onLoadoutsUpdate(updatedLoadouts, activeLoadoutId);
-    } catch (error) {
+      return { updatedLoadouts };
+    },
+    onError: (error) => {
       toast({
         description: error instanceof Error ? error.message : 'Failed to save changes',
         variant: 'destructive'
       });
-    } finally {
-      setIsSaving(false);
+    },
+    onSuccess: (_data, _changes, context) => {
+      if (context) {
+        toast({ description: 'Loadout changes saved' });
+        onLoadoutsUpdate(context.updatedLoadouts, activeLoadoutId);
+      }
     }
+  });
+
+  const handleSaveChanges = () => {
+    if (pendingChanges.size === 0) {
+      onLoadoutsUpdate(loadouts, activeLoadoutId);
+      return;
+    }
+    saveChangesMutation.mutate(pendingChanges);
   };
 
   const hasUnsavedChanges = pendingChanges.size > 0;
+
+  // Compute isSaving from mutation pending states (only for preventing double-clicks)
+  const isSaving = createLoadoutMutation.isPending ||
+    renameLoadoutMutation.isPending ||
+    deleteLoadoutMutation.isPending ||
+    setActiveLoadoutMutation.isPending ||
+    saveChangesMutation.isPending;
 
   const requestCloseWithUnsavedChanges = (action: () => void) => {
     if (hasUnsavedChanges) {
@@ -282,9 +339,9 @@ export default function FighterLoadoutsModal({
     }
   };
 
-  const handleConfirmationConfirm = async () => {
+  const handleConfirmationConfirm = () => {
     if (confirmationType === 'delete' && pendingDeleteLoadoutId) {
-      await handleDeleteLoadout(pendingDeleteLoadoutId);
+      handleDeleteLoadout(pendingDeleteLoadoutId);
     } else if (confirmationType === 'discard' && pendingDiscardAction) {
       pendingDiscardAction();
     }
