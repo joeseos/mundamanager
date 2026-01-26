@@ -1048,6 +1048,7 @@ export function WeaponList({
           equipment={equipment}
           loadouts={loadouts}
           activeLoadoutId={activeLoadoutId}
+          fighterBaseCost={fighterCredits - (equipment?.reduce((sum, eq) => sum + (eq.cost ?? 0), 0) || 0)}
           onClose={() => setShowLoadoutsModal(false)}
           onLoadoutsUpdate={(updatedLoadouts, newActiveLoadoutId) => {
             onLoadoutsUpdate?.(updatedLoadouts, newActiveLoadoutId);

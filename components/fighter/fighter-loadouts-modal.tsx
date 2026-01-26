@@ -3,12 +3,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { createLoadout, updateLoadout, deleteLoadout, setActiveLoadout } from '@/app/actions/loadouts';
 import { useToast } from '@/components/ui/use-toast';
-import { LuTrash2, LuPlus, LuCheck } from 'react-icons/lu';
+import { LuTrash2, LuPencil, LuCheck, LuX } from 'react-icons/lu';
+import { TbCornerLeftUp } from 'react-icons/tb';
 import { useMutation } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
 
 type ConfirmationType = 'delete' | 'discard' | null;
 
@@ -18,6 +21,7 @@ interface FighterLoadoutsModalProps {
   equipment: Equipment[];
   loadouts: FighterLoadout[];
   activeLoadoutId?: string | null;
+  fighterBaseCost?: number;
   onClose: () => void;
   onLoadoutsUpdate: (loadouts: FighterLoadout[], activeLoadoutId: string | null) => void;
 }
@@ -28,6 +32,7 @@ export default function FighterLoadoutsModal({
   equipment,
   loadouts: initialLoadouts,
   activeLoadoutId: initialActiveLoadoutId,
+  fighterBaseCost = 0,
   onClose,
   onLoadoutsUpdate
 }: FighterLoadoutsModalProps) {
@@ -35,7 +40,6 @@ export default function FighterLoadoutsModal({
   const [loadouts, setLoadouts] = useState<FighterLoadout[]>(initialLoadouts);
   const [activeLoadoutId, setActiveLoadoutIdState] = useState<string | null>(initialActiveLoadoutId ?? null);
   const [selectedLoadoutId, setSelectedLoadoutId] = useState<string | null>(initialActiveLoadoutId ?? null);
-  const [isCreating, setIsCreating] = useState(false);
   const [newLoadoutName, setNewLoadoutName] = useState('');
   const [editingLoadoutId, setEditingLoadoutId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -45,10 +49,61 @@ export default function FighterLoadoutsModal({
   const [pendingDiscardAction, setPendingDiscardAction] = useState<(() => void) | null>(null);
 
   // Filter out vehicle upgrades (always shown, not part of loadouts)
-  const loadoutEquipment = useMemo(
-    () => equipment.filter(e => e.equipment_type !== 'vehicle_upgrade'),
-    [equipment]
-  );
+  // Apply same sorting as fighter-equipment-list.tsx
+  const loadoutEquipment = useMemo(() => {
+    const filtered = equipment.filter(e => e.equipment_type !== 'vehicle_upgrade');
+    
+    // Separate equipment into parent items (equipment that targets fighters/vehicles) and child items (equipment targeting other equipment)
+    const parentEquipment = filtered.filter(item => !item.target_equipment_id);
+    const childEquipment = filtered.filter(item => item.target_equipment_id);
+    
+    // Sort parent equipment: core equipment first, then by name
+    const sortedParentEquipment = [...parentEquipment].sort((a, b) => {
+      if (a.core_equipment && !b.core_equipment) return -1;
+      if (!a.core_equipment && b.core_equipment) return 1;
+      return a.equipment_name.localeCompare(b.equipment_name);
+    });
+    
+    // Build a tree structure: map parent equipment IDs to their child equipment
+    const equipmentTree = new Map<string, Equipment[]>();
+    childEquipment.forEach(child => {
+      const parentId = child.target_equipment_id!;
+      if (!equipmentTree.has(parentId)) {
+        equipmentTree.set(parentId, []);
+      }
+      equipmentTree.get(parentId)!.push(child);
+    });
+    
+    // Sort children within each parent group
+    equipmentTree.forEach((children) => {
+      children.sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+    });
+    
+    // Filter parent equipment by type
+    const weapons = sortedParentEquipment.filter(item => item.equipment_type === 'weapon');
+    const wargear = sortedParentEquipment.filter(item => item.equipment_type === 'wargear');
+    
+    // Build final list: weapons first, then wargear, with children included
+    const result: Equipment[] = [];
+    
+    weapons.forEach(weapon => {
+      result.push(weapon);
+      const children = equipmentTree.get(weapon.fighter_equipment_id) || [];
+      result.push(...children);
+    });
+    
+    if (wargear.length > 0 && weapons.length > 0) {
+      // Add separator conceptually (we'll handle this in rendering if needed)
+    }
+    
+    wargear.forEach(item => {
+      result.push(item);
+      const children = equipmentTree.get(item.fighter_equipment_id) || [];
+      result.push(...children);
+    });
+    
+    return result;
+  }, [equipment]);
 
   // Get the selected loadout
   const selectedLoadout = selectedLoadoutId
@@ -63,6 +118,20 @@ export default function FighterLoadoutsModal({
     const loadout = loadouts.find(l => l.id === loadoutId);
     return new Set(loadout?.equipment_ids || []);
   }, [pendingChanges, loadouts]);
+
+  // Calculate total cost of checked equipment in the selected loadout
+  const totalLoadoutCost = useMemo(() => {
+    if (!selectedLoadout) return 0;
+    const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
+    return loadoutEquipment
+      .filter(item => equipmentIds.has(item.fighter_equipment_id))
+      .reduce((sum, item) => sum + (item.cost ?? 0), 0);
+  }, [selectedLoadout, loadoutEquipment, getLoadoutEquipmentIds]);
+
+  // Calculate total cost of fighter with only the selected loadout equipment
+  const totalFighterCost = useMemo(() => {
+    return fighterBaseCost + totalLoadoutCost;
+  }, [fighterBaseCost, totalLoadoutCost]);
 
   const handleEquipmentToggle = (equipmentId: string) => {
     if (!selectedLoadoutId) return;
@@ -101,7 +170,6 @@ export default function FighterLoadoutsModal({
       const previousLoadouts = [...loadouts];
       setLoadouts([...loadouts, optimisticLoadout]);
       setNewLoadoutName('');
-      setIsCreating(false);
       setSelectedLoadoutId(tempId);
       return { previousLoadouts, tempId, loadoutName };
     },
@@ -152,18 +220,19 @@ export default function FighterLoadoutsModal({
       setLoadouts(loadouts.map(l =>
         l.id === loadoutId ? { ...l, loadout_name: newName } : l
       ));
-      setEditingLoadoutId(null);
-      setEditingName('');
       return { previousLoadouts };
     },
     onError: (error, _vars, context) => {
       if (context) setLoadouts(context.previousLoadouts);
+      // Keep editing mode on error so user can fix and retry
       toast({
         description: error instanceof Error ? error.message : 'Failed to rename loadout',
         variant: 'destructive'
       });
     },
     onSuccess: () => {
+      setEditingLoadoutId(null);
+      setEditingName('');
       toast({ description: 'Loadout renamed' });
     }
   });
@@ -174,6 +243,16 @@ export default function FighterLoadoutsModal({
       return;
     }
     renameLoadoutMutation.mutate({ loadoutId, newName: editingName.trim() });
+  };
+
+  const startEditing = (loadout: FighterLoadout) => {
+    setEditingLoadoutId(loadout.id);
+    setEditingName(loadout.loadout_name);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingLoadoutId(null);
+    setEditingName('');
   };
 
   const requestDeleteLoadout = (loadoutId: string) => {
@@ -378,198 +457,263 @@ export default function FighterLoadoutsModal({
             </button>
           </div>
 
-        <div className="px-[10px] py-4 overflow-y-auto flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="px-[10px] py-2 overflow-y-auto flex-1 mt-2">
+          <div className="space-y-4">
             {/* Loadout List */}
-            <div className="space-y-2">
-              <h4 className="font-semibold mb-2">Loadouts</h4>
-
-              {/* Show All Equipment option */}
-              <div
-                className={`p-2 border rounded cursor-pointer flex items-center justify-between ${
-                  selectedLoadoutId === null ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'
-                }`}
-                onClick={() => setSelectedLoadoutId(null)}
-              >
-                <span className="font-medium">Show All Equipment</span>
-                <div className="flex items-center gap-2">
-                  {activeLoadoutId === null && (
-                    <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Active</span>
-                  )}
-                  {selectedLoadoutId === null && activeLoadoutId !== null && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSetActiveLoadout(null);
-                      }}
-                      disabled={isSaving}
-                    >
-                      Set Active
-                    </Button>
-                  )}
-                </div>
+            <div>
+              
+              {/* Loadout Badges */}
+              <div className="flex items-center gap-1 flex-wrap mb-2">
+                <h4 className="text-sm text-muted-foreground">Loadouts:</h4>
+                <Badge
+                  variant={selectedLoadoutId === null ? 'default' : 'outline'}
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setSelectedLoadoutId(null)}
+                  title="Show all equipment"
+                >
+                  None
+                </Badge>
+                {loadouts.map((loadout) => (
+                  <Badge
+                    key={loadout.id}
+                    variant={selectedLoadoutId === loadout.id ? 'default' : 'outline'}
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setSelectedLoadoutId(loadout.id)}
+                    title={`View equipment in ${loadout.loadout_name}`}
+                  >
+                    {loadout.loadout_name}
+                    {pendingChanges.has(loadout.id) && (
+                      <span className="ml-1">*</span>
+                    )}
+                  </Badge>
+                ))}
               </div>
 
-              {/* Loadout items */}
-              {loadouts.map(loadout => (
-                <div
-                  key={loadout.id}
-                  className={`p-2 border rounded cursor-pointer ${
-                    selectedLoadoutId === loadout.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'
-                  }`}
-                  onClick={() => setSelectedLoadoutId(loadout.id)}
+              {/* Create new loadout */}
+              <div className="flex space-x-2 mb-4">
+                <Input
+                  type="text"
+                  value={newLoadoutName}
+                  onChange={(e) => setNewLoadoutName(e.target.value)}
+                  placeholder="Add a Loadout (max 50 characters)"
+                  maxLength={50}
+                  className="flex-grow text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleCreateLoadout();
+                    }
+                  }}
+                />
+                <Button
+                  onClick={handleCreateLoadout}
+                  type="button"
+                  disabled={!newLoadoutName.trim() || isSaving}
                 >
-                  {editingLoadoutId === loadout.id ? (
-                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="text"
+                  Add
+                </Button>
+              </div>
+
+              {/* Equipment Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  {selectedLoadout && editingLoadoutId === selectedLoadout.id ? (
+                    <>
+                      <Input
                         value={editingName}
                         onChange={(e) => setEditingName(e.target.value)}
-                        className="flex-1 p-1 border rounded text-sm"
+                        placeholder="Enter loadout name (max 50 characters)"
+                        maxLength={50}
+                        className="flex-grow mr-2 h-7 text-sm"
                         autoFocus
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleRenameLoadout(loadout.id);
-                          if (e.key === 'Escape') {
-                            setEditingLoadoutId(null);
-                            setEditingName('');
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleRenameLoadout(selectedLoadout.id);
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            handleCancelEdit();
                           }
                         }}
                       />
-                      <Button
-                        size="sm"
-                        onClick={() => handleRenameLoadout(loadout.id)}
-                        disabled={isSaving}
-                      >
-                        <LuCheck className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="font-medium cursor-text"
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setEditingLoadoutId(loadout.id);
-                          setEditingName(loadout.loadout_name);
-                        }}
-                      >
-                        {loadout.loadout_name}
-                        {pendingChanges.has(loadout.id) && (
-                          <span className="text-xs text-muted-foreground ml-1">*</span>
-                        )}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {activeLoadoutId === loadout.id && (
-                          <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Active</span>
-                        )}
-                        {selectedLoadoutId === loadout.id && activeLoadoutId !== loadout.id && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetActiveLoadout(loadout.id);
-                            }}
-                            disabled={isSaving}
-                          >
-                            Set Active
-                          </Button>
-                        )}
+                      <div className="flex items-center gap-2">
                         <Button
+                          variant="outline_accept"
                           size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            requestDeleteLoadout(loadout.id);
-                          }}
-                          disabled={isSaving}
-                          className="text-destructive hover:text-destructive"
-                          aria-label={`Delete ${loadout.loadout_name}`}
+                          onClick={() => handleRenameLoadout(selectedLoadout.id)}
+                          className="h-8 w-8 p-0"
+                          title="Save"
+                          disabled={!editingName.trim() || renameLoadoutMutation.isPending}
                         >
-                          <LuTrash2 className="h-4 w-4" />
+                          <LuCheck className="size-4" />
+                        </Button>
+                        <Button
+                          variant="outline_cancel"
+                          size="sm"
+                          onClick={handleCancelEdit}
+                          className="h-8 w-8 p-0"
+                          title="Cancel"
+                          disabled={renameLoadoutMutation.isPending}
+                        >
+                          <LuX className="size-4" />
                         </Button>
                       </div>
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      <h4 className="font-semibold">
+                        {selectedLoadout ? (
+                          <span className="text-base" title={selectedLoadout.loadout_name}>
+                            {selectedLoadout.loadout_name.length > 30 
+                              ? `${selectedLoadout.loadout_name.substring(0, 30)}...` 
+                              : `${selectedLoadout.loadout_name}`}
+                          </span>
+                        ) : (
+                          'Select a loadout to edit'
+                        )}
+                      </h4>
+                      {selectedLoadout && (
+                        <div className="flex items-center gap-1">
+                          {activeLoadoutId === selectedLoadout.id && (
+                            <Badge variant="default">Active</Badge>
+                          )}
+                          {activeLoadoutId !== selectedLoadout.id && (
+                            <Badge
+                              variant="outline"
+                              className={`cursor-pointer transition-opacity ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'}`}
+                              onClick={() => !isSaving && handleSetActiveLoadout(selectedLoadout.id)}
+                              title="Set as active loadout"
+                            >
+                              Set as Active
+                            </Badge>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => startEditing(selectedLoadout)}
+                            className="h-8 w-8 p-0"
+                            title="Edit loadout"
+                          >
+                            <LuPencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="outline_remove"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => requestDeleteLoadout(selectedLoadout.id)}
+                            title="Delete loadout"
+                            disabled={isSaving}
+                          >
+                            <LuTrash2 className="size-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-              ))}
 
-              {/* Create new loadout */}
-              {isCreating ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newLoadoutName}
-                    onChange={(e) => setNewLoadoutName(e.target.value)}
-                    placeholder="Loadout name"
-                    className="flex-1 p-2 border rounded"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleCreateLoadout();
-                      if (e.key === 'Escape') {
-                        setIsCreating(false);
-                        setNewLoadoutName('');
-                      }
-                    }}
-                  />
-                  <Button onClick={handleCreateLoadout} disabled={isSaving}>
-                    <LuCheck className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setIsCreating(true)}
-                  disabled={isSaving}
-                >
-                  <LuPlus className="h-4 w-4 mr-2" />
-                  New Loadout
-                </Button>
-              )}
-            </div>
+                {selectedLoadout && loadoutEquipment.length > 0 ? (
+                  <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                    <table className="w-full table-auto">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-muted">
+                          <th className="px-1 py-1 text-left w-[5%] bg-muted"></th>
+                          <th className="px-1 py-1 text-left w-[75%] bg-muted">Name</th>
+                          <th className="px-1 py-1 pr-2 text-right bg-muted">Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loadoutEquipment.map(item => {
+                          const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
+                          const isInLoadout = equipmentIds.has(item.fighter_equipment_id);
+                          const checkboxId = `loadout-equipment-${item.fighter_equipment_id}`;
+                          const isChild = !!item.target_equipment_id;
+                          const mutedClass = !isInLoadout ? "text-muted-foreground" : "";
 
-            {/* Equipment Selection */}
-            <div className="space-y-2">
-              <h4 className="font-semibold mb-2">
-                {selectedLoadout ? `Equipment in "${selectedLoadout.loadout_name}"` : 'Select a loadout to edit'}
-              </h4>
-
-              {selectedLoadout && loadoutEquipment.length > 0 ? (
-                <div className="space-y-1 max-h-[400px] overflow-y-auto">
-                  {loadoutEquipment.map(item => {
-                    const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
-                    const isInLoadout = equipmentIds.has(item.fighter_equipment_id);
-                    const checkboxId = `loadout-equipment-${item.fighter_equipment_id}`;
-
-                    return (
-                      <label
-                        key={item.fighter_equipment_id}
-                        htmlFor={checkboxId}
-                        className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-muted"
-                      >
-                        <Checkbox
-                          id={checkboxId}
-                          checked={isInLoadout}
-                          onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
-                        />
-                        <span className="flex-1">{item.equipment_name}</span>
-                        <span className="text-muted-foreground text-sm">{item.cost}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : selectedLoadout && loadoutEquipment.length === 0 ? (
-                <p className="text-muted-foreground italic">No equipment available</p>
-              ) : (
-                <p className="text-muted-foreground italic">
-                  Select a loadout from the list to manage its equipment
-                </p>
-              )}
+                          return (
+                            <tr
+                              key={item.fighter_equipment_id}
+                              className={`${isChild ? "border-b bg-muted/20" : "border-b"} hover:bg-muted cursor-pointer`}
+                              onClick={() => handleEquipmentToggle(item.fighter_equipment_id)}
+                            >
+                              <td className="px-1 py-1" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  id={checkboxId}
+                                  checked={isInLoadout}
+                                  onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
+                                />
+                              </td>
+                              <td className="px-1 py-1">
+                                <label
+                                  htmlFor={checkboxId}
+                                  className="cursor-pointer"
+                                >
+                                  {isChild && (
+                                    <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
+                                      <TbCornerLeftUp className="inline" />
+                                    </span>
+                                  )}
+                                  <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>
+                                    {item.equipment_name}
+                                  </span>
+                                </label>
+                              </td>
+                              <td className="px-1 py-1 pr-2 text-right">
+                                <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>
+                                  {item.cost ?? '-'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : selectedLoadout && loadoutEquipment.length === 0 ? (
+                  <p className="text-muted-foreground italic">No equipment available</p>
+                ) : (
+                  <p className="text-muted-foreground italic">
+                    Select a loadout from the list to manage its equipment
+                  </p>
+                )}
+              </div>
             </div>
           </div>
+        </div>
+
+        <div className="px-[10px] pb-2">
+          {selectedLoadout && (
+            <div className="mt-1 flex justify-end">
+              <table className="w-auto">
+                <tbody>
+                  <tr>
+                    <td className="text-right leading-none pr-2 py-0">
+                      <span className="text-sm text-muted-foreground">Loadout:</span>
+                    </td>
+                    <td className="text-right leading-none py-0">
+                      <span className="text-sm text-muted-foreground">{totalLoadoutCost} credits</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="text-right leading-none pr-2 py-0">
+                      <span className="text-sm text-muted-foreground">Fighter:</span>
+                    </td>
+                    <td className="text-right leading-none py-0">
+                      <span className="text-sm text-muted-foreground">{fighterBaseCost} credits</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="text-right leading-none pr-2 py-0">
+                      <span className="text-sm font-semibold">Total Cost:</span>
+                    </td>
+                    <td className="text-right leading-none py-0">
+                      <span className="text-sm font-semibold">{totalFighterCost} credits</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
