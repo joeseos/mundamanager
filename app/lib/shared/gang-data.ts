@@ -163,6 +163,7 @@ export interface GangFighter {
   owner_name?: string;
   beast_equipment_stashed?: boolean;
   active_loadout_id?: string;
+  active_loadout_name?: string;
 }
 
 // =============================================================================
@@ -974,7 +975,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         allBeastRelationships,
         allBeastOwnershipInfo,
         allEquipmentTargetingEffects,
-        allLoadoutEquipment
+        allLoadoutEquipment,
+        allLoadouts
       ] = await Promise.all([
         // Batch fetch all equipment for all fighters
         supabase
@@ -1118,6 +1120,14 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
               .from('fighter_loadout_equipment')
               .select('loadout_id, fighter_equipment_id')
               .in('loadout_id', activeLoadoutIds)
+          : Promise.resolve({ data: [] }),
+
+        // Batch fetch loadout names for all active loadouts
+        activeLoadoutIds.length > 0
+          ? supabase
+              .from('fighter_loadouts')
+              .select('id, loadout_name')
+              .in('id', activeLoadoutIds)
           : Promise.resolve({ data: [] })
       ]);
 
@@ -1315,6 +1325,12 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           loadoutEquipmentMap.set(assignment.loadout_id, new Set());
         }
         loadoutEquipmentMap.get(assignment.loadout_id)!.add(assignment.fighter_equipment_id);
+      });
+
+      // Create loadout name map: loadout_id -> loadout_name
+      const loadoutNameMap = new Map<string, string>();
+      (allLoadouts.data || []).forEach((loadout: any) => {
+        loadoutNameMap.set(loadout.id, loadout.loadout_name);
       });
 
       // Create fighter lookup map for O(1) beast lookups
@@ -1749,7 +1765,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           image_url: fighter.image_url,
           owner_name: ownershipInfo?.owner_name,
           beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
-          active_loadout_id: activeLoadoutId || undefined
+          active_loadout_id: activeLoadoutId || undefined,
+          active_loadout_name: activeLoadoutId ? loadoutNameMap.get(activeLoadoutId) : undefined
         };
         } catch (error) {
           console.error(`Error processing fighter ${fighter.id}:`, error);

@@ -12,6 +12,7 @@ import { LuArmchair } from "react-icons/lu";
 import { MdChair, MdDragIndicator } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { WeaponProfile, Weapon } from '@/types/equipment';
+import { Badge } from '@/components/ui/badge';
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
   name: string;  // maps to fighter_name
@@ -50,6 +51,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
   isDragging?: boolean;
+  active_loadout_name?: string;  // Name of the active loadout
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -152,6 +154,7 @@ const FighterCard = memo(function FighterCard({
   owner_name,
   image_url,
   isDragging = false,
+  active_loadout_name,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -438,7 +441,7 @@ const FighterCard = memo(function FighterCard({
           </div>
         </div>
         <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-[10px]'}`}>
-          <div className="relative flex flex-col flex-shrink gap-0 z-11 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-muted-foreground" />}
             {enslaved && <GiCrossedChains className="text-sky-200" />}
@@ -464,19 +467,28 @@ const FighterCard = memo(function FighterCard({
               <span className="leading-3 md:font-bold text-xs">Credits</span>
             </div>
           ) : (
-            <div className="md:h-[85px] h-[64px] w-3 flex-shrink-0 relative z-10" /> // Empty space to allow centering the status icons
+            <div className="md:h-[85px] h-[64px] w-0 flex-shrink-0 relative z-10" /> // Empty space to allow centering the status icons
           )}
         </div>
       </div>
         
       {!isInactive && (
         <>
-          {/* Show owner information for owned fighters */}
-          {owner_name && (
-            <div className="-mt-5 text-right mr-24 italic">
-              <div className="text-sm text-foreground">
-                Owned by <span className="font-semibold">{owner_name}</span>
-              </div>
+          {/* Show active loadout and owner information */}
+          {(active_loadout_name || owner_name) && (
+            <div className="-mt-5 flex justify-between items-center gap-2">
+              {/* Active loadout badge on the left */}
+              {active_loadout_name && (
+                <div className="text-sm italic">
+                  Loadout: <span className="font-semibold">{active_loadout_name}</span>
+                </div>
+              )}
+              {/* Owner information on the right */}
+              {owner_name && (
+                <div className="text-sm italic">
+                  Owned by <span className="font-semibold">{owner_name}</span>
+                </div>
+              )}
             </div>
           )}
           

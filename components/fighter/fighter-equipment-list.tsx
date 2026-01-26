@@ -20,6 +20,8 @@ import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
 import { FighterLoadout } from '@/types/equipment';
 import FighterLoadoutsModal from './fighter-loadouts-modal';
+import { Badge } from '@/components/ui/badge';
+import { setActiveLoadout } from '@/app/actions/loadouts';
 
 interface WeaponListProps {
   fighterId: string;
@@ -651,18 +653,75 @@ export function WeaponList({
     });
   };
 
-  const renderRow = (item: Equipment, isChild: boolean = false) => (
-    <tr
-      key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
-      className={isChild ? "border-b bg-muted/20" : "border-b"}
-    >
-      <td className="px-1 py-1">
-        {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
-        <span className={isChild ? "text-sm" : ""}>{item.equipment_name}</span>
-      </td>
-      <td className="px-1 py-1 text-right">
-        <span className={isChild ? "text-sm" : ""}>{item.cost ?? '-'}</span>
-      </td>
+  const handleSetActiveLoadout = async (loadoutId: string | null) => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const result = await setActiveLoadout({
+        loadout_id: loadoutId,
+        fighter_id: fighterId,
+        gang_id: gangId
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to set active loadout');
+      }
+
+      // Update parent state
+      if (onLoadoutsUpdate) {
+        onLoadoutsUpdate(loadouts, loadoutId);
+      }
+
+      const loadoutName = loadoutId
+        ? loadouts.find(l => l.id === loadoutId)?.loadout_name
+        : 'None';
+      toast({
+        description: `Active loadout: ${loadoutName}`,
+        variant: 'default'
+      });
+    } catch (error) {
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to set active loadout',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to check if equipment is in the active loadout
+  const isEquipmentInActiveLoadout = (fighterEquipmentId: string): boolean => {
+    // If no loadout is active, all equipment is "in" the loadout (show normally)
+    if (!activeLoadoutId) return true;
+
+    // Find the active loadout
+    const activeLoadout = loadouts.find(l => l.id === activeLoadoutId);
+    if (!activeLoadout) return true;
+
+    // Check if this equipment is in the loadout's equipment_ids
+    return activeLoadout.equipment_ids.includes(fighterEquipmentId);
+  };
+
+  const renderRow = (item: Equipment, isChild: boolean = false) => {
+    // Check if this equipment is in the active loadout (or if no loadout is active)
+    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id);
+    // Apply muted styling if a loadout is active and this equipment is not in it
+    const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
+    const mutedClass = shouldMute ? "text-muted-foreground" : "";
+
+    return (
+      <tr
+        key={item.fighter_equipment_id || `${item.equipment_id}-${item.equipment_name}`}
+        className={isChild ? "border-b bg-muted/20" : "border-b"}
+      >
+        <td className="px-1 py-1">
+          {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
+          <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.equipment_name}</span>
+        </td>
+        <td className="px-1 py-1 text-right">
+          <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.cost ?? '-'}</span>
+        </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
           {item.is_editable && (
@@ -708,7 +767,8 @@ export function WeaponList({
         </div>
       </td>
     </tr>
-  );
+    );
+  };
 
   // Render equipment effects as child rows beneath the equipment they apply to
   // Only show editable effects (user-added via edit modal)
@@ -722,6 +782,11 @@ export function WeaponList({
     });
 
     if (equipmentEffects.length === 0) return null;
+
+    // Check if parent equipment is in active loadout (effects should match parent's muted state)
+    const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id);
+    const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
+    const mutedClass = shouldMute ? "text-muted-foreground" : "";
 
     return equipmentEffects.map((effect) => {
       const typeData = typeof effect.type_specific_data === 'string'
@@ -737,12 +802,12 @@ export function WeaponList({
             <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
               <TbCornerLeftUp className="inline" />
             </span>
-            <span className="text-sm">
+            <span className={`text-sm ${mutedClass}`}>
               {effect.effect_name}
             </span>
           </td>
           <td className="px-1 py-1 text-right">
-            <span className="text-sm">
+            <span className={`text-sm ${mutedClass}`}>
               {typeof typeData === 'object' && typeData?.credits_increase != null
                 ? typeData.credits_increase
                 : '-'}
@@ -821,6 +886,34 @@ export function WeaponList({
             </Button>
           </div>
         </div>
+
+        {/* Loadouts Display */}
+        {loadouts && loadouts.length > 0 && (
+          <div className="mb-1 flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground">Loadouts:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge
+                variant={activeLoadoutId === null ? 'default' : 'outline'}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => handleSetActiveLoadout(null)}
+                title="Show all equipment"
+              >
+                None
+              </Badge>
+              {loadouts.map((loadout) => (
+                <Badge
+                  key={loadout.id}
+                  variant={activeLoadoutId === loadout.id ? 'default' : 'outline'}
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => handleSetActiveLoadout(loadout.id)}
+                  title={`Set ${loadout.loadout_name} as active loadout`}
+                >
+                  {loadout.loadout_name}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full table-auto">
