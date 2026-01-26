@@ -27,7 +27,7 @@ export function RangeSlider({
       <div className="flex justify-between items-center">
         <label className="text-sm font-medium text-muted-foreground">{label}</label>
         <span className="text-sm text-muted-foreground">
-          {formatValue(value[0])} - {formatValue(value[1])}
+          {formatValue(value[0])} — {formatValue(value[1])}
         </span>
       </div>
 

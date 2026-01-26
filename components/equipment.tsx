@@ -876,6 +876,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   // Track previous search query to detect transitions
   const prevSearchQueryRef = useRef<string>('');
   
+  // Track previous equipment filter context to detect when sliders should reset
+  const prevEquipmentContextRef = useRef<string>('');
+  
   useEffect(() => {
     const prevSearchQuery = prevSearchQueryRef.current;
     prevSearchQueryRef.current = searchQuery;
@@ -1052,6 +1055,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   // Calculate min/max values from equipment data
   useEffect(() => {
+    // Build a context key that represents the current filter state
+    const currentContext = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}`;
+    const prevContext = prevEquipmentContextRef.current;
+    const contextChanged = prevContext !== currentContext;
+    prevEquipmentContextRef.current = currentContext;
+    
     const allEquipment = Object.values(equipment).flat();
     if (allEquipment.length > 0) {
       const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
@@ -1078,7 +1087,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
         const newMaxCost = Math.max(...costs);
         setMinCost(newMinCost);
         setMaxCost(newMaxCost);
-        setCostRange([newMinCost, newMaxCost]);
+        // Only reset slider to full range when filter context changes (mode switch, campaign filter change)
+        if (contextChanged) {
+          setCostRange([newMinCost, newMaxCost]);
+        }
       }
 
       if (availabilities.length > 0) {
@@ -1086,10 +1098,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
         const newMaxAvailability = Math.max(...availabilities);
         setMinAvailability(newMinAvailability);
         setMaxAvailability(newMaxAvailability);
-        setAvailabilityRange([newMinAvailability, newMaxAvailability]);
+        // Only reset slider to full range when filter context changes
+        if (contextChanged) {
+          setAvailabilityRange([newMinAvailability, newMaxAvailability]);
+        }
       }
     }
-  }, [equipment]);
+  }, [equipment, equipmentListType, campaignTradingPostIds]);
 
   // Filter equipment based on cost and availability ranges
   const filterEquipment = (items: Equipment[]) => {
