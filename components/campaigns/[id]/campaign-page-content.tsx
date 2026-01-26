@@ -857,6 +857,7 @@ export default function CampaignPageContent({
                     territories={campaignData.territories}
                     noContainer={true}
                     hideAddButton={true}
+                    userId={userId || ''}
                   />
                 </div>
               </div>

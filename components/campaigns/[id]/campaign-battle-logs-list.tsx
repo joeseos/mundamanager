@@ -26,6 +26,7 @@ interface CampaignBattleLogsListProps {
   territories?: Territory[];
   noContainer?: boolean;
   hideAddButton?: boolean;
+  userId: string;
 }
 
 export interface CampaignBattleLogsListRef {
@@ -39,15 +40,16 @@ const formatDate = (dateString: string | null) => {
 };
 
 const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
-  const { 
-    campaignId, 
-    battles, 
-    isAdmin, 
+  const {
+    campaignId,
+    battles,
+    isAdmin,
     onBattleAdd,
     members,
     territories = [],
     noContainer = false,
-    hideAddButton = false
+    hideAddButton = false,
+    userId
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -428,6 +430,45 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     };
   };
 
+  // Check if user can edit/delete this battle
+  const canUserEditBattle = useCallback((battle: Battle): boolean => {
+    // Admins can edit any battle
+    if (isAdmin) return true;
+
+    // Extract gang IDs from battle (handle both old and new structures)
+    const gangIds = new Set<string>();
+
+    // New structure: participants array
+    let participants = battle.participants;
+    if (participants && typeof participants === 'string') {
+      try {
+        participants = JSON.parse(participants);
+      } catch (e) {
+        participants = [];
+      }
+    }
+    if (participants && Array.isArray(participants)) {
+      participants.forEach((p: BattleParticipant) => {
+        if (p.gang_id) gangIds.add(p.gang_id);
+      });
+    }
+
+    // Old structure: attacker_id and defender_id
+    if (battle.attacker_id) gangIds.add(battle.attacker_id);
+    if (battle.defender_id) gangIds.add(battle.defender_id);
+
+    // Check if user owns any participating gang
+    const gangIdArray = Array.from(gangIds);
+    for (const gangId of gangIdArray) {
+      const gang = availableGangs.find(g => g.id === gangId);
+      if (gang && gang.user_id === userId) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [isAdmin, availableGangs, userId]);
+
   // Get all gangs with their roles for a battle
   const getGangsWithRoles = (battle: Battle): React.ReactNode => {
     // Parse participants if it's a string
@@ -586,15 +627,15 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
   // Edit battle handler
   const handleEditBattle = (battle: Battle) => {
-    // Only allow admins to edit battle logs
-    if (!isAdmin) {
+    // Check if user has permission to edit this battle
+    if (!canUserEditBattle(battle)) {
       toast({
         variant: "destructive",
-        description: "You don't have permission to edit battle logs."
+        description: "You don't have permission to edit this battle log."
       });
       return;
     }
-    
+
     setSelectedBattle(battle);
     setShowBattleModal(true);
   };
@@ -857,13 +898,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
               <th className="px-2 py-2 text-left font-medium">Winner</th>
               <th className="p-1 md:p-2 text-left font-medium">Report</th>
-              {isAdmin && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
+              {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
             </tr>
           </thead>
           <tbody>
             {sortedAndFilteredBattles.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 8 : 7} className="text-muted-foreground italic text-center">
+                <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
                   {localBattles.length === 0 
                     ? "No battles recorded yet."
                     : "No battles match the selected filters."}
@@ -927,7 +968,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                       </button>
                     )}
                   </td>
-                  {isAdmin && (
+                  {canUserEditBattle(battle) && (
                     <td className="p-1 md:p-2 align-top text-right">
                       <div className="flex justify-end space-x-2">
                         <Button
