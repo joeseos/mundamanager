@@ -98,10 +98,21 @@ export interface Equipment {
   is_master_crafted?: boolean;
   is_custom?: boolean;
   is_editable?: boolean;
+  loadout_ids?: string[]; // Which loadout IDs this equipment belongs to
   fighter_type_equipment?: boolean;
   equipment_tradingpost?: boolean;
   trading_post_names?: string[];
   from_fighters_list?: boolean;
+}
+
+/**
+ * FighterLoadout - represents a fighter's equipment loadout
+ */
+export interface FighterLoadout {
+  id: string;
+  fighter_id: string;
+  loadout_name: string;
+  equipment_ids: string[];  // fighter_equipment_ids in this loadout
 }
 
 /**

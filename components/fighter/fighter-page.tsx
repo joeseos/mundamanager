@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
-import { Equipment } from '@/types/equipment';
+import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
 import { SkillsList } from "@/components/fighter/fighter-skills-list";
@@ -150,6 +150,8 @@ interface FighterPageState {
     recovery?: boolean;
     captured?: boolean;
   }[];
+  loadouts: FighterLoadout[];
+  activeLoadoutId: string | null;
 }
 
 interface UIState {
@@ -202,7 +204,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       is_master_crafted: item.is_master_crafted,
       is_editable: item.is_editable || false,
       target_equipment_id: item.target_equipment_id,
-      effect_names: item.effect_names
+      effect_names: item.effect_names,
+      loadout_ids: item.loadout_ids
     };
   });
 
@@ -273,7 +276,9 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       gang_affiliation_name: fighterData.gang.gang_affiliation_name,
       positioning: fighterData.gang.positioning
     },
-    gangFighters: gangFighters
+    gangFighters: gangFighters,
+    loadouts: fighterData.loadouts || [],
+    activeLoadoutId: fighterData.fighter?.active_loadout_id || null
   };
 };
 
@@ -714,6 +719,15 @@ export default function FighterPage({
                     ...updatedEffects
                   }
                 } : null
+              }));
+            }}
+            loadouts={fighterData.loadouts}
+            activeLoadoutId={fighterData.activeLoadoutId}
+            onLoadoutsUpdate={(updatedLoadouts, newActiveLoadoutId) => {
+              setFighterData(prev => ({
+                ...prev,
+                loadouts: updatedLoadouts,
+                activeLoadoutId: newActiveLoadoutId
               }));
             }}
           />

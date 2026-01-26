@@ -116,6 +116,8 @@ const FighterCard = memo(function FighterCard({
   fighter_sub_type,
   alliance_crew_name,
   credits,
+  loadout_cost,
+  active_loadout_id,
   movement,
   weapon_skill,
   ballistic_skill,
@@ -452,7 +454,13 @@ const FighterCard = memo(function FighterCard({
           )}
           {!isInactive ? (
             <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
-              <span className="leading-6 font-bold md:text-3xl text-2xl">{credits === 0 ? '*' : credits}</span>
+              <span className="leading-6 font-bold md:text-3xl text-2xl">
+                {(() => {
+                  // Use loadout cost when active loadout is set, otherwise use total credits
+                  const displayCost = active_loadout_id && loadout_cost !== undefined ? loadout_cost : credits;
+                  return displayCost === 0 ? '*' : displayCost;
+                })()}
+              </span>
               <span className="leading-3 md:font-bold text-xs">Credits</span>
             </div>
           ) : (

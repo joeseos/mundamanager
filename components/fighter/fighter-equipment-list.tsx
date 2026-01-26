@@ -18,6 +18,8 @@ import { rollD6 } from '@/utils/dice';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
+import { FighterLoadout } from '@/types/equipment';
+import FighterLoadoutsModal from './fighter-loadouts-modal';
 
 interface WeaponListProps {
   fighterId: string;
@@ -31,6 +33,9 @@ interface WeaponListProps {
   onRegisterPurchase?: (fn: (payload: { params: any; item: Equipment }) => void) => void;
   fighterEffects?: Record<string, FighterEffect[]>;
   onEffectsUpdate?: (updatedEffects: Record<string, FighterEffect[]>) => void;
+  loadouts?: FighterLoadout[];
+  activeLoadoutId?: string | null;
+  onLoadoutsUpdate?: (loadouts: FighterLoadout[], activeLoadoutId: string | null) => void;
 }
 
 interface SellModalProps {
@@ -108,9 +113,13 @@ export function WeaponList({
   userPermissions,
   onRegisterPurchase,
   fighterEffects = {},
-  onEffectsUpdate
+  onEffectsUpdate,
+  loadouts = [],
+  activeLoadoutId,
+  onLoadoutsUpdate
 }: WeaponListProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [showLoadoutsModal, setShowLoadoutsModal] = useState(false);
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
@@ -795,13 +804,22 @@ export function WeaponList({
       <div className="mt-4">
         <div className="flex flex-wrap justify-between items-center mb-2">
           <h2 className="text-xl md:text-2xl font-bold">Equipment</h2>
-          <Button 
-            onClick={onAddEquipment}
-            className="bg-neutral-900 hover:bg-gray-800 text-white"
-            disabled={isLoading || !userPermissions.canEdit}
-          >
-            Add
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowLoadoutsModal(true)}
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
+              disabled={isLoading || !userPermissions.canEdit}
+            >
+              Loadouts
+            </Button>
+            <Button
+              onClick={onAddEquipment}
+              className="bg-neutral-900 hover:bg-gray-800 text-white"
+              disabled={isLoading || !userPermissions.canEdit}
+            >
+              Add
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -939,6 +957,21 @@ export function WeaponList({
           }
           onClose={() => setDeleteEffectModalData(null)}
           onConfirm={handleConfirmDeleteEffect}
+        />
+      )}
+
+      {showLoadoutsModal && (
+        <FighterLoadoutsModal
+          fighterId={fighterId}
+          gangId={gangId}
+          equipment={equipment}
+          loadouts={loadouts}
+          activeLoadoutId={activeLoadoutId}
+          onClose={() => setShowLoadoutsModal(false)}
+          onLoadoutsUpdate={(updatedLoadouts, newActiveLoadoutId) => {
+            onLoadoutsUpdate?.(updatedLoadouts, newActiveLoadoutId);
+            setShowLoadoutsModal(false);
+          }}
         />
       )}
     </>

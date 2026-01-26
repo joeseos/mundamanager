@@ -131,6 +131,7 @@ export interface GangFighter {
   xp: number;
   kills: number;
   credits: number;
+  loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -161,6 +162,7 @@ export interface GangFighter {
   image_url?: string;
   owner_name?: string;
   beast_equipment_stashed?: boolean;
+  active_loadout_id?: string;
 }
 
 // =============================================================================
@@ -938,6 +940,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           fighter_pet_id,
           image_url,
           position,
+          active_loadout_id,
           fighter_types!fighter_type_id (
             fighter_type,
             alliance_crew_name,
@@ -957,6 +960,11 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       // Extract all fighter IDs for batch queries
       const fighterIds = fighters.map((f: any) => f.id);
 
+      // Collect active loadout IDs for batch fetch
+      const activeLoadoutIds = fighters
+        .map((f: any) => f.active_loadout_id)
+        .filter((id: any) => id != null);
+
       // Step 2: Batch fetch ALL related data in parallel
       const [
         allEquipment,
@@ -965,7 +973,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         allVehicles,
         allBeastRelationships,
         allBeastOwnershipInfo,
-        allEquipmentTargetingEffects
+        allEquipmentTargetingEffects,
+        allLoadoutEquipment
       ] = await Promise.all([
         // Batch fetch all equipment for all fighters
         supabase
@@ -1101,7 +1110,15 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             fighter_effect_modifiers ( stat_name, numeric_value, operation )
           `)
           .in('fighter_id', fighterIds)
-          .not('fighter_equipment_id', 'is', null)
+          .not('fighter_equipment_id', 'is', null),
+
+        // Batch fetch loadout equipment assignments (which equipment belongs to which active loadouts)
+        activeLoadoutIds.length > 0
+          ? supabase
+              .from('fighter_loadout_equipment')
+              .select('loadout_id, fighter_equipment_id')
+              .in('loadout_id', activeLoadoutIds)
+          : Promise.resolve({ data: [] })
       ]);
 
       // Step 3: Fetch weapon profiles in batch for all weapons found
@@ -1291,6 +1308,15 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         }
       });
 
+      // Create loadout equipment map: loadout_id -> Set<fighter_equipment_id>
+      const loadoutEquipmentMap = new Map<string, Set<string>>();
+      (allLoadoutEquipment.data || []).forEach((assignment: any) => {
+        if (!loadoutEquipmentMap.has(assignment.loadout_id)) {
+          loadoutEquipmentMap.set(assignment.loadout_id, new Set());
+        }
+        loadoutEquipmentMap.get(assignment.loadout_id)!.add(assignment.fighter_equipment_id);
+      });
+
       // Create fighter lookup map for O(1) beast lookups
       const fighterLookup = new Map(fighters.map((f: any) => [f.id, f]));
 
@@ -1347,6 +1373,12 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           const vehicles = vehiclesByFighter[fighterId] || [];
           const ownedBeasts = beastsByOwner[fighterId] || [];
           const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
+
+          // Get active loadout equipment filter (if loadout is set)
+          const activeLoadoutId = fighter.active_loadout_id;
+          const activeLoadoutEquipmentIds = activeLoadoutId
+            ? loadoutEquipmentMap.get(activeLoadoutId) || new Set<string>()
+            : null; // null means show all equipment (no loadout filter)
 
         // Process skills into the expected format
         const skills: Record<string, any> = {};
@@ -1577,8 +1609,19 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           };
         });
 
+        // Helper to check if equipment is in active loadout
+        const isInActiveLoadout = (fighterEquipmentId: string) =>
+          activeLoadoutEquipmentIds === null || activeLoadoutEquipmentIds.has(fighterEquipmentId);
+
+        // Calculate loadout cost for display (only equipment in active loadout)
+        const loadoutEquipmentCost = processedEquipment
+          .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
+          .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+
         if (!isOwnedBeast) {
-          const equipmentCost = processedEquipment.reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+          // All equipment cost - for gang rating (never filtered by loadout)
+          const allEquipmentCost = processedEquipment
+            .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
           const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
           const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
             return sum + (effect.type_specific_data?.credits_increase || 0);
@@ -1603,13 +1646,14 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             return sum + vehicleTotal;
           }, 0);
 
-          totalCost = fighter.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
+          // Total cost for gang rating uses ALL equipment (not filtered by loadout)
+          totalCost = fighter.credits + allEquipmentCost + skillsCost + effectsCost + vehicleCost +
                       (fighter.cost_adjustment || 0) + beastCosts;
         }
 
-        // Separate equipment into weapons and wargear
+        // Separate equipment into weapons and wargear (filtered by active loadout if set)
         const weapons: WeaponProps[] = processedEquipment
-          .filter((item: any) => item.equipment_type === 'weapon')
+          .filter((item: any) => item.equipment_type === 'weapon' && isInActiveLoadout(item.fighter_equipment_id))
           .map((item: any) => ({
             fighter_weapon_id: item.fighter_equipment_id,
             weapon_id: item.equipment_id || item.custom_equipment_id || '',
@@ -1622,7 +1666,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           }));
 
         const wargear: WargearItem[] = processedEquipment
-          .filter((item: any) => item.equipment_type === 'wargear')
+          .filter((item: any) => item.equipment_type === 'wargear' && isInActiveLoadout(item.fighter_equipment_id))
           .map((item: any) => ({
             fighter_weapon_id: item.fighter_equipment_id,
             wargear_id: item.equipment_id || item.custom_equipment_id || '',
@@ -1634,6 +1678,30 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
         const fighterSubTypeInfo = fighter.fighter_sub_types || null;
+
+        // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
+        // This shows what the fighter costs with the current loadout
+        const skillsCostForDisplay = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+        const effectsCostForDisplay = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+          return sum + (effect.type_specific_data?.credits_increase || 0);
+        }, 0);
+        const vehicleCostForDisplay = processedVehicles.reduce((sum: number, vehicle: any) => {
+          let vehicleTotal = vehicle.cost || 0;
+          if (vehicle.equipment) {
+            vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => equipSum + (eq.purchase_cost || 0), 0);
+          }
+          if (vehicle.effects) {
+            vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+              return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
+            }, 0);
+          }
+          return sum + vehicleTotal;
+        }, 0);
+
+        // Loadout cost for fighter card display (only active loadout equipment)
+        const displayLoadoutCost = !isOwnedBeast
+          ? fighter.credits + loadoutEquipmentCost + skillsCostForDisplay + effectsCostForDisplay + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts
+          : 0;
 
         return {
           id: fighter.id,
@@ -1650,6 +1718,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           xp: fighter.xp,
           kills: fighter.kills || 0,
           credits: totalCost,
+          loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
           movement: fighter.movement,
           weapon_skill: fighter.weapon_skill,
           ballistic_skill: fighter.ballistic_skill,
@@ -1679,7 +1748,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           free_skill: fighter.free_skill || false,
           image_url: fighter.image_url,
           owner_name: ownershipInfo?.owner_name,
-          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false
+          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+          active_loadout_id: activeLoadoutId || undefined
         };
         } catch (error) {
           console.error(`Error processing fighter ${fighter.id}:`, error);
