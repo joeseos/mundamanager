@@ -550,7 +550,7 @@ export default function CampaignPageContent({
               </div>
 
               <div className="text-muted-foreground text-sm mb-4">
-                <div className="flex flex-wrap gap-2 mb-2">
+                <div className="flex flex-wrap gap-2 mb-1">
                   {(() => {
                     const owner = campaignData.members.find(member => member.role === 'OWNER')?.username;
                     const arbitrators = campaignData.members.filter(member => member.role === 'ARBITRATOR');
@@ -591,14 +591,14 @@ export default function CampaignPageContent({
                       {(campaignData.trading_posts?.length ?? 0) === 1 ? 'Trading Post: ' : 'Trading Posts: '}
                     </span>
                     {(campaignData.trading_posts || []).length > 0 ? (
-                      (campaignData.trading_posts || []).map((id) => {
-                        const name = tradingPostTypes?.find(tp => tp.id === id)?.trading_post_name ?? id;
-                        return (
+                      [...(campaignData.trading_posts || [])]
+                        .map((id) => ({ id, name: tradingPostTypes?.find(tp => tp.id === id)?.trading_post_name ?? id }))
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(({ id, name }) => (
                           <Badge key={id} variant="secondary">
                             {name}
                           </Badge>
-                        );
-                      })
+                        ))
                     ) : (
                       <Badge variant="outline">None</Badge>
                     )}

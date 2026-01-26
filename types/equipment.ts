@@ -99,6 +99,10 @@ export interface Equipment {
   is_custom?: boolean;
   is_editable?: boolean;
   loadout_ids?: string[]; // Which loadout IDs this equipment belongs to
+  fighter_type_equipment?: boolean;
+  equipment_tradingpost?: boolean;
+  trading_post_names?: string[];
+  from_fighters_list?: boolean;
 }
 
 /**

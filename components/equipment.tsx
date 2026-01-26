@@ -67,6 +67,8 @@ interface RawEquipmentData {
   is_custom: boolean;
   vehicle_upgrade_slot?: string;
   grants_equipment?: EquipmentGrants;
+  equipment_tradingpost?: boolean;
+  trading_post_names?: string[];
 }
 
 interface PurchaseModalProps {
@@ -726,6 +728,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
           // For vehicle/custom/gang-level, use standard trading post filter
           requestBody.equipment_tradingpost = true;
         }
+        // When gang is in a campaign, restrict trading post to campaign's authorised TPs only
+        if (campaignTradingPostIds !== undefined) {
+          requestBody.campaign_trading_post_type_ids = campaignTradingPostIds;
+        }
       }
 
       // Include fighter_id so RPC can resolve legacy fighter type availability/discounts
@@ -737,7 +743,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_data`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_equipment_detailed_data`,
         {
           method: 'POST',
           headers: {
@@ -834,8 +840,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
         setCachedFighterCategories(uniqueCategories);
         setCachedEquipment(prev => ({ ...prev, fighter: equipmentByCategory }));
       } else if (equipmentListType === 'fighters-tradingpost') {
-        setCachedFighterTPCategories(uniqueCategories);
-        setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
+        // Only cache when not using campaign filter (campaign-filtered results would overwrite unfiltered cache)
+        if (campaignTradingPostIds === undefined) {
+          setCachedFighterTPCategories(uniqueCategories);
+          setCachedEquipment(prev => ({ ...prev, tradingpost: equipmentByCategory }));
+        }
       }
 
       // Set the state
@@ -864,10 +873,20 @@ const ItemModal: React.FC<ItemModalProps> = ({
     setExpandedCategories(newSet);
   };
 
+  // Track previous search query to detect transitions
+  const prevSearchQueryRef = useRef<string>('');
+  
   useEffect(() => {
+    const prevSearchQuery = prevSearchQueryRef.current;
+    prevSearchQueryRef.current = searchQuery;
+    
     if (!searchQuery) {
-      // When search is cleared, reset to default collapsed state
-      setExpandedCategories(new Set());
+      // Only reset when search transitions from non-empty to empty (user cleared search)
+      // Don't reset if it was already empty (just equipment data changed)
+      if (prevSearchQuery) {
+        // When search is cleared, reset to default collapsed state
+        setExpandedCategories(new Set());
+      }
       return;
     }
 
@@ -1020,16 +1039,16 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setAvailableCategories(cachedFighterCategories);
       setEquipment(cachedEquipment.fighter);
       return;
-    } else if (equipmentListType === 'fighters-tradingpost' && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
+    } else if (equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds === undefined && cachedFighterTPCategories.length > 0 && cachedEquipment.tradingpost && Object.keys(cachedEquipment.tradingpost).length > 0) {
       setAvailableCategories(cachedFighterTPCategories);
       setEquipment(cachedEquipment.tradingpost);
       return;
     }
 
     // Only fetch if we don't have cached data
-    
+
     fetchAllCategories();
-  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment]);
+  }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment, (campaignTradingPostIds || []).join(',')]);
 
   // Calculate min/max values from equipment data
   useEffect(() => {
@@ -1255,7 +1274,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
             {equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds !== undefined && (
               <div className="mt-2 px-4">
                 <p className="text-xs text-muted-foreground text-center">
-                  Authorised Trading Posts: {(campaignTradingPostNames && campaignTradingPostNames.length > 0) ? campaignTradingPostNames.join(', ') : 'None'}
+                  Authorised: {(campaignTradingPostNames && campaignTradingPostNames.length > 0) ? [...campaignTradingPostNames].sort((a, b) => a.localeCompare(b)).join(', ') : 'None'}
                 </p>
               </div>
             )}
@@ -1310,79 +1329,97 @@ const ItemModal: React.FC<ItemModalProps> = ({
                           filterEquipment(equipment[category.category_name])
                             .map((item, itemIndex) => {
                               const affordable = canAffordEquipment(item);
-                              const tooltipProps = (item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0)
+                              const sourceParts: string[] = [];
+                              if (item.is_custom) sourceParts.push('Custom');
+                              if (item.fighter_type_equipment || item.from_fighters_list) sourceParts.push(isVehicleEquipment ? "Vehicle's List" : "Fighter's List");
+                              if (item.equipment_tradingpost && (item.trading_post_names || []).length > 0) {
+                                sourceParts.push((item.trading_post_names || []).join(', '));
+                              }
+                              // In Trading Post mode: equipment exclusive to this fighter type (only in fighter_equipment_tradingpost, no named TPs) → show Fighter's/Vehicle's List
+                              if (equipmentListType === 'fighters-tradingpost' && item.equipment_tradingpost && (item.trading_post_names || []).length === 0 && !(item.fighter_type_equipment || item.from_fighters_list)) {
+                                sourceParts.push(isVehicleEquipment ? "Vehicle's List" : "Fighter's List");
+                              }
+                              // In Unrestricted mode: if source is still empty, exclusive equipment → show "Exclusive"
+                              if (equipmentListType === 'unrestricted' && sourceParts.length === 0) {
+                                sourceParts.push('Exclusive');
+                              }
+                              const sourceDiv = sourceParts.length > 0 ? '<div style="padding:2px;font-size:11px;color:#aaa;">Source: ' + sourceParts.join(', ') + '</div>' : '';
+                              const isWeaponWithProfiles = item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0;
+                              const hasTooltipContent = isWeaponWithProfiles || sourceParts.length > 0;
+                              const tooltipProps = hasTooltipContent
                                 ? {
                                     'data-tooltip-id': 'weapon-profile-tooltip',
                                     'data-tooltip-html': (() => {
-                                      const sortedProfiles = [...(item.weapon_profiles || [])].sort((a, b) => {
-                                        const orderA = (a as any).sort_order ?? 1;
-                                        const orderB = (b as any).sort_order ?? 1;
-                                        if (orderA !== orderB) return orderA - orderB;
-                                        return (a.profile_name || '').localeCompare(b.profile_name || '');
-                                      });
-                                      // Check if any profile has meaningful data beyond just the name
-                                      const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
-                                      // If no meaningful data, just show profile names
-                                      if (!hasAnyProfileData) {
-                                        return sortedProfiles.map(profile => profile.profile_name).join('\n');
-                                      }
-                                      let html = '<div style="font-size: 12px;">';
-                                      html += '<table style="width: 100%; border-collapse: collapse;">';
-                                      html += '<thead>';
-                                      html += '<tr>';
-                                      html += '<th style="text-align: left; min-width: 80px;"></th>';
-                                      html += '<th style="text-align: center; solid #666;" colspan="2">Rng</th>';
-                                      html += '<th style="text-align: center; solid #666;" colspan="2">Acc</th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: center; solid #666;"></th>';
-                                      html += '<th style="text-align: left; solid #666;"></th>';
-                                      html += '</tr>';
-                                      html += '<tr style="border-bottom: 1px solid #666;">';
-                                      html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
-                                      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
-                                      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
-                                      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
-                                      html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px; max-width: 22vw;">Traits</th>';
-                                      html += '</tr>';
-                                      html += '</thead><tbody>';
-                                      sortedProfiles.forEach(profile => {
-                                        // Check if this profile has any meaningful data
-                                        const profileHasData = hasProfileData(profile);
-                                        html += '<tr style="border-bottom: 1px solid #555;">';
-                                        html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
-                                        if (profileHasData) {
-                                          // Show "-" for missing values when profile has other data
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.range_long || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.acc_long || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
-                                          html += `<td style="padding: 3px; vertical-align: top; border-left: 1px solid #555; word-break: normal; white-space: normal; max-width: 22vw;">${profile.traits || '-'}</td>`;
+                                      let html = '';
+                                      if (isWeaponWithProfiles) {
+                                        const sortedProfiles = [...(item.weapon_profiles || [])].sort((a, b) => {
+                                          const orderA = (a as any).sort_order ?? 1;
+                                          const orderB = (b as any).sort_order ?? 1;
+                                          if (orderA !== orderB) return orderA - orderB;
+                                          return (a.profile_name || '').localeCompare(b.profile_name || '');
+                                        });
+                                        const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
+                                        if (!hasAnyProfileData) {
+                                          html = sortedProfiles.map(profile => profile.profile_name).join('<br/>') + sourceDiv;
                                         } else {
-                                          // Show empty cells for profiles with no data
-                                          html += `<td style="padding: 3px; text-align: center; border-left: 1px solid #555;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px; text-align: center;"></td>`;
-                                          html += `<td style="padding: 3px;"></td>`;
+                                          html = '<div style="font-size: 12px;">';
+                                          html += '<table style="width: 100%; border-collapse: collapse;">';
+                                          html += '<thead>';
+                                          html += '<tr>';
+                                          html += '<th style="text-align: left; min-width: 80px;"></th>';
+                                          html += '<th style="text-align: center; solid #666;" colspan="2">Rng</th>';
+                                          html += '<th style="text-align: center; solid #666;" colspan="2">Acc</th>';
+                                          html += '<th style="text-align: center; solid #666;"></th>';
+                                          html += '<th style="text-align: center; solid #666;"></th>';
+                                          html += '<th style="text-align: center; solid #666;"></th>';
+                                          html += '<th style="text-align: center; solid #666;"></th>';
+                                          html += '<th style="text-align: left; solid #666;"></th>';
+                                          html += '</tr>';
+                                          html += '<tr style="border-bottom: 1px solid #666;">';
+                                          html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
+                                          html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
+                                          html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                          html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
+                                          html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
+                                          html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
+                                          html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
+                                          html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
+                                          html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
+                                          html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px; max-width: 22vw;">Traits</th>';
+                                          html += '</tr>';
+                                          html += '</thead><tbody>';
+                                          sortedProfiles.forEach(profile => {
+                                            const profileHasData = hasProfileData(profile);
+                                            html += '<tr style="border-bottom: 1px solid #555;">';
+                                            html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
+                                            if (profileHasData) {
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.range_short || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.range_long || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.acc_short || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.acc_long || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.strength || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ap || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.damage || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ammo || '-'}</td>`;
+                                              html += `<td style="padding: 3px; vertical-align: top; border-left: 1px solid #555; word-break: normal; white-space: normal; max-width: 22vw;">${profile.traits || '-'}</td>`;
+                                            } else {
+                                              html += `<td style="padding: 3px; text-align: center; border-left: 1px solid #555;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px; text-align: center;"></td>`;
+                                              html += `<td style="padding: 3px;"></td>`;
+                                            }
+                                            html += '</tr>';
+                                          });
+                                          html += '</tbody></table></div>' + sourceDiv;
                                         }
-                                        html += '</tr>';
-                                      });
-                                      html += '</tbody></table></div>';
+                                      } else {
+                                        html = sourceDiv;
+                                      }
                                       return html;
                                     })()
                                   }
@@ -1404,7 +1441,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                           Custom
                                         </Badge>
                                       )}
-                                      {(item as any).from_fighters_list && (
+                                      {equipmentListType !== 'fighters-list' && (item.fighter_type_equipment || item.from_fighters_list) && (
                                         <Badge variant="discreet" className="px-1 text-[0.6rem]">
                                           {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                                         </Badge>
