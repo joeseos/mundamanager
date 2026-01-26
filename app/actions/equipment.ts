@@ -604,11 +604,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
     const wealthDelta = totalRatingDelta + (-finalPurchaseCost) + stashValueDelta;
 
-    // Update gang credits if purchase cost > 0
-    if (finalPurchaseCost !== 0) {
+    // Update gang credits if purchase cost > 0 or grants have additional cost
+    if (finalPurchaseCost !== 0 || grantsRatingDelta !== 0) {
       const { error: creditsUpdateError } = await supabase
         .from('gangs')
-        .update({ credits: gang.credits - finalPurchaseCost })
+        .update({ credits: gang.credits - finalPurchaseCost - grantsRatingDelta })
         .eq('id', params.gang_id);
 
       if (creditsUpdateError) {
@@ -620,7 +620,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
-      creditsDelta: -finalPurchaseCost,
+      creditsDelta: -finalPurchaseCost - grantsRatingDelta,
       stashValueDelta
     });
 
