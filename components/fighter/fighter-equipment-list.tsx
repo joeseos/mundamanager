@@ -120,7 +120,6 @@ export function WeaponList({
   activeLoadoutId,
   onLoadoutsUpdate
 }: WeaponListProps) {
-  const [isLoading, setIsLoading] = useState(false);
   const [showLoadoutsModal, setShowLoadoutsModal] = useState(false);
   const { toast } = useToast();
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
@@ -654,9 +653,14 @@ export function WeaponList({
   };
 
   const handleSetActiveLoadout = async (loadoutId: string | null) => {
-    if (isLoading) return;
+    if (!onLoadoutsUpdate) return;
 
-    setIsLoading(true);
+    // Snapshot for rollback
+    const previousActiveLoadoutId = activeLoadoutId ?? null;
+
+    // Optimistic update - UI changes immediately
+    onLoadoutsUpdate(loadouts, loadoutId);
+
     try {
       const result = await setActiveLoadout({
         loadout_id: loadoutId,
@@ -668,11 +672,6 @@ export function WeaponList({
         throw new Error(result.error || 'Failed to set active loadout');
       }
 
-      // Update parent state
-      if (onLoadoutsUpdate) {
-        onLoadoutsUpdate(loadouts, loadoutId);
-      }
-
       const loadoutName = loadoutId
         ? loadouts.find(l => l.id === loadoutId)?.loadout_name
         : 'None';
@@ -681,12 +680,12 @@ export function WeaponList({
         variant: 'default'
       });
     } catch (error) {
+      // Roll back on failure
+      onLoadoutsUpdate(loadouts, previousActiveLoadoutId);
       toast({
         description: error instanceof Error ? error.message : 'Failed to set active loadout',
         variant: 'destructive'
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -729,7 +728,7 @@ export function WeaponList({
               variant="outline"
               size="sm"
               onClick={() => handleOpenUpgradeModal(item)}
-              disabled={isLoading || !userPermissions.canEdit}
+              disabled={!userPermissions.canEdit}
               className="text-xs px-1.5 h-6"
               title="Edit Equipment"
             >
@@ -744,7 +743,7 @@ export function WeaponList({
                 onClick={() => {
                   setStashModalData(item);
                 }}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={!userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Store in Stash"
               >
@@ -756,7 +755,7 @@ export function WeaponList({
                 onClick={() => {
                   setSellModalData(item);
                 }}
-                disabled={isLoading || !userPermissions.canEdit}
+                disabled={!userPermissions.canEdit}
                 className="text-xs px-1.5 h-6"
                 title="Sell"
               >
@@ -826,7 +825,7 @@ export function WeaponList({
                     creditsIncrease: typeof typeData === 'object' && typeof typeData?.credits_increase === 'number' ? typeData.credits_increase : 0
                   });
                 }}
-                disabled={isLoading || !userPermissions.canEdit || deleteEffectMutation.isPending}
+                disabled={!userPermissions.canEdit || deleteEffectMutation.isPending}
                 className="text-xs px-1.5 h-6"
                 title="Delete"
               >
@@ -851,19 +850,6 @@ export function WeaponList({
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 bg-secondary animate-pulse rounded" />
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-12 bg-muted animate-pulse rounded" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="mt-4">
@@ -873,14 +859,14 @@ export function WeaponList({
             <Button
               onClick={() => setShowLoadoutsModal(true)}
               className="bg-neutral-900 hover:bg-gray-800 text-white"
-              disabled={isLoading || !userPermissions.canEdit}
+              disabled={!userPermissions.canEdit}
             >
               Loadouts
             </Button>
             <Button
               onClick={onAddEquipment}
               className="bg-neutral-900 hover:bg-gray-800 text-white"
-              disabled={isLoading || !userPermissions.canEdit}
+              disabled={!userPermissions.canEdit}
             >
               Add
             </Button>
