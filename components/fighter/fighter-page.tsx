@@ -4,7 +4,7 @@ import { FighterSkills, FighterEffect } from "@/types/fighter";
 import { FighterDetailsCard } from "@/components/fighter/fighter-details-card";
 import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
@@ -346,6 +346,28 @@ export default function FighterPage({
   // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
 
+  // Compute displayed credits based on active loadout
+  const displayedCredits = useMemo(() => {
+    if (!fighterData.fighter) return 0;
+    
+    // No loadout active - show full credits
+    if (!fighterData.activeLoadoutId) {
+      return fighterData.fighter.credits;
+    }
+    
+    const activeLoadout = fighterData.loadouts.find(l => l.id === fighterData.activeLoadoutId);
+    if (!activeLoadout) {
+      return fighterData.fighter.credits;
+    }
+    
+    // Subtract cost of equipment NOT in the active loadout
+    const excludedEquipmentCost = fighterData.equipment
+      .filter(eq => !activeLoadout.equipment_ids.includes(eq.fighter_equipment_id))
+      .reduce((sum, eq) => sum + (eq.cost ?? 0), 0);
+    
+    return fighterData.fighter.credits - excludedEquipmentCost;
+  }, [fighterData.fighter, fighterData.equipment, fighterData.loadouts, fighterData.activeLoadoutId]);
+
   // Helper function to convert Fighter to FighterProps for EditFighterModal
   const convertToFighterProps = (fighter: Fighter): any => {
     return {
@@ -598,7 +620,7 @@ export default function FighterPage({
             sub_type={fighterData.fighter?.fighter_sub_type}
             label={fighterData.fighter?.label}
             alliance_crew_name={fighterData.fighter?.alliance_crew_name || ''}
-            credits={fighterData.fighter?.credits || 0}
+            credits={displayedCredits}
             movement={fighterData.fighter?.movement || 0}
             weapon_skill={fighterData.fighter?.weapon_skill || 0}
             ballistic_skill={fighterData.fighter?.ballistic_skill || 0}
