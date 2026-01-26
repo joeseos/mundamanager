@@ -1059,10 +1059,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
     const currentContext = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}`;
     const prevContext = prevEquipmentContextRef.current;
     const contextChanged = prevContext !== currentContext;
-    prevEquipmentContextRef.current = currentContext;
     
     const allEquipment = Object.values(equipment).flat();
     if (allEquipment.length > 0) {
+      // Only update ref when we have equipment data to process
+      // This ensures context change is detected on the run when data actually loads
+      if (contextChanged) {
+        prevEquipmentContextRef.current = currentContext;
+      }
+      
       const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
       const availabilities = allEquipment
         .map(item => {
