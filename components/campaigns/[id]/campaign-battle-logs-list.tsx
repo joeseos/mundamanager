@@ -435,38 +435,26 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     // Admins can edit any battle
     if (isAdmin) return true;
 
-    // Extract gang IDs from battle (handle both old and new structures)
-    const gangIds = new Set<string>();
-
-    // New structure: participants array
-    let participants = battle.participants;
-    if (participants && typeof participants === 'string') {
-      try {
-        participants = JSON.parse(participants);
-      } catch (e) {
-        participants = [];
+    // Parse participants if it's a string
+    let participants: BattleParticipant[] = [];
+    if (battle.participants) {
+      if (typeof battle.participants === 'string') {
+        try {
+          participants = JSON.parse(battle.participants);
+        } catch {
+          participants = [];
+        }
+      } else if (Array.isArray(battle.participants)) {
+        participants = battle.participants;
       }
     }
-    if (participants && Array.isArray(participants)) {
-      participants.forEach((p: BattleParticipant) => {
-        if (p.gang_id) gangIds.add(p.gang_id);
-      });
-    }
-
-    // Old structure: attacker_id and defender_id
-    if (battle.attacker_id) gangIds.add(battle.attacker_id);
-    if (battle.defender_id) gangIds.add(battle.defender_id);
 
     // Check if user owns any participating gang
-    const gangIdArray = Array.from(gangIds);
-    for (const gangId of gangIdArray) {
-      const gang = availableGangs.find(g => g.id === gangId);
-      if (gang && gang.user_id === userId) {
-        return true;
-      }
-    }
-
-    return false;
+    return participants.some((p) => {
+      if (!p.gang_id) return false;
+      const gang = availableGangs.find(g => g.id === p.gang_id);
+      return gang?.user_id === userId;
+    });
   }, [isAdmin, availableGangs, userId]);
 
   // Get all gangs with their roles for a battle
