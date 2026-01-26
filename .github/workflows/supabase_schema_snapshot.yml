@@ -55,7 +55,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- "$SUPABASE_SNAPSHOT_PATH/schema.public.sql"; then
+          git add "$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
+
+          if git diff --cached --quiet; then
             echo "No schema changes detected."
             exit 0
           fi
@@ -63,6 +65,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add "$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
           git commit -m "chore(db): update Supabase schema snapshot"
           git push origin HEAD
