@@ -260,17 +260,6 @@ const CampaignBattleLogModal = ({
   // Compute isSubmitting from mutation states
   const isSubmitting = createBattleMutation.isPending || updateBattleMutation.isPending;
 
-  // If in edit mode and the user is not admin, show an error and close the modal
-  useEffect(() => {
-    if (isOpen && isEditMode && !isAdmin) {
-      toast({
-        variant: "destructive",
-        description: "You don't have permission to edit battle logs."
-      });
-      onClose();
-    }
-  }, [isOpen, isEditMode, isAdmin, onClose, toast]);
-
   // Load battle data when the modal opens
   useEffect(() => {
     let isMounted = true;
@@ -523,15 +512,6 @@ const CampaignBattleLogModal = ({
   const handleSaveBattle = async () => {
     // Guard against double-click
     if (isSubmitting) return false;
-
-    // Prevent non-admin users from updating existing battles
-    if (isEditMode && !isAdmin) {
-      toast({
-        variant: "destructive",
-        description: "You don't have permission to edit battle logs."
-      });
-      return false;
-    }
 
     // Validate required fields
     if (selectedScenario === '') {
