@@ -1,10 +1,12 @@
-DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean);
-DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid, text, uuid, boolean, boolean);
-DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid);
-DROP FUNCTION IF EXISTS get_equipment_with_discounts(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[]);
 
 -- Create the new function with simplified LATERAL join and gang_id parameter
-CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
+CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     gang_type_id uuid DEFAULT NULL,
     equipment_category text DEFAULT NULL,
     fighter_type_id uuid DEFAULT NULL,
@@ -12,7 +14,9 @@ CREATE OR REPLACE FUNCTION get_equipment_with_discounts(
     equipment_tradingpost boolean DEFAULT NULL,
     fighter_id uuid DEFAULT NULL,
     only_equipment_id uuid DEFAULT NULL,
-    gang_id uuid DEFAULT NULL
+    gang_id uuid DEFAULT NULL,
+    fighters_tradingpost_only boolean DEFAULT NULL,
+    campaign_trading_post_type_ids uuid[] DEFAULT NULL
 )
 RETURNS TABLE (
     id uuid,
@@ -30,7 +34,8 @@ RETURNS TABLE (
     weapon_profiles jsonb,
     vehicle_upgrade_slot text,
     grants_equipment jsonb,
-    is_editable boolean
+    is_editable boolean,
+    trading_post_names text[]
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -229,7 +234,17 @@ AS $$
                 )
             ELSE e.grants_equipment
         END as grants_equipment,
-        COALESCE(e.is_editable, false) as is_editable
+        COALESCE(e.is_editable, false) as is_editable,
+        -- Trading posts the gang has access to: (1) gang's TP via gang_types, or (2) campaign's authorised TPs when in a campaign
+        (SELECT COALESCE(array_agg(DISTINCT tpt.trading_post_name), '{}'::text[])
+         FROM trading_post_equipment tpe
+         JOIN trading_post_types tpt ON tpt.id = tpe.trading_post_type_id
+         WHERE tpe.equipment_id = e.id
+           AND (
+             EXISTS (SELECT 1 FROM gang_types gt WHERE gt.gang_type_id = $1 AND gt.trading_post_type_id = tpe.trading_post_type_id)
+             OR ($10 IS NOT NULL AND array_length($10, 1) > 0 AND tpe.trading_post_type_id = ANY($10))
+           )
+        ) AS trading_post_names
     FROM equipment e
     -- Simplified LATERAL join - always executes, no conditionals
     LEFT JOIN LATERAL (
@@ -277,36 +292,150 @@ AS $$
         AND (only_equipment_id IS NULL OR e.id = only_equipment_id)
         AND
         (
-            $4 IS NULL
-            OR (
+            -- When both $4 and $5 are provided, use OR logic (items in EITHER fighter's list OR trading post)
+            -- Include both fighter-specific and gang-level trading post items
+            ($4 IS NULL AND $5 IS NULL)
+            OR
+            ($4 IS NOT NULL AND $5 IS NOT NULL AND (
+                CASE
+                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL OR ea_var.id IS NOT NULL THEN true
+                    ELSE false
+                END = $4
+                OR
+                -- When both filters provided, respect fighters_tradingpost_only flag
+                -- If $10 (campaign_trading_post_type_ids) is set: restrict TP to equipment in tpe for those IDs; else use existing logic
+                (
+                    ( $10 IS NULL AND (
+                        CASE
+                            WHEN $9 = true THEN
+                                EXISTS (
+                                    SELECT 1
+                                    FROM fighter_equipment_tradingpost fet,
+                                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                                    WHERE (fet.fighter_type_id = $3
+                                           OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                                    AND equip_id = e.id::text
+                                )
+                            ELSE
+                                (
+                                    EXISTS (
+                                        SELECT 1
+                                        FROM gang_types gt, trading_post_equipment tpe
+                                        WHERE gt.gang_type_id = $1
+                                        AND tpe.trading_post_type_id = gt.trading_post_type_id
+                                        AND tpe.equipment_id = e.id
+                                    )
+                                    OR
+                                    EXISTS (
+                                        SELECT 1
+                                        FROM fighter_equipment_tradingpost fet,
+                                             jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                                        WHERE (fet.fighter_type_id = $3
+                                               OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                                        AND equip_id = e.id::text
+                                    )
+                                )
+                        END
+                    ) )
+                    OR
+                    ( $10 IS NOT NULL AND array_length($10, 1) > 0 AND
+                        -- Item must be in campaign's authorized trading posts
+                        EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                WHERE tpe.equipment_id = e.id AND tpe.trading_post_type_id = ANY($10))
+                        AND
+                        -- AND fighter must have access (via gang TP or fighter-specific TP)
+                        (
+                            EXISTS (
+                                SELECT 1
+                                FROM gang_types gt, trading_post_equipment tpe2
+                                WHERE gt.gang_type_id = $1
+                                AND tpe2.trading_post_type_id = gt.trading_post_type_id
+                                AND tpe2.equipment_id = e.id
+                            )
+                            OR
+                            EXISTS (
+                                SELECT 1
+                                FROM fighter_equipment_tradingpost fet,
+                                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                                WHERE (fet.fighter_type_id = $3
+                                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                                AND equip_id = e.id::text
+                            )
+                        )
+                    )
+                ) = $5
+            ))
+            OR
+            -- When only $4 is provided (fighter's list only)
+            ($4 IS NOT NULL AND $5 IS NULL AND (
                 CASE
                     WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL OR ea_var.id IS NOT NULL THEN true
                     ELSE false
                 END
-            ) = $4
-        )
-        AND
-        (
-            $5 IS NULL
-            OR (
-                -- Simplified trading post logic - natural NULL handling
-                EXISTS (
-                    SELECT 1
-                    FROM gang_types gt, trading_post_equipment tpe
-                    WHERE gt.gang_type_id = $1
-                    AND tpe.trading_post_type_id = gt.trading_post_type_id
-                    AND tpe.equipment_id = e.id
-                )
+            ) = $4)
+            OR
+            -- When only $5 is provided (trading post only)
+            -- If $10 (campaign_trading_post_type_ids) is set: restrict TP to equipment in tpe for those IDs; else use existing logic
+            ($4 IS NULL AND $5 IS NOT NULL AND (
+                ( $10 IS NULL AND (
+                    CASE
+                        WHEN $9 = true THEN
+                            EXISTS (
+                                SELECT 1
+                                FROM fighter_equipment_tradingpost fet,
+                                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                                WHERE (fet.fighter_type_id = $3
+                                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                                AND equip_id = e.id::text
+                            )
+                        ELSE
+                            (
+                                EXISTS (
+                                    SELECT 1
+                                    FROM gang_types gt, trading_post_equipment tpe
+                                    WHERE gt.gang_type_id = $1
+                                    AND tpe.trading_post_type_id = gt.trading_post_type_id
+                                    AND tpe.equipment_id = e.id
+                                )
+                                OR
+                                EXISTS (
+                                    SELECT 1
+                                    FROM fighter_equipment_tradingpost fet,
+                                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                                    WHERE (fet.fighter_type_id = $3
+                                           OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                                    AND equip_id = e.id::text
+                                )
+                            )
+                    END
+                ) )
                 OR
-                EXISTS (
-                    SELECT 1
-                    FROM fighter_equipment_tradingpost fet,
-                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                    WHERE (fet.fighter_type_id = $3
-                           OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                    AND equip_id = e.id::text
+                ( $10 IS NOT NULL AND array_length($10, 1) > 0 AND
+                    -- Item must be in campaign's authorized trading posts
+                    EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                            WHERE tpe.equipment_id = e.id AND tpe.trading_post_type_id = ANY($10))
+                    AND
+                    -- AND fighter must have access (via gang TP or fighter-specific TP)
+                    (
+                        EXISTS (
+                            SELECT 1
+                            FROM gang_types gt, trading_post_equipment tpe2
+                            WHERE gt.gang_type_id = $1
+                            AND tpe2.trading_post_type_id = gt.trading_post_type_id
+                            AND tpe2.equipment_id = e.id
+                        )
+                        OR
+                        EXISTS (
+                            SELECT 1
+                            FROM fighter_equipment_tradingpost fet,
+                                 jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
+                            WHERE (fet.fighter_type_id = $3
+                                   OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                            AND equip_id = e.id::text
+                        )
+                    )
                 )
-            ) = $5
+            ) = $5)
         )
 
     UNION ALL
@@ -353,7 +482,8 @@ AS $$
         -- Custom equipment doesn't have vehicle upgrade slots
         NULL as vehicle_upgrade_slot,
         NULL::jsonb as grants_equipment,
-        COALESCE(ce.is_editable, false) as is_editable
+        COALESCE(ce.is_editable, false) as is_editable,
+        '{}'::text[] AS trading_post_names
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -366,4 +496,9 @@ AS $$
         AND ($2 IS NULL
          OR trim(both from ce.equipment_category) = trim(both from $2))
         AND (only_equipment_id IS NULL OR ce.id = only_equipment_id)
+        -- Custom equipment is always available in fighter's list, trading post, and unrestricted mode
+        -- Only exclude when ONLY trading post is requested with fighters_tradingpost_only (no fighter's list)
+        -- Exclude when: $4 IS NULL (no fighter's list) AND $5 IS NOT NULL AND $5 = true (trading post) AND $9 IS NOT NULL AND $9 = true (fighters_tradingpost_only)
+        -- Include in all other cases: unrestricted ($4 IS NULL AND $5 IS NULL), fighter's list ($4 = true), or both filters
+        AND NOT ($4 IS NULL AND $5 IS NOT NULL AND $5 = true AND $9 IS NOT NULL AND $9 = true)
 $$;

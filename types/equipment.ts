@@ -98,6 +98,10 @@ export interface Equipment {
   is_master_crafted?: boolean;
   is_custom?: boolean;
   is_editable?: boolean;
+  fighter_type_equipment?: boolean;
+  equipment_tradingpost?: boolean;
+  trading_post_names?: string[];
+  from_fighters_list?: boolean;
 }
 
 /**
