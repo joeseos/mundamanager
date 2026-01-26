@@ -300,26 +300,7 @@ export default function FighterLoadoutsModal({
   };
 
   return (
-    <>
-      {/* Confirmation Modal */}
-      {confirmationType && (
-        <Modal
-          title={confirmationType === 'delete' ? 'Delete Loadout' : 'Unsaved Changes'}
-          content={
-            <p className="text-muted-foreground">
-              {confirmationType === 'delete'
-                ? 'Are you sure you want to delete this loadout? This action cannot be undone.'
-                : 'You have unsaved changes. Are you sure you want to discard them?'}
-            </p>
-          }
-          onClose={handleConfirmationCancel}
-          onConfirm={handleConfirmationConfirm}
-          confirmText={confirmationType === 'delete' ? 'Delete' : 'Discard'}
-          width="sm"
-        />
-      )}
-
-      <div
+    <div
         className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-neutral-300 bg-opacity-50 dark:bg-neutral-700 dark:bg-opacity-50"
         onMouseDown={(e) => {
           if (e.target === e.currentTarget) {
@@ -550,8 +531,25 @@ export default function FighterLoadoutsModal({
             {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Done'}
           </Button>
         </div>
+
+        {/* Confirmation Modal - rendered inside to layer on top */}
+        {confirmationType && (
+          <Modal
+            title={confirmationType === 'delete' ? 'Delete Loadout' : 'Unsaved Changes'}
+            content={
+              <p className="text-muted-foreground">
+                {confirmationType === 'delete'
+                  ? 'Are you sure you want to delete this loadout? This action cannot be undone.'
+                  : 'You have unsaved changes. Are you sure you want to discard them?'}
+              </p>
+            }
+            onClose={handleConfirmationCancel}
+            onConfirm={handleConfirmationConfirm}
+            confirmText={confirmationType === 'delete' ? 'Delete' : 'Discard'}
+            width="sm"
+          />
+        )}
       </div>
     </div>
-    </>
   );
 }
