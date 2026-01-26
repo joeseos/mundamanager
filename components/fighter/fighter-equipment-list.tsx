@@ -652,26 +652,30 @@ export function WeaponList({
     });
   };
 
-  const handleSetActiveLoadout = async (loadoutId: string | null) => {
-    if (!onLoadoutsUpdate) return;
-
-    // Snapshot for rollback
-    const previousActiveLoadoutId = activeLoadoutId ?? null;
-
-    // Optimistic update - UI changes immediately
-    onLoadoutsUpdate(loadouts, loadoutId);
-
-    try {
+  // TanStack Query mutation for setting active loadout with optimistic update
+  const setActiveLoadoutMutation = useMutation({
+    mutationFn: async (loadoutId: string | null) => {
       const result = await setActiveLoadout({
         loadout_id: loadoutId,
         fighter_id: fighterId,
         gang_id: gangId
       });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to set active loadout');
-      }
-
+      if (!result.success) throw new Error(result.error || 'Failed to set active loadout');
+      return { loadoutId };
+    },
+    onMutate: async (loadoutId) => {
+      const previousActiveLoadoutId = activeLoadoutId ?? null;
+      onLoadoutsUpdate?.(loadouts, loadoutId);  // Optimistic update
+      return { previousActiveLoadoutId };
+    },
+    onError: (error, _loadoutId, context) => {
+      if (context) onLoadoutsUpdate?.(loadouts, context.previousActiveLoadoutId);  // Rollback
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to set active loadout',
+        variant: 'destructive'
+      });
+    },
+    onSuccess: (_data, loadoutId) => {
       const loadoutName = loadoutId
         ? loadouts.find(l => l.id === loadoutId)?.loadout_name
         : 'None';
@@ -679,14 +683,12 @@ export function WeaponList({
         description: `Active loadout: ${loadoutName}`,
         variant: 'default'
       });
-    } catch (error) {
-      // Roll back on failure
-      onLoadoutsUpdate(loadouts, previousActiveLoadoutId);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to set active loadout',
-        variant: 'destructive'
-      });
     }
+  });
+
+  const handleSetActiveLoadout = (loadoutId: string | null) => {
+    if (!onLoadoutsUpdate) return;
+    setActiveLoadoutMutation.mutate(loadoutId);
   };
 
   // Helper function to check if equipment is in the active loadout
