@@ -235,7 +235,7 @@ AS $$
             ELSE e.grants_equipment
         END as grants_equipment,
         COALESCE(e.is_editable, false) as is_editable,
-        -- Trading posts the gang has access to: (1) gang's TP via gang_types, or (2) campaign's authorised TPs when in a campaign
+        -- Trading posts to show as source: (1) gang's TP via gang_types, (2) campaign's authorised TPs when in a campaign, (3) TPs that list this equipment when the fighter has access via fighter_equipment_tradingpost
         (SELECT COALESCE(array_agg(DISTINCT tpt.trading_post_name), '{}'::text[])
          FROM trading_post_equipment tpe
          JOIN trading_post_types tpt ON tpt.id = tpe.trading_post_type_id
@@ -243,6 +243,11 @@ AS $$
            AND (
              EXISTS (SELECT 1 FROM gang_types gt WHERE gt.gang_type_id = $1 AND gt.trading_post_type_id = tpe.trading_post_type_id)
              OR ($10 IS NOT NULL AND array_length($10, 1) > 0 AND tpe.trading_post_type_id = ANY($10))
+             OR ($3 IS NOT NULL AND EXISTS (
+               SELECT 1 FROM fighter_equipment_tradingpost fet, jsonb_array_elements_text(fet.equipment_tradingpost) AS eq
+               WHERE (fet.fighter_type_id = $3 OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
+                 AND eq = e.id::text
+             ))
            )
         ) AS trading_post_names
     FROM equipment e

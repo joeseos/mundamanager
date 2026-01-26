@@ -1335,6 +1335,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
                               if (item.equipment_tradingpost && (item.trading_post_names || []).length > 0) {
                                 sourceParts.push((item.trading_post_names || []).join(', '));
                               }
+                              // In Trading Post mode: equipment exclusive to this fighter type (only in fighter_equipment_tradingpost, no named TPs) → show Fighter's/Vehicle's List
+                              if (equipmentListType === 'fighters-tradingpost' && item.equipment_tradingpost && (item.trading_post_names || []).length === 0 && !(item.fighter_type_equipment || item.from_fighters_list)) {
+                                sourceParts.push(isVehicleEquipment ? "Vehicle's List" : "Fighter's List");
+                              }
+                              // In Unrestricted mode: if source is still empty, exclusive equipment → show "Exclusive"
+                              if (equipmentListType === 'unrestricted' && sourceParts.length === 0) {
+                                sourceParts.push('Exclusive');
+                              }
                               const sourceDiv = sourceParts.length > 0 ? '<div style="padding:2px;font-size:11px;color:#aaa;">Source: ' + sourceParts.join(', ') + '</div>' : '';
                               const isWeaponWithProfiles = item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0;
                               const hasTooltipContent = isWeaponWithProfiles || sourceParts.length > 0;
@@ -1433,7 +1441,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                           Custom
                                         </Badge>
                                       )}
-                                      {(item as any).from_fighters_list && (
+                                      {equipmentListType !== 'fighters-list' && (item.fighter_type_equipment || item.from_fighters_list) && (
                                         <Badge variant="discreet" className="px-1 text-[0.6rem]">
                                           {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
                                         </Badge>
