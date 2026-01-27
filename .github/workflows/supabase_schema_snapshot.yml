@@ -10,9 +10,9 @@ on:
   schedule:
     - cron: "0 18 * * *"
 
+# As we're using a deploy key doing the push, this permission does not matter and could be write or read
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: supabase-schema-snapshot
@@ -26,8 +26,11 @@ jobs:
       SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
-      - name: Checkout
+      - name: Checkout (SSH via deploy key)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.SUPABASE_DEPLOY_KEY }}
 
       - name: Install Postgres client
         run: |
@@ -52,39 +55,22 @@ jobs:
 
           mv "$tmpfile" "$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
 
-      - name: Create PR if changed
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit if changed
         run: |
           set -euo pipefail
 
           git add "$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
 
           if git diff --cached --quiet; then
-            echo "No Supabaseschema changes detected."
+            echo "No schema changes detected."
             exit 0
-          fi
-
-          BRANCH_NAME="chore/supabase-schema-snapshot-$(date +%Y%m%d)"
-
-          # Check if a PR already exists for this branch
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number' || echo "")
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME. Updating it."
-            git checkout -B "$BRANCH_NAME"
-          else
-            git checkout -b "$BRANCH_NAME"
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git commit -m "chore(db): update Supabase schema snapshot"
-          git push -u origin "$BRANCH_NAME" --force
+          # Make sure origin is SSH
+          git remote set-url origin "git@github.com:${{ github.repository }}.git"
 
-          if [ -z "$EXISTING_PR" ]; then
-            gh pr create \
-              --title "chore(db): update Supabase schema snapshot" \
-              --body "Automated schema snapshot update detected changes in the Supabase public schema." \
-              --base main
-          fi
+          git commit -m "chore(db): update Supabase schema snapshot"
+          git push origin HEAD:main
