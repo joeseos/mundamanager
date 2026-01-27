@@ -445,7 +445,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             <img src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_fighter_cropped_web.webp" alt="Fighter" className="object-cover rounded-full" />
           )}
           </div>
-          <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
+          <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] shrink-0 relative z-10 print:bg-card print:shadow-none">
             <span className="leading-6 font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
             <span className="leading-3 md:font-bold text-xs">Credits</span>
           </div>

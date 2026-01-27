@@ -126,7 +126,7 @@ export default function HomeTabs({
                 }).map((gang) => (
                   <li key={gang.id}>
                     <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200">
-                      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
+                      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
                         {(() => {
                           // Helper function to get the default image URL
                           let imageUrl: string | null = null;
@@ -210,7 +210,7 @@ export default function HomeTabs({
                 }).map((campaign) => (
                   <li key={campaign.campaign_member_id}>
                     <a href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200">
-                      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 flex-shrink-0 flex items-center justify-center">
+                      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
                         {campaign.image_url || campaign.campaign_type_image_url ? (
                           <Image
                             src={campaign.image_url || campaign.campaign_type_image_url}

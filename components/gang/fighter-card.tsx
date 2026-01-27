@@ -400,7 +400,7 @@ const FighterCard = memo(function FighterCard({
     <div
       id={fighterCardId}
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
-        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`} fighter-card-bg`}
+        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 shrink-0`} fighter-card-bg`}
         style={{
           backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
@@ -451,12 +451,12 @@ const FighterCard = memo(function FighterCard({
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (
-            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden flex-shrink-0">
+            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
               <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
             </div>
           )}
           {!isInactive ? (
-            <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
+            <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] shrink-0 relative z-10 print:bg-card print:shadow-none">
               <span className="leading-6 font-bold md:text-3xl text-2xl">
                 {(() => {
                   // Use loadout cost when active loadout is set, otherwise use total credits
@@ -467,7 +467,7 @@ const FighterCard = memo(function FighterCard({
               <span className="leading-3 md:font-bold text-xs">Credits</span>
             </div>
           ) : (
-            <div className="md:h-[85px] h-[64px] w-0 flex-shrink-0 relative z-10" /> // Empty space to allow centering the status icons
+            <div className="md:h-[85px] h-[64px] w-0 shrink-0 relative z-10" /> // Empty space to allow centering the status icons
           )}
         </div>
       </div>
