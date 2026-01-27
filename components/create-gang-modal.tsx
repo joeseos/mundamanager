@@ -334,7 +334,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+      className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
       <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -574,7 +574,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             
             return (
               <div className="flex justify-center my-4">
-                <div className="flex relative size-[200px] md:size-[250px] flex-shrink-0 items-center justify-center">
+                <div className="flex relative size-[200px] md:size-[250px] shrink-0 items-center justify-center">
                   {/* Left Arrow */}
                   {hasMultipleImages && (
                     <button

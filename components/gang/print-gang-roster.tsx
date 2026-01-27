@@ -460,13 +460,13 @@ export default function GangRoster({ gang }: GangRosterProps) {
                          {showWFWBoxes && (
                            <div>
                              {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
-                               <div className="flex items-center gap-2 text-[9px] flex-shrink-0">
+                               <div className="flex items-center gap-2 text-[9px] shrink-0">
                                  {adjustedStats.wounds > 1 && (
                                    <div className="flex items-center gap-1">
                                      <span className="font-semibold whitespace-nowrap">W:</span>
                                      <div className="flex items-center gap-0.5">
                                        {Array.from({ length: adjustedStats.wounds - 1 }).map((_, i) => (
-                                         <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                         <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 shrink-0" />
                                        ))}
                                      </div>
                                    </div>
@@ -476,7 +476,7 @@ export default function GangRoster({ gang }: GangRosterProps) {
                                      <span className="font-semibold whitespace-nowrap">FW:</span>
                                      <div className="flex items-center gap-0.5">
                                        {Array.from({ length: adjustedStats.toughness - 1 }).map((_, i) => (
-                                         <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                         <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 shrink-0" />
                                        ))}
                                      </div>
                                    </div>
@@ -484,12 +484,12 @@ export default function GangRoster({ gang }: GangRosterProps) {
                                </div>
                              )}
                              {isCrew && (
-                               <div className="flex items-center gap-2 text-[9px] flex-shrink-0">
+                               <div className="flex items-center gap-2 text-[9px] shrink-0">
                                  <div className="flex items-center gap-1">
                                    <span className="font-semibold whitespace-nowrap">W:</span>
                                    <div className="flex items-center gap-0.5">
                                      {Array.from({ length: 3 }).map((_, i) => (
-                                       <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                       <MdCheckBoxOutlineBlank key={`w-${i}`} className="text-black w-2 h-2 shrink-0" />
                                      ))}
                                    </div>
                                  </div>
@@ -497,7 +497,7 @@ export default function GangRoster({ gang }: GangRosterProps) {
                                    <span className="font-semibold whitespace-nowrap">FW:</span>
                                    <div className="flex items-center gap-0.5">
                                      {Array.from({ length: 3 }).map((_, i) => (
-                                       <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                       <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 shrink-0" />
                                      ))}
                                    </div>
                                  </div>
@@ -631,49 +631,49 @@ export default function GangRoster({ gang }: GangRosterProps) {
                          {showXPBoxes && (
                            <div className="mt-4 grid gap-x-1 grid-cols-3 text-[9px]">
                              <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap flex-shrink-0">SI</span>
-                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                               <span className="font-semibold whitespace-nowrap shrink-0">SI</span>
+                               <div className="flex items-center gap-0.5 shrink-0">
                                  {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`si-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                   <MdCheckBoxOutlineBlank key={`si-${i}`} className="text-black w-2 h-2 shrink-0" />
                                  ))}
                                </div>
                              </div>
                              <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap flex-shrink-0">OOA</span>
-                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                               <span className="font-semibold whitespace-nowrap shrink-0">OOA</span>
+                               <div className="flex items-center gap-0.5 shrink-0">
                                  {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`ooa-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                   <MdCheckBoxOutlineBlank key={`ooa-${i}`} className="text-black w-2 h-2 shrink-0" />
                                  ))}
                                </div>
                              </div>
                              <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap flex-shrink-0">R/A</span>
-                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                               <span className="font-semibold whitespace-nowrap shrink-0">R/A</span>
+                               <div className="flex items-center gap-0.5 shrink-0">
                                  {Array.from({ length: 5 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`rally-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                   <MdCheckBoxOutlineBlank key={`rally-${i}`} className="text-black w-2 h-2 shrink-0" />
                                  ))}
                                </div>
                              </div>
                              <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap flex-shrink-0">Ld/Ch</span>
-                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                               <span className="font-semibold whitespace-nowrap shrink-0">Ld/Ch</span>
+                               <div className="flex items-center gap-0.5 shrink-0">
                                  {Array.from({ length: 5 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                   <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 shrink-0" />
                                  ))}
                                </div>
                              </div>
                              <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap flex-shrink-0">Misc</span>
-                               <div className="flex items-center gap-0.5 flex-shrink-0">
+                               <span className="font-semibold whitespace-nowrap shrink-0">Misc</span>
+                               <div className="flex items-center gap-0.5 shrink-0">
                                  {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 flex-shrink-0" />
+                                   <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 shrink-0" />
                                  ))}
                                </div>
                              </div>
                              <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap flex-shrink-0">Participation</span>
-                               <div className="flex items-center gap-0.5 flex-shrink-0">
-                                 <MdCheckBoxOutlineBlank key="xp-fielded" className="text-black w-2 h-2 flex-shrink-0" />
+                               <span className="font-semibold whitespace-nowrap shrink-0">Participation</span>
+                               <div className="flex items-center gap-0.5 shrink-0">
+                                 <MdCheckBoxOutlineBlank key="xp-fielded" className="text-black w-2 h-2 shrink-0" />
                                </div>
                              </div>
                            </div>

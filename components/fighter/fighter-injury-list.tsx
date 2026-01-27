@@ -897,7 +897,7 @@ export function InjuriesList({
 
       {isRecoveryModalOpen && (
         <div
-          className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
+          className="fixed inset-0 min-h-screen bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-[100] px-[10px]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               setIsRecoveryModalOpen(false);
@@ -962,7 +962,7 @@ export function InjuriesList({
 
       {isCapturedModalOpen && (
         <div
-          className="fixed inset-0 min-h-screen bg-gray-300 bg-opacity-50 flex justify-center items-center z-[100] px-[10px]"
+          className="fixed inset-0 min-h-screen bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-[100] px-[10px]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               setIsCapturedModalOpen(false);

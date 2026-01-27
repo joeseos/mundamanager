@@ -1159,7 +1159,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const modalContent = (
     <>
       <div
-        className="fixed inset-0 bg-neutral-300 bg-opacity-50 dark:bg-neutral-700 dark:bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+        className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
         onMouseDown={handleOverlayClick}
       >
         <div className="w-[600px] min-h-0 max-h-svh overflow-y-auto rounded-lg bg-card shadow-xl">
