@@ -5,6 +5,7 @@ import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -1011,6 +1012,19 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       userId: effectiveUserId
     });
 
+    // Log fighter addition
+    try {
+      await logFighterAction({
+        gang_id: params.gang_id,
+        fighter_id: fighterId,
+        fighter_name: insertedFighter.fighter_name,
+        action_type: 'fighter_added',
+        fighter_credits: ratingCost,
+        user_id: effectiveUserId
+      });
+    } catch (logError) {
+      console.error('Failed to log fighter addition:', logError);
+    }
 
     // Calculate base and modified stats
     const baseStats = {
