@@ -10,6 +10,7 @@ import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { toast } from "@/components/ui/use-toast";
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { SkillAccessModal } from './skill-access-modal';
 
 // Define constants outside the component to prevent recreation on each render
 
@@ -631,6 +632,9 @@ export function EditFighterModal({
 
   // Pending stat adjustments (draft only, persisted on main confirm)
   const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
+
+  // State for skill access modal
+  const [showSkillAccessModal, setShowSkillAccessModal] = useState(false);
 
   // TanStack mutation for editing fighter details
   const mutation = useMutation({
@@ -1534,6 +1538,17 @@ export function EditFighterModal({
                 Adjust Characteristics
               </Button>
             </div>
+
+            {/* Skill Access */}
+            <div>
+              <h3 className="text-sm font-medium mb-2">Skill Access</h3>
+              <Button 
+                onClick={() => setShowSkillAccessModal(true)} 
+                className="w-full"
+              >
+                Manage Skill Access
+              </Button>
+            </div>
           </div>
         }
         onClose={onClose}
@@ -1549,6 +1564,18 @@ export function EditFighterModal({
           isSaving={isSavingStats}
         />
       )}
+
+      {/* Skill Access modal */}
+      <SkillAccessModal
+        fighterId={fighter.id}
+        gangTypeId={gangTypeId || null}
+        fighterClass={fighter.fighter_class || null}
+        isOpen={showSkillAccessModal}
+        onClose={() => setShowSkillAccessModal(false)}
+        onSave={() => {
+          // Optionally refresh data after saving skill access
+        }}
+      />
     </>
   );
 } 

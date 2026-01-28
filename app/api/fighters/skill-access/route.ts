@@ -87,10 +87,30 @@ export async function GET(request: Request) {
       );
     }
 
-    // Format the response
+    // Also fetch overrides for this fighter
+    const { data: overrides, error: overridesError } = await supabase
+      .from('fighter_skill_access_override')
+      .select('skill_type_id, access_level')
+      .eq('fighter_id', fighterId);
+
+    if (overridesError) {
+      console.error('Error fetching skill access overrides:', overridesError);
+      return NextResponse.json(
+        { error: `Overrides error: ${overridesError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Create override lookup map
+    const overrideMap = new Map(
+      (overrides || []).map(o => [o.skill_type_id, o.access_level])
+    );
+
+    // Format the response with defaults and overrides
     const formattedSkillAccess = skillAccess.map(access => ({
       skill_type_id: access.skill_type_id,
-      access_level: access.access_level,
+      default_access_level: access.access_level,
+      override_access_level: overrideMap.get(access.skill_type_id) || null,
       skill_type_name: (access.skill_types as any)?.name || 'Unknown'
     }));
 
