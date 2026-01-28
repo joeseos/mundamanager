@@ -21,7 +21,7 @@ export const getPatreonTierColor = (tierId?: string): string => {
   const tierColors: Record<string, string> = {
     '24866273': '#3B82F6', // Underhive dweller - Blue
     '24133499': '#A855F7', // Up-hive resident - Purple
-    '25945374': '#FACC15', // Helmawrs finest - Gold
+    '25945374': '#FACC15', // Helmawr's finest - Gold
   };
   
   return tierColors[tierId] || '#3B82F6'; // Default to blue for unknown tiers
@@ -38,7 +38,7 @@ const getPatreonTierName = (tierId?: string): string => {
   const tierNames: Record<string, string> = {
     '24866273': 'Underhive Dwellers',
     '24133499': 'Up-hive Residents',
-    '25945374': "Helmawrs' Finests",
+    '25945374': "Helmawr's Finest",
   };
   
   return tierNames[tierId] || `Tier ${tierId}`;
