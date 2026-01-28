@@ -149,6 +149,43 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
     };
 
+    // Helper to calculate the total cost of a vehicle including equipment and effects
+    const calculateVehicleCost = async (vehicleId: string): Promise<number> => {
+      // Get base vehicle cost
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('cost')
+        .eq('id', vehicleId)
+        .single();
+
+      if (vehicleError) {
+        console.error('Error getting vehicle cost:', vehicleError);
+        return 0;
+      }
+
+      const baseCost = vehicleData?.cost || 0;
+
+      // Get equipment cost
+      const { data: equipmentData } = await supabase
+        .from('fighter_equipment')
+        .select('purchase_cost')
+        .eq('vehicle_id', vehicleId);
+
+      const equipmentCost = equipmentData?.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0) || 0;
+
+      // Get effects cost
+      const { data: effectsData } = await supabase
+        .from('fighter_effects')
+        .select('type_specific_data')
+        .eq('vehicle_id', vehicleId);
+
+      const effectsCost = effectsData?.reduce((sum: number, effect: any) => {
+        return sum + (effect.type_specific_data?.credits_increase || 0);
+      }, 0) || 0;
+
+      return baseCost + equipmentCost + effectsCost;
+    };
+
     // Handle different actions
     switch (params.action) {
       case 'kill': {
@@ -554,6 +591,18 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         const isActive = countsTowardRating(fighter);
         const delta = isActive ? -(await getEffectiveCost()) : 0;
 
+        // Get vehicle cost before deletion (vehicle will become unassigned via cascade)
+        let vehicleCost = 0;
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('id')
+          .eq('fighter_id', params.fighter_id)
+          .maybeSingle();
+
+        if (vehicleData?.id) {
+          vehicleCost = await calculateVehicleCost(vehicleData.id);
+        }
+
         // Delete the fighter
         const { error: deleteError } = await supabase
           .from('fighters')
@@ -591,7 +640,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Error cleaning up fighter images:', imageError);
         }
 
-        await adjustRating(delta);
+        // Pass vehicle cost as creditsDelta to properly offset wealth
+        // For active fighters: rating decreases by full cost, wealth decreases by fighter cost only (vehicle enters unassigned pool)
+        // For inactive fighters: rating unchanged, wealth increases by vehicle cost (vehicle enters unassigned pool)
+        await adjustRating(delta, vehicleCost);
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
