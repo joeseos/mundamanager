@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict PZzgPKmJJozDWlPMjt4gVlOve3xNTwePLuGSLglfcDf6RVwPGULCShddrDw2OFq
+\restrict ZtUbppcxaZepU5gJFhdyhEJ2pdiamy7HuRnX66fEGGGxTB8cwZmvIR1zdZTwDbB
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -8937,6 +8937,13 @@ CREATE POLICY "Allow authenticated users to view scenarios" ON public.scenarios 
 
 
 --
+-- Name: skill_access_archetypes Allow authenticated users to view skill_access_archetypes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view skill_access_archetypes" ON public.skill_access_archetypes FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: skill_types Allow authenticated users to view skill_types; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9976,23 +9983,23 @@ CREATE POLICY "Only gang owners or admins can delete logs" ON public.gang_logs F
 -- Name: fighter_skill_access_override Only override owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_access_override FOR DELETE TO authenticated USING ((private.is_admin() OR (user_id = auth.uid()) OR (fighter_id IN ( SELECT f.id
+CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_access_override FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE private.is_arb(cg.campaign_id)))));
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
 
 --
 -- Name: fighter_skill_access_override Only override owner or admin can update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only override owner or admin can update" ON public.fighter_skill_access_override FOR UPDATE TO authenticated USING ((private.is_admin() OR (user_id = auth.uid()) OR (fighter_id IN ( SELECT f.id
+CREATE POLICY "Only override owner or admin can update" ON public.fighter_skill_access_override FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE private.is_arb(cg.campaign_id))))) WITH CHECK ((private.is_admin() OR (user_id = auth.uid()) OR (fighter_id IN ( SELECT f.id
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE private.is_arb(cg.campaign_id)))));
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
 
 --
@@ -10041,12 +10048,12 @@ CREATE POLICY "Users can create notifications" ON public.notifications FOR INSER
 -- Name: fighter_skill_access_override Users can create skill access overrides for their own fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create skill access overrides for their own fighters" ON public.fighter_skill_access_override FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR ((fighter_id IS NOT NULL) AND ((fighter_id IN ( SELECT f.id
+CREATE POLICY "Users can create skill access overrides for their own fighters" ON public.fighter_skill_access_override FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ((fighter_id IS NOT NULL) AND ((fighter_id IN ( SELECT f.id
    FROM public.fighters f
-  WHERE (f.user_id = auth.uid()))) OR (fighter_id IN ( SELECT f.id
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE private.is_arb(cg.campaign_id)))))));
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
 
 
 --
@@ -10769,6 +10776,12 @@ ALTER TABLE public.fighter_loadout_equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fighter_loadouts ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: fighter_skill_access_override; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fighter_skill_access_override ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: fighter_skills; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11023,6 +11036,33 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.scenarios ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: skill_access_archetypes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.skill_access_archetypes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: skill_access_archetypes skill_access_archetypes_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY skill_access_archetypes_admin_delete_policy ON public.skill_access_archetypes FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: skill_access_archetypes skill_access_archetypes_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY skill_access_archetypes_admin_insert_policy ON public.skill_access_archetypes FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: skill_access_archetypes skill_access_archetypes_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY skill_access_archetypes_admin_update_policy ON public.skill_access_archetypes FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: skill_types; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -11153,5 +11193,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PZzgPKmJJozDWlPMjt4gVlOve3xNTwePLuGSLglfcDf6RVwPGULCShddrDw2OFq
+\unrestrict ZtUbppcxaZepU5gJFhdyhEJ2pdiamy7HuRnX66fEGGGxTB8cwZmvIR1zdZTwDbB
 
