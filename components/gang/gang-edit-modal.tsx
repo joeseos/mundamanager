@@ -12,12 +12,7 @@ import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-
-interface ResourceUpdate {
-  resource_id: string;
-  is_custom: boolean;
-  quantity_delta: number;
-}
+import { ResourceUpdate } from '@/types/gang';
 
 interface GangUpdates {
   name?: string;
