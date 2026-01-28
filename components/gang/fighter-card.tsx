@@ -476,12 +476,16 @@ const FighterCard = memo(function FighterCard({
         <>
           {/* Show active loadout and owner information */}
           {(active_loadout_name || owner_name) && (
-            <div className="-mt-5 flex justify-between items-center gap-2">
+            <div className="-mt-5 flex items-center gap-2">
               {/* Active loadout badge on the left */}
               {active_loadout_name && (
                 <div className="text-sm italic">
                   Loadout: <span className="font-semibold">{active_loadout_name}</span>
                 </div>
+              )}
+              {/* Em dash separator when both are present */}
+              {active_loadout_name && owner_name && (
+                <span className="text-sm italic">—</span>
               )}
               {/* Owner information on the right */}
               {owner_name && (
