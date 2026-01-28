@@ -631,20 +631,26 @@ export default function Gang({
     mutationFn: async (resourceUpdates: Array<{
       campaign_gang_id: string;
       resource_id: string;
+      resource_name: string;
       is_custom: boolean;
       quantity_delta: number;
     }>) => {
-      const { updateGangResources } = await import('@/app/actions/update-gang-resource');
+      const { updateGang } = await import('@/app/actions/update-gang');
       if (resourceUpdates.length === 0) return { success: true };
       
       const campaignGangId = resourceUpdates[0].campaign_gang_id;
-      const updates = resourceUpdates.map(r => ({
+      const resources = resourceUpdates.map(r => ({
         resource_id: r.resource_id,
+        resource_name: r.resource_name,
         is_custom: r.is_custom,
         quantity_delta: r.quantity_delta
       }));
       
-      return updateGangResources(campaignGangId, updates);
+      return updateGang({
+        gang_id: id,
+        campaign_gang_id: campaignGangId,
+        resources
+      });
     },
     onMutate: async (resourceUpdates) => {
       // Snapshot previous resources for rollback
@@ -750,12 +756,17 @@ export default function Gang({
       if (updates.resourceUpdates && updates.resourceUpdates.length > 0) {
         const campaignGangId = campaigns?.[0]?.campaign_gang_id;
         if (campaignGangId) {
-          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: any) => ({
-            campaign_gang_id: campaignGangId,
-            resource_id: r.resource_id,
-            is_custom: r.is_custom,
-            quantity_delta: r.quantity_delta
-          }));
+          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: any) => {
+            // Look up resource_name from campaignResources
+            const resource = campaignResources.find(cr => cr.resource_id === r.resource_id);
+            return {
+              campaign_gang_id: campaignGangId,
+              resource_id: r.resource_id,
+              resource_name: resource?.resource_name || r.resource_name || 'Unknown Resource',
+              is_custom: r.is_custom,
+              quantity_delta: r.quantity_delta
+            };
+          });
           await updateResourceMutation.mutateAsync(resourceUpdatesWithCampaignGang);
         }
         // Remove resourceUpdates from gangUpdates since they're handled separately
