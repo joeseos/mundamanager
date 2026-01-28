@@ -55,6 +55,10 @@ interface UpdateGangResult {
       quantity: number;
       is_custom: boolean;
     }>;
+    failedResources?: Array<{
+      resource_name: string;
+      error: string;
+    }>;
   };
   error?: string;
 }
@@ -175,6 +179,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     // Handle campaign resource updates if provided
     let updatedResources: Array<{resource_id: string; resource_name: string; quantity: number; is_custom: boolean}> = [];
+    let failedResources: Array<{resource_name: string; error: string}> = [];
     let oldResourceStates: Record<string, number> = {};
     let newResourceStates: Record<string, number> = {};
 
@@ -233,6 +238,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
           if (updateError) {
             console.error('Failed to update resource:', updateError);
+            failedResources.push({
+              resource_name: resource.resource_name,
+              error: updateError.message
+            });
           } else {
             updatedResources.push({
               resource_id: resource.resource_id,
@@ -256,6 +265,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
           if (insertError) {
             console.error('Failed to insert resource:', insertError);
+            failedResources.push({
+              resource_name: resource.resource_name,
+              error: insertError.message
+            });
           } else {
             updatedResources.push({
               resource_id: resource.resource_id,
@@ -429,7 +442,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
         gang_variants: gangVariants,
-        resources: updatedResources.length > 0 ? updatedResources : undefined
+        resources: updatedResources.length > 0 ? updatedResources : undefined,
+        failedResources: failedResources.length > 0 ? failedResources : undefined
       }
     };
 

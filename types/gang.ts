@@ -35,4 +35,11 @@ export interface StashItem {
   equipment_category?: string;
   equipment_id?: string;
   custom_equipment_id?: string;
+}
+
+export interface ResourceUpdate {
+  resource_id: string;
+  resource_name?: string;  // Optional - can be looked up
+  is_custom: boolean;
+  quantity_delta: number;
 } 

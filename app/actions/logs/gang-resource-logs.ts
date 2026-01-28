@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 
 export interface GangResourceState {

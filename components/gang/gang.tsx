@@ -7,7 +7,7 @@ import { FighterProps } from '@/types/fighter';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem } from '@/types/gang';
+import { StashItem, ResourceUpdate } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
@@ -756,7 +756,7 @@ export default function Gang({
       if (updates.resourceUpdates && updates.resourceUpdates.length > 0) {
         const campaignGangId = campaigns?.[0]?.campaign_gang_id;
         if (campaignGangId) {
-          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: any) => {
+          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: ResourceUpdate) => {
             // Look up resource_name from campaignResources
             const resource = campaignResources.find(cr => cr.resource_id === r.resource_id);
             return {
