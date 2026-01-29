@@ -149,13 +149,8 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     // Log name change if applicable
     if (nameChanged) {
       try {
-        // Fetch current financial values (name changes don't affect financials, but we log for consistency)
-        const { data: gangData } = await supabase
-          .from('gangs')
-          .select('credits, rating, wealth')
-          .eq('id', currentVehicle.gang_id)
-          .single();
-
+        // Name changes don't affect financials, so we don't pass financial fields
+        // This prevents them from being displayed in the log description
         await logVehicleAction({
           gang_id: currentVehicle.gang_id,
           vehicle_id: params.vehicleId,
@@ -163,13 +158,8 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
           fighter_id: currentVehicle.fighter_id || undefined,
           action_type: 'vehicle_name_changed',
           old_name: oldVehicleName,
-          user_id: user.id,
-          oldCredits: gangData?.credits,
-          oldRating: gangData?.rating,
-          oldWealth: gangData?.wealth,
-          newCredits: gangData?.credits,
-          newRating: gangData?.rating,
-          newWealth: gangData?.wealth
+          user_id: user.id
+          // Financial fields omitted - name changes don't affect financials
         });
       } catch (logError) {
         console.error('Failed to log vehicle name change:', logError);
