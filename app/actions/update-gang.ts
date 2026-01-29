@@ -136,10 +136,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // (removed legacy resource fields from gangs table)
 
     // Handle credits and reputation changes (still on gangs table)
+    // Track if credits will change (handled by updateGangFinancials)
     if (params.credits !== undefined && params.credits_operation) {
-      updates.credits = params.credits_operation === 'add'
-        ? (gang.credits || 0) + params.credits
-        : (gang.credits || 0) - params.credits;
       creditsChanged = true;
     }
 
@@ -330,8 +328,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
+    // Declare variable to store financial result for later use
+    let financialResult: any = null;
+
     // Granular cache invalidation based on what changed
-    
+
     // Always invalidate basic gang data if gang settings changed
     if (params.name !== undefined || params.alignment !== undefined ||
         params.gang_colour !== undefined || params.alliance_id !== undefined ||
@@ -343,12 +344,20 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Invalidate credits if changed and update wealth
     if (creditsChanged) {
-      const creditsDelta = updates.credits - gang.credits;
-      // Use creditsDelta to update wealth (credits change affects wealth only)
-      await updateGangFinancials(supabase, {
+      // Calculate delta from params: positive for add, negative for subtract
+      const creditsDelta = params.credits_operation === 'add'
+        ? params.credits!
+        : -params.credits!;
+
+      financialResult = await updateGangFinancials(supabase, {
         gangId: params.gang_id,
         creditsDelta
       });
+
+      if (!financialResult.success) {
+        throw new Error(financialResult.error || 'Failed to update gang financials');
+      }
+
       invalidateGangCredits(params.gang_id);
     }
     
@@ -399,15 +408,20 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     // Log resource changes (campaign resources + credits/reputation)
     try {
+      // Get final credits value from financialResult if credits changed
+      const finalCredits = creditsChanged && financialResult?.newValues?.credits
+        ? financialResult.newValues.credits
+        : gang.credits;
+
       const oldState: Record<string, number> = {
         ...oldResourceStates,
         credits: gang.credits,
         reputation: gang.reputation
       };
-      
+
       const newState: Record<string, number> = {
         ...newResourceStates,
-        credits: updatedGang.credits,
+        credits: finalCredits,
         reputation: updatedGang.reputation
       };
 
@@ -430,7 +444,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       data: {
         gang_id: updatedGang.id,
         name: updatedGang.name,
-        credits: updatedGang.credits,
+        credits: creditsChanged && financialResult?.newValues?.credits
+          ? financialResult.newValues.credits
+          : updatedGang.credits,
         reputation: updatedGang.reputation,
         alignment: updatedGang.alignment,
         alliance_id: updatedGang.alliance_id,
