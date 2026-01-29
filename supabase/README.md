@@ -34,7 +34,6 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | Name                         | Trigger on         | Description                               |
 |------------------------------|--------------------|-------------------------------------------|
 | fighter_logs                 | fighters table     | Logs fighter changes                      |
-| vehicle_logs                 | vehicles table     | Logs vehicle changes                      |
 | notify_campaign_member_added | campaign_members   | Sends notification when member is added   |
 | notify_friend_request_sent   | friends            | Sends notification for friend requests    |
 | notify_gang_invite           | campaign_gangs     | Sends notification for gang invites       |
