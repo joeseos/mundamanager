@@ -87,11 +87,12 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
 
     let financialResult: GangFinancialUpdateResult | null = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
-      // wealthDelta = ratingDelta + vehicleCost, so creditsDelta = vehicleCost
+      // wealthDelta = ratingDelta + vehicleCost, so stashValueDelta = vehicleCost
+      // Use stashValueDelta instead of creditsDelta to affect wealth without changing credits
       financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         ratingDelta,
-        creditsDelta: vehicleCost
+        stashValueDelta: vehicleCost
       });
 
       if (!financialResult.success) {

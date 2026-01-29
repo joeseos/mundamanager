@@ -136,12 +136,12 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
 
     let financialResult: GangFinancialUpdateResult | null = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
-      // Use creditsDelta to adjust wealth independently from rating
-      // wealthChange = ratingDelta + creditsDelta, so creditsDelta = wealthDelta - ratingDelta
+      // Use stashValueDelta to adjust wealth independently from rating without changing credits
+      // wealthChange = ratingDelta + stashValueDelta, so stashValueDelta = wealthDelta - ratingDelta
       financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         ratingDelta,
-        creditsDelta: wealthDelta - ratingDelta
+        stashValueDelta: wealthDelta - ratingDelta
       });
 
       if (!financialResult.success) {
