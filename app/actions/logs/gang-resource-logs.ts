@@ -31,7 +31,7 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
                                (oldRating !== undefined && newRating !== undefined && oldRating !== newRating) ||
                                (oldWealth !== undefined && newWealth !== undefined && oldWealth !== newWealth);
 
-    if (hasFinancialChange && 
+    if (hasFinancialChange &&
         oldCredits !== undefined && newCredits !== undefined &&
         oldRating !== undefined && newRating !== undefined &&
         oldWealth !== undefined && newWealth !== undefined) {
@@ -45,9 +45,17 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
         newWealth
       );
 
+      // Determine action type based on credits change direction
+      let actionType = 'credits_changed';
+      if (newCredits > oldCredits) {
+        actionType = 'credits_earned';
+      } else if (newCredits < oldCredits) {
+        actionType = 'credits_spent';
+      }
+
       logPromises.push(createGangLog({
         gang_id,
-        action_type: 'financial_changes',
+        action_type: actionType,
         description: financialChanges,
         user_id
       }));

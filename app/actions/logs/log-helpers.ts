@@ -6,8 +6,18 @@ export function formatFinancialChanges(
   oldWealth: number,
   newWealth: number
 ): string {
-  const creditsChanged = oldCredits !== newCredits;
-  const creditsPart = creditsChanged ? `Credits: ${oldCredits} → ${newCredits} | ` : '';
-  return `${creditsPart}Gang Rating: ${oldRating} → ${newRating} | Wealth: ${oldWealth} → ${newWealth}`;
+  const parts: string[] = [];
+
+  if (oldCredits !== newCredits) {
+    parts.push(`Credits: ${oldCredits} → ${newCredits}`);
+  }
+  if (oldRating !== newRating) {
+    parts.push(`Gang Rating: ${oldRating} → ${newRating}`);
+  }
+  if (oldWealth !== newWealth) {
+    parts.push(`Wealth: ${oldWealth} → ${newWealth}`);
+  }
+
+  return parts.join(' | ');
 }
 

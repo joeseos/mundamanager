@@ -73,7 +73,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation')
+      .select('id, user_id, credits, reputation, rating, wealth')
       .eq('id', params.gang_id)
       .single();
 
@@ -416,13 +416,15 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       const oldState: Record<string, number> = {
         ...oldResourceStates,
         credits: gang.credits,
-        reputation: gang.reputation
+        rating: gang.rating || 0,
+        wealth: gang.wealth || 0
       };
 
       const newState: Record<string, number> = {
         ...newResourceStates,
         credits: finalCredits,
-        reputation: updatedGang.reputation
+        rating: gang.rating || 0,  // Rating unchanged by manual credit changes
+        wealth: financialResult?.newValues?.wealth ?? (gang.wealth || 0)
       };
 
       // Only log if something changed
