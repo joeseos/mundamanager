@@ -878,6 +878,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
   
   // Track previous equipment filter context to detect when sliders should reset
   const prevEquipmentContextRef = useRef<string>('');
+
+  // Track which contexts have already been fetched to prevent infinite loops
+  // when campaignTradingPostIds is defined (which bypasses the normal cache)
+  const fetchedContextsRef = useRef<Set<string>>(new Set());
   
   useEffect(() => {
     const prevSearchQuery = prevSearchQueryRef.current;
@@ -1030,15 +1034,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
   useEffect(() => {
     if (!session || isLoadingAllEquipment) return;
 
+    // Build context key for this fetch (used for campaign-filtered results that bypass cache)
+    const contextKey = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}`;
+
     // Check cache first before making any API calls
     // If we have cached data for this equipment list type, use it
     if (equipmentListType === 'unrestricted' && cachedAllCategories.length > 0 && cachedEquipment.all && Object.keys(cachedEquipment.all).length > 0) {
-      
+
       setAvailableCategories(cachedAllCategories);
       setEquipment(cachedEquipment.all);
       return;
     } else if (equipmentListType === 'fighters-list' && cachedFighterCategories.length > 0 && cachedEquipment.fighter && Object.keys(cachedEquipment.fighter).length > 0) {
-      
+
       setAvailableCategories(cachedFighterCategories);
       setEquipment(cachedEquipment.fighter);
       return;
@@ -1048,8 +1055,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return;
     }
 
-    // Only fetch if we don't have cached data
+    // For campaign-filtered results (which bypass the cache), check if we already fetched this context
+    // This prevents infinite loops caused by isLoadingAllEquipment state changes re-triggering the effect
+    if (fetchedContextsRef.current.has(contextKey) && Object.keys(equipment).length > 0) {
+      return;
+    }
 
+    // Mark this context as being fetched before calling fetchAllCategories
+    fetchedContextsRef.current.add(contextKey);
     fetchAllCategories();
   }, [session, equipmentListType, cachedAllCategories.length, cachedFighterCategories.length, cachedFighterTPCategories.length, isLoadingAllEquipment, (campaignTradingPostIds || []).join(',')]);
 
@@ -1192,6 +1205,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     value="fighters-list"
                     checked={equipmentListType === "fighters-list"}
                     onChange={() => {
+                      fetchedContextsRef.current.clear();
                       setEquipmentListType("fighters-list");
                       setEquipment({});
                     }}
@@ -1207,6 +1221,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   value="fighters-tradingpost"
                   checked={equipmentListType === "fighters-tradingpost"}
                   onChange={() => {
+                    fetchedContextsRef.current.clear();
                     setEquipmentListType("fighters-tradingpost");
                     setEquipment({});
                   }}
@@ -1221,6 +1236,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   value="unrestricted"
                   checked={equipmentListType === "unrestricted"}
                   onChange={() => {
+                    fetchedContextsRef.current.clear();
                     setEquipmentListType("unrestricted");
                     setEquipment({});
                   }}
