@@ -6,7 +6,7 @@ import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
-import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
+import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
@@ -614,9 +614,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'delete': {
-        // Subtract effective cost only if fighter is currently active
+        // Calculate fighter cost before deletion (for rating delta and logging)
         const isActive = countsTowardRating(fighter);
-        const delta = isActive ? -(await getEffectiveCost()) : 0;
+        const effectiveCost = isActive ? await getEffectiveCost() : 0;
+        const delta = -effectiveCost;
 
         // Get vehicle cost before deletion (vehicle will become unassigned via cascade)
         let vehicleCost = 0;
@@ -687,13 +688,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         // Log fighter removal
         try {
-          const fighterCredits = await calculateFighterCredits(params.fighter_id);
           await logFighterAction({
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
             action_type: 'fighter_removed',
-            fighter_credits: fighterCredits,
+            fighter_credits: effectiveCost,
             status_reason: fighter.killed ? 'killed' : fighter.retired ? 'retired' : fighter.enslaved ? 'enslaved' : null,
             oldCredits: financialResult.oldValues?.credits,
             oldRating: financialResult.oldValues?.rating,
