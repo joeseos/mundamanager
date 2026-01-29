@@ -680,6 +680,11 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
+        // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list
+        if (vehicleData?.id) {
+          revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId));
+        }
+
         // Log fighter removal
         try {
           const fighterCredits = await calculateFighterCredits(params.fighter_id);
