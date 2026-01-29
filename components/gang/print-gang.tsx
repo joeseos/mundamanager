@@ -190,7 +190,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const sortedFighters = [...fighters]
     .filter((f) => {
       // Filter out inactive fighters if option is disabled
-      if (!showInactiveFighters && (f.killed || f.enslaved || f.retired || f.captured)) {
+      if (!showInactiveFighters && (f.killed || f.enslaved || f.retired)) {
         return false;
       }
       // Filter out fighters in recovery if option is disabled
@@ -199,7 +199,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
       }
       // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
       if (!showInactiveFighters && !showFightersInRecovery) {
-        return !f.killed && !f.enslaved && !f.retired && !f.captured && !f.recovery;
+        return !f.killed && !f.enslaved && !f.retired && !f.recovery;
       }
       return true;
     })
@@ -333,7 +333,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     checked={showInactiveFighters}
                     onCheckedChange={(checked) => setShowInactiveFighters(checked === true)}
                   />
-                  <span className="text-sm">Inactive Fighters (Killed/Retired/Enslaved/Captured)</span>
+                  <span className="text-sm">Inactive Fighters (Killed/Retired/Enslaved)</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox
@@ -364,7 +364,30 @@ export default function PrintGang({ gang }: PrintGangProps) {
       </div>
       {/* Roster View */}
       {viewMode === "roster" && (
-        <div className="min-w-fit bg-white text-black border border-black print:border-0 print-gang-roster">
+        <div className="min-w-fit bg-white text-black border border-black print:border-0 print-gang-roster"
+            style={{
+              colorScheme: "light",
+              ["--background" as any]: "var(--light-background)",
+              ["--foreground" as any]: "var(--light-foreground)",
+              ["--card" as any]: "var(--light-card)",
+              ["--card-foreground" as any]: "var(--light-card-foreground)",
+              ["--popover" as any]: "var(--light-popover)",
+              ["--popover-foreground" as any]: "var(--light-popover-foreground)",
+              ["--primary" as any]: "var(--light-primary)",
+              ["--primary-foreground" as any]: "var(--light-primary-foreground)",
+              ["--secondary" as any]: "var(--light-secondary)",
+              ["--secondary-foreground" as any]: "var(--light-secondary-foreground)",
+              ["--muted" as any]: "var(--light-muted)",
+              ["--muted-foreground" as any]: "var(--light-muted-foreground)",
+              ["--accent" as any]: "var(--light-accent)",
+              ["--accent-foreground" as any]: "var(--light-accent-foreground)",
+              ["--destructive" as any]: "var(--light-destructive)",
+              ["--destructive-foreground" as any]: "var(--light-destructive-foreground)",
+              ["--border" as any]: "var(--light-border)",
+              ["--input" as any]: "var(--light-input)",
+              ["--ring" as any]: "var(--light-ring)",
+            }} // Enforce light theme colors for Cards View
+          >
           {/* Header */}
           <div className="border-b border-black px-4 flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -858,8 +881,32 @@ export default function PrintGang({ gang }: PrintGangProps) {
       {/* Cards View */}
       {viewMode === "cards" && (
         <>
-          <div className="min-w-fit bg-white print:bg-transparent print:min-w-0">
-            <div className={`print-fighters [zoom:0.55] justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:!w-[630px] [&_.fighter-card-bg]:!h-[435px] [&_.fighter-card-bg]:!shadow-none [&_.fighter-card-bg]:!border-[3px] [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:!text-base [&_.fighter-card-bg:hover]:!scale-100 [&_.fighter-card-bg:hover]:!shadow-none [&_.fighter-card-bg]:!transition-none [&_.fighter-card-bg_.grid]:!gap-y-0 [&_.fighter-card-bg_.grid]:!mt-1 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-2 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-black [&_.fighter-card-bg_.bg-secondary]:!bg-card [&_.fighter-card-bg_.bg-secondary]:!shadow-none ${printStyle === 'eco' ? '[&_.fighter-card-bg]:!bg-none [&_.fighter-card-bg]:!bg-transparent [&_.fancy-print-top-bar]:!bg-none [&_.fancy-print-keep-color-heading]:!text-inherit [&_.fancy-print-keep-color-subtitle]:!text-inherit' : '[&_.fancy-print-keep-color-heading]:!text-white [&_.fancy-print-keep-color-subtitle]:!text-gray-300'}`}>
+          <div
+            className="min-w-fit bg-white text-black print:bg-transparent print:min-w-0"
+            style={{
+              colorScheme: "light",
+              ["--background" as any]: "var(--light-background)",
+              ["--foreground" as any]: "var(--light-foreground)",
+              ["--card" as any]: "var(--light-card)",
+              ["--card-foreground" as any]: "var(--light-card-foreground)",
+              ["--popover" as any]: "var(--light-popover)",
+              ["--popover-foreground" as any]: "var(--light-popover-foreground)",
+              ["--primary" as any]: "var(--light-primary)",
+              ["--primary-foreground" as any]: "var(--light-primary-foreground)",
+              ["--secondary" as any]: "var(--light-secondary)",
+              ["--secondary-foreground" as any]: "var(--light-secondary-foreground)",
+              ["--muted" as any]: "var(--light-muted)",
+              ["--muted-foreground" as any]: "var(--light-muted-foreground)",
+              ["--accent" as any]: "var(--light-accent)",
+              ["--accent-foreground" as any]: "var(--light-accent-foreground)",
+              ["--destructive" as any]: "var(--light-destructive)",
+              ["--destructive-foreground" as any]: "var(--light-destructive-foreground)",
+              ["--border" as any]: "var(--light-border)",
+              ["--input" as any]: "var(--light-input)",
+              ["--ring" as any]: "var(--light-ring)",
+            }} // Enforce light theme colors for Cards View
+          >
+            <div className={`print-fighters [zoom:0.55] justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:!w-[630px] [&_.fighter-card-bg]:!h-[435px] [&_.fighter-card-bg]:!shadow-none [&_.fighter-card-bg]:!border-[3px] [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:!text-base [&_.fighter-card-bg]:!bg-[#faf9f7] [&_.fighter-card-bg]:!text-black [&_.fighter-card-bg:hover]:!scale-100 [&_.fighter-card-bg:hover]:!shadow-none [&_.fighter-card-bg]:!transition-none [&_.fighter-card-bg_.grid]:!gap-y-0 [&_.fighter-card-bg_.grid]:!mt-1 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-2 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-black [&_.fighter-card-bg_.bg-secondary]:!shadow-none [&_.fighter-card-bg]:!bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')] ${printStyle === 'eco' ? '[&_.fighter-card-bg]:!bg-none [&_.fighter-card-bg]:!bg-transparent [&_.fancy-print-top-bar]:!bg-none [&_.fancy-print-keep-color-heading]:!text-inherit [&_.fancy-print-keep-color-subtitle]:!text-inherit' : '[&_.fancy-print-keep-color-heading]:!text-white [&_.fancy-print-keep-color-subtitle]:!text-gray-300'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}
@@ -888,7 +935,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     </div>
                     {/* Gang Image (match fighter card style) */}
                     {(image_url || gang_type_image_url) && (
-                      <div className="absolute right-4 top-0 flex items-center z-20">
+                      <div className="absolute right-4 md:top-0 top-2 flex items-center z-20">
                         <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
                           <img
                             src={image_url || gang_type_image_url}
