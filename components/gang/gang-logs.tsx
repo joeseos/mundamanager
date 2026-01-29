@@ -88,7 +88,6 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'vehicle_updated': 'Vehicle updated',
       'vehicle_removed': 'Vehicle removed',
       'vehicle_cost_changed': 'Vehicle cost changed',
-      'vehicle_assignment_changed': 'Vehicle assignment changed',
       'vehicle_assigned': 'Vehicle assigned',
       'vehicle_unassigned': 'Vehicle unassigned',
       'vehicle_name_changed': 'Vehicle name changed',
