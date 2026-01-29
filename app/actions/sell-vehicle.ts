@@ -89,18 +89,6 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     // Determine sell value (manual or default to base cost)
     const sellValue = params.manual_cost ?? baseCost ?? 0;
 
-    // Update gang credits (refund)
-    const { data: updatedGang, error: gangUpdateError } = await supabase
-      .from('gangs')
-      .update({ credits: (gangRow.credits || 0) + sellValue })
-      .eq('id', gangId)
-      .select('id, credits')
-      .single();
-
-    if (gangUpdateError || !updatedGang) {
-      throw new Error(`Failed to update gang credits: ${gangUpdateError?.message}`);
-    }
-
     // Check if the vehicle was assigned to an active fighter
     let wasAssignedToActiveFighter = false;
     if (isAssigned && vehicle.fighter_id) {
@@ -115,35 +103,37 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     // Calculate rating and wealth deltas
     // Key insight: vehicles assigned to inactive fighters are not counted anywhere
     let ratingDelta = 0;
-    let wealthDelta = 0;
 
     if (!isAssigned) {
       // Unassigned vehicle: was in unassigned pool (counted in wealth only)
       // Selling removes vehicle value from wealth, adds sellValue via credits
-      wealthDelta = -vehicleCost + sellValue;
+      // wealthDelta = -vehicleCost + sellValue, which equals creditsDelta + stashValueDelta
+      // Since it's unassigned, stashValueDelta = -vehicleCost, creditsDelta = sellValue
     } else if (wasAssignedToActiveFighter) {
       // Assigned to active fighter: was in rating (counted in wealth via rating)
       // Selling removes vehicle from rating, adds sellValue via credits
       ratingDelta = -vehicleCost;
-      wealthDelta = -vehicleCost + sellValue;
     } else {
       // Assigned to inactive fighter: wasn't counted anywhere
       // Selling just adds sellValue via credits
-      wealthDelta = sellValue;
     }
 
-    // Compute updated values for return (helper will apply the actual update)
-    const updatedGangRating = ratingDelta !== 0 ? Math.max(0, (gangRow.rating || 0) + ratingDelta) : undefined;
-    const updatedWealth = wealthDelta !== 0 ? Math.max(0, (gangRow.wealth || 0) + wealthDelta) : undefined;
+    // Update credits, rating and wealth using centralized helper
+    // For unassigned: stashValueDelta = -vehicleCost (removes from stash value)
+    // For assigned: ratingDelta handles the vehicle removal
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId,
+      ratingDelta,
+      creditsDelta: sellValue,
+      stashValueDelta: !isAssigned ? -vehicleCost : 0
+    });
 
-    if (ratingDelta !== 0 || wealthDelta !== 0) {
-      // Use creditsDelta to adjust wealth independently from rating
-      await updateGangFinancials(supabase, {
-        gangId,
-        ratingDelta,
-        creditsDelta: wealthDelta - ratingDelta
-      });
+    if (!financialResult.success) {
+      throw new Error(financialResult.error || 'Failed to update gang financials');
     }
+
+    const updatedGangRating = financialResult.newValues?.rating;
+    const updatedWealth = financialResult.newValues?.wealth;
 
     // Invalidate caches (credits + rating + fighter vehicles if assigned)
     invalidateGangFinancials(gangId);
@@ -158,7 +148,11 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     return {
       success: true,
       data: {
-        gang: { id: updatedGang.id, credits: updatedGang.credits, wealth: updatedWealth },
+        gang: { 
+          id: gangId, 
+          credits: financialResult.newValues?.credits ?? 0, 
+          wealth: updatedWealth 
+        },
         vehicle_cost: vehicleCost,
         updated_gang_rating: updatedGangRating
       }

@@ -1,6 +1,7 @@
 'use server'
 
 import { createGangLog, GangLogActionResult } from "./gang-logs";
+import { formatFinancialChanges } from "./log-helpers";
 
 export interface GangResourceState {
   [resourceName: string]: number;
@@ -18,8 +19,44 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
     const { gang_id, oldState, newState, user_id } = params;
     const logPromises: Promise<GangLogActionResult>[] = [];
 
-    // Get all unique resource keys from both states
-    const allKeys = Array.from(new Set([...Object.keys(oldState), ...Object.keys(newState)]));
+    // Check if credits, rating, or wealth changed - use new format
+    const oldCredits = oldState['credits'];
+    const newCredits = newState['credits'];
+    const oldRating = oldState['rating'];
+    const newRating = newState['rating'];
+    const oldWealth = oldState['wealth'];
+    const newWealth = newState['wealth'];
+
+    const hasFinancialChange = (oldCredits !== undefined && newCredits !== undefined && oldCredits !== newCredits) ||
+                               (oldRating !== undefined && newRating !== undefined && oldRating !== newRating) ||
+                               (oldWealth !== undefined && newWealth !== undefined && oldWealth !== newWealth);
+
+    if (hasFinancialChange && 
+        oldCredits !== undefined && newCredits !== undefined &&
+        oldRating !== undefined && newRating !== undefined &&
+        oldWealth !== undefined && newWealth !== undefined) {
+      // Create single log entry with formatted financial changes
+      const financialChanges = formatFinancialChanges(
+        oldCredits,
+        newCredits,
+        oldRating,
+        newRating,
+        oldWealth,
+        newWealth
+      );
+
+      logPromises.push(createGangLog({
+        gang_id,
+        action_type: 'financial_changes',
+        description: financialChanges,
+        user_id
+      }));
+    }
+
+    // Get all unique resource keys from both states (excluding financial fields)
+    const financialFields = ['credits', 'rating', 'wealth'];
+    const allKeys = Array.from(new Set([...Object.keys(oldState), ...Object.keys(newState)]))
+      .filter(key => !financialFields.includes(key));
 
     for (const resourceName of allKeys) {
       const oldValue = oldState[resourceName] ?? 0;

@@ -2,9 +2,10 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData } from '@/utils/cache-tags';
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface UnassignVehicleParams {
   vehicleId: string;
@@ -52,7 +53,14 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       wasFighterActive = countsTowardRating(fighterData);
     }
 
-    // Get vehicle cost data before unassigning for rating calculation
+    // Get vehicle name and cost data before unassigning for rating calculation
+    const { data: vehicleData } = await supabase
+      .from('vehicles')
+      .select('vehicle_name')
+      .eq('id', params.vehicleId)
+      .single();
+    
+    const vehicleName = vehicleData?.vehicle_name || 'Unknown Vehicle';
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
 
     // Unassign vehicle
@@ -77,13 +85,38 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
     // - Inactive fighter: 0 + vehicleCost = +vehicleCost (enters unassigned pool)
     const wealthDelta = ratingDelta + vehicleCost;
 
+    let financialResult: GangFinancialUpdateResult | null = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       // wealthDelta = ratingDelta + vehicleCost, so creditsDelta = vehicleCost
-      await updateGangFinancials(supabase, {
+      financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         ratingDelta,
         creditsDelta: vehicleCost
       });
+
+      if (!financialResult.success) {
+        throw new Error(financialResult.error || 'Failed to update gang financials');
+      }
+    }
+
+    // Log vehicle unassignment
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: params.vehicleId,
+        fighter_id: previousFighterId || undefined,
+        action_type: 'vehicle_unassigned',
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle unassignment:', logError);
+      // Don't fail the main operation for logging errors
     }
 
     // Invalidate cache for the fighter and gang

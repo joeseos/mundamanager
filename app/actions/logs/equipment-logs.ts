@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
-import { getGangRatingAndWealth } from "@/app/lib/shared/gang-data";
+import { formatFinancialChanges } from "./log-helpers";
 
 export interface EquipmentLogParams {
   gang_id: string;
@@ -12,14 +12,17 @@ export interface EquipmentLogParams {
   purchase_cost: number;
   action_type: 'purchased' | 'sold' | 'moved_from_stash' | 'moved_to_stash' | 'granted';
   user_id?: string;
+  oldCredits?: number;
+  oldRating?: number;
+  oldWealth?: number;
+  newCredits?: number;
+  newRating?: number;
+  newWealth?: number;
 }
 
 export async function logEquipmentAction(params: EquipmentLogParams): Promise<GangLogActionResult> {
   try {
     const supabase = await createClient();
-
-    // Get current gang rating using cached function (consistent with gang-fighter-logs.ts)
-    const { rating: newGangRating } = await getGangRatingAndWealth(params.gang_id, supabase);
 
     // Get fighter/vehicle names for logging
     let fighterName = 'Unknown Fighter';
@@ -55,33 +58,48 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
     const targetName = isVehicleEquipment ? vehicleName : fighterName;
     const targetType = isVehicleEquipment ? 'Vehicle' : 'Fighter';
 
+    // Format financial changes if provided
+    let financialChanges = '';
+    if (params.oldCredits !== undefined && params.newCredits !== undefined &&
+        params.oldRating !== undefined && params.newRating !== undefined &&
+        params.oldWealth !== undefined && params.newWealth !== undefined) {
+      financialChanges = ' ' + formatFinancialChanges(
+        params.oldCredits,
+        params.newCredits,
+        params.oldRating,
+        params.newRating,
+        params.oldWealth,
+        params.newWealth
+      );
+    }
+
     switch (params.action_type) {
       case 'purchased':
         if (isStashPurchase) {
           actionType = 'equipment_purchased_to_stash';
-          description = `Gang purchased ${params.equipment_name} directly to stash for ${params.purchase_cost} credits. New gang rating: ${newGangRating}`;
+          description = `Gang purchased ${params.equipment_name} directly to stash for ${params.purchase_cost} credits.${financialChanges}`;
         } else {
           actionType = isVehicleEquipment ? 'vehicle_equipment_purchased' : 'equipment_purchased';
-          description = `${targetType} "${targetName}" bought ${params.equipment_name} for ${params.purchase_cost} credits. New gang rating: ${newGangRating}`;
+          description = `${targetType} "${targetName}" bought ${params.equipment_name} for ${params.purchase_cost} credits.${financialChanges}`;
         }
         break;
       case 'sold':
         actionType = isVehicleEquipment ? 'vehicle_equipment_sold' : 'equipment_sold';
-        description = `${targetType} "${targetName}" sold ${params.equipment_name} for ${params.purchase_cost} credits. New gang rating: ${newGangRating}`;
+        description = `${targetType} "${targetName}" sold ${params.equipment_name} for ${params.purchase_cost} credits.${financialChanges}`;
         break;
       case 'moved_from_stash':
         actionType = isVehicleEquipment ? 'vehicle_equipment_moved_from_stash' : 'equipment_moved_from_stash';
-        description = `${targetType} "${targetName}" took ${params.equipment_name} (${params.purchase_cost} credits) from gang stash. New gang rating: ${newGangRating}`;
+        description = `${targetType} "${targetName}" took ${params.equipment_name} (${params.purchase_cost} credits) from gang stash.${financialChanges}`;
         break;
       case 'moved_to_stash':
         actionType = isVehicleEquipment ? 'vehicle_equipment_moved_to_stash' : 'equipment_moved_to_stash';
-        description = `${targetType} "${targetName}" moved ${params.equipment_name} (${params.purchase_cost} credits) to gang stash. New gang rating: ${newGangRating}`;
+        description = `${targetType} "${targetName}" moved ${params.equipment_name} (${params.purchase_cost} credits) to gang stash.${financialChanges}`;
         break;
       case 'granted':
         actionType = isVehicleEquipment ? 'vehicle_equipment_granted' : 'equipment_granted';
         description = params.purchase_cost > 0
-          ? `${targetType} "${targetName}" received ${params.equipment_name} (+${params.purchase_cost} credits). New gang rating: ${newGangRating}`
-          : `${targetType} "${targetName}" received ${params.equipment_name}. New gang rating: ${newGangRating}`;
+          ? `${targetType} "${targetName}" received ${params.equipment_name} (+${params.purchase_cost} credits).${financialChanges}`
+          : `${targetType} "${targetName}" received ${params.equipment_name}.${financialChanges}`;
         break;
       default:
         throw new Error(`Unknown action type: ${params.action_type}`);

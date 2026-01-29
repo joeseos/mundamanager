@@ -93,15 +93,16 @@ export async function createChemAlchemy({
       throw stashError;
     }
 
-    // Deduct credits from gang
-    const { error: creditUpdateError } = await supabase
-      .from('gangs')
-      .update({ credits: gangData.credits - totalCost })
-      .eq('id', gangId);
+    // Deduct credits from gang using centralized helper
+    const { updateGangFinancials } = await import('@/utils/gang-rating-and-wealth');
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId,
+      creditsDelta: -totalCost
+    });
 
-    if (creditUpdateError) {
-      console.error('Error updating gang credits:', creditUpdateError);
-      throw creditUpdateError;
+    if (!financialResult.success) {
+      console.error('Error updating gang credits:', financialResult.error);
+      throw new Error(financialResult.error || 'Failed to update gang credits');
     }
 
     console.log('Chem-alchemy created successfully, using granular cache invalidation');
