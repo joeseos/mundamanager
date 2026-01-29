@@ -4,25 +4,32 @@ import { invalidateGangRating } from './cache-tags';
 export interface GangFinancialUpdateOptions {
   gangId: string;
   ratingDelta?: number;      // Change to rating
-  creditsDelta?: number;     // Credits gained/spent (affects wealth only)
+  creditsDelta?: number;     // Credits gained (positive) or spent (negative)
   stashValueDelta?: number;  // Stash value change (affects wealth only)
   applyToRating?: boolean;   // false = skip rating update (inactive fighter)
 }
 
+export interface GangFinancialUpdateResult {
+  success: boolean;
+  error?: string;
+  oldValues?: { credits: number; rating: number; wealth: number };
+  newValues?: { credits: number; rating: number; wealth: number };
+}
+
 /**
- * Updates gang rating and wealth in a single operation.
+ * Updates gang credits, rating, and wealth in a single operation.
  *
  * Wealth formula: newWealth = currentWealth + effectiveRatingDelta + creditsDelta + stashValueDelta
  * Where effectiveRatingDelta = ratingDelta if applyToRating is true (default), else 0.
  *
  * @param supabase - Supabase client instance
  * @param options - Update options
- * @returns Success status and optional error message
+ * @returns Success status, optional error message, and old/new values for logging
  */
 export async function updateGangFinancials(
   supabase: SupabaseClient,
   options: GangFinancialUpdateOptions
-): Promise<{ success: boolean; error?: string }> {
+): Promise<GangFinancialUpdateResult> {
   const {
     gangId,
     ratingDelta = 0,
@@ -36,14 +43,40 @@ export async function updateGangFinancials(
 
   // Skip if nothing to update
   if (effectiveRatingDelta === 0 && creditsDelta === 0 && stashValueDelta === 0) {
+    // Still fetch current values for logging
+    try {
+      const { data: gangRow } = await supabase
+        .from('gangs')
+        .select('credits, rating, wealth')
+        .eq('id', gangId)
+        .single();
+      
+      if (gangRow) {
+        return {
+          success: true,
+          oldValues: {
+            credits: (gangRow.credits ?? 0) as number,
+            rating: (gangRow.rating ?? 0) as number,
+            wealth: (gangRow.wealth ?? 0) as number
+          },
+          newValues: {
+            credits: (gangRow.credits ?? 0) as number,
+            rating: (gangRow.rating ?? 0) as number,
+            wealth: (gangRow.wealth ?? 0) as number
+          }
+        };
+      }
+    } catch (e) {
+      // Fall through to return success: true
+    }
     return { success: true };
   }
 
   try {
-    // Get current gang values
+    // Get current gang values (old values)
     const { data: gangRow, error: selectError } = await supabase
       .from('gangs')
-      .select('rating, wealth')
+      .select('credits, rating, wealth')
       .eq('id', gangId)
       .single();
 
@@ -51,6 +84,7 @@ export async function updateGangFinancials(
       return { success: false, error: selectError?.message || 'Gang not found' };
     }
 
+    const currentCredits = (gangRow.credits ?? 0) as number;
     const currentRating = (gangRow.rating ?? 0) as number;
     const currentWealth = (gangRow.wealth ?? 0) as number;
 
@@ -61,6 +95,7 @@ export async function updateGangFinancials(
     const { error: updateError } = await supabase
       .from('gangs')
       .update({
+        credits: Math.max(0, currentCredits + creditsDelta),
         rating: Math.max(0, currentRating + effectiveRatingDelta),
         wealth: Math.max(0, currentWealth + wealthDelta)
       })
@@ -70,8 +105,44 @@ export async function updateGangFinancials(
       return { success: false, error: updateError.message };
     }
 
+    // Fetch new values after update
+    const { data: updatedGangRow, error: fetchError } = await supabase
+      .from('gangs')
+      .select('credits, rating, wealth')
+      .eq('id', gangId)
+      .single();
+
+    if (fetchError) {
+      // Update succeeded but fetch failed - calculate expected values
+      return {
+        success: true,
+        oldValues: {
+          credits: currentCredits,
+          rating: currentRating,
+          wealth: currentWealth
+        },
+        newValues: {
+          credits: Math.max(0, currentCredits + creditsDelta),
+          rating: Math.max(0, currentRating + effectiveRatingDelta),
+          wealth: Math.max(0, currentWealth + wealthDelta)
+        }
+      };
+    }
+
     invalidateGangRating(gangId);
-    return { success: true };
+    return {
+      success: true,
+      oldValues: {
+        credits: currentCredits,
+        rating: currentRating,
+        wealth: currentWealth
+      },
+      newValues: {
+        credits: (updatedGangRow.credits ?? 0) as number,
+        rating: (updatedGangRow.rating ?? 0) as number,
+        wealth: (updatedGangRow.wealth ?? 0) as number
+      }
+    };
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
     console.error('Failed to update gang rating and wealth:', e);
@@ -93,7 +164,7 @@ export async function updateGangRatingSimple(
   supabase: SupabaseClient,
   gangId: string,
   delta: number
-): Promise<{ success: boolean; error?: string }> {
+): Promise<GangFinancialUpdateResult> {
   return updateGangFinancials(supabase, {
     gangId,
     ratingDelta: delta

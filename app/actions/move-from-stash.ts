@@ -423,24 +423,14 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Only update rating if it changed (active fighter case)
     // Use stashValueDelta since equipment is leaving stash
     // wealthDelta = ratingDelta - equipmentValue, so stashValueDelta = -equipmentValue
-    await updateGangFinancials(supabase, {
+    const financialResult = await updateGangFinancials(supabase, {
       gangId: stashData.gang_id,
       ratingDelta,
       stashValueDelta: -equipmentValue
     });
 
-    // Fetch updated wealth after the update
-    let updatedGangWealth: number | undefined;
-    try {
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select('wealth')
-        .eq('id', stashData.gang_id)
-        .single();
-      updatedGangWealth = (gangRow?.wealth ?? 0) as number;
-    } catch (e) {
-      // Silently continue if wealth fetch fails
-    }
+    // Get updated wealth from result
+    const updatedGangWealth = financialResult.newValues?.wealth;
 
     // Update beast ownership when moving equipment from stash
     let affectedBeastIds: string[] = [];
@@ -534,7 +524,13 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         equipment_name: equipmentName,
         purchase_cost: stashData.purchase_cost || 0,
         action_type: 'moved_from_stash',
-        user_id: user.id
+        user_id: user.id,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
       });
     } catch (logError) {
       console.error('Failed to log equipment moved from stash:', logError);

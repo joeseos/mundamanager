@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateVehicleEffects, invalidateVehicleRepair } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
-import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 interface RemoveVehicleDamageParams {
   damageId: string;
@@ -59,6 +59,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
     }
 
     // Adjust rating if assigned
+    let financialResult: any = null;
     try {
       if (effectRow?.vehicle_id) {
         const { data: veh } = await supabase
@@ -69,7 +70,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
         if (veh?.fighter_id) {
           const delta = -(effectRow?.type_specific_data?.credits_increase || 0);
           if (delta) {
-            await updateGangRatingSimple(supabase, params.gangId, delta);
+            financialResult = await updateGangRatingSimple(supabase, params.gangId, delta);
           }
         }
       }
@@ -85,7 +86,13 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
         fighter_id: params.fighterId,
         damage_name: effectRow?.effect_name || 'Unknown damage',
         action_type: 'vehicle_damage_removed',
-        user_id: user.id
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
       });
     } catch (logError) {
       console.error('Failed to log vehicle damage removal:', logError);
@@ -121,7 +128,36 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       .select("vehicle_id, type_specific_data, effect_name")
       .in("id", params.damageIds);
 
-    // Call the repair RPC function
+    // Fetch old financial values before the RPC call
+    let oldFinancialValues: any = null;
+    try {
+      const { data: oldGang } = await supabase
+        .from('gangs')
+        .select('credits, rating, wealth')
+        .eq('id', params.gangId)
+        .single();
+      
+      if (oldGang) {
+        oldFinancialValues = {
+          credits: (oldGang.credits ?? 0) as number,
+          rating: (oldGang.rating ?? 0) as number,
+          wealth: (oldGang.wealth ?? 0) as number
+        };
+      }
+    } catch (e) {
+      console.error('Failed to fetch old financial values:', e);
+    }
+
+    // Calculate total credits_increase from removed damages for rating update
+    let totalCreditsIncrease = 0;
+    if (damageData) {
+      totalCreditsIncrease = damageData.reduce((sum, d) => {
+        const credits = (d.type_specific_data?.credits_increase || 0) as number;
+        return sum + credits;
+      }, 0);
+    }
+
+    // Call the repair RPC function (this updates credits directly in DB)
     const { error } = await supabase.rpc('repair_vehicle_damage', {
       damage_ids: params.damageIds,
       repair_cost: params.repairCost,
@@ -133,7 +169,59 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       throw new Error(error.message || 'Failed to repair vehicle damage');
     }
 
-    // Log vehicle damage removal
+    // Update financials to sync rating/wealth changes after RPC updated credits
+    // Rating change: +totalCreditsIncrease (damage removed from rating)
+    // Credits change: -repairCost (already done by RPC)
+    let financialResult: any = null;
+    try {
+      // Check if vehicle is assigned to an active fighter
+      const { data: vehicleData } = await supabase
+        .from('vehicles')
+        .select('fighter_id')
+        .eq('id', params.vehicleId)
+        .single();
+      
+      if (vehicleData?.fighter_id) {
+        const { data: fighterData } = await supabase
+          .from('fighters')
+          .select('killed, retired, enslaved, captured')
+          .eq('id', vehicleData.fighter_id)
+          .single();
+        
+        const { countsTowardRating } = await import('@/utils/fighter-status');
+        const isActive = countsTowardRating(fighterData);
+        
+        if (isActive && totalCreditsIncrease > 0) {
+          // Update rating (damage removed) and sync wealth
+          // Credits were already updated by RPC, so we use creditsDelta: 0
+          financialResult = await updateGangFinancials(supabase, {
+            gangId: params.gangId,
+            ratingDelta: totalCreditsIncrease,
+            creditsDelta: 0 // Credits already updated by RPC, this syncs wealth
+          });
+        } else {
+          // Just sync wealth without rating change
+          financialResult = await updateGangFinancials(supabase, {
+            gangId: params.gangId,
+            creditsDelta: 0 // This syncs wealth based on current credits
+          });
+        }
+      } else {
+        // Vehicle not assigned, just sync wealth
+        financialResult = await updateGangFinancials(supabase, {
+          gangId: params.gangId,
+          creditsDelta: 0
+        });
+      }
+    } catch (e) {
+      console.error('Failed to sync financials after repair:', e);
+    }
+
+    // Use old values from before RPC and new values from updateGangFinancials
+    const finalOldValues = oldFinancialValues || financialResult?.oldValues;
+    const finalNewValues = financialResult?.newValues;
+
+    // Log vehicle damage repair
     try {
       const effectNames = damageData?.map(d => d.effect_name);
       if (effectNames) {
@@ -148,12 +236,18 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
             repair_type: params.repairType,
             cost: params.repairCost,
             action_type: 'vehicle_damage_repaired',
-            user_id: user.id
+            user_id: user.id,
+            oldCredits: finalOldValues?.credits,
+            oldRating: finalOldValues?.rating,
+            oldWealth: finalOldValues?.wealth,
+            newCredits: finalNewValues?.credits,
+            newRating: finalNewValues?.rating,
+            newWealth: finalNewValues?.wealth
           });
       }
 
     } catch (logError) {
-      console.error('Failed to log vehicle damage removal:', logError);
+      console.error('Failed to log vehicle damage repair:', logError);
     }
 
     // Invalidate cache for vehicle effects and gang credits

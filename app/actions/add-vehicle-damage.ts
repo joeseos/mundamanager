@@ -42,6 +42,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     }
 
     // Fetch effect credits_increase and update rating if vehicle is assigned
+    let financialResult: any = null;
     try {
       const [{ data: veh }, { data: eff }] = await Promise.all([
         supabase.from('vehicles').select('fighter_id').eq('id', params.vehicleId).single(),
@@ -50,7 +51,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
       if (veh?.fighter_id) {
         const delta = (eff?.type_specific_data?.credits_increase || 0) as number;
         if (delta) {
-          await updateGangRatingSimple(supabase, params.gangId, delta);
+          financialResult = await updateGangRatingSimple(supabase, params.gangId, delta);
         }
       }
     } catch (e) {
@@ -65,7 +66,13 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
         fighter_id: params.fighterId,
         damage_name: params.damageName,
         action_type: 'vehicle_damage_added',
-        user_id: user.id
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
       });
     } catch (logError) {
       console.error('Failed to log vehicle damage action:', logError);

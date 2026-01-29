@@ -5,6 +5,7 @@ import { invalidateFighterVehicleData } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface AssignVehicleToFighterParams {
   vehicleId: string;
@@ -70,8 +71,24 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       throw new Error(error.message || 'Failed to assign vehicle to fighter');
     }
 
-    // Get vehicle cost data to return to frontend for immediate UI update
+    // Get vehicle name and cost data to return to frontend for immediate UI update
+    const { data: vehicleData } = await supabase
+      .from('vehicles')
+      .select('vehicle_name')
+      .eq('id', params.vehicleId)
+      .single();
+    
+    const vehicleName = vehicleData?.vehicle_name || 'Unknown Vehicle';
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
+    
+    // Get fighter name for logging
+    const { data: fighterData } = await supabase
+      .from('fighters')
+      .select('fighter_name')
+      .eq('id', params.fighterId)
+      .single();
+    
+    const fighterName = fighterData?.fighter_name || 'Unknown Fighter';
 
     // Calculate rating and wealth deltas using countsTowardRating helper
     // Key insight: unassigned vehicles count toward wealth, inactive fighter vehicles don't count anywhere
@@ -117,14 +134,39 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       }
     }
 
+    let financialResult: any = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       // Use creditsDelta to adjust wealth independently from rating
       // wealthChange = ratingDelta + creditsDelta, so creditsDelta = wealthDelta - ratingDelta
-      await updateGangFinancials(supabase, {
+      financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         ratingDelta,
         creditsDelta: wealthDelta - ratingDelta
       });
+
+      if (!financialResult.success) {
+        throw new Error(financialResult.error || 'Failed to update gang financials');
+      }
+    }
+
+    // Log vehicle assignment
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: params.vehicleId,
+        fighter_id: params.fighterId,
+        action_type: 'vehicle_assigned',
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle assignment:', logError);
+      // Don't fail the main operation for logging errors
     }
 
     // Invalidate cache for the fighter and gang

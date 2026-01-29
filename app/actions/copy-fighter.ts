@@ -294,25 +294,26 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Update gang credits and rating
+    // Update gang credits, rating and wealth using helper
     const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
 
     // Update rating/wealth using helper (handles cache invalidation)
-    await updateGangFinancials(supabase, {
+    const financialResult = await updateGangFinancials(supabase, {
       gangId: params.target_gang_id,
       ratingDelta: cost,
+      creditsDelta: params.deduct_credits ? -cost : 0,
       applyToRating: params.add_to_rating !== false
     });
 
-    // Update credits separately if needed
+    if (!financialResult.success) {
+      return await rollbackFighter(financialResult.error || 'Failed to update gang financials');
+    }
+
+    // Update last_updated separately (not part of financials)
     if (params.deduct_credits) {
-      const currentCredits = gang.credits || 0;
       await supabase
         .from('gangs')
-        .update({
-          credits: currentCredits - cost,
-          last_updated: new Date().toISOString()
-        })
+        .update({ last_updated: new Date().toISOString() })
         .eq('id', params.target_gang_id);
     }
 
@@ -330,7 +331,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_credits: params.calculated_cost || sourceFighter.credits || 0,
       source_fighter_name: sourceFighter.fighter_name,
       copy_type: params.copy_as_experienced ? 'experienced' : 'base',
-      user_id: user.id
+      user_id: user.id,
+      oldCredits: financialResult.oldValues?.credits,
+      oldRating: financialResult.oldValues?.rating,
+      oldWealth: financialResult.oldValues?.wealth,
+      newCredits: financialResult.newValues?.credits,
+      newRating: financialResult.newValues?.rating,
+      newWealth: financialResult.newValues?.wealth
     });
 
     return {

@@ -602,27 +602,18 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Calculate deltas for gang updates
     const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
-    const wealthDelta = totalRatingDelta + (-finalPurchaseCost) + stashValueDelta;
 
-    // Update gang credits if purchase cost > 0 or grants have additional cost
-    if (finalPurchaseCost !== 0 || grantsRatingDelta !== 0) {
-      const { error: creditsUpdateError } = await supabase
-        .from('gangs')
-        .update({ credits: gang.credits - finalPurchaseCost - grantsRatingDelta })
-        .eq('id', params.gang_id);
-
-      if (creditsUpdateError) {
-        throw new Error(`Failed to update gang credits: ${creditsUpdateError.message}`);
-      }
-    }
-
-    // Update gang rating and wealth using centralized helper
-    await updateGangFinancials(supabase, {
+    // Update gang credits, rating and wealth using centralized helper
+    const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
       creditsDelta: -finalPurchaseCost - grantsRatingDelta,
       stashValueDelta
     });
+
+    if (!financialResult.success) {
+      throw new Error(financialResult.error || 'Failed to update gang financials');
+    }
 
     // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
     try {
@@ -633,7 +624,13 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         equipment_name: equipmentDetails.equipment_name,
         purchase_cost: finalPurchaseCost,
         action_type: 'purchased',
-        user_id: user.id
+        user_id: user.id,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
       });
     } catch (logError) {
       console.error('Failed to log equipment action:', logError);
@@ -649,7 +646,13 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           equipment_name: grantedItem.equipment_name,
           purchase_cost: grantedItem.purchase_cost,
           action_type: 'granted',
-          user_id: user.id
+          user_id: user.id,
+          oldCredits: financialResult.oldValues?.credits,
+          oldRating: financialResult.oldValues?.rating,
+          oldWealth: financialResult.oldValues?.wealth,
+          newCredits: financialResult.newValues?.credits,
+          newRating: financialResult.newValues?.rating,
+          newWealth: financialResult.newValues?.wealth
         });
       } catch (logError) {
         console.error('Failed to log granted equipment:', logError);
@@ -708,9 +711,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         updategangsCollection: {
           records: [{
             id: params.gang_id,
-            credits: gang.credits - finalPurchaseCost,
-            rating: Math.max(0, (gang.rating || 0) + totalRatingDelta),
-            wealth: Math.max(0, (gang.wealth || 0) + wealthDelta)
+            credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
+            rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
+            wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost) + stashValueDelta)
           }]
         },
         insertIntofighter_equipmentCollection: {

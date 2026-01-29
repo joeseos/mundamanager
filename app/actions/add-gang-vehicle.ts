@@ -112,43 +112,30 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
-    // Update gang credits
-    const newCredits = gang.credits - vehicleCost;
+    // Update credits, rating and wealth using centralized helper
+    // For unassigned vehicle: credits down by vehicleCost, stash value up by vehicleBaseCost
+    // The net wealth change is: -vehicleCost (spent) + vehicleBaseCost (gained asset in stash)
+    const wealthImpact = -vehicleCost + vehicleBaseCost;
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId: params.gangId,
+      creditsDelta: -vehicleCost,
+      stashValueDelta: vehicleBaseCost
+    });
 
-    const { error: gangUpdateError } = await supabase
-      .from('gangs')
-      .update({
-        credits: newCredits,
-        last_updated: new Date().toISOString()
-      })
-      .eq('id', params.gangId);
-
-    if (gangUpdateError) {
+    if (!financialResult.success) {
       // Clean up if gang update fails
       await supabase.from('vehicles').delete().eq('id', vehicle.id);
-      console.error('Gang update error:', gangUpdateError);
       return {
         success: false,
-        error: `Gang update failed: ${gangUpdateError.message}`
+        error: financialResult.error || 'Failed to update gang financials'
       };
     }
 
-    // Update wealth via helper (unassigned vehicle: credits down, vehicle value up = net 0)
-    // creditsDelta represents the net wealth change: -vehicleCost (spent) + vehicleBaseCost (gained asset)
-    const wealthImpact = -vehicleCost + vehicleBaseCost;
-    if (wealthImpact !== 0) {
-      await updateGangFinancials(supabase, {
-        gangId: params.gangId,
-        creditsDelta: wealthImpact
-      });
-    }
-
-    // Fetch updated wealth for client-side optimistic update
-    const { data: updatedGangData } = await supabase
+    // Update last_updated separately (not part of financials)
+    await supabase
       .from('gangs')
-      .select('wealth')
-      .eq('id', params.gangId)
-      .single();
+      .update({ last_updated: new Date().toISOString() })
+      .eq('id', params.gangId);
 
     // Invalidate relevant cache tags
     invalidateGangFinancials(params.gangId);
@@ -157,6 +144,9 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
 
     // Also invalidate computed gang vehicle count
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(params.gangId));
+
+    const newCredits = financialResult.newValues?.credits ?? (gang.credits - vehicleCost);
+    const newWealth = financialResult.newValues?.wealth;
 
     return {
       success: true,
@@ -167,7 +157,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
         base_cost: vehicleBaseCost
       },
       gangCredits: newCredits,
-      gangWealth: updatedGangData?.wealth,
+      gangWealth: newWealth,
       paymentCost: vehicleCost,
       baseCost: vehicleBaseCost
     };
