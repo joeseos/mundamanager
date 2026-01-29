@@ -61,13 +61,13 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
     // Adjust rating if assigned and fetch vehicle name
     let financialResult: GangFinancialUpdateResult | null = null;
     let vehicleName = 'Unknown Vehicle';
+    let fighterName: string | undefined;
     try {
       if (effectRow?.vehicle_id) {
-        const { data: veh } = await supabase
-          .from('vehicles')
-          .select('fighter_id, vehicle_name')
-          .eq('id', effectRow.vehicle_id)
-          .single();
+        const [{ data: veh }, { data: fighter }] = await Promise.all([
+          supabase.from('vehicles').select('fighter_id, vehicle_name').eq('id', effectRow.vehicle_id).single(),
+          supabase.from('fighters').select('fighter_name').eq('id', params.fighterId).single()
+        ]);
         if (veh) {
           vehicleName = veh.vehicle_name || 'Unknown Vehicle';
           if (veh.fighter_id) {
@@ -77,6 +77,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
             }
           }
         }
+        fighterName = fighter?.fighter_name;
       }
     } catch (e) {
       console.error('Failed to update rating after removing vehicle damage:', e);
@@ -89,6 +90,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
         vehicle_id: effectRow?.vehicle_id || '',
         vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: params.fighterId,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         damage_name: effectRow?.effect_name || 'Unknown damage',
         action_type: 'vehicle_damage_removed',
         user_id: user.id,
@@ -181,6 +183,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     // Credits change: -repairCost (already done by RPC)
     let financialResult: GangFinancialUpdateResult | null = null;
     let vehicleName = 'Unknown Vehicle';
+    let fighterName: string | undefined;
     try {
       // Check if vehicle is assigned to an active fighter and get vehicle name
       const { data: vehicleData } = await supabase
@@ -196,12 +199,13 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       if (vehicleData?.fighter_id) {
         const { data: fighterData } = await supabase
           .from('fighters')
-          .select('killed, retired, enslaved, captured')
+          .select('killed, retired, enslaved, captured, fighter_name')
           .eq('id', vehicleData.fighter_id)
           .single();
         
         const { countsTowardRating } = await import('@/utils/fighter-status');
         const isActive = countsTowardRating(fighterData);
+        fighterName = fighterData?.fighter_name;
         
         if (isActive && totalCreditsIncrease > 0) {
           // Update rating (damage removed) and sync wealth
@@ -245,6 +249,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
             vehicle_id: params.vehicleId || '',
             vehicle_name: vehicleName, // Required: pass vehicle name
             fighter_id: params.fighterId,
+            fighter_name: fighterName, // Optional: pass to avoid extra fetch
             damage_name: damageList.toLowerCase(),
             repair_type: params.repairType,
             cost: params.repairCost,

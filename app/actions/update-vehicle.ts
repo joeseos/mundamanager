@@ -149,6 +149,17 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     // Log name change if applicable
     if (nameChanged) {
       try {
+        // Fetch fighter name if vehicle is assigned
+        let fighterName: string | undefined;
+        if (currentVehicle.fighter_id) {
+          const { data: fighterData } = await supabase
+            .from('fighters')
+            .select('fighter_name')
+            .eq('id', currentVehicle.fighter_id)
+            .single();
+          fighterName = fighterData?.fighter_name;
+        }
+
         // Name changes don't affect financials, so we don't pass financial fields
         // This prevents them from being displayed in the log description
         await logVehicleAction({
@@ -156,6 +167,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
           vehicle_id: params.vehicleId,
           vehicle_name: params.vehicleName.trimEnd(), // Required: pass new vehicle name
           fighter_id: currentVehicle.fighter_id || undefined,
+          fighter_name: fighterName, // Optional: pass to avoid extra fetch
           action_type: 'vehicle_name_changed',
           old_name: oldVehicleName,
           user_id: user.id

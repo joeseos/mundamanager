@@ -44,10 +44,12 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     // Fetch effect credits_increase and update rating if vehicle is assigned
     let financialResult: GangFinancialUpdateResult | null = null;
     let vehicleName = 'Unknown Vehicle';
+    let fighterName: string | undefined;
     try {
-      const [{ data: veh }, { data: eff }] = await Promise.all([
+      const [{ data: veh }, { data: eff }, { data: fighter }] = await Promise.all([
         supabase.from('vehicles').select('fighter_id, vehicle_name').eq('id', params.vehicleId).single(),
-        supabase.from('fighter_effect_types').select('type_specific_data').eq('id', params.damageId).single()
+        supabase.from('fighter_effect_types').select('type_specific_data').eq('id', params.damageId).single(),
+        supabase.from('fighters').select('fighter_name').eq('id', params.fighterId).single()
       ]);
       if (veh) {
         vehicleName = veh.vehicle_name || 'Unknown Vehicle';
@@ -58,6 +60,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
           }
         }
       }
+      fighterName = fighter?.fighter_name;
     } catch (e) {
       console.error('Failed to update rating for vehicle damage:', e);
     }
@@ -69,6 +72,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
         vehicle_id: params.vehicleId,
         vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: params.fighterId,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         damage_name: params.damageName,
         action_type: 'vehicle_damage_added',
         user_id: user.id,

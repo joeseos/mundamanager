@@ -92,13 +92,15 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
 
     // Check if the vehicle was assigned to an active fighter
     let wasAssignedToActiveFighter = false;
+    let fighterName: string | undefined;
     if (isAssigned && vehicle.fighter_id) {
       const { data: fighterData } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured')
+        .select('killed, retired, enslaved, captured, fighter_name')
         .eq('id', vehicle.fighter_id)
         .single();
       wasAssignedToActiveFighter = countsTowardRating(fighterData);
+      fighterName = fighterData?.fighter_name;
     }
 
     // Calculate rating and wealth deltas
@@ -144,6 +146,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
         vehicle_id: params.vehicleId,
         vehicle_name: vehicle.vehicle_name, // Required: pass name since vehicle is already deleted
         fighter_id: vehicle.fighter_id || undefined,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         action_type: 'vehicle_sold',
         cost: sellValue, // Pass sell value to show in log description
         user_id: user.id,

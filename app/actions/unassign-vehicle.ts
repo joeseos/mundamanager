@@ -43,14 +43,16 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
 
     // Check if the previous fighter is currently active
     let wasFighterActive = false;
+    let fighterName: string | undefined;
     if (previousFighterId) {
       const { data: fighterData } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured')
+        .select('killed, retired, enslaved, captured, fighter_name')
         .eq('id', previousFighterId)
         .single();
 
       wasFighterActive = countsTowardRating(fighterData);
+      fighterName = fighterData?.fighter_name;
     }
 
     // Get vehicle name and cost data before unassigning for rating calculation
@@ -107,6 +109,7 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
         vehicle_id: params.vehicleId,
         vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: previousFighterId || undefined,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         action_type: 'vehicle_unassigned',
         user_id: user.id,
         oldCredits: financialResult?.oldValues?.credits,
