@@ -5,7 +5,7 @@ import { revalidateTag } from 'next/cache';
 import { invalidateFighterVehicleData, CACHE_TAGS } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logVehicleAction } from './logs/vehicle-logs';
 
 interface DeleteVehicleParams {
@@ -114,7 +114,7 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     // Assigned to inactive fighter: wasn't counted anywhere, no change needed
 
     // Update rating and wealth after vehicle deletion
-    let financialResult: any = null;
+    let financialResult: GangFinancialUpdateResult | null = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       // stashValueDelta accounts for unassigned vehicles (wealthDelta but no ratingDelta)
       financialResult = await updateGangFinancials(supabase, {

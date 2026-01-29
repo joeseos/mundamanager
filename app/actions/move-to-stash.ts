@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 
@@ -206,7 +206,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     // Always update wealth when moving equipment to stash (stash value is part of wealth)
     // Only update rating if it changed (active fighter)
-    let financialResult: any = null;
+    let financialResult: GangFinancialUpdateResult | null = null;
     if (ratingDelta !== 0 || wealthDelta !== 0) {
       // Use stashValueDelta since equipment is moving to stash
       // wealthDelta = ratingDelta + equipmentValue, so stashValueDelta = equipmentValue

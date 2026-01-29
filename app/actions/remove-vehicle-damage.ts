@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateVehicleEffects, invalidateVehicleRepair } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
-import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangRatingSimple, updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 interface RemoveVehicleDamageParams {
   damageId: string;
@@ -59,7 +59,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
     }
 
     // Adjust rating if assigned
-    let financialResult: any = null;
+    let financialResult: GangFinancialUpdateResult | null = null;
     try {
       if (effectRow?.vehicle_id) {
         const { data: veh } = await supabase
@@ -169,10 +169,12 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
       throw new Error(error.message || 'Failed to repair vehicle damage');
     }
 
-    // Update financials to sync rating/wealth changes after RPC updated credits
+    // IMPORTANT: The RPC 'repair_vehicle_damage' already updates credits in the DB.
+    // We call updateGangFinancials with creditsDelta: 0 to sync rating/wealth
+    // without double-counting the credits change.
     // Rating change: +totalCreditsIncrease (damage removed from rating)
     // Credits change: -repairCost (already done by RPC)
-    let financialResult: any = null;
+    let financialResult: GangFinancialUpdateResult | null = null;
     try {
       // Check if vehicle is assigned to an active fighter
       const { data: vehicleData } = await supabase

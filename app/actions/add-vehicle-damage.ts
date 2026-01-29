@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateVehicleEffects } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
-import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 interface AddVehicleDamageParams {
   vehicleId: string;
@@ -42,7 +42,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     }
 
     // Fetch effect credits_increase and update rating if vehicle is assigned
-    let financialResult: any = null;
+    let financialResult: GangFinancialUpdateResult | null = null;
     try {
       const [{ data: veh }, { data: eff }] = await Promise.all([
         supabase.from('vehicles').select('fighter_id').eq('id', params.vehicleId).single(),

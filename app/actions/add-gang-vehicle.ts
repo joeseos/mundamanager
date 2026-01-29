@@ -114,8 +114,6 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
 
     // Update credits, rating and wealth using centralized helper
     // For unassigned vehicle: credits down by vehicleCost, stash value up by vehicleBaseCost
-    // The net wealth change is: -vehicleCost (spent) + vehicleBaseCost (gained asset in stash)
-    const wealthImpact = -vehicleCost + vehicleBaseCost;
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gangId,
       creditsDelta: -vehicleCost,

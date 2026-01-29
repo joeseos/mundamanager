@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData } from '@/utils/cache-tags';
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { logVehicleAction } from './logs/vehicle-logs';
@@ -85,7 +85,7 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
     // - Inactive fighter: 0 + vehicleCost = +vehicleCost (enters unassigned pool)
     const wealthDelta = ratingDelta + vehicleCost;
 
-    let financialResult: any = null;
+    let financialResult: GangFinancialUpdateResult | null = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
       // wealthDelta = ratingDelta + vehicleCost, so creditsDelta = vehicleCost
       financialResult = await updateGangFinancials(supabase, {

@@ -8,7 +8,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -950,7 +950,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     // If cost_adjustment changed and fighter is active, update rating and wealth by delta
     let costAdjustmentDelta = 0;
-    let costAdjustmentFinancialResult: any = null;
+    let costAdjustmentFinancialResult: GangFinancialUpdateResult | null = null;
     if (params.cost_adjustment !== undefined && wasActive) {
       costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
       if (costAdjustmentDelta !== 0) {
