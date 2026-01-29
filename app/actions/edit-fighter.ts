@@ -667,10 +667,15 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Error cleaning up fighter images:', imageError);
         }
 
-        // Pass vehicle cost as creditsDelta to properly offset wealth
-        // For active fighters: rating decreases by full cost, wealth decreases by fighter cost only (vehicle enters unassigned pool)
-        // For inactive fighters: rating unchanged, wealth increases by vehicle cost (vehicle enters unassigned pool)
-        const financialResult = await adjustRating(delta, vehicleCost);
+        // Update gang rating and wealth
+        // - Rating decreases by full cost (fighter + vehicle) for active fighters
+        // - Wealth decreases by fighter cost only (vehicle stays in gang as unassigned)
+        // Use stashValueDelta (not creditsDelta) to preserve vehicle value in wealth without adding actual credits
+        const financialResult = await updateGangFinancials(supabase, {
+          gangId,
+          ratingDelta: delta,
+          stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
+        });
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
