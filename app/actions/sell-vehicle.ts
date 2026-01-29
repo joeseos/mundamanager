@@ -6,6 +6,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { CACHE_TAGS, invalidateFighterVehicleData, invalidateGangFinancials } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface SellVehicleParams {
   vehicleId: string;
@@ -33,7 +34,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     // Fetch vehicle and resolve gangId/assignment BEFORE deletion
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
-      .select('id, gang_id, fighter_id, cost')
+      .select('id, gang_id, fighter_id, cost, vehicle_name')
       .eq('id', params.vehicleId)
       .single();
 
@@ -134,6 +135,29 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
 
     const updatedGangRating = financialResult.newValues?.rating;
     const updatedWealth = financialResult.newValues?.wealth;
+
+    // Log vehicle sale
+    // Pass vehicle_name since vehicle is already deleted
+    try {
+      await logVehicleAction({
+        gang_id: gangId,
+        vehicle_id: params.vehicleId,
+        vehicle_name: vehicle.vehicle_name, // Required: pass name since vehicle is already deleted
+        fighter_id: vehicle.fighter_id || undefined,
+        action_type: 'vehicle_sold',
+        cost: sellValue, // Pass sell value to show in log description
+        user_id: user.id,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle sale:', logError);
+      // Don't fail the main operation for logging errors
+    }
 
     // Invalidate caches (credits + rating + fighter vehicles if assigned)
     invalidateGangFinancials(gangId);

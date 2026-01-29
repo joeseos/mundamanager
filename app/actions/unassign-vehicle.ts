@@ -105,6 +105,7 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
       await logVehicleAction({
         gang_id: params.gangId,
         vehicle_id: params.vehicleId,
+        vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: previousFighterId || undefined,
         action_type: 'vehicle_unassigned',
         user_id: user.id,

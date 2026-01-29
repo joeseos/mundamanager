@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData, invalidateVehicleEffects } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface UpdateVehicleParams {
   vehicleId: string;
@@ -25,6 +26,20 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
 
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
+
+    // Get current vehicle data to compare name
+    const { data: currentVehicle, error: currentError } = await supabase
+      .from('vehicles')
+      .select('vehicle_name, fighter_id, gang_id')
+      .eq('id', params.vehicleId)
+      .single();
+
+    if (currentError || !currentVehicle) {
+      throw new Error('Vehicle not found');
+    }
+
+    const oldVehicleName = currentVehicle.vehicle_name;
+    const nameChanged = oldVehicleName !== params.vehicleName.trimEnd();
 
     // Update the vehicle
     const { data, error } = await supabase
@@ -128,6 +143,37 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
       } catch (error) {
         console.error('Error applying stat adjustments:', error);
         // Don't throw - allow the vehicle update to succeed even if stat adjustments fail
+      }
+    }
+
+    // Log name change if applicable
+    if (nameChanged) {
+      try {
+        // Fetch current financial values (name changes don't affect financials, but we log for consistency)
+        const { data: gangData } = await supabase
+          .from('gangs')
+          .select('credits, rating, wealth')
+          .eq('id', currentVehicle.gang_id)
+          .single();
+
+        await logVehicleAction({
+          gang_id: currentVehicle.gang_id,
+          vehicle_id: params.vehicleId,
+          vehicle_name: params.vehicleName.trimEnd(), // Required: pass new vehicle name
+          fighter_id: currentVehicle.fighter_id || undefined,
+          action_type: 'vehicle_name_changed',
+          old_name: oldVehicleName,
+          user_id: user.id,
+          oldCredits: gangData?.credits,
+          oldRating: gangData?.rating,
+          oldWealth: gangData?.wealth,
+          newCredits: gangData?.credits,
+          newRating: gangData?.rating,
+          newWealth: gangData?.wealth
+        });
+      } catch (logError) {
+        console.error('Failed to log vehicle name change:', logError);
+        // Don't fail the main operation for logging errors
       }
     }
 

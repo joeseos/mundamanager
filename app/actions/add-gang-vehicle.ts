@@ -5,6 +5,7 @@ import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
+import { logVehicleAction } from "./logs/vehicle-logs";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -134,6 +135,28 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       .from('gangs')
       .update({ last_updated: new Date().toISOString() })
       .eq('id', params.gangId);
+
+    // Log vehicle addition
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: vehicle.id,
+        vehicle_name: vehicle.vehicle_name, // Required: pass vehicle name
+        fighter_id: undefined, // Vehicle is created unassigned
+        action_type: 'vehicle_added',
+        cost: vehicleBaseCost,
+        user_id: user.id,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle addition:', logError);
+      // Don't fail the main operation for logging errors
+    }
 
     // Invalidate relevant cache tags
     invalidateGangFinancials(params.gangId);

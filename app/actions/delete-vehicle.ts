@@ -129,10 +129,12 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     }
 
     // Log vehicle deletion
+    // Pass vehicle_name since vehicle is already deleted
     try {
       await logVehicleAction({
         gang_id: params.gangId,
         vehicle_id: params.vehicleId,
+        vehicle_name: vehicleName, // Required: pass name since vehicle is already deleted
         fighter_id: vehBefore?.fighter_id || undefined,
         action_type: 'vehicle_deleted',
         user_id: user.id,
