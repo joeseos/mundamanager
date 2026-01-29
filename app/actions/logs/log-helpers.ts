@@ -6,6 +6,8 @@ export function formatFinancialChanges(
   oldWealth: number,
   newWealth: number
 ): string {
-  return `Credits: ${oldCredits} → ${newCredits} | Gang Rating: ${oldRating} → ${newRating} | Wealth: ${oldWealth} → ${newWealth}`;
+  const creditsChanged = oldCredits !== newCredits;
+  const creditsPart = creditsChanged ? `Credits: ${oldCredits} → ${newCredits} | ` : '';
+  return `${creditsPart}Gang Rating: ${oldRating} → ${newRating} | Wealth: ${oldWealth} → ${newWealth}`;
 }
 
