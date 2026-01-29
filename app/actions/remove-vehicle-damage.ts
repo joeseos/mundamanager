@@ -58,21 +58,26 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
       throw new Error(error.message || 'Failed to remove vehicle damage');
     }
 
-    // Adjust rating if assigned
+    // Adjust rating if assigned and fetch vehicle name
     let financialResult: GangFinancialUpdateResult | null = null;
+    let vehicleName = 'Unknown Vehicle';
+    let fighterName: string | undefined;
     try {
       if (effectRow?.vehicle_id) {
-        const { data: veh } = await supabase
-          .from('vehicles')
-          .select('fighter_id')
-          .eq('id', effectRow.vehicle_id)
-          .single();
-        if (veh?.fighter_id) {
-          const delta = -(effectRow?.type_specific_data?.credits_increase || 0);
-          if (delta) {
-            financialResult = await updateGangRatingSimple(supabase, params.gangId, delta);
+        const [{ data: veh }, { data: fighter }] = await Promise.all([
+          supabase.from('vehicles').select('fighter_id, vehicle_name').eq('id', effectRow.vehicle_id).single(),
+          supabase.from('fighters').select('fighter_name').eq('id', params.fighterId).single()
+        ]);
+        if (veh) {
+          vehicleName = veh.vehicle_name || 'Unknown Vehicle';
+          if (veh.fighter_id) {
+            const delta = -(effectRow?.type_specific_data?.credits_increase || 0);
+            if (delta) {
+              financialResult = await updateGangRatingSimple(supabase, params.gangId, delta);
+            }
           }
         }
+        fighterName = fighter?.fighter_name;
       }
     } catch (e) {
       console.error('Failed to update rating after removing vehicle damage:', e);
@@ -83,7 +88,9 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
       await logVehicleAction({
         gang_id: params.gangId,
         vehicle_id: effectRow?.vehicle_id || '',
+        vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: params.fighterId,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         damage_name: effectRow?.effect_name || 'Unknown damage',
         action_type: 'vehicle_damage_removed',
         user_id: user.id,
@@ -175,23 +182,30 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     // Rating change: +totalCreditsIncrease (damage removed from rating)
     // Credits change: -repairCost (already done by RPC)
     let financialResult: GangFinancialUpdateResult | null = null;
+    let vehicleName = 'Unknown Vehicle';
+    let fighterName: string | undefined;
     try {
-      // Check if vehicle is assigned to an active fighter
+      // Check if vehicle is assigned to an active fighter and get vehicle name
       const { data: vehicleData } = await supabase
         .from('vehicles')
-        .select('fighter_id')
+        .select('fighter_id, vehicle_name')
         .eq('id', params.vehicleId)
         .single();
+      
+      if (vehicleData) {
+        vehicleName = vehicleData.vehicle_name || 'Unknown Vehicle';
+      }
       
       if (vehicleData?.fighter_id) {
         const { data: fighterData } = await supabase
           .from('fighters')
-          .select('killed, retired, enslaved, captured')
+          .select('killed, retired, enslaved, captured, fighter_name')
           .eq('id', vehicleData.fighter_id)
           .single();
         
         const { countsTowardRating } = await import('@/utils/fighter-status');
         const isActive = countsTowardRating(fighterData);
+        fighterName = fighterData?.fighter_name;
         
         if (isActive && totalCreditsIncrease > 0) {
           // Update rating (damage removed) and sync wealth
@@ -233,7 +247,9 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
           await logVehicleAction({
             gang_id: params.gangId,
             vehicle_id: params.vehicleId || '',
+            vehicle_name: vehicleName, // Required: pass vehicle name
             fighter_id: params.fighterId,
+            fighter_name: fighterName, // Optional: pass to avoid extra fetch
             damage_name: damageList.toLowerCase(),
             repair_type: params.repairType,
             cost: params.repairCost,

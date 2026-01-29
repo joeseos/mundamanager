@@ -154,7 +154,9 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       await logVehicleAction({
         gang_id: params.gangId,
         vehicle_id: params.vehicleId,
+        vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: params.fighterId,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         action_type: 'vehicle_assigned',
         user_id: user.id,
         oldCredits: financialResult?.oldValues?.credits,

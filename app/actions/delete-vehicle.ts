@@ -89,13 +89,15 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
 
     // Check if the vehicle was assigned to an active fighter
     let wasAssignedToActiveFighter = false;
+    let fighterName: string | undefined;
     if (wasAssigned && vehBefore?.fighter_id) {
       const { data: fighterData } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured')
+        .select('killed, retired, enslaved, captured, fighter_name')
         .eq('id', vehBefore.fighter_id)
         .single();
       wasAssignedToActiveFighter = countsTowardRating(fighterData);
+      fighterName = fighterData?.fighter_name;
     }
 
     // Calculate rating and wealth deltas
@@ -129,11 +131,14 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     }
 
     // Log vehicle deletion
+    // Pass vehicle_name since vehicle is already deleted
     try {
       await logVehicleAction({
         gang_id: params.gangId,
         vehicle_id: params.vehicleId,
+        vehicle_name: vehicleName, // Required: pass name since vehicle is already deleted
         fighter_id: vehBefore?.fighter_id || undefined,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         action_type: 'vehicle_deleted',
         user_id: user.id,
         oldCredits: financialResult?.oldValues?.credits,
