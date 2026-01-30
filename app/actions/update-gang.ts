@@ -417,14 +417,16 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         ...oldResourceStates,
         credits: gang.credits,
         rating: gang.rating || 0,
-        wealth: gang.wealth || 0
+        wealth: gang.wealth || 0,
+        reputation: gang.reputation || 0
       };
 
       const newState: Record<string, number> = {
         ...newResourceStates,
         credits: finalCredits,
         rating: gang.rating || 0,  // Rating unchanged by manual credit changes
-        wealth: financialResult?.newValues?.wealth ?? (gang.wealth || 0)
+        wealth: financialResult?.newValues?.wealth ?? (gang.wealth || 0),
+        reputation: updates.reputation ?? (gang.reputation || 0)
       };
 
       // Only log if something changed
