@@ -24,6 +24,7 @@ interface EffectType {
     id: string;
     stat_name: string;
     default_numeric_value: number;
+    operation?: string;
   }>;
 }
 
@@ -82,7 +83,8 @@ export async function POST(request: Request) {
         fighter_effect_type_modifiers (
           id,
           stat_name,
-          default_numeric_value
+          default_numeric_value,
+          operation
         )
       `)
       .eq('fighter_effect_category_id', '3d582ae1-2c18-4e1a-93a9-0c7c5731a96a');
@@ -385,10 +387,17 @@ async function createNewEffect(
 
   // Create the modifier - IMPORTANT: Use the actual changeValue, not its absolute value
   // This preserves the negative sign when needed
+  // Find the matching modifier template for the operation
+  const modifierTemplate = effectType.fighter_effect_type_modifiers.find(m =>
+    m.stat_name === statName &&
+    Math.sign(m.default_numeric_value) === Math.sign(changeValue)
+  );
+
   const modifierData = {
     fighter_effect_id: newEffect.id,
     stat_name: statName,
-    numeric_value: changeValue.toString()  // Remove Math.abs() to keep negative values
+    numeric_value: changeValue.toString(),  // Remove Math.abs() to keep negative values
+    operation: modifierTemplate?.operation || 'add'
   };
   
   const { error: modifierError } = await supabase
