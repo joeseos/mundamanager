@@ -72,8 +72,9 @@ export async function logGangResourceChanges(params: LogGangResourceChangesParam
 
       if (oldValue !== newValue) {
         const increased = newValue > oldValue;
-        const actionType = `${resourceName} ${increased ? 'gained' : 'spent'}`;
-        const description = `${resourceName} ${increased ? 'increased' : 'decreased'} from ${oldValue} to ${newValue}`;
+        const capitalizedName = resourceName.charAt(0).toUpperCase() + resourceName.slice(1);
+        const actionType = `${capitalizedName} ${increased ? 'gained' : 'spent'}`;
+        const description = `${capitalizedName} ${increased ? 'increased' : 'decreased'} from ${oldValue} to ${newValue}`;
 
         logPromises.push(createGangLog({
           gang_id,
