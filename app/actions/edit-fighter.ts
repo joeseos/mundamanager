@@ -299,7 +299,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        await adjustRating(delta);
+        const financialResult = await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -310,10 +310,33 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               gang_id: gangId,
               fighter_id: params.fighter_id,
               fighter_name: fighter.fighter_name,
-              action_type: 'fighter_retired'
+              action_type: 'fighter_retired',
+              oldCredits: financialResult.oldValues?.credits,
+              oldRating: financialResult.oldValues?.rating,
+              oldWealth: financialResult.oldValues?.wealth,
+              newCredits: financialResult.newValues?.credits,
+              newRating: financialResult.newValues?.rating,
+              newWealth: financialResult.newValues?.wealth
             });
           } catch (logError) {
             console.error('Failed to log fighter retired:', logError);
+          }
+        } else {
+          try {
+            await logFighterAction({
+              gang_id: gangId,
+              fighter_id: params.fighter_id,
+              fighter_name: fighter.fighter_name,
+              action_type: 'fighter_unretired',
+              oldCredits: financialResult.oldValues?.credits,
+              oldRating: financialResult.oldValues?.rating,
+              oldWealth: financialResult.oldValues?.wealth,
+              newCredits: financialResult.newValues?.credits,
+              newRating: financialResult.newValues?.rating,
+              newWealth: financialResult.newValues?.wealth
+            });
+          } catch (logError) {
+            console.error('Failed to log fighter unretired:', logError);
           }
         }
 
