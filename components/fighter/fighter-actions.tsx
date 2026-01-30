@@ -110,10 +110,6 @@ export function FighterActions({
         case 'recover': optimistic.recovery = !fighter.recovery; break;
         case 'capture': optimistic.captured = !fighter.captured; break;
       }
-      toast({
-        description: `${fighter.fighter_name} has been successfully deleted.`,
-        variant: "default"
-      });
 
       const snapshot = onStatusMutate?.(optimistic, vars.action === 'sell' ? (vars.sell_value || 0) : undefined);
       const prevFlags = {

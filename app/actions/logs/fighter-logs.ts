@@ -8,7 +8,7 @@ export interface FighterLogParams {
   gang_id: string;
   fighter_id: string;
   fighter_name: string;
-  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_enslaved' | 
+  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
               'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_cost_adjusted' |
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied';
   user_id?: string;
@@ -35,7 +35,7 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
     if (params.oldCredits !== undefined && params.newCredits !== undefined &&
         params.oldRating !== undefined && params.newRating !== undefined &&
         params.oldWealth !== undefined && params.newWealth !== undefined) {
-      financialChanges = ' ' + formatFinancialChanges(
+      const formatted = formatFinancialChanges(
         params.oldCredits,
         params.newCredits,
         params.oldRating,
@@ -43,6 +43,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         params.oldWealth,
         params.newWealth
       );
+      if (formatted) {
+        financialChanges = ' ' + formatted;
+      }
     }
 
     // Generate description based on action type
@@ -57,16 +60,19 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Removed fighter "${params.fighter_name}" (${params.fighter_credits || 0} credits)${statusSuffix}.${financialChanges}`;
         break;
       case 'fighter_killed':
-        description = `Fighter "${params.fighter_name}" was killed`;
+        description = `Fighter "${params.fighter_name}" was killed.${financialChanges}`;
         break;
       case 'fighter_resurected':
-        description = `Fighter "${params.fighter_name}" was resurected`;
+        description = `Fighter "${params.fighter_name}" was resurected.${financialChanges}`;
         break;
       case 'fighter_retired':
-        description = `Fighter "${params.fighter_name}" retired`;
+        description = `Fighter "${params.fighter_name}" retired.${financialChanges}`;
+        break;
+      case 'fighter_unretired':
+        description = `Fighter "${params.fighter_name}" came out of retirement.${financialChanges}`;
         break;
       case 'fighter_enslaved':
-        description = `Fighter "${params.fighter_name}" was enslaved`;
+        description = `Fighter "${params.fighter_name}" was enslaved.${financialChanges}`;
         break;
       case 'fighter_xp_changed':
         description = `Fighter "${params.fighter_name}" XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
@@ -84,19 +90,19 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Fighter "${params.fighter_name}" cost adjustment changed from ${params.old_value || 0} to ${params.new_value || 0} credits.${financialChanges}`;
         break;
       case 'fighter_rescued':
-        description = `Fighter "${params.fighter_name}" was rescued from enslavement`;
+        description = `Fighter "${params.fighter_name}" was rescued from enslavement.${financialChanges}`;
         break;
       case 'fighter_starved':
-        description = `Fighter "${params.fighter_name}" was starved`;
+        description = `Fighter "${params.fighter_name}" was starved.${financialChanges}`;
         break;
       case 'fighter_fed':
-        description = `Fighter "${params.fighter_name}" was fed (1 meat consumed)`;
+        description = `Fighter "${params.fighter_name}" was fed (1 meat consumed).${financialChanges}`;
         break;
       case 'fighter_captured':
-        description = `Fighter "${params.fighter_name}" was captured`;
+        description = `Fighter "${params.fighter_name}" was captured.${financialChanges}`;
         break;
       case 'fighter_released':
-        description = `Fighter "${params.fighter_name}" was released from captivity`;
+        description = `Fighter "${params.fighter_name}" was released from captivity.${financialChanges}`;
         break;
       case 'fighter_copied':
         const copyTypeLabel = params.copy_type === 'experienced' ? 'experienced fighter' : 'base fighter';

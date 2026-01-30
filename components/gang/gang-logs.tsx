@@ -68,6 +68,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_killed': 'Fighter killed',
       'fighter_resurected': 'Fighter resurected',
       'fighter_retired': 'Fighter retired',
+      'fighter_unretired': 'Fighter unretired',
       'fighter_enslaved': 'Fighter enslaved',
       'fighter_xp_changed': 'Fighter XP changed',
       'fighter_total_xp_changed': 'Fighter total XP changed',
