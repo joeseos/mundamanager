@@ -200,7 +200,8 @@ async function applyEffectsForEquipmentOptimized(
           allModifiers.push({
             fighter_effect_id: effectId,
             stat_name: modifier.stat_name,
-            numeric_value: modifier.default_numeric_value
+            numeric_value: modifier.default_numeric_value,
+            operation: modifier.operation || 'add'
           });
         });
       }
@@ -717,7 +718,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       ),
                       fighter_effect_type_modifiers (
                         stat_name,
-                        default_numeric_value
+                        default_numeric_value,
+                        operation
                       )
                     `)
                     .in('type_specific_data->>equipment_id', validEquipmentIds);

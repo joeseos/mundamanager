@@ -192,7 +192,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
             type_specific_data,
             fighter_effect_type_modifiers (
               stat_name,
-              default_numeric_value
+              default_numeric_value,
+              operation
             )
           `)
           .eq('type_specific_data->>equipment_id', stashData.equipment_id.toString());
@@ -215,7 +216,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                 type_specific_data,
                 fighter_effect_type_modifiers (
                   stat_name,
-                  default_numeric_value
+                  default_numeric_value,
+                  operation
                 )
               `)
               .in('id', params.selected_effect_ids);
@@ -260,7 +262,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                     allModifiers.push({
                       fighter_effect_id: effId,
                       stat_name: mod.stat_name,
-                      numeric_value: mod.default_numeric_value
+                      numeric_value: mod.default_numeric_value,
+                      operation: mod.operation || 'add'
                     });
                   });
                 }
@@ -274,7 +277,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               const effectIdToMods = new Map<string, any[]>();
               allModifiers.forEach(m => {
                 const arr = effectIdToMods.get(m.fighter_effect_id) || [];
-                arr.push({ stat_name: m.stat_name, numeric_value: m.numeric_value });
+                arr.push({ stat_name: m.stat_name, numeric_value: m.numeric_value, operation: m.operation });
                 effectIdToMods.set(m.fighter_effect_id, arr);
               });
 
