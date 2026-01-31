@@ -44,6 +44,5 @@ next-env.d.ts
 .cursor
 
 # supabase
-supabase/migrations/
 supabase/policies/
 supabase/seed/

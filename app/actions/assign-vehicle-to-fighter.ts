@@ -16,8 +16,7 @@ interface AssignVehicleToFighterParams {
 interface AssignVehicleToFighterResult {
   success: boolean;
   data?: {
-    removed_from?: any;
-    assigned_to?: any;
+    removed_from?: any;  // Used by frontend for vehicle swap handling
     vehicle_cost?: number;
   };
   error?: string;
@@ -60,15 +59,38 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
 
     const isNewFighterActive = countsTowardRating(newFighterData);
 
-    // Call the Supabase function
-    const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
-      p_vehicle_id: params.vehicleId,
-      p_fighter_id: params.fighterId,
-    });
+    // Fetch old vehicle info BEFORE unassignment (needed for frontend)
+    let removedFromVehicle = null;
+    const { data: oldVehicleData } = await supabase
+      .from('vehicles')
+      .select('id, vehicle_name, vehicle_type, cost')
+      .eq('fighter_id', params.fighterId)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error assigning vehicle to fighter:', error);
-      throw new Error(error.message || 'Failed to assign vehicle to fighter');
+    if (oldVehicleData) {
+      removedFromVehicle = oldVehicleData;
+    }
+
+    // Unassign fighter from any existing vehicle (RLS enforces authorization)
+    const { error: unassignError } = await supabase
+      .from('vehicles')
+      .update({ fighter_id: null })
+      .eq('fighter_id', params.fighterId);
+
+    if (unassignError) {
+      console.error('Error unassigning from previous vehicle:', unassignError);
+      throw new Error(`Failed to unassign from previous vehicle: ${unassignError.message}`);
+    }
+
+    // Assign fighter to the new vehicle (RLS enforces authorization)
+    const { error: assignError } = await supabase
+      .from('vehicles')
+      .update({ fighter_id: params.fighterId })
+      .eq('id', params.vehicleId);
+
+    if (assignError) {
+      console.error('Error assigning vehicle to fighter:', assignError);
+      throw new Error(`Failed to assign vehicle to fighter: ${assignError.message}`);
     }
 
     // Get vehicle name and cost data to return to frontend for immediate UI update
@@ -177,7 +199,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     return {
       success: true,
       data: {
-        ...data,
+        removed_from: removedFromVehicle, // For frontend vehicle swap handling
         vehicle_cost: vehicleCost
       }
     };
