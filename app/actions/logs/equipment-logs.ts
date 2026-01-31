@@ -63,7 +63,7 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
     if (params.oldCredits !== undefined && params.newCredits !== undefined &&
         params.oldRating !== undefined && params.newRating !== undefined &&
         params.oldWealth !== undefined && params.newWealth !== undefined) {
-      financialChanges = ' ' + formatFinancialChanges(
+      const formatted = formatFinancialChanges(
         params.oldCredits,
         params.newCredits,
         params.oldRating,
@@ -71,6 +71,9 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
         params.oldWealth,
         params.newWealth
       );
+      if (formatted) {
+        financialChanges = '\n' + formatted;
+      }
     }
 
     switch (params.action_type) {

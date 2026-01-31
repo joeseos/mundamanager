@@ -53,7 +53,7 @@ export async function logVehicleAction(params: VehicleLogParams): Promise<GangLo
     if (params.oldCredits !== undefined && params.newCredits !== undefined &&
         params.oldRating !== undefined && params.newRating !== undefined &&
         params.oldWealth !== undefined && params.newWealth !== undefined) {
-      financialChanges = ' ' + formatFinancialChanges(
+      const formatted = formatFinancialChanges(
         params.oldCredits,
         params.newCredits,
         params.oldRating,
@@ -61,6 +61,9 @@ export async function logVehicleAction(params: VehicleLogParams): Promise<GangLo
         params.oldWealth,
         params.newWealth
       );
+      if (formatted) {
+        financialChanges = '\n' + formatted;
+      }
     }
 
     // Determine action type and description
