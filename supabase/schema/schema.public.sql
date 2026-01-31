@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Xp7mIa2dsYYHKES4LewHk6CdYSIe1cDAn9qgyycWlDXec639YRNCaChJy6JJLfl
+\restrict bqY8vjahln8DbKGKQ7neOp1Mpsmce1aTZOZcPc25IUJcHRua6nirOGor9RFqJP7
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -420,8 +420,6 @@ BEGIN
     );
 END;
 $$;
-
-
 
 
 --
@@ -10487,5 +10485,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Xp7mIa2dsYYHKES4LewHk6CdYSIe1cDAn9qgyycWlDXec639YRNCaChJy6JJLfl
+\unrestrict bqY8vjahln8DbKGKQ7neOp1Mpsmce1aTZOZcPc25IUJcHRua6nirOGor9RFqJP7
 
