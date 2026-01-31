@@ -44,7 +44,7 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         params.newWealth
       );
       if (formatted) {
-        financialChanges = ' ' + formatted;
+        financialChanges = '\n' + formatted;
       }
     }
 
