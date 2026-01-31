@@ -36,10 +36,6 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
-    cursor: canEdit ? (dndKitIsDragging ? 'grabbing' : 'grab') : 'default',
-    touchAction: canEdit ? 'manipulation' : 'auto',
-    WebkitTouchCallout: 'none',
-    WebkitUserSelect: 'none',
     zIndex: dndKitIsDragging ? 50 : 'auto',
     position: 'relative',
     pointerEvents: 'auto', // Ensure clicks still work for navigation
@@ -50,6 +46,16 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     setIsDragging(dndKitIsDragging);
   }, [dndKitIsDragging]);
 
+  // Show grabbing cursor on document while dragging so it stays visible even when pointer leaves the card
+  useEffect(() => {
+    if (!dndKitIsDragging) return;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.cursor = 'grabbing';
+    return () => {
+      document.body.style.cursor = prevCursor;
+    };
+  }, [dndKitIsDragging]);
+
   // Extract the first vehicle from the vehicles array for the FighterCard
   const vehicle = fighter.vehicles && fighter.vehicles.length > 0 ? fighter.vehicles[0] : undefined;
 
@@ -57,8 +63,6 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     <div
       ref={setNodeRef}
       style={style}
-      {...(canEdit ? attributes : {})}
-      {...(canEdit ? listeners : {})}
     >
       <FighterCard
         {...fighter}
@@ -69,6 +73,8 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
         disableLink={isDragging}
         viewMode={viewMode}
         isDragging={dndKitIsDragging}
+        dragListeners={canEdit ? listeners : undefined}
+        dragAttributes={canEdit ? attributes : undefined}
       />
     </div>
   );

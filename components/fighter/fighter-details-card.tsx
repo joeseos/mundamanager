@@ -10,7 +10,6 @@ import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
-import { FaClipboardList } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';

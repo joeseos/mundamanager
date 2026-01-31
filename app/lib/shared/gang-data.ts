@@ -945,7 +945,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           fighter_types!fighter_type_id (
             fighter_type,
             alliance_crew_name,
-            cost
+            cost,
+            is_spyrer
           ),
           fighter_sub_types!fighter_sub_type_id (
             id,
@@ -1730,6 +1731,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             fighter_sub_type_id: fighterSubTypeInfo.id
           } : undefined,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
+          is_spyrer: fighterTypeInfo.is_spyrer ?? false,
+          kill_count: fighter.kill_count ?? 0,
           position: fighter.position,
           xp: fighter.xp,
           kills: fighter.kills || 0,
