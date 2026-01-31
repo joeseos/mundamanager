@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { useToast } from '@/components/ui/use-toast';
 import Modal from '@/components/ui/modal';
@@ -25,6 +25,8 @@ import FighterEffectSelection from '@/components/fighter-effect-selection';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
+  /** When true, open the Add Lasting Injury / Rig Glitch modal on mount (e.g. from gang card menu) */
+  initialOpenAddModal?: boolean;
   onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
   onSkillsUpdate?: (updatedSkills: FighterSkills) => void;
   onKillCountUpdate?: (newKillCount: number) => void;
@@ -41,6 +43,7 @@ interface InjuriesListProps {
 
 export function InjuriesList({
   injuries = [],
+  initialOpenAddModal = false,
   onInjuryUpdate,
   onSkillsUpdate,
   onKillCountUpdate,
@@ -157,6 +160,15 @@ export function InjuriesList({
         description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
         variant: "default"
       });
+
+      // Replace optimistic injury with real one from server so delete/other actions use real id
+      if (result.injury && context?.previousInjuries && onInjuryUpdate) {
+        const realInjury: FighterEffect = {
+          ...result.injury,
+          fighter_equipment_id: variables.target_equipment_id || undefined,
+        };
+        onInjuryUpdate([...context.previousInjuries, realInjury]);
+      }
 
       // Reconcile equipment effect with server response (replace optimistic with real data)
       if (context?.targetEquipmentId && result.injury && onEquipmentEffectUpdate) {
@@ -478,6 +490,17 @@ export function InjuriesList({
     setSelectedInjury(null);
   }, []);
 
+  // When opened from gang card menu, open the Add modal instead of showing the list first
+  useEffect(() => {
+    if (!initialOpenAddModal) return;
+    setIsAddModalOpen(true);
+    if (localAvailableInjuries.length === 0) {
+      fetchAvailableInjuries();
+    }
+  // Only run when mounting with initialOpenAddModal true; do not re-run when fetch/handleOpenModal change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOpenAddModal]);
+
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
       toast({
@@ -739,7 +762,7 @@ export function InjuriesList({
 
       {isAddModalOpen && (
         <Modal
-          title={is_spyrer ? "Rig Glitches" : "Lasting Injuries"}
+          title={is_spyrer ? "Add Rig Glitches" : "Add Lasting Injuries"}
           content={
             <div className="space-y-4">
               <div>

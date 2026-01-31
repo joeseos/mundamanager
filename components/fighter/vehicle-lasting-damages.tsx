@@ -15,6 +15,8 @@ import { Combobox } from '@/components/ui/combobox';
 
 interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
+  /** When true, open the Add Lasting Damage modal on mount (e.g. from gang card floating menu) */
+  initialOpenAddModal?: boolean;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   fighterId: string;
   vehicleId: string;
@@ -36,6 +38,7 @@ const repairTypes = VEHICLE_REPAIR_TABLE.map((entry) => ({
 
 export function VehicleDamagesList({ 
   damages = [],
+  initialOpenAddModal = false,
   onDamageUpdate,
   fighterId,
   vehicleId,
@@ -87,11 +90,11 @@ export function VehicleDamagesList({
       return { previousDamages, optimisticDamage };
     },
     onSuccess: (result, variables, context) => {
-      if (!result.success) {
+      if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to add vehicle damage');
       }
 
-      // Replace optimistic update with real data
+      // Replace optimistic damage with real one from server so delete uses real id
       const realDamage: FighterEffect = {
         id: result.data.id,
         effect_name: result.data.effect_name,
@@ -101,10 +104,9 @@ export function VehicleDamagesList({
         created_at: result.data.created_at || new Date().toISOString()
       };
 
-      // Update with real data
-      const updatedDamages = damages.filter((d: FighterEffect) => d.id !== context?.optimisticDamage?.id);
-      updatedDamages.push(realDamage);
-      onDamageUpdate(updatedDamages);
+      if (context?.previousDamages && onDamageUpdate) {
+        onDamageUpdate([...context.previousDamages, realDamage]);
+      }
 
       // Invalidate related queries in the query client
       queryClient.invalidateQueries({ queryKey: ['fighter', variables.fighterId] });
@@ -302,6 +304,13 @@ export function VehicleDamagesList({
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
   }, []);
+
+  // When opened from gang card floating menu, open the Add modal instead of showing the list first
+  useEffect(() => {
+    if (initialOpenAddModal) {
+      setIsAddModalOpen(true);
+    }
+  }, [initialOpenAddModal]);
 
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
