@@ -17,6 +17,10 @@ interface VehicleDamagesListProps {
   damages: Array<FighterEffect>;
   /** When true, open the Add Lasting Damage modal on mount (e.g. from gang card floating menu) */
   initialOpenAddModal?: boolean;
+  /** When true, render only the add form (no list). Use when opening directly from gang card menu. */
+  addFormOnly?: boolean;
+  /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
+  onRequestClose?: () => void;
   onDamageUpdate: (updatedDamages: FighterEffect[]) => void;
   fighterId: string;
   vehicleId: string;
@@ -39,6 +43,8 @@ const repairTypes = VEHICLE_REPAIR_TABLE.map((entry) => ({
 export function VehicleDamagesList({ 
   damages = [],
   initialOpenAddModal = false,
+  addFormOnly = false,
+  onRequestClose,
   onDamageUpdate,
   fighterId,
   vehicleId,
@@ -120,6 +126,7 @@ export function VehicleDamagesList({
       
       setSelectedDamageId('');
       setIsAddModalOpen(false);
+      if (addFormOnly) onRequestClose?.();
     },
     onError: (error, variables, context) => {
       // Rollback optimistic update
@@ -415,6 +422,105 @@ export function VehicleDamagesList({
     }
     setRepairCost(cost);
   }, [isRepairModalOpen, repairPercent, vehicle]);
+
+  // When opened directly from gang card menu, render only the add form (no list, no inner modal)
+  if (addFormOnly) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <DiceRoller
+            items={availableDamages}
+            ensureItems={undefined}
+            getRange={(i: FighterEffect) => {
+              const roll = getVehicleDamageRollForName((i as any).effect_name);
+              return roll ? { min: roll, max: roll } : null;
+            }}
+            getName={(i: FighterEffect) => (i as any).effect_name}
+            inline
+            rollFn={rollD6}
+            resolveNameForRoll={(roll) => {
+              return resolveVehicleDamageFromUtil(roll);
+            }}
+            buttonText="Roll D6"
+            disabled={!userPermissions.canEdit}
+            onRolled={(rolled) => {
+              if (rolled.length === 0) return;
+              const roll = rolled[0].roll;
+              const name = resolveVehicleDamageFromUtil(roll);
+              if (name) {
+                const match = availableDamages.find((d: any) => d.effect_name === name);
+                if (match) {
+                  setSelectedDamageId(match.id);
+                  toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                }
+              }
+            }}
+            onRoll={(roll) => {
+              const name = resolveVehicleDamageFromUtil(roll);
+              if (name) {
+                const match = availableDamages.find((d: any) => d.effect_name === name);
+                if (match) {
+                  setSelectedDamageId(match.id);
+                  toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                }
+              }
+            }}
+          />
+        </div>
+        <div className="space-y-2 pt-3 border-t">
+          <label htmlFor="damageSelect" className="text-sm font-medium">
+            Lasting Damage
+          </label>
+          <Combobox
+            value={selectedDamageId}
+            onValueChange={(value) => {
+              setSelectedDamageId(value);
+            }}
+            placeholder={isLoadingDamages && availableDamages.length === 0
+              ? "Loading damages..."
+              : "Select a Lasting Damage"
+            }
+            disabled={isLoadingDamages && availableDamages.length === 0}
+            options={availableDamages
+              .slice()
+              .sort((a: any, b: any) => {
+                const rollA = getVehicleDamageRollForName(a.effect_name);
+                const rollB = getVehicleDamageRollForName(b.effect_name);
+                if (!rollA && !rollB) return 0;
+                if (!rollA) return 1;
+                if (!rollB) return -1;
+                return rollA - rollB;
+              })
+              .map((damage: any) => {
+                const range = formatVehicleDamageRange(damage.effect_name);
+                const displayText = range ? `${range} ${damage.effect_name}` : damage.effect_name;
+                return {
+                  value: damage.id,
+                  label: range ? (
+                    <>
+                      <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>{damage.effect_name}
+                    </>
+                  ) : damage.effect_name,
+                  displayValue: displayText
+                };
+              })}
+          />
+        </div>
+        <div className="flex justify-end gap-2 pt-2 border-t">
+          <Button variant="outline" onClick={onRequestClose} disabled={addDamageMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => void handleAddDamage()}
+            disabled={!selectedDamageId || addDamageMutation.isPending}
+            className="bg-neutral-900 hover:bg-gray-800 text-white"
+          >
+            Add Lasting Damage
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

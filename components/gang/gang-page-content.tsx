@@ -396,17 +396,25 @@ export default function GangPageContent({
       {injuryModalFighter && (() => {
         // Use latest fighter from gangData so the list reflects optimistic updates (e.g. after adding an injury)
         const currentFighter = gangData.processedData.fighters.find(f => f.id === injuryModalFighter.id) ?? injuryModalFighter;
+        const injuryModalTitle = injuryModalOpenAddOnMount
+          ? (currentFighter.is_spyrer ? "Add Rig Glitches" : "Add Lasting Injuries")
+          : (currentFighter.is_spyrer ? "Rig Glitches" : "Lasting Injuries");
         return (
           <Modal
-            title={currentFighter.is_spyrer ? "Rig Glitches" : "Lasting Injuries"}
+            title={injuryModalTitle}
             onClose={() => {
               setInjuryModalFighter(null);
               setInjuryModalOpenAddOnMount(false);
             }}
-            width="4xl"
+            width="md"
           >
             <InjuriesList
               initialOpenAddModal={injuryModalOpenAddOnMount}
+              addFormOnly={injuryModalOpenAddOnMount}
+              onRequestClose={() => {
+                setInjuryModalFighter(null);
+                setInjuryModalOpenAddOnMount(false);
+              }}
               injuries={[
                 ...(currentFighter.effects?.injuries || []),
                 ...(currentFighter.effects?.['rig-glitches'] || []),
@@ -487,17 +495,23 @@ export default function GangPageContent({
         const currentFighter = gangData.processedData.fighters.find(f => f.id === vehicleModalFighter.id) ?? vehicleModalFighter;
         const currentVehicle = currentFighter.vehicles?.[0];
         if (!currentVehicle) return null;
+        const vehicleDamageModalTitle = vehicleModalOpenAddOnMount ? "Add Lasting Damage" : "Vehicle Lasting Damage";
         return (
           <Modal
-            title="Vehicle Lasting Damage"
+            title={vehicleDamageModalTitle}
             onClose={() => {
               setVehicleModalFighter(null);
               setVehicleModalOpenAddOnMount(false);
             }}
-            width="4xl"
+            width="md"
           >
             <VehicleDamagesList
               initialOpenAddModal={vehicleModalOpenAddOnMount}
+              addFormOnly={vehicleModalOpenAddOnMount}
+              onRequestClose={() => {
+                setVehicleModalFighter(null);
+                setVehicleModalOpenAddOnMount(false);
+              }}
               damages={
                 currentVehicle.effects
                   ? currentVehicle.effects["lasting damages"] || []

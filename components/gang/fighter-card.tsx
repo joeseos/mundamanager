@@ -735,7 +735,7 @@ const FighterCard = memo(function FighterCard({
         </>
       )}
       
-      {/* Menu trigger (long-press on icon opens context menu) - only show when not dragging and not disabled */}
+      {/* Menu trigger (click on icon opens context menu) - only show when not dragging and not disabled */}
       {!isDragging && !disableLink && dragListeners && dragAttributes && (
         <div
           className="absolute bottom-2 right-2 md:right-3 print:hidden cursor-pointer select-none"
@@ -744,7 +744,7 @@ const FighterCard = memo(function FighterCard({
         >
           <CgMoreVerticalO 
             className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer" 
-            title="Long-press to open action menu"
+            title="Click to open action menu"
           />
         </div>
       )}
