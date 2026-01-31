@@ -20,7 +20,6 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | get_fighter_types_with_cost        | p_gang_type_id uuid DEFAULT NULL, p_gang_affiliation_id uuid DEFAULT NULL, p_is_gang_addition boolean DEFAULT NULL | TABLE(...) | Definer |
 | get_gang_details                   | p_gang_id uuid                                                                                         | TABLE(...) | Definer |
 | get_gang_permissions               | p_user_id uuid, p_gang_id uuid                                                                         | json | Definer |
-| repair_vehicle_damage              | damage_ids uuid[], repair_cost integer, in_user_id uuid                                                | json | Definer |
 
 ### Helper Functions
 
