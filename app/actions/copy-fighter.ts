@@ -498,8 +498,6 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     // Invalidate vehicle-related caches if vehicles were copied
     if (copiedVehicleCount > 0) {
       revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.target_gang_id));
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(newFighterId));
-      revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(params.target_gang_id));
     }
 
     await logFighterAction({
