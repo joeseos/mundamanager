@@ -12,7 +12,6 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 |------------------------------------|--------------------------------------------------------------------------------------------------------|-------------|----------|
 | add_fighter_injury                 | input_fighter_id uuid, input_injury_id uuid                                                            | TABLE(result json) | Definer |
 | add_vehicle_effect                 | in_vehicle_id uuid, in_fighter_effect_type_id uuid, in_user_id uuid, in_fighter_effect_category_id uuid DEFAULT NULL | json | Definer |
-| assign_crew_to_vehicle             | p_vehicle_id uuid, p_fighter_id uuid                                                                   | jsonb | Definer |
 | get_add_fighter_details            | p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL                                           | TABLE(...) | Definer |
 | get_available_skills               | fighter_id uuid                                                                                        | jsonb | Definer |
 | get_equipment_with_discounts       | gang_type_id uuid DEFAULT NULL, equipment_category text DEFAULT NULL, fighter_type_id uuid DEFAULT NULL | TABLE(...) | Definer |
