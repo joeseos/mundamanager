@@ -94,6 +94,7 @@ export interface Vehicle {
   vehicle_name: string;
   vehicle_type_id: string;
   vehicle_type: string;
+  cost?: number;
   movement: number;
   front: number;
   side: number;

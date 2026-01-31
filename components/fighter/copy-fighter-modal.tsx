@@ -9,6 +9,12 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
 import { ImInfo } from 'react-icons/im';
 
+interface VehicleInfo {
+  id: string;
+  vehicle_name: string;
+  cost: number;
+}
+
 interface CopyFighterModalProps {
   fighterId: string;
   currentName: string;
@@ -17,6 +23,9 @@ interface CopyFighterModalProps {
   onClose: () => void;
   fighterBaseCost: number;
   fighterFullCost: number;
+  vehicles?: VehicleInfo[];
+  vehicleEquipmentCost?: number;
+  gangCredits?: number;
 }
 
 export default function CopyFighterModal({
@@ -27,36 +36,38 @@ export default function CopyFighterModal({
   onClose,
   fighterBaseCost,
   fighterFullCost,
+  vehicles,
+  vehicleEquipmentCost,
+  gangCredits,
 }: CopyFighterModalProps) {
   const [name, setName] = useState(currentName);
   const [submitting, setSubmitting] = useState(false);
   const [addToRating, setAddToRating] = useState(true);
   const [deductCredits, setDeductCredits] = useState(true);
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
-  const [gangCredits, setGangCredits] = useState<number | null>(null);
+  const [copyVehicles, setCopyVehicles] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
 
-  const calculatedCost = useMemo(() => {
-    return copyAsExperienced ? fighterFullCost : fighterBaseCost;
-  }, [copyAsExperienced, fighterBaseCost, fighterFullCost]);
+  // Computed values for vehicles
+  const hasVehicles = vehicles && vehicles.length > 0;
+  const totalVehicleCost = useMemo(() => {
+    if (!vehicles) return 0;
+    return vehicles.reduce((sum, v) => sum + (v.cost || 0), 0) + (vehicleEquipmentCost || 0);
+  }, [vehicles, vehicleEquipmentCost]);
 
-  useEffect(() => {
-    if (isOpen && currentGangId) {
-      const fetchGangCredits = async () => {
-        try {
-          const response = await fetch(`/api/gangs/${currentGangId}`);
-          if (response.ok) {
-            const data = await response.json();
-            setGangCredits(data.gang?.credits || 0);
-          }
-        } catch (error) {
-          console.error('Error fetching gang credits:', error);
-        }
-      };
-      fetchGangCredits();
+  const calculatedCost = useMemo(() => {
+    let fighterCost = copyAsExperienced ? fighterFullCost : fighterBaseCost;
+
+    // If copying experienced fighter with vehicles, fighterFullCost includes vehicle costs
+    // Subtract them so we can add back separately based on copyVehicles checkbox
+    if (copyAsExperienced && hasVehicles) {
+      fighterCost = fighterCost - totalVehicleCost;
     }
-  }, [isOpen, currentGangId]);
+
+    const vehicleCost = (hasVehicles && copyVehicles) ? totalVehicleCost : 0;
+    return fighterCost + vehicleCost;
+  }, [copyAsExperienced, fighterBaseCost, fighterFullCost, copyVehicles, hasVehicles, totalVehicleCost]);
 
   if (!isOpen) return null;
 
@@ -66,7 +77,7 @@ export default function CopyFighterModal({
     setAddToRating(true);
     setDeductCredits(true);
     setCopyAsExperienced(false);
-    setGangCredits(null);
+    setCopyVehicles(true);
   };
 
   const handleClose = () => {
@@ -86,6 +97,7 @@ export default function CopyFighterModal({
       deduct_credits: deductCredits,
       copy_as_experienced: copyAsExperienced,
       calculated_cost: calculatedCost,
+      copy_vehicles: copyVehicles,
     });
     setSubmitting(false);
 
@@ -100,7 +112,9 @@ export default function CopyFighterModal({
 
     toast({
       title: 'Fighter copied',
-      description: `${result.data?.fighter_name} was successfully copied.`
+      description: result.data?.copied_vehicles
+        ? `${result.data?.fighter_name} was successfully copied with ${result.data.copied_vehicles} vehicle(s).`
+        : `${result.data?.fighter_name} was successfully copied.`
     });
 
     resetModalState();
@@ -114,7 +128,7 @@ export default function CopyFighterModal({
     <Modal
       title="Copy Fighter"
       headerContent={
-        gangCredits !== null && (
+        gangCredits !== undefined && (
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Gang Credits</span>
             <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
@@ -194,6 +208,30 @@ export default function CopyFighterModal({
               </label>
             </div>
           </div>
+
+          {/* Vehicle Section - only show if fighter has vehicles */}
+          {hasVehicles && (
+            <div className="border-t pt-3 mt-3">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">Vehicle</div>
+
+              <div className="flex items-center space-x-2 mb-2">
+                <Checkbox
+                  id="copyVehicles"
+                  checked={copyVehicles}
+                  onCheckedChange={(checked) => setCopyVehicles(checked === true)}
+                />
+                <label htmlFor="copyVehicles" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                  Copy assigned vehicle{vehicles!.length > 1 ? 's' : ''} ({vehicles!.map(v => v.vehicle_name).join(', ')} - {totalVehicleCost} credits)
+                </label>
+                <div className="relative group">
+                  <ImInfo />
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                    Includes vehicle base cost and all equipment
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Modal>

@@ -242,11 +242,39 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     skills: fighterData.fighter.effects?.skills || []
   };
 
+  // Calculate all addon costs
   const effectsCost = Object.values(effects)
     .flat()
     .reduce((sum: number, effect: any) => sum + ((effect.type_specific_data?.credits_increase as number) || 0), 0);
 
-  const baseCost = (fighterData.fighter.credits || 0) - effectsCost;
+  const equipmentCost = (fighterData.equipment || [])
+    .reduce((sum: number, item: any) => sum + (item.purchase_cost || 0), 0);
+
+  const vehicleCost = (fighterData.fighter?.vehicles || []).reduce((sum: number, vehicle: any) => {
+    let vehicleTotal = vehicle.cost || 0;
+    if (vehicle.equipment) {
+      vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) =>
+        equipSum + (eq.purchase_cost || 0), 0);
+    }
+    if (vehicle.effects) {
+      vehicleTotal += Object.values(vehicle.effects)
+        .flat()
+        .reduce((effectSum: number, effect: any) =>
+          effectSum + ((effect.type_specific_data?.credits_increase as number) || 0), 0);
+    }
+    return sum + vehicleTotal;
+  }, 0);
+
+  const skillsCost = Object.values(transformedSkills)
+    .reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
+
+  // Base cost is total cost minus all addons
+  const baseCost = (fighterData.fighter.credits || 0)
+    - effectsCost
+    - equipmentCost
+    - vehicleCost
+    - skillsCost
+    - (fighterData.fighter.cost_adjustment || 0);
 
   return {
     fighter: {
@@ -1039,9 +1067,17 @@ export default function FighterPage({
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: (fighterData.fighter as any).base_credits || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
-              campaigns: fighterData.fighter?.campaigns
-            }}
-            gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '' }}
+              campaigns: fighterData.fighter?.campaigns,
+              vehicles: fighterData.fighter?.vehicles?.map(v => ({
+                id: v.id,
+                vehicle_name: v.vehicle_name,
+                cost: v.cost || 0,
+                equipment: v.equipment?.map(e => ({
+                  purchase_cost: e.cost || 0
+                }))
+              }))
+            } as any}
+            gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '', credits: fighterData.gang?.credits }}
             fighterId={fighterId}
             userPermissions={userPermissions}
             onFighterUpdate={() => {}}
@@ -1049,7 +1085,7 @@ export default function FighterPage({
               const snapshot = structuredClone(fighterData);
               setFighterData(prev => ({
                 ...prev,
-                fighter: prev.fighter ? { ...prev.fighter, ...optimistic } : null,
+                fighter: prev.fighter ? { ...prev.fighter, ...optimistic } as Fighter : null,
                 gang: typeof gangCreditsDelta === 'number' && prev.gang
                   ? { ...prev.gang, credits: prev.gang.credits + gangCreditsDelta }
                   : prev.gang
