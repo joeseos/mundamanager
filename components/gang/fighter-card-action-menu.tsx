@@ -18,8 +18,6 @@ interface FighterCardActionMenuProps {
   children: ReactNode;
 }
 
-const HOLD_DELAY_POINTER_MS = 150;
-const HOLD_DELAY_TOUCH_MS = 600;
 /** Max movement (px) to count as a tap on menu items; avoids firing when user is scrolling */
 const MENU_TAP_MOVE_THRESHOLD = 10;
 
@@ -32,7 +30,6 @@ export function FighterCardActionMenu({
 }: FighterCardActionMenuProps) {
   const modalsContext = useFighterCardModals();
   const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
-  const holdTimeoutRef = useRef<number | null>(null);
   const ignoreClickRef = useRef(false);
   const referenceElementRef = useRef<HTMLDivElement | null>(null);
   const menuTouchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -46,13 +43,6 @@ export function FighterCardActionMenu({
     strategy: 'fixed',
     middleware: [offset(8), flip(), shift({ padding: 8 })],
   });
-
-  const clearHoldTimeout = useCallback(() => {
-    if (holdTimeoutRef.current !== null) {
-      window.clearTimeout(holdTimeoutRef.current);
-      holdTimeoutRef.current = null;
-    }
-  }, []);
 
   const closeMenu = useCallback(() => {
     setOpenActionMenuFighterId?.(null);
@@ -107,20 +97,15 @@ export function FighterCardActionMenu({
     };
   }, [isOpen, closeMenu, refs.floating]);
 
-  // Clear timeout on unmount
-  useEffect(() => clearHoldTimeout, [clearHoldTimeout]);
-
-  const startHoldTimer = (clientX: number, clientY: number, delayMs: number) => {
-    if (!modalsContext || disableLink || !setOpenActionMenuFighterId) return;
-
-    clearHoldTimeout();
-
-    holdTimeoutRef.current = window.setTimeout(() => {
+  const openMenuAt = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!modalsContext || disableLink || !setOpenActionMenuFighterId) return;
       setOpenActionMenuFighterId(fighterId);
       setCoords({ x: clientX, y: clientY });
       ignoreClickRef.current = true;
-    }, delayMs);
-  };
+    },
+    [modalsContext, disableLink, setOpenActionMenuFighterId, fighterId],
+  );
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disableLink) return;
@@ -128,7 +113,7 @@ export function FighterCardActionMenu({
     if (event.button !== 0) return;
 
     const target = event.target as HTMLElement | null;
-    // Only open menu when long-pressing on the icon (menu trigger)
+    // Only open menu when pressing on the icon (menu trigger)
     if (!target?.closest('[data-fighter-card-menu-trigger]')) {
       return;
     }
@@ -137,7 +122,7 @@ export function FighterCardActionMenu({
     event.stopPropagation();
     event.preventDefault();
 
-    startHoldTimer(event.clientX, event.clientY, HOLD_DELAY_POINTER_MS);
+    openMenuAt(event.clientX, event.clientY);
   };
 
   // Handle touch events separately for mobile - dnd-kit's TouchSensor listens
@@ -154,26 +139,13 @@ export function FighterCardActionMenu({
     // Prevent card drag (dnd-kit TouchSensor) when touching menu trigger
     event.stopPropagation();
     // Prevent browser's native long-press context menu (e.g. "Open in new tab" on the link).
-    // Without this, on first load the native menu can race and appear before our custom menu.
     event.preventDefault();
 
     // Get touch coordinates for menu positioning
     const touch = event.touches[0];
     if (touch) {
-      startHoldTimer(touch.clientX, touch.clientY, HOLD_DELAY_TOUCH_MS);
+      openMenuAt(touch.clientX, touch.clientY);
     }
-  };
-
-  const handlePointerUp = () => {
-    clearHoldTimeout();
-  };
-
-  const handlePointerCancel = () => {
-    clearHoldTimeout();
-  };
-
-  const handleTouchEnd = () => {
-    clearHoldTimeout();
   };
 
   // Prevent native browser context menu (e.g. "Open in new tab", "Copy link") when
@@ -245,12 +217,7 @@ export function FighterCardActionMenu({
     <div
       className="relative"
       onPointerDownCapture={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-      onPointerLeave={handlePointerCancel}
       onTouchStartCapture={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
       onContextMenuCapture={handleContextMenu}
       onClickCapture={handleClickCapture}
     >
