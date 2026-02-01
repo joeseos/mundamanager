@@ -94,14 +94,13 @@ interface ChemAlchemyCreatorProps {
     name: string
     useBaseCostForRating: boolean
     baseCost: number
-  }) => void | Promise<void>
+  }) => void
 }
 
 export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasApprenticeClanChymist = false, onCreateChem }: ChemAlchemyCreatorProps) {
   const [selectedType, setSelectedType] = useState<ChemType>("stimm")
   const [selectedEffects, setSelectedEffects] = useState<ChemEffect[]>([])
   const [chemName, setChemName] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
   const [manualCost, setManualCost] = useState("")
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true)
   const [creditError, setCreditError] = useState<string | null>(null)
@@ -133,8 +132,8 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
     })
   }
 
-  const handleCreateChem = async () => {
-    if (selectedEffects.length === 0 || !chemName.trim() || isCreating) {
+  const handleCreateChem = () => {
+    if (selectedEffects.length === 0 || !chemName.trim()) {
       return false
     }
 
@@ -149,34 +148,19 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
     }
 
     setCreditError(null)
-    setIsCreating(true)
-    try {
-      const finalName = selectedEffects.length > 0 
-        ? `${chemName.trim()} (${selectedEffects.map(effect => effect.name).join(", ")})`
-        : chemName.trim()
-      
-      await onCreateChem?.({
-        type: selectedType,
-        effects: selectedEffects,
-        totalCost: parsedCost,
-        name: finalName,
-        useBaseCostForRating,
-        baseCost: totalCost
-      })
+    const finalName = selectedEffects.length > 0
+      ? `${chemName.trim()} (${selectedEffects.map(effect => effect.name).join(", ")})`
+      : chemName.trim()
 
-      // Reset form
-      setSelectedEffects([])
-      setChemName("")
-      setManualCost("")
-      setUseBaseCostForRating(true)
-      setCreditError(null)
-      return true
-    } catch (error) {
-      console.error('Error in handleCreateChem:', error)
-      return false
-    } finally {
-      setIsCreating(false)
-    }
+    onCreateChem?.({
+      type: selectedType,
+      effects: selectedEffects,
+      totalCost: parsedCost,
+      name: finalName,
+      useBaseCostForRating,
+      baseCost: totalCost
+    })
+    return true
   }
 
   const handleClose = () => {
@@ -187,7 +171,6 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
     setCreditError(null)
     setLastDiscountRoll(null)
     setLastDiscountNewCost(null)
-    setIsCreating(false)
     onClose()
   }
 
@@ -206,8 +189,8 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
       }
       onClose={handleClose}
       onConfirm={handleCreateChem}
-      confirmText={isCreating ? "Creating..." : "Create Elixir"}
-      confirmDisabled={selectedEffects.length === 0 || !chemName.trim() || isCreating || !manualCost.trim() || isNaN(Number(manualCost)) || Number(manualCost) > gangCredits}
+      confirmText="Create Elixir"
+      confirmDisabled={selectedEffects.length === 0 || !chemName.trim() || !manualCost.trim() || isNaN(Number(manualCost)) || Number(manualCost) > gangCredits}
     >
       <div className="space-y-5">
         {/* Chem Name Input */}
