@@ -6,7 +6,6 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
 import ItemModal from "@/components/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
@@ -221,7 +220,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     base_cost: item.original_cost,
     core_equipment: false,
     vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
-    vehicle_equipment_id: item.vehicle_weapon_id || item.id
+    vehicle_equipment_id: item.vehicle_weapon_id || item.id,
+    weapon_profiles: item.weapon_profiles
   }));
 
   // Preserve all effects from server, with defaults for required categories

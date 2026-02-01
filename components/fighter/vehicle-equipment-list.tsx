@@ -13,6 +13,8 @@ import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
+import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment-tooltip';
+import { Equipment } from '@/types/equipment';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -346,7 +348,8 @@ export function VehicleEquipmentList({
       core_equipment: item.core_equipment,
       fighter_equipment_id: item.fighter_equipment_id,
       equipment_id: item.equipment_id,
-      slot: slot
+      slot: slot,
+      _equipment: item as Equipment
     };
   });
 
@@ -359,7 +362,16 @@ export function VehicleEquipmentList({
           {
             key: 'equipment_name',
             label: 'Name',
-            width: '65%'
+            width: '65%',
+            render: (value: string, item: { _equipment?: Equipment }) => {
+              const equipment = item._equipment;
+              if (!equipment) return value;
+              return (
+                <EquipmentTooltipTrigger item={equipment} className="block w-full">
+                  {value}
+                </EquipmentTooltipTrigger>
+              );
+            }
           },
           {
             key: 'slot',
@@ -461,6 +473,8 @@ export function VehicleEquipmentList({
           ); return true; }}
         />
       )}
+
+      <EquipmentTooltip />
     </>
   );
 } 
