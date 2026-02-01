@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { invalidateGangStash, invalidateUserCustomizations, invalidateGangCredits } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { logEquipmentAction } from '@/app/actions/logs/equipment-logs';
 
 interface ChemEffect {
   name: string;
@@ -95,14 +96,35 @@ export async function createChemAlchemy({
 
     // Deduct credits from gang using centralized helper
     const { updateGangFinancials } = await import('@/utils/gang-rating-and-wealth');
+    const purchaseCost = useBaseCostForRating ? baseCost : totalCost;
     const financialResult = await updateGangFinancials(supabase, {
       gangId,
-      creditsDelta: -totalCost
+      creditsDelta: -totalCost,
+      stashValueDelta: purchaseCost
     });
 
     if (!financialResult.success) {
       console.error('Error updating gang credits:', financialResult.error);
       throw new Error(financialResult.error || 'Failed to update gang credits');
+    }
+
+    // Log equipment action AFTER gang rating is updated (so logs show correct rating)
+    try {
+      await logEquipmentAction({
+        gang_id: gangId,
+        equipment_name: name,
+        purchase_cost: totalCost,
+        action_type: 'purchased',
+        user_id: user.id,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log equipment action:', logError);
     }
 
     console.log('Chem-alchemy created successfully, using granular cache invalidation');
