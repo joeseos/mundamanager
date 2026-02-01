@@ -670,6 +670,14 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
 
       const vehicleEquipment = equipmentResult.data || [];
 
+      // Build sets of equipment IDs on this vehicle (for ammo ownership filter)
+      const vehicleStandardIds = new Set(
+        vehicleEquipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id)
+      );
+      const vehicleCustomIds = new Set(
+        vehicleEquipment.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
+      );
+
       // Extract equipment IDs for weapon profile lookup
       const standardEquipmentIds = vehicleEquipment.filter((item: any) => {
         const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
@@ -717,7 +725,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           : Promise.resolve({ data: [] })
       ]);
 
-      // Create Maps for O(1) lookup
+      // Base profiles only (weapon_id = this equipment)
       const standardProfilesMap = new Map<string, any[]>();
       (standardProfilesData.data || []).forEach((profile: any) => {
         if (profile.weapon_id) {
@@ -726,11 +734,16 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           }
           standardProfilesMap.get(profile.weapon_id)!.push(profile);
         }
-        if (profile.weapon_group_id && standardEquipmentIds.includes(profile.weapon_group_id)) {
-          if (!standardProfilesMap.has(profile.weapon_group_id)) {
-            standardProfilesMap.set(profile.weapon_group_id, []);
+      });
+
+      // Ammo/accessory profiles indexed by parent weapon (only include if vehicle has the ammo)
+      const standardAmmoByParentWeapon = new Map<string, any[]>();
+      (standardProfilesData.data || []).forEach((profile: any) => {
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id) {
+          if (!standardAmmoByParentWeapon.has(profile.weapon_group_id)) {
+            standardAmmoByParentWeapon.set(profile.weapon_group_id, []);
           }
-          standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
+          standardAmmoByParentWeapon.get(profile.weapon_group_id)!.push(profile);
         }
       });
 
@@ -742,32 +755,54 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           }
           customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
         }
-        if (profile.weapon_group_id && customEquipmentIds.includes(profile.weapon_group_id)) {
-          if (!customProfilesMap.has(profile.weapon_group_id)) {
-            customProfilesMap.set(profile.weapon_group_id, []);
+      });
+
+      const customAmmoByParentWeapon = new Map<string, any[]>();
+      (customProfilesData.data || []).forEach((profile: any) => {
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.custom_equipment_id) {
+          if (!customAmmoByParentWeapon.has(profile.weapon_group_id)) {
+            customAmmoByParentWeapon.set(profile.weapon_group_id, []);
           }
-          customProfilesMap.get(profile.weapon_group_id)!.push(profile);
+          customAmmoByParentWeapon.get(profile.weapon_group_id)!.push(profile);
         }
       });
 
-      // Process equipment with weapon profiles
+      // Process equipment with weapon profiles (base + ammo only if vehicle has that ammo)
       const processedEquipment = vehicleEquipment.map((item: any) => {
         const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
         let weaponProfiles: any[] = [];
 
         if (equipmentType === 'weapon') {
           if (item.equipment_id) {
-            const profiles = standardProfilesMap.get(item.equipment_id) || [];
-            weaponProfiles = profiles.map((profile: any) => ({
-              ...profile,
-              is_master_crafted: item.is_master_crafted || false
-            }));
+            const baseProfiles = standardProfilesMap.get(item.equipment_id) || [];
+            const ammoProfiles = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
+              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+            const seenIds = new Set<string>();
+            weaponProfiles = [...baseProfiles, ...ammoProfiles]
+              .filter((p: any) => {
+                if (seenIds.has(p.id)) return false;
+                seenIds.add(p.id);
+                return true;
+              })
+              .map((profile: any) => ({
+                ...profile,
+                is_master_crafted: item.is_master_crafted || false
+              }));
           } else if (item.custom_equipment_id) {
-            const profiles = customProfilesMap.get(item.custom_equipment_id) || [];
-            weaponProfiles = profiles.map((profile: any) => ({
-              ...profile,
-              is_master_crafted: item.is_master_crafted || false
-            }));
+            const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
+            const ammoProfiles = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+              .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+            const seenIds = new Set<string>();
+            weaponProfiles = [...baseProfiles, ...ammoProfiles]
+              .filter((p: any) => {
+                if (seenIds.has(p.id)) return false;
+                seenIds.add(p.id);
+                return true;
+              })
+              .map((profile: any) => ({
+                ...profile,
+                is_master_crafted: item.is_master_crafted || false
+              }));
           }
         }
 

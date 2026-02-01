@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { useMutation } from '@tanstack/react-query';
-import Modal from '../ui/modal';
+import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
@@ -19,9 +19,10 @@ import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
 import { FighterLoadout } from '@/types/equipment';
-import FighterLoadoutsModal from './fighter-loadouts-modal';
+import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
+import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment-tooltip';
 
 interface WeaponListProps {
   fighterId: string;
@@ -717,8 +718,12 @@ export function WeaponList({
         className={isChild ? "border-b bg-muted/20" : "border-b"}
       >
         <td className="px-1 py-1">
-          {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
-          <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.equipment_name}</span>
+          <EquipmentTooltipTrigger item={item} className="block w-full">
+            <>
+              {isChild && <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}><TbCornerLeftUp className="inline" /></span>}
+              <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.equipment_name}</span>
+            </>
+          </EquipmentTooltipTrigger>
         </td>
         <td className="px-1 py-1 text-right">
           <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.cost ?? '-'}</span>
@@ -1056,6 +1061,8 @@ export function WeaponList({
           }}
         />
       )}
+
+      <EquipmentTooltip />
     </>
   );
 }
