@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict bqY8vjahln8DbKGKQ7neOp1Mpsmce1aTZOZcPc25IUJcHRua6nirOGor9RFqJP7
+\restrict xA3uuglyXKhKWNddTVuLiiVYd9JLgVChwvhaQNAS5vtHzcqEg2T7drIT7suX8tz
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -457,7 +457,7 @@ $$;
 -- Name: get_add_fighter_details(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_add_fighter_details(p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb)
+CREATE FUNCTION public.get_add_fighter_details(p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 BEGIN
@@ -1081,7 +1081,8 @@ BEGIN
                 WHERE ftgl.fighter_type_id = ft.id
             ),
             '[]'::jsonb
-        ) AS available_legacies
+        ) AS available_legacies,
+        ft.free_skill
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
@@ -2580,7 +2581,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, free_skill boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 BEGIN
@@ -3337,7 +3338,8 @@ BEGIN
                     'sub_type_name', fsub.sub_type_name
                 )
             ELSE NULL
-        END AS sub_type
+        END AS sub_type,
+        ft.free_skill
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
@@ -6584,6 +6586,13 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 --
 
 CREATE INDEX fighter_types_fighter_type_idx ON public.fighter_types USING btree (fighter_type);
+
+
+--
+-- Name: fighter_types_gang_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_gang_type_idx ON public.fighter_types USING btree (gang_type);
 
 
 --
@@ -10485,5 +10494,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bqY8vjahln8DbKGKQ7neOp1Mpsmce1aTZOZcPc25IUJcHRua6nirOGor9RFqJP7
+\unrestrict xA3uuglyXKhKWNddTVuLiiVYd9JLgVChwvhaQNAS5vtHzcqEg2T7drIT7suX8tz
 
