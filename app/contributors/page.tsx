@@ -88,8 +88,8 @@ export default async function ContributorsPage() {
 
   const ongoingContributors: Contributor[] = [
     { name: "YukiTheSnowFox", link: "https://www.instagram.com/inquisitorsnowfox" },
+    { name: "Levariel" },
     { name: "T_H_E_S_E_U_S" },
-    { name: "Professor Bleep Bloop" },
     { name: "HiveScum Wonka" },
     { name: "Clicky" },
   ];
@@ -101,6 +101,7 @@ export default async function ContributorsPage() {
     { name: "Pyriand" },
     { name: "HochuChaya" },
     { name: "TheJosh" },
+    { name: "Professor Bleep Bloop" },
   ];
 
   const contentCreators: Contributor[] = [
@@ -203,7 +204,7 @@ export default async function ContributorsPage() {
                 </ul>
                 
                 <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-2">Ongoing Contributors</h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-2">Ongoing Members</h3>
                   <div className="flex flex-wrap gap-2">
                     {ongoingContributors.map((contributor, index) => (
                       contributor.link ? (
@@ -224,7 +225,7 @@ export default async function ContributorsPage() {
                 </div>
 
                 <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-2">Past Contributors</h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-2">Past Members</h3>
                   <div className="flex flex-wrap gap-2">
                     {pastContributors.map((contributor, index) => (
                       contributor.link ? (
