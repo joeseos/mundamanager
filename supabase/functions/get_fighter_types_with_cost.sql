@@ -1,4 +1,5 @@
 -- Drop previous versions
+DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost();
@@ -37,7 +38,8 @@ RETURNS TABLE (
     default_equipment jsonb,
     equipment_selection jsonb,
     total_cost numeric,
-    sub_type jsonb
+    sub_type jsonb,
+    free_skill boolean
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY
@@ -793,7 +795,8 @@ BEGIN
                     'sub_type_name', fsub.sub_type_name
                 )
             ELSE NULL
-        END AS sub_type
+        END AS sub_type,
+        ft.free_skill
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 

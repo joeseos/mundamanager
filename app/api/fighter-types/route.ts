@@ -208,7 +208,8 @@ export async function GET(request: Request) {
             sub_type: null,
             fighter_sub_type_id: null,
             available_legacies: [],
-            is_custom_fighter: true // Mark as custom fighter
+            is_custom_fighter: true, // Mark as custom fighter
+            free_skill: cf.free_skill || false
           }));
 
         // Add custom fighters to the data

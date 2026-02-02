@@ -58,4 +58,5 @@ export interface FighterType {
   fighter_sub_type_id?: string;
   available_legacies?: Array<{id: string, name: string}>;
   is_spyrer?: boolean;
+  free_skill?: boolean;
 } 

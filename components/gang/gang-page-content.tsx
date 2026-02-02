@@ -278,6 +278,72 @@ export default function GangPageContent({
     });
   }, []);
 
+  // Rollback handler for optimistic updates - removes temp fighter and restores credits/rating/wealth
+  const handleFighterRollback = useCallback((tempFighterId: string, cost: number, ratingCost: number) => {
+    setGangData((prev: GangDataState) => {
+      // Remove the temp fighter from the fighters array
+      const updatedFighters = prev.processedData.fighters.filter(f => f.id !== tempFighterId);
+
+      // Restore gang credits by adding back the cost
+      const updatedCredits = prev.processedData.credits + cost;
+
+      // Restore gang rating by subtracting the fighter's rating cost
+      const updatedRating = prev.processedData.rating - ratingCost;
+
+      // Restore gang wealth: undo the rating increase and credits decrease
+      const updatedWealth = prev.processedData.wealth - ratingCost + cost;
+
+      // Remove from positioning - find and remove the entry with this fighter ID
+      const updatedPositioning = { ...prev.processedData.positioning };
+      for (const [position, fighterId] of Object.entries(updatedPositioning)) {
+        if (fighterId === tempFighterId) {
+          delete updatedPositioning[Number(position)];
+          break;
+        }
+      }
+
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: updatedFighters,
+          credits: updatedCredits,
+          rating: updatedRating,
+          wealth: updatedWealth,
+          positioning: updatedPositioning
+        }
+      };
+    });
+  }, []);
+
+  // Reconcile handler for optimistic updates - replaces temp fighter with real one
+  const handleFighterReconcile = useCallback((tempFighterId: string, realFighter: FighterProps) => {
+    setGangData((prev: GangDataState) => {
+      // Replace the temp fighter with the real one
+      const updatedFighters = prev.processedData.fighters.map(f =>
+        f.id === tempFighterId ? realFighter : f
+      );
+
+      // Update positioning - replace temp ID with real ID
+      const updatedPositioning = { ...prev.processedData.positioning };
+      for (const [position, fighterId] of Object.entries(updatedPositioning)) {
+        if (fighterId === tempFighterId) {
+          updatedPositioning[Number(position)] = realFighter.id;
+          break;
+        }
+      }
+
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: updatedFighters,
+          positioning: updatedPositioning
+        }
+      };
+    });
+  }, []);
+
   const handleVehicleAdd = useCallback((newVehicle: VehicleProps) => {
     setGangData((prev: GangDataState) => {
       // Keep only unassigned vehicles and dedupe by id when adding
@@ -574,6 +640,8 @@ export default function GangPageContent({
             stash={gangData.stash}
             onVehicleAdd={handleVehicleAdd}
             onFighterAdd={handleFighterAdd}
+            onFighterRollback={handleFighterRollback}
+            onFighterReconcile={handleFighterReconcile}
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
             gang_variants={gangData.processedData.gang_variants}
