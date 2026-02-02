@@ -104,6 +104,8 @@ interface GangProps {
   stash: StashItem[];
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
+  onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
+  onFighterReconcile?: (tempFighterId: string, realFighter: FighterProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
   positioning: Record<number, string>;
@@ -157,6 +159,8 @@ export default function Gang({
   stash,
   onVehicleAdd,
   onFighterAdd,
+  onFighterRollback,
+  onFighterReconcile,
   onGangCreditsUpdate,
   onGangWealthUpdate,
   positioning,
@@ -1277,6 +1281,8 @@ export default function Gang({
               gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
+              onFighterRollback={onFighterRollback}
+              onFighterReconcile={onFighterReconcile}
               gangVariants={gangVariants}
               gangAffiliationId={gangAffiliationId}
             />

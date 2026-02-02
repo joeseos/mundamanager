@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
 import { FighterType } from '@/types/fighter-type';
+import { FighterProps } from '@/types/fighter';
 import { useToast } from "@/components/ui/use-toast";
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { fighterTypeRank } from "@/utils/fighterTypeRank";
@@ -14,6 +15,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { addFighterToGang } from '@/app/actions/add-fighter';
+import { useMutation } from '@tanstack/react-query';
+import {
+  buildFighterFromServerData,
+  buildBeastFromServerData,
+  createEmptyEffects,
+  createStats,
+  type AddFighterServerData,
+  type ExoticBeastServerData
+} from '@/utils/fighter-builder';
 
 interface AddFighterProps {
   showModal: boolean;
@@ -22,6 +32,8 @@ interface AddFighterProps {
   gangTypeId: string;
   initialCredits: number;
   onFighterAdded: (newFighter: any, cost: number) => void;
+  onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
+  onFighterReconcile?: (tempFighterId: string, realFighter: FighterProps) => void;
   gangVariants?: Array<{id: string, variant: string}>;
   gangAffiliationId?: string | null;
 }
@@ -222,6 +234,8 @@ export default function AddFighter({
   gangTypeId,
   initialCredits,
   onFighterAdded,
+  onFighterRollback,
+  onFighterReconcile,
   gangVariants = [],
   gangAffiliationId,
 }: AddFighterProps) {
@@ -246,6 +260,181 @@ export default function AddFighter({
     quantity: number;
     is_editable?: boolean;
   }>>([]);
+
+  // Check if optimistic updates are enabled (both callbacks must be provided)
+  const optimisticUpdatesEnabled = !!(onFighterRollback && onFighterReconcile);
+
+  // Helper function to build an optimistic fighter from form state
+  const buildOptimisticFighter = (tempId: string): FighterProps => {
+    const fighterTypeIdToUse = selectedSubTypeId || selectedFighterTypeId;
+    const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
+    const enteredCost = parseInt(fighterCost);
+    const actualBaseCost = selectedType?.total_cost || 0;
+
+    // Calculate equipment cost
+    const totalEquipmentCost = selectedEquipment.reduce((sum, item) =>
+      sum + (item.cost * (item.quantity || 1)), 0);
+
+    // Calculate display cost based on useBaseCostForRating setting
+    const displayCost = useBaseCostForRating ? (actualBaseCost + totalEquipmentCost) : enteredCost;
+
+    // Build optimistic weapons from default_equipment
+    const defaultEquipment = selectedType?.default_equipment || [];
+    const optimisticWeapons = defaultEquipment
+      .filter((item: any) => item.equipment_type === 'weapon')
+      .map((item: any) => ({
+        fighter_weapon_id: `temp-${item.id}`,
+        weapon_id: item.id,
+        weapon_name: item.equipment_name,
+        cost: item.cost || 0,
+        weapon_profiles: [], // Will be filled on reconcile
+      }));
+
+    // Build optimistic wargear from default_equipment
+    const optimisticWargear = defaultEquipment
+      .filter((item: any) => item.equipment_type === 'wargear')
+      .map((item: any) => ({
+        fighter_weapon_id: `temp-${item.id}`,
+        wargear_id: item.id,
+        wargear_name: item.equipment_name,
+        cost: item.cost || 0,
+      }));
+
+    const stats = createStats({
+      movement: selectedType?.movement || 0,
+      weapon_skill: selectedType?.weapon_skill || 0,
+      ballistic_skill: selectedType?.ballistic_skill || 0,
+      strength: selectedType?.strength || 0,
+      toughness: selectedType?.toughness || 0,
+      wounds: selectedType?.wounds || 0,
+      initiative: selectedType?.initiative || 0,
+      attacks: selectedType?.attacks || 0,
+      leadership: selectedType?.leadership || 0,
+      cool: selectedType?.cool || 0,
+      willpower: selectedType?.willpower || 0,
+      intelligence: selectedType?.intelligence || 0
+    });
+
+    return {
+      id: tempId,
+      fighter_name: fighterName,
+      fighter_type_id: fighterTypeIdToUse,
+      fighter_type: selectedType?.fighter_type || '',
+      fighter_class: selectedType?.fighter_class || '',
+      fighter_sub_type: selectedType?.sub_type ? {
+        fighter_sub_type_id: selectedType.sub_type.id || '',
+        fighter_sub_type: selectedType.sub_type.sub_type_name || ''
+      } : undefined,
+      credits: displayCost,
+      ...stats,
+      xp: 0,
+      kills: 0,
+      weapons: optimisticWeapons,
+      wargear: optimisticWargear,
+      special_rules: selectedType?.special_rules || [],
+      skills: {}, // Will be filled on reconcile
+      advancements: {
+        characteristics: {},
+        skills: {}
+      },
+      free_skill: selectedType?.free_skill || false,
+      effects: createEmptyEffects(),
+      base_stats: stats,
+      current_stats: stats
+    };
+  };
+
+  // TanStack Query mutation for optimistic updates
+  const addFighterMutation = useMutation({
+    mutationFn: async (params: {
+      fighter_name: string;
+      fighter_type_id: string;
+      gang_id: string;
+      cost: number;
+      selected_equipment: typeof selectedEquipment;
+      default_equipment: Array<{ equipment_id: string; cost: number; quantity: number; is_editable?: boolean }>;
+      use_base_cost_for_rating: boolean;
+      fighter_gang_legacy_id?: string;
+    }) => {
+      const result = await addFighterToGang(params);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to add fighter');
+      }
+      return result.data!;
+    },
+    onMutate: async (variables) => {
+      // Close modal immediately regardless of optimistic updates
+      closeModal();
+
+      // Only do optimistic updates if both rollback and reconcile callbacks are provided
+      if (!optimisticUpdatesEnabled) {
+        return { tempFighterId: null, cost: variables.cost, ratingCost: 0 };
+      }
+
+      // Generate temp ID
+      const tempFighterId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Build optimistic fighter
+      const optimisticFighter = buildOptimisticFighter(tempFighterId);
+
+      // Call onFighterAdded with optimistic fighter
+      onFighterAdded(optimisticFighter, variables.cost);
+
+      // Return context for rollback/reconcile
+      const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
+      const actualBaseCost = selectedType?.total_cost || 0;
+      const totalEquipmentCost = variables.selected_equipment.reduce((sum, item) =>
+        sum + (item.cost * (item.quantity || 1)), 0);
+      const ratingCost = variables.use_base_cost_for_rating
+        ? (actualBaseCost + totalEquipmentCost)
+        : variables.cost;
+
+      return { tempFighterId, cost: variables.cost, ratingCost };
+    },
+    onError: (error, variables, context) => {
+      // Rollback optimistic update only if we did one
+      if (context?.tempFighterId && onFighterRollback) {
+        onFighterRollback(context.tempFighterId, context.cost, context.ratingCost);
+      }
+
+      toast({
+        description: error instanceof Error ? error.message : 'Failed to add fighter',
+        variant: "destructive"
+      });
+    },
+    onSuccess: (data, variables, context) => {
+      if (!context) return;
+
+      // Build real fighter from server response using utility
+      const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
+      const realFighter = buildFighterFromServerData(
+        data as AddFighterServerData,
+        variables.fighter_type_id,
+        selectedType?.sub_type?.sub_type_name
+      );
+
+      // If we did an optimistic update, reconcile; otherwise add the fighter now
+      if (context.tempFighterId && onFighterReconcile) {
+        onFighterReconcile(context.tempFighterId, realFighter);
+      } else if (!context.tempFighterId) {
+        // Non-optimistic path: add the fighter after server confirms
+        onFighterAdded(realFighter, variables.cost);
+      }
+
+      // Handle exotic beasts if created
+      if (data.created_beasts && data.created_beasts.length > 0) {
+        data.created_beasts.forEach((beast: ExoticBeastServerData) => {
+          const beastFighter = buildBeastFromServerData(beast);
+          onFighterAdded(beastFighter, 0); // 0 cost since already paid
+        });
+      }
+
+      toast({
+        description: `${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} exotic beast(s)` : ''}`,
+        variant: "default"
+      });
+    }
+  });
 
   // Fetch fighter types when modal opens or includeCustomFighters changes
   useEffect(() => {
@@ -305,7 +494,8 @@ export default function AddFighter({
         sub_type: type.sub_type,
         fighter_sub_type_id: type.sub_type?.id,
         available_legacies: type.available_legacies || [],
-        is_custom_fighter: type.is_custom_fighter || false
+        is_custom_fighter: type.is_custom_fighter || false,
+        free_skill: type.free_skill || false
       }));
       
       setFighterTypes(transformedData);
@@ -771,6 +961,7 @@ export default function AddFighter({
   }, [selectedSubTypeId, fighterTypes]);
 
   const handleAddFighter = async () => {
+    // Validation before mutation fires
     if (!fighterName || !fighterCost) {
       setFetchError('Please fill in all fields');
       return false;
@@ -793,276 +984,28 @@ export default function AddFighter({
       return false;
     }
 
-    try {
-      
-      // Get the base cost of the fighter for optimistic update
-      const selectedType = fighterTypes.find(t => t.id === fighterTypeIdToUse);
-      const actualBaseCost = selectedType?.total_cost || 0;
-      
-      // Determine the actual cost to use for gang credits deduction (always what user entered)
-      const gangCreditsCost = enteredCost;
-      
-      // Determine the cost to use for fighter rating/display
-      const fighterDisplayCost = useBaseCostForRating ? actualBaseCost : enteredCost;
+    // Prepare default equipment from the selected fighter type
+    const fighterTypeForEquipment = fighterTypes.find(t => t.id === fighterTypeIdToUse);
+    const defaultEquipment = fighterTypeForEquipment?.default_equipment?.map(item => ({
+      equipment_id: item.id,
+      cost: item.cost || 0,
+      quantity: 1,
+      is_editable: item.is_editable || false
+    })) || [];
 
-      // Prepare default equipment from the selected fighter type
-      const fighterTypeForEquipment = fighterTypes.find(t => t.id === fighterTypeIdToUse);
-      const defaultEquipment = fighterTypeForEquipment?.default_equipment?.map(item => ({
-        equipment_id: item.id,
-        cost: item.cost || 0,
-        quantity: 1,
-        is_editable: item.is_editable || false
-      })) || [];
-      
+    // Trigger mutation (optimistic update happens in onMutate)
+    addFighterMutation.mutate({
+      fighter_name: fighterName,
+      fighter_type_id: fighterTypeIdToUse,
+      gang_id: gangId,
+      cost: enteredCost,
+      selected_equipment: selectedEquipment,
+      default_equipment: defaultEquipment,
+      use_base_cost_for_rating: useBaseCostForRating,
+      fighter_gang_legacy_id: selectedLegacyId || undefined
+    });
 
-      // Use the new server action instead of direct SQL function call
-      const result = await addFighterToGang({
-        fighter_name: fighterName,
-        fighter_type_id: fighterTypeIdToUse,
-        gang_id: gangId,
-        cost: enteredCost,
-        selected_equipment: selectedEquipment,
-        default_equipment: defaultEquipment,
-        use_base_cost_for_rating: useBaseCostForRating,
-        fighter_gang_legacy_id: selectedLegacyId || undefined
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to add fighter');
-}
-
-      const data = result.data!;
-
-      // Use the rating_cost from the server - it correctly handles the use_base_cost_for_rating setting
-      const displayCost = data.rating_cost || data.cost || enteredCost;
-
-      const newFighter = {
-        id: data.fighter_id,
-        fighter_name: fighterName,
-        fighter_type_id: fighterTypeIdToUse,
-        fighter_type: data.fighter_type,
-        fighter_class: data.fighter_class,
-        fighter_sub_type: data.fighter_sub_type_id ? { 
-          fighter_sub_type_id: data.fighter_sub_type_id,
-          fighter_sub_type: selectedType?.sub_type?.sub_type_name || ''
-        } : undefined,
-        credits: displayCost,
-        movement: data.stats.movement,
-        weapon_skill: data.stats.weapon_skill,
-        ballistic_skill: data.stats.ballistic_skill,
-        strength: data.stats.strength,
-        toughness: data.stats.toughness,
-        wounds: data.stats.wounds,
-        initiative: data.stats.initiative,
-        attacks: data.stats.attacks,
-        leadership: data.stats.leadership,
-        cool: data.stats.cool,
-        willpower: data.stats.willpower,
-        intelligence: data.stats.intelligence,
-        xp: data.stats.xp,
-        kills: 0,
-        weapons: data.equipment
-          .filter((item: any) => item.equipment_type === 'weapon')
-          .map((item: any) => ({
-            weapon_name: item.equipment_name,
-            weapon_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id,
-            weapon_profiles: item.weapon_profiles || []
-          })),
-        wargear: data.equipment
-          .filter((item: any) => item.equipment_type === 'wargear')
-          .map((item: any) => ({
-            wargear_name: item.equipment_name,
-            wargear_id: item.equipment_id,
-            cost: item.cost,
-            fighter_weapon_id: item.fighter_equipment_id
-          })),
-        special_rules: data.special_rules || [],
-        skills: data.skills ? data.skills.reduce((acc: any, skill: any) => {
-          acc[skill.skill_name] = {
-            id: skill.skill_id,
-            credits_increase: 0,
-            xp_cost: 0,
-            is_advance: false,
-            acquired_at: new Date().toISOString(),
-            fighter_injury_id: null
-          };
-          return acc;
-        }, {}) : {},
-        advancements: {
-          characteristics: {},
-          skills: {}
-        },
-        injuries: [],
-        free_skill: data.free_skill || false,
-        effects: {
-          injuries: [],
-          advancements: [],
-          bionics: [],
-          cyberteknika: [],
-          'gene-smithing': [],
-          'rig-glitches': [],
-          'power-boosts': [],
-          augmentations: [],
-          equipment: [],
-          user: [],
-          skills: []
-        },
-        base_stats: {
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence
-        },
-        current_stats: {
-          movement: data.stats.movement,
-          weapon_skill: data.stats.weapon_skill,
-          ballistic_skill: data.stats.ballistic_skill,
-          strength: data.stats.strength,
-          toughness: data.stats.toughness,
-          wounds: data.stats.wounds,
-          initiative: data.stats.initiative,
-          attacks: data.stats.attacks,
-          leadership: data.stats.leadership,
-          cool: data.stats.cool,
-          willpower: data.stats.willpower,
-          intelligence: data.stats.intelligence
-        }
-      };
-
-      onFighterAdded(newFighter, gangCreditsCost);
-
-      // Process created exotic beasts
-      if (result.data?.created_beasts && result.data.created_beasts.length > 0) {
-        result.data.created_beasts.forEach(beast => {
-          const beastFighter = {
-            id: beast.id,
-            fighter_name: beast.fighter_name,
-            fighter_type: beast.fighter_type,
-            fighter_class: beast.fighter_class,
-            fighter_type_id: beast.fighter_type_id,
-            credits: beast.credits,
-            owner_name: beast.owner?.fighter_name,
-            // Use actual beast stats from database
-            movement: beast.movement,
-            weapon_skill: beast.weapon_skill,
-            ballistic_skill: beast.ballistic_skill,
-            strength: beast.strength,
-            toughness: beast.toughness,
-            wounds: beast.wounds,
-            initiative: beast.initiative,
-            attacks: beast.attacks,
-            leadership: beast.leadership,
-            cool: beast.cool,
-            willpower: beast.willpower,
-            intelligence: beast.intelligence,
-            xp: beast.xp,
-            kills: beast.kills,
-            // Process equipment
-            weapons: beast.equipment
-              .filter((item: any) => item.equipment_type === 'weapon')
-              .map((item: any) => ({
-                weapon_name: item.equipment_name,
-                weapon_id: item.equipment_id,
-                cost: item.cost,
-                fighter_weapon_id: item.fighter_equipment_id,
-                weapon_profiles: item.weapon_profiles || []
-              })),
-            wargear: beast.equipment
-              .filter((item: any) => item.equipment_type === 'wargear')
-              .map((item: any) => ({
-                wargear_name: item.equipment_name,
-                wargear_id: item.equipment_id,
-                cost: item.cost,
-                fighter_weapon_id: item.fighter_equipment_id
-              })),
-            special_rules: beast.special_rules || [],
-            // Process skills
-            skills: beast.skills ? beast.skills.reduce((acc: any, skill: any) => {
-              acc[skill.skill_name] = {
-                id: skill.skill_id,
-                credits_increase: 0,
-                xp_cost: 0,
-                is_advance: false,
-                acquired_at: new Date().toISOString(),
-                fighter_injury_id: null
-              };
-              return acc;
-            }, {}) : {},
-            advancements: {
-              characteristics: {},
-              skills: {}
-            },
-            injuries: [],
-            free_skill: false,
-            effects: {
-              injuries: [],
-              advancements: [],
-              bionics: [],
-              cyberteknika: [],
-              'gene-smithing': [],
-              'rig-glitches': [],
-              'power-boosts': [],
-              augmentations: [],
-              equipment: [],
-              user: [],
-              skills: []
-            },
-            base_stats: {
-              movement: beast.movement,
-              weapon_skill: beast.weapon_skill,
-              ballistic_skill: beast.ballistic_skill,
-              strength: beast.strength,
-              toughness: beast.toughness,
-              wounds: beast.wounds,
-              initiative: beast.initiative,
-              attacks: beast.attacks,
-              leadership: beast.leadership,
-              cool: beast.cool,
-              willpower: beast.willpower,
-              intelligence: beast.intelligence
-            },
-            current_stats: {
-              movement: beast.movement,
-              weapon_skill: beast.weapon_skill,
-              ballistic_skill: beast.ballistic_skill,
-              strength: beast.strength,
-              toughness: beast.toughness,
-              wounds: beast.wounds,
-              initiative: beast.initiative,
-              attacks: beast.attacks,
-              leadership: beast.leadership,
-              cool: beast.cool,
-              willpower: beast.willpower,
-              intelligence: beast.intelligence
-            }
-          };
-          onFighterAdded(beastFighter, 0); // 0 cost since already paid
-        });
-      }
-      
-      closeModal();
-
-      toast({
-        description: `${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
-        variant: "default"
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error adding fighter:', error);
-      setFetchError(error instanceof Error ? error.message : 'Failed to add fighter');
-      return false;
-    }
+    return true;
   };
 
   const closeModal = () => {
