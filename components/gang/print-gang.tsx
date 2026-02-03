@@ -49,6 +49,8 @@ interface PrintGangProps {
     hidden: boolean;
     positioning: Record<number, string>;
     note?: string;
+    /** Pre-filtered list with only active loadout per fighter (computed on server) */
+    fightersActiveLoadoutOnly?: FighterProps[];
   };
 }
 
@@ -129,6 +131,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
     stash,
     campaigns,
     note,
+    fightersActiveLoadoutOnly = [],
     username,
     patreon_tier_id,
     patreon_tier_title,
@@ -165,6 +168,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [showWFWBoxes, setShowWFWBoxes] = useState(false);
   const [showGangCard, setShowGangCard] = useState(true);
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(true);
+  const [showInactiveFighterLoadouts, setShowInactiveFighterLoadouts] = useState(false);
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
 
   // Handle print with style
@@ -187,7 +191,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
     positionMap[fighterId] = Number(pos);
   });
 
-  const sortedFighters = [...fighters]
+  // Use pre-filtered list when "Inactive Fighters Loadouts" is off (server-side filter is reliable)
+  const sourceFighters =
+    !showInactiveFighterLoadouts && fightersActiveLoadoutOnly.length > 0
+      ? fightersActiveLoadoutOnly
+      : fighters;
+
+  const sortedFighters = [...sourceFighters]
     .filter((f) => {
       // Filter out inactive fighters if option is disabled
       if (!showInactiveFighters && (f.killed || f.enslaved || f.retired)) {
@@ -206,7 +216,10 @@ export default function PrintGang({ gang }: PrintGangProps) {
     .sort((a, b) => {
       const posA = positionMap[a.id] ?? Number.MAX_SAFE_INTEGER;
       const posB = positionMap[b.id] ?? Number.MAX_SAFE_INTEGER;
-      return posA - posB;
+      if (posA !== posB) return posA - posB;
+      const loadoutIdA = (a as { active_loadout_id?: string }).active_loadout_id ?? "";
+      const loadoutIdB = (b as { active_loadout_id?: string }).active_loadout_id ?? "";
+      return loadoutIdA.localeCompare(loadoutIdB);
     });
 
   return (
@@ -217,7 +230,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
             <h2 className="text-xl md:text-2xl font-bold mb-2">Print Options</h2>
           </div>
           <div className="rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
-            <strong>Note:</strong> Displayed size on this pageis indicative only. You can change the scale of your print in your printer settings.
+            <strong>Note:</strong> Displayed size on this page is indicative only. You can change the scale of your print in your printer settings.
           </div>
           <div className="flex flex-col gap-4">
             {/* View Mode Toggle */}
@@ -334,6 +347,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     onCheckedChange={(checked) => setShowInactiveFighters(checked === true)}
                   />
                   <span className="text-sm">Inactive Fighters (Killed/Retired/Enslaved)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={showInactiveFighterLoadouts}
+                    onCheckedChange={(checked) => setShowInactiveFighterLoadouts(checked === true)}
+                  />
+                  <span className="text-sm">Inactive Fighters Loadouts</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox
@@ -622,8 +642,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       'Int': `${adjustedStats.intelligence}+`
                     }) as StatsType;
 
+                const fighterRowKey = `${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`;
                 return (
-                  <tr key={fighter.id}>
+                  <tr key={fighterRowKey}>
                     <td className="border border-black px-1 py-1 text-center align-top">
                       {index + 1}
                     </td>
@@ -631,6 +652,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                        <div className="flex justify-between gap-2">
                          <div className="font-semibold text-[10px]">
                            {fighter.fighter_name}
+                           {(fighter as { active_loadout_name?: string }).active_loadout_name
+                             ? ` (${(fighter as { active_loadout_name?: string }).active_loadout_name})`
+                             : ""}
                          </div>
                          <div className="text-[10px] font-semibold whitespace-nowrap">
                            Rating: {fighter.credits ?? 0}
@@ -1202,7 +1226,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   const fighterCurrentStats = fighter.current_stats || fighterBaseStats;
 
                   return (
-                    <div key={fighter.id} className="w-[630px] break-inside-avoid">
+                    <div key={`${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`} className="w-[630px] break-inside-avoid">
                       <FighterCard
                         id={fighter.id}
                         name={fighter.fighter_name}
