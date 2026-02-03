@@ -191,7 +191,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+      className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
       <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>

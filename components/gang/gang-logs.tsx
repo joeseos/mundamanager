@@ -68,6 +68,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'fighter_killed': 'Fighter killed',
       'fighter_resurected': 'Fighter resurected',
       'fighter_retired': 'Fighter retired',
+      'fighter_unretired': 'Fighter unretired',
       'fighter_enslaved': 'Fighter enslaved',
       'fighter_xp_changed': 'Fighter XP changed',
       'fighter_total_xp_changed': 'Fighter total XP changed',
@@ -84,10 +85,12 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'vehicle_equipment_granted': 'Vehicle equipment granted',
       'vehicle_added': 'Vehicle added',
       'vehicle_deleted': 'Vehicle removed',
+      'vehicle_sold': 'Vehicle sold',
       'vehicle_updated': 'Vehicle updated',
       'vehicle_removed': 'Vehicle removed',
       'vehicle_cost_changed': 'Vehicle cost changed',
-      'vehicle_assignment_changed': 'Vehicle assignment changed',
+      'vehicle_assigned': 'Vehicle assigned',
+      'vehicle_unassigned': 'Vehicle unassigned',
       'vehicle_name_changed': 'Vehicle name changed',
       'vehicle_equipment_purchased': 'Vehicle equipment purchased',
       'vehicle_equipment_sold': 'Vehicle equipment sold',
@@ -96,6 +99,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       'vehicle_equipment_moved_from_stash': 'Vehicle equipment moved from stash',
       'vehicle_damage_added': 'Vehicle damage sustained',
       'vehicle_damage_removed': 'Vehicle damage recovered',
+      'vehicle_damage_repaired': 'Vehicle damage repaired',
       'stash_update': 'Stash updated',
       'alignment_change': 'Alignment changed',
       'gang_created': 'Gang created',
@@ -159,13 +163,27 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
     {
       key: 'action_type',
       label: 'Type',
-      width: '90px',
+      width: '60px',
       render: (value) => getActionTypeDisplay(value)
     },
     {
       key: 'description',
       label: 'Description',
-      render: (value) => value
+      render: (value: string) => {
+        if (!value) return value;
+        const newlineIndex = value.indexOf('\n');
+        if (newlineIndex === -1) return value;
+        const main = value.slice(0, newlineIndex);
+        const financial = value.slice(newlineIndex + 1).trim();
+        if (!financial) return main;
+        return (
+          <span className="block">
+            {main}
+            <br />
+            <span className="text-xs text-muted-foreground block mt-0.5">{financial}</span>
+          </span>
+        );
+      }
     }
   ];
 

@@ -164,6 +164,8 @@ export interface GangFighter {
   beast_equipment_stashed?: boolean;
   active_loadout_id?: string;
   active_loadout_name?: string;
+  /** When true, this entry represents the fighter's in-game active loadout (used for print filtering) */
+  isActiveLoadoutForPrint?: boolean;
 }
 
 // =============================================================================
@@ -889,7 +891,18 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
  *
  * Target: ~8 queries total regardless of fighter count (vs ~100+ with N+1 pattern)
  */
-export const getGangFightersList = async (gangId: string, supabase: any): Promise<GangFighter[]> => {
+export interface GetGangFightersListOptions {
+  expandLoadoutsForPrint?: boolean;
+}
+
+export const getGangFightersList = async (
+  gangId: string,
+  supabase: any,
+  options?: GetGangFightersListOptions
+): Promise<GangFighter[]> => {
+  const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
+  const cacheKey = expandLoadoutsForPrint ? `gang-fighters-list-print-${gangId}` : `gang-fighters-list-${gangId}`;
+
   return unstable_cache(
     async () => {
       // Step 1: Fetch ALL fighters for the gang in ONE query with joins
@@ -945,7 +958,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           fighter_types!fighter_type_id (
             fighter_type,
             alliance_crew_name,
-            cost
+            cost,
+            is_spyrer
           ),
           fighter_sub_types!fighter_sub_type_id (
             id,
@@ -961,10 +975,29 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       // Extract all fighter IDs for batch queries
       const fighterIds = fighters.map((f: any) => f.id);
 
-      // Collect active loadout IDs for batch fetch
+      // Collect loadout IDs for batch fetch (active only for normal view, all for print expansion)
       const activeLoadoutIds = fighters
         .map((f: any) => f.active_loadout_id)
         .filter((id: any) => id != null);
+
+      // When expanding for print, fetch all loadouts first to get their IDs for equipment fetch
+      let allLoadoutIdsForFetch = activeLoadoutIds;
+      let loadoutsByFighterForPrint = new Map<string, any[]>();
+      if (expandLoadoutsForPrint) {
+        const { data: allLoadoutsData } = await supabase
+          .from('fighter_loadouts')
+          .select('id, fighter_id, loadout_name')
+          .in('fighter_id', fighterIds)
+          .order('created_at', { ascending: true });
+        const allLoadoutsList = allLoadoutsData || [];
+        allLoadoutIdsForFetch = allLoadoutsList.map((l: any) => l.id);
+        allLoadoutsList.forEach((loadout: any) => {
+          if (!loadoutsByFighterForPrint.has(loadout.fighter_id)) {
+            loadoutsByFighterForPrint.set(loadout.fighter_id, []);
+          }
+          loadoutsByFighterForPrint.get(loadout.fighter_id)!.push(loadout);
+        });
+      }
 
       // Step 2: Batch fetch ALL related data in parallel
       const [
@@ -1114,20 +1147,20 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           .in('fighter_id', fighterIds)
           .not('fighter_equipment_id', 'is', null),
 
-        // Batch fetch loadout equipment assignments (which equipment belongs to which active loadouts)
-        activeLoadoutIds.length > 0
+        // Batch fetch loadout equipment assignments (active loadouts for normal view, all for print)
+        allLoadoutIdsForFetch.length > 0
           ? supabase
               .from('fighter_loadout_equipment')
               .select('loadout_id, fighter_equipment_id')
-              .in('loadout_id', activeLoadoutIds)
+              .in('loadout_id', allLoadoutIdsForFetch)
           : Promise.resolve({ data: [] }),
 
-        // Batch fetch loadout names for all active loadouts
-        activeLoadoutIds.length > 0
+        // Batch fetch loadout names (active for normal view, all for print)
+        allLoadoutIdsForFetch.length > 0
           ? supabase
               .from('fighter_loadouts')
               .select('id, loadout_name')
-              .in('id', activeLoadoutIds)
+              .in('id', allLoadoutIdsForFetch)
           : Promise.resolve({ data: [] })
       ]);
 
@@ -1378,7 +1411,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
       });
 
       // Step 5: Transform each fighter using pre-fetched data
-      return fighters.map((fighter: any) => {
+      const results: any[] = [];
+      for (const fighter of fighters) {
         try {
           const fighterId = fighter.id;
 
@@ -1390,11 +1424,52 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           const ownedBeasts = beastsByOwner[fighterId] || [];
           const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
 
-          // Get active loadout equipment filter (if loadout is set)
-          const activeLoadoutId = fighter.active_loadout_id;
-          const activeLoadoutEquipmentIds = activeLoadoutId
-            ? loadoutEquipmentMap.get(activeLoadoutId) || new Set<string>()
-            : null; // null means show all equipment (no loadout filter)
+          // Build list of loadout contexts to process (one for normal, multiple when expanding for print)
+          type LoadoutContext = { loadoutId: string | null; loadoutName?: string; isActiveLoadout: boolean };
+          const loadoutContexts: LoadoutContext[] = [];
+          if (expandLoadoutsForPrint) {
+            const fighterLoadouts = loadoutsByFighterForPrint.get(fighterId) || [];
+            const activeId = fighter.active_loadout_id;
+            if (fighterLoadouts.length === 0) {
+              // No loadouts: show all equipment in one card
+              loadoutContexts.push({ loadoutId: null, isActiveLoadout: true });
+            } else if (!activeId) {
+              // Has loadouts but no active: emit "all equipment" (for unchecked) + per-loadout (for checked)
+              loadoutContexts.push({ loadoutId: null, isActiveLoadout: true });
+              fighterLoadouts.forEach((l: any) => {
+                loadoutContexts.push({
+                  loadoutId: l.id,
+                  loadoutName: l.loadout_name,
+                  isActiveLoadout: false
+                });
+              });
+            } else {
+              const sorted = [...fighterLoadouts].sort((a, b) => {
+                if (a.id === activeId) return -1;
+                if (b.id === activeId) return 1;
+                return 0;
+              });
+              sorted.forEach((l) => {
+                loadoutContexts.push({
+                  loadoutId: l.id,
+                  loadoutName: l.loadout_name,
+                  isActiveLoadout: l.id === activeId
+                });
+              });
+            }
+          } else {
+            loadoutContexts.push({
+              loadoutId: fighter.active_loadout_id,
+              loadoutName: fighter.active_loadout_id ? loadoutNameMap.get(fighter.active_loadout_id) : undefined,
+              isActiveLoadout: true
+            });
+          }
+
+          for (const loadoutCtx of loadoutContexts) {
+            const activeLoadoutId = loadoutCtx.loadoutId;
+            const activeLoadoutEquipmentIds = activeLoadoutId
+              ? loadoutEquipmentMap.get(activeLoadoutId) || new Set<string>()
+              : null;
 
         // Process skills into the expected format
         const skills: Record<string, any> = {};
@@ -1440,6 +1515,18 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           equipment.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
         );
 
+        // When a loadout is active, set of catalog equipment_id/custom_equipment_id in that loadout (for ammo profile filtering)
+        const loadoutEquipmentIds: Set<string> | null = activeLoadoutEquipmentIds
+          ? new Set(
+              equipment
+                .filter((e: any) => activeLoadoutEquipmentIds!.has(e.id))
+                .flatMap((e: any) => [
+                  ...(e.equipment_id ? [e.equipment_id] : []),
+                  ...(e.custom_equipment_id ? [e.custom_equipment_id] : [])
+                ])
+            )
+          : null;
+
         // Process equipment and add weapon profiles
         const processedEquipment = equipment.map((item: any) => {
           const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
@@ -1450,9 +1537,9 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
               // Get base profiles for this weapon
               const baseProfiles = standardProfilesMap.get(item.equipment_id) || [];
 
-              // Get ammo profiles ONLY if THIS fighter owns the ammo
+              // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
               const ammoProfiles = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id));
+                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
 
               // Combine and deduplicate
               const seenIds = new Set<string>();
@@ -1470,9 +1557,9 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
               // Get base profiles for this custom weapon
               const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
 
-              // Get ammo profiles ONLY if THIS fighter owns the ammo
+              // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
               const ammoProfiles = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
-                .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id));
+                .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
 
               // Combine and deduplicate
               const seenIds = new Set<string>();
@@ -1719,7 +1806,7 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           ? fighter.credits + loadoutEquipmentCost + skillsCostForDisplay + effectsCostForDisplay + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts
           : 0;
 
-        return {
+        const result = {
           id: fighter.id,
           fighter_name: fighter.fighter_name,
           label: fighter.label,
@@ -1730,6 +1817,8 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
             fighter_sub_type_id: fighterSubTypeInfo.id
           } : undefined,
           alliance_crew_name: fighterTypeInfo.alliance_crew_name,
+          is_spyrer: fighterTypeInfo.is_spyrer ?? false,
+          kill_count: fighter.kill_count ?? 0,
           position: fighter.position,
           xp: fighter.xp,
           kills: fighter.kills || 0,
@@ -1766,15 +1855,18 @@ export const getGangFightersList = async (gangId: string, supabase: any): Promis
           owner_name: ownershipInfo?.owner_name,
           beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
           active_loadout_id: activeLoadoutId || undefined,
-          active_loadout_name: activeLoadoutId ? loadoutNameMap.get(activeLoadoutId) : undefined
+          active_loadout_name: activeLoadoutId ? (loadoutCtx.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,
+          isActiveLoadoutForPrint: loadoutCtx.isActiveLoadout
         };
+            results.push(result);
+          }
         } catch (error) {
           console.error(`Error processing fighter ${fighter.id}:`, error);
-          return null;
         }
-      }).filter((f: any): f is NonNullable<typeof f> => f !== null);
+      }
+      return results.filter((f: any) => f !== null);
     },
-    [`gang-fighters-list-${gangId}`],
+    [cacheKey],
     {
       tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
       revalidate: false

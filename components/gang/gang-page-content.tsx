@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import Gang from "@/components/gang/gang";
@@ -15,6 +15,11 @@ import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { FiMap } from 'react-icons/fi';
 import { LuClipboard } from 'react-icons/lu';
+import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
+import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
+import { InjuriesList } from "@/components/fighter/fighter-injury-list";
+import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
+import Modal from "@/components/ui/modal";
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -273,6 +278,72 @@ export default function GangPageContent({
     });
   }, []);
 
+  // Rollback handler for optimistic updates - removes temp fighter and restores credits/rating/wealth
+  const handleFighterRollback = useCallback((tempFighterId: string, cost: number, ratingCost: number) => {
+    setGangData((prev: GangDataState) => {
+      // Remove the temp fighter from the fighters array
+      const updatedFighters = prev.processedData.fighters.filter(f => f.id !== tempFighterId);
+
+      // Restore gang credits by adding back the cost
+      const updatedCredits = prev.processedData.credits + cost;
+
+      // Restore gang rating by subtracting the fighter's rating cost
+      const updatedRating = prev.processedData.rating - ratingCost;
+
+      // Restore gang wealth: undo the rating increase and credits decrease
+      const updatedWealth = prev.processedData.wealth - ratingCost + cost;
+
+      // Remove from positioning - find and remove the entry with this fighter ID
+      const updatedPositioning = { ...prev.processedData.positioning };
+      for (const [position, fighterId] of Object.entries(updatedPositioning)) {
+        if (fighterId === tempFighterId) {
+          delete updatedPositioning[Number(position)];
+          break;
+        }
+      }
+
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: updatedFighters,
+          credits: updatedCredits,
+          rating: updatedRating,
+          wealth: updatedWealth,
+          positioning: updatedPositioning
+        }
+      };
+    });
+  }, []);
+
+  // Reconcile handler for optimistic updates - replaces temp fighter with real one
+  const handleFighterReconcile = useCallback((tempFighterId: string, realFighter: FighterProps) => {
+    setGangData((prev: GangDataState) => {
+      // Replace the temp fighter with the real one
+      const updatedFighters = prev.processedData.fighters.map(f =>
+        f.id === tempFighterId ? realFighter : f
+      );
+
+      // Update positioning - replace temp ID with real ID
+      const updatedPositioning = { ...prev.processedData.positioning };
+      for (const [position, fighterId] of Object.entries(updatedPositioning)) {
+        if (fighterId === tempFighterId) {
+          updatedPositioning[Number(position)] = realFighter.id;
+          break;
+        }
+      }
+
+      return {
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: updatedFighters,
+          positioning: updatedPositioning
+        }
+      };
+    });
+  }, []);
+
   const handleVehicleAdd = useCallback((newVehicle: VehicleProps) => {
     setGangData((prev: GangDataState) => {
       // Keep only unassigned vehicles and dedupe by id when adding
@@ -311,13 +382,248 @@ export default function GangPageContent({
     }));
   }, []);
 
+  const [xpModalFighter, setXpModalFighter] = useState<FighterProps | null>(null);
+  const [injuryModalFighter, setInjuryModalFighter] = useState<FighterProps | null>(null);
+  const [injuryModalOpenAddOnMount, setInjuryModalOpenAddOnMount] = useState(false);
+  const [vehicleModalFighter, setVehicleModalFighter] = useState<FighterProps | null>(null);
+  const [vehicleModalOpenAddOnMount, setVehicleModalOpenAddOnMount] = useState(false);
+  const [openActionMenuFighterId, setOpenActionMenuFighterId] = useState<string | null>(null);
+
+  const openXpModal = useCallback((fighterId: string) => {
+    const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
+    setXpModalFighter(fighter);
+  }, [gangData.processedData.fighters]);
+
+  const openInjuryModal = useCallback((fighterId: string, options?: { openAddModal?: boolean }) => {
+    const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
+    setInjuryModalFighter(fighter);
+    setInjuryModalOpenAddOnMount(options?.openAddModal ?? false);
+  }, [gangData.processedData.fighters]);
+
+  const openVehicleDamageModal = useCallback((fighterId: string, options?: { openAddModal?: boolean }) => {
+    const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
+    // Only set if fighter has a vehicle
+    if (fighter && fighter.vehicles && fighter.vehicles.length > 0) {
+      setVehicleModalFighter(fighter);
+      setVehicleModalOpenAddOnMount(options?.openAddModal ?? false);
+    }
+  }, [gangData.processedData.fighters]);
+
+  const fighterCardModalsValue = useMemo(
+    () => ({
+      openXpModal,
+      openInjuryModal,
+      openVehicleDamageModal,
+      openActionMenuFighterId,
+      setOpenActionMenuFighterId,
+    }),
+    [openXpModal, openInjuryModal, openVehicleDamageModal, openActionMenuFighterId, setOpenActionMenuFighterId]
+  );
+
   // Update the gang data callbacks
   gangData.onStashUpdate = handleStashUpdate;
   gangData.onVehicleUpdate = handleVehicleUpdate;
   gangData.onFighterUpdate = handleFighterUpdate;
 
   return (
-    <div>
+    <FighterCardModalsProvider value={fighterCardModalsValue}>
+      {/* Fighter card context modals */}
+      {xpModalFighter && (
+        <FighterXpModal
+          isOpen={true}
+          fighterId={xpModalFighter.id}
+          currentXp={xpModalFighter.xp ?? 0}
+          currentTotalXp={xpModalFighter.xp ?? 0}
+          currentKills={xpModalFighter.kills ?? 0}
+          currentKillCount={xpModalFighter.kill_count ?? 0}
+          is_spyrer={xpModalFighter.is_spyrer}
+          onClose={() => setXpModalFighter(null)}
+          onXpUpdated={(newXp, _newTotalXp, newKills, newKillCount) => {
+            setGangData(prev => ({
+              ...prev,
+              processedData: {
+                ...prev.processedData,
+                fighters: prev.processedData.fighters.map(f =>
+                  f.id === xpModalFighter.id
+                    ? {
+                        ...f,
+                        xp: newXp,
+                        kills: newKills,
+                        kill_count: newKillCount,
+                      }
+                    : f
+                ),
+              },
+            }));
+          }}
+        />
+      )}
+
+      {injuryModalFighter && (() => {
+        // Use latest fighter from gangData so the list reflects optimistic updates (e.g. after adding an injury)
+        const currentFighter = gangData.processedData.fighters.find(f => f.id === injuryModalFighter.id) ?? injuryModalFighter;
+        const injuryModalTitle = injuryModalOpenAddOnMount
+          ? (currentFighter.is_spyrer ? "Add Rig Glitches" : "Add Lasting Injuries")
+          : (currentFighter.is_spyrer ? "Rig Glitches" : "Lasting Injuries");
+        return (
+          <Modal
+            title={injuryModalTitle}
+            onClose={() => {
+              setInjuryModalFighter(null);
+              setInjuryModalOpenAddOnMount(false);
+            }}
+            width="md"
+          >
+            <InjuriesList
+              initialOpenAddModal={injuryModalOpenAddOnMount}
+              addFormOnly={injuryModalOpenAddOnMount}
+              onRequestClose={() => {
+                setInjuryModalFighter(null);
+                setInjuryModalOpenAddOnMount(false);
+              }}
+              injuries={[
+                ...(currentFighter.effects?.injuries || []),
+                ...(currentFighter.effects?.['rig-glitches'] || []),
+              ]}
+              fighterId={currentFighter.id}
+              fighterRecovery={currentFighter.recovery}
+              userPermissions={userPermissions}
+              fighter_class={currentFighter.fighter_class}
+              is_spyrer={currentFighter.is_spyrer}
+              kill_count={currentFighter.kill_count ?? 0}
+              skills={currentFighter.skills || {}}
+              fighterWeapons={currentFighter.weapons?.map(w => ({
+                id: w.fighter_weapon_id,
+                name: w.weapon_name,
+                equipment_category: w.equipment_category,
+                effect_names: w.effect_names,
+              }))}
+              onEquipmentEffectUpdate={() => {
+                // Equipment-based weapon profile adjustments are handled on the fighter page;
+                // for the gang view we rely on server reconciliation.
+              }}
+              onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(f => {
+                      if (f.id !== currentFighter.id) return f;
+
+                      const isSpyrer = f.is_spyrer;
+                      return {
+                        ...f,
+                        recovery:
+                          recoveryStatus !== undefined ? recoveryStatus : f.recovery,
+                        effects: {
+                          ...f.effects,
+                          injuries: isSpyrer ? [] : updatedInjuries,
+                          'rig-glitches': isSpyrer
+                            ? updatedInjuries
+                            : f.effects['rig-glitches'],
+                        },
+                      };
+                    }),
+                  },
+                }));
+              }}
+              onSkillsUpdate={(updatedSkills) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(f =>
+                      f.id === currentFighter.id ? { ...f, skills: updatedSkills } : f
+                    ),
+                  },
+                }));
+              }}
+              onKillCountUpdate={(newKillCount) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(f =>
+                      f.id === currentFighter.id
+                        ? { ...f, kill_count: newKillCount }
+                        : f
+                    ),
+                  },
+                }));
+              }}
+            />
+          </Modal>
+        );
+      })()}
+
+      {vehicleModalFighter && vehicleModalFighter.vehicles && vehicleModalFighter.vehicles[0] && (() => {
+        // Use latest fighter/vehicle from gangData so the list reflects optimistic updates
+        const currentFighter = gangData.processedData.fighters.find(f => f.id === vehicleModalFighter.id) ?? vehicleModalFighter;
+        const currentVehicle = currentFighter.vehicles?.[0];
+        if (!currentVehicle) return null;
+        const vehicleDamageModalTitle = vehicleModalOpenAddOnMount ? "Add Lasting Damage" : "Vehicle Lasting Damage";
+        return (
+          <Modal
+            title={vehicleDamageModalTitle}
+            onClose={() => {
+              setVehicleModalFighter(null);
+              setVehicleModalOpenAddOnMount(false);
+            }}
+            width="md"
+          >
+            <VehicleDamagesList
+              initialOpenAddModal={vehicleModalOpenAddOnMount}
+              addFormOnly={vehicleModalOpenAddOnMount}
+              onRequestClose={() => {
+                setVehicleModalFighter(null);
+                setVehicleModalOpenAddOnMount(false);
+              }}
+              damages={
+                currentVehicle.effects
+                  ? currentVehicle.effects["lasting damages"] || []
+                  : []
+              }
+              onDamageUpdate={(updatedDamages) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    fighters: prev.processedData.fighters.map(f => {
+                      if (f.id !== currentFighter.id) return f;
+
+                      if (!f.vehicles || f.vehicles.length === 0) return f;
+                      const [firstVehicle, ...restVehicles] = f.vehicles;
+
+                      return {
+                        ...f,
+                        vehicles: [
+                          {
+                            ...firstVehicle,
+                            effects: {
+                              ...(firstVehicle.effects || {}),
+                              "lasting damages": updatedDamages,
+                            },
+                          },
+                          ...restVehicles,
+                        ],
+                      };
+                    }),
+                  },
+                }));
+              }}
+              fighterId={currentFighter.id}
+              vehicleId={currentVehicle.id}
+              gangId={gangId}
+              vehicle={currentVehicle}
+              gangCredits={gangData.processedData.credits}
+              onGangCreditsUpdate={handleGangCreditsUpdate}
+              userPermissions={userPermissions}
+            />
+          </Modal>
+        );
+      })()}
+
+      <div>
       <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']}
          tabIcons={[
            <FaUsers key="users" />,
@@ -334,6 +640,8 @@ export default function GangPageContent({
             stash={gangData.stash}
             onVehicleAdd={handleVehicleAdd}
             onFighterAdd={handleFighterAdd}
+            onFighterRollback={handleFighterRollback}
+            onFighterReconcile={handleFighterReconcile}
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
             gang_variants={gangData.processedData.gang_variants}
@@ -391,6 +699,7 @@ export default function GangPageContent({
           userPermissions={userPermissions}
         />
       </Tabs>
-    </div>
+      </div>
+    </FighterCardModalsProvider>
   );
 } 

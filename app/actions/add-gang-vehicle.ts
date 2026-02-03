@@ -5,6 +5,7 @@ import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
+import { logVehicleAction } from "./logs/vehicle-logs";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -112,43 +113,50 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
-    // Update gang credits
-    const newCredits = gang.credits - vehicleCost;
+    // Update credits, rating and wealth using centralized helper
+    // For unassigned vehicle: credits down by vehicleCost, stash value up by vehicleBaseCost
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId: params.gangId,
+      creditsDelta: -vehicleCost,
+      stashValueDelta: vehicleBaseCost
+    });
 
-    const { error: gangUpdateError } = await supabase
-      .from('gangs')
-      .update({
-        credits: newCredits,
-        last_updated: new Date().toISOString()
-      })
-      .eq('id', params.gangId);
-
-    if (gangUpdateError) {
+    if (!financialResult.success) {
       // Clean up if gang update fails
       await supabase.from('vehicles').delete().eq('id', vehicle.id);
-      console.error('Gang update error:', gangUpdateError);
       return {
         success: false,
-        error: `Gang update failed: ${gangUpdateError.message}`
+        error: financialResult.error || 'Failed to update gang financials'
       };
     }
 
-    // Update wealth via helper (unassigned vehicle: credits down, vehicle value up = net 0)
-    // creditsDelta represents the net wealth change: -vehicleCost (spent) + vehicleBaseCost (gained asset)
-    const wealthImpact = -vehicleCost + vehicleBaseCost;
-    if (wealthImpact !== 0) {
-      await updateGangFinancials(supabase, {
-        gangId: params.gangId,
-        creditsDelta: wealthImpact
-      });
-    }
-
-    // Fetch updated wealth for client-side optimistic update
-    const { data: updatedGangData } = await supabase
+    // Update last_updated separately (not part of financials)
+    await supabase
       .from('gangs')
-      .select('wealth')
-      .eq('id', params.gangId)
-      .single();
+      .update({ last_updated: new Date().toISOString() })
+      .eq('id', params.gangId);
+
+    // Log vehicle addition
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: vehicle.id,
+        vehicle_name: vehicle.vehicle_name, // Required: pass vehicle name
+        fighter_id: undefined, // Vehicle is created unassigned
+        action_type: 'vehicle_added',
+        cost: vehicleBaseCost,
+        user_id: user.id,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle addition:', logError);
+      // Don't fail the main operation for logging errors
+    }
 
     // Invalidate relevant cache tags
     invalidateGangFinancials(params.gangId);
@@ -157,6 +165,9 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
 
     // Also invalidate computed gang vehicle count
     revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(params.gangId));
+
+    const newCredits = financialResult.newValues?.credits ?? (gang.credits - vehicleCost);
+    const newWealth = financialResult.newValues?.wealth;
 
     return {
       success: true,
@@ -167,7 +178,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
         base_cost: vehicleBaseCost
       },
       gangCredits: newCredits,
-      gangWealth: updatedGangData?.wealth,
+      gangWealth: newWealth,
       paymentCost: vehicleCost,
       baseCost: vehicleBaseCost
     };

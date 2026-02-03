@@ -5,6 +5,7 @@ import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -199,7 +200,8 @@ async function applyEffectsForEquipmentOptimized(
           allModifiers.push({
             fighter_effect_id: effectId,
             stat_name: modifier.stat_name,
-            numeric_value: modifier.default_numeric_value
+            numeric_value: modifier.default_numeric_value,
+            operation: modifier.operation || 'add'
           });
         });
       }
@@ -657,13 +659,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       );
     }
 
-    // Update gang credits
+    // Update last_updated (credits will be updated via updateGangFinancials)
     insertPromises.push(
       Promise.resolve(
         supabase
           .from('gangs')
           .update({ 
-            credits: gangData.credits - fighterCost,
             last_updated: new Date().toISOString()
           })
           .eq('id', params.gang_id)
@@ -717,7 +718,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       ),
                       fighter_effect_type_modifiers (
                         stat_name,
-                        default_numeric_value
+                        default_numeric_value,
+                        operation
                       )
                     `)
                     .in('type_specific_data->>equipment_id', validEquipmentIds);
@@ -994,15 +996,19 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     }
 
     if (gangUpdateError) {
-      throw new Error(`Failed to update gang credits: ${gangUpdateError.message}`);
+      throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
     }
 
-    // Update gang rating and wealth by fighter rating cost
-    await updateGangFinancials(supabase, {
+    // Update gang credits, rating and wealth using centralized helper
+    const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: ratingCost + totalBeastsRatingDelta,
       creditsDelta: -fighterCost // Negative because credits were spent
     });
+
+    if (!financialResult.success) {
+      throw new Error(financialResult.error || 'Failed to update gang financials');
+    }
 
     // Use granular cache invalidation for fighter addition
     invalidateFighterAddition({
@@ -1011,6 +1017,25 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       userId: effectiveUserId
     });
 
+    // Log fighter addition
+    try {
+      await logFighterAction({
+        gang_id: params.gang_id,
+        fighter_id: fighterId,
+        fighter_name: insertedFighter.fighter_name,
+        action_type: 'fighter_added',
+        fighter_credits: ratingCost,
+        user_id: effectiveUserId,
+        oldCredits: financialResult.oldValues?.credits,
+        oldRating: financialResult.oldValues?.rating,
+        oldWealth: financialResult.oldValues?.wealth,
+        newCredits: financialResult.newValues?.credits,
+        newRating: financialResult.newValues?.rating,
+        newWealth: financialResult.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log fighter addition:', logError);
+    }
 
     // Calculate base and modified stats
     const baseStats = {

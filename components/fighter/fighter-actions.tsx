@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
@@ -28,11 +28,18 @@ interface Fighter {
   campaigns?: Array<{
     has_meat: boolean;
   }>;
+  vehicles?: Array<{
+    id: string;
+    vehicle_name: string;
+    cost: number;
+    equipment?: Array<{ purchase_cost: number }>;
+  }>;
 }
 
 interface Gang {
   id: string;
   gang_name?: string;
+  credits?: number;
 }
 
 interface FighterActionsProps {
@@ -85,6 +92,15 @@ export function FighterActions({
     return fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
   }, [fighter?.campaigns]);
 
+  // Calculate total vehicle equipment cost
+  const vehicleEquipmentCost = useMemo(() => {
+    if (!fighter.vehicles) return 0;
+    return fighter.vehicles.reduce((sum, v) => {
+      const equipCost = v.equipment?.reduce((s, e) => s + (e.purchase_cost || 0), 0) || 0;
+      return sum + equipCost;
+    }, 0);
+  }, [fighter.vehicles]);
+
   const handleModalToggle = (modalName: keyof ActionModals, value: boolean) => {
     setModals(prev => ({
       ...prev,
@@ -110,10 +126,6 @@ export function FighterActions({
         case 'recover': optimistic.recovery = !fighter.recovery; break;
         case 'capture': optimistic.captured = !fighter.captured; break;
       }
-      toast({
-        description: `${fighter.fighter_name} has been successfully deleted.`,
-        variant: "default"
-      });
 
       const snapshot = onStatusMutate?.(optimistic, vars.action === 'sell' ? (vars.sell_value || 0) : undefined);
       const prevFlags = {
@@ -430,6 +442,13 @@ export function FighterActions({
           onClose={() => handleModalToggle('copy', false)}
           fighterBaseCost={fighter.base_credits || 0}
           fighterFullCost={fighter.credits || 0}
+          vehicles={fighter.vehicles?.map(v => ({
+            id: v.id,
+            vehicle_name: v.vehicle_name,
+            cost: v.cost || 0
+          }))}
+          vehicleEquipmentCost={vehicleEquipmentCost}
+          gangCredits={gang.credits}
         />
       )}
     </>

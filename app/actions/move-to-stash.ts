@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 
@@ -206,10 +206,11 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     // Always update wealth when moving equipment to stash (stash value is part of wealth)
     // Only update rating if it changed (active fighter)
+    let financialResult: GangFinancialUpdateResult | null = null;
     if (ratingDelta !== 0 || wealthDelta !== 0) {
       // Use stashValueDelta since equipment is moving to stash
       // wealthDelta = ratingDelta + equipmentValue, so stashValueDelta = equipmentValue
-      await updateGangFinancials(supabase, {
+      financialResult = await updateGangFinancials(supabase, {
         gangId,
         ratingDelta,
         stashValueDelta: equipmentValue
@@ -279,7 +280,13 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         equipment_name: equipmentName,
         purchase_cost: equipmentData.purchase_cost || 0,
         action_type: 'moved_to_stash',
-        user_id: user.id
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
       });
     } catch (logError) {
       console.error('Failed to log equipment moved to stash:', logError);

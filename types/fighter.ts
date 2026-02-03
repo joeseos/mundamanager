@@ -94,6 +94,7 @@ export interface Vehicle {
   vehicle_name: string;
   vehicle_type_id: string;
   vehicle_type: string;
+  cost?: number;
   movement: number;
   front: number;
   side: number;
@@ -228,6 +229,7 @@ export interface FighterProps {
   image_url?: string; // URL to the fighter's image
   active_loadout_id?: string; // ID of the currently active loadout
   loadout_cost?: number; // Cost with active loadout equipment only (for fighter card display)
+  selected_archetype_id?: string | null; // ID of the selected skill archetype (for Underhive Outcasts)
 }
 
 // Update the FIGHTER_CLASSES to include all classes from fighterClassRank

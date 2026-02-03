@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateVehicleEffects } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
-import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 interface AddVehicleDamageParams {
   vehicleId: string;
@@ -42,17 +42,25 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     }
 
     // Fetch effect credits_increase and update rating if vehicle is assigned
+    let financialResult: GangFinancialUpdateResult | null = null;
+    let vehicleName = 'Unknown Vehicle';
+    let fighterName: string | undefined;
     try {
-      const [{ data: veh }, { data: eff }] = await Promise.all([
-        supabase.from('vehicles').select('fighter_id').eq('id', params.vehicleId).single(),
-        supabase.from('fighter_effect_types').select('type_specific_data').eq('id', params.damageId).single()
+      const [{ data: veh }, { data: eff }, { data: fighter }] = await Promise.all([
+        supabase.from('vehicles').select('fighter_id, vehicle_name').eq('id', params.vehicleId).single(),
+        supabase.from('fighter_effect_types').select('type_specific_data').eq('id', params.damageId).single(),
+        supabase.from('fighters').select('fighter_name').eq('id', params.fighterId).single()
       ]);
-      if (veh?.fighter_id) {
-        const delta = (eff?.type_specific_data?.credits_increase || 0) as number;
-        if (delta) {
-          await updateGangRatingSimple(supabase, params.gangId, delta);
+      if (veh) {
+        vehicleName = veh.vehicle_name || 'Unknown Vehicle';
+        if (veh.fighter_id) {
+          const delta = (eff?.type_specific_data?.credits_increase || 0) as number;
+          if (delta) {
+            financialResult = await updateGangRatingSimple(supabase, params.gangId, delta);
+          }
         }
       }
+      fighterName = fighter?.fighter_name;
     } catch (e) {
       console.error('Failed to update rating for vehicle damage:', e);
     }
@@ -62,10 +70,18 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
       await logVehicleAction({
         gang_id: params.gangId,
         vehicle_id: params.vehicleId,
+        vehicle_name: vehicleName, // Required: pass vehicle name
         fighter_id: params.fighterId,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
         damage_name: params.damageName,
         action_type: 'vehicle_damage_added',
-        user_id: user.id
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
       });
     } catch (logError) {
       console.error('Failed to log vehicle damage action:', logError);

@@ -2,9 +2,10 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterVehicleData } from '@/utils/cache-tags';
-import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { logVehicleAction } from './logs/vehicle-logs';
 
 interface AssignVehicleToFighterParams {
   vehicleId: string;
@@ -15,8 +16,7 @@ interface AssignVehicleToFighterParams {
 interface AssignVehicleToFighterResult {
   success: boolean;
   data?: {
-    removed_from?: any;
-    assigned_to?: any;
+    removed_from?: any;  // Used by frontend for vehicle swap handling
     vehicle_cost?: number;
   };
   error?: string;
@@ -59,19 +59,58 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
 
     const isNewFighterActive = countsTowardRating(newFighterData);
 
-    // Call the Supabase function
-    const { data, error } = await supabase.rpc('assign_crew_to_vehicle', {
-      p_vehicle_id: params.vehicleId,
-      p_fighter_id: params.fighterId,
-    });
+    // Fetch old vehicle info BEFORE unassignment (needed for frontend)
+    let removedFromVehicle = null;
+    const { data: oldVehicleData } = await supabase
+      .from('vehicles')
+      .select('id, vehicle_name, vehicle_type, cost')
+      .eq('fighter_id', params.fighterId)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Error assigning vehicle to fighter:', error);
-      throw new Error(error.message || 'Failed to assign vehicle to fighter');
+    if (oldVehicleData) {
+      removedFromVehicle = oldVehicleData;
     }
 
-    // Get vehicle cost data to return to frontend for immediate UI update
+    // Unassign fighter from any existing vehicle (RLS enforces authorization)
+    const { error: unassignError } = await supabase
+      .from('vehicles')
+      .update({ fighter_id: null })
+      .eq('fighter_id', params.fighterId);
+
+    if (unassignError) {
+      console.error('Error unassigning from previous vehicle:', unassignError);
+      throw new Error(`Failed to unassign from previous vehicle: ${unassignError.message}`);
+    }
+
+    // Assign fighter to the new vehicle (RLS enforces authorization)
+    const { error: assignError } = await supabase
+      .from('vehicles')
+      .update({ fighter_id: params.fighterId })
+      .eq('id', params.vehicleId);
+
+    if (assignError) {
+      console.error('Error assigning vehicle to fighter:', assignError);
+      throw new Error(`Failed to assign vehicle to fighter: ${assignError.message}`);
+    }
+
+    // Get vehicle name and cost data to return to frontend for immediate UI update
+    const { data: vehicleData } = await supabase
+      .from('vehicles')
+      .select('vehicle_name')
+      .eq('id', params.vehicleId)
+      .single();
+    
+    const vehicleName = vehicleData?.vehicle_name || 'Unknown Vehicle';
     const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
+    
+    // Get fighter name for logging
+    const { data: fighterData } = await supabase
+      .from('fighters')
+      .select('fighter_name')
+      .eq('id', params.fighterId)
+      .single();
+    
+    const fighterName = fighterData?.fighter_name || 'Unknown Fighter';
 
     // Calculate rating and wealth deltas using countsTowardRating helper
     // Key insight: unassigned vehicles count toward wealth, inactive fighter vehicles don't count anywhere
@@ -117,14 +156,41 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       }
     }
 
+    let financialResult: GangFinancialUpdateResult | null = null;
     if (vehicleCost > 0 && (ratingDelta !== 0 || wealthDelta !== 0)) {
-      // Use creditsDelta to adjust wealth independently from rating
-      // wealthChange = ratingDelta + creditsDelta, so creditsDelta = wealthDelta - ratingDelta
-      await updateGangFinancials(supabase, {
+      // Use stashValueDelta to adjust wealth independently from rating without changing credits
+      // wealthChange = ratingDelta + stashValueDelta, so stashValueDelta = wealthDelta - ratingDelta
+      financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         ratingDelta,
-        creditsDelta: wealthDelta - ratingDelta
+        stashValueDelta: wealthDelta - ratingDelta
       });
+
+      if (!financialResult.success) {
+        throw new Error(financialResult.error || 'Failed to update gang financials');
+      }
+    }
+
+    // Log vehicle assignment
+    try {
+      await logVehicleAction({
+        gang_id: params.gangId,
+        vehicle_id: params.vehicleId,
+        vehicle_name: vehicleName, // Required: pass vehicle name
+        fighter_id: params.fighterId,
+        fighter_name: fighterName, // Optional: pass to avoid extra fetch
+        action_type: 'vehicle_assigned',
+        user_id: user.id,
+        oldCredits: financialResult?.oldValues?.credits,
+        oldRating: financialResult?.oldValues?.rating,
+        oldWealth: financialResult?.oldValues?.wealth,
+        newCredits: financialResult?.newValues?.credits,
+        newRating: financialResult?.newValues?.rating,
+        newWealth: financialResult?.newValues?.wealth
+      });
+    } catch (logError) {
+      console.error('Failed to log vehicle assignment:', logError);
+      // Don't fail the main operation for logging errors
     }
 
     // Invalidate cache for the fighter and gang
@@ -133,7 +199,7 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     return {
       success: true,
       data: {
-        ...data,
+        removed_from: removedFromVehicle, // For frontend vehicle swap handling
         vehicle_cost: vehicleCost
       }
     };

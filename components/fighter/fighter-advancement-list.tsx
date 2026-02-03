@@ -164,7 +164,8 @@ function isStatChangeCategory(category: StatChangeCategory | SkillType): categor
 // Add SkillAccess interface
 interface SkillAccess {
   skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed';
+  access_level: 'primary' | 'secondary' | 'allowed' | null; // default from fighter type
+  override_access_level: 'primary' | 'secondary' | 'allowed' | null; // override from archetype
   skill_type_name: string;
 }
 
@@ -640,7 +641,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
   // Render the AdvancementModal component
   return (
     <div 
-      className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+      className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
     >
       <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
@@ -787,16 +788,18 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                       <optgroup key={groupLabel} label={groupLabel}>
                             {groupCategories.map(category => {
                               const access = skillAccessMap.get(category.id);
+                              // Compute effective level: override takes priority over default
+                              const effectiveLevel = access?.override_access_level ?? access?.access_level;
                               let accessLabel = '';
                               let style: React.CSSProperties = { color: '#9CA3AF', fontStyle: 'italic' };
-                              if (access) {
-                                if (access.access_level === 'primary') {
+                              if (effectiveLevel) {
+                                if (effectiveLevel === 'primary') {
                                   accessLabel = '(Primary)';
                                   style = {};
-                                } else if (access.access_level === 'secondary') {
+                                } else if (effectiveLevel === 'secondary') {
                                   accessLabel = '(Secondary)';
                                   style = {};
-                                } else if (access.access_level === 'allowed') {
+                                } else if (effectiveLevel === 'allowed') {
                                   accessLabel = '(-)';
                                   style = {};
                                 }

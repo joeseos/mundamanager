@@ -7,7 +7,7 @@ import { FighterProps } from '@/types/fighter';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem } from '@/types/gang';
+import { StashItem, ResourceUpdate } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
@@ -104,6 +104,8 @@ interface GangProps {
   stash: StashItem[];
   onVehicleAdd?: (newVehicle: VehicleProps) => void;
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
+  onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
+  onFighterReconcile?: (tempFighterId: string, realFighter: FighterProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
   positioning: Record<number, string>;
@@ -157,6 +159,8 @@ export default function Gang({
   stash,
   onVehicleAdd,
   onFighterAdd,
+  onFighterRollback,
+  onFighterReconcile,
   onGangCreditsUpdate,
   onGangWealthUpdate,
   positioning,
@@ -631,20 +635,26 @@ export default function Gang({
     mutationFn: async (resourceUpdates: Array<{
       campaign_gang_id: string;
       resource_id: string;
+      resource_name: string;
       is_custom: boolean;
       quantity_delta: number;
     }>) => {
-      const { updateGangResources } = await import('@/app/actions/update-gang-resource');
+      const { updateGang } = await import('@/app/actions/update-gang');
       if (resourceUpdates.length === 0) return { success: true };
       
       const campaignGangId = resourceUpdates[0].campaign_gang_id;
-      const updates = resourceUpdates.map(r => ({
+      const resources = resourceUpdates.map(r => ({
         resource_id: r.resource_id,
+        resource_name: r.resource_name,
         is_custom: r.is_custom,
         quantity_delta: r.quantity_delta
       }));
       
-      return updateGangResources(campaignGangId, updates);
+      return updateGang({
+        gang_id: id,
+        campaign_gang_id: campaignGangId,
+        resources
+      });
     },
     onMutate: async (resourceUpdates) => {
       // Snapshot previous resources for rollback
@@ -750,12 +760,17 @@ export default function Gang({
       if (updates.resourceUpdates && updates.resourceUpdates.length > 0) {
         const campaignGangId = campaigns?.[0]?.campaign_gang_id;
         if (campaignGangId) {
-          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: any) => ({
-            campaign_gang_id: campaignGangId,
-            resource_id: r.resource_id,
-            is_custom: r.is_custom,
-            quantity_delta: r.quantity_delta
-          }));
+          const resourceUpdatesWithCampaignGang = updates.resourceUpdates.map((r: ResourceUpdate) => {
+            // Look up resource_name from campaignResources
+            const resource = campaignResources.find(cr => cr.resource_id === r.resource_id);
+            return {
+              campaign_gang_id: campaignGangId,
+              resource_id: r.resource_id,
+              resource_name: resource?.resource_name || r.resource_name || 'Unknown Resource',
+              is_custom: r.is_custom,
+              quantity_delta: r.quantity_delta
+            };
+          });
           await updateResourceMutation.mutateAsync(resourceUpdatesWithCampaignGang);
         }
         // Remove resourceUpdates from gangUpdates since they're handled separately
@@ -906,7 +921,7 @@ export default function Gang({
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
         <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Gang Image */}
-          <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 flex-shrink-0 items-center justify-center print:hidden">
+          <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
             {getDefaultImageUrl() ? (
               <Image
                 src={getDefaultImageUrl()!}
@@ -1266,6 +1281,8 @@ export default function Gang({
               gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
+              onFighterRollback={onFighterRollback}
+              onFighterReconcile={onFighterReconcile}
               gangVariants={gangVariants}
               gangAffiliationId={gangAffiliationId}
             />

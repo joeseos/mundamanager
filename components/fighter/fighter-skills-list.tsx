@@ -63,7 +63,8 @@ interface SkillResponse {
 
 interface SkillAccess {
   skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed';
+  access_level: 'primary' | 'secondary' | 'allowed' | null; // default from fighter type
+  override_access_level: 'primary' | 'secondary' | 'allowed' | null; // override from archetype
   skill_type_name: string;
 }
 
@@ -291,16 +292,18 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
                 <optgroup key={groupLabel} label={groupLabel}>
                   {groupCategories.map(category => {
                     const access = skillAccessMap.get(category.id);
+                    // Compute effective level: override takes priority over default
+                    const effectiveLevel = access?.override_access_level ?? access?.access_level;
                     let accessLabel = '';
                     let style: React.CSSProperties = { color: '#999999', fontStyle: 'italic' };
-                    if (access) {
-                      if (access.access_level === 'primary') {
+                    if (effectiveLevel) {
+                      if (effectiveLevel === 'primary') {
                         accessLabel = '(Primary)';
                         style = {};
-                      } else if (access.access_level === 'secondary') {
+                      } else if (effectiveLevel === 'secondary') {
                         accessLabel = '(Secondary)';
                         style = {};
-                      } else if (access.access_level === 'allowed') {
+                      } else if (effectiveLevel === 'allowed') {
                         accessLabel = '(-)';
                         style = {};
                       }

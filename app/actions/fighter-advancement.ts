@@ -165,7 +165,7 @@ export async function addCharacteristicAdvancement(
     // Get the template modifier details
     const { data: modifierTemplate, error: modifierError } = await supabase
       .from('fighter_effect_type_modifiers')
-      .select('id, default_numeric_value')
+      .select('id, default_numeric_value, operation')
       .eq('fighter_effect_type_id', params.fighter_effect_type_id)
       .eq('stat_name', statName)
       .single();
@@ -180,7 +180,8 @@ export async function addCharacteristicAdvancement(
       .insert({
         fighter_effect_id: insertedEffect.id,
         stat_name: statName,
-        numeric_value: modifierTemplate.default_numeric_value
+        numeric_value: modifierTemplate.default_numeric_value,
+        operation: modifierTemplate.operation || 'add'
       });
 
     if (modifierInsertError) {
@@ -746,7 +747,7 @@ export async function addPowerBoost(
     // Get modifiers for this power boost type and insert them
     const { data: modifierTemplates, error: modifierError } = await supabase
       .from('fighter_effect_type_modifiers')
-      .select('id, stat_name, default_numeric_value')
+      .select('id, stat_name, default_numeric_value, operation')
       .eq('fighter_effect_type_id', params.power_boost_type_id);
 
     if (modifierTemplates && modifierTemplates.length > 0) {
@@ -759,7 +760,8 @@ export async function addPowerBoost(
         const modifiersToInsert = modifiersToCreate.map(template => ({
           fighter_effect_id: insertedEffect.id,
           stat_name: template.stat_name,
-          numeric_value: template.default_numeric_value
+          numeric_value: template.default_numeric_value,
+          operation: template.operation || 'add'
         }));
 
         const { error: modifierInsertError } = await supabase
@@ -810,7 +812,7 @@ export async function addPowerBoost(
         // Get modifiers for this child effect type
         const { data: childModifiers, error: childModifiersError } = await supabase
           .from('fighter_effect_type_modifiers')
-          .select('stat_name, default_numeric_value')
+          .select('stat_name, default_numeric_value, operation')
           .eq('fighter_effect_type_id', effectTypeId);
 
         if (childModifiersError) {
@@ -822,7 +824,8 @@ export async function addPowerBoost(
           const childModifiersToInsert = childModifiers.map(template => ({
             fighter_effect_id: childEffect.id,
             stat_name: template.stat_name,
-            numeric_value: template.default_numeric_value
+            numeric_value: template.default_numeric_value,
+            operation: template.operation || 'add'
           }));
 
           const { error: insertModifiersError } = await supabase

@@ -42,8 +42,9 @@ next-env.d.ts
 
 # cursor
 .cursor
+claude.md
+tasks/
 
 # supabase
-supabase/migrations/
 supabase/policies/
 supabase/seed/

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
+import { saveFighterSkillAccessOverrides } from '@/app/actions/fighter-skill-access';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
@@ -11,6 +12,20 @@ import { HiX } from "react-icons/hi";
 import { toast } from "@/components/ui/use-toast";
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
+
+// Constants for archetype eligibility
+const UNDERHIVE_OUTCASTS_GANG_TYPE_ID = '77fc520f-b453-46ef-9ef0-6a12872934f8';
+const ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES = ['Leader', 'Champion'];
+
+interface Archetype {
+  id: string;
+  name: string;
+  description: string | null;
+  skill_access: Array<{
+    skill_type_id: string;
+    access_level: 'primary' | 'secondary';
+  }>;
+}
 
 // Define constants outside the component to prevent recreation on each render
 
@@ -407,7 +422,7 @@ function CharacterStatsModal({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[100]">
-      <div className="fixed inset-0 bg-black bg-opacity-50" onClick={isSaving ? undefined : onClose}></div>
+      <div className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50" onClick={isSaving ? undefined : onClose}></div>
       <div className="bg-card rounded-lg max-w-[700px] w-full shadow-xl relative z-[101]">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl md:text-2xl font-bold">Adjust Characteristics</h2>
@@ -636,6 +651,25 @@ export function EditFighterModal({
   // State for skill access modal
   const [showSkillAccessModal, setShowSkillAccessModal] = useState(false);
 
+  // State for archetype selection - initialize from fighter's saved archetype
+  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>(fighter.selected_archetype_id || '');
+
+  // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
+  const canUseArchetypes = gangTypeId === UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
+    ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES.includes(formValues.fighter_class || fighter.fighter_class || '');
+
+  // Fetch archetypes using TanStack Query (only if eligible and modal is open)
+  const { data: archetypesData } = useQuery({
+    queryKey: ['skill-archetypes'],
+    queryFn: async () => {
+      const response = await fetch('/api/fighters/skill-archetypes');
+      if (!response.ok) throw new Error('Failed to fetch archetypes');
+      return response.json();
+    },
+    enabled: isOpen && canUseArchetypes,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
   // TanStack mutation for editing fighter details
   const mutation = useMutation({
     mutationFn: async (submit: {
@@ -652,6 +686,7 @@ export function EditFighterModal({
       fighter_sub_type?: string | null;
       fighter_sub_type_id?: string | null;
       fighter_gang_legacy_id?: string | null;
+      selected_archetype_id?: string | null;
     }) => {
       const result = await updateFighterDetails({
         fighter_id: fighter.id,
@@ -668,6 +703,7 @@ export function EditFighterModal({
         fighter_sub_type: submit.fighter_sub_type,
         fighter_sub_type_id: submit.fighter_sub_type_id,
         fighter_gang_legacy_id: submit.fighter_gang_legacy_id,
+        selected_archetype_id: submit.selected_archetype_id,
         stat_adjustments: Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined
       });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter');
@@ -728,10 +764,37 @@ export function EditFighterModal({
       }
       toast({ variant: 'destructive', description: err instanceof Error ? err.message : 'Failed to update fighter' });
     },
-    onSuccess: (serverFighter, _submit, ctx) => {
+    onSuccess: async (serverFighter, submit, ctx) => {
       if (ctx && 'optimistic' in (ctx as any) && 'snapshot' in (ctx as any)) {
         onEditSuccess?.(serverFighter, (ctx as any).optimistic, (ctx as any).snapshot);
       }
+
+      // If archetype changed, save the skill access overrides
+      if (submit.selected_archetype_id !== fighter.selected_archetype_id) {
+        try {
+          if (submit.selected_archetype_id && archetypesData?.archetypes) {
+            const archetype = (archetypesData.archetypes as Archetype[]).find(
+              (a: Archetype) => a.id === submit.selected_archetype_id
+            );
+            if (archetype) {
+              // Only save primary and secondary access levels from the archetype
+              // Don't save "denied" for all other skill types - that creates too many rows
+              const overrides = archetype.skill_access.map(sa => ({
+                skill_type_id: sa.skill_type_id,
+                access_level: sa.access_level as 'primary' | 'secondary' | 'denied'
+              }));
+
+              await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides });
+            }
+          } else if (!submit.selected_archetype_id && fighter.selected_archetype_id) {
+            // Archetype removed - clear all overrides (reset to default)
+            await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides: [] });
+          }
+        } catch (error) {
+          console.error('Failed to save archetype skill access:', error);
+        }
+      }
+
       toast({ description: 'Fighter updated successfully' });
     }
   });
@@ -831,9 +894,10 @@ export function EditFighterModal({
     setSelectedFighterTypeId((fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id || ''); // Pre-select current fighter type
     setSelectedSubTypeId((fighter.fighter_sub_type as any)?.fighter_sub_type_id || '');
     setSelectedGangLegacyId((fighter as any).fighter_gang_legacy_id || ''); // Pre-select current gang legacy
+    setSelectedArchetypeId(fighter.selected_archetype_id || ''); // Pre-select current archetype
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
-  }, [fighter.id, fighterTypes]); // Update when fighter or fighter types data changes
+  }, [fighter.id, fighter.selected_archetype_id, fighterTypes]); // Update when fighter or fighter types data changes
 
   // Pre-populate current fighter type and sub-type when fighter types are loaded
   useEffect(() => {
@@ -1196,7 +1260,8 @@ export function EditFighterModal({
         kill_count: formValues.kill_count,
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
-        fighter_gang_legacy_id: selectedGangLegacyId || null
+        fighter_gang_legacy_id: selectedGangLegacyId || null,
+        selected_archetype_id: selectedArchetypeId || null
       };
 
       // Only include fighter type fields if we're actually updating the fighter type
@@ -1478,7 +1543,41 @@ export function EditFighterModal({
                 )}
               </div>
             )}
-            
+
+            {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
+            {canUseArchetypes && (
+              <div>
+                <label htmlFor="archetype" className="block text-sm font-medium mb-1">
+                  Archetype
+                </label>
+                <select
+                  id="archetype"
+                  value={selectedArchetypeId}
+                  onChange={(e) => setSelectedArchetypeId(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">None (Use Default)</option>
+                  {archetypesData?.archetypes?.map((archetype: Archetype) => (
+                    <option key={archetype.id} value={archetype.id}>
+                      {archetype.name}
+                    </option>
+                  ))}
+                </select>
+                {fighter.selected_archetype_id ? (
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Current: {archetypesData?.archetypes?.find((a: Archetype) => a.id === fighter.selected_archetype_id)?.name || fighter.selected_archetype_id}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Current: None (Use Default)
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecting an archetype will change the fighter&apos;s skill access.
+                </p>
+              </div>
+            )}
+
             {/* Special Rules Section */}
             <div>
               <label className="block text-sm font-medium mb-1">

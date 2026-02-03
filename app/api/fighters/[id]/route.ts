@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from 'next/headers';
 import { invalidateGangCredits } from '@/utils/cache-tags';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 // Add Edge Function configurations
 export const runtime = 'edge';
@@ -46,15 +47,25 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
 
     if (deleteError) throw deleteError;
 
-    // Update gang credits
-    const { error: updateError } = await supabase
-      .from('gangs')
-      .update({ credits: fighter.credits })
-      .eq('id', fighter.gang_id);
+    // Calculate fighter total cost for rating/wealth update
+    const { getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
+    const fighterCost = await getFighterTotalCost(params.id, supabase);
+    
+    // Check if fighter was active (counts toward rating)
+    const { countsTowardRating } = await import('@/utils/fighter-status');
+    const wasActive = countsTowardRating(fighter);
+    
+    // Update gang rating and wealth using centralized helper
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId: fighter.gang_id,
+      ratingDelta: wasActive ? -fighterCost : 0
+    });
 
-    if (updateError) throw updateError;
+    if (!financialResult.success) {
+      throw new Error(financialResult.error || 'Failed to update gang financials');
+    }
 
-    // Invalidate gang credits cache since we updated gang credits
+    // Invalidate gang rating cache
     invalidateGangCredits(fighter.gang_id);
 
     return NextResponse.json({ message: 'Fighter deleted successfully' });
@@ -164,16 +175,35 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
         if (gangFetchError) throw gangFetchError;
 
-        // Update gang credits by adding the sell value
-        const { error: gangUpdateError } = await supabase
-          .from("gangs")
-          .update({ 
-            credits: (gang.credits || 0) + sell_value,
-            last_updated: new Date().toISOString()
-          })
-          .eq('id', fighter.gang_id);
+        // Calculate fighter cost for rating update
+        const { getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
+        const fighterCost = await getFighterTotalCost(params.id, supabase);
+        
+        // Check if fighter is active (counts toward rating)
+        const { countsTowardRating } = await import('@/utils/fighter-status');
+        const { data: fighterData } = await supabase
+          .from("fighters")
+          .select('killed, retired, enslaved, captured')
+          .eq('id', params.id)
+          .single();
+        const isActive = countsTowardRating(fighterData);
+        
+        // Update gang credits, rating and wealth using centralized helper
+        const financialResult = await updateGangFinancials(supabase, {
+          gangId: fighter.gang_id,
+          ratingDelta: isActive ? -fighterCost : 0,
+          creditsDelta: sell_value
+        });
 
-        if (gangUpdateError) throw gangUpdateError;
+        if (!financialResult.success) {
+          throw new Error(financialResult.error || 'Failed to update gang financials');
+        }
+        
+        // Update last_updated separately (not part of financials)
+        await supabase
+          .from("gangs")
+          .update({ last_updated: new Date().toISOString() })
+          .eq('id', fighter.gang_id);
       }
 
       const { data: updatedFighter, error: statusUpdateError } = await supabase

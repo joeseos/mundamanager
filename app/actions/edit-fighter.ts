@@ -6,9 +6,9 @@ import { revalidateTag } from 'next/cache';
 import { logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
-import { logFighterAction, calculateFighterCredits } from './logs/fighter-logs';
+import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -57,6 +57,7 @@ export interface UpdateFighterDetailsParams {
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
+  selected_archetype_id?: string | null;
   // New: optional stat adjustments to be applied as user effects
   stat_adjustments?: Record<string, number>;
 }
@@ -131,8 +132,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     const gangCredits = gang.credits;
 
     // Helper to adjust rating and wealth by delta - uses centralized helper
+    // Returns financial result for logging
     const adjustRating = async (delta: number, creditsDelta: number = 0) => {
-      await updateGangFinancials(supabase, {
+      return await updateGangFinancials(supabase, {
         gangId,
         ratingDelta: delta,
         creditsDelta
@@ -147,6 +149,43 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         console.error('Failed to compute fighter total cost for rating adjustment:', e);
         return 0;
       }
+    };
+
+    // Helper to calculate the total cost of a vehicle including equipment and effects
+    const calculateVehicleCost = async (vehicleId: string): Promise<number> => {
+      // Get base vehicle cost
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('cost')
+        .eq('id', vehicleId)
+        .single();
+
+      if (vehicleError) {
+        console.error('Error getting vehicle cost:', vehicleError);
+        return 0;
+      }
+
+      const baseCost = vehicleData?.cost || 0;
+
+      // Get equipment cost
+      const { data: equipmentData } = await supabase
+        .from('fighter_equipment')
+        .select('purchase_cost')
+        .eq('vehicle_id', vehicleId);
+
+      const equipmentCost = equipmentData?.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0) || 0;
+
+      // Get effects cost
+      const { data: effectsData } = await supabase
+        .from('fighter_effects')
+        .select('type_specific_data')
+        .eq('vehicle_id', vehicleId);
+
+      const effectsCost = effectsData?.reduce((sum: number, effect: any) => {
+        return sum + (effect.type_specific_data?.credits_increase || 0);
+      }, 0) || 0;
+
+      return baseCost + equipmentCost + effectsCost;
     };
 
     // Handle different actions
@@ -182,7 +221,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        await adjustRating(delta);
+        const financialResult = await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -193,7 +232,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               gang_id: gangId,
               fighter_id: params.fighter_id,
               fighter_name: fighter.fighter_name,
-              action_type: 'fighter_killed'
+              action_type: 'fighter_killed',
+              oldCredits: financialResult.oldValues?.credits,
+              oldRating: financialResult.oldValues?.rating,
+              oldWealth: financialResult.oldValues?.wealth,
+              newCredits: financialResult.newValues?.credits,
+              newRating: financialResult.newValues?.rating,
+              newWealth: financialResult.newValues?.wealth
             });
           } catch (logError) {
             console.error('Failed to log fighter killed:', logError);
@@ -204,7 +249,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               gang_id: gangId,
               fighter_id: params.fighter_id,
               fighter_name: fighter.fighter_name,
-              action_type: 'fighter_resurected'
+              action_type: 'fighter_resurected',
+              oldCredits: financialResult.oldValues?.credits,
+              oldRating: financialResult.oldValues?.rating,
+              oldWealth: financialResult.oldValues?.wealth,
+              newCredits: financialResult.newValues?.credits,
+              newRating: financialResult.newValues?.rating,
+              newWealth: financialResult.newValues?.wealth
             });
           } catch (logError) {
             console.error('Failed to log fighter resurected:', logError);
@@ -249,7 +300,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        await adjustRating(delta);
+        const financialResult = await adjustRating(delta);
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -260,10 +311,33 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               gang_id: gangId,
               fighter_id: params.fighter_id,
               fighter_name: fighter.fighter_name,
-              action_type: 'fighter_retired'
+              action_type: 'fighter_retired',
+              oldCredits: financialResult.oldValues?.credits,
+              oldRating: financialResult.oldValues?.rating,
+              oldWealth: financialResult.oldValues?.wealth,
+              newCredits: financialResult.newValues?.credits,
+              newRating: financialResult.newValues?.rating,
+              newWealth: financialResult.newValues?.wealth
             });
           } catch (logError) {
             console.error('Failed to log fighter retired:', logError);
+          }
+        } else {
+          try {
+            await logFighterAction({
+              gang_id: gangId,
+              fighter_id: params.fighter_id,
+              fighter_name: fighter.fighter_name,
+              action_type: 'fighter_unretired',
+              oldCredits: financialResult.oldValues?.credits,
+              oldRating: financialResult.oldValues?.rating,
+              oldWealth: financialResult.oldValues?.wealth,
+              newCredits: financialResult.newValues?.credits,
+              newRating: financialResult.newValues?.rating,
+              newWealth: financialResult.newValues?.wealth
+            });
+          } catch (logError) {
+            console.error('Failed to log fighter unretired:', logError);
           }
         }
 
@@ -296,21 +370,23 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (fighterUpdateError) throw fighterUpdateError;
 
-        // Update gang credits
-        const { data: updatedGang, error: gangUpdateError} = await supabase
+        // Update credits, rating and wealth using centralized helper (credits delta is positive for sell)
+        const financialResult = await adjustRating(delta, params.sell_value);
+        
+        if (!financialResult.success) {
+          throw new Error(financialResult.error || 'Failed to update gang financials');
+        }
+        
+        // Update last_updated separately (not part of financials)
+        await supabase
           .from('gangs')
-          .update({
-            credits: gangCredits + params.sell_value,
-            last_updated: new Date().toISOString()
-          })
-          .eq('id', gangId)
-          .select('id, credits')
-          .single();
-
-        if (gangUpdateError) throw gangUpdateError;
-
-        // Update rating and wealth (credits delta is positive for sell)
-        await adjustRating(delta, params.sell_value);
+          .update({ last_updated: new Date().toISOString() })
+          .eq('id', gangId);
+        
+        const updatedGang = {
+          id: gangId,
+          credits: financialResult.newValues?.credits ?? 0
+        };
         invalidateFighterData(params.fighter_id, gangId);
         invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
@@ -321,7 +397,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
-            action_type: 'fighter_enslaved'
+            action_type: 'fighter_enslaved',
+            oldCredits: financialResult.oldValues?.credits,
+            oldRating: financialResult.oldValues?.rating,
+            oldWealth: financialResult.oldValues?.wealth,
+            newCredits: financialResult.newValues?.credits,
+            newRating: financialResult.newValues?.rating,
+            newWealth: financialResult.newValues?.wealth
           });
         } catch (logError) {
           console.error('Failed to log fighter enslaved:', logError);
@@ -362,7 +444,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
         // else: stayed inactive (still killed or retired), delta = 0
 
-        await adjustRating(delta);
+        const financialResult = await adjustRating(delta);
 
         // Log fighter rescue
         try {
@@ -370,7 +452,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
-            action_type: 'fighter_rescued'
+            action_type: 'fighter_rescued',
+            oldCredits: financialResult.oldValues?.credits,
+            oldRating: financialResult.oldValues?.rating,
+            oldWealth: financialResult.oldValues?.wealth,
+            newCredits: financialResult.newValues?.credits,
+            newRating: financialResult.newValues?.rating,
+            newWealth: financialResult.newValues?.wealth
           });
         } catch (logError) {
           console.error('Failed to log fighter rescue:', logError);
@@ -550,9 +638,22 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'delete': {
-        // Subtract effective cost only if fighter is currently active
+        // Calculate fighter cost before deletion (for rating delta and logging)
         const isActive = countsTowardRating(fighter);
-        const delta = isActive ? -(await getEffectiveCost()) : 0;
+        const effectiveCost = isActive ? await getEffectiveCost() : 0;
+        const delta = -effectiveCost;
+
+        // Get vehicle cost before deletion (vehicle will become unassigned via cascade)
+        let vehicleCost = 0;
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('id')
+          .eq('fighter_id', params.fighter_id)
+          .maybeSingle();
+
+        if (vehicleData?.id) {
+          vehicleCost = await calculateVehicleCost(vehicleData.id);
+        }
 
         // Delete the fighter
         const { error: deleteError } = await supabase
@@ -591,21 +692,39 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Error cleaning up fighter images:', imageError);
         }
 
-        await adjustRating(delta);
+        // Update gang rating and wealth
+        // - Rating decreases by full cost (fighter + vehicle) for active fighters
+        // - Wealth decreases by fighter cost only (vehicle stays in gang as unassigned)
+        // Use stashValueDelta (not creditsDelta) to preserve vehicle value in wealth without adding actual credits
+        const financialResult = await updateGangFinancials(supabase, {
+          gangId,
+          ratingDelta: delta,
+          stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
+        });
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
+        // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list
+        if (vehicleData?.id) {
+          revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId));
+        }
+
         // Log fighter removal
         try {
-          const fighterCredits = await calculateFighterCredits(params.fighter_id);
           await logFighterAction({
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
             action_type: 'fighter_removed',
-            fighter_credits: fighterCredits,
-            status_reason: fighter.killed ? 'killed' : fighter.retired ? 'retired' : fighter.enslaved ? 'enslaved' : null
+            fighter_credits: effectiveCost,
+            status_reason: fighter.killed ? 'killed' : fighter.retired ? 'retired' : fighter.enslaved ? 'enslaved' : null,
+            oldCredits: financialResult.oldValues?.credits,
+            oldRating: financialResult.oldValues?.rating,
+            oldWealth: financialResult.oldValues?.wealth,
+            newCredits: financialResult.newValues?.credits,
+            newRating: financialResult.newValues?.rating,
+            newWealth: financialResult.newValues?.wealth
           });
         } catch (logError) {
           console.error('Failed to log fighter removal:', logError);
@@ -851,6 +970,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
+    if (params.selected_archetype_id !== undefined) updateData.selected_archetype_id = params.selected_archetype_id;
 
 
     // Update fighter
@@ -865,10 +985,11 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
 
     // If cost_adjustment changed and fighter is active, update rating and wealth by delta
     let costAdjustmentDelta = 0;
+    let costAdjustmentFinancialResult: GangFinancialUpdateResult | null = null;
     if (params.cost_adjustment !== undefined && wasActive) {
       costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
       if (costAdjustmentDelta !== 0) {
-        await updateGangRatingSimple(supabase, fighter.gang_id, costAdjustmentDelta);
+        costAdjustmentFinancialResult = await updateGangRatingSimple(supabase, fighter.gang_id, costAdjustmentDelta);
       }
     }
 
@@ -973,7 +1094,13 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           action_type: 'fighter_cost_adjusted',
           old_value: previousAdjustment,
           new_value: params.cost_adjustment,
-          user_id: user.id
+          user_id: user.id,
+          oldCredits: costAdjustmentFinancialResult?.oldValues?.credits,
+          oldRating: costAdjustmentFinancialResult?.oldValues?.rating,
+          oldWealth: costAdjustmentFinancialResult?.oldValues?.wealth,
+          newCredits: costAdjustmentFinancialResult?.newValues?.credits,
+          newRating: costAdjustmentFinancialResult?.newValues?.rating,
+          newWealth: costAdjustmentFinancialResult?.newValues?.wealth
         });
       }
     } catch (logError) {

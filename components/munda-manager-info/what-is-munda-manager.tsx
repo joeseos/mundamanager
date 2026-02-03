@@ -97,25 +97,25 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
         <h2 className="text-xl font-semibold mb-4">Why Choose Munda Manager?</h2>
         <div className="space-y-3">
           <div className="flex items-start space-x-3">
-            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 shrink-0"></div>
             <p className="text-muted-foreground">
               <strong>Advanced Features:</strong> Vehicle rules, custom equipment creation, gang mechanics like Chem-Alchemy and Gene-smithing, plus comprehensive campaign management with battle logs and territory tracking.
             </p>
           </div>
           <div className="flex items-start space-x-3">
-            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 shrink-0"></div>
             <p className="text-muted-foreground">
               <strong>User-Friendly:</strong> Intuitive interface designed for Necromunda players, the website is accessible on any device without installation, optimised for desktop and mobile, with print-ready options for your gang.
             </p>
           </div>
           <div className="flex items-start space-x-3">
-            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 shrink-0"></div>
             <p className="text-muted-foreground">
               <strong>Accurate:</strong> Faithfully implements official Necromunda rules and mechanics while still allowing flexibility for house rules.
             </p>
           </div>
           <div className="flex items-start space-x-3">
-            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="w-2 h-2 bg-red-800 rounded-full mt-2 shrink-0"></div>
             <p className="text-muted-foreground">
               <strong>Community-Driven:</strong> Free, open-source project built by a dedicated team of community volunteers, with regular updates and features shaped by player feedback.
             </p>

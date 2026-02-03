@@ -9,6 +9,7 @@ import { logGangResourceChanges } from './logs/gang-resource-logs';
 
 interface UpdateGangParams {
   gang_id: string;
+  campaign_gang_id?: string; // Required for resource updates
   name?: string;
   credits?: number;
   credits_operation?: 'add' | 'subtract';
@@ -19,18 +20,13 @@ interface UpdateGangParams {
   gang_origin_id?: string | null;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
-  meat?: number;
-  meat_operation?: 'add' | 'subtract';
-  scavenging_rolls?: number;
-  scavenging_rolls_operation?: 'add' | 'subtract';
-  exploration_points?: number;
-  exploration_points_operation?: 'add' | 'subtract';
-  power?: number;
-  power_operation?: 'add' | 'subtract';
-  sustenance?: number;
-  sustenance_operation?: 'add' | 'subtract';
-  salvage?: number;
-  salvage_operation?: 'add' | 'subtract';
+  // Dynamic resources - array of updates for campaign_gang_resources
+  resources?: Array<{
+    resource_id: string;
+    resource_name: string;
+    is_custom: boolean;
+    quantity_delta: number;
+  }>;
   gang_variants?: string[];
   note?: string;
   hidden?: boolean;
@@ -43,12 +39,6 @@ interface UpdateGangResult {
     name: string;
     credits: number;
     reputation: number;
-    meat: number;
-    scavenging_rolls: number;
-    exploration_points: number;
-    power: number;
-    sustenance: number;
-    salvage: number;
     alignment: string;
     alliance_id: string | null;
     alliance_name?: string;
@@ -59,6 +49,16 @@ interface UpdateGangResult {
     gang_colour: string;
     last_updated: string;
     gang_variants: Array<{id: string, variant: string}>;
+    resources?: Array<{
+      resource_id: string;
+      resource_name: string;
+      quantity: number;
+      is_custom: boolean;
+    }>;
+    failedResources?: Array<{
+      resource_name: string;
+      error: string;
+    }>;
   };
   error?: string;
 }
@@ -73,7 +73,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
-      .select('id, user_id, credits, reputation, meat, scavenging_rolls, exploration_points, power, sustenance, salvage')
+      .select('id, user_id, credits, reputation, rating, wealth')
       .eq('id', params.gang_id)
       .single();
 
@@ -132,71 +132,19 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       updates.hidden = params.hidden;
     }
 
-    // Handle meat changes
-    if (params.meat !== undefined && params.meat_operation) {
-      updates.meat = params.meat_operation === 'add'
-        ? (gang.meat || 0) + params.meat
-        : (gang.meat || 0) - params.meat;
+    // Campaign resources are now handled separately via campaign_gang_resources table
+    // (removed legacy resource fields from gangs table)
+
+    // Handle credits and reputation changes (still on gangs table)
+    // Track if credits will change (handled by updateGangFinancials)
+    if (params.credits !== undefined && params.credits_operation) {
+      creditsChanged = true;
     }
 
-    // Handle scavenging rolls changes
-    if (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) {
-      updates.scavenging_rolls = params.scavenging_rolls_operation === 'add'
-        ? (gang.scavenging_rolls || 0) + params.scavenging_rolls
-        : (gang.scavenging_rolls || 0) - params.scavenging_rolls;
-    }
-
-    // Handle exploration points changes
-    if (params.exploration_points !== undefined && params.exploration_points_operation) {
-      updates.exploration_points = params.exploration_points_operation === 'add'
-        ? (gang.exploration_points || 0) + params.exploration_points
-        : (gang.exploration_points || 0) - params.exploration_points;
-    }
-
-    // Handle power changes
-    if (params.power !== undefined && params.power_operation) {
-      updates.power = params.power_operation === 'add'
-        ? (gang.power || 0) + params.power
-        : (gang.power || 0) - params.power;
-    }
-
-    // Handle sustenance changes
-    if (params.sustenance !== undefined && params.sustenance_operation) {
-      updates.sustenance = params.sustenance_operation === 'add'
-        ? (gang.sustenance || 0) + params.sustenance
-        : (gang.sustenance || 0) - params.sustenance;
-    }
-
-    // Handle salvage changes
-    if (params.salvage !== undefined && params.salvage_operation) {
-      updates.salvage = params.salvage_operation === 'add'
-        ? (gang.salvage || 0) + params.salvage
-        : (gang.salvage || 0) - params.salvage;
-    }
-
-    // Handle credits and reputation changes
-    if (
-      (params.credits !== undefined && params.credits_operation) ||
-      (params.reputation !== undefined && params.reputation_operation) ||
-      (params.meat !== undefined && params.meat_operation) ||
-      (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) ||
-      (params.exploration_points !== undefined && params.exploration_points_operation) ||
-      (params.power !== undefined && params.power_operation) ||
-      (params.sustenance !== undefined && params.sustenance_operation) ||
-      (params.salvage !== undefined && params.salvage_operation)
-    ) {
-      if (params.credits !== undefined && params.credits_operation) {
-        updates.credits = params.credits_operation === 'add'
-          ? (gang.credits || 0) + params.credits
-          : (gang.credits || 0) - params.credits;
-        creditsChanged = true;
-      }
-
-      if (params.reputation !== undefined && params.reputation_operation) {
-        updates.reputation = params.reputation_operation === 'add'
-          ? (gang.reputation || 0) + params.reputation
-          : (gang.reputation || 0) - params.reputation;
-      }
+    if (params.reputation !== undefined && params.reputation_operation) {
+      updates.reputation = params.reputation_operation === 'add'
+        ? (gang.reputation || 0) + params.reputation
+        : (gang.reputation || 0) - params.reputation;
     }
 
     // Handle gang variants - store as JSONB array
@@ -214,12 +162,6 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         name,
         credits,
         reputation,
-        meat,
-        scavenging_rolls,
-        exploration_points,
-        power,
-        sustenance,
-        salvage,
         alignment,
         alliance_id,
         gang_affiliation_id,
@@ -231,6 +173,110 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     if (gangUpdateError) {
       throw new Error(`Failed to update gang: ${gangUpdateError.message}`);
+    }
+
+    // Handle campaign resource updates if provided
+    let updatedResources: Array<{resource_id: string; resource_name: string; quantity: number; is_custom: boolean}> = [];
+    let failedResources: Array<{resource_name: string; error: string}> = [];
+    let oldResourceStates: Record<string, number> = {};
+    let newResourceStates: Record<string, number> = {};
+
+    if (params.resources && params.resources.length > 0 && params.campaign_gang_id) {
+      // Fetch current resource values for logging
+      const resourceIds = params.resources.map(r => r.resource_id);
+      const customResourceIds = params.resources.filter(r => r.is_custom).map(r => r.resource_id);
+      const predefinedResourceIds = params.resources.filter(r => !r.is_custom).map(r => r.resource_id);
+
+      // Get existing resources for this campaign gang
+      let existingResources: any[] = [];
+      
+      if (predefinedResourceIds.length > 0 || customResourceIds.length > 0) {
+        const orConditions = [];
+        if (predefinedResourceIds.length > 0) {
+          orConditions.push(`campaign_type_resource_id.in.(${predefinedResourceIds.join(',')})`);
+        }
+        if (customResourceIds.length > 0) {
+          orConditions.push(`campaign_resource_id.in.(${customResourceIds.join(',')})`);
+        }
+
+        const { data } = await supabase
+          .from('campaign_gang_resources')
+          .select('id, campaign_type_resource_id, campaign_resource_id, quantity')
+          .eq('campaign_gang_id', params.campaign_gang_id)
+          .or(orConditions.join(','));
+        
+        existingResources = data || [];
+      }
+
+      // Update or insert each resource
+      for (const resource of params.resources) {
+        const resourceColumn = resource.is_custom ? 'campaign_resource_id' : 'campaign_type_resource_id';
+        const otherColumn = resource.is_custom ? 'campaign_type_resource_id' : 'campaign_resource_id';
+        const existing = existingResources.find(r => 
+          (resource.is_custom && r.campaign_resource_id === resource.resource_id) ||
+          (!resource.is_custom && r.campaign_type_resource_id === resource.resource_id)
+        );
+
+        const oldQuantity = existing?.quantity || 0;
+        const newQuantity = oldQuantity + resource.quantity_delta;
+
+        // Store for logging
+        oldResourceStates[resource.resource_name] = oldQuantity;
+        newResourceStates[resource.resource_name] = newQuantity;
+
+        if (existing) {
+          // Update existing resource
+          const { error: updateError } = await supabase
+            .from('campaign_gang_resources')
+            .update({ 
+              quantity: newQuantity,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existing.id);
+
+          if (updateError) {
+            console.error('Failed to update resource:', updateError);
+            failedResources.push({
+              resource_name: resource.resource_name,
+              error: updateError.message
+            });
+          } else {
+            updatedResources.push({
+              resource_id: resource.resource_id,
+              resource_name: resource.resource_name,
+              quantity: newQuantity,
+              is_custom: resource.is_custom
+            });
+          }
+        } else {
+          // Create new resource record
+          const insertData: any = {
+            campaign_gang_id: params.campaign_gang_id,
+            [resourceColumn]: resource.resource_id,
+            [otherColumn]: null,
+            quantity: newQuantity
+          };
+
+          const { error: insertError } = await supabase
+            .from('campaign_gang_resources')
+            .insert(insertData);
+
+          if (insertError) {
+            console.error('Failed to insert resource:', insertError);
+            failedResources.push({
+              resource_name: resource.resource_name,
+              error: insertError.message
+            });
+          } else {
+            updatedResources.push({
+              resource_id: resource.resource_id,
+              resource_name: resource.resource_name,
+              quantity: newQuantity,
+              is_custom: resource.is_custom
+            });
+          }
+        }
+      }
     }
 
     // Fetch alliance name if alliance_id was updated
@@ -282,8 +328,11 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
+    // Declare variable to store financial result for later use
+    let financialResult: any = null;
+
     // Granular cache invalidation based on what changed
-    
+
     // Always invalidate basic gang data if gang settings changed
     if (params.name !== undefined || params.alignment !== undefined ||
         params.gang_colour !== undefined || params.alliance_id !== undefined ||
@@ -295,24 +344,44 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Invalidate credits if changed and update wealth
     if (creditsChanged) {
-      const creditsDelta = updates.credits - gang.credits;
-      // Use creditsDelta to update wealth (credits change affects wealth only)
-      await updateGangFinancials(supabase, {
+      // Calculate delta from params: positive for add, negative for subtract
+      const creditsDelta = params.credits_operation === 'add'
+        ? params.credits!
+        : -params.credits!;
+
+      financialResult = await updateGangFinancials(supabase, {
         gangId: params.gang_id,
         creditsDelta
       });
+
+      if (!financialResult.success) {
+        throw new Error(financialResult.error || 'Failed to update gang financials');
+      }
+
       invalidateGangCredits(params.gang_id);
     }
     
-    // Invalidate resources if changed (reputation, meat, etc. are in BASE_GANG_BASIC)
-    if ((params.reputation !== undefined && params.reputation_operation) ||
-        (params.meat !== undefined && params.meat_operation) ||
-        (params.scavenging_rolls !== undefined && params.scavenging_rolls_operation) ||
-        (params.exploration_points !== undefined && params.exploration_points_operation) ||
-        (params.power !== undefined && params.power_operation) ||
-        (params.sustenance !== undefined && params.sustenance_operation) ||
-        (params.salvage !== undefined && params.salvage_operation)) {
+    // Invalidate reputation cache if changed
+    if (params.reputation !== undefined && params.reputation_operation) {
       revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
+    }
+
+    // Invalidate campaign resources cache if resources were updated
+    if (params.resources && params.resources.length > 0 && params.campaign_gang_id) {
+      // Get campaign_id to invalidate campaign caches
+      const { data: campaignGang } = await supabase
+        .from('campaign_gangs')
+        .select('campaign_id')
+        .eq('id', params.campaign_gang_id)
+        .single();
+
+      if (campaignGang) {
+        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignGang.campaign_id));
+        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignGang.campaign_id));
+      }
+      
+      // Invalidate gang's campaign data cache (includes resources for gang page)
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id));
     }
     
     // If gang variants were updated, invalidate fighter types cache and basic gang data
@@ -337,34 +406,38 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
-    // Log resource changes (don't fail the update if logging fails)
+    // Log resource changes (campaign resources + credits/reputation)
     try {
-      await logGangResourceChanges({
-        gang_id: params.gang_id,
-        oldState: {
+      // Get final credits value from financialResult if credits changed
+      const finalCredits = creditsChanged && financialResult?.newValues?.credits
+        ? financialResult.newValues.credits
+        : gang.credits;
+
+      const oldState: Record<string, number> = {
+        ...oldResourceStates,
+        credits: gang.credits,
+        rating: gang.rating || 0,
+        wealth: gang.wealth || 0,
+        reputation: gang.reputation || 0
+      };
+
+      const newState: Record<string, number> = {
+        ...newResourceStates,
+        credits: finalCredits,
+        rating: gang.rating || 0,  // Rating unchanged by manual credit changes
+        wealth: financialResult?.newValues?.wealth ?? (gang.wealth || 0),
+        reputation: updates.reputation ?? (gang.reputation || 0)
+      };
+
+      // Only log if something changed
+      if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation)) {
+        await logGangResourceChanges({
           gang_id: params.gang_id,
-          credits: gang.credits,
-          reputation: gang.reputation,
-          meat: gang.meat,
-          scavenging_rolls: gang.scavenging_rolls,
-          exploration_points: gang.exploration_points,
-          power: gang.power,
-          sustenance: gang.sustenance,
-          salvage: gang.salvage
-        },
-        newState: {
-          gang_id: params.gang_id,
-          credits: updatedGang.credits,
-          reputation: updatedGang.reputation,
-          meat: updatedGang.meat,
-          scavenging_rolls: updatedGang.scavenging_rolls,
-          exploration_points: updatedGang.exploration_points,
-          power: updatedGang.power,
-          sustenance: updatedGang.sustenance,
-          salvage: updatedGang.salvage
-        },
-        user_id: user.id
-      });
+          oldState,
+          newState,
+          user_id: user.id
+        });
+      }
     } catch (logError) {
       // Log the error but don't fail the update
       console.error('Failed to log gang resource changes:', logError);
@@ -375,14 +448,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       data: {
         gang_id: updatedGang.id,
         name: updatedGang.name,
-        credits: updatedGang.credits,
+        credits: creditsChanged && financialResult?.newValues?.credits
+          ? financialResult.newValues.credits
+          : updatedGang.credits,
         reputation: updatedGang.reputation,
-        meat: updatedGang.meat,
-        scavenging_rolls: updatedGang.scavenging_rolls,
-        exploration_points: updatedGang.exploration_points,
-        power: updatedGang.power,
-        sustenance: updatedGang.sustenance,
-        salvage: updatedGang.salvage,
         alignment: updatedGang.alignment,
         alliance_id: updatedGang.alliance_id,
         alliance_name: allianceName || undefined,
@@ -392,7 +461,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_origin_name: undefined, // Frontend handles display
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
-        gang_variants: gangVariants
+        gang_variants: gangVariants,
+        resources: updatedResources.length > 0 ? updatedResources : undefined,
+        failedResources: failedResources.length > 0 ? failedResources : undefined
       }
     };
 

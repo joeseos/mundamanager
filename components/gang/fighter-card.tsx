@@ -8,11 +8,13 @@ import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { TbMeatOff } from "react-icons/tb";
 import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
-import { LuArmchair } from "react-icons/lu";
-import { MdChair, MdDragIndicator } from "react-icons/md";
+import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { WeaponProfile, Weapon } from '@/types/equipment';
 import { Badge } from '@/components/ui/badge';
+import { FighterCardActionMenu } from './fighter-card-action-menu';
+import { CgMoreVerticalO } from "react-icons/cg";
+
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
   name: string;  // maps to fighter_name
@@ -52,6 +54,8 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   image_url?: string;
   isDragging?: boolean;
   active_loadout_name?: string;  // Name of the active loadout
+  dragListeners?: any;  // Drag listeners from dnd-kit for icon-only dragging
+  dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
 }
 
 type FighterCardData = Omit<FighterProps, 'vehicles'> & {
@@ -155,6 +159,9 @@ const FighterCard = memo(function FighterCard({
   image_url,
   isDragging = false,
   active_loadout_name,
+  dragListeners,
+  dragAttributes,
+  is_spyrer = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
@@ -340,7 +347,7 @@ const FighterCard = memo(function FighterCard({
     };
   }, [isCrew, vehicleStats, adjustedStats, xp]);
 
-  const isInactive = killed || retired || enslaved || recovery || captured;
+  const isInactive = killed || retired || enslaved || recovery;
 
   // Determine a unique and valid id for the fighter card based on its status.
   // The combined state 'is_inactive_and_recovery' takes precedence over the individual states.
@@ -399,8 +406,11 @@ const FighterCard = memo(function FighterCard({
   const cardContent = (
     <div
       id={fighterCardId}
+      {...(dragListeners || {})}
+      {...(dragAttributes || {})}
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
-        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 flex-shrink-0`} fighter-card-bg`}
+        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 shrink-0`} fighter-card-bg
+        ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
         style={{
           backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
@@ -451,12 +461,12 @@ const FighterCard = memo(function FighterCard({
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (
-            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden flex-shrink-0">
+            <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
               <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
             </div>
           )}
           {!isInactive ? (
-            <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] flex-shrink-0 relative z-10 print:bg-card print:shadow-none">
+            <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] shrink-0 relative z-10 print:bg-card print:shadow-none">
               <span className="leading-6 font-bold md:text-3xl text-2xl">
                 {(() => {
                   // Use loadout cost when active loadout is set, otherwise use total credits
@@ -467,7 +477,7 @@ const FighterCard = memo(function FighterCard({
               <span className="leading-3 md:font-bold text-xs">Credits</span>
             </div>
           ) : (
-            <div className="md:h-[85px] h-[64px] w-0 flex-shrink-0 relative z-10" /> // Empty space to allow centering the status icons
+            <div className="md:h-[85px] h-[64px] w-0 shrink-0 relative z-10" /> // Empty space to allow centering the status icons
           )}
         </div>
       </div>
@@ -476,12 +486,16 @@ const FighterCard = memo(function FighterCard({
         <>
           {/* Show active loadout and owner information */}
           {(active_loadout_name || owner_name) && (
-            <div className="-mt-5 flex justify-between items-center gap-2">
+            <div className="-mt-5 flex items-center gap-2">
               {/* Active loadout badge on the left */}
               {active_loadout_name && (
                 <div className="text-sm italic">
                   Loadout: <span className="font-semibold">{active_loadout_name}</span>
                 </div>
+              )}
+              {/* Em dash separator when both are present */}
+              {active_loadout_name && owner_name && (
+                <span className="text-sm italic">—</span>
               )}
               {/* Owner information on the right */}
               {owner_name && (
@@ -721,20 +735,38 @@ const FighterCard = memo(function FighterCard({
         </>
       )}
       
-      {/* Drag indicator - only show when not dragging and not disabled */}
-      {!isDragging && !disableLink && (
-        <div className="absolute bottom-2 right-2 opacity-30 hover:opacity-60 transition-opacity duration-200 print:hidden">
-          <MdDragIndicator className="text-gray-600 text-xl" />
+      {/* Menu trigger (click on icon opens context menu) - only show when not dragging and not disabled */}
+      {!isDragging && !disableLink && dragListeners && dragAttributes && (
+        <div
+          className="absolute bottom-2 right-2 md:right-3 print:hidden cursor-pointer select-none"
+          style={{ WebkitTouchCallout: 'none' }}
+          data-fighter-card-menu-trigger
+        >
+          <CgMoreVerticalO 
+            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer" 
+            title="Click to open action menu"
+          />
         </div>
       )}
     </div>
   );
   // This check is needed to prevent the card from being clickable when it's being dragged
   // Using <a> + onClick instead of <Link> to avoid prefetching on page load and hover
-  return disableLink ? cardContent : (
+  const clickableContent = disableLink ? cardContent : (
     <a href={`/fighter/${id}`} onClick={handleCardClick}>
       {cardContent}
     </a>
+  );
+
+  return (
+    <FighterCardActionMenu
+      fighterId={id}
+      isCrewWithVehicle={isCrew && !!vehicle}
+      isSpyrer={is_spyrer}
+      disableLink={disableLink || isDragging}
+    >
+      {clickableContent}
+    </FighterCardActionMenu>
   );
 });
 

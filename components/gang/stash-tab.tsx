@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
@@ -93,6 +94,66 @@ export default function GangInventory({
   const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
+
+  // TanStack Query mutation for chem-alchemy with optimistic update
+  const createChemMutation = useMutation({
+    mutationFn: async (chem: {
+      type: 'stimm' | 'gaseous' | 'toxic';
+      effects: { name: string; cost: number }[];
+      totalCost: number;
+      name: string;
+      useBaseCostForRating: boolean;
+      baseCost: number;
+    }) => {
+      const result = await createChemAlchemy({
+        name: chem.name,
+        type: chem.type,
+        effects: chem.effects,
+        totalCost: chem.totalCost,
+        gangId,
+        useBaseCostForRating: chem.useBaseCostForRating,
+        baseCost: chem.baseCost
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to create elixir');
+      return result.data;
+    },
+    onMutate: async (chem) => {
+      const previousStash = [...stash];
+      const previousCredits = gangCredits;
+      const newStashItem: StashItem = {
+        id: `temp-${Date.now()}`,
+        cost: chem.totalCost,
+        type: 'equipment',
+        equipment_name: chem.name,
+        equipment_type: 'wargear',
+        equipment_category: 'Chem-Alchemy'
+      };
+      const newStash = [...stash, newStashItem];
+      const newCredits = gangCredits - chem.totalCost;
+      setStash(newStash);
+      onStashUpdate?.(newStash);
+      onGangCreditsUpdate?.(newCredits);
+      return { previousStash, previousCredits };
+    },
+    onError: (error, _chem, context) => {
+      if (context) {
+        setStash(context.previousStash);
+        onStashUpdate?.(context.previousStash);
+        onGangCreditsUpdate?.(context.previousCredits);
+      }
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to create elixir',
+        variant: 'destructive'
+      });
+    },
+    onSuccess: (_data, chem) => {
+      toast({
+        title: 'Elixir Created',
+        description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits`
+      });
+    }
+  });
   
   const isVehicleExclusive = (item: StashItem) => 
     vehicleExclusiveCategories.includes(item.equipment_category || '');
@@ -797,65 +858,7 @@ export default function GangInventory({
         onClose={() => setShowChemAlchemy(false)}
         gangCredits={gangCredits}
         hasApprenticeClanChymist={fighters.some(fighter => fighter.fighter_type === "Apprentice Clan Chymist")}
-        onCreateChem={async (chem) => {
-          try {
-            const result = await createChemAlchemy({
-              name: chem.name,
-              type: chem.type,
-              effects: chem.effects,
-              totalCost: chem.totalCost,
-              gangId: gangId,
-              useBaseCostForRating: chem.useBaseCostForRating,
-              baseCost: chem.baseCost
-            });
-
-            if (result.success) {
-              // Create new stash item from the created chem-alchemy
-              const newStashItem: StashItem = {
-                id: result.data?.stashItem?.id || `temp-${Date.now()}`,
-                cost: chem.totalCost,
-                type: 'equipment',
-                equipment_id: result.data?.customEquipment?.id,
-                equipment_name: chem.name,
-                equipment_type: 'wargear',
-                equipment_category: 'Chem-Alchemy',
-                custom_equipment_id: result.data?.customEquipment?.id
-              };
-
-              // Update the stash state optimistically
-              const newStash = [...stash, newStashItem];
-              setStash(newStash);
-
-              // Call parent update function if provided
-              if (onStashUpdate) {
-                onStashUpdate(newStash);
-              }
-
-              // Update gang credits in parent component if provided
-              if (onGangCreditsUpdate) {
-                onGangCreditsUpdate(gangCredits - chem.totalCost);
-              }
-
-              toast({
-                title: "Elixir Created",
-                description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits`,
-              });
-            } else {
-              toast({
-                title: "Error",
-                description: result.error || "Failed to create elixir",
-                variant: "destructive",
-              });
-            }
-          } catch (error) {
-            console.error('Error creating chem-alchemy:', error);
-            toast({
-              title: "Error",
-              description: "Failed to create elixir",
-              variant: "destructive",
-            });
-          }
-        }}
+        onCreateChem={(chem) => createChemMutation.mutate(chem)}
       />
 
       {showTradingPost && (

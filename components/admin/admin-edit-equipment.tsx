@@ -620,7 +620,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
   return (
     <div 
-      className="fixed inset-0 bg-gray-300 bg-opacity-50 flex justify-center items-center z-50 px-[10px]"
+      className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-card rounded-lg shadow-xl w-full max-w-5xl min-h-0 max-h-svh overflow-y-auto flex flex-col">

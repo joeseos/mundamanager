@@ -225,7 +225,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                 }}
               >
                 <div className="flex items-start">
-                  <div className="mr-3 flex-shrink-0 mt-0.5">
+                  <div className="mr-3 shrink-0 mt-0.5">
                     {getNotificationIcon(notification.type)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -306,7 +306,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       }}
                       variant="ghost"
                       size="icon"
-                      className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-500 hover:bg-transparent"
+                      className="ml-2 shrink-0 text-gray-400 hover:text-red-500 hover:bg-transparent"
                       aria-label="Delete notification"
                     >
                       <LuTrash2 className="h-4 w-4" />
