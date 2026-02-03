@@ -1,5 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
@@ -71,7 +73,7 @@ export default async function PrintGangPage(props: {
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic.gang_type_id, supabase),
       getAlliance(gangBasic.alliance_id, supabase),
-      getGangFightersList(params.id, supabase),
+      getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
       getGangCampaigns(params.id, supabase),
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
@@ -87,6 +89,10 @@ export default async function PrintGangPage(props: {
       params.id,
       supabase,
     );
+
+    // Pre-filter to active loadout only (computed on server - avoids client serialization issues)
+    const fightersActiveLoadoutOnly = (fighters as { id: string; active_loadout_id?: string; isActiveLoadoutForPrint?: boolean }[])
+      .filter((f) => f.isActiveLoadoutForPrint === true);
 
     // Assemble the gang data structure for the roster view
     const gangDataForClient = {
@@ -114,6 +120,7 @@ export default async function PrintGangPage(props: {
       last_updated: gangBasic.last_updated,
       // Cast fighters so they satisfy the FighterProps-based shape expected by PrintGang/calculateAdjustedStats
       fighters: fighters as unknown as FighterProps[],
+      fightersActiveLoadoutOnly: fightersActiveLoadoutOnly as unknown as FighterProps[],
       stash,
       campaigns,
       gang_variants: gangVariants,
