@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ick1Yd0JcO4H53FVBGOY9BboYxS7B849JdCVgroyv6zfoclFT2K4ZtsAGgOF8p5
+\restrict C4pFInjNYB9BLPBoDO3nQVPU2yhPHeiwewKVQeACWBoRN4cawQTBG7ImdoCcelP
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -1108,10 +1108,12 @@ DECLARE
     v_result jsonb;
     v_fighter_class text;
     v_gang_origin_id uuid;
+    v_fighter_type_id uuid;
+    v_custom_fighter_type_id uuid;
 BEGIN
-    -- Get fighter class, gang origin ID, and verify fighter exists
-    SELECT f.fighter_class, g.gang_origin_id
-    INTO v_fighter_class, v_gang_origin_id
+    -- Get fighter class, gang origin ID, fighter type IDs, and verify fighter exists
+    SELECT f.fighter_class, g.gang_origin_id, f.fighter_type_id, f.custom_fighter_type_id
+    INTO v_fighter_class, v_gang_origin_id, v_fighter_type_id, v_custom_fighter_type_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
     WHERE f.id = get_available_skills.fighter_id;
@@ -1121,6 +1123,7 @@ BEGIN
     END IF;
 
     -- Build the result as JSON
+    -- Now includes effective_access_level which respects overrides
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
         'fighter_class', v_fighter_class,
@@ -1132,6 +1135,10 @@ BEGIN
                     'fighter_class', f.fighter_class,
                     'skill_type_id', s.skill_type_id,
                     'skill_type_name', st.name,
+                    'effective_access_level', COALESCE(
+                        sao.access_level,
+                        ftsa.access_level
+                    ),
                     'available', NOT EXISTS (
                         SELECT 1 
                         FROM fighter_skills fs 
@@ -1201,8 +1208,19 @@ BEGIN
     FROM fighters f
     CROSS JOIN skills s
     JOIN skill_types st ON st.id = s.skill_type_id
+    -- Get default skill access from fighter_type_skill_access (regular or custom)
+    LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
+        AND (
+            (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
+            OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
+        )
+    -- Get overrides from fighter_skill_access_override
+    LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
+        AND sao.skill_type_id = s.skill_type_id
     WHERE f.id = get_available_skills.fighter_id
-    AND (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id);
+    AND (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id)
+    -- Filter out skills where effective access is 'denied'
+    AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied';
 
     RETURN v_result;
 END;
@@ -10503,5 +10521,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ick1Yd0JcO4H53FVBGOY9BboYxS7B849JdCVgroyv6zfoclFT2K4ZtsAGgOF8p5
+\unrestrict C4pFInjNYB9BLPBoDO3nQVPU2yhPHeiwewKVQeACWBoRN4cawQTBG7ImdoCcelP
 
