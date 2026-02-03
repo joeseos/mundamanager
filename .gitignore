@@ -43,6 +43,7 @@ next-env.d.ts
 # cursor
 .cursor
 claude.md
+tasks/
 
 # supabase
 supabase/policies/

@@ -120,6 +120,7 @@ interface Fighter {
   image_url?: string;
   base_credits?: number;
   is_spyrer?: boolean;
+  selected_archetype_id?: string | null;
 }
 
 interface Gang {

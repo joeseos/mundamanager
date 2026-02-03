@@ -229,6 +229,7 @@ export interface FighterProps {
   image_url?: string; // URL to the fighter's image
   active_loadout_id?: string; // ID of the currently active loadout
   loadout_cost?: number; // Cost with active loadout equipment only (for fighter card display)
+  selected_archetype_id?: string | null; // ID of the selected skill archetype (for Underhive Outcasts)
 }
 
 // Update the FIGHTER_CLASSES to include all classes from fighterClassRank
@@ -245,6 +246,17 @@ export const FIGHTER_CLASSES = [
 ] as const;
 
 export type FighterClass = typeof FIGHTER_CLASSES[number];
+
+// Archetype interface for Underhive Outcasts skill access
+export interface Archetype {
+  id: string;
+  name: string;
+  description: string | null;
+  skill_access: Array<{
+    skill_type_id: string;
+    access_level: 'primary' | 'secondary';
+  }>;
+}
 
 // Custom Fighter Type interface
 export interface CustomFighterType {

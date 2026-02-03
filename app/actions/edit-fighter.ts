@@ -57,6 +57,7 @@ export interface UpdateFighterDetailsParams {
   note?: string;
   note_backstory?: string;
   fighter_gang_legacy_id?: string | null;
+  selected_archetype_id?: string | null;
   // New: optional stat adjustments to be applied as user effects
   stat_adjustments?: Record<string, number>;
 }
@@ -969,6 +970,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.note !== undefined) updateData.note = params.note;
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
+    if (params.selected_archetype_id !== undefined) updateData.selected_archetype_id = params.selected_archetype_id;
 
 
     // Update fighter

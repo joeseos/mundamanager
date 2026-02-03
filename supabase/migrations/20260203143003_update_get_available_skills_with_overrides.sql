@@ -1,3 +1,6 @@
+-- Update get_available_skills function to support skill access overrides
+-- Overrides from fighter_skill_access_override take precedence over fighter type defaults
+
 DROP FUNCTION IF EXISTS public.get_available_skills(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_available_skills(
@@ -44,9 +47,9 @@ BEGIN
                         ftsa.access_level
                     ),
                     'available', NOT EXISTS (
-                        SELECT 1 
-                        FROM fighter_skills fs 
-                        WHERE fs.fighter_id = get_available_skills.fighter_id 
+                        SELECT 1
+                        FROM fighter_skills fs
+                        WHERE fs.fighter_id = get_available_skills.fighter_id
                         AND fs.skill_id = s.id
                     ),
                     'available_acquisition_types', CASE
