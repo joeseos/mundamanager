@@ -4,7 +4,7 @@ import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { saveFighterSkillAccessOverrides } from '@/app/actions/fighter-skill-access';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
-import { FighterEffect, FighterProps as Fighter } from '@/types/fighter';
+import { FighterEffect, FighterProps as Fighter, Archetype } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
@@ -16,16 +16,6 @@ import { SkillAccessModal } from './skill-access-modal';
 // Constants for archetype eligibility
 const UNDERHIVE_OUTCASTS_GANG_TYPE_ID = '77fc520f-b453-46ef-9ef0-6a12872934f8';
 const ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES = ['Leader', 'Champion'];
-
-interface Archetype {
-  id: string;
-  name: string;
-  description: string | null;
-  skill_access: Array<{
-    skill_type_id: string;
-    access_level: 'primary' | 'secondary';
-  }>;
-}
 
 // Define constants outside the component to prevent recreation on each render
 
@@ -792,6 +782,11 @@ export function EditFighterModal({
           }
         } catch (error) {
           console.error('Failed to save archetype skill access:', error);
+          toast({
+            description: 'Fighter updated but skill access save failed. Please try again via Manage Skill Access.',
+            variant: 'destructive'
+          });
+          return; // Don't show success toast
         }
       }
 
@@ -1667,13 +1662,8 @@ export function EditFighterModal({
       {/* Skill Access modal */}
       <SkillAccessModal
         fighterId={fighter.id}
-        gangTypeId={gangTypeId || null}
-        fighterClass={fighter.fighter_class || null}
         isOpen={showSkillAccessModal}
         onClose={() => setShowSkillAccessModal(false)}
-        onSave={() => {
-          // Optionally refresh data after saving skill access
-        }}
       />
     </>
   );

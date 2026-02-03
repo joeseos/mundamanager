@@ -247,6 +247,17 @@ export const FIGHTER_CLASSES = [
 
 export type FighterClass = typeof FIGHTER_CLASSES[number];
 
+// Archetype interface for Underhive Outcasts skill access
+export interface Archetype {
+  id: string;
+  name: string;
+  description: string | null;
+  skill_access: Array<{
+    skill_type_id: string;
+    access_level: 'primary' | 'secondary';
+  }>;
+}
+
 // Custom Fighter Type interface
 export interface CustomFighterType {
   id: string;

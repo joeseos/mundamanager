@@ -1,38 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import {
   saveFighterSkillAccessOverrides,
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
 
-// Gang type UUID for Underhive Outcasts
-const UNDERHIVE_OUTCASTS_GANG_TYPE_ID = '77fc520f-b453-46ef-9ef0-6a12872934f8';
-
-// Fighter classes that can use archetypes (when in an Outcasts gang)
-const ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES = ['Leader', 'Champion'];
-
-interface Archetype {
-  id: string;
-  name: string;
-  description: string | null;
-  skill_access: Array<{
-    skill_type_id: string;
-    access_level: 'primary' | 'secondary';
-  }>;
-}
-
 interface SkillAccessModalProps {
   fighterId: string;
-  gangTypeId: string | null;
-  fighterClass: string | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave?: () => void;
 }
 
 type AccessLevel = 'default' | 'primary' | 'secondary' | 'denied';
@@ -46,20 +26,13 @@ interface LocalSkillAccess {
 
 export function SkillAccessModal({
   fighterId,
-  gangTypeId,
-  fighterClass,
   isOpen,
-  onClose,
-  onSave
+  onClose
 }: SkillAccessModalProps) {
   const { toast } = useToast();
-  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>('');
+  const queryClient = useQueryClient();
   const [skillAccess, setSkillAccess] = useState<LocalSkillAccess[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
-
-  // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
-  const canUseArchetypes = gangTypeId === UNDERHIVE_OUTCASTS_GANG_TYPE_ID && 
-    ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES.includes(fighterClass || '');
 
   // Fetch all skill types using TanStack Query
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
@@ -92,21 +65,6 @@ export function SkillAccessModal({
     gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
-  // Fetch archetypes using TanStack Query (only if eligible)
-  const { data: archetypesData, isLoading: isLoadingArchetypes, error: archetypesError } = useQuery({
-    queryKey: ['skill-archetypes'],
-    queryFn: async () => {
-      const response = await fetch('/api/fighters/skill-archetypes');
-      if (!response.ok) {
-        throw new Error('Failed to fetch archetypes');
-      }
-      return response.json();
-    },
-    enabled: isOpen && canUseArchetypes,
-    staleTime: 10 * 60 * 1000, // 10 minutes - archetypes rarely change
-    gcTime: 30 * 60 * 1000,    // 30 minutes
-  });
-
   // Show error toast if data failed to load
   useEffect(() => {
     if (skillTypesError) {
@@ -121,13 +79,7 @@ export function SkillAccessModal({
         variant: 'destructive'
       });
     }
-    if (archetypesError) {
-      toast({
-        description: 'Failed to load archetypes',
-        variant: 'destructive'
-      });
-    }
-  }, [skillTypesError, skillAccessError, archetypesError, toast]);
+  }, [skillTypesError, skillAccessError, toast]);
 
   // Initialize local state from fetched data - merge all skill types with current access
   useEffect(() => {
@@ -136,7 +88,7 @@ export function SkillAccessModal({
       const accessMap = new Map(
         (skillAccessData.skill_access || []).map((sa: any) => [
           sa.skill_type_id,
-          { default: sa.default_access_level, override: sa.override_access_level }
+          { default: sa.access_level, override: sa.override_access_level }
         ])
       );
 
@@ -155,7 +107,7 @@ export function SkillAccessModal({
         });
 
       // Sort alphabetically by name
-      allSkillTypesWithAccess.sort((a: LocalSkillAccess, b: LocalSkillAccess) => 
+      allSkillTypesWithAccess.sort((a: LocalSkillAccess, b: LocalSkillAccess) =>
         a.skill_type_name.localeCompare(b.skill_type_name)
       );
 
@@ -168,53 +120,14 @@ export function SkillAccessModal({
   useEffect(() => {
     if (!isOpen) {
       setHasInitialized(false);
-      setSelectedArchetypeId('');
     }
   }, [isOpen]);
 
-  const archetypes: Archetype[] = archetypesData?.archetypes || [];
-  const isLoading = isLoadingSkillTypes || isLoadingSkillAccess || (canUseArchetypes && isLoadingArchetypes);
-  const error = skillTypesError || skillAccessError || archetypesError;
-
-  // Handle archetype selection
-  const handleArchetypeChange = (archetypeId: string) => {
-    setSelectedArchetypeId(archetypeId);
-
-    if (!archetypeId) {
-      // "None" selected - reset all to default
-      setSkillAccess(prev => prev.map(sa => ({
-        ...sa,
-        selected_access_level: 'default'
-      })));
-      return;
-    }
-
-    // Find the selected archetype
-    const archetype = archetypes.find(a => a.id === archetypeId);
-    if (!archetype) return;
-
-    // Create a map of skill access from the archetype
-    const archetypeAccessMap = new Map(
-      archetype.skill_access.map(sa => [sa.skill_type_id, sa.access_level])
-    );
-
-    // Update skill access based on archetype
-    setSkillAccess(prev => prev.map(sa => {
-      const archetypeLevel = archetypeAccessMap.get(sa.skill_type_id);
-      return {
-        ...sa,
-        // If archetype defines this skill, use its level; otherwise 'denied'
-        // (Skills not in the archetype are not accessible)
-        selected_access_level: archetypeLevel || 'denied'
-      };
-    }));
-  };
+  const isLoading = isLoadingSkillTypes || isLoadingSkillAccess;
+  const error = skillTypesError || skillAccessError;
 
   // Handle manual skill access change
   const handleSkillAccessChange = (skillTypeId: string, level: AccessLevel) => {
-    // Clear archetype selection when manually editing
-    setSelectedArchetypeId('');
-
     setSkillAccess(prev => prev.map(sa =>
       sa.skill_type_id === skillTypeId
         ? { ...sa, selected_access_level: level }
@@ -235,8 +148,9 @@ export function SkillAccessModal({
       return result;
     },
     onSuccess: () => {
+      // Invalidate the TanStack Query cache for skill access
+      queryClient.invalidateQueries({ queryKey: ['fighter-skill-access', fighterId] });
       toast({ description: 'Skill access updated successfully' });
-      onSave?.();
       onClose();
     },
     onError: (error) => {
@@ -289,31 +203,6 @@ export function SkillAccessModal({
             </div>
           ) : (
             <>
-              {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
-              {canUseArchetypes && archetypes.length > 0 && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium">
-                    Archetype
-                  </label>
-                  <select
-                    value={selectedArchetypeId}
-                    onChange={(e) => handleArchetypeChange(e.target.value)}
-                    className="w-full p-2 border rounded-md bg-background"
-                    disabled={saveMutation.isPending}
-                  >
-                    <option value="">None (Use Default)</option>
-                    {archetypes.map(archetype => (
-                      <option key={archetype.id} value={archetype.id}>
-                        {archetype.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Selecting an archetype will set skill access levels. You can further customize individual skills below.
-                  </p>
-                </div>
-              )}
-
               {/* Manual Override Table */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium">
@@ -359,9 +248,9 @@ export function SkillAccessModal({
                   </table>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Default</strong>: Use the fighter type&apos;s default access. 
-                  <strong> Primary</strong>: 6 XP random / 9 XP selected. 
-                  <strong> Secondary</strong>: 9 XP random / 12 XP selected. 
+                  <strong>Default</strong>: Use the fighter type&apos;s default access.
+                  <strong> Primary</strong>: 6 XP random / 9 XP selected.
+                  <strong> Secondary</strong>: 9 XP random / 12 XP selected.
                   <strong> Denied</strong>: No access to this skill type.
                 </p>
               </div>
