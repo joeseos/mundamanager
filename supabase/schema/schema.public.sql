@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict C4pFInjNYB9BLPBoDO3nQVPU2yhPHeiwewKVQeACWBoRN4cawQTBG7ImdoCcelP
+\restrict LZTnV8Wazg4TQUIQczE4RDf0j1ubGnx1ZfauDjLrYDD1d2ZRsNa37HapjNEc5vA
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -6965,6 +6965,13 @@ CREATE INDEX vehicles_fighter_id_idx ON public.vehicles USING btree (fighter_id)
 
 
 --
+-- Name: vehicles_vehicle_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vehicles_vehicle_name_idx ON public.vehicles USING btree (vehicle_name);
+
+
+--
 -- Name: campaign_gangs on_gang_invite; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10521,5 +10528,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict C4pFInjNYB9BLPBoDO3nQVPU2yhPHeiwewKVQeACWBoRN4cawQTBG7ImdoCcelP
+\unrestrict LZTnV8Wazg4TQUIQczE4RDf0j1ubGnx1ZfauDjLrYDD1d2ZRsNa37HapjNEc5vA
 
