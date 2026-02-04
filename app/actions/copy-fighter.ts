@@ -376,7 +376,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         ? sourceFighter.fighter_effects
         : sourceFighter.fighter_effects.filter((effect: any) => {
             const categoryName = effect.fighter_effect_type?.fighter_effect_category?.category_name;
-            return categoryName !== 'injuries' && categoryName !== 'advancements';
+            return categoryName !== 'injuries' && categoryName !== 'advancements' && categoryName !== 'power-boosts';
           });
 
       if (effectsToCopyList.length > 0) {
