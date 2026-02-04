@@ -54,6 +54,11 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           effect_name,
           fighter_effect_type_id,
           type_specific_data,
+          fighter_effect_type:fighter_effect_type_id(
+            fighter_effect_category:fighter_effect_category_id(
+              category_name
+            )
+          ),
           fighter_effect_modifiers(
             stat_name,
             numeric_value
@@ -117,7 +122,15 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
       const { data: vEffects } = await supabase
         .from('fighter_effects')
-        .select('*, fighter_effect_modifiers(*)')
+        .select(`
+          *,
+          fighter_effect_modifiers(*),
+          fighter_effect_type:fighter_effect_type_id(
+            fighter_effect_category:fighter_effect_category_id(
+              category_name
+            )
+          )
+        `)
         .in('vehicle_id', vehicleIds);
 
       vehicleEffects = vEffects || [];
@@ -340,8 +353,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy skills
-    if (sourceFighter.fighter_skills && sourceFighter.fighter_skills.length > 0) {
+    // Copy skills (only when copying as experienced)
+    if (params.copy_as_experienced && sourceFighter.fighter_skills && sourceFighter.fighter_skills.length > 0) {
       const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
         fighter_id: newFighterId,
         skill_id: skill.skill_id,
@@ -357,47 +370,57 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy effects and modifiers (only if copying as experienced)
-    if (params.copy_as_experienced && sourceFighter.fighter_effects && sourceFighter.fighter_effects.length > 0) {
-      const effectsToCopy = sourceFighter.fighter_effects.map((effect: any) => ({
-        fighter_id: newFighterId,
-        effect_name: effect.effect_name,
-        fighter_effect_type_id: effect.fighter_effect_type_id,
-        type_specific_data: effect.type_specific_data,
-        user_id: gang.user_id
-      }));
+    // Copy effects and modifiers (when experienced: all effects; when not: exclude injuries and advancements)
+    if (sourceFighter.fighter_effects && sourceFighter.fighter_effects.length > 0) {
+      const effectsToCopyList = params.copy_as_experienced
+        ? sourceFighter.fighter_effects
+        : sourceFighter.fighter_effects.filter((effect: any) => {
+            const categoryName = effect.fighter_effect_type?.fighter_effect_category?.category_name;
+            return categoryName !== 'injuries' && categoryName !== 'advancements';
+          });
 
-      const { data: insertedEffects, error: effectsError } = await supabase
-        .from('fighter_effects')
-        .insert(effectsToCopy)
-        .select('id');
+      if (effectsToCopyList.length > 0) {
+        const effectsToCopy = effectsToCopyList.map((effect: any) => ({
+          fighter_id: newFighterId,
+          effect_name: effect.effect_name,
+          fighter_effect_type_id: effect.fighter_effect_type_id,
+          type_specific_data: effect.type_specific_data,
+          fighter_equipment_id: null,
+          user_id: gang.user_id
+        }));
 
-      if (effectsError) {
-        return await rollbackFighter(`Failed to copy effects: ${effectsError.message}`);
-      }
+        const { data: insertedEffects, error: effectsError } = await supabase
+          .from('fighter_effects')
+          .insert(effectsToCopy)
+          .select('id');
 
-      if (insertedEffects) {
-        const allModifiers: any[] = [];
-        sourceFighter.fighter_effects.forEach((sourceEffect: any, index: number) => {
-          const newEffectId = insertedEffects[index]?.id;
-          if (newEffectId && sourceEffect.fighter_effect_modifiers) {
-            sourceEffect.fighter_effect_modifiers.forEach((modifier: any) => {
-              allModifiers.push({
-                fighter_effect_id: newEffectId,
-                stat_name: modifier.stat_name,
-                numeric_value: modifier.numeric_value
+        if (effectsError) {
+          return await rollbackFighter(`Failed to copy effects: ${effectsError.message}`);
+        }
+
+        if (insertedEffects) {
+          const allModifiers: any[] = [];
+          effectsToCopyList.forEach((sourceEffect: any, index: number) => {
+            const newEffectId = insertedEffects[index]?.id;
+            if (newEffectId && sourceEffect.fighter_effect_modifiers) {
+              sourceEffect.fighter_effect_modifiers.forEach((modifier: any) => {
+                allModifiers.push({
+                  fighter_effect_id: newEffectId,
+                  stat_name: modifier.stat_name,
+                  numeric_value: modifier.numeric_value
+                });
               });
-            });
-          }
-        });
+            }
+          });
 
-        if (allModifiers.length > 0) {
-          const { error: modifiersError } = await supabase
-            .from('fighter_effect_modifiers')
-            .insert(allModifiers);
+          if (allModifiers.length > 0) {
+            const { error: modifiersError } = await supabase
+              .from('fighter_effect_modifiers')
+              .insert(allModifiers);
 
-          if (modifiersError) {
-            return await rollbackFighter(`Failed to copy effect modifiers: ${modifiersError.message}`);
+            if (modifiersError) {
+              return await rollbackFighter(`Failed to copy effect modifiers: ${modifiersError.message}`);
+            }
           }
         }
       }
@@ -424,10 +447,15 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Copy vehicle effects (lasting damages, upgrades) if vehicles were copied
+    // Copy vehicle effects (lasting damages, upgrades) if vehicles were copied. When not copy_as_experienced, exclude lasting damages.
     if (vehicleIdMap.size > 0 && vehicleEffects.length > 0) {
       for (const effect of vehicleEffects) {
         if (!vehicleIdMap.has(effect.vehicle_id)) continue;
+
+        if (!params.copy_as_experienced) {
+          const categoryName = effect.fighter_effect_type?.fighter_effect_category?.category_name;
+          if (categoryName === 'lasting damages') continue;
+        }
 
         const effectInsertData = {
           vehicle_id: vehicleIdMap.get(effect.vehicle_id),
