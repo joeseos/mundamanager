@@ -263,8 +263,8 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
             categories.forEach(category => {
               const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
               let groupLabel = 'Misc.';
-              if (rank <= 19) groupLabel = 'Universal Skills';
-              else if (rank <= 39) groupLabel = 'Gang-specific Skills';
+              if (rank <= 19) groupLabel = 'Universal Skill Sets';
+              else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
               else if (rank <= 59) groupLabel = 'Wyrd Powers';
               else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
               else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
@@ -304,7 +304,10 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
                         accessLabel = '(Secondary)';
                         style = {};
                       } else if (effectiveLevel === 'allowed') {
-                        accessLabel = '(-)';
+                        accessLabel = '(Allowed)';
+                        style = {};
+                      } else if (effectiveLevel === 'denied') {
+                        accessLabel = 'Denied (-)';
                         style = {};
                       }
                     }

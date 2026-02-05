@@ -783,7 +783,7 @@ export function EditFighterModal({
         } catch (error) {
           console.error('Failed to save archetype skill access:', error);
           toast({
-            description: 'Fighter updated but skill access save failed. Please try again via Manage Skill Access.',
+            description: 'Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.',
             variant: 'destructive'
           });
           return; // Don't show success toast
@@ -1633,14 +1633,14 @@ export function EditFighterModal({
               </Button>
             </div>
 
-            {/* Skill Access */}
+            {/* Skill Set Access */}
             <div>
-              <h3 className="text-sm font-medium mb-2">Skill Access</h3>
+              <h3 className="text-sm font-medium mb-2">Skill Set Access</h3>
               <Button 
                 onClick={() => setShowSkillAccessModal(true)} 
                 className="w-full"
               >
-                Manage Skill Access
+                Customise Skill Set Access
               </Button>
             </div>
           </div>
