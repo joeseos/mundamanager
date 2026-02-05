@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { useToast } from "@/components/ui/use-toast";
+import { Switch } from "@/components/ui/switch";
 import {
   saveFighterSkillAccessOverrides,
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
+import { skillSetRank } from "@/utils/skillSetRank";
 
 interface SkillAccessModalProps {
   fighterId: string;
@@ -15,7 +17,7 @@ interface SkillAccessModalProps {
   onClose: () => void;
 }
 
-type AccessLevel = 'default' | 'primary' | 'secondary' | 'denied';
+type AccessLevel = 'default' | 'primary' | 'secondary' | 'allowed' | 'denied';
 
 interface LocalSkillAccess {
   skill_type_id: string;
@@ -33,6 +35,7 @@ export function SkillAccessModal({
   const queryClient = useQueryClient();
   const [skillAccess, setSkillAccess] = useState<LocalSkillAccess[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   // Fetch all skill types using TanStack Query
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
@@ -81,6 +84,18 @@ export function SkillAccessModal({
     }
   }, [skillTypesError, skillAccessError, toast]);
 
+  // Helper to get the group label for a skill set based on its rank
+  const getGroupLabel = (rank: number): string => {
+    if (rank <= 19) return 'Universal Skill Sets';
+    if (rank <= 39) return 'Gang-specific Skill Sets';
+    if (rank <= 59) return 'Wyrd Powers';
+    if (rank <= 69) return 'Cult Wyrd Powers';
+    if (rank <= 79) return 'Psychoteric Whispers';
+    if (rank <= 89) return 'Legendary Names';
+    if (rank <= 99) return 'Ironhead Squat Mining Clans';
+    return 'Misc.';
+  };
+
   // Initialize local state from fetched data - merge all skill types with current access
   useEffect(() => {
     if (allSkillTypes && skillAccessData && !hasInitialized) {
@@ -91,6 +106,10 @@ export function SkillAccessModal({
           { default: sa.access_level, override: sa.override_access_level }
         ])
       );
+
+      // Helper to get the rank for a given skill set name, defaulting to Infinity for unknown sets
+      const getRank = (name: string): number =>
+        skillSetRank[name.toLowerCase()] ?? Number.POSITIVE_INFINITY;
 
       // Build skill access from ALL skill types
       const allSkillTypesWithAccess: LocalSkillAccess[] = (allSkillTypes as any[])
@@ -106,10 +125,17 @@ export function SkillAccessModal({
           };
         });
 
-      // Sort alphabetically by name
-      allSkillTypesWithAccess.sort((a: LocalSkillAccess, b: LocalSkillAccess) =>
-        a.skill_type_name.localeCompare(b.skill_type_name)
-      );
+      // Sort by skill set rank to align with the Skills modal, with alphabetical tiebreaker
+      allSkillTypesWithAccess.sort((a: LocalSkillAccess, b: LocalSkillAccess) => {
+        const rankA = getRank(a.skill_type_name);
+        const rankB = getRank(b.skill_type_name);
+
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+
+        return a.skill_type_name.localeCompare(b.skill_type_name);
+      });
 
       setSkillAccess(allSkillTypesWithAccess);
       setHasInitialized(true);
@@ -168,7 +194,7 @@ export function SkillAccessModal({
       .filter(sa => sa.selected_access_level !== 'default')
       .map(sa => ({
         skill_type_id: sa.skill_type_id,
-        access_level: sa.selected_access_level as 'primary' | 'secondary' | 'denied'
+        access_level: sa.selected_access_level as 'primary' | 'secondary' | 'allowed' | 'denied'
       }));
 
     saveMutation.mutate(overrides);
@@ -181,11 +207,41 @@ export function SkillAccessModal({
     return level.charAt(0).toUpperCase() + level.slice(1);
   };
 
+  // Group skill access by group label
+  const getGroupedSkillAccess = () => {
+    const getRank = (name: string): number =>
+      skillSetRank[name.toLowerCase()] ?? Number.POSITIVE_INFINITY;
+
+    // Group by label
+    const groupByLabel: Record<string, LocalSkillAccess[]> = {};
+    skillAccess.forEach(sa => {
+      const rank = getRank(sa.skill_type_name);
+      const groupLabel = getGroupLabel(rank);
+      if (!groupByLabel[groupLabel]) {
+        groupByLabel[groupLabel] = [];
+      }
+      groupByLabel[groupLabel].push(sa);
+    });
+
+    // Sort group labels by their minimum rank
+    const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
+      const getRank = (name: string): number =>
+        skillSetRank[name.toLowerCase()] ?? Number.POSITIVE_INFINITY;
+      const aRank = Math.min(...groupByLabel[a].map(sa => getRank(sa.skill_type_name)));
+      const bRank = Math.min(...groupByLabel[b].map(sa => getRank(sa.skill_type_name)));
+      return aRank - bRank;
+    });
+
+    return { groupByLabel, sortedGroupLabels };
+  };
+
   if (!isOpen) return null;
+
+  const { groupByLabel, sortedGroupLabels } = getGroupedSkillAccess();
 
   return (
     <Modal
-      title="Manage Skill Access"
+      title="Customise Skill Set Access"
       width="lg"
       onClose={onClose}
       onConfirm={handleSave}
@@ -203,56 +259,109 @@ export function SkillAccessModal({
             </div>
           ) : (
             <>
-              {/* Manual Override Table */}
-              <div className="space-y-2">
+              {/* Manual Override Tables - One per group */}
+              <div className="space-y-4">
                 <label className="block text-sm font-medium">
-                  Skill Access Overrides
+                  Skill Set Access Overrides
                 </label>
-                <div className="border rounded-md overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">Skill Type</th>
-                        <th className="px-3 py-2 text-center font-medium">Default</th>
-                        <th className="px-3 py-2 text-center font-medium">Override</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {skillAccess.map((sa, index) => (
-                        <tr
-                          key={sa.skill_type_id}
-                          className={index % 2 === 0 ? 'bg-background' : 'bg-muted/30'}
-                        >
-                          <td className="px-3 py-2 font-medium">
-                            {sa.skill_type_name}
-                          </td>
-                          <td className="px-3 py-2 text-center text-muted-foreground">
-                            {formatAccessLevel(sa.default_access_level)}
-                          </td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={sa.selected_access_level}
-                              onChange={(e) => handleSkillAccessChange(sa.skill_type_id, e.target.value as AccessLevel)}
-                              className="w-full p-1 border rounded text-sm bg-background"
-                              disabled={saveMutation.isPending}
-                            >
-                              <option value="default">Default</option>
-                              <option value="primary">Primary</option>
-                              <option value="secondary">Secondary</option>
-                              <option value="denied">Denied</option>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {sortedGroupLabels.map((groupLabel) => {
+                  const groupItems = groupByLabel[groupLabel];
+
+                  // Determine if this group has any effective access (Allowed / Secondary / Primary)
+                  const hasEffectiveAccess = groupItems.some(sa => {
+                    const effectiveLevel =
+                      sa.selected_access_level === 'default'
+                        ? sa.default_access_level
+                        : sa.selected_access_level;
+                    return (
+                      effectiveLevel === 'primary' ||
+                      effectiveLevel === 'secondary' ||
+                      effectiveLevel === 'allowed'
+                    );
+                  });
+
+                  // Determine if this group has any explicit overrides
+                  const hasOverride = groupItems.some(
+                    sa => sa.selected_access_level !== 'default'
+                  );
+
+                  // Default collapsed when there is no effective access and no overrides
+                  const defaultCollapsed = !hasEffectiveAccess && !hasOverride;
+                  const isCollapsed =
+                    collapsedGroups[groupLabel] ?? defaultCollapsed;
+
+                  return (
+                    <div key={groupLabel} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-foreground">
+                          {groupLabel}
+                        </h3>
+                        <Switch
+                          checked={!isCollapsed}
+                          onCheckedChange={(checked) =>
+                            setCollapsedGroups(prev => ({
+                              ...prev,
+                              [groupLabel]: !checked,
+                            }))
+                          }
+                        />
+                      </div>
+                      {!isCollapsed && (
+                        <div className="border rounded-md overflow-hidden">
+                          <table className="w-full text-sm table-fixed">
+                            <colgroup>
+                              <col style={{ width: '50%' }} />
+                              <col style={{ width: '20%' }} />
+                              <col style={{ width: '30%' }} />
+                            </colgroup>
+                            <thead className="bg-muted">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-medium">Name</th>
+                                <th className="px-3 py-2 text-center font-medium">Default</th>
+                                <th className="px-3 py-2 text-center font-medium">Override</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {groupItems.map((sa, index) => (
+                                <tr
+                                  key={sa.skill_type_id}
+                                  className={index % 2 === 0 ? 'bg-background' : 'bg-muted/30'}
+                                >
+                                  <td className="px-3 py-2 font-medium">
+                                    {sa.skill_type_name}
+                                  </td>
+                                  <td className="px-3 py-2 text-center text-muted-foreground">
+                                    {formatAccessLevel(sa.default_access_level)}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <select
+                                      value={sa.selected_access_level}
+                                      onChange={(e) => handleSkillAccessChange(sa.skill_type_id, e.target.value as AccessLevel)}
+                                      className="w-full p-1 border rounded text-sm bg-background"
+                                      disabled={saveMutation.isPending}
+                                    >
+                                      <option value="default">Default</option>
+                                      <option value="primary">Primary</option>
+                                      <option value="secondary">Secondary</option>
+                                      <option value="allowed">Allowed</option>
+                                      <option value="denied">Denied (-)</option>
+                                    </select>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="text-xs text-muted-foreground">
+                  <p><strong>Primary</strong>: 6 XP random / 9 XP selected.</p>
+                  <p><strong>Secondary</strong>: 9 XP random / 12 XP selected.</p>
+                  <p><strong>Allowed</strong>: Access to this skill set. 15 XP random.</p>
+                  <p><strong>Denied</strong>: No access to this skill set.</p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  <strong>Default</strong>: Use the fighter type&apos;s default access.
-                  <strong> Primary</strong>: 6 XP random / 9 XP selected.
-                  <strong> Secondary</strong>: 9 XP random / 12 XP selected.
-                  <strong> Denied</strong>: No access to this skill type.
-                </p>
               </div>
 
               {/* Effective Access Summary */}
