@@ -368,7 +368,7 @@ const FighterEffectSelection = React.forwardRef<
                 const firstEffect = groupEffects[0];
                 const selectionType = firstEffect.type_specific_data?.effect_selection || 'fixed';
                 const maxSelections = firstEffect.type_specific_data?.max_selections;
-                const hasSelectionGroup = firstEffect.type_specific_data?.selection_group;
+                const selectionGroupLabel = firstEffect.type_specific_data?.selection_group?.trim();
                 
                 // Helper function to convert numbers to words
                 const numberToWord = (num: number): string => {
@@ -376,14 +376,21 @@ const FighterEffectSelection = React.forwardRef<
                   return words[num] || num.toString();
                 };
 
-                // Create group instruction text
-                let groupInstruction = '';
+                // Create base group instruction text
+                let baseInstruction = '';
                 if (selectionType === 'single_select' && groupEffects.length > 1) {
-                  groupInstruction = 'Select one';
+                  baseInstruction = 'Select one';
                 } else if (selectionType === 'multiple_select' && groupEffects.length > 1) {
                   const selectCount = maxSelections || groupEffects.length;
-                  groupInstruction = `Select ${numberToWord(selectCount)}`;
+                  baseInstruction = `Select up to ${numberToWord(selectCount)}`;
                 }
+
+                // Combine selection group label (if present) with instruction
+                const groupInstruction = selectionGroupLabel && baseInstruction
+                  ? `${selectionGroupLabel} (${baseInstruction})`
+                  : baseInstruction
+                    ? `Select ${baseInstruction.slice(7)}`
+                    : '';
 
                 return (
                   <div key={`${categoryName}-${groupKey}`} className="space-y-2 mb-4">
