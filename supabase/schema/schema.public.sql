@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict LZTnV8Wazg4TQUIQczE4RDf0j1ubGnx1ZfauDjLrYDD1d2ZRsNa37HapjNEc5vA
+\restrict 8NCUMswssjLsG4bfwVx0usfAA0iEJ2fJh5hIgDZ4Faxt7lJ4cbApe89fOkbrNci
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -5743,7 +5743,7 @@ CREATE TABLE public.vehicle_types (
     engine_slots_occupied numeric,
     gang_type_id uuid,
     cost numeric,
-    hardpoints numeric
+    hardpoints jsonb
 );
 
 
@@ -10528,5 +10528,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict LZTnV8Wazg4TQUIQczE4RDf0j1ubGnx1ZfauDjLrYDD1d2ZRsNa37HapjNEc5vA
+\unrestrict 8NCUMswssjLsG4bfwVx0usfAA0iEJ2fJh5hIgDZ4Faxt7lJ4cbApe89fOkbrNci
 
