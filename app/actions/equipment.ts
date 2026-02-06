@@ -922,6 +922,15 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       throw new Error(`Equipment with ID ${params.fighter_equipment_id} not found`);
     }
 
+    // Clear any hardpoint that references this weapon — hardpoints must survive weapon removal
+    if (equipmentBefore.vehicle_id) {
+      await supabase
+        .from('fighter_effects')
+        .update({ fighter_equipment_id: null })
+        .eq('fighter_equipment_id', params.fighter_equipment_id)
+        .eq('vehicle_id', equipmentBefore.vehicle_id);
+    }
+
     // Get associated fighter effects before deletion (they'll be cascade deleted)
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')

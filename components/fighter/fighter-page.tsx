@@ -723,6 +723,7 @@ export default function FighterPage({
               onAddEquipment={() => handleModalToggle('addVehicleEquipment', true)}
               userPermissions={userPermissions}
               vehicleEffects={vehicle.effects}
+              vehicleId={vehicle.id}
               onRegisterPurchase={(fn) => { vehiclePurchaseHandlerRef.current = fn; }}
             />
           )}

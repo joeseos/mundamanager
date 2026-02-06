@@ -651,6 +651,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           .select(`
             id,
             effect_name,
+            fighter_equipment_id,
             type_specific_data,
             created_at,
             updated_at,
@@ -833,6 +834,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
         processedEffects[categoryName].push({
           id: effectData.id,
           effect_name: effectData.effect_name,
+          fighter_equipment_id: effectData.fighter_equipment_id,
           type_specific_data: effectData.type_specific_data,
           created_at: effectData.created_at,
           updated_at: effectData.updated_at,
