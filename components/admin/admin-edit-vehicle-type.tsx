@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { HiX } from "react-icons/hi";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -15,6 +17,13 @@ interface AdminEditVehicleTypeModalProps {
 
 const numericInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 const regularInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2";
+
+const VALID_ARCS = ['Front', 'Left', 'Right', 'Rear'] as const;
+
+interface HardpointTemplate {
+  operated_by: 'crew' | 'passenger' | '';
+  arcs: string[];
+}
 
 interface GangOriginEquipmentModalProps {
   gangOrigins: Array<{ id: string; origin_name: string; category_name: string }>;
@@ -439,6 +448,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
   const [showGangOriginModal, setShowGangOriginModal] = useState(false);
   const [gangTypeEquipment, setGangTypeEquipment] = useState<Array<{ id?: string; gang_type_id: string; gang_type_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangTypeModal, setShowGangTypeModal] = useState(false);
+  const [hardpoints, setHardpoints] = useState<HardpointTemplate[]>([]);
 
   const [vehicleForm, setVehicleForm] = useState({
     cost: '',
@@ -558,6 +568,10 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         setGangTypeEquipment(vehicleData.gang_type_equipment);
       }
 
+      if (vehicleData.hardpoints) {
+        setHardpoints(vehicleData.hardpoints);
+      }
+
       // Set the form data with the correct gang type ID
       setVehicleForm({
         cost: vehicleData.cost?.toString() || '',
@@ -610,6 +624,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     setEquipmentSelectValue("");
     setGangOriginEquipment([]);
     setGangTypeEquipment([]);
+    setHardpoints([]);
   };
 
   useEffect(() => {
@@ -646,7 +661,8 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
             .filter(rule => rule.length > 0),
           equipment_list: equipmentListSelections,
           gang_origin_equipment: gangOriginEquipment,
-          gang_type_equipment: gangTypeEquipment
+          gang_type_equipment: gangTypeEquipment,
+          hardpoints
         }),
       });
 
@@ -1103,6 +1119,122 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
               <p className="text-sm text-muted-foreground mt-1">
                 Separate multiple rules with commas
               </p>
+            </div>
+
+            {/* Hardpoints */}
+            <div className="col-span-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Hardpoints
+                </label>
+                <Button
+                  onClick={() => setHardpoints(prev => [...prev, { operated_by: '', arcs: [] }])}
+                  variant="outline"
+                  size="sm"
+                  disabled={!selectedVehicle}
+                >
+                  Add Hardpoint
+                </Button>
+              </div>
+
+              {hardpoints.length > 0 && (
+                <div className="space-y-4">
+                  {hardpoints.map((hardpoint, index) => (
+                    <div
+                      key={index}
+                      className="border rounded-md p-4"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Badge variant="default">
+                              Hardpoint {index + 1}
+                            </Badge>
+                            {hardpoint.operated_by && (
+                              <Badge variant="secondary">
+                                {hardpoint.operated_by === 'crew' ? 'Crew Operated' : 'Passenger Operated'}
+                              </Badge>
+                            )}
+                            {hardpoint.arcs.length > 0 && (
+                              <Badge variant="outline" className="border-blue-500 text-blue-600">
+                                {hardpoint.arcs.length} Arc{hardpoint.arcs.length !== 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => setHardpoints(prev => prev.filter((_, i) => i !== index))}
+                          variant="destructive"
+                          size="sm"
+                          disabled={!selectedVehicle}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+
+                      <div className="flex gap-8">
+                        <div className="w-64 shrink-0">
+                          <label className="block text-xs font-medium text-muted-foreground mb-1">
+                            Operated By
+                          </label>
+                          <select
+                            value={hardpoint.operated_by}
+                            onChange={(e) => {
+                              const newHardpoints = [...hardpoints];
+                              newHardpoints[index] = {
+                                ...newHardpoints[index],
+                                operated_by: e.target.value as 'crew' | 'passenger' | ''
+                              };
+                              setHardpoints(newHardpoints);
+                            }}
+                            className="w-full p-2 border rounded-md text-sm"
+                          >
+                            <option value="">Not specified</option>
+                            <option value="crew">Crew</option>
+                            <option value="passenger">Passenger</option>
+                          </select>
+                        </div>
+
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-muted-foreground mb-1">
+                            Fire Arcs
+                          </label>
+                          <div className="flex flex-wrap gap-3 h-[42px] items-center">
+                            {VALID_ARCS.map((arc) => (
+                              <label key={arc} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <Checkbox
+                                  checked={hardpoint.arcs.includes(arc)}
+                                  onCheckedChange={(checked) => {
+                                    const newHardpoints = [...hardpoints];
+                                    const currentArcs = newHardpoints[index].arcs;
+                                    if (checked) {
+                                      newHardpoints[index] = {
+                                        ...newHardpoints[index],
+                                        arcs: [...currentArcs, arc]
+                                      };
+                                    } else {
+                                      newHardpoints[index] = {
+                                        ...newHardpoints[index],
+                                        arcs: currentArcs.filter(a => a !== arc)
+                                      };
+                                    }
+                                    setHardpoints(newHardpoints);
+                                  }}
+                                />
+                                {arc}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {hardpoints.length === 0 && selectedVehicle && (
+                <p className="text-sm text-muted-foreground italic py-4">No hardpoints configured</p>
+              )}
             </div>
           </div>
         </div>
