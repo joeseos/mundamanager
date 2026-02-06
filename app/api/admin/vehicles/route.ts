@@ -20,6 +20,11 @@ interface GangTypeEquipmentItem {
   gang_type_id: string;
 }
 
+interface HardpointTemplate {
+  operated_by: 'crew' | 'passenger' | '';
+  arcs: string[];
+}
+
 interface VehicleFormData {
   id: string;
   cost?: string;
@@ -39,6 +44,7 @@ interface VehicleFormData {
   equipment_list?: string[];
   gang_origin_equipment?: GangOriginEquipmentItem[];
   gang_type_equipment?: GangTypeEquipmentItem[];
+  hardpoints?: HardpointTemplate[];
 }
 
 
@@ -234,6 +240,7 @@ export async function POST(request: Request) {
       drive_slots: parseInt(vehicleData.drive_slots),
       engine_slots: parseInt(vehicleData.engine_slots),
       gang_type_id: vehicleData.gang_type_id === "0" ? null : parseInt(vehicleData.gang_type_id),
+      hardpoints: vehicleData.hardpoints || [],
       // Initialize occupied slots to 0
       body_slots_occupied: 0,
       drive_slots_occupied: 0,
@@ -360,7 +367,8 @@ export async function PATCH(request: Request) {
       handling: vehicleData.handling,
       save: vehicleData.save,
       vehicle_type: vehicleData.vehicle_type,
-      special_rules: vehicleData.special_rules || []
+      special_rules: vehicleData.special_rules || [],
+      hardpoints: vehicleData.hardpoints || []
     };
 
     const { error: updateError } = await supabase
