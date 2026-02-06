@@ -1063,6 +1063,7 @@ export const getGangFightersList = async (
           .select(`
             id,
             fighter_id,
+            fighter_equipment_id,
             effect_name,
             type_specific_data,
             created_at,
@@ -1500,12 +1501,32 @@ export const getGangFightersList = async (
           effects[categoryName].push({
             id: effectData.id,
             effect_name: effectData.effect_name,
+            fighter_equipment_id: effectData.fighter_equipment_id,
             type_specific_data: effectData.type_specific_data,
             created_at: effectData.created_at,
             updated_at: effectData.updated_at,
             fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
           });
         });
+
+        // Calculate unfiltered effects cost for gang rating (before filtering)
+        const unfilteredEffectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+          return sum + (effect.type_specific_data?.credits_increase || 0);
+        }, 0);
+
+        // Filter effects by active loadout (for display and stats)
+        if (activeLoadoutEquipmentIds !== null) {
+          Object.keys(effects).forEach(categoryName => {
+            effects[categoryName] = effects[categoryName].filter((effect: any) => {
+              // Always show effects without equipment parent (injuries, advancements, etc.)
+              if (!effect.fighter_equipment_id) {
+                return true;
+              }
+              // Only show effects whose parent equipment is in active loadout
+              return activeLoadoutEquipmentIds.has(effect.fighter_equipment_id);
+            });
+          });
+        }
 
         // Get THIS fighter's equipment IDs for ammo ownership check
         const fighterStandardIds = new Set(
@@ -1726,9 +1747,8 @@ export const getGangFightersList = async (
           const allEquipmentCost = processedEquipment
             .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
           const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
-          const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
-            return sum + (effect.type_specific_data?.credits_increase || 0);
-          }, 0);
+          // Use unfiltered effects cost for gang rating (calculated before filtering)
+          const effectsCost = unfilteredEffectsCost;
 
           // Calculate vehicle costs including equipment and effects
           const vehicleCost = processedVehicles.reduce((sum: number, vehicle: any) => {
