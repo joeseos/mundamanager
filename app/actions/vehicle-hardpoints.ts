@@ -5,6 +5,31 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateVehicleEffects, invalidateGangFinancials, CACHE_TAGS } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { revalidateTag } from 'next/cache';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+// ============================================================================
+// HELPER: Clear hardpoint reference when weapon is removed
+// ============================================================================
+
+/**
+ * Clears the fighter_equipment_id on any hardpoint that references the given weapon.
+ * Used before weapon deletion to ensure hardpoints survive weapon removal.
+ *
+ * @param supabase - Supabase client instance
+ * @param fighterEquipmentId - The weapon's fighter_equipment_id
+ * @param vehicleId - The vehicle ID to scope the update
+ */
+export async function clearHardpointReference(
+  supabase: SupabaseClient,
+  fighterEquipmentId: string,
+  vehicleId: string
+): Promise<void> {
+  await supabase
+    .from('fighter_effects')
+    .update({ fighter_equipment_id: null })
+    .eq('fighter_equipment_id', fighterEquipmentId)
+    .eq('vehicle_id', vehicleId);
+}
 
 // ============================================================================
 // FIT WEAPON TO HARDPOINT
@@ -55,25 +80,28 @@ export async function fitWeaponToHardpoint(
       if (!weapon) return { success: false, error: 'Weapon not found on this vehicle' };
 
       // Auto-clear: if this weapon is already on another hardpoint, NULL that FK
-      await supabase
+      const { error: clearError } = await supabase
         .from('fighter_effects')
         .update({ fighter_equipment_id: null })
         .eq('fighter_equipment_id', params.weaponEquipmentId)
         .eq('vehicle_id', params.vehicleId)
         .neq('id', params.hardpointEffectId);
+      if (clearError) return { success: false, error: `Failed to clear previous hardpoint: ${clearError.message}` };
 
       // Set weapon on target hardpoint
-      await supabase
+      const { error: fitError } = await supabase
         .from('fighter_effects')
         .update({ fighter_equipment_id: params.weaponEquipmentId })
         .eq('id', params.hardpointEffectId);
+      if (fitError) return { success: false, error: `Failed to fit weapon: ${fitError.message}` };
 
     } else {
       // === UNFIT ===
-      await supabase
+      const { error: unfitError } = await supabase
         .from('fighter_effects')
         .update({ fighter_equipment_id: null })
         .eq('id', params.hardpointEffectId);
+      if (unfitError) return { success: false, error: `Failed to unfit weapon: ${unfitError.message}` };
     }
 
     // --- Invalidate ---
@@ -137,7 +165,9 @@ export async function updateVehicleHardpoint(
     // --- Cost delta ---
     // default_arcs is the template baseline stored at creation. Never changes.
     // Cost = arcs beyond the free baseline, at 15 credits each.
-    const defaultArcsCount: number = (currentData.default_arcs || []).length;
+    // Runtime validation: ensure default_arcs is an array
+    const defaultArcs = Array.isArray(currentData.default_arcs) ? currentData.default_arcs : [];
+    const defaultArcsCount: number = defaultArcs.length;
     const currentCreditsIncrease: number = currentData.credits_increase || 0;
     const newCreditsIncrease = Math.max(0, uniqueArcs.length - defaultArcsCount) * 15;
     const delta = newCreditsIncrease - currentCreditsIncrease;  // positive = buying, negative = refund
@@ -154,21 +184,9 @@ export async function updateVehicleHardpoint(
       }
     }
 
-    // --- Financial update ---
-    if (delta !== 0) {
-      // Assigned vehicle → ratingDelta (vehicle cost rolls into fighter rating)
-      // Unassigned       → stashValueDelta (vehicle sits in gang stash)
-      await updateGangFinancials(supabase, {
-        gangId: params.gangId,
-        creditsDelta: -delta,
-        ...(vehicle.fighter_id
-          ? { ratingDelta: delta }
-          : { stashValueDelta: delta }),
-      });
-    }
-
-    // --- Persist (spread currentData to preserve default_arcs) ---
-    await supabase
+    // --- Persist effect update first, then financial update ---
+    // This order ensures we don't charge credits for a failed update
+    const { error: updateError } = await supabase
       .from('fighter_effects')
       .update({
         type_specific_data: {
@@ -180,6 +198,28 @@ export async function updateVehicleHardpoint(
         updated_at: new Date().toISOString()
       })
       .eq('id', params.effectId);
+
+    if (updateError) {
+      return { success: false, error: `Failed to update hardpoint: ${updateError.message}` };
+    }
+
+    // --- Financial update (only after effect update succeeds) ---
+    if (delta !== 0) {
+      // Assigned vehicle → ratingDelta (vehicle cost rolls into fighter rating)
+      // Unassigned       → stashValueDelta (vehicle sits in gang stash)
+      const financialResult = await updateGangFinancials(supabase, {
+        gangId: params.gangId,
+        creditsDelta: -delta,
+        ...(vehicle.fighter_id
+          ? { ratingDelta: delta }
+          : { stashValueDelta: delta }),
+      });
+      if (!financialResult.success) {
+        // Effect was updated but financial failed - log but continue
+        // The effect is correct, financial will be slightly off until next recalc
+        console.error('Financial update failed after effect update:', financialResult.error);
+      }
+    }
 
     // --- Invalidate ---
     invalidateVehicleEffects(params.vehicleId, vehicle.fighter_id || undefined, params.gangId);

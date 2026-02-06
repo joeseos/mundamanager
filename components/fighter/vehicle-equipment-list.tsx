@@ -707,9 +707,6 @@ export function VehicleEquipmentList({
         emptyMessage="No vehicle equipment installed"
       />
 
-      {/* Hardpoints Section removed - weapon fitting now via wrench button on weapons */}
-      {/* TODO: Add Edit (arcs/operated_by) and Unfit to FitWeaponModal later */}
-
       {deleteModalData && (
         <Modal
           title="Delete Vehicle Equipment"

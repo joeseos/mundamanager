@@ -18,6 +18,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { clearHardpointReference } from './vehicle-hardpoints';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -924,11 +925,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
     // Clear any hardpoint that references this weapon — hardpoints must survive weapon removal
     if (equipmentBefore.vehicle_id) {
-      await supabase
-        .from('fighter_effects')
-        .update({ fighter_equipment_id: null })
-        .eq('fighter_equipment_id', params.fighter_equipment_id)
-        .eq('vehicle_id', equipmentBefore.vehicle_id);
+      await clearHardpointReference(supabase, params.fighter_equipment_id, equipmentBefore.vehicle_id);
     }
 
     // Get associated fighter effects before deletion (they'll be cascade deleted)

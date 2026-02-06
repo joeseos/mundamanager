@@ -6,6 +6,7 @@ import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmen
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { clearHardpointReference } from './vehicle-hardpoints';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -144,11 +145,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Clear any hardpoint that references this weapon — hardpoints must survive weapon removal
     if (equipmentData.vehicle_id) {
-      await supabase
-        .from('fighter_effects')
-        .update({ fighter_equipment_id: null })
-        .eq('fighter_equipment_id', params.fighter_equipment_id)
-        .eq('vehicle_id', equipmentData.vehicle_id);
+      await clearHardpointReference(supabase, params.fighter_equipment_id, equipmentData.vehicle_id);
     }
 
     // Find associated effects before deletion
