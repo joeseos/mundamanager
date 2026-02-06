@@ -216,6 +216,25 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
                   (fighterBasic.cost_adjustment || 0) + beastCosts;
     }
 
+    // Filter effects by active loadout (for stats/display)
+    // Total cost above uses ALL effects (correct for gang rating)
+    if (fighterBasic.active_loadout_id) {
+      const activeLoadout = loadouts.find(l => l.id === fighterBasic.active_loadout_id);
+      if (activeLoadout) {
+        const loadoutEquipmentIds = new Set(activeLoadout.equipment_ids);
+        Object.keys(effects).forEach(category => {
+          effects[category] = effects[category].filter(effect => {
+            // Always show effects without equipment parent (injuries, advancements, etc.)
+            if (!effect.fighter_equipment_id) {
+              return true;
+            }
+            // Only show effects whose parent equipment is in active loadout
+            return loadoutEquipmentIds.has(effect.fighter_equipment_id);
+          });
+        });
+      }
+    }
+
     // Assemble the fighter data structure
     const fighterData = {
       fighter: {
