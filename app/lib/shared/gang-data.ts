@@ -2055,6 +2055,7 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
     .select(`
       id,
       effect_name,
+      fighter_equipment_id,
       type_specific_data,
       created_at,
       updated_at,
@@ -2087,6 +2088,7 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
     effectsByCategory[categoryName].push({
       id: effectData.id,
       effect_name: effectData.effect_name,
+      fighter_equipment_id: effectData.fighter_equipment_id,
       type_specific_data: effectData.type_specific_data,
       created_at: effectData.created_at,
       updated_at: effectData.updated_at,

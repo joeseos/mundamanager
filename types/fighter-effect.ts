@@ -37,6 +37,10 @@ export interface TypeSpecificData extends TraitModificationData {
   times_increased?: number;
   // Power boost fields
   kill_cost?: number;
+  // Hardpoint fields
+  operated_by?: string;      // 'crew' | 'passenger'
+  arcs?: string[];           // current arcs, e.g. ['Front', 'Left']
+  default_arcs?: string[];   // template arcs at creation — the free baseline for cost calc
   // Index signature for legacy/unknown database fields
   [key: string]: string | number | boolean | string[] | undefined;
 }
@@ -45,9 +49,10 @@ export interface TypeSpecificData extends TraitModificationData {
 // EFFECT CATEGORIES
 // =============================================================================
 
-export type EffectCategoryName = 
+export type EffectCategoryName =
   | 'injuries' | 'advancements' | 'bionics' | 'cyberteknika' | 'gene-smithing'
-  | 'rig-glitches' | 'augmentations' | 'equipment' | 'user' | 'skills' | 'power-boosts';
+  | 'rig-glitches' | 'augmentations' | 'equipment' | 'user' | 'skills' | 'power-boosts'
+  | 'hardpoint';
 
 export interface FighterEffectCategory {
   id: string;

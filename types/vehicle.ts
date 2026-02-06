@@ -9,6 +9,7 @@ export type VehicleEffectModifier = FighterEffectModifier;
 export interface VehicleEffect {
   id: string;
   effect_name: string;
+  fighter_equipment_id?: string;
   type_specific_data?: TypeSpecificData;
   created_at?: string;
   updated_at?: string;
@@ -18,6 +19,7 @@ export interface VehicleEffect {
 export interface VehicleEffects {
   'lasting damages'?: VehicleEffect[];
   'vehicle upgrades'?: VehicleEffect[];
+  hardpoint?: VehicleEffect[];
   user?: VehicleEffect[];
   [key: string]: VehicleEffect[] | undefined;
 }

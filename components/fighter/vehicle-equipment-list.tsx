@@ -10,11 +10,14 @@ import { sellEquipmentFromFighter } from '@/app/actions/sell-equipment';
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { deleteEquipmentFromFighter } from '@/app/actions/equipment';
 import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
+import { fitWeaponToHardpoint, updateVehicleHardpoint } from '@/app/actions/vehicle-hardpoints';
 import { MdCurrencyExchange } from 'react-icons/md';
-import { FaBox } from 'react-icons/fa';
+import { FaBox, FaWrench } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
 import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment-tooltip';
 import { Equipment } from '@/types/equipment';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 
 interface VehicleEquipmentListProps {
   fighterId: string;
@@ -25,7 +28,8 @@ interface VehicleEquipmentListProps {
   equipment?: VehicleEquipment[];
   onAddEquipment: () => void;
   userPermissions: UserPermissions;
-  vehicleEffects?: any; // Add vehicle effects prop
+  vehicleEffects?: any;
+  vehicleId: string;
   onRegisterPurchase?: (fn: (payload: { params: any; item: any }) => void) => void;
 }
 
@@ -66,6 +70,233 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
   );
 }
 
+interface FitWeaponModalProps {
+  weaponName: string;
+  currentHardpointId: string | null;
+  hardpoints: Array<{
+    id: string;
+    effect_name: string;
+    fitted_weapon_name: string;
+    operated_by: string;
+    arcs: string[];
+    default_arcs: string[];
+    credits_increase: number;
+  }>;
+  gangCredits: number;
+  vehicleId: string;
+  gangId: string;
+  onClose: () => void;
+  onConfirm: (hardpointEffectId: string) => Promise<void>;
+}
+
+const ALL_ARCS = ['Front', 'Left', 'Right', 'Rear'];
+
+function FitWeaponModal({
+  weaponName,
+  currentHardpointId,
+  hardpoints,
+  gangCredits,
+  vehicleId,
+  gangId,
+  onClose,
+  onConfirm
+}: FitWeaponModalProps) {
+  const { toast } = useToast();
+  const [selectedHardpointId, setSelectedHardpointId] = useState<string | null>(currentHardpointId);
+  const [editedArcs, setEditedArcs] = useState<string[]>([]);
+  const [editedOperatedBy, setEditedOperatedBy] = useState<'crew' | 'passenger'>('crew');
+  const [isSaving, setIsSaving] = useState(false);
+  const [unfitRequested, setUnfitRequested] = useState(false);
+
+  // Sync edit state when selection changes
+  React.useEffect(() => {
+    if (selectedHardpointId) {
+      const hp = hardpoints.find(h => h.id === selectedHardpointId);
+      if (hp) {
+        setEditedArcs(hp.arcs);
+        setEditedOperatedBy(hp.operated_by as 'crew' | 'passenger');
+        setUnfitRequested(false);
+      }
+    }
+  }, [selectedHardpointId, hardpoints]);
+
+  const selected = hardpoints.find(hp => hp.id === selectedHardpointId);
+  const hasWeaponFitted = !!selected?.fitted_weapon_name && selected.fitted_weapon_name !== '—' && selected.fitted_weapon_name !== '';
+
+  // Cost calculations
+  const defaultArcsCount = selected?.default_arcs?.length || 0;
+  const currentCost = selected?.credits_increase || 0;
+  const newCost = Math.max(0, editedArcs.length - defaultArcsCount) * 15;
+  const costDelta = newCost - currentCost;
+  const insufficientCredits = costDelta > 0 && gangCredits < costDelta;
+
+  // Check if arcs/operated_by have changed from current values
+  const hasArcChanges = selected && (
+    editedOperatedBy !== selected.operated_by ||
+    editedArcs.length !== selected.arcs.length ||
+    !editedArcs.every(a => selected.arcs.includes(a))
+  );
+
+  const handleArcToggle = (arc: string, checked: boolean) => {
+    setEditedArcs(prev => {
+      if (checked) {
+        return [...prev, arc];
+      } else {
+        // Don't allow removing last arc
+        if (prev.length === 1) return prev;
+        return prev.filter(a => a !== arc);
+      }
+    });
+  };
+
+  // Save all changes: arc updates, fit weapon, and/or unfit
+  const handleSave = async () => {
+    if (!selectedHardpointId || insufficientCredits) return;
+    setIsSaving(true);
+    try {
+      // Handle unfit first if requested
+      if (unfitRequested && hasWeaponFitted) {
+        const unfitResult = await fitWeaponToHardpoint({
+          vehicleId,
+          hardpointEffectId: selectedHardpointId,
+          weaponEquipmentId: '',  // empty = unfit
+          gangId
+        });
+        if (!unfitResult.success) throw new Error(unfitResult.error || 'Failed to unfit weapon');
+      }
+
+      // Save arc changes if any
+      if (hasArcChanges) {
+        const updateResult = await updateVehicleHardpoint({
+          vehicleId,
+          effectId: selectedHardpointId,
+          gangId,
+          operated_by: editedOperatedBy,
+          arcs: editedArcs
+        });
+        if (!updateResult.success) throw new Error(updateResult.error || 'Failed to update hardpoint');
+      }
+
+      // Fit the weapon (unless we're just unfitting)
+      if (!unfitRequested) {
+        await onConfirm(selectedHardpointId);
+      } else {
+        toast({ title: 'Changes saved', variant: 'default' });
+        onClose();
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to save', variant: 'destructive' });
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Edit hardpoints"
+      content={
+        <div className="space-y-4">
+          {/* Hardpoints table */}
+          <div className="border rounded-md overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted">
+                  <th className="text-left px-3 py-2">Hardpoint</th>
+                  <th className="text-left px-3 py-2">Current Weapon</th>
+                  <th className="w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {hardpoints.map(hp => (
+                  <tr
+                    key={hp.id}
+                    className={`border-t cursor-pointer ${selectedHardpointId === hp.id ? 'bg-muted' : 'hover:bg-muted/50'}`}
+                    onClick={() => setSelectedHardpointId(hp.id)}
+                  >
+                    <td className="px-3 py-2">{hp.effect_name}</td>
+                    <td className={`px-3 py-2 ${hp.fitted_weapon_name && hp.fitted_weapon_name !== '—' && hp.fitted_weapon_name !== '' ? '' : 'text-muted-foreground'}`}>
+                      {(!hp.fitted_weapon_name || hp.fitted_weapon_name === '—' || hp.fitted_weapon_name === '') ? 'Empty' : hp.fitted_weapon_name}
+                    </td>
+                    <td className="px-3 py-2">
+                      <input type="radio" checked={selectedHardpointId === hp.id} onChange={() => setSelectedHardpointId(hp.id)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Hardpoint settings - shown when a hardpoint is selected */}
+          {selectedHardpointId && (
+            <div className="space-y-4">
+              {/* Operated By */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Operated By</label>
+                <div className="flex gap-4">
+                  {(['crew', 'passenger'] as const).map(op => (
+                    <label key={op} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={editedOperatedBy === op}
+                        onChange={() => setEditedOperatedBy(op)}
+                      />
+                      <span className="capitalize">{op}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Arcs */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Arcs</label>
+                <div className="space-y-2">
+                  {ALL_ARCS.map(arc => {
+                    const isDefault = selected?.default_arcs?.includes(arc);
+                    const isChecked = editedArcs.includes(arc);
+                    return (
+                      <div key={arc} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`arc-${arc}`}
+                          checked={isChecked}
+                          onCheckedChange={(checked) => handleArcToggle(arc, !!checked)}
+                          disabled={editedArcs.length === 1 && isChecked}
+                        />
+                        <label htmlFor={`arc-${arc}`} className="text-sm cursor-pointer">{arc}</label>
+                        {!isDefault && (
+                          <span className="text-sm text-muted-foreground">+15 credits</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {insufficientCredits && (
+                <div className="text-red-600 text-sm font-medium">Insufficient credits!</div>
+              )}
+
+              {/* Unfit button - only show if hardpoint has a weapon */}
+              {hasWeaponFitted && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setUnfitRequested(!unfitRequested)}
+                  variant={unfitRequested ? 'outline' : 'default'}
+                >
+                  {unfitRequested ? 'Cancel Unfit' : 'Unfit Weapon'}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      }
+      onClose={onClose}
+      onConfirm={handleSave}
+      confirmDisabled={selectedHardpointId === null || isSaving || insufficientCredits}
+      confirmText="Save"
+    />
+  );
+}
+
 export function VehicleEquipmentList({ 
   fighterId, 
   gangId, 
@@ -76,6 +307,7 @@ export function VehicleEquipmentList({
   onAddEquipment,
   userPermissions,
   vehicleEffects,
+  vehicleId,
   onRegisterPurchase
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +315,10 @@ export function VehicleEquipmentList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
   const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);
+  const [fitWeaponData, setFitWeaponData] = useState<{
+    weaponEquipmentId: string;
+    weaponName: string;
+  } | null>(null);
 
   // Optimistic purchase mutation for vehicle equipment delegated from modal
   const purchaseMutation = {
@@ -344,6 +580,7 @@ export function VehicleEquipmentList({
     return {
       id: item.fighter_equipment_id,
       equipment_name: item.equipment_name,
+      equipment_type: item.equipment_type,
       cost: item.cost ?? 0,
       core_equipment: item.core_equipment,
       fighter_equipment_id: item.fighter_equipment_id,
@@ -352,6 +589,31 @@ export function VehicleEquipmentList({
       _equipment: item as Equipment
     };
   });
+
+  // Hardpoints derivation — extracted to component scope for access in Fit modal and actions
+  const hardpoints = (vehicleEffects?.['hardpoint'] || []) as Array<{
+    id: string;
+    effect_name: string;
+    fighter_equipment_id?: string;
+    type_specific_data?: {
+      operated_by?: string;
+      arcs?: string[];
+      default_arcs?: string[];
+      credits_increase?: number;
+    };
+  }>;
+
+  const hardpointItems = hardpoints.map(hp => ({
+    id: hp.id,
+    effect_name: hp.effect_name,
+    operated_by: hp.type_specific_data?.operated_by || 'crew',
+    arcs: (hp.type_specific_data?.arcs || []).join(', ') || '—',
+    credits_increase: hp.type_specific_data?.credits_increase || 0,
+    fighter_equipment_id: hp.fighter_equipment_id || '',
+    fitted_weapon_name: hp.fighter_equipment_id
+      ? (equipment.find(e => e.fighter_equipment_id === hp.fighter_equipment_id)?.equipment_name || '(unknown)')
+      : '—'
+  }));
 
   return (
     <>
@@ -385,6 +647,18 @@ export function VehicleEquipmentList({
           }
         ]}
         actions={[
+          {
+            icon: <FaWrench className="h-4 w-4" />,
+            variant: 'outline',
+            onClick: (item) => {
+              setFitWeaponData({
+                weaponEquipmentId: item.fighter_equipment_id,
+                weaponName: item.equipment_name
+              });
+            },
+            disabled: (item) => item.equipment_type !== 'weapon' || hardpoints.length === 0 || isLoading || !userPermissions.canEdit,
+            title: 'Fit to hardpoint'
+          },
           {
             icon: <FaBox className="h-4 w-4" />,
             variant: 'outline',
@@ -433,6 +707,9 @@ export function VehicleEquipmentList({
         emptyMessage="No vehicle equipment installed"
       />
 
+      {/* Hardpoints Section removed - weapon fitting now via wrench button on weapons */}
+      {/* TODO: Add Edit (arcs/operated_by) and Unfit to FitWeaponModal later */}
+
       {deleteModalData && (
         <Modal
           title="Delete Vehicle Equipment"
@@ -471,6 +748,43 @@ export function VehicleEquipmentList({
             stashModalData.fighter_equipment_id,
             stashModalData.equipment_id
           ); return true; }}
+        />
+      )}
+
+      {fitWeaponData && (
+        <FitWeaponModal
+          weaponName={fitWeaponData.weaponName}
+          currentHardpointId={
+            hardpoints.find(hp => hp.fighter_equipment_id === fitWeaponData.weaponEquipmentId)?.id || null
+          }
+          hardpoints={hardpointItems.map(hp => ({
+            id: hp.id,
+            effect_name: hp.effect_name,
+            fitted_weapon_name: hp.fitted_weapon_name,
+            operated_by: hp.operated_by,
+            arcs: hardpoints.find(h => h.id === hp.id)?.type_specific_data?.arcs || [],
+            default_arcs: hardpoints.find(h => h.id === hp.id)?.type_specific_data?.default_arcs || [],
+            credits_increase: hp.credits_increase
+          }))}
+          gangCredits={gangCredits}
+          vehicleId={vehicleId}
+          gangId={gangId}
+          onClose={() => setFitWeaponData(null)}
+          onConfirm={async (hardpointEffectId) => {
+            try {
+              const result = await fitWeaponToHardpoint({
+                vehicleId,
+                hardpointEffectId,
+                weaponEquipmentId: fitWeaponData.weaponEquipmentId,
+                gangId
+              });
+              if (!result.success) throw new Error(result.error || 'Failed to fit weapon');
+              toast({ title: 'Weapon fitted', description: `${fitWeaponData.weaponName} fitted to hardpoint`, variant: 'default' });
+              setFitWeaponData(null);
+            } catch (err) {
+              toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to fit weapon', variant: 'destructive' });
+            }
+          }}
         />
       )}
 

@@ -176,8 +176,9 @@ export function calculateAdjustedStats(fighter: FighterProps) {
       });
     };
 
-    // Process all effect types
-    const effectCategories: EffectCategory[] = ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'power-boosts', 'augmentations', 'equipment', 'user', 'skills'];
+    // Process all effect types (fighter-specific categories only, excludes vehicle-only 'hardpoint')
+    type FighterEffectCategory = Exclude<EffectCategory, 'hardpoint'>;
+    const effectCategories: FighterEffectCategory[] = ['injuries', 'advancements', 'bionics', 'cyberteknika', 'gene-smithing', 'rig-glitches', 'power-boosts', 'augmentations', 'equipment', 'user', 'skills'];
 
     effectCategories.forEach(category => {
       if (Array.isArray(fighter.effects[category])) {
