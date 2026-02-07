@@ -277,6 +277,19 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     - skillsCost
     - (fighterData.fighter.cost_adjustment || 0);
 
+  // Base copy cost = total minus things NOT copied in base mode (vehicles, skills, experienced-only effects)
+  const experiencedOnlyEffectsCost = Object.values(effects)
+    .flat()
+    .filter((e: any) => {
+      const cat = e.fighter_effect_type?.fighter_effect_category?.category_name;
+      return cat === 'injuries' || cat === 'advancements' || cat === 'power-boosts';
+    })
+    .reduce((sum: number, e: any) =>
+      sum + ((e.type_specific_data?.credits_increase as number) || 0), 0);
+
+  const baseCopyCost = (fighterData.fighter.credits || 0)
+    - vehicleCost - skillsCost - experiencedOnlyEffectsCost;
+
   return {
     fighter: {
       ...fighterData.fighter,
@@ -290,6 +303,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
         fighter_sub_type_id: fighterData.fighter.fighter_sub_type.id
       } : undefined,
       base_credits: baseCost,
+      base_copy_cost: baseCopyCost,
       gang_id: fighterData.gang.id,
       gang_type_id: fighterData.gang.gang_type_id,
       skills: transformedSkills,
@@ -1068,6 +1082,7 @@ export default function FighterPage({
               credits: fighterData.fighter.credits || 0,
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: (fighterData.fighter as any).base_credits || 0,
+              base_copy_cost: (fighterData.fighter as any).base_copy_cost || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
               campaigns: fighterData.fighter?.campaigns,
               vehicles: fighterData.fighter?.vehicles?.map(v => ({
