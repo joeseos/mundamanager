@@ -24,6 +24,7 @@ interface Fighter {
   credits: number;
   cost_adjustment?: number;
   base_credits?: number;
+  base_copy_cost?: number;
   is_spyrer?: boolean;
   campaigns?: Array<{
     has_meat: boolean;
@@ -440,7 +441,7 @@ export function FighterActions({
           currentGangId={gang.id}
           isOpen={modals.copy}
           onClose={() => handleModalToggle('copy', false)}
-          fighterBaseCost={fighter.base_credits || 0}
+          fighterBaseCost={fighter.base_copy_cost ?? fighter.base_credits ?? 0}
           fighterFullCost={fighter.credits || 0}
           vehicles={fighter.vehicles?.map(v => ({
             id: v.id,

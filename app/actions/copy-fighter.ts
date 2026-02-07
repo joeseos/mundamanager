@@ -28,6 +28,56 @@ interface CopyFighterResult {
   error?: string;
 }
 
+/**
+ * Calculate the total cost of everything being copied, based on source fighter data.
+ * For experienced copies, uses params.calculated_cost (includes skills cost from client).
+ * For base copies, calculates server-side from source data.
+ */
+function calculateTotalCopyCost(
+  sourceFighter: any,
+  vehicleEquipment: any[],
+  vehicleEffects: any[],
+  params: CopyFighterParams
+): number {
+  if (params.copy_as_experienced) {
+    // Experienced copy: modal's calculated_cost includes everything (skills, effects, etc.)
+    return params.calculated_cost ?? sourceFighter.credits ?? 0;
+  }
+
+  // Base copy: calculate from source data
+  const dbBaseCost = sourceFighter.credits || 0;
+  const costAdjustment = sourceFighter.cost_adjustment || 0;
+
+  const copiedEquipmentCost = (sourceFighter.fighter_equipment || [])
+    .filter((eq: any) => !eq.vehicle_id)
+    .reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
+
+  const copiedEffectsCost = (sourceFighter.fighter_effects || [])
+    .filter((e: any) => {
+      const cat = e.fighter_effect_type?.fighter_effect_category?.category_name;
+      return cat !== 'injuries' && cat !== 'advancements' && cat !== 'power-boosts';
+    })
+    .reduce((sum: number, e: any) => sum + (e.type_specific_data?.credits_increase || 0), 0);
+
+  let copiedVehicleCost = 0;
+  if (params.copy_vehicles !== false && sourceFighter.vehicles?.length > 0) {
+    copiedVehicleCost = sourceFighter.vehicles.reduce(
+      (sum: number, v: any) => sum + (v.cost || 0), 0
+    );
+    copiedVehicleCost += vehicleEquipment.reduce(
+      (sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0
+    );
+    copiedVehicleCost += vehicleEffects
+      .filter((e: any) => {
+        const cat = e.fighter_effect_type?.fighter_effect_category?.category_name;
+        return cat !== 'lasting damages';
+      })
+      .reduce((sum: number, e: any) => sum + (e.type_specific_data?.credits_increase || 0), 0);
+  }
+
+  return dbBaseCost + costAdjustment + copiedEquipmentCost + copiedEffectsCost + copiedVehicleCost;
+}
+
 export async function copyFighter(params: CopyFighterParams): Promise<CopyFighterResult> {
   try {
     const supabase = await createClient();
@@ -156,13 +206,17 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       return { success: false, error: 'Unauthorized: You do not own this fighter' };
     }
 
+    // Calculate the total cost of everything being copied (server-side, authoritative)
+    const totalCopyCost = calculateTotalCopyCost(
+      sourceFighter, vehicleEquipment, vehicleEffects, params
+    );
+
     if (params.deduct_credits) {
-      const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
       const currentCredits = gang.credits || 0;
-      if (currentCredits < cost) {
+      if (currentCredits < totalCopyCost) {
         return {
           success: false,
-          error: `Not enough credits. Gang has ${currentCredits} credits but fighter costs ${cost}`
+          error: `Not enough credits. Gang has ${currentCredits} credits but copy costs ${totalCopyCost}`
         };
       }
     }
@@ -494,14 +548,12 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       }
     }
 
-    // Update gang credits, rating and wealth using helper
-    const cost = params.calculated_cost ?? sourceFighter.credits ?? 0;
-
     // Update rating/wealth using helper (handles cache invalidation)
+    // totalCopyCost includes everything being copied (base + equipment + effects + vehicles)
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.target_gang_id,
-      ratingDelta: cost,
-      creditsDelta: params.deduct_credits ? -cost : 0,
+      ratingDelta: totalCopyCost,
+      creditsDelta: params.deduct_credits ? -totalCopyCost : 0,
       applyToRating: params.add_to_rating !== false
     });
 
@@ -533,7 +585,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       fighter_id: newFighterId,
       fighter_name: newFighterName,
       action_type: 'fighter_copied',
-      fighter_credits: params.calculated_cost || sourceFighter.credits || 0,
+      fighter_credits: totalCopyCost,
       source_fighter_name: sourceFighter.fighter_name,
       copy_type: params.copy_as_experienced ? 'experienced' : 'base',
       user_id: user.id,
