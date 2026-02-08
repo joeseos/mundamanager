@@ -192,7 +192,7 @@ function FitWeaponModal({
 
   return (
     <Modal
-      title="Edit hardpoints"
+      title="Edit Hardpoints"
       content={
         <div className="space-y-4">
           {/* Hardpoints table */}
@@ -200,9 +200,11 @@ function FitWeaponModal({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted">
-                  <th className="text-left px-3 py-2">Hardpoint</th>
-                  <th className="text-left px-3 py-2">Current Weapon</th>
-                  <th className="w-10"></th>
+                  <th className="w-4 pl-3 py-2"></th>
+                  <th className="text-left px-3 py-2">Name</th>
+                  <th className="text-left px-3 py-2">Operator</th>
+                  <th className="text-left px-3 py-2">Arc</th>
+                  <th className="text-left px-3 py-2">Weapon</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,12 +214,16 @@ function FitWeaponModal({
                     className={`border-t cursor-pointer ${selectedHardpointId === hp.id ? 'bg-muted' : 'hover:bg-muted/50'}`}
                     onClick={() => setSelectedHardpointId(hp.id)}
                   >
+                    <td className="w-4 pl-3 py-2">
+                      <input type="radio" checked={selectedHardpointId === hp.id} onChange={() => setSelectedHardpointId(hp.id)} />
+                    </td>
                     <td className="px-3 py-2">{hp.effect_name}</td>
+                    <td className="px-3 py-2 capitalize">{hp.operated_by}</td>
+                    <td className={`px-3 py-2 ${hp.arcs?.length ? '' : 'text-muted-foreground'}`}>
+                      {hp.arcs?.length ? hp.arcs.join(', ') : '—'}
+                    </td>
                     <td className={`px-3 py-2 ${hp.fitted_weapon_name && hp.fitted_weapon_name !== '—' && hp.fitted_weapon_name !== '' ? '' : 'text-muted-foreground'}`}>
                       {(!hp.fitted_weapon_name || hp.fitted_weapon_name === '—' || hp.fitted_weapon_name === '') ? 'Empty' : hp.fitted_weapon_name}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="radio" checked={selectedHardpointId === hp.id} onChange={() => setSelectedHardpointId(hp.id)} />
                     </td>
                   </tr>
                 ))}
