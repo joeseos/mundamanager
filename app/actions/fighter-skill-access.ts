@@ -9,7 +9,7 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
 // Types
 export interface SkillAccessOverride {
   skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed';
+  access_level: 'primary' | 'secondary' | 'allowed' | 'denied';
 }
 
 interface SaveFighterSkillAccessResult {
