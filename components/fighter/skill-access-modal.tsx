@@ -17,7 +17,7 @@ interface SkillAccessModalProps {
   onClose: () => void;
 }
 
-type AccessLevel = 'default' | 'primary' | 'secondary' | 'allowed' | 'denied';
+type AccessLevel = 'default' | 'primary' | 'secondary' | 'allowed';
 
 interface LocalSkillAccess {
   skill_type_id: string;
@@ -194,7 +194,7 @@ export function SkillAccessModal({
       .filter(sa => sa.selected_access_level !== 'default')
       .map(sa => ({
         skill_type_id: sa.skill_type_id,
-        access_level: sa.selected_access_level as 'primary' | 'secondary' | 'allowed' | 'denied'
+        access_level: sa.selected_access_level as 'primary' | 'secondary' | 'allowed'
       }));
 
     saveMutation.mutate(overrides);
@@ -344,7 +344,6 @@ export function SkillAccessModal({
                                       <option value="primary">Primary</option>
                                       <option value="secondary">Secondary</option>
                                       <option value="allowed">Allowed</option>
-                                      <option value="denied">Denied (-)</option>
                                     </select>
                                   </td>
                                 </tr>
@@ -360,7 +359,6 @@ export function SkillAccessModal({
                   <p><strong>Primary</strong>: 6 XP random / 9 XP selected.</p>
                   <p><strong>Secondary</strong>: 9 XP random / 12 XP selected.</p>
                   <p><strong>Allowed</strong>: Access to this skill set. 15 XP random.</p>
-                  <p><strong>Denied</strong>: No access to this skill set.</p>
                 </div>
               </div>
 
@@ -375,7 +373,7 @@ export function SkillAccessModal({
                       ? sa.default_access_level
                       : sa.selected_access_level;
 
-                    if (!effectiveLevel || effectiveLevel === 'denied') return null;
+                    if (!effectiveLevel) return null;
 
                     const isPrimary = effectiveLevel === 'primary';
                     return (

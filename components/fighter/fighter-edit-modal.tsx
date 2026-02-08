@@ -768,10 +768,9 @@ export function EditFighterModal({
             );
             if (archetype) {
               // Only save primary and secondary access levels from the archetype
-              // Don't save "denied" for all other skill types - that creates too many rows
               const overrides = archetype.skill_access.map(sa => ({
                 skill_type_id: sa.skill_type_id,
-                access_level: sa.access_level as 'primary' | 'secondary' | 'denied'
+                access_level: sa.access_level as 'primary' | 'secondary' | 'allowed'
               }));
 
               await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides });

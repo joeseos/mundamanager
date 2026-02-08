@@ -306,9 +306,6 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
                       } else if (effectiveLevel === 'allowed') {
                         accessLabel = '(Allowed)';
                         style = {};
-                      } else if (effectiveLevel === 'denied') {
-                        accessLabel = 'Denied (-)';
-                        style = {};
                       }
                     }
                     return (
