@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict crLYGhspOhEkD93Vgvy5iCytkUhE8sC3HNhg9Kwsyd9LMpnC0CBBGclwTCJlaYS
+\restrict GjQNhfyTuEUaDFpTYDc1eG4qazpF98j8nYR7tIHPt7XgetXLg5pJVT7bMjcCtdb
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -5199,7 +5199,7 @@ CREATE TABLE public.fighter_skill_access_override (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     user_id uuid,
-    CONSTRAINT fighter_skill_access_override_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'denied'::text])))
+    CONSTRAINT fighter_skill_access_override_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'allowed'::text, 'denied'::text])))
 );
 
 
@@ -6591,6 +6591,13 @@ CREATE INDEX fighter_equipment_vehicle_id_idx ON public.fighter_equipment USING 
 --
 
 CREATE INDEX fighter_exotic_beasts_fighter_pet_id_idx ON public.fighter_exotic_beasts USING btree (fighter_pet_id);
+
+
+--
+-- Name: fighter_skill_access_override_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_skill_access_override_fighter_id_idx ON public.fighter_skill_access_override USING btree (fighter_id);
 
 
 --
@@ -10528,5 +10535,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict crLYGhspOhEkD93Vgvy5iCytkUhE8sC3HNhg9Kwsyd9LMpnC0CBBGclwTCJlaYS
+\unrestrict GjQNhfyTuEUaDFpTYDc1eG4qazpF98j8nYR7tIHPt7XgetXLg5pJVT7bMjcCtdb
 
