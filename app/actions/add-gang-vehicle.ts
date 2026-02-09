@@ -120,7 +120,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
 
     if (Array.isArray(vehicleType.hardpoints) && vehicleType.hardpoints.length > 0) {
       for (let i = 0; i < vehicleType.hardpoints.length; i++) {
-        const config = vehicleType.hardpoints[i] as { operated_by?: string; arcs?: string[] };
+        const config = vehicleType.hardpoints[i] as { operated_by?: string; arcs?: string[]; location?: string };
         const templateArcs: string[] = config.arcs || [];
 
         const { error: hpError } = await supabase.from('fighter_effects').insert({
@@ -132,7 +132,8 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
             operated_by: config.operated_by || 'crew',
             arcs: templateArcs,
             default_arcs: templateArcs,
-            credits_increase: 0
+            credits_increase: 0,
+            location: config.location || ''
           },
           user_id: user.id
         });

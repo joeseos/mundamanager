@@ -124,6 +124,7 @@ interface UpdateVehicleHardpointParams {
   gangId: string;
   operated_by: 'crew' | 'passenger';
   arcs: string[];
+  location?: string;
 }
 
 export async function updateVehicleHardpoint(
@@ -193,7 +194,8 @@ export async function updateVehicleHardpoint(
           ...currentData,
           operated_by: params.operated_by,
           arcs: uniqueArcs,
-          credits_increase: newCreditsIncrease
+          credits_increase: newCreditsIncrease,
+          ...(params.location !== undefined && { location: params.location })
         },
         updated_at: new Date().toISOString()
       })
