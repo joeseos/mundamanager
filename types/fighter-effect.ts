@@ -41,6 +41,7 @@ export interface TypeSpecificData extends TraitModificationData {
   operated_by?: string;      // 'crew' | 'passenger'
   arcs?: string[];           // current arcs, e.g. ['Front', 'Left']
   default_arcs?: string[];   // template arcs at creation — the free baseline for cost calc
+  location?: string;         // mounting location on vehicle, e.g. 'hull', 'rear platform'
   // Index signature for legacy/unknown database fields
   [key: string]: string | number | boolean | string[] | undefined;
 }

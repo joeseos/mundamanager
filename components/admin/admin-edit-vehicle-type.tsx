@@ -23,6 +23,7 @@ const VALID_ARCS = ['Front', 'Left', 'Right', 'Rear'] as const;
 interface HardpointTemplate {
   operated_by: 'crew' | 'passenger' | '';
   arcs: string[];
+  location: string;
 }
 
 interface GangOriginEquipmentModalProps {
@@ -1128,7 +1129,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                   Hardpoints
                 </label>
                 <Button
-                  onClick={() => setHardpoints(prev => [...prev, { operated_by: '', arcs: [] }])}
+                  onClick={() => setHardpoints(prev => [...prev, { operated_by: '', arcs: [], location: '' }])}
                   variant="outline"
                   size="sm"
                   disabled={!selectedVehicle}
@@ -1158,6 +1159,11 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                             {hardpoint.arcs.length > 0 && (
                               <Badge variant="outline" className="border-blue-500 text-blue-600">
                                 {hardpoint.arcs.length} Arc{hardpoint.arcs.length !== 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                            {hardpoint.location && (
+                              <Badge variant="outline" className="border-green-500 text-green-600">
+                                {hardpoint.location}
                               </Badge>
                             )}
                           </div>
@@ -1193,6 +1199,26 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                             <option value="crew">Crew</option>
                             <option value="passenger">Passenger</option>
                           </select>
+                        </div>
+
+                        <div className="w-48 shrink-0">
+                          <label className="block text-xs font-medium text-muted-foreground mb-1">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            value={hardpoint.location || ''}
+                            onChange={(e) => {
+                              const newHardpoints = [...hardpoints];
+                              newHardpoints[index] = {
+                                ...newHardpoints[index],
+                                location: e.target.value
+                              };
+                              setHardpoints(newHardpoints);
+                            }}
+                            className="w-full p-2 border rounded-md text-sm"
+                            placeholder="e.g. hull, rear platform"
+                          />
                         </div>
 
                         <div className="flex-1">

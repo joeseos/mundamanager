@@ -81,6 +81,7 @@ interface FitWeaponModalProps {
     arcs: string[];
     default_arcs: string[];
     credits_increase: number;
+    location: string;
   }>;
   gangCredits: number;
   vehicleId: string;
@@ -105,6 +106,7 @@ function FitWeaponModal({
   const [selectedHardpointId, setSelectedHardpointId] = useState<string | null>(currentHardpointId);
   const [editedArcs, setEditedArcs] = useState<string[]>([]);
   const [editedOperatedBy, setEditedOperatedBy] = useState<'crew' | 'passenger'>('crew');
+  const [editedLocation, setEditedLocation] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [unfitRequested, setUnfitRequested] = useState(false);
 
@@ -115,6 +117,7 @@ function FitWeaponModal({
       if (hp) {
         setEditedArcs(hp.arcs);
         setEditedOperatedBy(hp.operated_by as 'crew' | 'passenger');
+        setEditedLocation(hp.location || '');
         setUnfitRequested(false);
       }
     }
@@ -130,11 +133,12 @@ function FitWeaponModal({
   const costDelta = newCost - currentCost;
   const insufficientCredits = costDelta > 0 && gangCredits < costDelta;
 
-  // Check if arcs/operated_by have changed from current values
+  // Check if arcs/operated_by/location have changed from current values
   const hasArcChanges = selected && (
     editedOperatedBy !== selected.operated_by ||
     editedArcs.length !== selected.arcs.length ||
-    !editedArcs.every(a => selected.arcs.includes(a))
+    !editedArcs.every(a => selected.arcs.includes(a)) ||
+    editedLocation !== (selected.location || '')
   );
 
   const handleArcToggle = (arc: string, checked: boolean) => {
@@ -172,7 +176,8 @@ function FitWeaponModal({
           effectId: selectedHardpointId,
           gangId,
           operated_by: editedOperatedBy,
-          arcs: editedArcs
+          arcs: editedArcs,
+          location: editedLocation
         });
         if (!updateResult.success) throw new Error(updateResult.error || 'Failed to update hardpoint');
       }
@@ -202,6 +207,7 @@ function FitWeaponModal({
                 <tr className="bg-muted">
                   <th className="w-4 pl-3 py-2"></th>
                   <th className="text-left px-3 py-2">Name</th>
+                  <th className="text-left px-3 py-2">Location</th>
                   <th className="text-left px-3 py-2">Operator</th>
                   <th className="text-left px-3 py-2">Arc</th>
                   <th className="text-left px-3 py-2">Weapon</th>
@@ -218,6 +224,9 @@ function FitWeaponModal({
                       <input type="radio" checked={selectedHardpointId === hp.id} onChange={() => setSelectedHardpointId(hp.id)} />
                     </td>
                     <td className="px-3 py-2">{hp.effect_name}</td>
+                    <td className={`px-3 py-2 ${hp.location ? '' : 'text-muted-foreground'}`}>
+                      {hp.location || '—'}
+                    </td>
                     <td className="px-3 py-2 capitalize">{hp.operated_by}</td>
                     <td className={`px-3 py-2 ${hp.arcs?.length ? '' : 'text-muted-foreground'}`}>
                       {hp.arcs?.length ? hp.arcs.join(', ') : '—'}
@@ -234,6 +243,18 @@ function FitWeaponModal({
           {/* Hardpoint settings - shown when a hardpoint is selected */}
           {selectedHardpointId && (
             <div className="space-y-4">
+              {/* Location */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Location</label>
+                <input
+                  type="text"
+                  value={editedLocation}
+                  onChange={(e) => setEditedLocation(e.target.value)}
+                  className="w-full p-2 border rounded-md text-sm"
+                  placeholder="e.g. hull, rear platform"
+                />
+              </div>
+
               {/* Operated By */}
               <div>
                 <label className="block text-sm font-medium mb-2">Operated By</label>
@@ -606,6 +627,7 @@ export function VehicleEquipmentList({
       arcs?: string[];
       default_arcs?: string[];
       credits_increase?: number;
+      location?: string;
     };
   }>;
 
@@ -615,6 +637,7 @@ export function VehicleEquipmentList({
     operated_by: hp.type_specific_data?.operated_by || 'crew',
     arcs: (hp.type_specific_data?.arcs || []).join(', ') || '—',
     credits_increase: hp.type_specific_data?.credits_increase || 0,
+    location: hp.type_specific_data?.location || '',
     fighter_equipment_id: hp.fighter_equipment_id || '',
     fitted_weapon_name: hp.fighter_equipment_id
       ? (equipment.find(e => e.fighter_equipment_id === hp.fighter_equipment_id)?.equipment_name || '(unknown)')
@@ -767,7 +790,8 @@ export function VehicleEquipmentList({
             operated_by: hp.operated_by,
             arcs: hardpoints.find(h => h.id === hp.id)?.type_specific_data?.arcs || [],
             default_arcs: hardpoints.find(h => h.id === hp.id)?.type_specific_data?.default_arcs || [],
-            credits_increase: hp.credits_increase
+            credits_increase: hp.credits_increase,
+            location: hp.location
           }))}
           gangCredits={gangCredits}
           vehicleId={vehicleId}

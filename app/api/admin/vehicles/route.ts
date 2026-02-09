@@ -23,6 +23,7 @@ interface GangTypeEquipmentItem {
 interface HardpointTemplate {
   operated_by: 'crew' | 'passenger' | '';
   arcs: string[];
+  location: string;
 }
 
 interface VehicleFormData {
