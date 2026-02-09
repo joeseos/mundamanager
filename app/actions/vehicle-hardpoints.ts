@@ -24,11 +24,13 @@ export async function clearHardpointReference(
   fighterEquipmentId: string,
   vehicleId: string
 ): Promise<void> {
+  const HARDPOINT_EFFECT_TYPE_ID = '4a203d9c-b47b-4c29-9e17-b687fd50b8e9';
   await supabase
     .from('fighter_effects')
     .update({ fighter_equipment_id: null })
     .eq('fighter_equipment_id', fighterEquipmentId)
-    .eq('vehicle_id', vehicleId);
+    .eq('vehicle_id', vehicleId)
+    .eq('fighter_effect_type_id', HARDPOINT_EFFECT_TYPE_ID);
 }
 
 // ============================================================================
