@@ -17,10 +17,6 @@ A comprehensive gang management tool for Necromunda tabletop game with features 
 - **Components:** shadcn/ui
 - **Type Safety:** TypeScript
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## Issues
 
 For bug reports, feature requests, or help, please join our **[Discord Community](https://discord.gg/FrqEWShQd7)**.
