@@ -52,10 +52,27 @@ export function Combobox({
   customPlaceholder = "Enter custom value...",
   onFocus
 }: ComboboxProps) {
+  type DropdownDirection = 'up' | 'down'
+  type DropdownPosition = {
+    top: number
+    bottom: number
+    left: number
+    width: number
+    maxHeight: number
+    direction: DropdownDirection
+  }
+
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
   const [inputValue, setInputValue] = React.useState("")
-  const [position, setPosition] = React.useState({ top: 0, left: 0, width: 0 })
+  const [position, setPosition] = React.useState<DropdownPosition>({
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 0,
+    maxHeight: 384, // 24rem, matches max-h-96
+    direction: 'down'
+  })
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   // Find the selected option
@@ -118,14 +135,47 @@ export function Combobox({
     }
   }
 
-  // Update position when dropdown opens or scrolls
+  // Update position when dropdown opens or scrolls, and flip upwards if there
+  // is more space above than below and the dropdown would otherwise overflow
   const updatePosition = React.useCallback(() => {
     if (open && inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect()
+
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+      const spaceBelow = viewportHeight - rect.bottom
+      const spaceAbove = rect.top
+      const maxDropdownHeight = 384 // px, 24rem
+      const viewportMargin = 8 // px padding from viewport edges
+      let direction: DropdownDirection = 'down'
+      let top = rect.bottom
+      let maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
+      let bottom = 0
+
+      // If there is not enough space below but more space above, open upwards
+      if (spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow) {
+        direction = 'up'
+        maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
+        // Align the bottom of the dropdown with the top of the input, regardless of
+        // the dropdown’s actual content height. Using bottom positioning keeps the
+        // dropdown “attached” to the combobox.
+        bottom = viewportHeight - rect.top
+      }
+
+      // Fallback in extreme edge-cases where computed height is non-positive
+      if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
+        direction = 'down'
+        maxHeight = maxDropdownHeight
+        top = rect.bottom
+        bottom = 0
+      }
+
       setPosition({
-        top: rect.bottom,
+        top,
+        bottom,
         left: rect.left,
-        width: rect.width
+        width: rect.width,
+        maxHeight,
+        direction
       })
     }
   }, [open])
@@ -222,12 +272,27 @@ export function Combobox({
       {open && createPortal(
         <div 
           data-combobox-dropdown
-          className="fixed z-[110] bg-card border border-border rounded-md shadow-lg max-h-96 overflow-auto"
-          style={{
-            top: `${position.top}px`,
-            left: `${position.left}px`,
-            width: `${position.width}px`
-          }}
+          className={cn(
+            "fixed z-[110] bg-card border border-border rounded-md shadow-lg max-h-96 overflow-auto",
+            position.direction === 'up' ? "origin-bottom" : "origin-top"
+          )}
+          style={
+            position.direction === 'up'
+              ? {
+                  top: 'auto',
+                  bottom: `${position.bottom}px`,
+                  left: `${position.left}px`,
+                  width: `${position.width}px`,
+                  maxHeight: `${position.maxHeight}px`
+                }
+              : {
+                  top: `${position.top}px`,
+                  bottom: 'auto',
+                  left: `${position.left}px`,
+                  width: `${position.width}px`,
+                  maxHeight: `${position.maxHeight}px`
+                }
+          }
         >
           {filteredOptions.length > 0 ? (
             <div className="py-1">

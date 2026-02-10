@@ -864,8 +864,8 @@ export function WeaponList({
           <h2 className="text-xl md:text-2xl font-bold">Equipment</h2>
           <div className="flex gap-2">
             <Button
+              variant="outline"
               onClick={() => setShowLoadoutsModal(true)}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
               disabled={!userPermissions.canEdit}
             >
               Loadouts
