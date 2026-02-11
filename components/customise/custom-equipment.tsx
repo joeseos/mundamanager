@@ -40,7 +40,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [editForm, setEditForm] = useState({
     equipment_name: '',
-    cost: 0,
+    cost: '',
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
@@ -50,7 +50,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     equipment_name: '',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
     availability_number: 6,
-    cost: 0,
+    cost: '',
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon'
   });
@@ -118,7 +118,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_name: '',
       availability_letter: 'C',
       availability_number: 6,
-      cost: 0,
+      cost: '',
       equipment_category: '',
       equipment_type: 'wargear'
     });
@@ -140,6 +140,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
       const newEquipment = await createCustomEquipment({
         ...createForm,
+        cost: parseInt(createForm.cost),
         availability: combineAvailability(createForm.availability_letter, createForm.availability_number)
       });
 
@@ -172,8 +173,11 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
   // Check if create form is valid
   const isCreateFormValid = () => {
+    const costNum = parseInt(createForm.cost);
     return createForm.equipment_name.trim() !== '' &&
-           createForm.cost >= 0 &&
+           createForm.cost.trim() !== '' &&
+           !isNaN(costNum) &&
+           costNum >= 0 &&
            createForm.equipment_category !== '';
   };
 
@@ -262,7 +266,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     const parsed = parseAvailability(equipment.availability || 'C');
     setEditForm({
       equipment_name: equipment.equipment_name || '',
-      cost: equipment.cost || 0,
+      cost: equipment.cost?.toString() || '',
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: parsed.letter,
@@ -312,7 +316,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     const parsed = parseAvailability(equipment.availability || 'C');
     setEditForm({
       equipment_name: equipment.equipment_name || '',
-      cost: equipment.cost || 0,
+      cost: equipment.cost?.toString() || '',
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: parsed.letter,
@@ -356,7 +360,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     setEditModalData(null);
     setEditForm({
       equipment_name: '',
-      cost: 0,
+      cost: '',
       equipment_category: '',
       equipment_type: 'wargear',
       availability_letter: 'C',
@@ -385,7 +389,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       // Call the server action to update the equipment
       const updatedEquipment = await updateCustomEquipment(editModalData.id, {
         equipment_name: editForm.equipment_name,
-        cost: editForm.cost,
+        cost: parseInt(editForm.cost),
         equipment_category: editForm.equipment_category,
         equipment_type: editForm.equipment_type,
         availability: combineAvailability(editForm.availability_letter, editForm.availability_number)
@@ -698,22 +702,18 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     Cost *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={editForm.cost}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '') {
-                        handleFormChange('cost', 0);
-                      } else {
-                        const numValue = parseInt(value);
-                        if (!isNaN(numValue) && numValue >= 0) {
-                          handleFormChange('cost', numValue);
-                        }
+                      const val = e.target.value;
+                      // Allow empty string or digits only
+                      if (/^\d*$/.test(val)) {
+                        handleFormChange('cost', val);
                       }
                     }}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="Enter cost"
-                    min="0"
                   />
                 </div>
 
@@ -732,7 +732,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           onClose={handleEditModalClose}
           onConfirm={handleEditModalConfirm}
           confirmText="Save Changes"
-          confirmDisabled={!editForm.equipment_name.trim()}
+          confirmDisabled={!editForm.equipment_name.trim() || !editForm.cost.trim() || isNaN(parseInt(editForm.cost))}
         />
       )}
 
@@ -959,22 +959,18 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     Cost *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={createForm.cost}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '') {
-                        handleCreateFormChange('cost', 0);
-                      } else {
-                        const numValue = parseInt(value);
-                        if (!isNaN(numValue) && numValue >= 0) {
-                          handleCreateFormChange('cost', numValue);
-                        }
+                      const val = e.target.value;
+                      // Allow empty string or digits only
+                      if (/^\d*$/.test(val)) {
+                        handleCreateFormChange('cost', val);
                       }
                     }}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="Enter cost"
-                    min="0"
                   />
                 </div>
 
