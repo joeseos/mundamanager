@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
-import DeleteGangButton from "./delete-gang-button";
 import { useToast } from "@/components/ui/use-toast";
 import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
+import { deleteGang } from '@/app/actions/delete-gang';
 
 interface GangUpdates {
   name?: string;
@@ -163,6 +165,7 @@ export default function GangEditModal({
 }: GangEditModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
   
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -224,6 +227,11 @@ export default function GangEditModal({
 
   // Colour picker modal state
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
+
+  // Delete modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch allegiances using TanStack Query (shares cache with campaign-members-table)
   // Lazy load: only fetch when user focuses on the field
@@ -389,6 +397,41 @@ export default function GangEditModal({
       alignment: value,
       gangVariants: newVariants
     }));
+  };
+
+  const handleDeleteGang = async () => {
+    try {
+      setIsDeleting(true);
+
+      const result = await deleteGang(gangId);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete gang');
+      }
+
+      toast({
+        description: "Gang successfully deleted. You'll be automatically redirected to the home page in a few seconds.",
+        variant: "default"
+      });
+
+      router.push('/');
+    } catch (error) {
+      console.error('Error deleting gang:', error);
+
+      const message = error instanceof Error
+        ? error.message
+        : 'An unexpected error occurred. Please try again.';
+
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setDeleteConfirmText('');
+    }
   };
 
   const handleSave = async () => {
@@ -901,7 +944,15 @@ export default function GangEditModal({
 
       {/* Only gang owners and admins can delete gangs - not campaign owners/arbitrators */}
       {(isGangOwner || isAdmin) && (
-        <DeleteGangButton gangId={gangId} gangName={gangName} />
+        <div className="mt-2">
+          <Button
+            onClick={() => setShowDeleteModal(true)}
+            variant="destructive"
+            className="w-full"
+          >
+            Delete Gang
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -928,9 +979,9 @@ export default function GangEditModal({
           content={
             <div className="space-y-4">
               <div className="flex justify-center">
-                <HexColorPicker 
-                  color={formState.gangColour} 
-                  onChange={(color) => setFormState(prev => ({ ...prev, gangColour: color }))} 
+                <HexColorPicker
+                  color={formState.gangColour}
+                  onChange={(color) => setFormState(prev => ({ ...prev, gangColour: color }))}
                 />
               </div>
               <div className="flex justify-center">
@@ -978,6 +1029,46 @@ export default function GangEditModal({
               </div>
             </div>
           }
+        />
+      )}
+
+      {showDeleteModal && (
+        <Modal
+          title="Delete Gang"
+          content={
+            <div className="space-y-4">
+              <p>
+                Are you sure you want to delete the gang <strong>{gangName}</strong>?
+              </p>
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Type <span className="font-bold">Delete</span> to confirm:
+                </p>
+                <Input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Delete"
+                  className="w-full"
+                />
+              </div>
+              {isDeleting && (
+                <p className="text-sm text-amber-500">
+                  This action will take a few seconds to complete. You'll be automatically redirected to the home page once it's complete.
+                </p>
+              )}
+            </div>
+          }
+          onClose={() => {
+            setShowDeleteModal(false);
+            setDeleteConfirmText('');
+          }}
+          onConfirm={handleDeleteGang}
+          confirmText={isDeleting ? 'Deleting...' : 'Delete'}
+          confirmDisabled={deleteConfirmText !== 'Delete'}
         />
       )}
     </>
