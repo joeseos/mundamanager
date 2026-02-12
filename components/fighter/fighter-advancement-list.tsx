@@ -456,25 +456,16 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
 
         } else {
           // Handle skills - only fetch if we have selected a skill set
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_available_skills`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              },
-              body: JSON.stringify({
-                fighter_id: fighterId
-              })
-            }
-          );
+          const supabase = createClient();
+          const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
+            fighter_id: fighterId
+          });
 
-          if (!response.ok) {
+          if (skillsError) {
             throw new Error('Failed to fetch available skills');
           }
 
-          const data = await response.json() as SkillResponse;
+          const data = skillsData as unknown as SkillResponse;
 
           // Find the selected skill set name
           const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
