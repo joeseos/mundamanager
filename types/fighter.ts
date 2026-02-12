@@ -124,6 +124,7 @@ export type FighterSkills = Record<string, {
   acquired_at: string;
   fighter_injury_id?: string | null;
   injury_name?: string;
+  custom_skill_id?: string | null;
 }>;
 
 export interface FighterProps {
