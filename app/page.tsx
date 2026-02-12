@@ -15,6 +15,7 @@ import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
+import { getUserCustomSkills } from "@/app/lib/customise/custom-skills";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -34,13 +35,15 @@ export default async function Home() {
     campaigns,
     customEquipment,
     customTerritories,
-    customFighterTypes
+    customFighterTypes,
+    customSkills
   ] = await Promise.all([
     getUserGangs(),
     getUserCampaigns(),
     getUserCustomEquipment(user.id),
     getUserCustomTerritories(),
-    getUserCustomFighterTypes(user.id)
+    getUserCustomFighterTypes(user.id),
+    getUserCustomSkills(user.id)
   ]);
   
   // Fetch campaign types and trading post types for the create campaign modal
@@ -124,13 +127,14 @@ export default async function Home() {
           </div>
         </div>
         
-        <HomeTabs 
-          gangs={gangs} 
-          campaigns={campaigns} 
+        <HomeTabs
+          gangs={gangs}
+          campaigns={campaigns}
           userId={user.id}
           customEquipment={customEquipment}
           customTerritories={customTerritories}
           customFighterTypes={customFighterTypes}
+          customSkills={customSkills}
           userCampaigns={userCampaigns}
         />
       </div>

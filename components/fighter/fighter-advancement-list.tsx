@@ -65,6 +65,7 @@ interface AvailableAdvancement {
   available_acquisition_types?: AcquisitionType[];
   skill_type_id?: string;
   characteristic_code?: string;
+  is_custom?: boolean;
 }
 
 interface SkillResponse {
@@ -74,6 +75,7 @@ interface SkillResponse {
     skill_type_id: string;
     available_acquisition_types: AcquisitionType[];
     available: boolean;
+    is_custom: boolean;
   }[];
   fighter_id: string;
   fighter_class: string;
@@ -456,25 +458,16 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
 
         } else {
           // Handle skills - only fetch if we have selected a skill set
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_available_skills`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              },
-              body: JSON.stringify({
-                fighter_id: fighterId
-              })
-            }
-          );
+          const supabase = createClient();
+          const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
+            fighter_id: fighterId
+          });
 
-          if (!response.ok) {
+          if (skillsError) {
             throw new Error('Failed to fetch available skills');
           }
 
-          const data = await response.json() as SkillResponse;
+          const data = skillsData as unknown as SkillResponse;
 
           // Find the selected skill set name
           const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
@@ -500,7 +493,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             has_enough_xp: true,
             available_acquisition_types: skill.available_acquisition_types,
             skill_type_id: skill.skill_type_id,
-            is_available: skill.available
+            is_available: skill.available,
+            is_custom: skill.is_custom
           }));
 
           setAvailableAdvancements(formattedAdvancements);
@@ -859,7 +853,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                             fontStyle: !isAvailable ? 'italic' : 'normal'
                           }}
                         >
-                          {advancement.stat_change_name}{!isAvailable ? ' (already owned)' : ''}
+                          {advancement.stat_change_name}{advancement.is_custom ? ' (Custom)' : ''}{!isAvailable ? ' (already owned)' : ''}
                         </option>
                       );
                     })}

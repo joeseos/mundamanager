@@ -47,7 +47,8 @@ export interface AddCharacteristicAdvancementParams {
 
 export interface AddSkillAdvancementParams {
   fighter_id: string;
-  skill_id: string;
+  skill_id?: string;
+  custom_skill_id?: string;
   xp_cost: number;
   credits_increase: number;
   is_advance?: boolean;
@@ -272,6 +273,10 @@ export async function addSkillAdvancement(
   params: AddSkillAdvancementParams
 ): Promise<AdvancementResult> {
   try {
+    if (!params.skill_id && !params.custom_skill_id) {
+      return { success: false, error: 'Either skill_id or custom_skill_id must be provided' };
+    }
+
     const supabase = await createClient();
     
     // Check authentication with optimized getClaims()
@@ -299,18 +304,21 @@ export async function addSkillAdvancement(
     }
 
     // Insert the new skill advancement with fighter owner's user_id
+    const insertData = {
+      fighter_id: params.fighter_id,
+      credits_increase: params.credits_increase,
+      xp_cost: params.xp_cost,
+      is_advance: params.is_advance ?? true,
+      user_id: fighter.user_id,
+      updated_at: new Date().toISOString(),
+      ...(params.skill_id ? { skill_id: params.skill_id } : {}),
+      ...(params.custom_skill_id ? { custom_skill_id: params.custom_skill_id } : {}),
+    };
+
     const { data: insertedSkill, error: insertError } = await supabase
       .from('fighter_skills')
-      .insert({
-        fighter_id: params.fighter_id,
-        skill_id: params.skill_id,
-        credits_increase: params.credits_increase,
-        xp_cost: params.xp_cost,
-        is_advance: params.is_advance ?? true,
-        user_id: fighter.user_id,
-        updated_at: new Date().toISOString()
-      })
-      .select('id, fighter_id, skill_id, credits_increase, xp_cost, is_advance')
+      .insert(insertData)
+      .select('id, fighter_id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance')
       .single();
 
     if (insertError || !insertedSkill) {
@@ -354,18 +362,29 @@ export async function addSkillAdvancement(
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // Get skill name for logging
-    const { data: skillData } = await supabase
-      .from('skills')
-      .select('name')
-      .eq('id', params.skill_id)
-      .single();
+    let skillName = 'Unknown Skill';
+    if (params.skill_id) {
+      const { data: skillData } = await supabase
+        .from('skills')
+        .select('name')
+        .eq('id', params.skill_id)
+        .single();
+      skillName = skillData?.name || skillName;
+    } else if (params.custom_skill_id) {
+      const { data: customSkillData } = await supabase
+        .from('custom_skills')
+        .select('skill_name')
+        .eq('id', params.custom_skill_id)
+        .single();
+      skillName = customSkillData?.skill_name || skillName;
+    }
 
     // Log the skill advancement
     await logSkillAdvancement({
       gang_id: fighter.gang_id,
       fighter_id: params.fighter_id,
       fighter_name: fighter.fighter_name,
-      skill_name: skillData?.name || 'Unknown Skill',
+      skill_name: skillName,
       xp_cost: params.xp_cost,
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
@@ -435,7 +454,7 @@ export async function deleteAdvancement(
       // Check if skill exists and get skill data including credits_increase
       const { data: skillData, error: skillError } = await supabase
         .from('fighter_skills')
-        .select('id, fighter_id, skill_id, xp_cost, credits_increase')
+        .select('id, fighter_id, skill_id, custom_skill_id, xp_cost, credits_increase')
         .eq('id', params.advancement_id)
         .single();
 
@@ -451,18 +470,27 @@ export async function deleteAdvancement(
       ratingDelta -= (skillData.credits_increase || 0);
 
       // Get skill name for logging
-      const { data: fighterSkillData } = await supabase
-        .from('fighter_skills')
-        .select(`
-          skills!inner(name)
-        `)
-        .eq('id', params.advancement_id)
-        .single();
-      if (fighterSkillData && fighterSkillData.skills) {
-        const skills = Array.isArray(fighterSkillData.skills)
-          ? fighterSkillData.skills
-          : [fighterSkillData.skills];
-        deletedSkillName = skills[0].name
+      if (skillData.custom_skill_id) {
+        const { data: customSkillData } = await supabase
+          .from('custom_skills')
+          .select('skill_name')
+          .eq('id', skillData.custom_skill_id)
+          .single();
+        deletedSkillName = customSkillData?.skill_name || 'Unknown Custom Skill';
+      } else {
+        const { data: fighterSkillData } = await supabase
+          .from('fighter_skills')
+          .select(`
+            skills!inner(name)
+          `)
+          .eq('id', params.advancement_id)
+          .single();
+        if (fighterSkillData && fighterSkillData.skills) {
+          const skills = Array.isArray(fighterSkillData.skills)
+            ? fighterSkillData.skills
+            : [fighterSkillData.skills];
+          deletedSkillName = skills[0].name;
+        }
       }
 
       // Get fighter type info - handle both regular and custom fighters
@@ -488,11 +516,11 @@ export async function deleteAdvancement(
           : fighterTypeData.custom_fighter_types;
       }
 
-      // Delete skill-created effects before deleting the skill
-      const {data: skillEffectTypes} = await supabase
+      // Delete skill-created effects before deleting the skill (only for standard skills)
+      const skillEffectTypes = skillData.skill_id ? (await supabase
         .from('fighter_effect_types')
         .select('id')
-        .eq('type_specific_data->>skill_id', skillData.skill_id);
+        .eq('type_specific_data->>skill_id', skillData.skill_id)).data : null;
 
       if (skillEffectTypes && skillEffectTypes.length > 0) {
         await supabase

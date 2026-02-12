@@ -17,13 +17,17 @@ import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
+interface CampaignBattleLogsTerritory extends Territory {
+  default_gang_territory?: boolean;
+}
+
 interface CampaignBattleLogsListProps {
   campaignId: string;
   battles: Battle[];
   isAdmin: boolean;
   onBattleAdd: () => void;
   members: Member[];
-  territories?: Territory[];
+  territories?: CampaignBattleLogsTerritory[];
   noContainer?: boolean;
   hideAddButton?: boolean;
   userId: string;
@@ -753,12 +757,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 { value: '', label: 'All Gangs' },
                 ...filterOptions.participatingGangIds.map(gangId => {
                   const gangInfo = getGangInfo(gangId);
-                  const label = gangInfo.owner_username 
+                  const hasOwner = !!gangInfo.owner_username;
+                  const displayValue = hasOwner
                     ? `${gangInfo.name} • ${gangInfo.owner_username}`
                     : gangInfo.name;
+
                   return {
                     value: gangId,
-                    label: label
+                    label: hasOwner ? (
+                      <span>
+                        <span>{gangInfo.name}</span>
+                        <span className="text-xs text-muted-foreground"> • {gangInfo.owner_username}</span>
+                      </span>
+                    ) : gangInfo.name,
+                    displayValue,
                   };
                 })
               ]}
@@ -777,12 +789,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 { value: '', label: 'All Winners' },
                 ...filterOptions.winningGangIds.map(gangId => {
                   const gangInfo = getGangInfo(gangId);
-                  const label = gangInfo.owner_username 
+                  const hasOwner = !!gangInfo.owner_username;
+                  const displayValue = hasOwner
                     ? `${gangInfo.name} • ${gangInfo.owner_username}`
                     : gangInfo.name;
+
                   return {
                     value: gangId,
-                    label: label
+                    label: hasOwner ? (
+                      <span className="flex items-center gap-1">
+                        <span>{gangInfo.name}</span>
+                        <span className="text-xs text-muted-foreground">• {gangInfo.owner_username}</span>
+                      </span>
+                    ) : gangInfo.name,
+                    displayValue,
                   };
                 })
               ]}
@@ -1026,7 +1046,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           controlled_by: t.gang_id || undefined,
           is_custom: t.is_custom,
           territory_id: t.territory_id,
-          custom_territory_id: t.custom_territory_id
+          custom_territory_id: t.custom_territory_id,
+          default_gang_territory: t.default_gang_territory
         }))}
         isOpen={showBattleModal}
         onClose={handleModalClose}

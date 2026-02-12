@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict GjQNhfyTuEUaDFpTYDc1eG4qazpF98j8nYR7tIHPt7XgetXLg5pJVT7bMjcCtdb
+\restrict OnWPcHZx1wYlNuMHnWRZBuRjQKF11KPhtvGr7ohAVDbVXwWJ33pLHu88RIe4CGr
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -1108,12 +1108,13 @@ DECLARE
     v_result jsonb;
     v_fighter_class text;
     v_gang_origin_id uuid;
+    v_gang_id uuid;
     v_fighter_type_id uuid;
     v_custom_fighter_type_id uuid;
 BEGIN
-    -- Get fighter class, gang origin ID, fighter type IDs, and verify fighter exists
-    SELECT f.fighter_class, g.gang_origin_id, f.fighter_type_id, f.custom_fighter_type_id
-    INTO v_fighter_class, v_gang_origin_id, v_fighter_type_id, v_custom_fighter_type_id
+    -- Get fighter class, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
+    SELECT f.fighter_class, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
+    INTO v_fighter_class, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
     WHERE f.id = get_available_skills.fighter_id;
@@ -1122,32 +1123,89 @@ BEGIN
         RAISE EXCEPTION 'Fighter not found with ID %', get_available_skills.fighter_id;
     END IF;
 
-    -- Build the result as JSON
-    -- Now includes effective_access_level which respects overrides
+    -- Build the result as JSON using CTEs to combine standard + custom skills
+    WITH standard_skills AS (
+        SELECT
+            s.id AS skill_id,
+            s.name AS skill_name,
+            false AS is_custom,
+            s.skill_type_id,
+            st.name AS skill_type_name,
+            st.legendary_name,
+            COALESCE(sao.access_level, ftsa.access_level) AS effective_access_level,
+            NOT EXISTS (
+                SELECT 1 FROM fighter_skills fs
+                WHERE fs.fighter_id = get_available_skills.fighter_id
+                AND fs.skill_id = s.id
+            ) AS available
+        FROM skills s
+        JOIN skill_types st ON st.id = s.skill_type_id
+        LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
+            AND (
+                (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
+                OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
+            )
+        LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
+            AND sao.skill_type_id = s.skill_type_id
+        WHERE (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id)
+        AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied'
+    ),
+    visible_custom_skills AS (
+        SELECT
+            cs.id AS skill_id,
+            cs.skill_name AS skill_name,
+            true AS is_custom,
+            cs.skill_type_id,
+            st.name AS skill_type_name,
+            st.legendary_name,
+            COALESCE(sao.access_level, ftsa.access_level) AS effective_access_level,
+            NOT EXISTS (
+                SELECT 1 FROM fighter_skills fs
+                WHERE fs.fighter_id = get_available_skills.fighter_id
+                AND fs.custom_skill_id = cs.id
+            ) AS available
+        FROM custom_skills cs
+        JOIN skill_types st ON st.id = cs.skill_type_id
+        -- Visibility: owned by current user OR shared to fighter's gang's campaign
+        LEFT JOIN (
+            SELECT DISTINCT csh.custom_skill_id
+            FROM custom_shared csh
+            JOIN campaign_gangs cg ON cg.campaign_id = csh.campaign_id
+            WHERE cg.gang_id = v_gang_id
+        ) shared ON shared.custom_skill_id = cs.id
+        -- Same access level joins as standard skills
+        LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = cs.skill_type_id
+            AND (
+                (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
+                OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
+            )
+        LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
+            AND sao.skill_type_id = cs.skill_type_id
+        WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
+        AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied'
+    ),
+    all_skills AS (
+        SELECT * FROM standard_skills
+        UNION ALL
+        SELECT * FROM visible_custom_skills
+    )
     SELECT jsonb_build_object(
         'fighter_id', get_available_skills.fighter_id,
         'fighter_class', v_fighter_class,
         'skills', COALESCE(
             jsonb_agg(
                 jsonb_build_object(
-                    'skill_id', s.id,
-                    'skill_name', s.name,
-                    'fighter_class', f.fighter_class,
-                    'skill_type_id', s.skill_type_id,
-                    'skill_type_name', st.name,
-                    'effective_access_level', COALESCE(
-                        sao.access_level,
-                        ftsa.access_level
-                    ),
-                    'available', NOT EXISTS (
-                        SELECT 1 
-                        FROM fighter_skills fs 
-                        WHERE fs.fighter_id = get_available_skills.fighter_id 
-                        AND fs.skill_id = s.id
-                    ),
+                    'skill_id', a.skill_id,
+                    'skill_name', a.skill_name,
+                    'is_custom', a.is_custom,
+                    'fighter_class', v_fighter_class,
+                    'skill_type_id', a.skill_type_id,
+                    'skill_type_name', a.skill_type_name,
+                    'effective_access_level', a.effective_access_level,
+                    'available', a.available,
                     'available_acquisition_types', CASE
                         -- Special costs for Legendary Names
-                        WHEN st.legendary_name = TRUE THEN
+                        WHEN a.legendary_name = TRUE THEN
                             jsonb_build_array(
                                 jsonb_build_object(
                                     'type_id', 'selected',
@@ -1199,28 +1257,13 @@ BEGIN
                         ELSE '[]'::jsonb
                     END
                 )
-                ORDER BY st.name, s.name
+                ORDER BY a.skill_type_name, a.skill_name
             ),
             '[]'::jsonb
         )
     )
     INTO v_result
-    FROM fighters f
-    CROSS JOIN skills s
-    JOIN skill_types st ON st.id = s.skill_type_id
-    -- Get default skill access from fighter_type_skill_access (regular or custom)
-    LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
-        AND (
-            (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
-            OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
-        )
-    -- Get overrides from fighter_skill_access_override
-    LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-        AND sao.skill_type_id = s.skill_type_id
-    WHERE f.id = get_available_skills.fighter_id
-    AND (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id)
-    -- Filter out skills where effective access is 'denied'
-    AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied';
+    FROM all_skills a;
 
     RETURN v_result;
 END;
@@ -4793,7 +4836,22 @@ CREATE TABLE public.custom_shared (
     custom_fighter_type_id uuid,
     campaign_id uuid,
     custom_territory_id uuid,
-    user_id uuid
+    user_id uuid,
+    custom_skill_id uuid
+);
+
+
+--
+-- Name: custom_skills; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_skills (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    skill_name text,
+    user_id uuid,
+    skill_type_id uuid
 );
 
 
@@ -4936,7 +4994,8 @@ CREATE TABLE public.exotic_beasts (
 CREATE TABLE public.fighter_classes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    class_name text
+    class_name text,
+    standard_class boolean DEFAULT false
 );
 
 
@@ -5218,7 +5277,8 @@ CREATE TABLE public.fighter_skills (
     xp_cost numeric,
     fighter_injury_id uuid,
     user_id uuid,
-    fighter_effect_skill_id uuid
+    fighter_effect_skill_id uuid,
+    custom_skill_id uuid
 );
 
 
@@ -5987,6 +6047,14 @@ ALTER TABLE ONLY public.custom_shared
 
 
 --
+-- Name: custom_skills custom_skills_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skills
+    ADD CONSTRAINT custom_skills_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: custom_territories custom_territories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6629,6 +6697,13 @@ CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_n
 
 
 --
+-- Name: gang_origins_gang_origin_category_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USING btree (gang_origin_category_id);
+
+
+--
 -- Name: gang_types_gang_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6958,6 +7033,20 @@ CREATE INDEX notifications_receiver_id_idx ON public.notifications USING btree (
 
 
 --
+-- Name: skills_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX skills_name_idx ON public.skills USING btree (name);
+
+
+--
+-- Name: skills_skill_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX skills_skill_type_id_idx ON public.skills USING btree (skill_type_id);
+
+
+--
 -- Name: territories_campaign_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7184,6 +7273,14 @@ ALTER TABLE ONLY public.custom_shared
 
 
 --
+-- Name: custom_shared custom_shared_custom_skill_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_shared
+    ADD CONSTRAINT custom_shared_custom_skill_id_fkey FOREIGN KEY (custom_skill_id) REFERENCES public.custom_skills(id) ON DELETE CASCADE;
+
+
+--
 -- Name: custom_shared custom_shared_custom_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7197,6 +7294,14 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_skills custom_skills_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skills
+    ADD CONSTRAINT custom_skills_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE CASCADE;
 
 
 --
@@ -7525,6 +7630,14 @@ ALTER TABLE ONLY public.fighter_skill_access_override
 
 ALTER TABLE ONLY public.fighter_skill_access_override
     ADD CONSTRAINT fighter_skill_access_override_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+
+
+--
+-- Name: fighter_skills fighter_skills_custom_skill_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skills
+    ADD CONSTRAINT fighter_skills_custom_skill_id_fkey FOREIGN KEY (custom_skill_id) REFERENCES public.custom_skills(id) ON DELETE CASCADE;
 
 
 --
@@ -7957,6 +8070,13 @@ CREATE POLICY "Allow authenticated users to create custom shares" ON public.cust
 
 
 --
+-- Name: custom_skills Allow authenticated users to create custom skills; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom skills" ON public.custom_skills FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_territories Allow authenticated users to create custom territories; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8038,6 +8158,13 @@ CREATE POLICY "Allow authenticated users to view custom fighter types" ON public
 --
 
 CREATE POLICY "Allow authenticated users to view custom shares" ON public.custom_shared FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_skills Allow authenticated users to view custom skills; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom skills" ON public.custom_skills FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9134,6 +9261,20 @@ CREATE POLICY "Only custom share owner or admin can update" ON public.custom_sha
 
 
 --
+-- Name: custom_skills Only custom skill owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom skill owner or admin can delete" ON public.custom_skills FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_skills Only custom skill owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom skill owner or admin can update" ON public.custom_skills FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_territories Only custom territory owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9728,6 +9869,12 @@ ALTER TABLE public.custom_fighter_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_shared ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_skills; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_skills ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: custom_territories; Type: ROW SECURITY; Schema: public; Owner: -
@@ -10535,5 +10682,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GjQNhfyTuEUaDFpTYDc1eG4qazpF98j8nYR7tIHPt7XgetXLg5pJVT7bMjcCtdb
+\unrestrict OnWPcHZx1wYlNuMHnWRZBuRjQKF11KPhtvGr7ohAVDbVXwWJ33pLHu88RIe4CGr
 

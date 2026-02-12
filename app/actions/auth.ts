@@ -27,6 +27,32 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Username already taken" };
     }
 
+    // Create service role client early so it can be reused
+    const serviceRoleClient = createServiceRoleClient();
+
+    // Check if email is already registered before signUp to prevent confirmation email.
+    // We use a direct GoTrue API call with the filter param since the JS client
+    // doesn't expose email filtering on listUsers, and fetching all users won't scale.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const userLookup = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&per_page=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          apikey: serviceRoleKey,
+        },
+      }
+    );
+    if (userLookup.ok) {
+      const { users } = await userLookup.json();
+      if (users?.some((u: { email?: string }) => u.email === email)) {
+        return { error: "This email is already registered. Please sign in instead" };
+      }
+    } else {
+      console.error('GoTrue admin user lookup failed:', userLookup.status, await userLookup.text());
+    }
+
     // Sign up the user with metadata
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -60,7 +86,6 @@ export const signUpAction = async (formData: FormData) => {
 
     // Create profile using service role (bypasses RLS)
     try {
-      const serviceRoleClient = createServiceRoleClient();
       const { error: profileError } = await serviceRoleClient
         .from('profiles')
         .insert({
@@ -72,6 +97,11 @@ export const signUpAction = async (formData: FormData) => {
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
+        // FK violation: signUp() returned a fake user ID (email enumeration protection) —
+        // the email is already registered
+        if (profileError.code === '23503') {
+          return { error: "This email is already registered. Please sign in instead" };
+        }
         // Check if this is a duplicate key error (code 23505)
         if (profileError.code === '23505') {
           const errorDetail = profileError.message?.toLowerCase() || '';
@@ -97,7 +127,6 @@ export const signUpAction = async (formData: FormData) => {
       invalidateUserCount();
     } catch (error) {
       console.error('Unexpected error during profile creation:', error);
-      const serviceRoleClient = createServiceRoleClient();
       await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
       return { error: "Something went wrong during sign up. Please try again." };
     }

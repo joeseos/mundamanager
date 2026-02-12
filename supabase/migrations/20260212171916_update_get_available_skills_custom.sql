@@ -1,3 +1,10 @@
+-- ============================================
+-- UPDATE get_available_skills to include custom skills
+-- ============================================
+-- Adds custom skills alongside standard skills in the RPC response.
+-- Each skill object now includes 'is_custom' boolean.
+-- Custom skill visibility: owned by user OR shared to fighter's gang's campaign.
+
 DROP FUNCTION IF EXISTS public.get_available_skills(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_available_skills(
@@ -125,7 +132,7 @@ BEGIN
                                 )
                             )
                         -- Regular skill costs
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist')
+                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute')
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',

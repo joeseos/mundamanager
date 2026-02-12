@@ -35,6 +35,7 @@ export interface ListProps<T = any> {
   className?: string;
   isLoading?: boolean;
   sortBy?: (a: T, b: T) => number;
+  headerActions?: React.ReactNode;
 }
 
 export function List<T = any>({
@@ -48,7 +49,8 @@ export function List<T = any>({
   emptyMessage = "No items yet.",
   className = "",
   isLoading = false,
-  sortBy
+  sortBy,
+  headerActions
 }: ListProps<T>) {
   // Sort items if sortBy function is provided
   const sortedItems = sortBy ? [...items].sort(sortBy) : items;
@@ -80,14 +82,19 @@ export function List<T = any>({
     <div className={`mt-6 ${className}`}>
       <div className="flex flex-wrap justify-between items-center mb-2">
         <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
-        {onAdd && (
-          <Button 
-            onClick={onAdd}
-            className="bg-neutral-900 hover:bg-gray-800 text-white"
-            disabled={isLoading || (addButtonDisabled === true)}
-          >
-            {addButtonText}
-          </Button>
+        {(headerActions || onAdd) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {headerActions}
+            {onAdd && (
+              <Button
+                onClick={onAdd}
+                className="bg-neutral-900 hover:bg-gray-800 text-white"
+                disabled={isLoading || (addButtonDisabled === true)}
+              >
+                {addButtonText}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

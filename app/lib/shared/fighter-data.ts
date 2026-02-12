@@ -98,6 +98,7 @@ export interface FighterSkill {
   fighter_injury_id?: string;
   injury_name?: string;
   acquired_at: string;
+  custom_skill_id?: string;
 }
 
 // =============================================================================
@@ -482,9 +483,13 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
           xp_cost,
           is_advance,
           fighter_effect_skill_id,
+          custom_skill_id,
           created_at,
           skill:skill_id (
             name
+          ),
+          custom_skill:custom_skill_id (
+            skill_name
           ),
           fighter_effect_skills!fighter_effect_skill_id (
             fighter_effects (
@@ -498,11 +503,11 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
 
       const skills: Record<string, FighterSkill> = {};
       (data || []).forEach((skillData: any) => {
-        const skillName = (skillData.skill as any)?.name;
+        const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
         if (skillName) {
           // Get the injury name from the related fighter effect
           const injuryName = skillData.fighter_effect_skills?.fighter_effects?.effect_name;
-          
+
           skills[skillName] = {
             id: skillData.id,
             name: skillName,
@@ -512,6 +517,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
             fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
             injury_name: injuryName || undefined,
             acquired_at: skillData.created_at,
+            custom_skill_id: skillData.custom_skill_id || undefined,
           };
         }
       });

@@ -7,10 +7,12 @@ import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import type { CustomEquipment } from '@/app/lib/customise/custom-equipment'
 import type { CustomTerritory } from '@/app/lib/customise/custom-territories'
+import type { CustomSkill } from '@/app/lib/customise/custom-skills'
 import type { CustomFighterType } from '@/types/fighter'
 import { CustomiseEquipment } from '@/components/customise/custom-equipment'
 import { CustomiseTerritories } from '@/components/customise/custom-territories'
 import { CustomiseFighters } from '@/components/customise/custom-fighters'
+import { CustomiseSkills } from '@/components/customise/custom-skills'
 
 interface UserCampaign {
   id: string;
@@ -28,6 +30,7 @@ interface HomeTabsProps {
   customEquipment: CustomEquipment[];
   customTerritories: CustomTerritory[];
   customFighterTypes: CustomFighterType[];
+  customSkills: CustomSkill[];
   userCampaigns: UserCampaign[];
 }
 
@@ -38,6 +41,7 @@ export default function HomeTabs({
   customEquipment,
   customTerritories,
   customFighterTypes,
+  customSkills,
   userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
@@ -270,7 +274,7 @@ export default function HomeTabs({
             <div>
               <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
               <p className="text-muted-foreground">
-                Create your own Equipment, Fighters, and Territories for your gangs and campaigns.
+                Create your own Equipment, Fighters, Skills, and Territories for your gangs and campaigns.
               </p>
             </div>
 
@@ -282,6 +286,12 @@ export default function HomeTabs({
 
             <CustomiseFighters
               initialFighters={customFighterTypes}
+              userId={userId}
+              userCampaigns={userCampaigns}
+            />
+
+            <CustomiseSkills
+              initialSkills={customSkills}
               userId={userId}
               userCampaigns={userCampaigns}
             />

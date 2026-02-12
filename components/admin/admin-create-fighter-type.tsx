@@ -248,7 +248,9 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
         if (!response.ok) throw new Error('Failed to fetch skills');
         const data = await response.json();
-        setSkills(data);
+        // API returns {skills: [], effect_categories: []} when filtered by skill_type_id
+        const skillsArray = Array.isArray(data) ? data : data.skills || [];
+        setSkills(skillsArray);
       } catch (error) {
         console.error('Error fetching skills:', error);
         toast({
