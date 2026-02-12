@@ -55,6 +55,7 @@ interface SkillData {
   skill_type_id: string;
   available_acquisition_types: string[];
   available: boolean;
+  is_custom: boolean;
 }
 
 interface SkillResponse {
@@ -68,12 +69,6 @@ interface SkillAccess {
   skill_type_name: string;
 }
 
-interface CustomSkillData {
-  id: string;
-  skill_name: string;
-  skill_type_id: string;
-}
-
 // SkillModal Component
 export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -82,8 +77,6 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
   const [selectedSkill, setSelectedSkill] = useState<string>('');
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  const [customSkills, setCustomSkills] = useState<CustomSkillData[]>([]);
-  const [ownedCustomSkillIds, setOwnedCustomSkillIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const session = useSession();
   const queryClient = useQueryClient();
@@ -100,13 +93,10 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
     onMutate: async (variables) => {
       // Get the selected skill details for optimistic update
       let skillName = 'Unknown Skill';
-      if (variables.skill_id) {
-        const selectedSkillData = skillsData?.skills.find((skill: any) => skill.skill_id === variables.skill_id);
-        skillName = selectedSkillData?.skill_name || skillName;
-      } else if (variables.custom_skill_id) {
-        const selectedCustomSkill = customSkills.find(s => s.id === variables.custom_skill_id);
-        skillName = selectedCustomSkill?.skill_name || skillName;
-      }
+      const selectedSkillData = skillsData?.skills.find(
+        (s) => s.skill_id === (variables.skill_id || variables.custom_skill_id)
+      );
+      skillName = selectedSkillData?.skill_name || skillName;
 
       // Optimistically add to parent's local state
       onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName);
@@ -167,24 +157,6 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
           setSkillAccess([]);
         }
 
-        // Fetch custom skills visible to this user (RLS handles visibility)
-        try {
-          const { data: customSkillsData } = await supabase
-            .from('custom_skills')
-            .select('id, skill_name, skill_type_id');
-          setCustomSkills(customSkillsData || []);
-
-          // Fetch fighter's existing custom skills for "already owned" check
-          const { data: ownedCustom } = await supabase
-            .from('fighter_skills')
-            .select('custom_skill_id')
-            .eq('fighter_id', fighterId)
-            .not('custom_skill_id', 'is', null);
-          setOwnedCustomSkillIds(new Set((ownedCustom || []).map(r => r.custom_skill_id)));
-        } catch (error) {
-          console.error('Error fetching custom skills:', error);
-          setCustomSkills([]);
-        }
       } catch (error) {
         console.error('Error fetching skill sets:', error);
         toast({
@@ -366,47 +338,26 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
             value={selectedSkill}
             onChange={(e) => {
               const value = e.target.value;
-              const isCustom = value.startsWith('custom:');
-              setSelectedSkill(isCustom ? value.slice(7) : value);
-              setIsCustomSkillSelected(isCustom);
+              const skill = skillsData?.skills.find(s => s.skill_id === value);
+              setSelectedSkill(value);
+              setIsCustomSkillSelected(skill?.is_custom ?? false);
             }}
             className="w-full p-2 border rounded"
           >
             <option key="placeholder-skill" value="">Select a skill</option>
-            {skillsData.skills.map((skill) => {
-              const isAvailable = skill.available;
-              return (
-                <option
-                  key={skill.skill_id}
-                  value={skill.skill_id}
-                  disabled={!isAvailable}
-                  style={{
-                    color: !isAvailable ? '#9CA3AF' : 'inherit',
-                    fontStyle: !isAvailable ? 'italic' : 'normal'
-                  }}
-                >
-                  {skill.skill_name}{!isAvailable ? ' (already owned)' : ''}
-                </option>
-              );
-            })}
-            {customSkills
-              .filter(cs => cs.skill_type_id === selectedCategory)
-              .map((cs) => {
-                const isOwned = ownedCustomSkillIds.has(cs.id);
-                return (
-                  <option
-                    key={`custom-${cs.id}`}
-                    value={`custom:${cs.id}`}
-                    disabled={isOwned}
-                    style={{
-                      color: isOwned ? '#9CA3AF' : 'inherit',
-                      fontStyle: 'italic'
-                    }}
-                  >
-                    {cs.skill_name} (Custom){isOwned ? ' (already owned)' : ''}
-                  </option>
-                );
-              })}
+            {skillsData.skills.map((skill) => (
+              <option
+                key={skill.skill_id}
+                value={skill.skill_id}
+                disabled={!skill.available}
+                style={{
+                  color: !skill.available ? '#9CA3AF' : 'inherit',
+                  fontStyle: !skill.available ? 'italic' : 'normal'
+                }}
+              >
+                {skill.skill_name}{skill.is_custom ? ' (Custom)' : ''}{!skill.available ? ' (already owned)' : ''}
+              </option>
+            ))}
           </select>
         </div>
       )}
