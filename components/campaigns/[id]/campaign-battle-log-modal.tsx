@@ -11,12 +11,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Scenario } from '@/types/campaign';
+import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
+
+interface BattleLogTerritory extends BaseTerritory {
+  default_gang_territory?: boolean;
+}
 
 interface CampaignBattleLogModalProps {
   campaignId: string;
   availableGangs: CampaignGang[];
-  territories?: Territory[];
+  territories?: BattleLogTerritory[];
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -57,7 +61,7 @@ const CampaignBattleLogModal = ({
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
-  const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
+  const [availableTerritories, setAvailableTerritories] = useState<BattleLogTerritory[]>([]);
   const { toast } = useToast();
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
@@ -457,7 +461,7 @@ const CampaignBattleLogModal = ({
     }
 
     // Define what the new available territories should be
-    let newAvailableTerritories: Territory[] = [];
+    let newAvailableTerritories: BattleLogTerritory[] = [];
 
     if (winner && winner !== "draw") {
       // Show ALL territories - players can challenge over any territory
@@ -797,19 +801,30 @@ const CampaignBattleLogModal = ({
               return (
                 <div key={gangEntry.id} className="grid gap-3">
                   <div className="flex items-center gap-3">
-                    <select
-                      className="flex-1 px-3 py-2 rounded-md border border-border bg-muted"
+                    <Combobox
+                      className="flex-1"
                       value={gangEntry.gangId}
-                      onChange={(e) => handleGangChange(gangEntry.id, e.target.value)}
+                      onValueChange={(value) => handleGangChange(gangEntry.id, value)}
                       disabled={isLoadingBattleData}
-                    >
-                      <option value="">Select a Gang</option>
-                      {availableGangsForThisEntry.map((gang) => (
-                        <option key={gang.id} value={gang.id}>
-                          {gang.name}{gang.owner_username ? ` • ${gang.owner_username}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Select a Gang"
+                      options={[
+                        { value: "", label: "No gang selected" },
+                        ...availableGangsForThisEntry.map((gang) => {
+                          const owner = gang.owner_username ? ` • ${gang.owner_username}` : "";
+                          const displayValue = `${gang.name}${owner}`;
+                          return {
+                            value: gang.id,
+                            label: owner ? (
+                              <span>
+                                <span>{gang.name}</span>
+                                <span className="text-xs text-muted-foreground">{owner}</span>
+                              </span>
+                            ) : gang.name,
+                            displayValue,
+                          };
+                        }),
+                      ]}
+                    />
 
                     {gangsInBattle.length > 2 && (
                       <button
@@ -886,24 +901,34 @@ const CampaignBattleLogModal = ({
             <label className="block text-sm font-medium text-muted-foreground mb-1">
               Winner *
             </label>
-            <select
-              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+            <Combobox
               value={winner}
-              onChange={(e) => setWinner(e.target.value)}
+              onValueChange={setWinner}
               disabled={isLoadingBattleData}
-            >
-              <option value="">Select winner</option>
-              <option value="draw">Draw</option>
-              {gangsInBattle.map((entry) => {
-                if (!entry.gangId) return null;
-                const gang = availableGangs.find(g => g.id === entry.gangId);
-                return (
-                  <option key={entry.id} value={entry.gangId}>
-                    {getGangName(entry.gangId)}{gang?.owner_username ? ` • ${gang.owner_username}` : ''}
-                  </option>
-                );
-              })}
-            </select>
+              placeholder="Select winner"
+              options={[
+                { value: "", label: "No winner selected" },
+                { value: "draw", label: "Draw" },
+                ...gangsInBattle
+                  .filter((entry) => !!entry.gangId)
+                  .map((entry) => {
+                    const gang = availableGangs.find(g => g.id === entry.gangId);
+                    const gangName = getGangName(entry.gangId);
+                    const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
+                    const displayValue = `${gangName}${owner}`;
+                    return {
+                      value: entry.gangId,
+                      label: owner ? (
+                        <span>
+                          <span>{gangName}</span>
+                          <span className="text-xs text-muted-foreground">{owner}</span>
+                        </span>
+                      ) : gangName,
+                      displayValue,
+                    };
+                  }),
+              ]}
+            />
           </div>
 
           {winner && winner !== "draw" && availableTerritories.length > 0 && (
@@ -911,23 +936,38 @@ const CampaignBattleLogModal = ({
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 Claimed Territory
               </label>
-              <select
+              <Combobox
                 value={selectedTerritory}
-                onChange={(e) => setSelectedTerritory(e.target.value)}
+                onValueChange={setSelectedTerritory}
                 disabled={isLoadingBattleData}
-                className="w-full px-3 py-2 rounded-md border border-border bg-muted focus:outline-none focus:ring-2 focus:ring-black"
-              >
-                <option value="">No territory claimed</option>
-                {availableTerritories.map((territory) => {
-                  const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
-                  const statusLabel = controlledBy ? ` (Held by ${controlledBy})` : " (Unclaimed)";
-                  return (
-                    <option key={territory.id} value={territory.id}>
-                      {territory.name}{statusLabel}
-                    </option>
-                  );
-                })}
-              </select>
+                placeholder="Select or search for a Territory..."
+                options={[
+                  { value: "", label: "No territory claimed" },
+                  ...availableTerritories
+                    .filter((territory) => !territory.default_gang_territory)
+                    .slice()
+                    .sort((a, b) => {
+                      const nameA = (a.name ?? a.territory_name ?? "").toLocaleLowerCase();
+                      const nameB = (b.name ?? b.territory_name ?? "").toLocaleLowerCase();
+                      return nameA.localeCompare(nameB);
+                    })
+                    .map((territory) => {
+                      const displayName = territory.name ?? territory.territory_name ?? "";
+                      const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
+                      const statusLabel = controlledBy ? ` (Held by ${controlledBy})` : " (Unclaimed)";
+
+                      return {
+                        value: territory.id,
+                        label: (
+                          <span>
+                            <span>{displayName}</span><span className="text-xs text-muted-foreground">{statusLabel}</span>
+                          </span>
+                        ),
+                        displayValue: `${displayName}${statusLabel}`,
+                      };
+                    }),
+                ]}
+              />
             </div>
           )}
 

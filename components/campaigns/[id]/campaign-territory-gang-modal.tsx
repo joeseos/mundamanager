@@ -3,6 +3,7 @@
 import Modal from "@/components/ui/modal"
 import { useState, useEffect } from "react"
 import Link from 'next/link'
+import { Combobox } from "@/components/ui/combobox"
 
 interface Gang {
   id: string;
@@ -75,28 +76,33 @@ export default function TerritoryGangModal({
       ) : availableGangs.length === 0 ? (
         <p className="text-muted-foreground italic text-sm text-muted-foreground">No gangs have been added to this campaign.</p>
       ) : (
-        <>
-          <select
-            value={selectedGang}
-            onChange={(e) => setSelectedGang(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-black"
-          >
-            <option value="">Select a gang</option>
-            {availableGangs
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((gang) => (
-                <option
-                  key={gang.id}
-                  value={gang.id}
-                  disabled={existingGangId === gang.id}
-                  className={existingGangId === gang.id ? "text-gray-400" : ""}
-                >
-                  {gang.name} 󠁯•󠁏 {gang.owner_username} {existingGangId === gang.id ? '(Already assigned)' : ''}
-                </option>
-            ))}
-          </select>
-        </>
+        <Combobox
+          value={selectedGang}
+          onValueChange={setSelectedGang}
+          placeholder="Select a gang"
+          options={availableGangs
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((gang) => {
+              const owner = gang.owner_username ? ` • ${gang.owner_username}` : "";
+              const alreadyAssigned = existingGangId === gang.id;
+              const suffix = alreadyAssigned ? " (Already assigned)" : "";
+              const displayValue = `${gang.name}${owner}${suffix}`;
+              return {
+                value: gang.id,
+                label: (
+                  <span>
+                    <span>{gang.name}</span>
+                    {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                    {alreadyAssigned && <span className="text-xs text-muted-foreground">(Already assigned)</span>}
+                  </span>
+                ),
+                displayValue,
+                disabled: alreadyAssigned,
+              };
+            })
+          }
+        />
       )}
     </div>
   );
