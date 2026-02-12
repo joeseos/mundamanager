@@ -81,7 +81,8 @@ export async function GET(request: Request) {
     // Create a map for quick profile lookup
     const profileMap = new Map(userProfiles.map(p => [p.id, p.username]));
 
-    // Transform the data into the format needed by the modal
+    // Transform and deduplicate by gang id (same gang can appear multiple times in campaign_gangs)
+    const seenGangIds = new Set<string>();
     const gangs = campaignGangs
       .filter(cg => cg.gangs) // Filter out any entries without gang data
       .map(cg => ({
@@ -93,7 +94,12 @@ export async function GET(request: Request) {
         user_id: cg.user_id,
         campaign_member_id: cg.campaign_member_id,
         owner_username: (cg.user_id && profileMap.get(cg.user_id)) || 'Unknown'
-      }));
+      }))
+      .filter(g => {
+        if (seenGangIds.has(g.id)) return false;
+        seenGangIds.add(g.id);
+        return true;
+      });
 
     return NextResponse.json(gangs);
   } catch (error) {
