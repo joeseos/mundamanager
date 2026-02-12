@@ -175,27 +175,15 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
 
     const fetchSkills = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_available_skills`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-            },
-            body: JSON.stringify({
-              fighter_id: fighterId
-            })
-          }
-        );
-        
-        if (!response.ok) {
+        const supabase = createClient();
+        const { data, error } = await supabase.rpc('get_available_skills', {
+          fighter_id: fighterId
+        });
+
+        if (error) {
           throw new Error('Failed to fetch skills');
         }
 
-        const data = await response.json();
-        console.log('Raw skills data:', data);
-        
         // Filter skills by the selected type
         const skillsForType = data.skills.filter(
           (skill: SkillData) => skill.skill_type_id === selectedCategory
