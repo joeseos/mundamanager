@@ -68,20 +68,29 @@ interface SkillAccess {
   skill_type_name: string;
 }
 
+interface CustomSkillData {
+  id: string;
+  skill_name: string;
+  skill_type_id: string;
+}
+
 // SkillModal Component
 export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string>('');
+  const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
+  const [customSkills, setCustomSkills] = useState<CustomSkillData[]>([]);
+  const [ownedCustomSkillIds, setOwnedCustomSkillIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const session = useSession();
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for adding skills
   const addSkillMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; skill_id: string; xp_cost: number; credits_increase: number; is_advance: boolean }) => {
+    mutationFn: async (variables: { fighter_id: string; skill_id?: string; custom_skill_id?: string; xp_cost: number; credits_increase: number; is_advance: boolean }) => {
       const result = await addSkillAdvancement(variables);
       if (!result.success) {
         throw new Error(result.error || 'Failed to add skill');
@@ -90,12 +99,18 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
     },
     onMutate: async (variables) => {
       // Get the selected skill details for optimistic update
-      const selectedSkillData = skillsData?.skills.find((skill: any) => skill.skill_id === variables.skill_id);
-      const skillName = selectedSkillData?.skill_name || 'Unknown Skill';
-      
+      let skillName = 'Unknown Skill';
+      if (variables.skill_id) {
+        const selectedSkillData = skillsData?.skills.find((skill: any) => skill.skill_id === variables.skill_id);
+        skillName = selectedSkillData?.skill_name || skillName;
+      } else if (variables.custom_skill_id) {
+        const selectedCustomSkill = customSkills.find(s => s.id === variables.custom_skill_id);
+        skillName = selectedCustomSkill?.skill_name || skillName;
+      }
+
       // Optimistically add to parent's local state
-      onSkillAdded(variables.skill_id, skillName);
-      
+      onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName);
+
       return { skillName };
     },
     onSuccess: (result, variables, context) => {
@@ -139,22 +154,36 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         setCategories(skillTypesData);
 
         // Fetch skill access for this fighter
-        console.log('Fetching skill access for fighter:', fighterId);
         try {
           const skillAccessResponse = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-          console.log('Skill access response status:', skillAccessResponse.status);
           if (skillAccessResponse.ok) {
             const skillAccessData = await skillAccessResponse.json();
-            console.log('Skill access data:', skillAccessData);
             setSkillAccess(skillAccessData.skill_access || []);
           } else {
-            const errorText = await skillAccessResponse.text();
-            console.warn('Failed to fetch skill access:', errorText);
             setSkillAccess([]);
           }
         } catch (error) {
           console.error('Error fetching skill access:', error);
           setSkillAccess([]);
+        }
+
+        // Fetch custom skills visible to this user (RLS handles visibility)
+        try {
+          const { data: customSkillsData } = await supabase
+            .from('custom_skills')
+            .select('id, skill_name, skill_type_id');
+          setCustomSkills(customSkillsData || []);
+
+          // Fetch fighter's existing custom skills for "already owned" check
+          const { data: ownedCustom } = await supabase
+            .from('fighter_skills')
+            .select('custom_skill_id')
+            .eq('fighter_id', fighterId)
+            .not('custom_skill_id', 'is', null);
+          setOwnedCustomSkillIds(new Set((ownedCustom || []).map(r => r.custom_skill_id)));
+        } catch (error) {
+          console.error('Error fetching custom skills:', error);
+          setCustomSkills([]);
         }
       } catch (error) {
         console.error('Error fetching skill sets:', error);
@@ -228,14 +257,19 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
     // Close modal immediately for instant UX
     onClose();
 
-    // Fire mutation
-    addSkillMutation.mutate({
+    // Fire mutation with either skill_id or custom_skill_id
+    const mutationData: any = {
       fighter_id: fighterId,
-      skill_id: selectedSkill,
       xp_cost: 0,
       credits_increase: 0,
       is_advance: false
-    });
+    };
+    if (isCustomSkillSelected) {
+      mutationData.custom_skill_id = selectedSkill;
+    } else {
+      mutationData.skill_id = selectedSkill;
+    }
+    addSkillMutation.mutate(mutationData);
 
     return true;
   };
@@ -246,7 +280,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         <label className="text-sm font-medium">Skill Set</label>
         <select
           value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
+          onChange={(e) => { setSelectedCategory(e.target.value); setSelectedSkill(''); setIsCustomSkillSelected(false); }}
           className="w-full p-2 border rounded"
         >
           <option key="placeholder-type" value="">Select a skill set</option>
@@ -330,18 +364,23 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
           <label className="text-sm font-medium">Skill</label>
           <select
             value={selectedSkill}
-            onChange={(e) => setSelectedSkill(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              const isCustom = value.startsWith('custom:');
+              setSelectedSkill(isCustom ? value.slice(7) : value);
+              setIsCustomSkillSelected(isCustom);
+            }}
             className="w-full p-2 border rounded"
           >
             <option key="placeholder-skill" value="">Select a skill</option>
             {skillsData.skills.map((skill) => {
               const isAvailable = skill.available;
               return (
-                <option 
-                  key={skill.skill_id} 
+                <option
+                  key={skill.skill_id}
                   value={skill.skill_id}
                   disabled={!isAvailable}
-                  style={{ 
+                  style={{
                     color: !isAvailable ? '#9CA3AF' : 'inherit',
                     fontStyle: !isAvailable ? 'italic' : 'normal'
                   }}
@@ -350,6 +389,24 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
                 </option>
               );
             })}
+            {customSkills
+              .filter(cs => cs.skill_type_id === selectedCategory)
+              .map((cs) => {
+                const isOwned = ownedCustomSkillIds.has(cs.id);
+                return (
+                  <option
+                    key={`custom-${cs.id}`}
+                    value={`custom:${cs.id}`}
+                    disabled={isOwned}
+                    style={{
+                      color: isOwned ? '#9CA3AF' : 'inherit',
+                      fontStyle: 'italic'
+                    }}
+                  >
+                    {cs.skill_name} (Custom){isOwned ? ' (already owned)' : ''}
+                  </option>
+                );
+              })}
           </select>
         </div>
       )}

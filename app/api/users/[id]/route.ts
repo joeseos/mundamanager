@@ -102,7 +102,7 @@ export async function GET(
     const dedupedCampaigns = Array.from(dedupedCampaignsMap.values())
 
     // Fetch custom assets data - get full data for the components
-    const [customEquipmentResult, customFightersResult, customTerritoriesResult] = await Promise.all([
+    const [customEquipmentResult, customFightersResult, customTerritoriesResult, customSkillsResult] = await Promise.all([
       supabase
         .from('custom_equipment')
         .select('*')
@@ -117,13 +117,38 @@ export async function GET(
         .from('custom_territories')
         .select('*')
         .eq('user_id', userId)
-        .order('territory_name')
+        .order('territory_name'),
+      supabase
+        .from('custom_skills')
+        .select(`
+          id,
+          user_id,
+          skill_name,
+          skill_type_id,
+          created_at,
+          updated_at,
+          skill_types (name)
+        `)
+        .eq('user_id', userId)
+        .order('skill_name')
     ])
+
+    // Map custom skills to include skill_type_name
+    const customSkillsData = (customSkillsResult.data || []).map((skill: any) => ({
+      id: skill.id,
+      user_id: skill.user_id,
+      skill_name: skill.skill_name,
+      skill_type_id: skill.skill_type_id,
+      skill_type_name: skill.skill_types?.name || 'Unknown',
+      created_at: skill.created_at,
+      updated_at: skill.updated_at,
+    }));
 
     const customAssets = {
       equipment: customEquipmentResult.data?.length || 0,
       fighters: customFightersResult.data?.length || 0,
       territories: customTerritoriesResult.data?.length || 0,
+      skills: customSkillsData.length,
     }
 
     // Fetch related data for fighters (default skills and equipment)
@@ -253,6 +278,7 @@ export async function GET(
       equipment: customEquipmentResult.data || [],
       fighters: fightersWithExtendedData,
       territories: customTerritoriesResult.data || [],
+      skills: customSkillsData,
     }
 
     return Response.json({
