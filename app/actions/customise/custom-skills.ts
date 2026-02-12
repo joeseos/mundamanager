@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
+import { invalidateFighterAdvancement } from "@/utils/cache-tags";
 
 export async function createCustomSkill(data: {
   skill_name: string;
@@ -62,6 +63,12 @@ export async function updateCustomSkill(
     updateData.skill_name = updates.skill_name.trimEnd();
   }
 
+  // Find fighters that have this skill so we can invalidate their caches
+  const { data: affectedFighters } = await supabase
+    .from('fighter_skills')
+    .select('fighter_id, fighters!inner(gang_id)')
+    .eq('custom_skill_id', skillId);
+
   const { data, error } = await supabase
     .from('custom_skills')
     .update(updateData)
@@ -85,6 +92,16 @@ export async function updateCustomSkill(
 
   revalidatePath('/');
 
+  if (affectedFighters && affectedFighters.length > 0) {
+    for (const row of affectedFighters) {
+      invalidateFighterAdvancement({
+        fighterId: row.fighter_id,
+        gangId: (row.fighters as any).gang_id,
+        advancementType: 'skill'
+      });
+    }
+  }
+
   return {
     ...data,
     skill_type_name: (data as any).skill_types?.name || 'Unknown',
@@ -94,6 +111,12 @@ export async function updateCustomSkill(
 export async function deleteCustomSkill(skillId: string) {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
+
+  // Find fighters that have this skill so we can invalidate their caches
+  const { data: affectedFighters } = await supabase
+    .from('fighter_skills')
+    .select('fighter_id, fighters!inner(gang_id)')
+    .eq('custom_skill_id', skillId);
 
   const { error } = await supabase
     .from('custom_skills')
@@ -107,6 +130,16 @@ export async function deleteCustomSkill(skillId: string) {
   }
 
   revalidatePath('/');
+
+  if (affectedFighters && affectedFighters.length > 0) {
+    for (const row of affectedFighters) {
+      invalidateFighterAdvancement({
+        fighterId: row.fighter_id,
+        gangId: (row.fighters as any).gang_id,
+        advancementType: 'skill'
+      });
+    }
+  }
 
   return { success: true };
 }
