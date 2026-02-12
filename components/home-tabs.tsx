@@ -290,13 +290,13 @@ export default function HomeTabs({
               userCampaigns={userCampaigns}
             />
 
-            <CustomiseTerritories initialTerritories={customTerritories} />
-
             <CustomiseSkills
               initialSkills={customSkills}
               userId={userId}
               userCampaigns={userCampaigns}
             />
+
+            <CustomiseTerritories initialTerritories={customTerritories} />
           </div>
         )}
       </div>
