@@ -1,3 +1,10 @@
+-- ============================================
+-- UPDATE get_available_skills to include custom skills
+-- ============================================
+-- Adds custom skills alongside standard skills in the RPC response.
+-- Each skill object now includes 'is_custom' boolean.
+-- Custom skill visibility: owned by user OR shared to fighter's gang's campaign.
+
 DROP FUNCTION IF EXISTS public.get_available_skills(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_available_skills(
