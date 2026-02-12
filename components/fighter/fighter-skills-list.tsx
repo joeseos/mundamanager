@@ -230,17 +230,13 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
     onClose();
 
     // Fire mutation with either skill_id or custom_skill_id
-    const mutationData: any = {
+    const mutationData = {
       fighter_id: fighterId,
       xp_cost: 0,
       credits_increase: 0,
-      is_advance: false
+      is_advance: false,
+      ...(isCustomSkillSelected ? { custom_skill_id: selectedSkill } : { skill_id: selectedSkill }),
     };
-    if (isCustomSkillSelected) {
-      mutationData.custom_skill_id = selectedSkill;
-    } else {
-      mutationData.skill_id = selectedSkill;
-    }
     addSkillMutation.mutate(mutationData);
 
     return true;

@@ -273,6 +273,10 @@ export async function addSkillAdvancement(
   params: AddSkillAdvancementParams
 ): Promise<AdvancementResult> {
   try {
+    if (!params.skill_id && !params.custom_skill_id) {
+      return { success: false, error: 'Either skill_id or custom_skill_id must be provided' };
+    }
+
     const supabase = await createClient();
     
     // Check authentication with optimized getClaims()
@@ -300,16 +304,16 @@ export async function addSkillAdvancement(
     }
 
     // Insert the new skill advancement with fighter owner's user_id
-    const insertData: any = {
+    const insertData = {
       fighter_id: params.fighter_id,
       credits_increase: params.credits_increase,
       xp_cost: params.xp_cost,
       is_advance: params.is_advance ?? true,
       user_id: fighter.user_id,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...(params.skill_id ? { skill_id: params.skill_id } : {}),
+      ...(params.custom_skill_id ? { custom_skill_id: params.custom_skill_id } : {}),
     };
-    if (params.skill_id) insertData.skill_id = params.skill_id;
-    if (params.custom_skill_id) insertData.custom_skill_id = params.custom_skill_id;
 
     const { data: insertedSkill, error: insertError } = await supabase
       .from('fighter_skills')
