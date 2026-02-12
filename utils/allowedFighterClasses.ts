@@ -8,6 +8,7 @@ export const allowedFighterClasses: { [key: string]: boolean } = {
   "Juve": true,
   "Crew": true,
   "Exotic Beast": true,
+  "Exotic Beast Specialist": true,
   "Brute": true,
   "Bounty Hunter": true,
   "Hanger-on": true,

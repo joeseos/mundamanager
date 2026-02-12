@@ -641,12 +641,45 @@ export function EditFighterModal({
   // State for skill access modal
   const [showSkillAccessModal, setShowSkillAccessModal] = useState(false);
 
+  // State for fighter class override ('': use default from fighter type)
+  const [selectedFighterClassId, setSelectedFighterClassId] = useState<string>('');
+
   // State for archetype selection - initialize from fighter's saved archetype
   const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>(fighter.selected_archetype_id || '');
 
+  // Fetch standard fighter classes for the class override dropdown
+  const { data: standardFighterClasses } = useQuery<Array<{ id: string; class_name: string }>>({
+    queryKey: ['standard-fighter-classes'],
+    queryFn: async () => {
+      const response = await fetch('/api/fighter-classes');
+      if (!response.ok) throw new Error('Failed to fetch fighter classes');
+      return response.json();
+    },
+    enabled: isOpen,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Compute the default fighter class name from the currently selected fighter type
+  const defaultFighterClassName = useMemo(() => {
+    if (selectedFighterTypeId && fighterTypes.length > 0) {
+      const selectedType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+      if (selectedType) return selectedType.fighter_class;
+    }
+    return fighter.fighter_class || 'Unknown';
+  }, [selectedFighterTypeId, fighterTypes, fighter.fighter_class]);
+
+  // The effective fighter class: override if selected, otherwise default from type
+  const effectiveFighterClass = useMemo(() => {
+    if (selectedFighterClassId && standardFighterClasses) {
+      const overrideClass = standardFighterClasses.find(fc => fc.id === selectedFighterClassId);
+      if (overrideClass) return overrideClass.class_name;
+    }
+    return defaultFighterClassName;
+  }, [selectedFighterClassId, standardFighterClasses, defaultFighterClassName]);
+
   // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
   const canUseArchetypes = gangTypeId === UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
-    ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES.includes(formValues.fighter_class || fighter.fighter_class || '');
+    ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES.includes(effectiveFighterClass || formValues.fighter_class || fighter.fighter_class || '');
 
   // Fetch archetypes using TanStack Query (only if eligible and modal is open)
   const { data: archetypesData } = useQuery({
@@ -891,6 +924,19 @@ export function EditFighterModal({
     setSelectedArchetypeId(fighter.selected_archetype_id || ''); // Pre-select current archetype
     // Reset the explicit selection flag when loading a new fighter
     setHasExplicitlySelectedType(false);
+    // Initialize fighter class override: compare fighter's class with its type's default class
+    // If they differ, the fighter has an override - pre-select it
+    if (fighterTypes.length > 0) {
+      const currentFighterTypeId = (fighter.fighter_type as any)?.fighter_type_id || (fighter as any).fighter_type_id;
+      const currentType = fighterTypes.find(ft => ft.id === currentFighterTypeId);
+      if (currentType && (fighter as any).fighter_class_id && (fighter as any).fighter_class_id !== currentType.fighter_class_id) {
+        setSelectedFighterClassId((fighter as any).fighter_class_id);
+      } else {
+        setSelectedFighterClassId('');
+      }
+    } else {
+      setSelectedFighterClassId('');
+    }
   }, [fighter.id, fighter.selected_archetype_id, fighterTypes]); // Update when fighter or fighter types data changes
 
   // Pre-populate current fighter type and sub-type when fighter types are loaded
@@ -1267,6 +1313,22 @@ export function EditFighterModal({
         submitData.fighter_sub_type = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null;
         submitData.fighter_sub_type_id = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null;
       }
+
+      // Apply fighter class override if user selected one
+      if (selectedFighterClassId && standardFighterClasses) {
+        const overrideClass = standardFighterClasses.find(fc => fc.id === selectedFighterClassId);
+        if (overrideClass) {
+          submitData.fighter_class = overrideClass.class_name;
+          submitData.fighter_class_id = overrideClass.id;
+        }
+      } else if (selectedFighterClassId === '' && !shouldUpdateFighterType) {
+        // "Default" selected and no fighter type change - use the selected fighter type's default class
+        const currentType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+        if (currentType) {
+          submitData.fighter_class = currentType.fighter_class;
+          submitData.fighter_class_id = currentType.fighter_class_id;
+        }
+      }
       
       // If lifecycle callbacks are provided, use TanStack mutation and close immediately
       if (onEditMutate || onEditError || onEditSuccess) {
@@ -1503,6 +1565,28 @@ export function EditFighterModal({
               </div>
             )}
             
+            {/* Fighter Class Override Dropdown */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Fighter Class
+              </label>
+              <select
+                value={selectedFighterClassId}
+                onChange={(e) => setSelectedFighterClassId(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Default ({defaultFighterClassName})</option>
+                {standardFighterClasses
+                  ?.filter(fc => fc.class_name !== defaultFighterClassName)
+                  .map(fc => (
+                    <option key={fc.id} value={fc.id}>{fc.class_name}</option>
+                  ))}
+              </select>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Current: {fighter.fighter_class || 'Unknown'}
+              </div>
+            </div>
+
             {/* Gang Legacy Dropdown */}
             {availableLegacies.length > 0 && (
               <div>

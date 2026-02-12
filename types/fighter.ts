@@ -243,6 +243,7 @@ export const FIGHTER_CLASSES = [
   'Juve',
   'Crew',
   'Exotic Beast',
+  'Exotic Beast Specialist',
   'Brute'
 ] as const;
 
