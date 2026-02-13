@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict OnWPcHZx1wYlNuMHnWRZBuRjQKF11KPhtvGr7ohAVDbVXwWJ33pLHu88RIe4CGr
+\restrict JxfqXEdIwxvxZQweWhdMETvbrzVnJmI3UPKyTUvdwMDL4BgCiC4A5FCbVjX8kK9
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -1221,7 +1221,7 @@ BEGIN
                                 )
                             )
                         -- Regular skill costs
-                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute')
+                        WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist')
                         THEN jsonb_build_array(
                             jsonb_build_object(
                                 'type_id', 'primary_selected',
@@ -10682,5 +10682,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict OnWPcHZx1wYlNuMHnWRZBuRjQKF11KPhtvGr7ohAVDbVXwWJ33pLHu88RIe4CGr
+\unrestrict JxfqXEdIwxvxZQweWhdMETvbrzVnJmI3UPKyTUvdwMDL4BgCiC4A5FCbVjX8kK9
 
