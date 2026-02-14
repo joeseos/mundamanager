@@ -1578,6 +1578,7 @@ export function EditFighterModal({
                 <option value="">Default ({defaultFighterClassName})</option>
                 {standardFighterClasses
                   ?.filter(fc => fc.class_name !== defaultFighterClassName)
+                  ?.filter(fc => fc.class_name !== 'Exotic Beast Specialist' || fighter.fighter_class === 'Exotic Beast')
                   .map(fc => (
                     <option key={fc.id} value={fc.id}>{fc.class_name}</option>
                   ))}
