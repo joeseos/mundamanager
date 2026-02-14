@@ -782,6 +782,7 @@ export default function FighterPage({
             fighterXp={fighterData.fighter?.xp || 0}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
+            gangCredits={fighterData.gang?.credits}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
                 ...prev,
@@ -789,6 +790,16 @@ export default function FighterPage({
                   ...prev.fighter,
                   skills: updatedSkills
                 } : null
+              }));
+            }}
+            onGangCreditsUpdate={(creditsDelta) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  credits: prev.fighter.credits - creditsDelta
+                } : null,
+                gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + creditsDelta } : null
               }));
             }}
           />
