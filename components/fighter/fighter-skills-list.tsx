@@ -32,6 +32,7 @@ interface SkillsListProps {
   fighterXp: number;
   free_skill?: boolean;
   userPermissions: UserPermissions;
+  gangCredits?: number;
   onSkillsUpdate: (updatedSkills: FighterSkills) => void;
   onGangCreditsUpdate?: (creditsDelta: number) => void;
 }
@@ -39,8 +40,10 @@ interface SkillsListProps {
 // SkillModal Interfaces
 interface SkillModalProps {
   fighterId: string;
+  gangCredits?: number;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
+  onSkillRollback: (skillName: string) => void;
   isSubmitting: boolean;
   onSelectSkill?: (selectedSkill: any) => Promise<void>;
   onGangCreditsUpdate?: (creditsDelta: number) => void;
@@ -73,7 +76,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -127,6 +130,10 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
       }
     },
     onError: (error, variables, context) => {
+      // Rollback optimistically added skill
+      if (context?.skillName) {
+        onSkillRollback(context.skillName);
+      }
       // Rollback gang credits on error
       if (context?.creditsDeducted && context.creditsDeducted > 0) {
         onGangCreditsUpdate?.(context.creditsDeducted);
@@ -257,7 +264,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
         <label className="text-sm font-medium">Skill Set</label>
         <select
           value={selectedCategory}
-          onChange={(e) => { setSelectedCategory(e.target.value); setSelectedSkill(''); setIsCustomSkillSelected(false); }}
+          onChange={(e) => { setSelectedCategory(e.target.value); setSelectedSkill(''); setIsCustomSkillSelected(false); setEditableCost(0); }}
           className="w-full p-2 border rounded"
         >
           <option key="placeholder-type" value="">Select a skill set</option>
@@ -367,24 +374,20 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
           </select>
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
-          {(() => {
-            const skill = skillsData?.skills.find(s => s.skill_id === selectedSkill);
-            if (skill && skill.cost > 0) {
-              return (
-                <div className="space-y-1 mt-2">
-                  <label className="text-sm font-medium">Cost</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={editableCost}
-                    onChange={(e) => setEditableCost(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-              );
-            }
-            return null;
-          })()}
+          {(skillsData?.skills.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
+            <div className="space-y-1 mt-2">
+              <label className="text-sm font-medium">
+                Cost{gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={editableCost}
+                onChange={(e) => setEditableCost(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full p-2 border rounded"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -397,7 +400,7 @@ export function SkillModal({ fighterId, onClose, onSkillAdded, isSubmitting, onS
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending}
+      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
@@ -409,6 +412,7 @@ export function SkillsList({
   fighterXp,
   free_skill,
   userPermissions,
+  gangCredits,
   onSkillsUpdate,
   onGangCreditsUpdate
 }: SkillsListProps) {
@@ -528,6 +532,13 @@ export function SkillsList({
     onSkillsUpdate(updatedSkills);
   };
 
+  const handleSkillRollback = (skillName: string) => {
+    const updatedSkills = { ...localSkills };
+    delete updatedSkills[skillName];
+    setLocalSkills(updatedSkills);
+    onSkillsUpdate(updatedSkills);
+  };
+
   // Transform skills object into array for table display
   const skillsArray = Object.entries(localSkills).map(([name, data]) => {
     const typedData = data as any;
@@ -619,8 +630,10 @@ export function SkillsList({
       {isAddSkillModalOpen && (
         <SkillModal
           fighterId={fighterId}
+          gangCredits={gangCredits}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}
+          onSkillRollback={handleSkillRollback}
           isSubmitting={isSubmitting}
           onGangCreditsUpdate={onGangCreditsUpdate}
         />

@@ -50,6 +50,7 @@ export interface AddSkillAdvancementParams {
   skill_id?: string;
   custom_skill_id?: string;
   xp_cost: number;
+  /** Added to gang rating. When is_advance is false (direct purchase), also deducted from gang stash. */
   credits_increase: number;
   is_advance?: boolean;
 }
@@ -418,6 +419,21 @@ export async function addSkillAdvancement(
         // Advancement path (XP purchase): only increase rating, no stash deduction
         await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
       } else {
+        // Direct purchase: verify gang has sufficient credits before deducting
+        const { data: gang, error: gangError } = await supabase
+          .from('gangs')
+          .select('credits')
+          .eq('id', fighter.gang_id)
+          .single();
+
+        if (gangError || !gang) {
+          return { success: false, error: 'Failed to verify gang credits' };
+        }
+
+        if (gang.credits < creditsIncrease) {
+          return { success: false, error: 'Insufficient gang credits' };
+        }
+
         // Starting skill path (direct purchase): deduct from stash AND increase rating
         await updateGangFinancials(supabase, {
           gangId: fighter.gang_id,

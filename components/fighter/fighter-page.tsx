@@ -782,6 +782,7 @@ export default function FighterPage({
             fighterXp={fighterData.fighter?.xp || 0}
             free_skill={fighterData.fighter?.free_skill}
             userPermissions={userPermissions}
+            gangCredits={fighterData.gang?.credits}
             onSkillsUpdate={(updatedSkills) => {
               setFighterData(prev => ({
                 ...prev,
