@@ -87,6 +87,7 @@ interface PurchaseModalProps {
   fighterId?: string;
   gangId?: string;
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
+  equipmentListType?: "fighters-list" | "fighters-tradingpost" | "unrestricted";
 }
 
 interface Category {
@@ -113,7 +114,7 @@ interface BuyEquipmentParams {
   selected_grant_equipment_ids?: string[];
 }
 
-function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons }: PurchaseModalProps) {
+function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons, equipmentListType }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
@@ -495,19 +496,25 @@ function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase,
               </div>
             </div>
             
-            {item.equipment_type === 'weapon' && (
+            {item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
               <div className="flex items-center space-x-2 mt-2">
                 <Checkbox 
                   id="master-crafted"
                   checked={isMasterCrafted}
                   onCheckedChange={(checked) => setIsMasterCrafted(checked as boolean)}
                 />
-                <label 
-                  htmlFor="master-crafted" 
+                <label
+                  htmlFor="master-crafted"
                   className="text-sm font-medium text-muted-foreground cursor-pointer"
                 >
                   Master-crafted (+25%)
                 </label>
+                <div className="relative group">
+                  <ImInfo />
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-48 -left-24 z-50">
+                    Master-crafted weapons are Rare (10).
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1450,6 +1457,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 fighterId={fighterId}
                 gangId={gangId}
                 fighterWeapons={fighterWeapons}
+                equipmentListType={equipmentListType}
               />
             )}
           </div>
