@@ -791,6 +791,16 @@ export default function FighterPage({
                 } : null
               }));
             }}
+            onGangCreditsUpdate={(creditsDelta) => {
+              setFighterData(prev => ({
+                ...prev,
+                fighter: prev.fighter ? {
+                  ...prev.fighter,
+                  credits: prev.fighter.credits - creditsDelta
+                } : null,
+                gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + creditsDelta } : null
+              }));
+            }}
           />
 
           <AdvancementsList

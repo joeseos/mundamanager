@@ -35,6 +35,9 @@ export interface TypeSpecificData extends TraitModificationData {
   credits_increase?: number;
   advancement_type?: string;
   times_increased?: number;
+  // Skill cost fields
+  cost?: number;            // Credits deducted from gang stash when skill is purchased. Increases rating by the same amount (net zero wealth change).
+  custom_skill_id?: string; // Links effect type to a custom skill
   // Power boost fields
   kill_cost?: number;
   // Hardpoint fields

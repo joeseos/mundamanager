@@ -27,6 +27,7 @@ interface SkillAdvancementLogParams {
   remaining_xp: number;
   is_advance?: boolean;
   include_gang_rating?: boolean;
+  credits_deducted?: number;
 }
 
 interface AdvancementDeletionLogParams {
@@ -38,6 +39,7 @@ interface AdvancementDeletionLogParams {
   xp_refunded: number;
   new_xp_total: number;
   include_gang_rating?: boolean;
+  credits_refunded?: number;
 }
 
 interface FighterInjuryLogParams {
@@ -100,7 +102,11 @@ export async function logSkillAdvancement(params: SkillAdvancementLogParams): Pr
     
     const advancementType = params.is_advance ? 'gained' : 'learned';
     let description = `Fighter "${params.fighter_name}" ${advancementType} skill "${params.skill_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`;
-    
+
+    if (params.credits_deducted && params.credits_deducted > 0) {
+      description += `. Gang stash: -${params.credits_deducted} credits`;
+    }
+
     if (params.include_gang_rating) {
       const gangRating = await calculateGangRating(supabase, params.gang_id);
       description += `. New gang rating: ${gangRating}`;
@@ -126,7 +132,11 @@ export async function logSkillAdvancementDeletion(params: AdvancementDeletionLog
     const supabase = await createClient();
     
     let description = `Fighter "${params.fighter_name}" removed ${params.advancement_type} "${params.advancement_name}" (refunded ${params.xp_refunded} XP). New XP total: ${params.new_xp_total}`;
-    
+
+    if (params.credits_refunded && params.credits_refunded > 0) {
+      description += `. Gang stash: +${params.credits_refunded} credits`;
+    }
+
     if (params.include_gang_rating) {
       const gangRating = await calculateGangRating(supabase, params.gang_id);
       description += `. New gang rating: ${gangRating}`;

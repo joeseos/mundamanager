@@ -1,10 +1,10 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 import { 
   logCharacteristicAdvancement, 
@@ -329,6 +329,65 @@ export async function addSkillAdvancement(
       };
     }
 
+    // Create skill-linked fighter effects (if any effect types reference this skill)
+    let createdSkillEffects = false;
+    if (params.skill_id || params.custom_skill_id) {
+      // Query effect types linked to this skill
+      const skillFilterColumn = params.skill_id
+        ? 'type_specific_data->>skill_id'
+        : 'type_specific_data->>custom_skill_id';
+      const skillFilterValue = (params.skill_id || params.custom_skill_id)!;
+
+      const { data: linkedEffectTypes } = await supabase
+        .from('fighter_effect_types')
+        .select('id, effect_name, type_specific_data')
+        .eq(skillFilterColumn, skillFilterValue);
+
+      if (linkedEffectTypes && linkedEffectTypes.length > 0) {
+        for (const effectType of linkedEffectTypes) {
+          // Insert fighter_effects row linked to the skill
+          const { data: insertedEffect, error: effectInsertError } = await supabase
+            .from('fighter_effects')
+            .insert({
+              fighter_id: params.fighter_id,
+              fighter_effect_type_id: effectType.id,
+              effect_name: effectType.effect_name,
+              type_specific_data: effectType.type_specific_data,
+              fighter_skill_id: insertedSkill.id,
+              user_id: fighter.user_id
+            })
+            .select('id')
+            .single();
+
+          if (effectInsertError || !insertedEffect) {
+            console.error('Failed to insert skill-linked effect:', effectInsertError);
+            continue;
+          }
+
+          // Query and insert modifiers for this effect type
+          const { data: modifierTemplates } = await supabase
+            .from('fighter_effect_type_modifiers')
+            .select('stat_name, default_numeric_value, operation')
+            .eq('fighter_effect_type_id', effectType.id);
+
+          if (modifierTemplates && modifierTemplates.length > 0) {
+            const modifiersToInsert = modifierTemplates.map(template => ({
+              fighter_effect_id: insertedEffect.id,
+              stat_name: template.stat_name,
+              numeric_value: template.default_numeric_value,
+              operation: template.operation || 'add'
+            }));
+
+            await supabase
+              .from('fighter_effect_modifiers')
+              .insert(modifiersToInsert);
+          }
+
+          createdSkillEffects = true;
+        }
+      }
+    }
+
     // Update fighter's XP and conditionally set free_skill to false
     const updateData: any = {
       xp: fighter.xp - params.xp_cost,
@@ -352,12 +411,26 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Update gang rating and wealth (+credits_increase)
-    await updateGangRatingSimple(supabase, fighter.gang_id, params.credits_increase || 0);
+    // Update gang rating and wealth
+    const creditsIncrease = params.credits_increase || 0;
+    if (creditsIncrease > 0) {
+      if (params.is_advance ?? true) {
+        // Advancement path (XP purchase): only increase rating, no stash deduction
+        await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+      } else {
+        // Starting skill path (direct purchase): deduct from stash AND increase rating
+        await updateGangFinancials(supabase, {
+          gangId: fighter.gang_id,
+          ratingDelta: creditsIncrease,
+          creditsDelta: -creditsIncrease
+        });
+        invalidateGangCredits(fighter.gang_id);
+      }
+    }
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
-    
+
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
@@ -389,7 +462,8 @@ export async function addSkillAdvancement(
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
       is_advance: params.is_advance ?? true,
-      include_gang_rating: true
+      include_gang_rating: true,
+      ...(!(params.is_advance ?? true) && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
     });
 
     // Invalidate cache for fighter advancement
@@ -398,6 +472,15 @@ export async function addSkillAdvancement(
       gangId: fighter.gang_id,
       advancementType: 'skill'
     });
+
+    // Also invalidate effect cache if skill-linked effects were created
+    if (createdSkillEffects) {
+      invalidateFighterAdvancement({
+        fighterId: params.fighter_id,
+        gangId: fighter.gang_id,
+        advancementType: 'effect'
+      });
+    }
 
     return {
       success: true,
@@ -444,6 +527,7 @@ export async function deleteAdvancement(
 
     let xpToRefund = 0;
     let ratingDelta = 0;
+    let refundStash = false; // Whether to refund credits to gang stash (non-advancement skills)
     let newFreeSkillStatus = fighter.free_skill;
     let deletedSkillName: string = '';
     let deletedEffectName: string = '';
@@ -454,7 +538,7 @@ export async function deleteAdvancement(
       // Check if skill exists and get skill data including credits_increase
       const { data: skillData, error: skillError } = await supabase
         .from('fighter_skills')
-        .select('id, fighter_id, skill_id, custom_skill_id, xp_cost, credits_increase')
+        .select('id, fighter_id, skill_id, custom_skill_id, xp_cost, credits_increase, is_advance')
         .eq('id', params.advancement_id)
         .single();
 
@@ -468,6 +552,7 @@ export async function deleteAdvancement(
 
       xpToRefund = skillData.xp_cost || 0;
       ratingDelta -= (skillData.credits_increase || 0);
+      refundStash = !skillData.is_advance; // Non-advancement skills paid from stash, so refund on delete
 
       // Get skill name for logging
       if (skillData.custom_skill_id) {
@@ -516,28 +601,16 @@ export async function deleteAdvancement(
           : fighterTypeData.custom_fighter_types;
       }
 
-      // Delete skill-created effects before deleting the skill (only for standard skills)
+      // Check if this skill has linked effect types (for cache invalidation)
+      // The actual effect rows will be cascade-deleted via fighter_skill_id FK
       const skillEffectTypes = skillData.skill_id ? (await supabase
         .from('fighter_effect_types')
         .select('id')
         .eq('type_specific_data->>skill_id', skillData.skill_id)).data : null;
 
-      if (skillEffectTypes && skillEffectTypes.length > 0) {
-        await supabase
-          .from('fighter_effects')
-          .delete()
-          .eq('fighter_id', params.fighter_id)
-          .in('fighter_effect_type_id', skillEffectTypes.map(t => t.id));
+      const hasLinkedEffects = skillEffectTypes && skillEffectTypes.length > 0;
 
-        // Invalidate effect cache since we deleted effects
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId: fighter.gang_id,
-          advancementType: 'effect'
-        });
-      }
-
-      // Delete the skill
+      // Delete the skill (cascade deletes linked fighter_effects via fighter_skill_id FK)
       const { error: deleteError } = await supabase
         .from('fighter_skills')
         .delete()
@@ -545,6 +618,15 @@ export async function deleteAdvancement(
 
       if (deleteError) {
         return { success: false, error: 'Failed to delete skill' };
+      }
+
+      // Invalidate effect cache if cascade-deleted linked effects
+      if (hasLinkedEffects) {
+        invalidateFighterAdvancement({
+          fighterId: params.fighter_id,
+          gangId: fighter.gang_id,
+          advancementType: 'effect'
+        });
       }
 
       // Update free_skill status for both standard and custom fighter types
@@ -656,7 +738,18 @@ export async function deleteAdvancement(
 
     // Update gang rating and wealth (apply ratingDelta which is negative when deleting)
     if (ratingDelta !== 0) {
-      await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
+      if (refundStash) {
+        // Non-advancement skill: refund credits to gang stash AND decrease rating
+        await updateGangFinancials(supabase, {
+          gangId: fighter.gang_id,
+          ratingDelta: ratingDelta,
+          creditsDelta: -ratingDelta // ratingDelta is negative, so -ratingDelta is positive (refund)
+        });
+        invalidateGangCredits(fighter.gang_id);
+      } else {
+        // Advancement skill or effect: only decrease rating (XP was the currency)
+        await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
+      }
     }
 
     // Invalidate fighter cache
@@ -676,7 +769,8 @@ export async function deleteAdvancement(
       advancement_type: params.advancement_type,
       xp_refunded: xpToRefund,
       new_xp_total: updatedFighter.xp,
-      include_gang_rating: true
+      include_gang_rating: true,
+      ...(refundStash && Math.abs(ratingDelta) > 0 ? { credits_refunded: Math.abs(ratingDelta) } : {})
     });
 
     // Invalidate cache for fighter advancement

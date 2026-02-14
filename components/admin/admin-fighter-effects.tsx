@@ -105,6 +105,7 @@ export function AdminFighterEffects({
     traits_to_add: '',
     traits_to_remove: '',
     credits_increase: '',
+    cost: '',
     is_editable: false
   });
 
@@ -168,6 +169,7 @@ export function AdminFighterEffects({
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
         ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) }),
+        ...(newEffect.cost && { cost: parseInt(newEffect.cost) }),
         ...(newEffect.is_editable && { is_editable: true })
       };
 
@@ -200,6 +202,7 @@ export function AdminFighterEffects({
         traits_to_add: '',
         traits_to_remove: '',
         credits_increase: '',
+        cost: '',
         is_editable: false
       });
 
@@ -235,6 +238,7 @@ export function AdminFighterEffects({
       traits_to_add: '',
       traits_to_remove: '',
       credits_increase: '',
+      cost: '',
       is_editable: false
     });
   };
@@ -252,6 +256,7 @@ export function AdminFighterEffects({
       traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
+      cost: effect.type_specific_data?.cost?.toString() || '',
       is_editable: effect.type_specific_data?.is_editable === true
     });
     setShowEditEffectDialog(true);
@@ -293,6 +298,8 @@ export function AdminFighterEffects({
       traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
       // Set credits_increase or remove it if empty
       ...(newEffect.credits_increase ? { credits_increase: parseInt(newEffect.credits_increase) } : { credits_increase: undefined }),
+      // Set cost or remove it if empty
+      ...(newEffect.cost ? { cost: parseInt(newEffect.cost) } : { cost: undefined }),
       // Set is_editable or remove it if false
       ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined })
     };
@@ -774,6 +781,24 @@ export function AdminFighterEffects({
                 Credits added to fighter value when this effect is applied.
               </p>
             </div>
+
+            {isSkill && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Cost (credits) (optional)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={newEffect.cost}
+                  onChange={(e) => setNewEffect(prev => ({ ...prev, cost: e.target.value }))}
+                  placeholder="e.g., 40"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Credits deducted from gang stash when this skill is purchased. Increases rating by the same amount (net zero wealth change).
+                </p>
+              </div>
+            )}
 
             {newEffect.applies_to === 'equipment' && (
               <>
