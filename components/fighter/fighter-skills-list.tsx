@@ -380,10 +380,17 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
                 Cost{gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}
               </label>
               <input
-                type="number"
-                min={0}
-                value={editableCost}
-                onChange={(e) => setEditableCost(Math.max(0, parseInt(e.target.value) || 0))}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={editableCost === 0 ? '' : editableCost}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (/^\d*$/.test(val)) {
+                    setEditableCost(val === '' ? 0 : parseInt(val));
+                  }
+                }}
+                placeholder="0"
                 className="w-full p-2 border rounded"
               />
             </div>
