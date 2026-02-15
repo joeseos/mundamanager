@@ -14,7 +14,6 @@ export async function GET(request: Request) {
   const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
   const includeAllTypes = searchParams.get('include_all_types') === 'true';
 
-
   if (!gangId && !isGangAddition && !includeAllTypes) {
     return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
   }
@@ -46,10 +45,15 @@ export async function GET(request: Request) {
       data = result;
 
       // Filter out fighter types from hidden gang types
-      const { data: hiddenGangTypes } = await supabase
+      const { data: hiddenGangTypes, error: hiddenError } = await supabase
         .from('gang_types')
         .select('gang_type_id')
         .eq('is_hidden', true);
+
+      if (hiddenError) {
+        console.error('Error fetching hidden gang types:', hiddenError);
+        throw hiddenError;
+      }
 
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
         const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
@@ -100,7 +104,6 @@ export async function GET(request: Request) {
           throw gangError;
         }
 
-
         // If gang has variants, fetch the variant details
         if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
           const { data: variantDetails, error: variantError } = await supabase
@@ -114,7 +117,6 @@ export async function GET(request: Request) {
           }
 
           gangVariants = variantDetails || [];
-        } else {
         }
       } catch (error) {
         // Continue without variants rather than failing
