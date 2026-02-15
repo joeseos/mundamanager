@@ -81,15 +81,29 @@ export function Combobox({
   // Filter options based on search
   const filteredOptions = React.useMemo(() => {
     if (!searchValue) return options
-    
-    return options.filter(option => {
-      // Always include disabled options (headers)
-      if (option.disabled) return true
-      
-      const searchText = typeof option.label === 'string' 
-        ? option.label 
-        : (option.displayValue || '');
-      return searchText.toLowerCase().includes(searchValue.toLowerCase())
+
+    const search = searchValue.toLowerCase()
+
+    // First pass: determine which non-disabled options match
+    const matchingIndices = new Set<number>()
+    options.forEach((option, i) => {
+      if (option.disabled) return
+      const searchText = typeof option.label === 'string'
+        ? option.label
+        : (option.displayValue || '')
+      if (searchText.toLowerCase().includes(search)) {
+        matchingIndices.add(i)
+      }
+    })
+
+    // Second pass: include headers only if they have at least one matching child after them
+    return options.filter((option, i) => {
+      if (!option.disabled) return matchingIndices.has(i)
+      for (let j = i + 1; j < options.length; j++) {
+        if (options[j].disabled) break
+        if (matchingIndices.has(j)) return true
+      }
+      return false
     })
   }, [options, searchValue])
 

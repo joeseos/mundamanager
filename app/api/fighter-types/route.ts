@@ -12,9 +12,9 @@ export async function GET(request: Request) {
   const isGangAddition = searchParams.get('is_gang_addition') === 'true';
   const includeCustomFighters = searchParams.get('include_custom_fighters') === 'true';
   const includeAllGangType = searchParams.get('include_all_gang_type') === 'true';
+  const includeAllTypes = searchParams.get('include_all_types') === 'true';
 
-
-  if (!gangId && !isGangAddition) {
+  if (!gangId && !isGangAddition && !includeAllTypes) {
     return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
   }
 
@@ -28,8 +28,38 @@ export async function GET(request: Request) {
     }
 
     let data;
-    
-    if (isGangAddition) {
+
+    if (includeAllTypes) {
+      // Fetch all fighter types across all gang types
+      const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
+        p_gang_type_id: null,
+        p_gang_affiliation_id: null,
+        p_is_gang_addition: null
+      });
+
+      if (error) {
+        console.error('Supabase RPC error:', error);
+        throw error;
+      }
+
+      data = result;
+
+      // Filter out fighter types from hidden gang types
+      const { data: hiddenGangTypes, error: hiddenError } = await supabase
+        .from('gang_types')
+        .select('gang_type_id')
+        .eq('is_hidden', true);
+
+      if (hiddenError) {
+        console.error('Error fetching hidden gang types:', hiddenError);
+        throw hiddenError;
+      }
+
+      if (hiddenGangTypes && hiddenGangTypes.length > 0) {
+        const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
+        data = data.filter((fighter: any) => !hiddenIds.has(fighter.gang_type_id));
+      }
+    } else if (isGangAddition) {
       // Use get_fighter_types_with_cost for gang additions (same as server action)
       const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
@@ -74,7 +104,6 @@ export async function GET(request: Request) {
           throw gangError;
         }
 
-
         // If gang has variants, fetch the variant details
         if (gangData.gang_variants && Array.isArray(gangData.gang_variants) && gangData.gang_variants.length > 0) {
           const { data: variantDetails, error: variantError } = await supabase
@@ -88,7 +117,6 @@ export async function GET(request: Request) {
           }
 
           gangVariants = variantDetails || [];
-        } else {
         }
       } catch (error) {
         // Continue without variants rather than failing
