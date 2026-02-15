@@ -249,6 +249,7 @@ export default function AddFighter({
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   const [includeCustomFighters, setIncludeCustomFighters] = useState<boolean>(false);
+  const [includeAllFighterTypes, setIncludeAllFighterTypes] = useState<boolean>(false);
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedLegacyId, setSelectedLegacyId] = useState<string>('');
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState<boolean>(false);
@@ -441,7 +442,7 @@ export default function AddFighter({
     if (showModal && !isLoadingFighterTypes) {
       fetchFighterTypes();
     }
-  }, [showModal, includeCustomFighters]);
+  }, [showModal, includeCustomFighters, includeAllFighterTypes]);
 
   const fetchFighterTypes = async () => {
     if (isLoadingFighterTypes) return; // Prevent concurrent calls
@@ -453,7 +454,8 @@ export default function AddFighter({
       const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true' : '';
       const includeAllParam = includeCustomFighters ? '&include_all_gang_type=true' : '';
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
-      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}${affiliationParam}`);
+      const includeAllTypesParam = includeAllFighterTypes ? '&include_all_types=true' : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}&gang_type_id=${gangTypeId}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}${affiliationParam}${includeAllTypesParam}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1020,6 +1022,7 @@ export default function AddFighter({
     setSelectedLegacyId(''); // Reset legacy selection
     setUseBaseCostForRating(true);
     setIncludeCustomFighters(false); // Reset custom fighters checkbox
+    setIncludeAllFighterTypes(false); // Reset all fighter types checkbox
     setFetchError(null);
     setFighterTypes([]); // Reset fighter types
     setIsLoadingFighterTypes(false); // Reset loading state
@@ -1105,7 +1108,62 @@ export default function AddFighter({
               }
             });
 
-            // Group fighters by type (regular vs custom)
+            const sortFighters = (a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
+              const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
+              const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
+
+              if (classRankA !== classRankB) {
+                return classRankA - classRankB;
+              }
+
+              if (a.cost !== b.cost) {
+                return a.cost - b.cost;
+              }
+
+              return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
+            };
+
+            const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
+            if (includeAllFighterTypes) {
+              // Group by gang_type name when showing all fighter types
+              const groupedByGangType = Array.from(typeClassMap.values()).reduce((groups, { fighter, cost }) => {
+                const gangTypeName = fighter.gang_type || 'Unknown';
+                if (!groups[gangTypeName]) {
+                  groups[gangTypeName] = [];
+                }
+                groups[gangTypeName].push({ fighter, cost });
+                return groups;
+              }, {} as Record<string, Array<{ fighter: any; cost: number }>>);
+
+              const sortedGangTypes = Object.keys(groupedByGangType).sort((a, b) => a.localeCompare(b));
+
+              sortedGangTypes.forEach((gangTypeName) => {
+                const fighters = groupedByGangType[gangTypeName].sort(sortFighters);
+
+                // Add gang type header
+                options.push({
+                  value: `header-gang-${gangTypeName}`,
+                  label: <span className="font-bold">{gangTypeName}</span>,
+                  displayValue: gangTypeName,
+                  disabled: true
+                });
+
+                // Add fighters indented
+                fighters.forEach(({ fighter, cost }: { fighter: any; cost: number }) => {
+                  const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
+                  options.push({
+                    value: fighter.id,
+                    label: <span className="ml-3">{displayName}</span>,
+                    displayValue: displayName
+                  });
+                });
+              });
+
+              return options;
+            }
+
+            // Default grouping: regular vs custom
             const groupedByType = Array.from(typeClassMap.values()).reduce((groups, { fighter, cost }) => {
               const isCustom = (fighter as any).is_custom_fighter;
               const groupKey = isCustom ? "custom" : "regular";
@@ -1134,8 +1192,6 @@ export default function AddFighter({
                 return rankA - rankB;
               });
 
-            const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
-
             // If no groups, return empty array
             if (sortedGroups.length === 0) {
               return options;
@@ -1144,22 +1200,7 @@ export default function AddFighter({
             if (!hasMultipleGroups) {
               // If only one group, don't use headers - just show options directly
               const groupKey = sortedGroups[0];
-              const fighters = (groupedByType[groupKey] || [])
-                .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
-                  const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
-                  const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
-
-                  if (classRankA !== classRankB) {
-                    return classRankA - classRankB;
-                  }
-
-                  if (a.cost !== b.cost) {
-                    return a.cost - b.cost;
-                  }
-
-                  // If class and cost are the same, sort alphabetically by fighter_type
-                  return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
-                });
+              const fighters = (groupedByType[groupKey] || []).sort(sortFighters);
 
               fighters.forEach(({ fighter, cost }: { fighter: any; cost: number }) => {
                 const displayName = `${fighter.fighter_type} (${fighter.fighter_class}) - ${cost} credits`;
@@ -1174,22 +1215,7 @@ export default function AddFighter({
 
             // If multiple groups, use headers
             sortedGroups.forEach((groupKey) => {
-              const fighters = (groupedByType[groupKey] || [])
-                .sort((a: { fighter: any; cost: number }, b: { fighter: any; cost: number }) => {
-                  const classRankA = fighterClassRank[a.fighter.fighter_class.toLowerCase()] ?? Infinity;
-                  const classRankB = fighterClassRank[b.fighter.fighter_class.toLowerCase()] ?? Infinity;
-
-                  if (classRankA !== classRankB) {
-                    return classRankA - classRankB;
-                  }
-
-                  if (a.cost !== b.cost) {
-                    return a.cost - b.cost;
-                  }
-
-                  // If class and cost are the same, sort alphabetically by fighter_type
-                  return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
-                });
+              const fighters = (groupedByType[groupKey] || []).sort(sortFighters);
 
               // Add group header as disabled option
               options.push({
@@ -1214,7 +1240,7 @@ export default function AddFighter({
           })()}
         />
 
-        {/* Checkox: Include Custom Fighter Types */}
+        {/* Checkbox: Include Custom Fighter Types */}
         <div className="flex items-center space-x-2">
           <Checkbox
             id="include-custom-fighters"
@@ -1231,6 +1257,35 @@ export default function AddFighter({
             <ImInfo />
             <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
               When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
+            </div>
+          </div>
+        </div>
+
+        {/* Checkbox: Include All Fighter Types */}
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="include-all-fighter-types"
+            checked={includeAllFighterTypes}
+            onCheckedChange={(checked) => {
+              setIncludeAllFighterTypes(checked as boolean);
+              // Reset selections when toggling
+              setSelectedFighterTypeId('');
+              setSelectedSubTypeId('');
+              setSelectedEquipmentIds([]);
+              setSelectedEquipment([]);
+              setFighterCost('');
+            }}
+          />
+          <label
+            htmlFor="include-all-fighter-types"
+            className="text-sm font-medium text-muted-foreground cursor-pointer"
+          >
+            Include all fighter types
+          </label>
+          <div className="relative group">
+            <ImInfo />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+              When enabled, fighter types from all gangs will be shown. Gang additions are found in the "Gang Additions" menu.
             </div>
           </div>
         </div>
