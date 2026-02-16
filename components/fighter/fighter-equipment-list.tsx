@@ -132,10 +132,14 @@ export function WeaponList({
   const [isUpgradeValid, setIsUpgradeValid] = useState(false);
   const [deleteEffectModalData, setDeleteEffectModalData] = useState<{ effectId: string; fighterEquipmentId: string; effectName: string; creditsIncrease: number } | null>(null);
   const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
+  const isPurchasingRef = React.useRef(false);
 
   // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
   const purchaseMutation = {
     mutate: async ({ params, item }: { params: any; item: Equipment }) => {
+      if (isPurchasingRef.current) return;
+      isPurchasingRef.current = true;
+
       // Snapshot state for rollback
       const previousEquipment = [...equipment];
       const previousFighterCredits = fighterCredits;
@@ -206,6 +210,8 @@ export function WeaponList({
           description: err instanceof Error ? err.message : 'Failed to buy equipment',
           variant: 'destructive'
         });
+      } finally {
+        isPurchasingRef.current = false;
       }
     }
   };

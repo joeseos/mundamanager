@@ -62,6 +62,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
     let financialResult: GangFinancialUpdateResult | null = null;
     let vehicleName = 'Unknown Vehicle';
     let fighterName: string | undefined;
+    let ratingDelta = 0;
     try {
       if (effectRow?.vehicle_id) {
         const [{ data: veh }, { data: fighter }] = await Promise.all([
@@ -71,16 +72,19 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
         if (veh) {
           vehicleName = veh.vehicle_name || 'Unknown Vehicle';
           if (veh.fighter_id) {
-            const delta = -(effectRow?.type_specific_data?.credits_increase || 0);
-            if (delta) {
-              financialResult = await updateGangRatingSimple(supabase, params.gangId, delta);
-            }
+            ratingDelta = -(effectRow?.type_specific_data?.credits_increase || 0);
           }
         }
         fighterName = fighter?.fighter_name;
       }
     } catch (e) {
-      console.error('Failed to update rating after removing vehicle damage:', e);
+      console.error('Failed to fetch vehicle/fighter data:', e);
+    }
+
+    // Financial update outside try/catch so CAS failures propagate
+    if (ratingDelta) {
+      financialResult = await updateGangRatingSimple(supabase, params.gangId, ratingDelta);
+      if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
     // Log vehicle damage removal

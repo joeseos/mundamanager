@@ -222,6 +222,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         const financialResult = await adjustRating(delta);
+        if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -301,6 +302,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         const financialResult = await adjustRating(delta);
+        if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
@@ -445,6 +447,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         // else: stayed inactive (still killed or retired), delta = 0
 
         const financialResult = await adjustRating(delta);
+        if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
 
         // Log fighter rescue
         try {
@@ -760,6 +763,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           ratingDelta: delta,
           stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
         });
+        if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
@@ -1049,6 +1053,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       costAdjustmentDelta = (params.cost_adjustment || 0) - previousAdjustment;
       if (costAdjustmentDelta !== 0) {
         costAdjustmentFinancialResult = await updateGangRatingSimple(supabase, fighter.gang_id, costAdjustmentDelta);
+        if (!costAdjustmentFinancialResult.success) throw new Error(costAdjustmentFinancialResult.error || 'Failed to update gang financials');
       }
     }
 

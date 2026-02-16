@@ -154,7 +154,8 @@ export async function addFighterInjury(
     // Update rating based on injury credits_increase (if any)
     const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
     if (delta) {
-      await updateGangRatingSimple(supabase, fighter.gang_id, delta);
+      const ratingResult = await updateGangRatingSimple(supabase, fighter.gang_id, delta);
+      if (!ratingResult.success) throw new Error(ratingResult.error || 'Failed to update gang financials');
     }
     
     // Handle status updates from parameters
@@ -285,7 +286,8 @@ export async function deleteFighterInjury(
     // Decrease rating by injury credits_increase if present
     const delta = -(injury?.type_specific_data?.credits_increase || 0) as number;
     if (delta) {
-      await updateGangRatingSimple(supabase, fighter.gang_id, delta);
+      const ratingResult = await updateGangRatingSimple(supabase, fighter.gang_id, delta);
+      if (!ratingResult.success) throw new Error(ratingResult.error || 'Failed to update gang financials');
     }
 
     // Log the injury removal as recovery

@@ -72,77 +72,79 @@ export async function updateGangFinancials(
     return { success: true };
   }
 
+  // CAS (Compare-And-Swap) loop: read current values, attempt update with
+  // .eq() guards on all three columns. If another request modified the row
+  // between our read and write, the UPDATE matches 0 rows and we retry once.
+  const MAX_CAS_RETRIES = 1;
+
   try {
-    // Get current gang values (old values)
-    const { data: gangRow, error: selectError } = await supabase
-      .from('gangs')
-      .select('credits, rating, wealth')
-      .eq('id', gangId)
-      .single();
+    for (let attempt = 0; attempt <= MAX_CAS_RETRIES; attempt++) {
+      // Read current values
+      const { data: gangRow, error: selectError } = await supabase
+        .from('gangs')
+        .select('credits, rating, wealth')
+        .eq('id', gangId)
+        .single();
 
-    if (selectError || !gangRow) {
-      return { success: false, error: selectError?.message || 'Gang not found' };
-    }
-
-    const currentCredits = (gangRow.credits ?? 0) as number;
-    const currentRating = (gangRow.rating ?? 0) as number;
-    const currentWealth = (gangRow.wealth ?? 0) as number;
-
-    // Calculate new values
-    // Wealth = rating change + credits change + stash value change
-    const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;
-
-    const { error: updateError } = await supabase
-      .from('gangs')
-      .update({
-        credits: Math.max(0, currentCredits + creditsDelta),
-        rating: Math.max(0, currentRating + effectiveRatingDelta),
-        wealth: Math.max(0, currentWealth + wealthDelta)
-      })
-      .eq('id', gangId);
-
-    if (updateError) {
-      return { success: false, error: updateError.message };
-    }
-
-    // Fetch new values after update
-    const { data: updatedGangRow, error: fetchError } = await supabase
-      .from('gangs')
-      .select('credits, rating, wealth')
-      .eq('id', gangId)
-      .single();
-
-    if (fetchError) {
-      // Update succeeded but fetch failed - calculate expected values
-      return {
-        success: true,
-        oldValues: {
-          credits: currentCredits,
-          rating: currentRating,
-          wealth: currentWealth
-        },
-        newValues: {
-          credits: Math.max(0, currentCredits + creditsDelta),
-          rating: Math.max(0, currentRating + effectiveRatingDelta),
-          wealth: Math.max(0, currentWealth + wealthDelta)
-        }
-      };
-    }
-
-    invalidateGangRating(gangId);
-    return {
-      success: true,
-      oldValues: {
-        credits: currentCredits,
-        rating: currentRating,
-        wealth: currentWealth
-      },
-      newValues: {
-        credits: (updatedGangRow.credits ?? 0) as number,
-        rating: (updatedGangRow.rating ?? 0) as number,
-        wealth: (updatedGangRow.wealth ?? 0) as number
+      if (selectError || !gangRow) {
+        return { success: false, error: selectError?.message || 'Gang not found' };
       }
-    };
+
+      const currentCredits = (gangRow.credits ?? 0) as number;
+      const currentRating = (gangRow.rating ?? 0) as number;
+      const currentWealth = (gangRow.wealth ?? 0) as number;
+
+      // Overdraft check (fail fast, no retry needed)
+      if (creditsDelta < 0 && currentCredits + creditsDelta < 0) {
+        return {
+          success: false,
+          error: 'Insufficient credits',
+          oldValues: { credits: currentCredits, rating: currentRating, wealth: currentWealth }
+        };
+      }
+
+      // Calculate new values
+      const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;
+      const newCredits = Math.max(0, currentCredits + creditsDelta);
+      const newRating = Math.max(0, currentRating + effectiveRatingDelta);
+      const newWealth = Math.max(0, currentWealth + wealthDelta);
+
+      // CAS update: .eq() guards ensure this is a no-op if values changed
+      // since our read. Chain .select() to get new values back (replaces
+      // the separate post-update fetch).
+      const { data: updated, error: updateError } = await supabase
+        .from('gangs')
+        .update({ credits: newCredits, rating: newRating, wealth: newWealth })
+        .eq('id', gangId)
+        .eq('credits', currentCredits)
+        .eq('rating', currentRating)
+        .eq('wealth', currentWealth)
+        .select('credits, rating, wealth');
+
+      if (updateError) {
+        return { success: false, error: updateError.message };
+      }
+
+      // CAS succeeded — row was updated
+      if (updated && updated.length > 0) {
+        invalidateGangRating(gangId);
+        return {
+          success: true,
+          oldValues: { credits: currentCredits, rating: currentRating, wealth: currentWealth },
+          newValues: {
+            credits: (updated[0].credits ?? 0) as number,
+            rating: (updated[0].rating ?? 0) as number,
+            wealth: (updated[0].wealth ?? 0) as number
+          }
+        };
+      }
+
+      // CAS failed (0 rows updated) — another request modified the row.
+      // Retry with fresh values on next iteration.
+    }
+
+    // All retries exhausted
+    return { success: false, error: 'Concurrent modification detected, please try again' };
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
     console.error('Failed to update gang rating and wealth:', e);

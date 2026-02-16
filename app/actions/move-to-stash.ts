@@ -215,6 +215,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         ratingDelta,
         stashValueDelta: equipmentValue
       });
+      if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
     // Invalidate appropriate caches - moving equipment to stash affects gang overview

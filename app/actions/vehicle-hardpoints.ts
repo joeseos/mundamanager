@@ -175,7 +175,7 @@ export async function updateVehicleHardpoint(
     const newCreditsIncrease = Math.max(0, uniqueArcs.length - defaultArcsCount) * 15;
     const delta = newCreditsIncrease - currentCreditsIncrease;  // positive = buying, negative = refund
 
-    // --- Pre-flight credit check (updateGangFinancials clamps to 0, doesn't fail) ---
+    // --- Pre-flight credit check (updateGangFinancials uses CAS, may fail) ---
     if (delta > 0) {
       const { data: gang } = await supabase
         .from('gangs')
@@ -219,9 +219,7 @@ export async function updateVehicleHardpoint(
           : { stashValueDelta: delta }),
       });
       if (!financialResult.success) {
-        // Effect was updated but financial failed - log but continue
-        // The effect is correct, financial will be slightly off until next recalc
-        console.error('Financial update failed after effect update:', financialResult.error);
+        return { success: false, error: financialResult.error || 'Failed to update gang financials' };
       }
     }
 
