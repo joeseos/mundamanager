@@ -27,7 +27,7 @@ interface Fighter {
   base_copy_cost?: number;
   is_spyrer?: boolean;
   campaigns?: Array<{
-    has_meat: boolean;
+    resources?: Array<{ resource_name: string }>;
   }>;
   vehicles?: Array<{
     id: string;
@@ -90,7 +90,9 @@ export function FighterActions({
   });
 
   const isMeatEnabled = useCallback(() => {
-    return fighter?.campaigns?.some(campaign => campaign.has_meat) ?? false;
+    return fighter?.campaigns?.some(campaign =>
+      campaign.resources?.some(r => r.resource_name.toLowerCase() === 'meat')
+    ) ?? false;
   }, [fighter?.campaigns]);
 
   // Calculate total vehicle equipment cost
