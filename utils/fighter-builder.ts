@@ -200,7 +200,7 @@ export function buildFighterFromServerData(
   fighterTypeId: string,
   subTypeName?: string
 ): FighterProps {
-  const displayCost = data.rating_cost || data.cost;
+  const displayCost = data.rating_cost ?? data.cost;
 
   return {
     id: data.fighter_id,
