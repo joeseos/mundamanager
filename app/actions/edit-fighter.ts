@@ -494,9 +494,9 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           }
 
           // Find a Meat resource across these campaign types
-          const campaignTypeIds = [...new Set(
+          const campaignTypeIds = Array.from(new Set(
             campaignGangs.map(cg => (cg.campaigns as unknown as { campaign_type_id: string }).campaign_type_id)
-          )];
+          ));
 
           const { data: meatResource, error: meatResError } = await supabase
             .from('campaign_type_resources')
@@ -516,7 +516,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           // Match back to the correct campaign_gang
           const campaignGang = campaignGangs.find(
             cg => (cg.campaigns as unknown as { campaign_type_id: string }).campaign_type_id === meatResource.campaign_type_id
-          )!;
+          );
+          if (!campaignGang) {
+            return { success: false, error: 'Could not match meat resource to campaign' };
+          }
           const campaignId = campaignGang.campaign_id;
 
           // Find the gang's meat resource row and check quantity
@@ -542,15 +545,19 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           }
 
           // Decrement meat quantity
-          const { error: meatUpdateError } = await supabase
+          const { error: meatUpdateError, count: meatUpdateCount } = await supabase
             .from('campaign_gang_resources')
             .update({
               quantity: gangMeatResource.quantity - 1,
               updated_at: new Date().toISOString()
-            })
-            .eq('id', gangMeatResource.id);
+            }, { count: 'exact' })
+            .eq('id', gangMeatResource.id)
+            .gte('quantity', 1);
 
           if (meatUpdateError) throw meatUpdateError;
+          if (meatUpdateCount === 0) {
+            return { success: false, error: 'Not enough meat to feed fighter' };
+          }
 
           const { data: updatedFighter, error: updateError } = await supabase
             .from('fighters')
