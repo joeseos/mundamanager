@@ -929,7 +929,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           fighter_sub_type_id: data.fighter_sub_type_id,
           fighter_sub_type: 'Unknown' // We don't have this in the server response
         } : undefined,
-        credits: data.rating_cost || data.cost || parseInt(fighterCost),
+        credits: data.rating_cost ?? data.cost ?? parseInt(fighterCost),
         movement: data.stats.movement,
         weapon_skill: data.stats.weapon_skill,
         ballistic_skill: data.stats.ballistic_skill,
