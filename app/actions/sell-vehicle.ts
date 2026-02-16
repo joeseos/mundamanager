@@ -77,7 +77,27 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
 
     const vehicleCost = baseCost + equipmentCost + effectsCost;
 
-    // Perform deletion (vehicle row)
+    // Delete related records first to avoid foreign key constraint issues
+    // Effects reference equipment via FKs, so delete effects before equipment
+    const { error: effectsDeleteError } = await supabase
+      .from('fighter_effects')
+      .delete()
+      .eq('vehicle_id', params.vehicleId);
+
+    if (effectsDeleteError) {
+      throw new Error(`Failed to delete vehicle effects: ${effectsDeleteError.message}`);
+    }
+
+    const { error: equipmentDeleteError } = await supabase
+      .from('fighter_equipment')
+      .delete()
+      .eq('vehicle_id', params.vehicleId);
+
+    if (equipmentDeleteError) {
+      throw new Error(`Failed to delete vehicle equipment: ${equipmentDeleteError.message}`);
+    }
+
+    // Now delete the vehicle row
     const { error: deleteError } = await supabase
       .from('vehicles')
       .delete()
