@@ -1,14 +1,7 @@
--- 1. Data fix: floor any existing negative values before adding constraints.
--- This prevents CHECK constraint failures on databases with legacy negative data.
-UPDATE gangs SET
-    credits = GREATEST(COALESCE(credits, 0), 0),
-    rating = GREATEST(COALESCE(rating, 0), 0),
-    wealth = GREATEST(COALESCE(wealth, 0), 0)
-WHERE credits < 0 OR rating < 0 OR wealth < 0
-   OR credits IS NULL OR rating IS NULL OR wealth IS NULL;
+-- Atomically update gang credits, rating, and wealth using SELECT FOR UPDATE.
+-- This serializes concurrent financial operations on the same gang row,
+-- eliminating false negatives from optimistic CAS checks.
 
--- 2. Create the atomic financial update RPC function.
--- Uses SELECT FOR UPDATE to serialize concurrent operations on the same gang.
 DROP FUNCTION IF EXISTS update_gang_financials(UUID, INTEGER, INTEGER, INTEGER);
 
 CREATE OR REPLACE FUNCTION update_gang_financials(
@@ -94,10 +87,3 @@ SET search_path = public;
 REVOKE ALL ON FUNCTION update_gang_financials(UUID, INTEGER, INTEGER, INTEGER) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION update_gang_financials(UUID, INTEGER, INTEGER, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION update_gang_financials(UUID, INTEGER, INTEGER, INTEGER) TO service_role;
-
--- 3. Safety net: prevent negative credits, rating, and wealth at the database level.
--- The RPC function already floors to 0, but CHECK constraints guard against
--- direct SQL updates and future bugs.
-ALTER TABLE gangs ADD CONSTRAINT gangs_credits_non_negative CHECK (credits >= 0);
-ALTER TABLE gangs ADD CONSTRAINT gangs_rating_non_negative CHECK (rating >= 0);
-ALTER TABLE gangs ADD CONSTRAINT gangs_wealth_non_negative CHECK (wealth >= 0);
