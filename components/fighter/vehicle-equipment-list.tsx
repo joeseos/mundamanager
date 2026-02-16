@@ -109,7 +109,7 @@ function FitWeaponModal({
   const { toast } = useToast();
   const [selectedHardpointId, setSelectedHardpointId] = useState<string | null>(currentHardpointId);
   const [editedArcs, setEditedArcs] = useState<string[]>([]);
-  const [editedOperatedBy, setEditedOperatedBy] = useState<'crew' | 'passenger'>('crew');
+  const [editedOperatedBy, setEditedOperatedBy] = useState<'crew' | 'passenger' | ''>('');
   const [editedLocation, setEditedLocation] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [selectedWeaponId, setSelectedWeaponId] = useState<string>('');
@@ -136,7 +136,8 @@ function FitWeaponModal({
       const hp = hardpoints.find(h => h.id === selectedHardpointId);
       if (hp) {
         setEditedArcs(hp.arcs);
-        setEditedOperatedBy(hp.operated_by as 'crew' | 'passenger');
+        const operatedBy = hp.operated_by || '';
+        setEditedOperatedBy(operatedBy === 'crew' || operatedBy === 'passenger' ? operatedBy : '');
         setEditedLocation(hp.location || '');
         // Don't reset weapon selection if weaponName was provided (user came from weapon selection)
         if (!weaponName) {
@@ -218,6 +219,17 @@ function FitWeaponModal({
   // Save all changes: arc/layout updates plus any weapon changes across hardpoints
   const handleSave = async () => {
     if (!selectedHardpointId || insufficientCredits) return;
+    
+    // Validate that operated_by is selected
+    if (!editedOperatedBy || (editedOperatedBy !== 'crew' && editedOperatedBy !== 'passenger')) {
+      toast({ 
+        title: 'Validation Error', 
+        description: 'Please select Crew or Passenger for "Operated By" before saving', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+    
     setIsSaving(true);
     try {
       // Save arc changes if any
@@ -295,18 +307,18 @@ function FitWeaponModal({
                       <td className="w-4 pl-2 py-2">
                         <input type="radio" checked={selectedHardpointId === hp.id} onChange={() => setSelectedHardpointId(hp.id)} />
                       </td>
-                      <td className={`px-1 py-2 ${hp.location ? '' : 'text-muted-foreground'}`}>
+                      <td className={`px-2 py-2 ${hp.location ? '' : 'text-muted-foreground'}`}>
                         <span className="block max-w-[5ch] md:max-w-none truncate">
-                          {hp.location || '—'}
+                          {hp.location || '-'}
                         </span>
                       </td>
-                      <td className="px-1  py-2 capitalize">
+                      <td className={`px-2 py-2 ${hp.operated_by ? 'capitalize' : 'text-muted-foreground'}`}>
                         <span className="block max-w-[5ch] md:max-w-none truncate">
-                          {hp.operated_by}
+                          {hp.operated_by || '-'}
                         </span>
                       </td>
                       <td className={`px-1 md:px-2 py-2 max-w-[3rem] ${hp.arcs?.length ? '' : 'text-muted-foreground'}`}>
-                        {hp.arcs?.length ? hp.arcs.join(', ') : '—'}
+                        {hp.arcs?.length ? hp.arcs.join(', ') : '-'}
                       </td>
                       <td
                         className={`px-1 md:px-2 py-2 text-ellipsis overflow-hidden ${hasWeapon ? '' : 'text-muted-foreground'}`}
@@ -355,7 +367,7 @@ function FitWeaponModal({
               <div className="grid grid-cols-2 gap-4">
                 {/* Operated By */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Operated By</label>
+                  <label className="block text-sm font-medium mb-2">Operated By <span className="text-red-500">*</span></label>
                   <div className="flex flex-col gap-2">
                     {(['crew', 'passenger'] as const).map(op => (
                       <label key={op} className="flex items-center gap-2 cursor-pointer">
@@ -368,6 +380,9 @@ function FitWeaponModal({
                       </label>
                     ))}
                   </div>
+                  {!editedOperatedBy && (
+                    <p className="text-xs text-muted-foreground mt-1">Please select Crew or Passenger</p>
+                  )}
                 </div>
 
                 {/* Arcs */}
@@ -459,7 +474,7 @@ function FitWeaponModal({
       }
       onClose={onClose}
       onConfirm={handleSave}
-      confirmDisabled={selectedHardpointId === null || isSaving || insufficientCredits}
+      confirmDisabled={selectedHardpointId === null || isSaving || insufficientCredits || !editedOperatedBy || (editedOperatedBy !== 'crew' && editedOperatedBy !== 'passenger')}
       confirmText="Save"
     />
   );
@@ -737,7 +752,7 @@ export function VehicleEquipmentList({
   const hardpointItems = hardpoints.map(hp => ({
     id: hp.id,
     effect_name: hp.effect_name,
-    operated_by: hp.type_specific_data?.operated_by || 'crew',
+    operated_by: hp.type_specific_data?.operated_by ?? '',
     arcs: (hp.type_specific_data?.arcs || []).join(', ') || '—',
     credits_increase: hp.type_specific_data?.credits_increase || 0,
     location: hp.type_specific_data?.location || '',
@@ -761,8 +776,7 @@ export function VehicleEquipmentList({
   const hardpointsButtonDisabled =
     !userPermissions.canEdit ||
     isLoading ||
-    hardpoints.length === 0 ||
-    !hasAvailableWeaponsForHardpoints;
+    hardpoints.length === 0;
 
   // Transform equipment for List component
   const listItems = sortedEquipment.map((item) => {
@@ -795,9 +809,14 @@ export function VehicleEquipmentList({
       const attachedHardpoint = hardpoints.find(
         hp => hp.fighter_equipment_id === item.fighter_equipment_id
       );
-      const location = attachedHardpoint?.type_specific_data?.location;
-      if (location && location.trim().length > 0) {
-        hardpointLocation = location;
+      if (attachedHardpoint) {
+        const location = attachedHardpoint?.type_specific_data?.location;
+        if (location && location.trim().length > 0) {
+          hardpointLocation = location;
+        } else {
+          // Weapon is fitted to a hardpoint but hardpoint has no location
+          hardpointLocation = 'Unknown';
+        }
       }
     }
 

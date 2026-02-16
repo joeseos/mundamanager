@@ -129,7 +129,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
           fighter_effect_type_id: HARDPOINT_EFFECT_TYPE_ID,
           effect_name: `Hardpoint ${i + 1}`,
           type_specific_data: {
-            operated_by: config.operated_by || 'crew',
+            operated_by: config.operated_by ?? '',
             arcs: templateArcs,
             default_arcs: templateArcs,
             credits_increase: 0,
