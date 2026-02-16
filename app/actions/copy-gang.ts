@@ -226,7 +226,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         await cleanupOnError(new Error(`Failed to load fighter equipment: ${feError.message}`));
       }
       if (fighterEquip && fighterEquip.length > 0) {
-        const inserts = fighterEquip.map((item: any) => {
+        for (const item of fighterEquip) {
           const o: any = { ...item };
           delete o.id;
           o.gang_id = newGangId;
@@ -234,21 +234,18 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
           o.vehicle_id = null;
           o.gang_stash = false;
-          return o;
-        });
-        const { data: insertedFighterEquip, error: feInsertError } = await supabase
-          .from('fighter_equipment')
-          .insert(inserts)
-          .select('id');
-        if (feInsertError) {
-          await cleanupOnError(new Error(`Failed to insert fighter equipment: ${feInsertError.message}`));
-        }
-        // Build equipment ID map (old → new)
-        fighterEquip.forEach((item: any, index: number) => {
-          if (insertedFighterEquip?.[index]) {
-            equipmentIdMap.set(item.id, insertedFighterEquip[index].id);
+          const { data: inserted, error: feInsertError } = await supabase
+            .from('fighter_equipment')
+            .insert(o)
+            .select('id')
+            .single();
+          if (feInsertError) {
+            await cleanupOnError(new Error(`Failed to insert fighter equipment: ${feInsertError.message}`));
           }
-        });
+          if (inserted) {
+            equipmentIdMap.set(item.id, inserted.id);
+          }
+        }
       }
     }
 
@@ -263,7 +260,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         await cleanupOnError(new Error(`Failed to load vehicle equipment: ${veError.message}`));
       }
       if (vehicleEquip && vehicleEquip.length > 0) {
-        const inserts = vehicleEquip.map((item: any) => {
+        for (const item of vehicleEquip) {
           const o: any = { ...item };
           delete o.id;
           o.gang_id = newGangId;
@@ -271,21 +268,18 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           o.fighter_id = null;
           o.vehicle_id = vehicleIdMap.get(item.vehicle_id) || null;
           o.gang_stash = false;
-          return o;
-        });
-        const { data: insertedVehicleEquip, error: veInsertError } = await supabase
-          .from('fighter_equipment')
-          .insert(inserts)
-          .select('id');
-        if (veInsertError) {
-          await cleanupOnError(new Error(`Failed to insert vehicle equipment: ${veInsertError.message}`));
-        }
-        // Extend equipment ID map (old → new)
-        vehicleEquip.forEach((item: any, index: number) => {
-          if (insertedVehicleEquip?.[index]) {
-            equipmentIdMap.set(item.id, insertedVehicleEquip[index].id);
+          const { data: inserted, error: veInsertError } = await supabase
+            .from('fighter_equipment')
+            .insert(o)
+            .select('id')
+            .single();
+          if (veInsertError) {
+            await cleanupOnError(new Error(`Failed to insert vehicle equipment: ${veInsertError.message}`));
           }
-        });
+          if (inserted) {
+            equipmentIdMap.set(item.id, inserted.id);
+          }
+        }
       }
     }
 
@@ -371,12 +365,24 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       insertObj.fighter_id = eff.fighter_id ? (fighterIdMap.get(eff.fighter_id) || null) : null;
       insertObj.vehicle_id = eff.vehicle_id ? (vehicleIdMap.get(eff.vehicle_id) || null) : null;
       // Remap equipment FKs to new equipment IDs
-      insertObj.fighter_equipment_id = eff.fighter_equipment_id
-        ? (equipmentIdMap.get(eff.fighter_equipment_id) || null)
-        : null;
-      insertObj.target_equipment_id = eff.target_equipment_id
-        ? (equipmentIdMap.get(eff.target_equipment_id) || null)
-        : null;
+      if (eff.fighter_equipment_id) {
+        const mapped = equipmentIdMap.get(eff.fighter_equipment_id);
+        if (!mapped) {
+          console.warn(`Equipment ID remap miss: fighter_equipment_id ${eff.fighter_equipment_id} not found in map`);
+        }
+        insertObj.fighter_equipment_id = mapped || null;
+      } else {
+        insertObj.fighter_equipment_id = null;
+      }
+      if (eff.target_equipment_id) {
+        const mapped = equipmentIdMap.get(eff.target_equipment_id);
+        if (!mapped) {
+          console.warn(`Equipment ID remap miss: target_equipment_id ${eff.target_equipment_id} not found in map`);
+        }
+        insertObj.target_equipment_id = mapped || null;
+      } else {
+        insertObj.target_equipment_id = null;
+      }
 
       const { data: newEff, error: insertEffError } = await supabase
         .from('fighter_effects')

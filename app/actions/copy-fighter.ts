@@ -105,6 +105,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           effect_name,
           fighter_effect_type_id,
           type_specific_data,
+          fighter_equipment_id,
+          target_equipment_id,
           fighter_effect_type:fighter_effect_type_id(
             fighter_effect_category:fighter_effect_category_id(
               category_name
@@ -364,34 +366,29 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       const sourceEquipNonVehicle = sourceFighter.fighter_equipment
         .filter((eq: any) => !eq.vehicle_id);
 
-      const fighterEquipmentToCopy = sourceEquipNonVehicle
-        .map((eq: any) => ({
-          fighter_id: newFighterId,
-          equipment_id: eq.equipment_id,
-          custom_equipment_id: eq.custom_equipment_id,
-          purchase_cost: eq.purchase_cost,
-          original_cost: eq.original_cost,
-          is_master_crafted: eq.is_master_crafted || false,
-          gang_id: params.target_gang_id,
-          user_id: gang.user_id
-        }));
-
-      if (fighterEquipmentToCopy.length > 0) {
-        const { data: insertedEquip, error: equipmentError } = await supabase
+      for (const eq of sourceEquipNonVehicle) {
+        const { data: inserted, error: equipmentError } = await supabase
           .from('fighter_equipment')
-          .insert(fighterEquipmentToCopy)
-          .select('id');
+          .insert({
+            fighter_id: newFighterId,
+            equipment_id: eq.equipment_id,
+            custom_equipment_id: eq.custom_equipment_id,
+            purchase_cost: eq.purchase_cost,
+            original_cost: eq.original_cost,
+            is_master_crafted: eq.is_master_crafted || false,
+            gang_id: params.target_gang_id,
+            user_id: gang.user_id
+          })
+          .select('id')
+          .single();
 
         if (equipmentError) {
           return await rollbackFighter(`Failed to copy equipment: ${equipmentError.message}`);
         }
 
-        // Build equipment ID map (old → new)
-        sourceEquipNonVehicle.forEach((eq: any, index: number) => {
-          if (insertedEquip?.[index]) {
-            equipmentIdMap.set(eq.id, insertedEquip[index].id);
-          }
-        });
+        if (inserted) {
+          equipmentIdMap.set(eq.id, inserted.id);
+        }
       }
     }
 
@@ -400,34 +397,29 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       const sourceVehicleEquipFiltered = vehicleEquipment
         .filter((eq: any) => vehicleIdMap.has(eq.vehicle_id));
 
-      const vehicleEquipmentToCopy = sourceVehicleEquipFiltered
-        .map((eq: any) => ({
-          vehicle_id: vehicleIdMap.get(eq.vehicle_id),
-          equipment_id: eq.equipment_id,
-          custom_equipment_id: eq.custom_equipment_id,
-          purchase_cost: eq.purchase_cost,
-          original_cost: eq.original_cost,
-          is_master_crafted: eq.is_master_crafted || false,
-          gang_id: params.target_gang_id,
-          user_id: gang.user_id
-        }));
-
-      if (vehicleEquipmentToCopy.length > 0) {
-        const { data: insertedVehicleEquip, error: vehicleEquipError } = await supabase
+      for (const eq of sourceVehicleEquipFiltered) {
+        const { data: inserted, error: vehicleEquipError } = await supabase
           .from('fighter_equipment')
-          .insert(vehicleEquipmentToCopy)
-          .select('id');
+          .insert({
+            vehicle_id: vehicleIdMap.get(eq.vehicle_id),
+            equipment_id: eq.equipment_id,
+            custom_equipment_id: eq.custom_equipment_id,
+            purchase_cost: eq.purchase_cost,
+            original_cost: eq.original_cost,
+            is_master_crafted: eq.is_master_crafted || false,
+            gang_id: params.target_gang_id,
+            user_id: gang.user_id
+          })
+          .select('id')
+          .single();
 
         if (vehicleEquipError) {
           return await rollbackFighter(`Failed to copy vehicle equipment: ${vehicleEquipError.message}`);
         }
 
-        // Extend equipment ID map (old → new)
-        sourceVehicleEquipFiltered.forEach((eq: any, index: number) => {
-          if (insertedVehicleEquip?.[index]) {
-            equipmentIdMap.set(eq.id, insertedVehicleEquip[index].id);
-          }
-        });
+        if (inserted) {
+          equipmentIdMap.set(eq.id, inserted.id);
+        }
       }
     }
 
@@ -458,16 +450,31 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           });
 
       if (effectsToCopyList.length > 0) {
-        const effectsToCopy = effectsToCopyList.map((effect: any) => ({
-          fighter_id: newFighterId,
-          effect_name: effect.effect_name,
-          fighter_effect_type_id: effect.fighter_effect_type_id,
-          type_specific_data: effect.type_specific_data,
-          fighter_equipment_id: effect.fighter_equipment_id
-            ? (equipmentIdMap.get(effect.fighter_equipment_id) || null)
-            : null,
-          user_id: gang.user_id
-        }));
+        const effectsToCopy = effectsToCopyList.map((effect: any) => {
+          let mappedEquipId: string | null = null;
+          if (effect.fighter_equipment_id) {
+            mappedEquipId = equipmentIdMap.get(effect.fighter_equipment_id) || null;
+            if (!mappedEquipId) {
+              console.warn(`Equipment ID remap miss: fighter_equipment_id ${effect.fighter_equipment_id} not found in map`);
+            }
+          }
+          let mappedTargetId: string | null = null;
+          if (effect.target_equipment_id) {
+            mappedTargetId = equipmentIdMap.get(effect.target_equipment_id) || null;
+            if (!mappedTargetId) {
+              console.warn(`Equipment ID remap miss: target_equipment_id ${effect.target_equipment_id} not found in map`);
+            }
+          }
+          return {
+            fighter_id: newFighterId,
+            effect_name: effect.effect_name,
+            fighter_effect_type_id: effect.fighter_effect_type_id,
+            type_specific_data: effect.type_specific_data,
+            fighter_equipment_id: mappedEquipId,
+            target_equipment_id: mappedTargetId,
+            user_id: gang.user_id
+          };
+        });
 
         const { data: insertedEffects, error: effectsError } = await supabase
           .from('fighter_effects')
@@ -537,14 +544,27 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           if (categoryName === 'lasting damages') continue;
         }
 
+        let mappedEquipId: string | null = null;
+        if (effect.fighter_equipment_id) {
+          mappedEquipId = equipmentIdMap.get(effect.fighter_equipment_id) || null;
+          if (!mappedEquipId) {
+            console.warn(`Equipment ID remap miss: fighter_equipment_id ${effect.fighter_equipment_id} not found in map`);
+          }
+        }
+        let mappedTargetId: string | null = null;
+        if (effect.target_equipment_id) {
+          mappedTargetId = equipmentIdMap.get(effect.target_equipment_id) || null;
+          if (!mappedTargetId) {
+            console.warn(`Equipment ID remap miss: target_equipment_id ${effect.target_equipment_id} not found in map`);
+          }
+        }
         const effectInsertData = {
           vehicle_id: vehicleIdMap.get(effect.vehicle_id),
           effect_name: effect.effect_name,
           fighter_effect_type_id: effect.fighter_effect_type_id,
           type_specific_data: effect.type_specific_data,
-          fighter_equipment_id: effect.fighter_equipment_id
-            ? (equipmentIdMap.get(effect.fighter_equipment_id) || null)
-            : null,
+          fighter_equipment_id: mappedEquipId,
+          target_equipment_id: mappedTargetId,
           user_id: gang.user_id
         };
 
