@@ -63,7 +63,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
       console.error('Failed to fetch vehicle/fighter data:', e);
     }
 
-    // Financial update outside try/catch so CAS failures propagate
+    // Financial update outside try/catch so failures propagate
     if (ratingDelta) {
       financialResult = await updateGangRatingSimple(supabase, params.gangId, ratingDelta);
       if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');

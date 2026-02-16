@@ -175,7 +175,7 @@ export async function updateVehicleHardpoint(
     const newCreditsIncrease = Math.max(0, uniqueArcs.length - defaultArcsCount) * 15;
     const delta = newCreditsIncrease - currentCreditsIncrease;  // positive = buying, negative = refund
 
-    // --- Pre-flight credit check (updateGangFinancials uses CAS, may fail) ---
+    // --- Pre-flight credit check ---
     if (delta > 0) {
       const { data: gang } = await supabase
         .from('gangs')
