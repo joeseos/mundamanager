@@ -124,7 +124,7 @@ interface UpdateVehicleHardpointParams {
   vehicleId: string;
   effectId: string;
   gangId: string;
-  operated_by: 'crew' | 'passenger';
+  operated_by: 'crew' | 'passenger' | '';
   arcs: string[];
   location?: string;
 }

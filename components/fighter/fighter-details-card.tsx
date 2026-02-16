@@ -528,12 +528,36 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         {fighter_class === 'Crew' && vehicles?.[0] && vehicleStats && (() => {
           const occupiedSlots = calculateOccupiedSlots(vehicles?.[0]);
           return (
-            <div className="flex items-center gap-1 mt-2">
-              <h3 className="text-sm text-muted-foreground">Upgrade Slots:</h3>
+            <>
+            <div className="flex items-center gap-1 mt-1">
+              <h3 className="text-sm text-muted-foreground">Upgrades:</h3>
               <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.bodyOccupied, vehicleStats.body_slots)} text-white text-xs font-medium rounded-full`}>Body: {occupiedSlots.bodyOccupied}/{vehicleStats.body_slots}</span>
               <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.driveOccupied, vehicleStats.drive_slots)} text-white text-xs font-medium rounded-full`}>Drive: {occupiedSlots.driveOccupied}/{vehicleStats.drive_slots}</span>
               <span className={`flex items-center justify-center w-24 h-5 ${getPillColor(occupiedSlots.engineOccupied, vehicleStats.engine_slots)} text-white text-xs font-medium rounded-full`}>Engine: {occupiedSlots.engineOccupied}/{vehicleStats.engine_slots}</span>
             </div>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <h3 className="text-sm text-muted-foreground shrink-0">Weapon Hardpoints:</h3>
+              {(vehicles?.[0]?.effects?.['hardpoint'] ?? []).map((hp: FighterEffect) => {
+                const data = hp.type_specific_data as { location?: string; operated_by?: string; arcs?: string[] } | null;
+                const loc = data?.location?.trim();
+                const operatedBy = data?.operated_by?.trim();
+                const arcs = Array.isArray(data?.arcs) ? data.arcs : [];
+                const arcStr = `Arc (${arcs.join(', ')})`;
+                const operatedLabel = operatedBy === 'crew' ? 'Crew Operated' : operatedBy === 'passenger' ? 'Passenger Operated' : operatedBy || '';
+                const parts: string[] = [];
+                if (loc) parts.push(`${loc}:`);
+                else parts.push('Unknown:');
+                if (operatedLabel) parts.push(`${operatedLabel} - ${arcStr}`);
+                else parts.push(arcStr);
+                const label = parts.join(' ');
+                return (
+                  <Badge key={hp.id} variant="secondary" className="text-xs font-normal">
+                    {label}
+                  </Badge>
+                );
+              })}
+            </div>
+            </>
           );
         })()}
       </div>
