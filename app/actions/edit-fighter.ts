@@ -475,36 +475,86 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
       case 'starve': {
         if (fighter.starved) {
-          // Feeding the fighter: check for meat and consume it
-          // Fetch current meat value
-          const { data: gangMeatData, error: gangMeatError } = await supabase
-            .from('gangs')
-            .select('meat')
-            .eq('id', gangId)
-            .single();
+          // Feeding the fighter: find a meat-enabled campaign and consume 1 meat
 
-          if (gangMeatError || gangMeatData == null) {
-            throw new Error('Could not fetch gang meat value');
+          // Find accepted campaign_gangs for this gang
+          const { data: campaignGangs, error: cgError } = await supabase
+            .from('campaign_gangs')
+            .select('id, campaign_id, campaigns!inner(campaign_type_id)')
+            .eq('gang_id', gangId)
+            .eq('status', 'ACCEPTED');
+
+          if (cgError) throw cgError;
+
+          if (!campaignGangs || campaignGangs.length === 0) {
+            return {
+              success: false,
+              error: 'No accepted campaign found for this gang'
+            };
           }
 
-          if ((gangMeatData.meat ?? 0) < 1) {
+          // Find a Meat resource across these campaign types
+          const campaignTypeIds = [...new Set(
+            campaignGangs.map(cg => (cg.campaigns as unknown as { campaign_type_id: string }).campaign_type_id)
+          )];
+
+          const { data: meatResource, error: meatResError } = await supabase
+            .from('campaign_type_resources')
+            .select('id, campaign_type_id')
+            .in('campaign_type_id', campaignTypeIds)
+            .ilike('resource_name', 'meat')
+            .limit(1)
+            .maybeSingle();
+
+          if (meatResError || !meatResource) {
+            return {
+              success: false,
+              error: 'Meat resource not found for this campaign type'
+            };
+          }
+
+          // Match back to the correct campaign_gang
+          const campaignGang = campaignGangs.find(
+            cg => (cg.campaigns as unknown as { campaign_type_id: string }).campaign_type_id === meatResource.campaign_type_id
+          )!;
+          const campaignId = campaignGang.campaign_id;
+
+          // Find the gang's meat resource row and check quantity
+          const { data: gangMeatResource, error: gangMeatError } = await supabase
+            .from('campaign_gang_resources')
+            .select('id, quantity')
+            .eq('campaign_gang_id', campaignGang.id)
+            .eq('campaign_type_resource_id', meatResource.id)
+            .single();
+
+          if (gangMeatError || !gangMeatResource) {
             return {
               success: false,
               error: 'Not enough meat to feed fighter'
             };
           }
 
-          // Decrement meat and set starved = false in a transaction-like sequence
+          if ((gangMeatResource.quantity ?? 0) < 1) {
+            return {
+              success: false,
+              error: 'Not enough meat to feed fighter'
+            };
+          }
+
+          // Decrement meat quantity
           const { error: meatUpdateError } = await supabase
-            .from('gangs')
-            .update({ meat: gangMeatData.meat - 1, last_updated: new Date().toISOString() })
-            .eq('id', gangId);
+            .from('campaign_gang_resources')
+            .update({
+              quantity: gangMeatResource.quantity - 1,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', gangMeatResource.id);
 
           if (meatUpdateError) throw meatUpdateError;
 
           const { data: updatedFighter, error: updateError } = await supabase
             .from('fighters')
-            .update({ 
+            .update({
               starved: false,
               updated_at: new Date().toISOString()
             })
@@ -528,6 +578,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           invalidateFighterData(params.fighter_id, gangId);
           await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId));
+          revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId));
 
           return {
             success: true,
