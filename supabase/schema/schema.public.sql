@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hh6l4O7eadyYTN9q6rAkkwMNj8550na3KAn7NeMzAaXUnUWiQM3wj8JkOtmgNxG
+\restrict NohcxaBgWdNQd83lPTqDozLDpozkdJ7tbqiXM7myQaoiggrmpQFO2drooejqKro
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -4464,6 +4464,85 @@ BEGIN
     RETURN v::numeric;
 EXCEPTION WHEN OTHERS THEN
     RETURN 0;
+END;
+$$;
+
+
+--
+-- Name: update_gang_financials(uuid, integer, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_gang_financials(p_gang_id uuid, p_credits_delta integer DEFAULT 0, p_rating_delta integer DEFAULT 0, p_stash_value_delta integer DEFAULT 0) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_current_credits INTEGER;
+    v_current_rating INTEGER;
+    v_current_wealth INTEGER;
+    v_new_credits INTEGER;
+    v_new_rating INTEGER;
+    v_new_wealth INTEGER;
+    v_wealth_delta INTEGER;
+BEGIN
+    -- Lock the row for the duration of this transaction
+    SELECT credits, rating, wealth
+    INTO v_current_credits, v_current_rating, v_current_wealth
+    FROM gangs
+    WHERE id = p_gang_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Gang not found'
+        );
+    END IF;
+
+    -- Coalesce NULLs to 0
+    v_current_credits := COALESCE(v_current_credits, 0);
+    v_current_rating := COALESCE(v_current_rating, 0);
+    v_current_wealth := COALESCE(v_current_wealth, 0);
+
+    -- Overdraft check: fail fast if insufficient credits
+    IF p_credits_delta < 0 AND v_current_credits + p_credits_delta < 0 THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Insufficient credits',
+            'old_values', jsonb_build_object(
+                'credits', v_current_credits,
+                'rating', v_current_rating,
+                'wealth', v_current_wealth
+            )
+        );
+    END IF;
+
+    -- Calculate new values with floor at 0
+    v_wealth_delta := p_rating_delta + p_credits_delta + p_stash_value_delta;
+    v_new_credits := GREATEST(0, v_current_credits + p_credits_delta);
+    v_new_rating := GREATEST(0, v_current_rating + p_rating_delta);
+    v_new_wealth := GREATEST(0, v_current_wealth + v_wealth_delta);
+
+    -- Update the row (already locked, guaranteed to succeed)
+    UPDATE gangs
+    SET credits = v_new_credits,
+        rating = v_new_rating,
+        wealth = v_new_wealth
+    WHERE id = p_gang_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'old_values', jsonb_build_object(
+            'credits', v_current_credits,
+            'rating', v_current_rating,
+            'wealth', v_current_wealth
+        ),
+        'new_values', jsonb_build_object(
+            'credits', v_new_credits,
+            'rating', v_new_rating,
+            'wealth', v_new_wealth
+        )
+    );
 END;
 $$;
 
@@ -10700,5 +10779,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hh6l4O7eadyYTN9q6rAkkwMNj8550na3KAn7NeMzAaXUnUWiQM3wj8JkOtmgNxG
+\unrestrict NohcxaBgWdNQd83lPTqDozLDpozkdJ7tbqiXM7myQaoiggrmpQFO2drooejqKro
 
