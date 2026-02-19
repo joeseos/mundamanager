@@ -4,6 +4,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from 'react';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { TypeSpecificData } from '@/types/fighter-effect';
+import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 
 export type Gang = {
   id: string;
@@ -13,7 +14,7 @@ export type Gang = {
   image_url: string;
   gang_type_image_url: string;
   default_gang_image?: number | null;
-  gang_type_default_image_urls?: string[];
+  gang_type_default_image_urls?: DefaultImageEntry[];
   credits: number;
   reputation: number;
   meat: number;
@@ -40,7 +41,7 @@ type RawGangData = {
   default_gang_image?: number | null;
   gang_types: {
     image_url: string;
-    default_image_urls?: string[] | null;
+    default_image_urls?: unknown[] | null;
   };
 };
 
@@ -173,7 +174,7 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
       image_url: gang.image_url || '',
       gang_type_image_url: gang.gang_types?.image_url || '',
       default_gang_image: gang.default_gang_image ?? null,
-      gang_type_default_image_urls: gang.gang_types?.default_image_urls ?? null,
+      gang_type_default_image_urls: normaliseDefaultImageUrls(gang.gang_types?.default_image_urls),
       credits: gang.credits,
       reputation: gang.reputation,
       meat: gang.meat,

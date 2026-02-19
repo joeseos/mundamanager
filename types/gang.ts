@@ -37,6 +37,34 @@ export interface StashItem {
   custom_equipment_id?: string;
 }
 
+export interface DefaultImageCredit {
+  name: string;
+  url: string;
+  suffix?: string;
+}
+
+export interface DefaultImageEntry {
+  url: string;
+  credit?: DefaultImageCredit;
+}
+
+/**
+ * Normalises raw default_image_urls from Supabase.
+ * Handles both the legacy string[] format and the new object[] format,
+ * so the app works before and after the data migration.
+ */
+export function normaliseDefaultImageUrls(
+  raw: unknown[] | null | undefined
+): DefaultImageEntry[] | undefined {
+  if (!raw || !Array.isArray(raw) || raw.length === 0) return undefined;
+  return raw.map((entry) => {
+    if (typeof entry === 'string') {
+      return { url: entry };
+    }
+    return entry as DefaultImageEntry;
+  });
+}
+
 export interface ResourceUpdate {
   resource_id: string;
   resource_name?: string;  // Optional - can be looked up

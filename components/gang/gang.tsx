@@ -7,7 +7,7 @@ import { FighterProps } from '@/types/fighter';
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem, ResourceUpdate } from '@/types/gang';
+import { StashItem, ResourceUpdate, DefaultImageEntry } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
@@ -42,7 +42,7 @@ interface GangProps {
   gang_type_image_url: string;
   image_url?: string;
   default_gang_image?: number | null;
-  gang_type_default_image_urls?: string[];
+  gang_type_default_image_urls?: DefaultImageEntry[];
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
@@ -436,7 +436,7 @@ export default function Gang({
         Array.isArray(gang_type_default_image_urls) &&
         currentDefaultGangImage >= 0 && 
         currentDefaultGangImage < gang_type_default_image_urls.length) {
-      return gang_type_default_image_urls[currentDefaultGangImage];
+      return gang_type_default_image_urls[currentDefaultGangImage].url;
     }
     
     // No valid image found

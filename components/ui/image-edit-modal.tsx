@@ -7,6 +7,7 @@ import Modal from '@/components/ui/modal';
 import { UseImageEditorOptions } from '@/hooks/use-image-editor';
 import { useImageEditor } from '@/hooks/use-image-editor';
 import { LuChevronLeft, LuChevronRight } from 'react-icons/lu';
+import { DefaultImageEntry, DefaultImageCredit } from '@/types/gang';
 
 interface ImageEditModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ interface ImageEditModalProps {
   confirmButtonText?: string;
   showRemoveButton?: boolean;
   defaultImageUrl?: string;
-  defaultImageUrls?: string[];
+  defaultImageUrls?: DefaultImageEntry[];
   currentDefaultImageIndex?: number | null;
   onDefaultImageIndexChange?: (index: number) => Promise<{ success: boolean; error?: string }>;
 }
@@ -141,16 +142,18 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
     }
   };
 
-  // Get the display image URL for default images
-  const getDisplayDefaultImageUrl = (): string | undefined => {
+  // Get the display image entry for default images
+  const getDisplayDefaultImageEntry = (): DefaultImageEntry | undefined => {
     if (defaultImageUrls && selectedDefaultImageIndex !== null && 
         selectedDefaultImageIndex >= 0 && selectedDefaultImageIndex < defaultImageUrls.length) {
       return defaultImageUrls[selectedDefaultImageIndex];
     }
-    return defaultImageUrl;
+    return defaultImageUrl ? { url: defaultImageUrl } : undefined;
   };
 
-  const displayDefaultImageUrl = getDisplayDefaultImageUrl();
+  const displayDefaultImageEntry = getDisplayDefaultImageEntry();
+  const displayDefaultImageUrl = displayDefaultImageEntry?.url;
+  const displayDefaultImageCredit: DefaultImageCredit | undefined = displayDefaultImageEntry?.credit;
   const hasMultipleDefaultImages = defaultImageUrls && defaultImageUrls.length > 1;
 
   return (
@@ -216,6 +219,17 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
                 )}
               </div>
             </div>
+            {displayDefaultImageCredit ? (
+              <p className="text-xs italic text-center text-muted-foreground mt-1">
+                Illustration by{' '}
+                <a href={displayDefaultImageCredit.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                  {displayDefaultImageCredit.name}
+                </a>
+                {displayDefaultImageCredit.suffix && ` ${displayDefaultImageCredit.suffix}`}
+              </p>
+            ) : (
+              <p className="text-xs mt-1">&nbsp;</p>
+            )}
           </div>
         )}
         <div className="mb-4">

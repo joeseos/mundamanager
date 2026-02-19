@@ -145,7 +145,7 @@ export default function HomeTabs({
                                    Array.isArray(gang.gang_type_default_image_urls) &&
                                    gang.default_gang_image >= 0 && 
                                    gang.default_gang_image < gang.gang_type_default_image_urls.length) {
-                            imageUrl = gang.gang_type_default_image_urls[gang.default_gang_image];
+                            imageUrl = gang.gang_type_default_image_urls[gang.default_gang_image].url;
                           }
                           
                           return imageUrl ? (
