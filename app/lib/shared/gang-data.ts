@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -57,7 +58,7 @@ export interface GangType {
   id: string;
   gang_type: string;
   image_url: string;
-  default_image_urls?: string[];
+  default_image_urls?: DefaultImageEntry[];
 }
 
 export interface Alliance {
@@ -394,7 +395,7 @@ export const getGangType = async (gangTypeId: string, supabase: any): Promise<Ga
         id: data.gang_type_id,
         gang_type: data.gang_type,
         image_url: data.image_url,
-        default_image_urls: data.default_image_urls ?? undefined
+        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
       };
     },
     [`gang-type-${gangTypeId}`],

@@ -9,7 +9,7 @@ import GangInventory from "@/components/gang/stash-tab";
 import { GangNotes } from "@/components/gang/notes-tab";
 import GangTerritories from "@/components/gang/campaign-tab";
 import GangVehicles from "@/components/gang/vehicles-tab";
-import { StashItem } from '@/types/gang';
+import { StashItem, DefaultImageEntry } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
@@ -37,7 +37,7 @@ interface GangDataState {
     gang_type_image_url: string;
     image_url?: string;
     default_gang_image?: number | null;
-    gang_type_default_image_urls?: string[];
+    gang_type_default_image_urls?: DefaultImageEntry[];
     gang_colour: string;
     credits: number;
     reputation: number;

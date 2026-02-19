@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import Image from 'next/image'
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu"
+import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang'
 
 type Gang = {
   id: string;
@@ -37,7 +38,7 @@ type GangType = {
   gang_type: string;
   alignment: string;
   image_url?: string;
-  default_image_urls?: string[];
+  default_image_urls?: DefaultImageEntry[];
   affiliation: boolean;
   available_affiliations: Array<{
     id: string;
@@ -103,7 +104,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
-  const [gangTypeImageArrays, setGangTypeImageArrays] = useState<Record<string, string[]>>({});
+  const [gangTypeImageArrays, setGangTypeImageArrays] = useState<Record<string, DefaultImageEntry[]>>({});
   
   // Gang variants state
   const [availableVariants, setAvailableVariants] = useState<GangVariant[]>([]);
@@ -130,14 +131,13 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             return true; // For now, assume API handles filtering
           });
           
-          // Create a map of gang_type_id to array of image URLs
-          const imageArrayMap: Record<string, string[]> = {};
+          const imageArrayMap: Record<string, DefaultImageEntry[]> = {};
           visibleGangTypes.forEach((type: GangType) => {
-            if (type.default_image_urls && Array.isArray(type.default_image_urls) && type.default_image_urls.length > 0) {
-              imageArrayMap[type.gang_type_id] = type.default_image_urls;
+            const normalised = normaliseDefaultImageUrls(type.default_image_urls);
+            if (normalised && normalised.length > 0) {
+              imageArrayMap[type.gang_type_id] = normalised;
             } else if (type.image_url) {
-              // Fallback to legacy image_url if default_image_urls is not available
-              imageArrayMap[type.gang_type_id] = [type.image_url];
+              imageArrayMap[type.gang_type_id] = [{ url: type.image_url }];
             } else {
               imageArrayMap[type.gang_type_id] = [];
             }
@@ -553,79 +553,94 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           {/* Gang Image Display */}
           {gangType && (() => {
             const selectedGangType = gangTypes.find(type => type.gang_type_id === gangType);
-            const imageUrls = gangTypeImageArrays[gangType] || [];
+            const imageEntries = gangTypeImageArrays[gangType] || [];
             const gangTypeName = selectedGangType?.gang_type || '';
-            const displayImageUrl = imageUrls.length > 0 && currentImageIndex < imageUrls.length 
-              ? imageUrls[currentImageIndex] 
+            const currentEntry = imageEntries.length > 0 && currentImageIndex < imageEntries.length
+              ? imageEntries[currentImageIndex]
               : null;
-            const hasMultipleImages = imageUrls.length > 1;
+            const displayImageUrl = currentEntry?.url ?? null;
+            const displayCredit = currentEntry?.credit;
+            const hasMultipleImages = imageEntries.length > 1;
             
             const handlePreviousImage = () => {
-              if (imageUrls.length > 0) {
-                setCurrentImageIndex((prev) => (prev === 0 ? imageUrls.length - 1 : prev - 1));
+              if (imageEntries.length > 0) {
+                setCurrentImageIndex((prev) => (prev === 0 ? imageEntries.length - 1 : prev - 1));
               }
             };
             
             const handleNextImage = () => {
-              if (imageUrls.length > 0) {
-                setCurrentImageIndex((prev) => (prev === imageUrls.length - 1 ? 0 : prev + 1));
+              if (imageEntries.length > 0) {
+                setCurrentImageIndex((prev) => (prev === imageEntries.length - 1 ? 0 : prev + 1));
               }
             };
             
             return (
-              <div className="flex justify-center my-4">
-                <div className="flex relative size-[200px] md:size-[250px] shrink-0 items-center justify-center">
-                  {/* Left Arrow */}
-                  {hasMultipleImages && (
-                    <button
-                      onClick={handlePreviousImage}
-                      className="absolute -left-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
-                      aria-label="Previous gang image"
-                    >
-                      <LuChevronLeft className="w-5 h-5" />
-                    </button>
-                  )}
-                  
-                  {displayImageUrl ? (
-                    <Image
-                      src={displayImageUrl}
-                      alt={gangTypeName}
-                      width={180}
-                      height={180}
-                      className="size-[145px] md:size-[180px] absolute rounded-full object-cover mt-1 z-10"
-                      priority={false}
-                      quality={100}
-                      onError={handleImageError}
-                    />
-                  ) : (
-                    <div className="absolute size-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                      {gangTypeName.charAt(0)}
+              <>
+                <div className="flex justify-center my-4">
+                  <div className="flex relative size-[200px] md:size-[250px] shrink-0 items-center justify-center">
+                    {/* Left Arrow */}
+                    {hasMultipleImages && (
+                      <button
+                        onClick={handlePreviousImage}
+                        className="absolute -left-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
+                        aria-label="Previous gang image"
+                      >
+                        <LuChevronLeft className="w-5 h-5" />
+                      </button>
+                    )}
+                    
+                    {displayImageUrl ? (
+                      <Image
+                        src={displayImageUrl}
+                        alt={gangTypeName}
+                        width={180}
+                        height={180}
+                        className="size-[145px] md:size-[180px] absolute rounded-full object-cover mt-1 z-10"
+                        priority={false}
+                        quality={100}
+                        onError={handleImageError}
+                      />
+                    ) : (
+                      <div className="absolute size-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
+                        {gangTypeName.charAt(0)}
+                      </div>
+                    )}
+                    <div className="absolute z-20 size-[200px] md:size-[250px]">
+                      <Image
+                        src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
+                        alt="Cogwheel"
+                        width={250}
+                        height={250}
+                        className="absolute z-20"
+                        priority
+                        quality={100}
+                      />
                     </div>
-                  )}
-                  <div className="absolute z-20 size-[200px] md:size-[250px]">
-                    <Image
-                      src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                      alt="Cogwheel"
-                      width={250}
-                      height={250}
-                      className="absolute z-20"
-                      priority
-                      quality={100}
-                    />
+                    
+                    {/* Right Arrow */}
+                    {hasMultipleImages && (
+                      <button
+                        onClick={handleNextImage}
+                        className="absolute -right-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
+                        aria-label="Next gang image"
+                      >
+                        <LuChevronRight className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
-                  
-                  {/* Right Arrow */}
-                  {hasMultipleImages && (
-                    <button
-                      onClick={handleNextImage}
-                      className="absolute -right-12 z-30 p-2 rounded-full bg-card/80 hover:bg-card border border-border shadow-md transition-colors"
-                      aria-label="Next gang image"
-                    >
-                      <LuChevronRight className="w-5 h-5" />
-                    </button>
-                  )}
                 </div>
-              </div>
+                {displayCredit ? (
+                  <p className="text-xs italic text-center text-muted-foreground mt-1">
+                    Illustration by{' '}
+                    <a href={displayCredit.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                      {displayCredit.name}
+                    </a>
+                    {displayCredit.suffix && ` ${displayCredit.suffix}`}
+                  </p>
+                ) : (
+                  <p className="text-xs mt-1">&nbsp;</p>
+                )}
+              </>
             );
           })()}
           <p className="text-xs text-center text-muted-foreground">You'll be able to upload a custom image once your gang is created.</p>

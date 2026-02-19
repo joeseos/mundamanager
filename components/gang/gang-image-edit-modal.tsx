@@ -3,6 +3,7 @@
 import React from 'react';
 import { updateGangImage } from '@/app/actions/update-gang-image';
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
+import { DefaultImageEntry } from '@/types/gang';
 
 interface GangImageEditModalProps {
   isOpen: boolean;
@@ -11,7 +12,7 @@ interface GangImageEditModalProps {
   gangId: string;
   onImageUpdate: (newImageUrl: string, newDefaultImageIndex?: number | null) => void;
   defaultImageUrl?: string;
-  defaultImageUrls?: string[];
+  defaultImageUrls?: DefaultImageEntry[];
   currentDefaultImageIndex?: number | null;
 }
 
