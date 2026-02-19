@@ -833,14 +833,19 @@ export default function FighterPage({
               }));
             }}
             onXpCreditsUpdate={(xpChange, creditsChange) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  xp: (prev.fighter.xp || 0) + xpChange,
-                  credits: (prev.fighter.credits || 0) + creditsChange
-                } : null
-              }));
+              setFighterData(prev => {
+                const isOwnedBeast = !!prev.fighter?.owner_name;
+                return {
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    xp: (prev.fighter.xp || 0) + xpChange,
+                    credits: isOwnedBeast
+                      ? prev.fighter.credits
+                      : (prev.fighter.credits || 0) + creditsChange
+                  } : null
+                };
+              });
             }}
             onCharacteristicUpdate={(characteristicName, changeAmount) => {
               // Characteristics are now updated through effect modifiers
