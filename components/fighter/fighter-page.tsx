@@ -450,12 +450,13 @@ export default function FighterPage({
         });
       }
       
+      const isOwnedBeast = !!prev.fighter?.owner_name;
       return {
         ...prev,
         equipment: updatedEquipment,
         fighter: prev.fighter ? {
           ...prev.fighter,
-          credits: newFighterCredits,
+          credits: isOwnedBeast ? prev.fighter.credits : newFighterCredits,
           effects: updatedEffects || prev.fighter.effects
         } : null,
         gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
@@ -490,11 +491,12 @@ export default function FighterPage({
         }];
       }
 
+      const isOwnedBeast = !!prev.fighter?.owner_name;
       return {
         ...prev,
         fighter: {
           ...prev.fighter,
-          credits: newFighterCredits,
+          credits: isOwnedBeast ? prev.fighter.credits : newFighterCredits,
           vehicles: updatedVehicles
         },
         gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
@@ -793,14 +795,17 @@ export default function FighterPage({
               }));
             }}
             onGangCreditsUpdate={(creditsDelta) => {
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? {
-                  ...prev.fighter,
-                  credits: prev.fighter.credits - creditsDelta
-                } : null,
-                gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + creditsDelta } : null
-              }));
+              setFighterData(prev => {
+                const isOwnedBeast = !!prev.fighter?.owner_name;
+                return {
+                  ...prev,
+                  fighter: prev.fighter ? {
+                    ...prev.fighter,
+                    credits: isOwnedBeast ? prev.fighter.credits : prev.fighter.credits - creditsDelta
+                  } : null,
+                  gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + creditsDelta } : null
+                };
+              });
             }}
           />
 
