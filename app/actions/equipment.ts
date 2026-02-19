@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import {
+  invalidateFighterData,
   invalidateFighterDataWithFinancials,
   invalidateVehicleData,
   invalidateFighterVehicleData,
@@ -9,8 +10,10 @@ import {
   invalidateEquipmentDeletion,
   invalidateGangStash,
   invalidateGangRating,
-  invalidateFighterAdvancement
+  invalidateFighterAdvancement,
+  CACHE_TAGS
 } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
@@ -19,6 +22,20 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
+
+// Helper function to invalidate owner's cache when beast fighter is updated
+async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
+  const { data: ownerData } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_owner_id')
+    .eq('fighter_pet_id', fighterId)
+    .single();
+
+  if (ownerData) {
+    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+  }
+}
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -676,6 +693,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           advancementType: 'effect'
         });
       }
+      // If this fighter is a beast, invalidate the owner's cache
+      await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase);
     } else if (params.vehicle_id) {
       if (vehicleAssignedFighterId) {
         invalidateFighterDataWithFinancials(vehicleAssignedFighterId, params.gang_id);
@@ -1061,8 +1080,11 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
         advancementType: 'effect'
       });
     }
-    
-    return { 
+
+    // If this fighter is a beast, invalidate the owner's cache
+    await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase);
+
+    return {
       success: true, 
       data: {
         deletedEquipment: {

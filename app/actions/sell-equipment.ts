@@ -2,11 +2,26 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangStash, invalidateFighterAdvancement } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
+
+// Helper function to invalidate owner's cache when beast fighter is updated
+async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
+  const { data: ownerData } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_owner_id')
+    .eq('fighter_pet_id', fighterId)
+    .single();
+
+  if (ownerData) {
+    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+  }
+}
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -223,6 +238,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           advancementType: 'effect'
         });
       }
+      // If this fighter is a beast, invalidate the owner's cache
+      await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase);
     } else if (equipmentData.vehicle_id) {
       // For vehicle equipment, we need to get the fighter_id from the vehicle
       const { data: vehicleData, error: vehicleError } = await supabase

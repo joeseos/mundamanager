@@ -12,7 +12,8 @@ import {
   invalidateFighterOwnedBeasts,
   invalidateGangStash,
   invalidateFighterAdvancement,
-  invalidateVehicleData
+  invalidateVehicleData,
+  CACHE_TAGS
 } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { 
@@ -23,6 +24,20 @@ import {
 import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
 import { countsTowardRating } from '@/utils/fighter-status';
+
+// Helper function to invalidate owner's cache when beast fighter is updated
+async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
+  const { data: ownerData } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_owner_id')
+    .eq('fighter_pet_id', fighterId)
+    .single();
+
+  if (ownerData) {
+    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+  }
+}
 
 interface MoveFromStashParams {
   stash_id: string;
@@ -469,6 +484,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           advancementType: 'effect'
         });
       }
+      // If this fighter is a beast, invalidate the owner's cache
+      await invalidateBeastOwnerCache(params.fighter_id, stashData.gang_id, supabase);
     }
 
     // Invalidate equipment caches for the vehicle that received the equipment
