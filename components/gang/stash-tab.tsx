@@ -94,6 +94,8 @@ export default function GangInventory({
   const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
+  const stashRef = useRef<StashItem[]>(stash);
+  stashRef.current = stash;
 
   // TanStack Query mutation for chem-alchemy with optimistic update
   const createChemMutation = useMutation({
@@ -120,8 +122,9 @@ export default function GangInventory({
     onMutate: async (chem) => {
       const previousStash = [...stash];
       const previousCredits = gangCredits;
+      const tempId = `temp-${Date.now()}`;
       const newStashItem: StashItem = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         cost: chem.totalCost,
         type: 'equipment',
         equipment_name: chem.name,
@@ -133,7 +136,7 @@ export default function GangInventory({
       setStash(newStash);
       onStashUpdate?.(newStash);
       onGangCreditsUpdate?.(newCredits);
-      return { previousStash, previousCredits };
+      return { previousStash, previousCredits, tempId };
     },
     onError: (error, _chem, context) => {
       if (context) {
@@ -147,7 +150,23 @@ export default function GangInventory({
         variant: 'destructive'
       });
     },
-    onSuccess: (_data, chem) => {
+    onSuccess: (data, chem, context) => {
+      // Replace optimistic temp item with real server item so move/sell/delete work
+      if (data?.stashItem?.id && context?.tempId) {
+        const realStashItem: StashItem = {
+          id: data.stashItem.id,
+          cost: data.stashItem.purchase_cost ?? chem.totalCost,
+          type: 'equipment',
+          equipment_name: chem.name,
+          equipment_type: 'wargear',
+          equipment_category: 'Chem-Alchemy',
+          custom_equipment_id: data.stashItem.custom_equipment_id
+        };
+        const prev = stashRef.current;
+        const next = prev.map(item => item.id === context.tempId ? realStashItem : item);
+        setStash(next);
+        queueMicrotask(() => onStashUpdate?.(next));
+      }
       toast({
         title: 'Elixir Created',
         description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits`
