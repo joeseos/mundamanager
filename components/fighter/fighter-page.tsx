@@ -7,7 +7,7 @@ import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-lis
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/components/ui/use-toast";
-import ItemModal from "@/components/equipment";
+import ItemModal from "@/components/equipment/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";

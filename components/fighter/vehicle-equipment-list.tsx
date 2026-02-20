@@ -14,7 +14,7 @@ import { fitWeaponToHardpoint, updateVehicleHardpoint } from '@/app/actions/vehi
 import { MdCurrencyExchange, MdOutlineLinkOff } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2 } from 'react-icons/lu';
-import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment-tooltip';
+import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
 import { Equipment } from '@/types/equipment';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
