@@ -22,7 +22,7 @@ import { FighterLoadout } from '@/types/equipment';
 import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
-import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment-tooltip';
+import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
 
 interface WeaponListProps {
   fighterId: string;
