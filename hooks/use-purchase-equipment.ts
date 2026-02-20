@@ -8,7 +8,6 @@ import { useToast } from '@/components/ui/use-toast';
 export interface PurchaseEquipmentContext {
   session: { access_token: string } | null;
   gangId: string;
-  gangCredits: number;
   fighterId?: string;
   vehicleId?: string;
   isVehicleEquipment?: boolean;
@@ -171,3 +170,4 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
 
   return { purchaseEquipment };
 }
+
