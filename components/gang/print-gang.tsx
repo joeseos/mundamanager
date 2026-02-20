@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
@@ -372,7 +373,10 @@ export default function PrintGang({ gang }: PrintGangProps) {
               </div>
             </div>
           </div>
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline_cancel" asChild>
+              <Link href={`/gang/${gang.id}`}>Cancel</Link>
+            </Button>
             <Button
               onClick={handlePrint}
               className="bg-neutral-900 text-white hover:bg-gray-800"
@@ -930,7 +934,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               ["--ring" as any]: "var(--light-ring)",
             }} // Enforce light theme colors for Cards View
           >
-            <div className={`print-fighters [zoom:0.55] justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:!w-[630px] [&_.fighter-card-bg]:!h-[435px] [&_.fighter-card-bg]:!shadow-none [&_.fighter-card-bg]:!border-[3px] [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:!text-base [&_.fighter-card-bg]:!bg-[#faf9f7] [&_.fighter-card-bg]:!text-black [&_.fighter-card-bg:hover]:!scale-100 [&_.fighter-card-bg:hover]:!shadow-none [&_.fighter-card-bg]:!transition-none [&_.fighter-card-bg_.grid]:!gap-y-0 [&_.fighter-card-bg_.grid]:!mt-1 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-2 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-black [&_.fighter-card-bg_.bg-secondary]:!shadow-none [&_.fighter-card-bg]:!bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')] ${printStyle === 'eco' ? '[&_.fighter-card-bg]:!bg-none [&_.fighter-card-bg]:!bg-transparent [&_.fancy-print-top-bar]:!bg-none [&_.fancy-print-keep-color-heading]:!text-inherit [&_.fancy-print-keep-color-subtitle]:!text-inherit' : '[&_.fancy-print-keep-color-heading]:!text-white [&_.fancy-print-keep-color-subtitle]:!text-gray-300'}`}>
+            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:!w-[630px] [&_.fighter-card-bg]:!h-[435px] [&_.fighter-card-bg]:!shadow-none [&_.fighter-card-bg]:!border-[3px] [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:!text-base [&_.fighter-card-bg]:!bg-[#faf9f7] [&_.fighter-card-bg]:!text-black [&_.fighter-card-bg:hover]:!scale-100 [&_.fighter-card-bg:hover]:!shadow-none [&_.fighter-card-bg]:!transition-none [&_.fighter-card-bg_.grid]:!gap-y-0 [&_.fighter-card-bg_.grid]:!mt-1 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-2 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-black [&_.fighter-card-bg_.bg-secondary]:!shadow-none [&_.fighter-card-bg]:!bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')] ${printStyle === 'eco' ? '[&_.fighter-card-bg]:!bg-none [&_.fighter-card-bg]:!bg-transparent [&_.fancy-print-top-bar]:!bg-none [&_.fancy-print-keep-color-heading]:!text-inherit [&_.fancy-print-keep-color-subtitle]:!text-inherit' : '[&_.fancy-print-keep-color-heading]:!text-white [&_.fancy-print-keep-color-subtitle]:!text-gray-300'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}
