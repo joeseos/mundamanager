@@ -21,12 +21,11 @@ interface PurchaseModalProps {
   ) => void;
   isStashPurchase?: boolean;
   fighterId?: string;
-  gangId?: string;
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   equipmentListType?: "fighters-list" | "fighters-tradingpost" | "unrestricted";
 }
 
-export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, gangId, fighterWeapons, equipmentListType }: PurchaseModalProps) {
+export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, fighterWeapons, equipmentListType }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
@@ -461,3 +460,4 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     />
   );
 }
+

@@ -132,7 +132,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const { purchaseEquipment } = usePurchaseEquipment({
     session,
     gangId,
-    gangCredits,
     fighterId,
     vehicleId,
     isVehicleEquipment,
@@ -893,7 +892,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
                 fighterId={fighterId}
-                gangId={gangId}
                 fighterWeapons={fighterWeapons}
                 equipmentListType={equipmentListType}
               />
@@ -909,3 +907,4 @@ const ItemModal: React.FC<ItemModalProps> = ({
 };
 
 export default ItemModal;
+
