@@ -119,6 +119,25 @@
     }
   }
 
+  /* /print route not using @media print */
+  .print-gang-cards {
+    zoom: 0.55;
+  }
+
+  .print-gang-roster {
+    zoom: 0.88;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    /* iPhone / iPad only */
+    .print-gang-cards {
+      zoom: 1 !important; /* zoom is not supported and need to be reinitialised */
+    }
+    .print-gang-roster {
+      zoom: 1 !important;
+    }
+  }
+
   @media print {
     @page {
       margin: 8mm;  /* this affects the margin in the printer settings */
@@ -166,12 +185,11 @@
       border-width: 3px !important; /* Firefox workaround when printing borders less than border-4 in tailwind */
       margin-right: 6px !important;
     }
+
     .print-fighters {
       zoom: 0.55;
     }
-    .print-gang-roster {
-      zoom: 0.88;
-    }
+
     .table-weapons th, .table-weapons td {
       padding: 1px !important;
       padding-left: 2px !important;

@@ -71,7 +71,7 @@ export default async function GangPrintRosterBreadcrumb({
                 className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
-                Print Roster
+                Print
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>

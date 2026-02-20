@@ -15,7 +15,6 @@ import { GiAncientRuins } from "react-icons/gi";
 import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
-import PrintModal from "@/components/print-modal";
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
@@ -242,7 +241,6 @@ export default function Gang({
   const [gangIsVariant, setGangIsVariant] = useState(safeGangVariant.length > 0);
   const [gangVariants, setGangVariants] = useState<Array<{id: string, variant: string}>>(safeGangVariant);
   const [availableVariants, setAvailableVariants] = useState<Array<{id: string, variant: string}>>([]);
-  const [showPrintModal, setShowPrintModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -397,6 +395,8 @@ export default function Gang({
 
 
   // Save to localStorage and update DOM (skip first render)
+  // Note: Cleanup restores max-w-5xl when navigating away (e.g. to /print) so the print page
+  // is not affected by the gang view mode.
   useEffect(() => {
     const wrapper = document.getElementById('main-content-wrapper');
     if (wrapper) {
@@ -416,6 +416,15 @@ export default function Gang({
     }
 
     localStorage.setItem('gang_view_mode', viewMode);
+
+    return () => {
+      // Restore max-w-5xl when unmounting so other pages (e.g. /print) are not affected
+      const w = document.getElementById('main-content-wrapper');
+      if (w) {
+        w.classList.remove('max-w-none');
+        w.classList.add('max-w-5xl');
+      }
+    };
   }, [viewMode]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -1035,13 +1044,15 @@ export default function Gang({
 
               {/* Print button */}
               <Button
-                onClick={() => setShowPrintModal(true)}
+                asChild
                 variant="ghost"
                 size="icon"
                 className="print:hidden"
                 title="Print Options"
               >
-                <FiPrinter className="w-5 h-5" />
+                <Link href={`/gang/${id}/print`}>
+                  <FiPrinter className="w-5 h-5" />
+                </Link>
               </Button>
             </div>
 
@@ -1235,10 +1246,6 @@ export default function Gang({
               </Button>
             </div>
           </div>
-
-          {showPrintModal && (
-            <PrintModal gangId={id} onClose={() => setShowPrintModal(false)} />
-          )}
 
           <GangEditModal
             isOpen={showEditModal}
