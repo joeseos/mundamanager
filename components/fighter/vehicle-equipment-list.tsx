@@ -503,9 +503,14 @@ export function VehicleEquipmentList({
     weaponName: string;
   } | null>(null);
 
+  const isPurchasingRef = React.useRef(false);
+
   // Optimistic purchase mutation for vehicle equipment delegated from modal
   const purchaseMutation = {
     mutate: async ({ params, item }: { params: any; item: any }) => {
+      if (isPurchasingRef.current) return;
+      isPurchasingRef.current = true;
+
       const previousEquipment = [...equipment];
       const previousFighterCredits = fighterCredits;
       const previousGangCredits = gangCredits;
@@ -572,6 +577,8 @@ export function VehicleEquipmentList({
           description: err instanceof Error ? err.message : 'Failed to buy vehicle equipment',
           variant: 'destructive'
         });
+      } finally {
+        isPurchasingRef.current = false;
       }
     }
   };

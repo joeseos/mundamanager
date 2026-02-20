@@ -446,6 +446,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       ratingDelta,
       stashValueDelta: -equipmentValue
     });
+    if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
 
     // Get updated wealth from result
     const updatedGangWealth = financialResult.newValues?.wealth;

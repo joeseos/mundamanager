@@ -206,7 +206,8 @@ export async function addCharacteristicAdvancement(
     }
 
     // Update gang rating and wealth (+credits_increase)
-    await updateGangRatingSimple(supabase, fighter.gang_id, params.credits_increase || 0);
+    const ratingResult = await updateGangRatingSimple(supabase, fighter.gang_id, params.credits_increase || 0);
+    if (!ratingResult.success) throw new Error(ratingResult.error || 'Failed to update gang financials');
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
@@ -417,7 +418,8 @@ export async function addSkillAdvancement(
     if (creditsIncrease > 0) {
       if (params.is_advance ?? true) {
         // Advancement path (XP purchase): only increase rating, no stash deduction
-        await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+        const ratingResult = await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+        if (!ratingResult.success) throw new Error(ratingResult.error || 'Failed to update gang financials');
       } else {
         // Direct purchase: verify gang has sufficient credits before deducting
         const { data: gang, error: gangError } = await supabase
@@ -435,11 +437,12 @@ export async function addSkillAdvancement(
         }
 
         // Starting skill path (direct purchase): deduct from stash AND increase rating
-        await updateGangFinancials(supabase, {
+        const financialResult = await updateGangFinancials(supabase, {
           gangId: fighter.gang_id,
           ratingDelta: creditsIncrease,
           creditsDelta: -creditsIncrease
         });
+        if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
         invalidateGangCredits(fighter.gang_id);
       }
     }
@@ -756,15 +759,17 @@ export async function deleteAdvancement(
     if (ratingDelta !== 0) {
       if (refundStash) {
         // Non-advancement skill: refund credits to gang stash AND decrease rating
-        await updateGangFinancials(supabase, {
+        const financialResult = await updateGangFinancials(supabase, {
           gangId: fighter.gang_id,
           ratingDelta: ratingDelta,
           creditsDelta: -ratingDelta // ratingDelta is negative, so -ratingDelta is positive (refund)
         });
+        if (!financialResult.success) throw new Error(financialResult.error || 'Failed to update gang financials');
         invalidateGangCredits(fighter.gang_id);
       } else {
         // Advancement skill or effect: only decrease rating (XP was the currency)
-        await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
+        const ratingResult = await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
+        if (!ratingResult.success) throw new Error(ratingResult.error || 'Failed to update gang financials');
       }
     }
 
