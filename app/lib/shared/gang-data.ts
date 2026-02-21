@@ -1228,6 +1228,7 @@ export const getGangFightersList = async (
               .select(`
                 id,
                 vehicle_id,
+                fighter_equipment_id,
                 effect_name,
                 type_specific_data,
                 created_at,
@@ -1719,6 +1720,7 @@ export const getGangFightersList = async (
             }
             vehicleEffects[categoryName].push({
               id: effectData.id,
+              fighter_equipment_id: effectData.fighter_equipment_id,
               effect_name: effectData.effect_name,
               type_specific_data: effectData.type_specific_data,
               created_at: effectData.created_at,

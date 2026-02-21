@@ -70,6 +70,9 @@ export interface Weapon {
   weapon_name: string;
   weapon_profiles: WeaponProfile[];
   effect_names?: string[]; // Names of effects that target this weapon
+  hardpoint_location?: string;
+  hardpoint_arcs?: string[];
+  hardpoint_operated_by?: 'crew' | 'passenger';
 }
 
 export interface Equipment {
