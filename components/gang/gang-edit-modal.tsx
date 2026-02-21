@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
@@ -163,7 +163,7 @@ export default function GangEditModal({
   isAdmin = false,
   onSave
 }: GangEditModalProps) {
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const router = useRouter();
   
@@ -320,10 +320,7 @@ export default function GangEditModal({
       setAllianceListLoaded(true);
     } catch (error) {
       console.error('Error fetching alliances:', error);
-      toast({
-        description: 'Failed to load alliances',
-        variant: "destructive"
-      });
+      toast.error('Failed to load alliances');
     }
   };
 
@@ -371,10 +368,7 @@ export default function GangEditModal({
       }
     } catch (error) {
       console.error('Error fetching affiliations/origins:', error);
-      toast({
-        description: 'Failed to load affiliations/origins',
-        variant: "destructive"
-      });
+      toast.error('Failed to load affiliations/origins');
     }
   };
 
@@ -409,10 +403,7 @@ export default function GangEditModal({
         throw new Error(result.error || 'Failed to delete gang');
       }
 
-      toast({
-        description: "Gang successfully deleted. You'll be automatically redirected to the home page in a few seconds.",
-        variant: "default"
-      });
+      toast.success("Gang successfully deleted. You'll be automatically redirected to the home page in a few seconds.");
 
       router.push('/');
     } catch (error) {
@@ -422,11 +413,7 @@ export default function GangEditModal({
         ? error.message
         : 'An unexpected error occurred. Please try again.';
 
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive"
-      });
+      toast.error("Error", { description: message });
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);

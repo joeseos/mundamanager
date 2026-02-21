@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from '../ui/modal';
 import { VehicleEquipment } from '@/types/fighter';
 import { List } from "@/components/ui/list";
@@ -106,7 +106,7 @@ function FitWeaponModal({
   onClose,
   onConfirm
 }: FitWeaponModalProps) {
-  const { toast } = useToast();
+  
   const [selectedHardpointId, setSelectedHardpointId] = useState<string | null>(currentHardpointId);
   const [editedArcs, setEditedArcs] = useState<string[]>([]);
   const [editedOperatedBy, setEditedOperatedBy] = useState<'crew' | 'passenger' | ''>('');
@@ -207,11 +207,11 @@ function FitWeaponModal({
       });
       if (!unfitResult.success) throw new Error(unfitResult.error || 'Failed to unfit weapon');
       
-      toast({ title: 'Weapon unfitted', description: 'Weapon has been removed from hardpoint', variant: 'default' });
+      toast.success('Weapon unfitted', { description: 'Weapon has been removed from hardpoint' });
       setIsSaving(false);
       // Note: Modal stays open so user can continue editing or fit another weapon
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to unfit weapon', variant: 'destructive' });
+      toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to unfit weapon' });
       setIsSaving(false);
     }
   };
@@ -222,11 +222,7 @@ function FitWeaponModal({
     
     // Validate that operated_by is selected
     if (!editedOperatedBy || (editedOperatedBy !== 'crew' && editedOperatedBy !== 'passenger')) {
-      toast({ 
-        title: 'Validation Error', 
-        description: 'Please select Crew or Passenger for "Operated By" before saving', 
-        variant: 'destructive' 
-      });
+      toast.error('Validation Error', { description: 'Please select Crew or Passenger for "Operated By" before saving' });
       return;
     }
     
@@ -263,10 +259,10 @@ function FitWeaponModal({
         await onConfirm(change.hardpointId, change.newWeaponId);
       }
 
-      toast({ title: 'Changes saved', variant: 'default' });
+      toast.success('Changes saved');
       onClose();
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to save', variant: 'destructive' });
+      toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to save' });
       setIsSaving(false);
     }
   };
@@ -514,7 +510,7 @@ export function VehicleEquipmentList({
   onRegisterPurchase
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
   const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);
@@ -579,19 +575,11 @@ export function VehicleEquipmentList({
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-        toast({
-          title: 'Equipment purchased',
-          description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits`,
-          variant: 'default'
-        });
+        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits` });
       } catch (err) {
         // Rollback
         onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
-        toast({
-          title: 'Error',
-          description: err instanceof Error ? err.message : 'Failed to buy vehicle equipment',
-          variant: 'destructive'
-        });
+        toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to buy vehicle equipment' });
       }
     }
   };
@@ -637,21 +625,13 @@ export function VehicleEquipmentList({
 
       onEquipmentUpdate(optimisticEquipment, finalFighterCredits, previousGangCredits);
 
-      toast({
-        title: "Success",
-        description: `Successfully deleted ${result.data?.deletedEquipment?.equipment_name || equipmentToDelete.equipment_name}`,
-        variant: "default"
-      });
+      toast.success("Success", { description: `Successfully deleted ${result.data?.deletedEquipment?.equipment_name || equipmentToDelete.equipment_name}` });
       setDeleteModalData(null);
     } catch (error) {
       // Rollback
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error deleting equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to delete equipment',
-        variant: "destructive"
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : 'Failed to delete equipment' });
     }
   };
 
@@ -687,20 +667,13 @@ export function VehicleEquipmentList({
       const reconciledGangCredits = result.data?.gang?.credits ?? optimisticGangCredits;
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, reconciledGangCredits);
       
-      toast({
-        title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits`,
-      });
+      toast.success("Success", { description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits` });
       setSellModalData(null);
     } catch (error) {
       // Rollback
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error selling equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sell equipment",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to sell equipment" });
     }
   };
 
@@ -731,20 +704,13 @@ export function VehicleEquipmentList({
         throw new Error(result.error || 'Failed to move equipment to stash');
       }
 
-      toast({
-        title: "Success",
-        description: `${equipmentToStash.equipment_name} moved to gang stash`,
-      });
+      toast.success("Success", { description: `${equipmentToStash.equipment_name} moved to gang stash` });
       setStashModalData(null);
     } catch (error) {
       // Rollback
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error moving equipment to stash:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move equipment to stash",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to move equipment to stash" });
     }
   };
 
@@ -1027,10 +993,10 @@ export function VehicleEquipmentList({
               });
               if (!result.success) throw new Error(result.error || 'Failed to fit weapon');
               const weaponName = equipment.find(eq => eq.fighter_equipment_id === weaponEquipmentId)?.equipment_name || 'weapon';
-              toast({ title: 'Weapon fitted', description: `${weaponName} fitted to hardpoint`, variant: 'default' });
+              toast.success('Weapon fitted', { description: `${weaponName} fitted to hardpoint` });
               setFitWeaponData(null);
             } catch (err) {
-              toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to fit weapon', variant: 'destructive' });
+              toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to fit weapon' });
             }
           }}
         />

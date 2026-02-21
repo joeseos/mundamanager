@@ -6,7 +6,7 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import ItemModal from "@/components/equipment/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
@@ -349,7 +349,7 @@ export default function FighterPage({
   });
 
   const router = useRouter();
-  const { toast } = useToast();
+  
   const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
   const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
   const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
@@ -373,11 +373,7 @@ export default function FighterPage({
       setPreFetchedFighterTypes(data);
     } catch (error) {
       console.error('Error fetching fighter types:', error);
-      toast({
-        title: 'Error',
-        description: 'Could not fetch fighter types.',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: 'Could not fetch fighter types.' });
     }
   }, [toast]);
 

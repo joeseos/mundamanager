@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
 import { ImInfo } from "react-icons/im";
 import { LuChevronUp, LuChevronDown } from "react-icons/lu";
 
@@ -227,7 +226,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
 ProfileCard.displayName = 'ProfileCard';
 
 export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false }: CustomWeaponProfilesProps) {
-  const { toast } = useToast();
+  
 
   const createEmptyProfile = (): CustomWeaponProfile => ({
     profile_name: '',

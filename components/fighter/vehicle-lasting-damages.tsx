@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import Modal from '../ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
@@ -63,7 +63,7 @@ export function VehicleDamagesList({
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
@@ -119,10 +119,7 @@ export function VehicleDamagesList({
       queryClient.invalidateQueries({ queryKey: ['gang', variables.gangId] });
       queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
 
-      toast({
-        description: 'Lasting damage added successfully',
-        variant: 'default'
-      });
+      toast.success('Lasting damage added successfully');
       
       setSelectedDamageId('');
       setIsAddModalOpen(false);
@@ -134,10 +131,7 @@ export function VehicleDamagesList({
         onDamageUpdate(context.previousDamages);
       }
 
-      toast({
-        description: 'Failed to add lasting damage',
-        variant: 'destructive'
-      });
+      toast.error('Failed to add lasting damage');
     }
   });
 
@@ -166,10 +160,7 @@ export function VehicleDamagesList({
       queryClient.invalidateQueries({ queryKey: ['gang', variables.gangId] });
       queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
 
-      toast({
-        description: `${context?.damageName} removed successfully`,
-        variant: 'default'
-      });
+      toast.success(`${context?.damageName} removed successfully`);
 
       setDeleteModalData(null);
     },
@@ -179,10 +170,7 @@ export function VehicleDamagesList({
         onDamageUpdate(context.previousDamages);
       }
 
-      toast({
-        description: 'Failed to delete lasting damage',
-        variant: 'destructive'
-      });
+      toast.error('Failed to delete lasting damage');
 
       setDeleteModalData(null);
     }
@@ -211,10 +199,7 @@ export function VehicleDamagesList({
         throw new Error(result.error || 'Failed to repair vehicle damage');
       }
 
-      toast({
-        description: `Repaired ${variables.damageIds.length} damage(s) for ${variables.repairCost} credits`,
-        variant: 'default'
-      });
+      toast.success(`Repaired ${variables.damageIds.length} damage(s) for ${variables.repairCost} credits`);
 
       // If repair type is "Almost like new", add "Persistent Rattle" damage
       if (variables.repairType === 'Almost like new') {
@@ -254,10 +239,7 @@ export function VehicleDamagesList({
         onGangCreditsUpdate(context.previousCredits);
       }
 
-      toast({
-        description: 'Failed to repair lasting damage(s)',
-        variant: 'destructive'
-      });
+      toast.error('Failed to repair lasting damage(s)');
 
       // Reset repair modal state
       setIsRepairing(null);
@@ -301,12 +283,9 @@ export function VehicleDamagesList({
   // Show error toast if damages failed to load
   useEffect(() => {
     if (damagesError) {
-      toast({
-        description: 'Failed to load lasting damage types',
-        variant: 'destructive'
-      });
+      toast.error('Failed to load lasting damage types');
     }
-  }, [damagesError, toast]);
+  }, [damagesError]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -326,10 +305,7 @@ export function VehicleDamagesList({
 
   const handleAddDamage = async () => {
     if (!selectedDamageId) {
-      toast({
-        description: "Please select a lasting damage",
-        variant: "destructive"
-      });
+      toast.error("Please select a lasting damage");
       return false;
     }
 
@@ -350,10 +326,7 @@ export function VehicleDamagesList({
 
   const handleDeleteDamage = async (damageId: string, damageName: string) => {
     if (!isValidUUID(damageId)) {
-      toast({
-        description: 'Cannot delete a damage that has not been saved to the server.',
-        variant: "destructive"
-      });
+      toast.error('Cannot delete a damage that has not been saved to the server.');
       return false;
     }
     
@@ -370,18 +343,12 @@ export function VehicleDamagesList({
     if (uniqueDamages.length === 0 || gangCredits === undefined) return false;
     const damageIdsToRepair = uniqueDamages.map((d: FighterEffect) => d.id).filter(isValidUUID);
     if (damageIdsToRepair.length === 0) {
-      toast({
-        description: 'No valid damages to repair.',
-        variant: 'destructive'
-      });
+      toast.error('No valid damages to repair.');
       return false;
     }
     
     if (gangCredits < repairCost) {
-      toast({
-        description: `Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`,
-        variant: 'destructive'
-      });
+      toast.error(`Not enough gang credits to repair these damages. Repair cost: ${repairCost}, Available credits: ${gangCredits}`);
       return false;
     }
     
@@ -451,7 +418,7 @@ export function VehicleDamagesList({
                 const match = availableDamages.find((d: any) => d.effect_name === name);
                 if (match) {
                   setSelectedDamageId(match.id);
-                  toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                  toast(`Roll ${roll}: ${match.effect_name}`);
                 }
               }
             }}
@@ -461,7 +428,7 @@ export function VehicleDamagesList({
                 const match = availableDamages.find((d: any) => d.effect_name === name);
                 if (match) {
                   setSelectedDamageId(match.id);
-                  toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                  toast(`Roll ${roll}: ${match.effect_name}`);
                 }
               }
             }}
@@ -630,7 +597,7 @@ export function VehicleDamagesList({
                       const match = availableDamages.find((d: any) => d.effect_name === name);
                       if (match) {
                         setSelectedDamageId(match.id);
-                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                        toast(`Roll ${roll}: ${match.effect_name}`);
                       }
                     }
                   }}
@@ -640,7 +607,7 @@ export function VehicleDamagesList({
                       const match = availableDamages.find((d: any) => d.effect_name === name);
                       if (match) {
                         setSelectedDamageId(match.id);
-                        toast({ description: `Roll ${roll}: ${match.effect_name}` });
+                        toast(`Roll ${roll}: ${match.effect_name}`);
                       }
                     }
                   }}
@@ -776,7 +743,7 @@ export function VehicleDamagesList({
                           } else {
                             setRepairPercent(25);
                           }
-                          toast({ description: `Roll ${roll}: ${name}` });
+                          toast(`Roll ${roll}: ${name}`);
                         }
                       }
                     }}
@@ -792,7 +759,7 @@ export function VehicleDamagesList({
                           } else {
                             setRepairPercent(25);
                           }
-                          toast({ description: `Roll ${roll}: ${name}` });
+                          toast(`Roll ${roll}: ${name}`);
                         }
                       }
                     }}

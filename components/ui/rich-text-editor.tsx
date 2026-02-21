@@ -53,7 +53,6 @@ import { BiSolidQuoteRight } from "react-icons/bi";
 import { HiMiniBold } from "react-icons/hi2";
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
 import '@/components/ui/rich-text-editor.css';
-import { useToast } from '@/components/ui/use-toast';
 import { useRichTextImages } from '@/hooks/use-rich-text-images';
 
 export interface RichTextEditorHandle {
@@ -105,7 +104,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const linkInputRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
+  
 
   // Ref to hold the image insertion function (set after editor is ready)
   const insertImageRef = useRef<((url: string) => void) | null>(null);

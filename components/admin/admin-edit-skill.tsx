@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 import { AdminFighterEffects } from './admin-fighter-effects';
@@ -155,7 +155,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const [skillsCategoryId, setSkillsCategoryId] = useState('');
   const [effectCategories, setEffectCategories] = useState<any[]>([]);
 
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     const fetchSkillTypes = async () => {
@@ -166,10 +166,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         setSkillTypes(data);
       } catch (error) {
         console.error('Error fetching skill sets:', error);
-        toast({
-          description: 'Failed to load skill sets',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skill sets');
       }
     };
 
@@ -181,10 +178,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         setGangOriginList(data);
       } catch (error) {
         console.error('Error fetching Gang Origins:', error);
-        toast({
-          description: 'Failed to load Gang Origins',
-          variant: "destructive"
-        });
+        toast.error('Failed to load Gang Origins');
       }
     };
 
@@ -257,10 +251,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const handleSubmitType = async (operation: OperationType) => {
    // For POST and UPDATE operations, validate required fields.
   if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillType)) {
-    toast({
-      description: "Please fill in all required fields",
-      variant: "destructive"
-    });
+    toast.error("Please fill in all required fields");
     return;
   }
 
@@ -306,10 +297,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
       throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
     }
 
-    toast({
-      description: `Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
-      variant: "default"
-    });
+    toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     if (onSubmit) {
       onSubmit();
@@ -317,10 +305,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast({
-      description: `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`,
-      variant: "destructive"
-    });
+    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
   } finally {
     setIsLoading(false);
   }
@@ -329,10 +314,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
 const handleSubmitSkill = async (operation: OperationType) => {
   // For POST and UPDATE operations, validate required fields.
   if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillName || !skillType)) {
-    toast({
-      description: "Please fill in all required fields",
-      variant: "destructive"
-    });
+    toast.error("Please fill in all required fields");
     return;
   }
 
@@ -385,10 +367,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
       await saveSkillEffects(skillId, skillEffects, skillNameList);
     }
 
-    toast({
-      description: `Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
-      variant: "default"
-    });
+    toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     if (onSubmit) {
       onSubmit();
@@ -396,10 +375,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
     onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast({
-      description: `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`,
-      variant: "destructive"
-    });
+    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
   } finally {
     setIsLoading(false);
   }

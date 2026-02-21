@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
@@ -60,7 +60,7 @@ export default function GangVehicles({
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   const [isSellLoading, setIsSellLoading] = useState(false);
   const [isUnassignLoading, setIsUnassignLoading] = useState(false);
-  const { toast } = useToast();
+  
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [sellingVehicle, setSellingVehicle] = useState<CombinedVehicleProps | null>(null);
@@ -135,7 +135,7 @@ export default function GangVehicles({
         throw new Error(result.error || 'Failed to unassign vehicle');
       }
 
-      toast({ title: 'Success', description: `${vehicle.vehicle_name || vehicle.vehicle_type} unassigned` });
+      toast.success('Success', { description: `${vehicle.vehicle_name || vehicle.vehicle_type} unassigned` });
     } catch (error) {
       console.error('Error unassigning vehicle:', error);
 
@@ -152,7 +152,7 @@ export default function GangVehicles({
         onGangRatingUpdate(originalRating);
       }
 
-      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to unassign vehicle', variant: 'destructive' });
+      toast.error('Error', { description: error instanceof Error ? error.message : 'Failed to unassign vehicle' });
     } finally {
       setIsUnassignLoading(false);
     }
@@ -276,10 +276,7 @@ export default function GangVehicles({
       setSelectedFighter('');
 
       // Show optimistic success message
-      toast({
-        title: "Success",
-        description: `Vehicle assigned to fighter successfully`,
-      });
+      toast.success("Success", { description: `Vehicle assigned to fighter successfully` });
 
       // NOW make the API call using server action
       const result = await assignVehicleToFighter({
@@ -350,11 +347,7 @@ export default function GangVehicles({
       setSelectedVehicle(null);
       setSelectedFighter('');
 
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move vehicle to fighter",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to move vehicle to fighter" });
     } finally {
       setIsLoading(false);
     }
@@ -451,10 +444,7 @@ export default function GangVehicles({
       }
 
       // Show optimistic success message
-      toast({
-        title: "Success",
-        description: "Vehicle updated successfully",
-      });
+      toast.success("Success", { description: "Vehicle updated successfully" });
 
       // NOW make the API call using server action
       const assignedFighter = editingVehicle.assigned_to ?
@@ -495,11 +485,7 @@ export default function GangVehicles({
         }
       }
 
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update vehicle",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to update vehicle" });
       return false;
     } finally {
       setIsEditLoading(false);
@@ -572,10 +558,7 @@ export default function GangVehicles({
         onGangWealthUpdate(result.data.gang.wealth);
       }
 
-      toast({
-        title: 'Success',
-        description: `${sellingVehicle.vehicle_name || sellingVehicle.vehicle_type} sold for ${sellAmount} credits`,
-      });
+      toast.success('Success', { description: `${sellingVehicle.vehicle_name || sellingVehicle.vehicle_type} sold for ${sellAmount} credits` });
 
       setSellingVehicle(null);
       setSelectedVehicle(null);
@@ -597,11 +580,7 @@ export default function GangVehicles({
         onGangWealthUpdate(originalWealth);
       }
 
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to sell vehicle',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: error instanceof Error ? error.message : 'Failed to sell vehicle' });
       return false;
     } finally {
       setIsSellLoading(false);
@@ -656,10 +635,7 @@ export default function GangVehicles({
       }
 
       // Show optimistic success message
-      toast({
-        description: `${deletingVehicle.vehicle_name || deletingVehicle.vehicle_type} has been deleted.`,
-        variant: "default"
-      });
+      toast.success(`${deletingVehicle.vehicle_name || deletingVehicle.vehicle_type} has been deleted.`);
 
       // Close the modal immediately for better UX
       setDeletingVehicle(null);
@@ -704,10 +680,7 @@ export default function GangVehicles({
       }
 
       // Show error message
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete vehicle',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete vehicle');
       
       // Reopen the modal since the deletion failed
       setDeletingVehicle(deletingVehicle);

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
 
@@ -785,7 +785,7 @@ export function EditFighterModal({
       if (ctx && 'snapshot' in (ctx as any)) {
         onEditError?.((ctx as any).snapshot);
       }
-      toast({ variant: 'destructive', description: err instanceof Error ? err.message : 'Failed to update fighter' });
+      toast.error(err instanceof Error ? err.message : 'Failed to update fighter');
     },
     onSuccess: async (serverFighter, submit, ctx) => {
       if (ctx && 'optimistic' in (ctx as any) && 'snapshot' in (ctx as any)) {
@@ -814,15 +814,12 @@ export function EditFighterModal({
           }
         } catch (error) {
           console.error('Failed to save archetype skill access:', error);
-          toast({
-            description: 'Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.',
-            variant: 'destructive'
-          });
+          toast.error('Fighter updated but skill access save failed. Please try again via Customise Skill Set Access.');
           return; // Don't show success toast
         }
       }
 
-      toast({ description: 'Fighter updated successfully' });
+      toast.success('Fighter updated successfully');
     }
   });
 
@@ -1340,21 +1337,18 @@ export function EditFighterModal({
       if (onSubmit) {
         const ok = await onSubmit(submitData);
         if (ok) {
-          toast({ description: 'Fighter updated successfully', variant: 'default' });
+          toast.success('Fighter updated successfully');
           onClose();
         }
         return ok;
       }
 
       // If no path available, prevent close
-      toast({ description: 'No submit handler provided', variant: 'destructive' });
+      toast.error('No submit handler provided');
       return false;
     } catch (error) {
       console.error('Error updating fighter:', error);
-      toast({
-        description: 'Failed to update fighter',
-        variant: "destructive"
-      });
+      toast.error('Failed to update fighter');
       return false;
     }
   };

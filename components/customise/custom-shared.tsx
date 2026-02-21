@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { CustomFighterType } from '@/types/fighter';
 import { CustomEquipment } from '@/types/equipment';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { shareCustomFighter, shareCustomEquipment } from '@/app/actions/customise/custom-share';
@@ -32,7 +32,7 @@ export function ShareCustomFighterModal({
   onSuccess
 }: ShareCustomFighterModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // Fetch shared campaigns using TanStack Query
@@ -62,40 +62,28 @@ export function ShareCustomFighterModal({
   // Show error toast if fetch failed
   useEffect(() => {
     if (fetchError) {
-      toast({
-        description: 'Failed to load shared campaigns',
-        variant: 'destructive'
-      });
+      toast.error('Failed to load shared campaigns');
     }
-  }, [fetchError, toast]);
+  }, [fetchError]);
 
   // TanStack Query mutation for sharing custom fighters
   const shareFighterMutation = useMutation({
     mutationFn: (campaignIds: string[]) => shareCustomFighter(fighter.id, campaignIds),
     onSuccess: (result, campaignIds) => {
       if (result.success) {
-        toast({
-          description: campaignIds.length > 0
+        toast.success(campaignIds.length > 0
             ? `Custom fighter shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
-            : 'Custom fighter unshared from all campaigns',
-          variant: 'default'
-        });
+            : 'Custom fighter unshared from all campaigns');
         queryClient.invalidateQueries({ queryKey: ['customFighters'] });
         queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'fighter', fighter.id] });
         onSuccess?.();
         onClose();
       } else {
-        toast({
-          description: result.error || 'Failed to share custom fighter',
-          variant: 'destructive'
-        });
+        toast.error(result.error || 'Failed to share custom fighter');
       }
     },
     onError: (error: Error) => {
-      toast({
-        description: error.message || 'Failed to share custom fighter',
-        variant: 'destructive'
-      });
+      toast.error(error.message || 'Failed to share custom fighter');
     }
   });
 
@@ -184,7 +172,7 @@ export function ShareCustomEquipmentModal({
   onSuccess
 }: ShareCustomEquipmentModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // Fetch shared campaigns using TanStack Query
@@ -214,40 +202,28 @@ export function ShareCustomEquipmentModal({
   // Show error toast if fetch failed
   useEffect(() => {
     if (fetchError) {
-      toast({
-        description: 'Failed to load shared campaigns',
-        variant: 'destructive'
-      });
+      toast.error('Failed to load shared campaigns');
     }
-  }, [fetchError, toast]);
+  }, [fetchError]);
 
   // TanStack Query mutation for sharing custom equipment
   const shareEquipmentMutation = useMutation({
     mutationFn: (campaignIds: string[]) => shareCustomEquipment(equipment.id, campaignIds),
     onSuccess: (result, campaignIds) => {
       if (result.success) {
-        toast({
-          description: campaignIds.length > 0
+        toast.success(campaignIds.length > 0
             ? `Custom equipment shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
-            : 'Custom equipment unshared from all campaigns',
-          variant: 'default'
-        });
+            : 'Custom equipment unshared from all campaigns');
         queryClient.invalidateQueries({ queryKey: ['customEquipment'] });
         queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'equipment', equipment.id] });
         onSuccess?.();
         onClose();
       } else {
-        toast({
-          description: result.error || 'Failed to share custom equipment',
-          variant: 'destructive'
-        });
+        toast.error(result.error || 'Failed to share custom equipment');
       }
     },
     onError: (error: Error) => {
-      toast({
-        description: error.message || 'Failed to share custom equipment',
-        variant: 'destructive'
-      });
+      toast.error(error.message || 'Failed to share custom equipment');
     }
   });
 

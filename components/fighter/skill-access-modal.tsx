@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch";
 import {
   saveFighterSkillAccessOverrides,
@@ -31,7 +31,7 @@ export function SkillAccessModal({
   isOpen,
   onClose
 }: SkillAccessModalProps) {
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const [skillAccess, setSkillAccess] = useState<LocalSkillAccess[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -71,16 +71,10 @@ export function SkillAccessModal({
   // Show error toast if data failed to load
   useEffect(() => {
     if (skillTypesError) {
-      toast({
-        description: 'Failed to load skill types',
-        variant: 'destructive'
-      });
+      toast.error('Failed to load skill types');
     }
     if (skillAccessError) {
-      toast({
-        description: skillAccessError instanceof Error ? skillAccessError.message : 'Failed to load skill access',
-        variant: 'destructive'
-      });
+      toast.error(skillAccessError instanceof Error ? skillAccessError.message : 'Failed to load skill access');
     }
   }, [skillTypesError, skillAccessError, toast]);
 
@@ -176,14 +170,11 @@ export function SkillAccessModal({
     onSuccess: () => {
       // Invalidate the TanStack Query cache for skill access
       queryClient.invalidateQueries({ queryKey: ['fighter-skill-access', fighterId] });
-      toast({ description: 'Skill access updated successfully' });
+      toast.success('Skill access updated successfully');
       onClose();
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        description: error instanceof Error ? error.message : 'Failed to save skill access'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to save skill access');
     }
   });
 

@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
@@ -232,7 +232,7 @@ export default function GangAdditions({
   onFighterAdded,
   gangAffiliationId,
 }: GangAdditionsProps) {
-  const { toast } = useToast();
+  
   const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
   const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
   const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
@@ -333,10 +333,7 @@ export default function GangAdditions({
       setGangAdditionTypes(transformedData);
     } catch (error) {
       console.error('Error fetching gang addition types:', error);
-      toast({
-        description: "Failed to load gang additions",
-        variant: "destructive"
-      });
+      toast.error("Failed to load gang additions");
     }
   };
 
@@ -1135,10 +1132,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       
       closeModal();
 
-      toast({
-        description: `${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
-        variant: "default"
-      });
+      toast.success(`${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`);
 
       return true;
     } catch (error) {

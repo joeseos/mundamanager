@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { FighterProps } from '@/types/fighter';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StashItem, ResourceUpdate, DefaultImageEntry } from '@/types/gang';
@@ -174,7 +174,7 @@ export default function Gang({
   hidden: initialHidden,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
-  const { toast } = useToast();
+  
   
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);
@@ -614,10 +614,7 @@ export default function Gang({
       // Show error toast
       console.error('Error updating gang:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update gang';
-      toast({
-        variant: "destructive",
-        description: errorMessage
-      });
+      toast.error(errorMessage);
     },
     onSuccess: (result, variables) => {
       // Sync with server response
@@ -633,9 +630,7 @@ export default function Gang({
       }
 
       // Show success toast
-      toast({
-        description: "Gang updated successfully"
-      });
+      toast.success("Gang updated successfully");
     }
   });
 
@@ -690,15 +685,10 @@ export default function Gang({
         setCampaignResources(context.snapshot.campaignResources);
       }
       console.error('Error updating resources:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : 'Failed to update resources'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to update resources');
     },
     onSuccess: () => {
-      toast({
-        description: "Resources updated successfully"
-      });
+      toast.success("Resources updated successfully");
     }
   });
 
@@ -830,10 +820,7 @@ export default function Gang({
       setAvailableVariants(data);
     } catch (error) {
       console.error('Error fetching variants:', error);
-      toast({
-        description: 'Failed to load variants',
-        variant: "destructive"
-      });
+      toast.error('Failed to load variants');
     }
     
     setShowEditModal(true); // Only open AFTER variants are ready
@@ -909,11 +896,7 @@ export default function Gang({
       }
     } catch (error) {
       console.error('Error updating positions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update fighter positions",
-        variant: "destructive"
-      });
+      toast.error("Error", { description: "Failed to update fighter positions" });
     }
   };
 

@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 import { createClient } from "@/utils/supabase/client"
 import { SubmitButton } from "./submit-button"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { gangListRank } from "@/utils/gangListRank"
 import { gangVariantRank } from "@/utils/gangVariantRank"
 import { createGang } from "@/app/actions/create-gang"
@@ -92,7 +92,7 @@ export function CreateGangButton() {
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
-  const { toast } = useToast();
+  
   const router = useRouter();
   const searchParams = useSearchParams();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
@@ -302,19 +302,12 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           // Trigger router refresh to update server state
           router.refresh();
         }
-
-        toast({
-          title: "Success!",
-          description: `${gangName} has been created successfully.`,
-        })
+        
+        toast.success("Success!", { description: `${gangName} has been created successfully.` });
       } catch (err) {
         console.error('Error creating gang:', err)
         setError('Failed to create gang. Please try again.')
-        toast({
-          title: "Error",
-          description: "Failed to create gang. Please try again.",
-          variant: "destructive",
-        })
+        toast.error("Error", { description: "Failed to create gang. Please try again." });
       } finally {
         setIsLoading(false)
       }

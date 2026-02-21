@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
@@ -17,7 +17,7 @@ const numericInputClass = "mt-1 block w-full rounded-md border border-border px-
 const regularInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2";
 
 export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVehicleTypeModalProps) {
-  const { toast } = useToast();
+  
   const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
   const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
@@ -70,10 +70,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       setEquipment(data);
     } catch (error) {
       console.error('Error fetching equipment:', error);
-      toast({
-        description: 'Failed to load equipment',
-        variant: "destructive"
-      });
+      toast.error('Failed to load equipment');
     }
   };
 
@@ -85,10 +82,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       setGangOrigins(data);
     } catch (error) {
       console.error('Error fetching gang origins:', error);
-      toast({
-        description: 'Failed to load gang origins',
-        variant: "destructive"
-      });
+      toast.error('Failed to load gang origins');
     }
   };
 
@@ -153,10 +147,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
         throw new Error('Failed to create vehicle type');
       }
 
-      toast({
-        title: "Success",
-        description: "Vehicle type has been created successfully",
-      });
+      toast.success("Success", { description: "Vehicle type has been created successfully" });
 
       resetVehicleForm();
       if (onSubmit) {
@@ -166,11 +157,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       return true; // Close modal
     } catch (error) {
       console.error('Error submitting vehicle type:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create vehicle type",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to create vehicle type" });
       return false; // Keep modal open
     }
   };
@@ -188,11 +175,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
 
     const handleSave = async () => {
       if (!selectedOrigin || !selectedEquipment) {
-        toast({
-          title: "Validation Error",
-          description: "Please select both a gang origin and equipment",
-          variant: "destructive",
-        });
+        toast.error("Validation Error", { description: "Please select both a gang origin and equipment" });
         return;
       }
 
@@ -200,11 +183,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       const equipmentItem = equipment.find(e => e.id === selectedEquipment);
 
       if (!origin || !equipmentItem) {
-        toast({
-          title: "Error",
-          description: "Selected origin or equipment not found",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Selected origin or equipment not found" });
         return;
       }
 
@@ -213,11 +192,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       );
 
       if (exists) {
-        toast({
-          title: "Duplicate Entry",
-          description: "This gang origin and equipment combination already exists",
-          variant: "destructive",
-        });
+        toast.error("Duplicate Entry", { description: "This gang origin and equipment combination already exists" });
         return;
       }
 
@@ -234,16 +209,9 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
         setSelectedOrigin('');
         setSelectedEquipment('');
 
-        toast({
-          title: "Success",
-          description: "Gang origin equipment added successfully",
-        });
+        toast.success("Success", { description: "Gang origin equipment added successfully" });
       } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to add gang origin equipment",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Failed to add gang origin equipment" });
       } finally {
         setIsSaving(false);
       }
@@ -351,11 +319,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
 
     const handleSave = async () => {
       if (!selectedGangType || !selectedEquipment) {
-        toast({
-          title: "Validation Error",
-          description: "Please select both a gang type and equipment",
-          variant: "destructive",
-        });
+        toast.error("Validation Error", { description: "Please select both a gang type and equipment" });
         return;
       }
 
@@ -363,11 +327,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       const equipmentItem = equipment.find(e => e.id === selectedEquipment);
 
       if (!gangType || !equipmentItem) {
-        toast({
-          title: "Error",
-          description: "Selected gang type or equipment not found",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Selected gang type or equipment not found" });
         return;
       }
 
@@ -377,11 +337,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       );
 
       if (exists) {
-        toast({
-          title: "Duplicate Entry",
-          description: "This gang type and equipment combination already exists",
-          variant: "destructive",
-        });
+        toast.error("Duplicate Entry", { description: "This gang type and equipment combination already exists" });
         return;
       }
 
@@ -399,16 +355,9 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
         setSelectedGangType('');
         setSelectedEquipment('');
 
-        toast({
-          title: "Success",
-          description: "Gang type equipment added successfully",
-        });
+        toast.success("Success", { description: "Gang type equipment added successfully" });
       } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to add gang type equipment",
-          variant: "destructive",
-        });
+        toast.error("Error", { description: "Failed to add gang type equipment" });
       } finally {
         setIsSaving(false);
       }

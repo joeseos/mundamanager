@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
@@ -61,7 +61,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
-  const { toast } = useToast();
+  
   const router = useRouter();
 
   // Use programmatic navigation to avoid Link prefetching
@@ -334,9 +334,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       return { battleId };
     },
     onSuccess: () => {
-      toast({
-        description: "Battle report deleted successfully"
-      });
+      toast.success("Battle report deleted successfully");
 
       // Trigger server refresh after successful delete
       onBattleAdd();
@@ -348,10 +346,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       onBattleAdd();
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
-      toast({
-        variant: "destructive",
-        description: errorMessage
-      });
+      toast.error(errorMessage);
     }
   });
 
@@ -621,10 +616,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const handleEditBattle = (battle: Battle) => {
     // Check if user has permission to edit this battle
     if (!canUserEditBattle(battle)) {
-      toast({
-        variant: "destructive",
-        description: "You don't have permission to edit this battle log."
-      });
+      toast.error("You don't have permission to edit this battle log.");
       return;
     }
 

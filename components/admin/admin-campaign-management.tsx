@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
 
@@ -45,7 +45,7 @@ export function AdminCampaignManagementModal({
   onClose, 
   onSubmit 
 }: AdminCampaignManagementModalProps) {
-  const { toast } = useToast();
+  
   
   // Category selection
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('campaign-types');
@@ -151,10 +151,7 @@ export function AdminCampaignManagementModal({
       setCampaignTypes(data);
     } catch (error) {
       console.error('Error fetching campaign types:', error);
-      toast({
-        description: 'Failed to load campaign types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load campaign types');
     }
   };
 
@@ -166,10 +163,7 @@ export function AdminCampaignManagementModal({
       setTerritories(data);
     } catch (error) {
       console.error('Error fetching territories:', error);
-      toast({
-        description: 'Failed to load territories',
-        variant: "destructive"
-      });
+      toast.error('Failed to load territories');
     }
   };
 
@@ -181,10 +175,7 @@ export function AdminCampaignManagementModal({
       setTriumphs(data);
     } catch (error) {
       console.error('Error fetching triumphs:', error);
-      toast({
-        description: 'Failed to load triumphs',
-        variant: "destructive"
-      });
+      toast.error('Failed to load triumphs');
     }
   };
 
@@ -210,10 +201,7 @@ export function AdminCampaignManagementModal({
 
   const handleSubmitCampaignType = async (operation: OperationType) => {
     if ((operation === OperationType.POST || operation === OperationType.UPDATE) && !campaignTypeName.trim()) {
-      toast({
-        description: "Campaign type name is required",
-        variant: "destructive"
-      });
+      toast.error("Campaign type name is required");
       return;
     }
 
@@ -330,10 +318,7 @@ export function AdminCampaignManagementModal({
         // If a triumph is removed from the list, it should be reassigned to another campaign type manually
       }
 
-      toast({
-        description: `Campaign type ${operation === OperationType.POST ? 'created' : 'updated'} successfully`,
-        variant: "default"
-      });
+      toast.success(`Campaign type ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
       await fetchAllData();
       
@@ -350,10 +335,7 @@ export function AdminCampaignManagementModal({
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
-      toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} campaign type`,
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} campaign type`);
     } finally {
       setIsLoading(false);
     }
@@ -379,10 +361,7 @@ export function AdminCampaignManagementModal({
 
   const handleSubmitTerritory = async (operation: OperationType) => {
     if ((operation === OperationType.POST || operation === OperationType.UPDATE) && !territoryName.trim()) {
-      toast({
-        description: "Territory name is required",
-        variant: "destructive"
-      });
+      toast.error("Territory name is required");
       return;
     }
 
@@ -424,10 +403,7 @@ export function AdminCampaignManagementModal({
         throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`);
       }
 
-      toast({
-        description: `Territory ${operation === OperationType.POST ? 'created' : 'updated'} successfully`,
-        variant: "default"
-      });
+      toast.success(`Territory ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
       await fetchAllData();
       
@@ -442,10 +418,7 @@ export function AdminCampaignManagementModal({
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
-      toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`,
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`);
     } finally {
       setIsLoading(false);
     }
@@ -474,10 +447,7 @@ export function AdminCampaignManagementModal({
   const handleSubmitTriumph = async (operation: OperationType) => {
     if ((operation === OperationType.POST || operation === OperationType.UPDATE) && 
         (!triumphName.trim() || !triumphCriteria.trim() || !triumphCampaignTypeId)) {
-      toast({
-        description: "Triumph name, criteria, and campaign type are required",
-        variant: "destructive"
-      });
+      toast.error("Triumph name, criteria, and campaign type are required");
       return;
     }
 
@@ -521,10 +491,7 @@ export function AdminCampaignManagementModal({
         throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`);
       }
 
-      toast({
-        description: `Triumph ${operation === OperationType.POST ? 'created' : 'updated'} successfully`,
-        variant: "default"
-      });
+      toast.success(`Triumph ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
       await fetchAllData();
       
@@ -540,10 +507,7 @@ export function AdminCampaignManagementModal({
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
-      toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`,
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`);
     } finally {
       setIsLoading(false);
     }

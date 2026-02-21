@@ -8,7 +8,7 @@ import Modal from "@/components/ui/modal";
 import { LuPlus, LuMinus } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 
 interface XpCase {
   id: string;
@@ -40,7 +40,7 @@ export function FighterXpModal({
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
-  const { toast } = useToast();
+  
   const fighterXpMutation = useMutation({
     mutationFn: updateFighterXpWithOoa,
     onError: (error) => {
@@ -200,20 +200,14 @@ export function FighterXpModal({
         }
       }
 
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
+      toast.success(successMessage);
     }).catch((error) => {
       console.error('Error adding XP:', error);
       
       // Rollback optimistic updates by reverting to original values
       onXpUpdated(currentXp, currentTotalXp, currentKills, currentKillCount);
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add XP',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add XP');
     });
 
     return true;

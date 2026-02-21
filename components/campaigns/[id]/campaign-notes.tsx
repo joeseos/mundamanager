@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { RichTextEditor, RichTextEditorHandle } from "@/components/ui/rich-text-editor";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
@@ -21,7 +21,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savedContent, setSavedContent] = useState<string>('');
-  const { toast } = useToast();
+  
   const editorRef = useRef<RichTextEditorHandle>(null);
 
   // Calculate character count from HTML content (rough estimate)
@@ -65,10 +65,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
       if (!result.success) {
         throw new Error(result.error);
       }
-      toast({
-        description: "Campaign Pack updated successfully",
-        variant: "default"
-      });
+      toast.success("Campaign Pack updated successfully");
       // Track the actual value sent to the server so refresh state matches
       setSavedContent(cleanNote);
       setIsEditing(false);
@@ -76,11 +73,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
       onNoteUpdate?.(cleanNote);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to update campaign notes');
-      toast({
-        title: "Error",
-        description: "Failed to update campaign notes",
-        variant: "destructive"
-      });
+      toast.error("Error", { description: "Failed to update campaign notes" });
     } finally {
       setIsSaving(false);
     }

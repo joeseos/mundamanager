@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { LuSquarePen } from "react-icons/lu";
 import { LuTrash2 } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
@@ -90,7 +90,7 @@ export default function CampaignTerritoryList({
   permissions,
   onTerritoryUpdate
 }: CampaignTerritoryListProps) {
-  const { toast } = useToast();
+  
   const router = useRouter();
 
   // Use programmatic navigation to avoid Link prefetching
@@ -162,9 +162,7 @@ export default function CampaignTerritoryList({
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `${context?.gangName} assigned to ${context?.territoryName}`
-      });
+      toast.success(`${context?.gangName} assigned to ${context?.territoryName}`);
       
       // Close modal
       setShowGangModal(false);
@@ -176,10 +174,7 @@ export default function CampaignTerritoryList({
       
       // Note: Modal stays open on error to allow user to retry with a different selection
       console.error('Error assigning gang:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to assign gang to territory"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to assign gang to territory");
     }
   });
 
@@ -190,10 +185,7 @@ export default function CampaignTerritoryList({
     // Get gang details
     const gangData = getGangDetails(gangId);
     if (!gangData) {
-      toast({
-        variant: "destructive",
-        description: "Gang data not found"
-      });
+      toast.error("Gang data not found");
       return false;
     }
 
@@ -238,19 +230,14 @@ export default function CampaignTerritoryList({
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `Gang removed from ${context?.territoryName}`
-      });
+      toast.success(`Gang removed from ${context?.territoryName}`);
     },
     onError: (error, variables, context) => {
       // Rollback by refreshing data from server
       onTerritoryUpdate?.();
       
       console.error('Error removing gang:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to remove gang from territory"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to remove gang from territory");
     }
   });
 
@@ -304,9 +291,7 @@ export default function CampaignTerritoryList({
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `${context?.territoryName} updated successfully`
-      });
+      toast.success(`${context?.territoryName} updated successfully`);
       
       // Close modal
       setShowTerritoryEditModal(false);
@@ -317,10 +302,7 @@ export default function CampaignTerritoryList({
       onTerritoryUpdate?.();
       
       console.error('Error updating territory:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to update territory"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to update territory");
     }
   });
 
@@ -450,9 +432,7 @@ export default function CampaignTerritoryList({
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `${context?.territoryName} removed successfully`
-      });
+      toast.success(`${context?.territoryName} removed successfully`);
       
       // Close modal
       setShowDeleteModal(false);
@@ -463,10 +443,7 @@ export default function CampaignTerritoryList({
       onTerritoryUpdate?.();
       
       console.error('Error removing territory:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to remove territory"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to remove territory");
     }
   });
 

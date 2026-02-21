@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
@@ -76,7 +76,7 @@ export function FighterActions({
   onStatusSuccess
 }: FighterActionsProps) {
   const router = useRouter();
-  const { toast } = useToast();
+  
   
   const [modals, setModals] = useState<ActionModals>({
     delete: false,
@@ -177,12 +177,12 @@ export function FighterActions({
           successMessage = prev?.captured ? 'Fighter has been rescued from captivity' : 'Fighter has been marked as captured';
           break;
       }
-      toast({ description: successMessage });
+      toast.success(successMessage);
       onFighterUpdate?.();
       onStatusSuccess?.();
     },
     onError: (error, _vars, ctx) => {
-      toast({ description: error instanceof Error ? error.message : 'Failed to update fighter status', variant: 'destructive' });
+      toast.error(error instanceof Error ? error.message : 'Failed to update fighter status');
       if (ctx && 'snapshot' in (ctx as any)) {
         onStatusError?.((ctx as any).snapshot);
       }

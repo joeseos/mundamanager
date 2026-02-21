@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 
 enum OperationType {
   POST = 'POST',
@@ -30,7 +30,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
 
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     fetchScenarios();
@@ -44,10 +44,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
       setScenarios(data);
     } catch (error) {
       console.error('Error fetching scenarios:', error);
-      toast({
-        description: 'Failed to load scenarios',
-        variant: "destructive"
-      });
+      toast.error('Failed to load scenarios');
     }
   };
 
@@ -77,10 +74,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
     // Validate required fields
     if ((operation === OperationType.POST || operation === OperationType.UPDATE) && 
         (!scenarioName || scenarioNumber === '')) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -128,10 +122,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
         throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} scenario`);
       }
 
-      toast({
-        description: `Scenario ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
-        variant: "default"
-      });
+      toast.success(`Scenario ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
       // Refresh the scenarios list
       await fetchScenarios();
@@ -147,10 +138,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
-      toast({
-        description: `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} scenario`,
-        variant: "destructive"
-      });
+      toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} scenario`);
     } finally {
       setIsLoading(false);
     }

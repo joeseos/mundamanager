@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import {
   validateImageFile,
   processImageFile,
@@ -60,7 +60,7 @@ export function useRichTextImages({
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [hostedImageToRemove, setHostedImageToRemove] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { toast } = useToast();
+  
 
   // Storage URL helpers
   const getStorageBaseUrl = useCallback(() => {
@@ -123,22 +123,14 @@ export function useRichTextImages({
     // Validate file using shared utilities
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast({
-        title: validation.error?.includes('10MB') ? 'File too large' : 'Unsupported file type',
-        description: validation.error,
-        variant: 'destructive',
-      });
+      toast.error(validation.error?.includes('10MB') ? 'File too large' : 'Unsupported file type', { description: validation.error });
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
     // Check image limit
     if (campaignId && uploadedImageCount >= maxImages) {
-      toast({
-        title: 'Image limit reached',
-        description: `Maximum of ${maxImages} images can be uploaded per campaign.`,
-        variant: 'destructive',
-      });
+      toast.error('Image limit reached', { description: `Maximum of ${maxImages} images can be uploaded per campaign.` });
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -188,21 +180,13 @@ export function useRichTextImages({
           // Notify parent to insert image into editor (count updates automatically via content)
           onImageInserted?.(urlData.publicUrl);
 
-          toast({
-            title: 'Success',
-            description: 'Image uploaded successfully',
-            variant: 'default',
-          });
+          toast.success('Success', { description: 'Image uploaded successfully' });
 
           // Close image input
           onCloseImageInput?.();
         } catch (error) {
           console.error('Error processing/uploading image:', error);
-          toast({
-            title: 'Upload failed',
-            description: 'Failed to upload image. Please try again.',
-            variant: 'destructive',
-          });
+          toast.error('Upload failed', { description: 'Failed to upload image. Please try again.' });
         } finally {
           setIsUploadingImage(false);
           if (fileInputRef.current) fileInputRef.current.value = '';
@@ -211,15 +195,11 @@ export function useRichTextImages({
       reader.readAsDataURL(processedFile);
     } catch (error) {
       console.error('Error processing image:', error);
-      toast({
-        title: 'File processing failed',
-        description: 'Failed to process the image. Please try a different file.',
-        variant: 'destructive',
-      });
+      toast.error('File processing failed', { description: 'Failed to process the image. Please try a different file.' });
       setIsUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [campaignId, maxImages, uploadedImageCount, onImageInserted, onCloseImageInput, toast]);
+  }, [campaignId, maxImages, uploadedImageCount, onImageInserted, onCloseImageInput]);
 
   const removeHostedImage = useCallback(async (src: string, removeImageFromEditor: () => void) => {
     const storagePath = getStoragePathFromUrl(src);
@@ -238,18 +218,10 @@ export function useRichTextImages({
         setDraftUploads((prev) => prev.filter((d) => d.draftPath !== storagePath));
         removeImageFromEditor(); // Count updates automatically via content change
         resetImageInputState();
-        toast({
-          title: 'Image removed',
-          description: 'The image was deleted from storage.',
-          variant: 'default',
-        });
+        toast.success('Image removed', { description: 'The image was deleted from storage.' });
       } catch (error) {
         console.error('Error removing hosted image:', error);
-        toast({
-          title: 'Remove failed',
-          description: 'Failed to delete the image. Please try again.',
-          variant: 'destructive',
-        });
+        toast.error('Remove failed', { description: 'Failed to delete the image. Please try again.' });
       } finally {
         setIsUploadingImage(false);
       }
@@ -260,12 +232,8 @@ export function useRichTextImages({
     setPendingDeletes((prev) => prev.includes(storagePath) ? prev : [...prev, storagePath]);
     removeImageFromEditor(); // Count updates automatically via content change
     resetImageInputState();
-    toast({
-      title: 'Image marked for removal',
-      description: 'It will be deleted when you save.',
-      variant: 'default',
-    });
-  }, [campaignId, getStoragePathFromUrl, resetImageInputState, toast]);
+    toast.success('Image marked for removal', { description: 'It will be deleted when you save.' });
+  }, [campaignId, getStoragePathFromUrl, resetImageInputState]);
 
   const finalizeAssets = useCallback(async (currentHtml: string): Promise<string> => {
     let html = currentHtml;
@@ -390,14 +358,10 @@ export function useRichTextImages({
       return html;
     } catch (error) {
       console.error('Error finalizing assets:', error);
-      toast({
-        title: 'Save warning',
-        description: 'Failed to finalize images. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Save warning', { description: 'Failed to finalize images. Please try again.' });
       return html;
     }
-  }, [campaignId, draftUploads, pendingDeletes, getStorageBaseUrl, toast]);
+  }, [campaignId, draftUploads, pendingDeletes, getStorageBaseUrl]);
 
   const discardAssets = useCallback(async () => {
     if (!campaignId) return;

@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { useRouter } from "next/navigation";
 import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { ImInfo } from "react-icons/im";
@@ -82,7 +82,7 @@ export default function CampaignEditModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [confirmText, setConfirmText] = useState('');
-  const { toast } = useToast();
+  
   const router = useRouter();
 
   // Reset form values when campaign data changes or when modal opens
@@ -135,18 +135,13 @@ export default function CampaignEditModal({
         throw new Error(result.error);
       }
 
-      toast({
-        description: "Campaign deleted successfully"
-      });
+      toast.success("Campaign deleted successfully");
 
       router.push('/?tab=campaigns');
       return true;
     } catch (error) {
       console.error('Error deleting campaign:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to delete campaign"
-      });
+      toast.error("Failed to delete campaign");
       return false;
     } finally {
       setIsDeleting(false);

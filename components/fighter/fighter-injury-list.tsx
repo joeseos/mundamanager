@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { Button } from '@/components/ui/button';
@@ -78,8 +78,6 @@ export function InjuriesList({
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
-  const { toast} = useToast();
-
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
     mutationFn: async (variables: { 
@@ -162,10 +160,7 @@ export function InjuriesList({
       if (variables.set_captured) statusMessage.push('fighter marked as Captured');
 
       const successText = is_spyrer ? 'Rig glitch added successfully' : 'Lasting injury added successfully';
-      toast({
-        description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
-        variant: "default"
-      });
+      toast.success(`${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`);
 
       if (addFormOnly) onRequestClose?.();
 
@@ -197,10 +192,7 @@ export function InjuriesList({
       }
 
       const errorText = is_spyrer ? 'Failed to add rig glitch' : 'Failed to add lasting injury';
-      toast({
-        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
+      toast.error(`${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 
@@ -256,10 +248,7 @@ export function InjuriesList({
       };
     },
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `${context?.injuryName || 'Injury'} removed successfully`,
-        variant: "default"
-      });
+      toast.success(`${context?.injuryName || 'Injury'} removed successfully`);
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates
@@ -275,10 +264,7 @@ export function InjuriesList({
       }
 
       const errorText = is_spyrer ? 'Failed to delete rig glitch' : 'Failed to delete lasting injury';
-      toast({
-        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
+      toast.error(`${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 
@@ -338,10 +324,7 @@ export function InjuriesList({
       };
     },
     onSuccess: (result) => {
-      toast({
-        description: `Successfully cleared ${result.clearedCount} rig glitches. New kill count: ${result.newKillCount}`,
-        variant: "default"
-      });
+      toast.success(`Successfully cleared ${result.clearedCount} rig glitches. New kill count: ${result.newKillCount}`);
       setIsClearAllModalOpen(false);
     },
     onError: (error, variables, context) => {
@@ -353,10 +336,7 @@ export function InjuriesList({
         onKillCountUpdate(context.previousKillCount);
       }
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to clear rig glitches',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to clear rig glitches');
     }
   });
 
@@ -384,17 +364,11 @@ export function InjuriesList({
       const statusMessage: string[] = [];
       
       const successText = is_spyrer ? 'Rig glitch logged successfully' : 'Lasting injury logged successfully';
-      toast({
-        description: `${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`,
-        variant: "default"
-      });
+      toast.success(`${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`);
     },
     onError: (error, variables, context) => {
       const errorText = is_spyrer ? 'Failed to log rig glitch' : 'Failed to log lasting injury';
-      toast({
-        description: `${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
+      toast.error(`${errorText}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   });
 
@@ -476,10 +450,7 @@ export function InjuriesList({
       setLocalAvailableInjuries(data);
     } catch (error) {
       console.error(is_spyrer ? 'Error fetching rig glitches:' : 'Error fetching lasting injuries:', error);
-      toast({
-        description: is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types',
-        variant: "destructive"
-      });
+      toast.error(is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types');
     } finally {
       setIsLoadingInjuries(false);
     }
@@ -511,20 +482,14 @@ export function InjuriesList({
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
-      toast({
-        description: "Please select a lasting injury",
-        variant: "destructive"
-      });
+      toast.error("Please select a lasting injury");
       return false;
     }
 
     // Find the selected injury object
     const injury = localAvailableInjuries.find(injury => injury.id === selectedInjuryId);
     if (!injury) {
-      toast({
-        description: "Selected lasting injury not found",
-        variant: "destructive"
-      });
+      toast.error("Selected lasting injury not found");
       return false;
     }
 
@@ -547,10 +512,7 @@ export function InjuriesList({
         return false;
       }
       // Show error instead of silently falling through
-      toast({
-        description: "This effect requires equipment but the fighter has no weapons",
-        variant: "destructive"
-      });
+      toast.error("This effect requires equipment but the fighter has no weapons");
       return false;
     }
 
@@ -583,10 +545,7 @@ export function InjuriesList({
 
   const proceedWithAddingInjury = (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
     if (!selectedInjuryId) {
-      toast({
-        description: "Please select a lasting injury",
-        variant: "destructive"
-      });
+      toast.error("Please select a lasting injury");
       return;
     }
 

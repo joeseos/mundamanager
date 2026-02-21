@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useTransition, useCallback } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
@@ -158,7 +158,7 @@ export default function CampaignPageContent({
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
-  const { toast } = useToast();
+  
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -217,10 +217,7 @@ export default function CampaignPageContent({
       
     } catch (error) {
       console.error('Error refreshing campaign data:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to refresh campaign data"
-      });
+      toast.error("Failed to refresh campaign data");
     }
   };
 
@@ -312,18 +309,13 @@ export default function CampaignPageContent({
         updated_at: now,
       }));
       
-      toast({
-        description: "Campaign settings updated successfully",
-      });
+      toast.success("Campaign settings updated successfully");
       
       setShowEditModal(false);
       return true;
     } catch (error) {
       console.error('Error updating campaign:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to update campaign settings",
-      });
+      toast.error("Failed to update campaign settings");
       return false;
     }
   };
@@ -353,9 +345,7 @@ export default function CampaignPageContent({
     // Open the API endpoint directly in a new tab
     window.open(`/api/campaigns/${campaignData.id}/data?format=${format}`, '_blank');
     
-    toast({
-      description: `Campaign data opened in new tab (${format.toUpperCase()})`
-    });
+    toast(`Campaign data opened in new tab (${format.toUpperCase()})`);
     
     setShowExportModal(false);
   };

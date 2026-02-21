@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { addMemberToCampaign } from "@/app/actions/campaigns/[id]/campaign-members"
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
@@ -50,7 +50,6 @@ export default function MemberSearchBar({
   const [isLoading, setIsLoading] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const supabase = createClient()
-  const { toast } = useToast()
 
   // Search functionality using an API route
   useEffect(() => {
@@ -92,10 +91,7 @@ export default function MemberSearchBar({
       } catch (error) {
         console.error('Error searching users:', error);
         setSearchResults([]);
-        toast({
-          variant: "destructive",
-          description: "Failed to search users"
-        });
+        toast.error("Failed to search users");
       } finally {
         setIsLoading(false);
       }
@@ -136,17 +132,12 @@ export default function MemberSearchBar({
       };
 
       onMemberAdd(newMember);
-      toast({
-        description: `Added ${member.username} to the campaign`
-      });
+      toast.success(`Added ${member.username} to the campaign`);
       setQuery('');
       setSearchResults([]);
     } catch (error) {
       console.error('Error adding member to campaign:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to add member to campaign"
-      });
+      toast.error("Failed to add member to campaign");
     } finally {
       setIsAdding(false)
     }

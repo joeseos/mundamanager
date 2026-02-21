@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Equipment } from '@/types/equipment';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,7 +26,7 @@ export function AdminFighterTradingPostAccess({
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
   const [excludeExclusive, setExcludeExclusive] = useState(true);
-  const { toast } = useToast();
+  
 
   // Group equipment by category
   React.useEffect(() => {
@@ -51,10 +51,7 @@ export function AdminFighterTradingPostAccess({
   }, [equipment]);
 
   const handleSave = () => {
-    toast({
-      description: "Trading Post options saved. Remember to update the fighter type to apply changes.",
-      variant: "default"
-    });
+    toast.success("Trading Post options saved. Remember to update the fighter type to apply changes.");
     return true;
   };
 

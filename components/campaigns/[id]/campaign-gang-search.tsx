@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
 import { Database } from "@/types/supabase"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { LuTrash2 } from 'react-icons/lu'
 import { useMutation } from '@tanstack/react-query'
@@ -29,7 +29,6 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
   const [availableAllegiances, setAvailableAllegiances] = useState<Array<{ id: string; allegiance_name: string; is_custom: boolean }>>([])
   const [selectedAllegiances, setSelectedAllegiances] = useState<Record<string, { id: string; is_custom: boolean }>>({})
   const supabase = createClient()
-  const { toast } = useToast()
 
   // Fetch available allegiances
   useEffect(() => {
@@ -99,10 +98,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
 
       } catch (error) {
         console.error('Error loading campaign gangs:', error);
-        toast({
-          variant: "destructive",
-          description: "Failed to load campaign gangs"
-        });
+        toast.error("Failed to load campaign gangs");
       }
     };
 
@@ -229,9 +225,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: result.message || `Added ${context?.gangName} to the campaign`
-      });
+      toast.success(result.message || `Added ${context?.gangName} to the campaign`);
     },
     onError: (error, variables, context) => {
       // Rollback optimistic update
@@ -239,10 +233,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
         setCampaignGangs(context.previousGangs);
       }
       
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add gang to campaign',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add gang to campaign');
     }
   });
 
@@ -270,9 +261,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: result.message || `Removed ${context?.gangName} from the campaign`
-      });
+      toast.success(result.message || `Removed ${context?.gangName} from the campaign`);
     },
     onError: (error, variables, context) => {
       // Rollback optimistic update
@@ -280,10 +269,7 @@ export default function GangSearch({ campaignId }: GangSearchProps) {
         setCampaignGangs(context.previousGangs);
       }
       
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to remove gang from campaign"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to remove gang from campaign");
     }
   });
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { List } from "@/components/ui/list";
@@ -65,7 +65,7 @@ export function PowerBoostsList({
   const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
-  const { toast } = useToast();
+  
 
   // TanStack Query mutation for adding power boosts
   const addPowerBoostMutation = useMutation({
@@ -112,10 +112,7 @@ export function PowerBoostsList({
       };
     },
     onSuccess: (result, variables, context) => {
-      toast({
-        title: "Success!",
-        description: `Successfully added ${context?.boostName || 'power boost'}`
-      });
+      toast.success("Success!", { description: `Successfully added ${context?.boostName || 'power boost'}` });
     },
     onError: (error, variables, context) => {
       // Rollback optimistic power boost update
@@ -130,10 +127,7 @@ export function PowerBoostsList({
         }
       }
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add power boost',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add power boost');
     }
   });
 
@@ -178,10 +172,7 @@ export function PowerBoostsList({
       };
     },
     onSuccess: (result, variables, context) => {
-      toast({
-        title: "Success!",
-        description: `Successfully removed ${context?.boostName}. Refunded ${context?.killCost} kills.`
-      });
+      toast.success("Success!", { description: `Successfully removed ${context?.boostName}. Refunded ${context?.killCost} kills.` });
     },
     onError: (error, variables, context) => {
       // Rollback optimistic power boost update
@@ -196,10 +187,7 @@ export function PowerBoostsList({
         }
       }
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete power boost',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete power boost');
     }
   });
 
@@ -226,10 +214,7 @@ export function PowerBoostsList({
       setAvailablePowerBoosts(data || []);
     } catch (error) {
       console.error('Error fetching power boosts:', error);
-      toast({
-        description: 'Failed to load power boost types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load power boost types');
     } finally {
       setIsLoadingPowerBoosts(false);
     }
@@ -286,28 +271,19 @@ export function PowerBoostsList({
 
   const handleAddPowerBoost = async () => {
     if (!selectedPowerBoostId) {
-      toast({
-        description: "Please select a power boost",
-        variant: "destructive"
-      });
+      toast.error("Please select a power boost");
       return false;
     }
 
     const boost = availablePowerBoosts.find(b => b.id === selectedPowerBoostId);
     if (!boost) {
-      toast({
-        description: "Selected power boost not found",
-        variant: "destructive"
-      });
+      toast.error("Selected power boost not found");
       return false;
     }
 
     // Check kill cost before proceeding
     if (currentKillCount < editableKillCost) {
-      toast({
-        description: `Not enough kills. This power boost costs ${editableKillCost} kills but you only have ${currentKillCount}.`,
-        variant: "destructive"
-      });
+      toast.error(`Not enough kills. This power boost costs ${editableKillCost} kills but you only have ${currentKillCount}.`);
       return false;
     }
 
@@ -518,7 +494,7 @@ export function PowerBoostsList({
                       const match = rolled[0].item;
                       if (match?.id) {
                         setSelectedPowerBoostId(match.id);
-                        toast({ description: `Roll ${rolled[0].roll}: ${match.effect_name}` });
+                        toast(`Roll ${rolled[0].roll}: ${match.effect_name}`);
                       }
                     }
                   }}

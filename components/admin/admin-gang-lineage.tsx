@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { LuTrash2, LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
@@ -46,7 +46,7 @@ interface AdminGangLineageModalProps {
 }
 
 export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageModalProps) {
-  const { toast } = useToast();
+  
   
   // Split state for gang lineages by type and fighter types
   const [legacies, setLegacies] = useState<GangLineage[]>([]);
@@ -126,7 +126,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     if (selectedGangLineageId) {
       const typeForFetch = selectedType || lineageType;
       if (!typeForFetch) {
-        toast({ description: 'Please select a type first', variant: 'destructive' });
+        toast.error('Please select a type first');
       } else {
         fetchGangLineageDetails(selectedGangLineageId, typeForFetch as LineageType);
       }
@@ -166,10 +166,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       }
     } catch (error) {
       console.error('Error fetching gang lineages:', error);
-      toast({
-        description: 'Failed to load gang lineages',
-        variant: "destructive"
-      });
+      toast.error('Failed to load gang lineages');
     } finally {
       setIsLoading(false);
     }
@@ -183,10 +180,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       setFighterTypes(data);
     } catch (error) {
       console.error('Error fetching fighter types:', error);
-      toast({
-        description: 'Failed to load fighter types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load fighter types');
     }
   };
 
@@ -198,10 +192,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       setGangTypes(data);
     } catch (error) {
       console.error('Error fetching gang types:', error);
-      toast({
-        description: 'Failed to load gang types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load gang types');
     }
   };
 
@@ -234,10 +225,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       }
     } catch (error) {
       console.error('Error fetching gang lineage details:', error);
-      toast({
-        description: 'Failed to load gang lineage details',
-        variant: "destructive"
-      });
+      toast.error('Failed to load gang lineage details');
     } finally {
       setIsLoading(false);
     }
@@ -256,10 +244,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
   const handleCreateGangLineage = async () => {
     if (!gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType) {
-      toast({
-        description: 'Please fill in all required fields',
-        variant: "destructive"
-      });
+      toast.error('Please fill in all required fields');
       return false;
     }
 
@@ -283,10 +268,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         throw new Error(errorData.error || 'Failed to create gang lineage');
       }
 
-      toast({
-        description: "Gang lineage created successfully",
-        variant: "default"
-      });
+      toast.success("Gang lineage created successfully");
 
       // Refresh the current type list if matching
       if (lineageType && selectedType && lineageType === selectedType) {
@@ -296,10 +278,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       return true;
     } catch (error) {
       console.error('Error creating gang lineage:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to create gang lineage',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to create gang lineage');
       return false;
     } finally {
       setIsLoading(false);
@@ -308,10 +287,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
   const handleUpdateGangLineage = async () => {
     if (!selectedGangLineage || !gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType) {
-      toast({
-        description: 'Please fill in all required fields',
-        variant: "destructive"
-      });
+      toast.error('Please fill in all required fields');
       return;
     }
 
@@ -335,10 +311,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         throw new Error(errorData.error || 'Failed to update gang lineage');
       }
 
-      toast({
-        description: "Gang lineage updated successfully",
-        variant: "default"
-      });
+      toast.success("Gang lineage updated successfully");
 
       // Refresh current type list
       if (selectedType) {
@@ -352,10 +325,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       onClose();
     } catch (error) {
       console.error('Error updating gang lineage:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to update gang lineage',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to update gang lineage');
     } finally {
       setIsLoading(false);
     }
@@ -375,10 +345,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         throw new Error(errorData.error || 'Failed to delete gang lineage');
       }
 
-      toast({
-        description: "Gang lineage deleted successfully",
-        variant: "default"
-      });
+      toast.success("Gang lineage deleted successfully");
 
       // Refresh current type list and clear selection if deleted item was selected
       if (selectedType) {
@@ -393,10 +360,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       return true;
     } catch (error) {
       console.error('Error deleting gang lineage:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete gang lineage',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete gang lineage');
       return false;
     } finally {
       setIsLoading(false);
