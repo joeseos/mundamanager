@@ -5,7 +5,7 @@ import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomTerritory } from '@/app/lib/customise/custom-territories';
 import { updateCustomTerritory, deleteCustomTerritory, createCustomTerritory } from '@/app/actions/customise/custom-territories';
 import Modal from '@/components/ui/modal';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 
@@ -66,19 +66,12 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
       // Add to local state
       setTerritories(prev => [...prev, newTerritory]);
 
-      toast({
-        title: "Success",
-        description: "Custom territory created successfully",
-      });
+      toast.success("Success", { description: "Custom territory created successfully" });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error creating territory:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create territory",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to create territory" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);
@@ -186,19 +179,12 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
         )
       );
 
-      toast({
-        title: "Success",
-        description: "Territory updated successfully",
-      });
+      toast.success("Success", { description: "Territory updated successfully" });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error updating territory:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update territory",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to update territory" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);
@@ -219,19 +205,12 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
         prev.filter(item => item.id !== deleteModalData.id)
       );
 
-      toast({
-        title: "Success",
-        description: "Territory deleted successfully",
-      });
+      toast.success("Success", { description: "Territory deleted successfully" });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error deleting territory:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete territory",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to delete territory" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);
@@ -254,10 +233,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
       const createdTerritory = await createCustomTerritory(newTerritory);
 
       if (createdTerritory) {
-        toast({
-          title: "Success",
-          description: `${copyModalData.territory_name} has been copied to your custom territories.`,
-        });
+        toast.success("Success", { description: `${copyModalData.territory_name} has been copied to your custom territories.` });
         setCopyModalData(null);
         return true; // Return true to close modal
       } else {
@@ -265,11 +241,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
       }
     } catch (error) {
       console.error('Error copying territory:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to copy territory",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to copy territory" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);

@@ -247,10 +247,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       // Don't manually replace - let the cache invalidation handle it
       // This prevents race conditions between manual updates and cache refresh
       
-      toast({
-        title: "Success!",
-        description: `Successfully added ${selectedAdvancement?.stat_change_name}`
-      });
+      toast.success("Success!", { description: `Successfully added ${selectedAdvancement?.stat_change_name}` });
     },
     onError: (error, variables, context) => {
       // Rollback optimistic advancement update
@@ -265,10 +262,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
         }
       }
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add advancement',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add advancement');
     },
     // Let server action handle cache invalidation naturally; nothing here
   });
@@ -320,10 +314,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       // Don't do anything - let the cache refresh handle the real data
       // The optimistic update will be replaced naturally when the cache refreshes
       
-      toast({
-        title: "Success!",
-        description: `Successfully added ${selectedAdvancement?.stat_change_name}`
-      });
+      toast.success("Success!", { description: `Successfully added ${selectedAdvancement?.stat_change_name}` });
     },
     onError: (error, variables, context) => {
       // Rollback skills update
@@ -331,10 +322,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
         onSkillUpdate(context.previousSkills);
       }
       
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add advancement',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add advancement');
     }
   });
 
@@ -1069,10 +1057,7 @@ export function AdvancementsList({
       };
     },
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `${context?.advancementToDelete?.effect_name || 'Advancement'} removed successfully`,
-        variant: "default"
-      });
+      toast.success(`${context?.advancementToDelete?.effect_name || 'Advancement'} removed successfully`);
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates
@@ -1091,10 +1076,7 @@ export function AdvancementsList({
 
       // No characteristic rollback needed since server handles characteristic updates
 
-      toast({
-        description: 'Failed to delete advancement',
-        variant: "destructive"
-      });
+      toast.error('Failed to delete advancement');
     }
   });
 

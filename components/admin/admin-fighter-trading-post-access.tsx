@@ -51,10 +51,7 @@ export function AdminFighterTradingPostAccess({
   }, [equipment]);
 
   const handleSave = () => {
-    toast({
-      description: "Trading Post options saved. Remember to update the fighter type to apply changes.",
-      variant: "default"
-    });
+    toast.success("Trading Post options saved. Remember to update the fighter type to apply changes.");
     return true;
   };
 

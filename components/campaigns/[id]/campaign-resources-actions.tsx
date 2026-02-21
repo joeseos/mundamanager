@@ -39,7 +39,6 @@ export default function CampaignResourcesActions({
   const [deletingResource, setDeletingResource] = useState<Resource | null>(null)
   const [newResourceName, setNewResourceName] = useState('')
   const [editResourceName, setEditResourceName] = useState('')
-  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   // Fetch custom resources using TanStack Query with caching
@@ -116,9 +115,7 @@ export default function CampaignResourcesActions({
         }
       )
 
-      toast({
-        description: "Resource created successfully"
-      })
+      toast.success("Resource created successfully")
 
       setNewResourceName('')
       // Notify parent to refresh resource lists
@@ -130,10 +127,7 @@ export default function CampaignResourcesActions({
         queryClient.setQueryData(['campaign-resources', campaignId], context.previousResources)
       }
 
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to create resource"
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to create resource")
     }
   })
 
@@ -144,10 +138,7 @@ export default function CampaignResourcesActions({
 
     // Check for duplicates
     if (resources.some(r => r.resource_name.toLowerCase() === newResourceName.trim().toLowerCase())) {
-      toast({
-        variant: "destructive",
-        description: "This resource already exists"
-      })
+      toast.error("This resource already exists")
       setNewResourceName('')
       return
     }
@@ -191,9 +182,7 @@ export default function CampaignResourcesActions({
       // Invalidate to refetch fresh data
       queryClient.invalidateQueries({ queryKey: ['campaign-resources', campaignId] })
 
-      toast({
-        description: "Resource updated successfully"
-      })
+      toast.success("Resource updated successfully")
 
       setEditingResourceId(null)
       setEditResourceName('')
@@ -207,19 +196,13 @@ export default function CampaignResourcesActions({
       }
 
       // Keep editing mode on error so user can fix and retry
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to update resource"
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to update resource")
     }
   })
 
   const handleSaveEdit = () => {
     if (!editingResourceId || !editResourceName.trim()) {
-      toast({
-        variant: "destructive",
-        description: "Resource name cannot be empty"
-      })
+      toast.error("Resource name cannot be empty")
       return
     }
 
@@ -228,10 +211,7 @@ export default function CampaignResourcesActions({
       r.id !== editingResourceId && 
       r.resource_name.toLowerCase() === editResourceName.trim().toLowerCase()
     )) {
-      toast({
-        variant: "destructive",
-        description: "This resource already exists"
-      })
+      toast.error("This resource already exists")
       return
     }
 
@@ -277,9 +257,7 @@ export default function CampaignResourcesActions({
       // Invalidate to refetch fresh data
       queryClient.invalidateQueries({ queryKey: ['campaign-resources', campaignId] })
 
-      toast({
-        description: "Resource deleted successfully"
-      })
+      toast.success("Resource deleted successfully")
 
       setDeletingResource(null)
       setShowDeleteModal(false)
@@ -292,10 +270,7 @@ export default function CampaignResourcesActions({
         queryClient.setQueryData(['campaign-resources', campaignId], context.previousResources)
       }
 
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to delete resource"
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to delete resource")
     }
   })
 

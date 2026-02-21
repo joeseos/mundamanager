@@ -373,11 +373,7 @@ export default function FighterPage({
       setPreFetchedFighterTypes(data);
     } catch (error) {
       console.error('Error fetching fighter types:', error);
-      toast({
-        title: 'Error',
-        description: 'Could not fetch fighter types.',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: 'Could not fetch fighter types.' });
     }
   }, [toast]);
 

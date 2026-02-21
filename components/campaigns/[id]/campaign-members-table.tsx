@@ -175,8 +175,7 @@ export default function MembersTable({
   const [editingAllegiance, setEditingAllegiance] = useState<{ gangId: string; memberIndex: number } | null>(null)
   
   const supabase = createClient()
-  const { toast } = useToast()
-  
+
   // Fetch allegiances using TanStack Query
   // Shares the same query key as campaign-allegiances-actions to see optimistic updates
   const { data: availableAllegiances = initialAllegiances } = useQuery({
@@ -350,10 +349,7 @@ export default function MembersTable({
       setUserGangs(gangsWithAvailability);
     } catch (error) {
       console.error('Error fetching gangs:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to load gangs"
-      });
+      toast.error("Failed to load gangs");
     }
   };
 
@@ -461,9 +457,7 @@ export default function MembersTable({
         });
       }
 
-      toast({
-        description: `Added ${context?.gangName} to the campaign`
-      });
+      toast.success(`Added ${context?.gangName} to the campaign`);
 
       // Close modal
       setShowGangModal(false);
@@ -481,10 +475,7 @@ export default function MembersTable({
         }
       }
       
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to add gang"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to add gang");
     }
   });
 
@@ -511,10 +502,7 @@ export default function MembersTable({
     if (!roleChange) return false;
     // Only campaign owners and arbitrators can change roles
     if (!isCampaignOwner && !isCampaignAdmin) {
-      toast({
-        variant: "destructive",
-        description: "You don't have permission to change roles"
-      });
+      toast.error("You don't have permission to change roles");
       return false;
     }
     try {
@@ -531,16 +519,11 @@ export default function MembersTable({
 
       // Trigger refresh to get updated data from cache
       onMemberUpdate({});
-      toast({
-        description: `Updated ${roleChange.username}'s role to ${roleChange.newRole}`
-      });
+      toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
       return true;
     } catch (error) {
       console.error('Error updating role:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to update role"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to update role");
       return false;
     }
   };
@@ -553,20 +536,14 @@ export default function MembersTable({
       const ownerCount = members.filter(m => m.role === 'OWNER').length;
       // Only block if this is the last OWNER
       if (ownerCount <= 1) {
-        toast({
-          variant: "destructive",
-          description: "Cannot remove the last owner of the campaign"
-        });
+        toast.error("Cannot remove the last owner of the campaign");
         return false;
       }
     }
     // Allow users to remove themselves, or campaign owners/arbitrators to remove others
     const isRemovingSelf = memberToRemove.user_id === currentUserId;
     if (!isRemovingSelf && !isCampaignOwner && !isCampaignAdmin) {
-      toast({
-        variant: "destructive",
-        description: "You don't have permission to remove other members"
-      });
+      toast.error("You don't have permission to remove other members");
       return false;
     }
     try {
@@ -585,16 +562,11 @@ export default function MembersTable({
           removedMemberId: memberToRemove.id,
           removedGangIds: memberToRemove.gangs.map(g => g.id)
         });
-      toast({
-        description: `Removed ${memberToRemove.profile.username} from the campaign`
-      });
+      toast.success(`Removed ${memberToRemove.profile.username} from the campaign`);
       return true;
     } catch (error) {
       console.error('Error removing member:', error);
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to remove member"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to remove member");
       return false;
     }
   };
@@ -638,9 +610,7 @@ export default function MembersTable({
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     onSuccess: (result, variables, context) => {
-      toast({
-        description: `Removed ${context?.gangName} from the campaign`
-      });
+      toast.success(`Removed ${context?.gangName} from the campaign`);
       
       // Close modal
       setShowRemoveGangModal(false);
@@ -650,10 +620,7 @@ export default function MembersTable({
       // Rollback optimistic update by refreshing data
       onMemberUpdate({});
       
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to remove gang"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to remove gang");
     }
   });
 
@@ -840,9 +807,7 @@ export default function MembersTable({
 
       // Server call succeeded - the optimistic update was correct
       // Cache invalidation will ensure fresh data on next render
-      toast({
-        description: "Allegiance updated successfully"
-      });
+      toast.success("Allegiance updated successfully");
     } catch (error) {
       console.error('Error updating allegiance:', error);
       
@@ -859,10 +824,7 @@ export default function MembersTable({
         onMemberUpdate({});
       }
 
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to update allegiance"
-      });
+      toast.error(error instanceof Error ? error.message : "Failed to update allegiance");
     }
   };
 

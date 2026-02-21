@@ -33,10 +33,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         setSkillTypes(data);
       } catch (error) {
         console.error('Error fetching Skill Sets:', error);
-        toast({
-          description: 'Failed to load Skill Sets',
-          variant: "destructive"
-        });
+        toast.error('Failed to load Skill Sets');
       }
     };
 
@@ -49,10 +46,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         setGangOriginList(data);
       } catch (error) {
         console.error('Error fetching Gang Origins:', error);
-        toast({
-          description: 'Failed to load Gang Origins',
-          variant: "destructive"
-        });
+        toast.error('Failed to load Gang Origins');
       }
     };
 
@@ -62,10 +56,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
   const handleSubmit = async () => {
     if (!skillName || !skillType) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -87,10 +78,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         throw new Error('Failed to create skill');
       }
 
-      toast({
-        description: "Skill created successfully",
-        variant: "default"
-      });
+      toast.success("Skill created successfully");
 
       if (onSubmit) {
         onSubmit();
@@ -98,10 +86,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       onClose();
     } catch (error) {
       console.error('Error creating skill:', error);
-      toast({
-        description: 'Failed to create skill',
-        variant: "destructive"
-      });
+      toast.error('Failed to create skill');
     } finally {
       setIsLoading(false);
     }
@@ -109,10 +94,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
   const handleSubmitType = async () => {
     if (!skillTypeName) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -132,10 +114,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         throw new Error('Failed to create Skill Set');
       }
 
-      toast({
-        description: "Skill Set created successfully",
-        variant: "default"
-      });
+      toast.success("Skill Set created successfully");
 
       if (onSubmit) {
         onSubmit();
@@ -143,10 +122,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       onClose();
     } catch (error) {
       console.error('Error creating Skill Set:', error);
-      toast({
-        description: 'Failed to create Skill Set',
-        variant: "destructive"
-      });
+      toast.error('Failed to create Skill Set');
     } finally {
       setIsLoading(false);
     }

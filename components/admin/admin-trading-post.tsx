@@ -52,10 +52,7 @@ export function AdminTradingPost({
         setTradingPostTypes(data);
       } catch (error) {
         console.error('Error fetching trading post types:', error);
-        toast({
-          description: 'Failed to load trading post types',
-          variant: "destructive"
-        });
+        toast.error('Failed to load trading post types');
       } finally {
         setIsLoading(false);
       }
@@ -65,10 +62,7 @@ export function AdminTradingPost({
   }, [showTradingPostDialog, propTradingPostTypes.length, toast]);
 
   const handleSave = () => {
-    toast({
-      description: "Trading Post selections saved. Remember to update the equipment to apply changes.",
-      variant: "default"
-    });
+    toast.success("Trading Post selections saved. Remember to update the equipment to apply changes.");
     return true;
   };
 

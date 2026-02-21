@@ -5,7 +5,7 @@ import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { copyGang } from '@/app/actions/copy-gang';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 interface CopyGangModalProps {
   gangId: string;
@@ -36,11 +36,11 @@ export default function CopyGangModal({
     setSubmitting(false);
 
     if (!result.success) {
-      toast({ title: 'Copy failed', description: result.error || 'Unknown error', variant: 'destructive' });
+      toast.error('Copy failed', { description: result.error || 'Unknown error' });
       return false;
     }
 
-    toast({ title: 'Gang copied', description: 'Your gang was successfully copied.' });
+    toast.success('Gang copied', { description: 'Your gang was successfully copied.' });
     const newId = result.newGangId!;
     onClose();
     if (redirectOnSuccess && newId) {

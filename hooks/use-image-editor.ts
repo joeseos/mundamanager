@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import {
   CropArea,
@@ -85,11 +85,7 @@ export const useImageEditor = ({
     // Validate file
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast({
-        title: validation.error?.includes('10MB') ? 'File too large' : 'Unsupported file type',
-        description: validation.error,
-        variant: 'destructive',
-      });
+      toast.error(validation.error?.includes('10MB') ? 'File too large' : 'Unsupported file type', { description: validation.error });
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -102,11 +98,7 @@ export const useImageEditor = ({
       reader.readAsDataURL(processedFile);
     } catch (error) {
       console.error('Error processing image:', error);
-      toast({
-        title: 'File processing failed',
-        description: 'Failed to process the image. Please try a different file.',
-        variant: 'destructive',
-      });
+      toast.error('File processing failed', { description: 'Failed to process the image. Please try a different file.' });
     } finally {
       setIsProcessing(false);
     }
@@ -114,20 +106,12 @@ export const useImageEditor = ({
 
   const handleSave = async (): Promise<boolean> => {
     if (!image) {
-      toast({
-        title: 'No image selected',
-        description: 'Please select an image',
-        variant: 'destructive',
-      });
+      toast.error('No image selected', { description: 'Please select an image' });
       return false;
     }
 
     if (enableCrop && !croppedAreaPixels) {
-      toast({
-        title: 'No image selected',
-        description: 'Please select an image to crop',
-        variant: 'destructive',
-      });
+      toast.error('No image selected', { description: 'Please select an image to crop' });
       return false;
     }
 
@@ -199,19 +183,12 @@ export const useImageEditor = ({
       // Update the UI
       onImageUpdate(urlData.publicUrl);
 
-      toast({
-        title: 'Success',
-        description: uploadConfig.successMessage,
-      });
+      toast.success('Success', { description: uploadConfig.successMessage });
 
       return true;
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast({
-        title: 'Upload failed',
-        description: 'Failed to upload image. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Upload failed', { description: 'Failed to upload image. Please try again.' });
       return false;
     } finally {
       setIsUploading(false);
@@ -257,19 +234,12 @@ export const useImageEditor = ({
       // Update the UI
       onImageUpdate('');
 
-      toast({
-        title: 'Success',
-        description: uploadConfig.removeSuccessMessage,
-      });
+      toast.success('Success', { description: uploadConfig.removeSuccessMessage });
 
       return true;
     } catch (error) {
       console.error('Error removing image:', error);
-      toast({
-        title: 'Remove failed',
-        description: 'Failed to remove image. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Remove failed', { description: 'Failed to remove image. Please try again.' });
       return false;
     } finally {
       setIsRemoving(false);

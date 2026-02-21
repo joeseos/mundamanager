@@ -7,7 +7,7 @@ import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } f
 import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/customise/custom-weapon-profiles';
 import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
 import Modal from '@/components/ui/modal';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
@@ -103,11 +103,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       setCategories(data);
     } catch (error) {
       console.error('Error fetching categories:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load equipment categories",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to load equipment categories" });
     }
   };
 
@@ -152,19 +148,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       // Add to local state
       setEquipment(prev => [...prev, newEquipment]);
 
-      toast({
-        title: "Success",
-        description: "Custom equipment created successfully",
-      });
+      toast.success("Success", { description: "Custom equipment created successfully" });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error creating equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create equipment",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to create equipment" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);
@@ -417,19 +406,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         )
       );
 
-      toast({
-        title: "Success",
-        description: "Equipment updated successfully",
-      });
+      toast.success("Success", { description: "Equipment updated successfully" });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error updating equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update equipment",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to update equipment" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);
@@ -450,19 +432,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         prev.filter(item => item.id !== deleteModalData.id)
       );
 
-      toast({
-        title: "Success",
-        description: "Equipment deleted successfully",
-      });
+      toast.success("Success", { description: "Equipment deleted successfully" });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error deleting equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete equipment",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to delete equipment" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);
@@ -555,19 +530,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         }
       }
 
-      toast({
-        title: "Success",
-        description: successMessage,
-      });
+      toast.success("Success", { description: successMessage });
 
       return true; // Return true to close modal
     } catch (error) {
       console.error('Error copying equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to copy equipment",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to copy equipment" });
       return false; // Return false to keep modal open
     } finally {
       setIsLoading(false);

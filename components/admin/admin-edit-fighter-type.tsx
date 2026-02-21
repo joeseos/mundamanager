@@ -266,10 +266,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setGangTypes(data);
       } catch (error) {
         console.error('Error fetching gang types:', error);
-        toast({
-          description: 'Failed to load gang types',
-          variant: "destructive"
-        });
+        toast.error('Failed to load gang types');
       }
     };
 
@@ -286,10 +283,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setGangAffiliations(data);
       } catch (error) {
         console.error('Error fetching gang affiliations:', error);
-        toast({
-          description: 'Failed to load gang affiliations',
-          variant: "destructive"
-        });
+        toast.error('Failed to load gang affiliations');
       }
     };
 
@@ -308,10 +302,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFighterClasses(data);
       } catch (error) {
         console.error('Error fetching fighter classes:', error);
-        toast({
-          description: 'Failed to load fighter classes',
-          variant: "destructive"
-        });
+        toast.error('Failed to load fighter classes');
       }
     };
 
@@ -372,10 +363,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFighterTypeCombos(uniqueCombinations);
       } catch (error) {
         console.error('Error fetching fighter types:', error);
-        toast({
-          description: 'Failed to load fighter types',
-          variant: "destructive"
-        });
+        toast.error('Failed to load fighter types');
       }
     };
 
@@ -406,10 +394,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return data;
       } catch (error) {
         console.error('Error fetching skill sets:', error);
-        toast({
-        description: 'Failed to load skill sets. Some features may be limited.',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skill sets. Some features may be limited.');
       // Don't throw, just report the error and continue
       return null;
       }
@@ -431,10 +416,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setSkills(skillsArray);
       } catch (error) {
         console.error('Error fetching skills:', error);
-        toast({
-          description: 'Failed to load skills',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skills');
       }
     };
 
@@ -489,10 +471,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFighterSubTypes(data);
       } catch (error) {
         console.error('Error fetching fighter sub-types:', error);
-        toast({
-          description: 'Failed to load fighter sub-types',
-          variant: "destructive"
-        });
+        toast.error('Failed to load fighter sub-types');
       }
     };
 
@@ -641,11 +620,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return data;
     } catch (error) {
       console.error('Detailed error in fetchFighterTypeDetails:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch fighter type details",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to fetch fighter type details" });
       return null;
     } finally {
       isFetchingFighterTypeDetailsRef.current = false;
@@ -873,17 +848,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         console.log(`Fetching details for fighter ID: ${selectedOption.fighterId}`);
         await fetchFighterTypeDetails(selectedOption.fighterId);
       } else {
-        toast({
-          description: 'Could not find fighter data for the selected sub-type',
-          variant: "destructive"
-        });
+        toast.error('Could not find fighter data for the selected sub-type');
       }
     } catch (error) {
       console.error('Error in handleSubTypeChange:', error);
-      toast({
-        description: 'Failed to load fighter sub-type details',
-        variant: "destructive"
-      });
+      toast.error('Failed to load fighter sub-type details');
     } finally {
       setIsLoading(false);
     }
@@ -1211,10 +1180,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       const data = await response.json();
       console.log('Update successful:', data);
 
-      toast({
-        description: "Fighter type updated successfully",
-        variant: "default"
-      });
+      toast.success("Fighter type updated successfully");
       
       if (onSubmit) {
         onSubmit();
@@ -1223,10 +1189,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return true;
     } catch (error) {
       console.error('Error updating fighter type:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to update fighter type',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to update fighter type');
       return false;
     } finally {
       setIsLoading(false);
@@ -1299,10 +1262,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return equipmentWithIds;
     } catch (error) {
       console.error('Error fetching equipment data:', error);
-      toast({
-        description: 'Failed to load equipment data. Please try again.',
-        variant: "destructive"
-      });
+      toast.error('Failed to load equipment data. Please try again.');
       // Re-throw to allow caller to handle the error
       throw error;
     } finally {
@@ -1329,20 +1289,14 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     const costValue = gangAdjustedCostInputRef.current?.value || '';
     
     if (!selectedGangTypeForCost || !costValue) {
-      toast({
-        description: 'Please select a gang type and enter a cost',
-        variant: "destructive"
-      });
+      toast.error('Please select a gang type and enter a cost');
       return false;
     }
     
     // Convert cost to number
     const cost = parseInt(costValue);
     if (isNaN(cost) || cost < 0) {
-      toast({
-        description: 'Please enter a valid cost (must be 0 or greater)',
-        variant: "destructive"
-      });
+      toast.error('Please enter a valid cost (must be 0 or greater)');
       return false;
     }
     

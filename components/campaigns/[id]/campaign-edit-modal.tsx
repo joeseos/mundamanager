@@ -135,18 +135,13 @@ export default function CampaignEditModal({
         throw new Error(result.error);
       }
 
-      toast({
-        description: "Campaign deleted successfully"
-      });
+      toast.success("Campaign deleted successfully");
 
       router.push('/?tab=campaigns');
       return true;
     } catch (error) {
       console.error('Error deleting campaign:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to delete campaign"
-      });
+      toast.error("Failed to delete campaign");
       return false;
     } finally {
       setIsDeleting(false);

@@ -398,10 +398,7 @@ export default function AddFighter({
         onFighterRollback(context.tempFighterId, context.cost, context.ratingCost);
       }
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add fighter',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add fighter');
     },
     onSuccess: (data, variables, context) => {
       if (!context) return;
@@ -430,10 +427,7 @@ export default function AddFighter({
         });
       }
 
-      toast({
-        description: `${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} exotic beast(s)` : ''}`,
-        variant: "default"
-      });
+      toast.success(`${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} exotic beast(s)` : ''}`);
     }
   });
 
@@ -503,10 +497,7 @@ export default function AddFighter({
       setFighterTypes(transformedData);
     } catch (error) {
       console.error('Error fetching fighter types:', error);
-      toast({
-        description: "Failed to load fighter types",
-        variant: "destructive"
-      });
+      toast.error("Failed to load fighter types");
     } finally {
       setIsLoadingFighterTypes(false);
     }

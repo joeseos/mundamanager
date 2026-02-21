@@ -17,10 +17,10 @@ export function useShare() {
     } else if (navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(url);
-        toast({ description: 'Link copied to clipboard!' });
+        toast.success('Link copied to clipboard!');
       } catch (error) {
         console.error('Clipboard write failed:', error);
-        toast({ description: 'Failed to copy link.', variant: 'destructive' });
+        toast.error('Failed to copy link.');
       }
     } else {
       try {
@@ -36,15 +36,10 @@ export function useShare() {
         const successful = document.execCommand("copy");
         document.body.removeChild(textArea);
 
-        toast({
-          description: successful
-            ? "Link copied to clipboard!"
-            : "Failed to copy link.",
-          variant: successful ? "default" : "destructive"
-        });
+        successful ? toast.success("Link copied to clipboard!") : toast.error("Failed to copy link.");
       } catch (error) {
         console.error("Fallback copy failed:", error);
-        toast({ description: "Failed to copy link.", variant: "destructive" });
+        toast.error("Failed to copy link.");
       }
     }
   };

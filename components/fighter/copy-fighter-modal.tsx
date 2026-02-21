@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { copyFighter } from '@/app/actions/copy-fighter';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { ImInfo } from 'react-icons/im';
 
 interface VehicleInfo {
@@ -102,16 +102,11 @@ export default function CopyFighterModal({
     setSubmitting(false);
 
     if (!result.success) {
-      toast({
-        title: 'Copy failed',
-        description: result.error || 'Unknown error',
-        variant: 'destructive'
-      });
+      toast.error('Copy failed', { description: result.error || 'Unknown error' });
       return false;
     }
 
-    toast({
-      title: 'Fighter copied',
+    toast.success('Fighter copied', {
       description: result.data?.copied_vehicles
         ? `${result.data?.fighter_name} was successfully copied with ${result.data.copied_vehicles} vehicle(s).`
         : `${result.data?.fighter_name} was successfully copied.`

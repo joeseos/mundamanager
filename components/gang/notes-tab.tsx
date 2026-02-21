@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { useToast } from '../ui/use-toast';
+import { toast } from 'sonner';
 import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
@@ -76,10 +76,7 @@ function NoteEditor({
 
       await onSave();
 
-      toast({
-        description: `${title} updated successfully`,
-        variant: "default"
-      });
+      toast.success(`${title} updated successfully`);
 
       setSavedContent(content);
       setIsEditing(false);
@@ -87,11 +84,7 @@ function NoteEditor({
     } catch (error) {
       console.error(`Error updating ${title.toLowerCase()}:`, error);
       setError(error instanceof Error ? error.message : `Failed to update ${title.toLowerCase()}`);
-      toast({
-        title: "Error",
-        description: `Failed to update ${title.toLowerCase()}`,
-        variant: "destructive"
-      });
+      toast.error("Error", { description: `Failed to update ${title.toLowerCase()}` });
     } finally {
       setIsSaving(false);
     }

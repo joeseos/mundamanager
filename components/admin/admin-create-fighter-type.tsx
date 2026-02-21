@@ -144,10 +144,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       setEquipmentByCategory(grouped);
     } catch (error) {
       console.error('Error fetching equipment categories:', error);
-      toast({
-        description: 'Failed to load equipment categories',
-        variant: "destructive"
-      });
+      toast.error('Failed to load equipment categories');
     }
   };
 
@@ -162,10 +159,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         setGangTypes(data);
       } catch (error) {
         console.error('Error fetching gang types:', error);
-        toast({
-          description: 'Failed to load gang types',
-          variant: "destructive"
-        });
+        toast.error('Failed to load gang types');
       }
     };
 
@@ -189,10 +183,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         setEquipment(equipmentWithIds);
       } catch (error) {
         console.error('Error fetching equipment:', error);
-        toast({
-          description: 'Failed to load equipment',
-          variant: "destructive"
-        });
+        toast.error('Failed to load equipment');
       }
     };
 
@@ -208,10 +199,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         setFighterClasses(data);
       } catch (error) {
         console.error('Error fetching fighter classes:', error);
-        toast({
-          description: 'Failed to load fighter classes',
-          variant: "destructive"
-        });
+        toast.error('Failed to load fighter classes');
       }
     };
 
@@ -227,10 +215,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         setSkillTypes(data);
       } catch (error) {
         console.error('Error fetching skill sets:', error);
-        toast({
-          description: 'Failed to load skill sets',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skill sets');
       }
     };
 
@@ -253,10 +238,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         setSkills(skillsArray);
       } catch (error) {
         console.error('Error fetching skills:', error);
-        toast({
-          description: 'Failed to load skills',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skills');
       }
     };
 
@@ -269,28 +251,19 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
     // Modify validation for Crew class
     if (!selectedGangType || !selectedFighterClass || !fighterType) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required fields");
       return false;
     }
 
     // For Crew, only validate BS
     if (isCrew && !ballisticSkill) {
-      toast({
-        description: "Please fill in Ballistic Skill (BS)",
-        variant: "destructive"
-      });
+      toast.error("Please fill in Ballistic Skill (BS)");
       return false;
     }
 
     // For non-Crew fighters, validate all combat stats
     if (!isCrew && (!movement || !weaponSkill || !strength || !toughness || !wounds || !initiative || !attacks)) {
-      toast({
-        description: "Please fill in all required stats",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required stats");
       return false;
     }
 
@@ -314,10 +287,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
             subTypeId = matchingSubType.id;
             
             // Show toast notification
-            toast({
-              description: `Using existing sub-type "${matchingSubType.sub_type_name}" instead of creating a duplicate`,
-              variant: "default"
-            });
+            toast.success(`Using existing sub-type "${matchingSubType.sub_type_name}" instead of creating a duplicate`);
           } else {
             // Create new sub-type with proper capitalization
             const formattedName = subTypeName.trim().charAt(0).toUpperCase() + subTypeName.trim().slice(1);
@@ -337,10 +307,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
           }
         } catch (error) {
           console.error('Error handling sub-type:', error);
-          toast({
-            description: 'Failed to process fighter sub-type',
-            variant: "destructive"
-          });
+          toast.error('Failed to process fighter sub-type');
           return false;
         }
       }
@@ -390,10 +357,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         throw new Error('Failed to create fighter type');
       }
 
-      toast({
-        description: "Fighter type created successfully",
-        variant: "default"
-      });
+      toast.success("Fighter type created successfully");
       
       if (onSubmit) {
         onSubmit();
@@ -402,10 +366,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       return true;
     } catch (error) {
       console.error('Error creating fighter type:', error);
-      toast({
-        description: 'Failed to create fighter type',
-        variant: "destructive"
-      });
+      toast.error('Failed to create fighter type');
       return false;
     } finally {
       setIsLoading(false);
@@ -1303,10 +1264,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                       onClick={() => {
                         setShowTradingPostDialog(false);
                         // Trading post options are already saved in state
-                        toast({
-                          description: "Trading Post options saved. Remember to create the fighter type to apply changes.",
-                          variant: "default"
-                        });
+                        toast.success("Trading Post options saved. Remember to create the fighter type to apply changes.");
                       }}
                       className="bg-neutral-900 text-white rounded hover:bg-gray-800"
                     >

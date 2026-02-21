@@ -127,27 +127,18 @@ export function AdminFighterEffects({
 
   const handleAddEffect = async () => {
     if (!newEffect.effect_name) {
-      toast({
-        description: "Effect name is required",
-        variant: "destructive"
-      });
+      toast.error("Effect name is required");
       return false;
     }
 
     if (newEffect.effect_selection === 'multiple_select' && (!newEffect.max_selections || newEffect.max_selections < 1)) {
-      toast({
-        description: "Max selections must be at least 1 for multiple select",
-        variant: "destructive",
-      });
+      toast.error("Max selections must be at least 1 for multiple select");
       return false;
     }
 
     // Ensure we have a valid UUID
     if (!equipmentId || !isValidUUID(equipmentId)) {
-      toast({
-        description: "Invalid ID",
-        variant: "destructive"
-      });
+      toast.error("Invalid ID");
       return false;
     }
 
@@ -213,10 +204,7 @@ export function AdminFighterEffects({
       return true;
     } catch (error) {
       console.error('Error adding fighter effect:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add fighter effect',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add fighter effect');
       return false;
     }
   };
@@ -266,10 +254,7 @@ export function AdminFighterEffects({
     if (!editingEffect) return false;
 
     if (!newEffect.effect_name) {
-      toast({
-        description: "Effect name is required",
-        variant: "destructive"
-      });
+      toast.error("Effect name is required");
       return false;
     }
 
@@ -357,27 +342,18 @@ export function AdminFighterEffects({
       }
     } catch (error) {
       console.error('Error deleting fighter effect:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete fighter effect',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete fighter effect');
     }
   };
 
   const handleAddModifier = async () => {
     if (!selectedEffectTypeId) {
-      toast({
-        description: "No effect type selected",
-        variant: "destructive"
-      });
+      toast.error("No effect type selected");
       return false;
     }
 
     if (!newModifierStatName) {
-      toast({
-        description: "Stat name is required",
-        variant: "destructive"
-      });
+      toast.error("Stat name is required");
       return false;
     }
 
@@ -425,10 +401,7 @@ export function AdminFighterEffects({
       return true;
     } catch (error) {
       console.error('Error adding modifier:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add effect modifier',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add effect modifier');
       return false;
     }
   };
@@ -458,10 +431,7 @@ export function AdminFighterEffects({
       }
     } catch (error) {
       console.error('Error deleting modifier:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete modifier',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete modifier');
     }
   };
 

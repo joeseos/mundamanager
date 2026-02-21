@@ -104,15 +104,10 @@ export default function TerritoryList({
         onTerritoryAdd(newTerritory);
       }
 
-      toast({
-        description: `Added ${territory.territory_name} to campaign`
-      });
+      toast.success(`Added ${territory.territory_name} to campaign`);
     } catch (error) {
       console.error('Error adding territory:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to add territory"
-      });
+      toast.error("Failed to add territory");
     } finally {
       setIsAdding(null);
     }

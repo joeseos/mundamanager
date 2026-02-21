@@ -59,7 +59,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
     const deduction = r * 10;
     const final = Math.max(0, originalCost - deduction);
     setManualCost(final);
-    toast({ description: `Roll ${r}: -${deduction} → ${final} credits` });
+    toast(`Roll ${r}: -${deduction} → ${final} credits`);
   };
 
   return (
@@ -192,20 +192,13 @@ export function WeaponList({
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-        toast({
-          title: 'Equipment purchased',
-          description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits`,
-          variant: 'default'
-        });
+        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits` });
 
         // Target selection handled pre-purchase via the existing purchase modal flow
       } catch (err) {
         // Rollback
         onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
-        toast({
-          description: err instanceof Error ? err.message : 'Failed to buy equipment',
-          variant: 'destructive'
-        });
+        toast.error(err instanceof Error ? err.message : 'Failed to buy equipment');
       }
     }
   };
@@ -254,19 +247,13 @@ export function WeaponList({
 
       onEquipmentUpdate(optimisticEquipment, finalFighterCredits, previousGangCredits);
 
-      toast({
-        description: `Successfully deleted ${equipmentToDelete.equipment_name}`,
-        variant: "default"
-      });
+      toast.success(`Successfully deleted ${equipmentToDelete.equipment_name}`);
       setDeleteModalData(null);
     } catch (error) {
       // Rollback
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error deleting equipment:', error);
-      toast({
-        description: 'Failed to delete equipment. Please try again.',
-        variant: "destructive"
-      });
+      toast.error('Failed to delete equipment. Please try again.');
     }
   };
 
@@ -303,19 +290,12 @@ export function WeaponList({
       const reconciledGangCredits = result.data?.gang?.credits ?? optimisticGangCredits;
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, reconciledGangCredits);
       
-      toast({
-        title: "Success",
-        description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits`,
-      });
+      toast.success("Success", { description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits` });
     } catch (error) {
       // Rollback
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error selling equipment:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sell equipment",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to sell equipment" });
     } finally {
       setSellModalData(null);
     }
@@ -350,19 +330,12 @@ export function WeaponList({
         throw new Error(result.error || 'Failed to move equipment to stash');
       }
 
-      toast({
-        title: "Success",
-        description: `${equipmentToStash.equipment_name} moved to gang stash`,
-      });
+      toast.success("Success", { description: `${equipmentToStash.equipment_name} moved to gang stash` });
     } catch (error) {
       // Rollback on error
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
       console.error('Error moving equipment to stash:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move equipment to stash",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to move equipment to stash" });
     } finally {
       setStashModalData(null);
     }
@@ -416,10 +389,7 @@ export function WeaponList({
       );
       setUpgradeEffectTypes(editableEffects);
     } catch (error) {
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to load effect options',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to load effect options');
       setUpgradeModalData(null);
     } finally {
       setLoadingEffects(false);
@@ -521,9 +491,7 @@ export function WeaponList({
     onSuccess: (_data, variables) => {
       const selectedEffects = variables.effectTypesData.filter(et => variables.selectedEffectIds.includes(et.id));
       const effectName = selectedEffects[0]?.effect_name || 'Effect';
-      toast({
-        description: `${effectName} added successfully`
-      });
+      toast.success(`${effectName} added successfully`);
     },
     onError: (error, _variables, context) => {
       // Rollback to previous state on error
@@ -538,10 +506,7 @@ export function WeaponList({
         }
       }
 
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to apply effects',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to apply effects');
     }
   });
 
@@ -626,15 +591,10 @@ export function WeaponList({
       if (context?.previousFighterEffects && onEffectsUpdate) {
         onEffectsUpdate(context.previousFighterEffects);
       }
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete effect',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete effect');
     },
     onSuccess: (_data, params) => {
-      toast({
-        description: `${params.effectName} removed successfully`
-      });
+      toast.success(`${params.effectName} removed successfully`);
     }
   });
 
@@ -671,19 +631,13 @@ export function WeaponList({
     },
     onError: (error, _loadoutId, context) => {
       if (context) onLoadoutsUpdate?.(loadouts, context.previousActiveLoadoutId);  // Rollback
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to set active loadout',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to set active loadout');
     },
     onSuccess: (_data, loadoutId) => {
       const loadoutName = loadoutId
         ? loadouts.find(l => l.id === loadoutId)?.loadout_name
         : 'None';
-      toast({
-        description: `Active loadout: ${loadoutName}`,
-        variant: 'default'
-      });
+      toast.success(`Active loadout: ${loadoutName}`);
     }
   });
 

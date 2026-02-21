@@ -177,10 +177,7 @@ export default function AddVehicle({
         successMessage = `${name} added for ${paymentCost} credits (base value: ${ratingCost} credits)`;
       }
       
-      toast({
-        description: successMessage,
-        variant: "default"
-      });
+      toast.success(successMessage);
 
       // Reset form and close modal
       handleClose();

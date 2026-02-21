@@ -73,10 +73,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       setFighterEffectCategories(relevantCategories);
     } catch (error) {
       console.error('Error fetching categories:', error);
-      toast({
-        description: 'Failed to load categories',
-        variant: "destructive"
-      });
+      toast.error('Failed to load categories');
     }
   };
 
@@ -91,10 +88,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       setEffects(data);
     } catch (error) {
       console.error('Error fetching effects:', error);
-      toast({
-        description: 'Failed to load effects',
-        variant: "destructive"
-      });
+      toast.error('Failed to load effects');
     }
   };
 
@@ -155,19 +149,13 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   const handleSubmitEffect = async (operation: OperationType) => {
     // Validate required fields
     if ((operation === OperationType.POST || operation === OperationType.UPDATE) && !effectName) {
-      toast({
-        description: "Please enter an effect name",
-        variant: "destructive"
-      });
+      toast.error("Please enter an effect name");
       return;
     }
 
     const category = categories.find(cat => cat.category_name === selectedCategory);
     if (!category) {
-      toast({
-        description: "Category not found",
-        variant: "destructive"
-      });
+      toast.error("Category not found");
       return;
     }
 
@@ -227,10 +215,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
       const resultData = await response.json();
 
-      toast({
-        description: `Effect ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`,
-        variant: "default"
-      });
+      toast.success(`Effect ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
       // Refresh the effects list
       await fetchEffects();
@@ -258,10 +243,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
-      toast({
-        description: error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} effect`,
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} effect`);
     } finally {
       setIsLoading(false);
     }
@@ -323,10 +305,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
       // If any changes were made, show success and refresh
       if (newModifiers.length > 0 || deletedModifiers.length > 0) {
-        toast({
-          description: 'Modifiers updated successfully',
-          variant: 'default'
-        });
+        toast.success('Modifiers updated successfully');
       }
 
       // Refresh the effects list to get the real IDs from the database
@@ -340,10 +319,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       }
     } catch (error) {
       console.error('Error updating modifiers:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to update modifiers',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to update modifiers');
     }
   };
 

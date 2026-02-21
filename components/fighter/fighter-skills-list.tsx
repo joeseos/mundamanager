@@ -117,16 +117,9 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     },
     onSuccess: (result, variables, context) => {
       if (context?.creditsDeducted && context.creditsDeducted > 0) {
-        toast({
-          title: "Skill purchased",
-          description: `Successfully bought ${context?.skillName} for ${context.creditsDeducted} credits`,
-          variant: "default"
-        });
+        toast.success("Skill purchased", { description: `Successfully bought ${context?.skillName} for ${context.creditsDeducted} credits` });
       } else {
-        toast({
-          description: `${context?.skillName} added successfully`,
-          variant: "default"
-        });
+        toast.success(`${context?.skillName} added successfully`);
       }
     },
     onError: (error, variables, context) => {
@@ -138,10 +131,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
       if (context?.creditsDeducted && context.creditsDeducted > 0) {
         onGangCreditsUpdate?.(context.creditsDeducted);
       }
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to add skill',
-        variant: "destructive"
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to add skill');
     }
   });
 
@@ -187,10 +177,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
 
       } catch (error) {
         console.error('Error fetching skill sets:', error);
-        toast({
-          description: 'Failed to load skill sets',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skill sets');
       }
     };
 
@@ -220,10 +207,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
         setSkillsData({ skills: skillsForType });
       } catch (error) {
         console.error('Error fetching skills:', error);
-        toast({
-          description: 'Failed to load skills',
-          variant: "destructive"
-        });
+        toast.error('Failed to load skills');
       }
     };
 
@@ -235,10 +219,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
 
     // Check for session
     if (!session) {
-      toast({
-        description: "Authentication required. Please log in again.",
-        variant: "destructive"
-      });
+      toast.error("Authentication required. Please log in again.");
       return false;
     }
 
@@ -473,15 +454,9 @@ export function SkillsList({
     },
     onSuccess: (result, variables, context) => {
       if (context?.creditsRefunded && context.creditsRefunded > 0) {
-        toast({
-          description: `${context?.skillName} removed, ${context.creditsRefunded} credits refunded`,
-          variant: "default"
-        });
+        toast.success(`${context?.skillName} removed, ${context.creditsRefunded} credits refunded`);
       } else {
-        toast({
-          description: `${context?.skillName} removed successfully`,
-          variant: "default"
-        });
+        toast.success(`${context?.skillName} removed successfully`);
       }
     },
     onError: (error, variables, context) => {
@@ -496,10 +471,7 @@ export function SkillsList({
         onGangCreditsUpdate?.(-context.creditsRefunded);
       }
 
-      toast({
-        description: 'Failed to delete skill',
-        variant: "destructive"
-      });
+      toast.error('Failed to delete skill');
     }
   });
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomFighterType } from '@/types/fighter';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -105,19 +105,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         ));
         setIsAddModalOpen(false);
         resetForm();
-        toast({
-          description: 'Custom fighter type created successfully',
-          variant: 'default',
-        });
+        toast.success('Custom fighter type created successfully');
       } else {
         // Rollback on server error
         if (context?.previousFighters) {
           setFighters(context.previousFighters);
         }
-        toast({
-          description: result.error || 'Failed to create custom fighter type',
-          variant: 'destructive',
-        });
+        toast.error(result.error || 'Failed to create custom fighter type');
       }
     },
     onError: (error: Error, _, context) => {
@@ -125,10 +119,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       if (context?.previousFighters) {
         setFighters(context.previousFighters);
       }
-      toast({
-        description: error.message || 'Failed to create custom fighter type',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to create custom fighter type');
     },
     onSettled: () => {
       // Always refetch after error or success to ensure consistency
@@ -154,19 +145,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     onSuccess: (result, _, context) => {
       if (result.success) {
-        toast({
-          description: 'Custom fighter type deleted successfully',
-          variant: 'default',
-        });
+        toast.success('Custom fighter type deleted successfully');
       } else {
         // Rollback on server error
         if (context?.previousFighters) {
           setFighters(context.previousFighters);
         }
-        toast({
-          description: result.error || 'Failed to delete custom fighter type',
-          variant: 'destructive',
-        });
+        toast.error(result.error || 'Failed to delete custom fighter type');
       }
     },
     onError: (error: Error, _, context) => {
@@ -174,10 +159,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       if (context?.previousFighters) {
         setFighters(context.previousFighters);
       }
-      toast({
-        description: error.message || 'Failed to delete custom fighter type',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to delete custom fighter type');
     },
     onSettled: () => {
       // Always refetch after error or success to ensure consistency
@@ -233,19 +215,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         setFighters(prev => prev.map(f => f.id === id ? result.data! : f));
         setEditModalData(null);
         resetForm();
-        toast({
-          description: 'Custom fighter type updated successfully',
-          variant: 'default',
-        });
+        toast.success('Custom fighter type updated successfully');
       } else {
         // Rollback on server error
         if (context?.previousFighters) {
           setFighters(context.previousFighters);
         }
-        toast({
-          description: result.error || 'Failed to update custom fighter type',
-          variant: 'destructive',
-        });
+        toast.error(result.error || 'Failed to update custom fighter type');
       }
     },
     onError: (error: Error, _, context) => {
@@ -253,10 +229,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       if (context?.previousFighters) {
         setFighters(context.previousFighters);
       }
-      toast({
-        description: error.message || 'Failed to update custom fighter type',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to update custom fighter type');
     },
     onSettled: () => {
       // Always refetch after error or success to ensure consistency
@@ -440,10 +413,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           setGangTypes(data);
         } catch (error) {
           console.error('Error fetching gang types:', error);
-          toast({
-            description: 'Failed to load gang types',
-            variant: 'destructive'
-          });
+          toast.error('Failed to load gang types');
         }
       };
 
@@ -502,10 +472,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           await Promise.all(promises);
         } catch (error) {
           console.error('Error fetching dropdown data:', error);
-          toast({
-            description: 'Failed to load some dropdown options',
-            variant: 'destructive'
-          });
+          toast.error('Failed to load some dropdown options');
         } finally {
           setIsLoadingDropdownData(false);
         }
@@ -545,10 +512,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         setSkills(transformedSkills);
       } catch (error) {
         console.error('Error fetching skills:', error);
-        toast({
-          description: 'Failed to load skills',
-          variant: 'destructive'
-        });
+        toast.error('Failed to load skills');
       }
     };
 
@@ -778,10 +742,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         const result = await createCustomFighter(newFighter);
         
         if (result.success) {
-          toast({
-            title: "Success",
-            description: `${copyModalData.fighter_type} has been copied to your custom fighters.`,
-          });
+          toast.success("Success", { description: `${copyModalData.fighter_type} has been copied to your custom fighters.` });
           setCopyModalData(null);
           return true;
         } else {
@@ -795,11 +756,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       }
     } catch (error) {
       console.error('Error copying fighter:', error);
-      toast({
-        title: "Error",
-        description: "Failed to copy fighter. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to copy fighter. Please try again." });
       return false; // Return false to keep modal open
     }
   };
@@ -807,37 +764,25 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const handleSubmit = () => {
     // Validation
     if (!selectedGangType || !selectedFighterClass || !fighterType || !cost) {
-      toast({
-        description: 'Please fill in all required fields',
-        variant: 'destructive'
-      });
+      toast.error('Please fill in all required fields');
       return false;
     }
 
     // For Crew, only validate BS (other stats are automatically set to 0)
     if (isCrew && !ballisticSkill) {
-      toast({
-        description: 'Please fill in Ballistic Skill (BS)',
-        variant: 'destructive'
-      });
+      toast.error('Please fill in Ballistic Skill (BS)');
       return false;
     }
 
     // For non-Crew fighters, validate key combat stats
     if (!isCrew && (!movement || !weaponSkill || !strength || !toughness || !wounds || !initiative || !attacks)) {
-      toast({
-        description: 'Please fill in all required stats',
-        variant: 'destructive'
-      });
+      toast.error('Please fill in all required stats');
       return false;
     }
 
     // Validate mandatory stats for all fighter types
     if (!leadership || !cool || !willpower || !intelligence) {
-      toast({
-        description: 'Please fill in Leadership, Cool, Willpower, and Intelligence',
-        variant: 'destructive'
-      });
+      toast.error('Please fill in Leadership, Cool, Willpower, and Intelligence');
       return false;
     }
 

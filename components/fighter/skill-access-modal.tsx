@@ -71,16 +71,10 @@ export function SkillAccessModal({
   // Show error toast if data failed to load
   useEffect(() => {
     if (skillTypesError) {
-      toast({
-        description: 'Failed to load skill types',
-        variant: 'destructive'
-      });
+      toast.error('Failed to load skill types');
     }
     if (skillAccessError) {
-      toast({
-        description: skillAccessError instanceof Error ? skillAccessError.message : 'Failed to load skill access',
-        variant: 'destructive'
-      });
+      toast.error(skillAccessError instanceof Error ? skillAccessError.message : 'Failed to load skill access');
     }
   }, [skillTypesError, skillAccessError, toast]);
 
@@ -176,14 +170,11 @@ export function SkillAccessModal({
     onSuccess: () => {
       // Invalidate the TanStack Query cache for skill access
       queryClient.invalidateQueries({ queryKey: ['fighter-skill-access', fighterId] });
-      toast({ description: 'Skill access updated successfully' });
+      toast.success('Skill access updated successfully');
       onClose();
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        description: error instanceof Error ? error.message : 'Failed to save skill access'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to save skill access');
     }
   });
 

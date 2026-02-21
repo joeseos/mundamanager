@@ -151,9 +151,7 @@ const CampaignBattleLogModal = ({
         );
       }
 
-      toast({
-        description: "Battle report added successfully"
-      });
+      toast.success("Battle report added successfully");
 
       // Call onSuccess to trigger server refresh after optimistic update is complete
       onSuccess();
@@ -169,10 +167,7 @@ const CampaignBattleLogModal = ({
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to create battle report';
-      toast({
-        variant: "destructive",
-        description: errorMessage
-      });
+      toast.error(errorMessage);
     }
   });
 
@@ -238,9 +233,7 @@ const CampaignBattleLogModal = ({
         );
       }
 
-      toast({
-        description: "Battle report updated successfully"
-      });
+      toast.success("Battle report updated successfully");
 
       // Call onSuccess to trigger server refresh after optimistic update is complete
       onSuccess();
@@ -254,10 +247,7 @@ const CampaignBattleLogModal = ({
       onSuccess();
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to update battle report';
-      toast({
-        variant: "destructive",
-        description: errorMessage
-      });
+      toast.error(errorMessage);
     }
   });
 
@@ -295,10 +285,7 @@ const CampaignBattleLogModal = ({
         } catch (error) {
           console.error('Error loading battle data:', error);
           if (isMounted) {
-            toast({
-              variant: "destructive",
-              description: "Failed to load battle data"
-            });
+            toast.error("Failed to load battle data");
           }
         } finally {
           if (isMounted) {
@@ -519,18 +506,12 @@ const CampaignBattleLogModal = ({
 
     // Validate required fields
     if (selectedScenario === '') {
-      toast({
-        variant: "destructive",
-        description: "Please select a scenario"
-      });
+      toast.error("Please select a scenario");
       return false;
     }
     
     if (selectedScenario === 'custom' && !customScenario.trim()) {
-      toast({
-        variant: "destructive",
-        description: "Please enter a custom scenario name"
-      });
+      toast.error("Please enter a custom scenario name");
       return false;
     }
 
@@ -538,10 +519,7 @@ const CampaignBattleLogModal = ({
     const anyGangSelected = gangsInBattle.some(g => g.gangId);
     
     if (!anyGangSelected) {
-      toast({
-        variant: "destructive",
-        description: "Please select at least one gang"
-      });
+      toast.error("Please select at least one gang");
       return false;
     }
 
@@ -553,18 +531,12 @@ const CampaignBattleLogModal = ({
     // If any gang has a role, ensure both attackers and defenders exist
     if (gangsWithRole.length > 0 && (attackers.length === 0 || defenders.length === 0)) {
       const missingRole = attackers.length === 0 ? 'attacker' : 'defender';
-      toast({
-        variant: "destructive",
-        description: `Since you've assigned roles, please select at least one ${missingRole}`
-      });
+      toast.error(`Since you've assigned roles, please select at least one ${missingRole}`);
       return false;
     }
 
     if (!winner) {
-      toast({
-        variant: "destructive",
-        description: "Please select a winner"
-      });
+      toast.error("Please select a winner");
       return false;
     }
 

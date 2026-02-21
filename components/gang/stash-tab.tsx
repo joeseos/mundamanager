@@ -144,11 +144,7 @@ export default function GangInventory({
         onStashUpdate?.(context.previousStash);
         onGangCreditsUpdate?.(context.previousCredits);
       }
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to create elixir',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: error instanceof Error ? error.message : 'Failed to create elixir' });
     },
     onSuccess: (data, chem, context) => {
       // Replace optimistic temp item with real server item so move/sell/delete work
@@ -167,10 +163,7 @@ export default function GangInventory({
         setStash(next);
         queueMicrotask(() => onStashUpdate?.(next));
       }
-      toast({
-        title: 'Elixir Created',
-        description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits`
-      });
+      toast.success('Elixir Created', { description: `${chem.name} created with ${chem.effects.length} effects for ${chem.totalCost} credits` });
     }
   });
   
@@ -588,23 +581,12 @@ export default function GangInventory({
 
       // Show appropriate toast message (only for successes and actual errors, not cancellations)
       if (successCount > 0 && errorCount === 0) {
-        toast({
-          title: "Success",
-          description: `${successCount} item${successCount > 1 ? 's' : ''} moved to ${isVehicleTarget ? 'vehicle' : 'fighter'}`,
-        });
+        toast.success("Success", { description: `${successCount} item${successCount > 1 ? 's' : ''} moved to ${isVehicleTarget ? 'vehicle' : 'fighter'}` });
       } else if (successCount > 0 && errorCount > 0) {
-        toast({
-          title: "Partial Success",
-          description: `${successCount} item${successCount > 1 ? 's' : ''} moved, ${errorCount} failed`,
-          variant: "destructive",
-        });
+        toast.error("Partial Success", { description: `${successCount} item${successCount > 1 ? 's' : ''} moved, ${errorCount} failed` });
       } else if (errorCount > 0) {
         // Only show error if there were actual errors (not just cancellations)
-        toast({
-          title: "Error",
-          description: `Failed to move ${errorCount} item${errorCount > 1 ? 's' : ''}`,
-          variant: "destructive",
-        });
+        toast.error("Error", { description: `Failed to move ${errorCount} item${errorCount > 1 ? 's' : ''}` });
       }
       // Note: No toast shown if user only cancelled (successCount === 0 && errorCount === 0)
 
@@ -613,11 +595,7 @@ export default function GangInventory({
       // trigger a refresh of the gang data with complete beast information
     } catch (error) {
       console.error('Error moving items from stash:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to move items from stash",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error instanceof Error ? error.message : "Failed to move items from stash" });
     } finally {
       setIsLoading(false);
     }
@@ -932,10 +910,7 @@ export default function GangInventory({
               onGangWealthUpdate(newGangWealth);
             }
 
-            toast({
-              title: "Equipment Purchased",
-              description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits`,
-            });
+            toast.success("Equipment Purchased", { description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits` });
           }}
         />
       )}
@@ -1061,7 +1036,7 @@ export default function GangInventory({
                     const cost = stash[sellModalItemIdx!].cost || 0;
                     const final = Math.max(5, cost - r * 10);
                     setSellManualCost(final);
-                    toast({ description: `Roll ${r}: -${r * 10} → ${final} credits` });
+                    toast(`Roll ${r}: -${r * 10} → ${final} credits`);
                   }}
                   className="px-3 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800"
                 >
@@ -1093,7 +1068,7 @@ export default function GangInventory({
               const newStash = stash.filter((_, i) => i !== idx);
               setStash(newStash);
               onStashUpdate?.(newStash);
-              toast({ description: `Sold ${getItemName(item)} for ${sellManualCost || 0} credits` });
+              toast.success(`Sold ${getItemName(item)} for ${sellManualCost || 0} credits`);
               // Update gang credits and wealth using server-returned values
               if (res.data?.gang?.credits !== undefined) {
                 onGangCreditsUpdate?.(res.data.gang.credits);
@@ -1102,7 +1077,7 @@ export default function GangInventory({
                 onGangWealthUpdate?.(res.data.gang.wealth);
               }
             } else {
-              toast({ description: res.error || 'Failed to sell item', variant: 'destructive' });
+              toast.error(res.error || 'Failed to sell item');
             }
             setSellModalItemIdx(null);
             setSellLastRoll(null);
@@ -1133,9 +1108,9 @@ export default function GangInventory({
               const newStash = stash.filter((_, i) => i !== idx);
               setStash(newStash);
               onStashUpdate?.(newStash);
-              toast({ description: `Deleted ${getItemName(item)} from stash` });
+              toast.success(`Deleted ${getItemName(item)} from stash`);
             } else {
-              toast({ description: res.error || 'Failed to delete item', variant: 'destructive' });
+              toast.error(res.error || 'Failed to delete item');
             }
             setDeleteModalIdx(null);
           }}

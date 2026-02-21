@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { useToast } from '../ui/use-toast';
+import { toast } from 'sonner';
 import { RichTextEditor } from '../ui/rich-text-editor';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
@@ -76,10 +76,7 @@ function NoteEditor({
 
     // Fire mutation in background
     noteMutation.mutateAsync(content).then(() => {
-      toast({
-        description: `${title} updated successfully`,
-        variant: "default"
-      });
+      toast.success(`${title} updated successfully`);
     }).catch((error) => {
       // Rollback: re-enter edit mode with original content
       setIsEditing(true);
@@ -87,11 +84,7 @@ function NoteEditor({
       
       const errorMessage = error instanceof Error ? error.message : `Failed to update ${title.toLowerCase()}`;
       setError(errorMessage);
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      toast.error("Error", { description: errorMessage });
     });
   };
 

@@ -9,7 +9,6 @@ import { createClient } from "@/utils/supabase/client";
 import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
-import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { LuX } from "react-icons/lu";
@@ -156,11 +155,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
       setSession(currentSession);
     };
     getSession();
-    
-    toast.success("Success!");
-    toast.error("Err");
-    toast("Hi", { description: "Body" });
-    toast.success("Success!", { description: "has been created successfully." });
   }, []);
 
   useEffect(() => {

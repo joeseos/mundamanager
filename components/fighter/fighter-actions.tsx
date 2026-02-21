@@ -177,12 +177,12 @@ export function FighterActions({
           successMessage = prev?.captured ? 'Fighter has been rescued from captivity' : 'Fighter has been marked as captured';
           break;
       }
-      toast({ description: successMessage });
+      toast.success(successMessage);
       onFighterUpdate?.();
       onStatusSuccess?.();
     },
     onError: (error, _vars, ctx) => {
-      toast({ description: error instanceof Error ? error.message : 'Failed to update fighter status', variant: 'destructive' });
+      toast.error(error instanceof Error ? error.message : 'Failed to update fighter status');
       if (ctx && 'snapshot' in (ctx as any)) {
         onStatusError?.((ctx as any).snapshot);
       }

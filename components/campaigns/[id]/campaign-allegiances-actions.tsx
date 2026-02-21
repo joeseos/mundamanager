@@ -43,7 +43,6 @@ export default function CampaignAllegiancesActions({
   const [deletingAllegiance, setDeletingAllegiance] = useState<Allegiance | null>(null)
   const [newAllegianceName, setNewAllegianceName] = useState('')
   const [editAllegianceName, setEditAllegianceName] = useState('')
-  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   // Fetch custom allegiances using TanStack Query with caching
@@ -120,9 +119,7 @@ export default function CampaignAllegiancesActions({
         }
       )
 
-      toast({
-        description: "Allegiance created successfully"
-      })
+      toast.success("Allegiance created successfully")
 
       setNewAllegianceName('')
       // Notify parent to refresh allegiance lists
@@ -134,10 +131,7 @@ export default function CampaignAllegiancesActions({
         queryClient.setQueryData(['campaign-allegiances', campaignId], context.previousAllegiances)
       }
 
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to create allegiance"
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to create allegiance")
     }
   })
 
@@ -148,10 +142,7 @@ export default function CampaignAllegiancesActions({
 
     // Check for duplicates
     if (allegiances.some(a => a.allegiance_name.toLowerCase() === newAllegianceName.trim().toLowerCase())) {
-      toast({
-        variant: "destructive",
-        description: "This allegiance already exists"
-      })
+      toast.error("This allegiance already exists")
       setNewAllegianceName('')
       return
     }
@@ -198,9 +189,7 @@ export default function CampaignAllegiancesActions({
       // Invalidate to refetch fresh data
       queryClient.invalidateQueries({ queryKey: ['campaign-allegiances', campaignId] })
 
-      toast({
-        description: "Allegiance updated successfully"
-      })
+      toast.success("Allegiance updated successfully")
 
       setEditingAllegianceId(null)
       setEditAllegianceName('')
@@ -220,19 +209,13 @@ export default function CampaignAllegiancesActions({
       }
 
       // Keep editing mode on error so user can fix and retry
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to update allegiance"
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to update allegiance")
     }
   })
 
   const handleSaveEdit = () => {
     if (!editingAllegianceId || !editAllegianceName.trim()) {
-      toast({
-        variant: "destructive",
-        description: "Allegiance name cannot be empty"
-      })
+      toast.error("Allegiance name cannot be empty")
       return
     }
 
@@ -241,10 +224,7 @@ export default function CampaignAllegiancesActions({
       a.id !== editingAllegianceId && 
       a.allegiance_name.toLowerCase() === editAllegianceName.trim().toLowerCase()
     )) {
-      toast({
-        variant: "destructive",
-        description: "This allegiance already exists"
-      })
+      toast.error("This allegiance already exists")
       return
     }
 
@@ -293,9 +273,7 @@ export default function CampaignAllegiancesActions({
       // Invalidate to refetch fresh data
       queryClient.invalidateQueries({ queryKey: ['campaign-allegiances', campaignId] })
 
-      toast({
-        description: "Allegiance deleted successfully"
-      })
+      toast.success("Allegiance deleted successfully")
 
       setDeletingAllegiance(null)
       setShowDeleteModal(false)
@@ -311,10 +289,7 @@ export default function CampaignAllegiancesActions({
       // Rollback gang updates
       onMembersUpdate?.(allegianceId)
 
-      toast({
-        variant: "destructive",
-        description: error instanceof Error ? error.message : "Failed to delete allegiance"
-      })
+      toast.error(error instanceof Error ? error.message : "Failed to delete allegiance")
     }
   })
 

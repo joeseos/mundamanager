@@ -334,9 +334,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       return { battleId };
     },
     onSuccess: () => {
-      toast({
-        description: "Battle report deleted successfully"
-      });
+      toast.success("Battle report deleted successfully");
 
       // Trigger server refresh after successful delete
       onBattleAdd();
@@ -348,10 +346,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       onBattleAdd();
 
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
-      toast({
-        variant: "destructive",
-        description: errorMessage
-      });
+      toast.error(errorMessage);
     }
   });
 
@@ -621,10 +616,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const handleEditBattle = (battle: Battle) => {
     // Check if user has permission to edit this battle
     if (!canUserEditBattle(battle)) {
-      toast({
-        variant: "destructive",
-        description: "You don't have permission to edit this battle log."
-      });
+      toast.error("You don't have permission to edit this battle log.");
       return;
     }
 

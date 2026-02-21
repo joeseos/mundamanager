@@ -2,7 +2,7 @@
 
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Equipment } from '@/types/equipment';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 // This is for the wrapper function to inject dependencies from the parent component.
 export interface PurchaseEquipmentContext {
@@ -147,24 +147,18 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         newGangWealth
       );
 
-      toast({
-        title: 'Equipment purchased',
+      toast.success('Equipment purchased', {
         description: `Successfully bought ${
           equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
             ? `${item.equipment_name} (Master-crafted)`
             : item.equipment_name
         } for ${serverPurchaseCost} credits`,
-        variant: 'default',
       });
 
       closePurchaseModal?.();
     } catch (err) {
       console.error('Error buying equipment:', err);
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to buy equipment',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to buy equipment' });
     }
   };
 

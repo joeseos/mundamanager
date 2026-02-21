@@ -6,7 +6,7 @@ import { CustomSkill } from '@/app/lib/customise/custom-skills';
 import { createCustomSkill, updateCustomSkill, deleteCustomSkill } from '@/app/actions/customise/custom-skills';
 import { shareCustomSkill } from '@/app/actions/customise/custom-share';
 import Modal from '@/components/ui/modal';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
@@ -55,10 +55,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       setSkillTypes(data || []);
     } catch (error) {
       console.error('Error fetching skill types:', error);
-      toast({
-        description: 'Failed to load skill types',
-        variant: 'destructive',
-      });
+      toast.error('Failed to load skill types');
     }
   };
 
@@ -82,14 +79,11 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
         skill_type_id: createForm.skill_type_id,
       });
       setSkills(prev => [...prev, newSkill]);
-      toast({ description: 'Custom skill created successfully' });
+      toast.success('Custom skill created successfully');
       return true;
     } catch (error) {
       console.error('Error creating skill:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to create skill',
-        variant: 'destructive',
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to create skill');
       return false;
     } finally {
       setIsLoading(false);
@@ -123,14 +117,11 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       setSkills(prev =>
         prev.map(item => item.id === editModalData.id ? { ...item, ...updatedSkill } : item)
       );
-      toast({ description: 'Skill updated successfully' });
+      toast.success('Skill updated successfully');
       return true;
     } catch (error) {
       console.error('Error updating skill:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to update skill',
-        variant: 'destructive',
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to update skill');
       return false;
     } finally {
       setIsLoading(false);
@@ -147,14 +138,11 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       setIsLoading(true);
       await deleteCustomSkill(deleteModalData.id);
       setSkills(prev => prev.filter(item => item.id !== deleteModalData.id));
-      toast({ description: 'Skill deleted successfully' });
+      toast.success('Skill deleted successfully');
       return true;
     } catch (error) {
       console.error('Error deleting skill:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete skill',
-        variant: 'destructive',
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete skill');
       return false;
     } finally {
       setIsLoading(false);
@@ -181,16 +169,11 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
         skill_name: copyModalData.skill_name,
         skill_type_id: copyModalData.skill_type_id,
       });
-      toast({
-        description: `${copyModalData.skill_name} has been copied to your custom skills.`,
-      });
+      toast.success(`${copyModalData.skill_name} has been copied to your custom skills.`);
       return true;
     } catch (error) {
       console.error('Error copying skill:', error);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to copy skill',
-        variant: 'destructive',
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to copy skill');
       return false;
     } finally {
       setIsLoading(false);
@@ -508,37 +491,26 @@ function ShareCustomSkillModal({
 
   useEffect(() => {
     if (fetchError) {
-      toast({
-        description: 'Failed to load shared campaigns',
-        variant: 'destructive',
-      });
+      toast.error('Failed to load shared campaigns');
     }
-  }, [fetchError, toast]);
+  }, [fetchError]);
 
   const shareSkillMutation = useMutation({
     mutationFn: (campaignIds: string[]) => shareCustomSkill(skill.id, campaignIds),
     onSuccess: (result, campaignIds) => {
       if (result.success) {
-        toast({
-          description: campaignIds.length > 0
+        toast.success(campaignIds.length > 0
             ? `Custom skill shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
-            : 'Custom skill unshared from all campaigns',
-        });
+            : 'Custom skill unshared from all campaigns');
         queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'skill', skill.id] });
         onSuccess?.();
         onClose();
       } else {
-        toast({
-          description: result.error || 'Failed to share custom skill',
-          variant: 'destructive',
-        });
+        toast.error(result.error || 'Failed to share custom skill');
       }
     },
     onError: (error: Error) => {
-      toast({
-        description: error.message || 'Failed to share custom skill',
-        variant: 'destructive',
-      });
+      toast.error(error.message || 'Failed to share custom skill');
     },
   });
 

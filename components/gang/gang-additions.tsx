@@ -333,10 +333,7 @@ export default function GangAdditions({
       setGangAdditionTypes(transformedData);
     } catch (error) {
       console.error('Error fetching gang addition types:', error);
-      toast({
-        description: "Failed to load gang additions",
-        variant: "destructive"
-      });
+      toast.error("Failed to load gang additions");
     }
   };
 
@@ -1135,10 +1132,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       
       closeModal();
 
-      toast({
-        description: `${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`,
-        variant: "default"
-      });
+      toast.success(`${fighterName} added successfully${result.data?.created_beasts?.length ? ` with ${result.data.created_beasts.length} exotic beast(s)` : ''}`);
 
       return true;
     } catch (error) {

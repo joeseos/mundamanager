@@ -79,22 +79,14 @@ const GangOriginEquipmentModal: React.FC<GangOriginEquipmentModalProps> = ({
 
   const handleSave = () => {
     if (!selectedOrigin || equipmentSelections.length === 0) {
-      toast({
-        title: "Validation Error",
-        description: "Please select a gang origin and at least one equipment item",
-        variant: "destructive",
-      });
+      toast.error("Validation Error", { description: "Please select a gang origin and at least one equipment item" });
       return;
     }
 
     const origin = gangOrigins.find((o) => o.id === selectedOrigin);
 
     if (!origin) {
-      toast({
-        title: "Error",
-        description: "Selected origin not found",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Selected origin not found" });
       return;
     }
 
@@ -134,10 +126,7 @@ const GangOriginEquipmentModal: React.FC<GangOriginEquipmentModalProps> = ({
     setEquipmentSelectValue("");
     onClose();
 
-    toast({
-      title: "Success",
-      description: `${addedCount} equipment item${addedCount !== 1 ? 's' : ''} added successfully`,
-    });
+    toast.success("Success", { description: `${addedCount} equipment item${addedCount !== 1 ? 's' : ''} added successfully` });
   };
 
   return (
@@ -283,22 +272,14 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
 
   const handleSave = () => {
     if (!selectedGangType || equipmentSelections.length === 0) {
-      toast({
-        title: "Validation Error",
-        description: "Please select a gang type and at least one equipment item",
-        variant: "destructive",
-      });
+      toast.error("Validation Error", { description: "Please select a gang type and at least one equipment item" });
       return;
     }
 
     const gangType = gangTypes.find((g) => g.gang_type_id.toString() === selectedGangType);
 
     if (!gangType) {
-      toast({
-        title: "Error",
-        description: "Selected gang type not found",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Selected gang type not found" });
       return;
     }
 
@@ -338,10 +319,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
     setEquipmentSelectValue("");
     onClose();
 
-    toast({
-      title: "Success",
-      description: `${addedCount} equipment item${addedCount !== 1 ? 's' : ''} added successfully`,
-    });
+    toast.success("Success", { description: `${addedCount} equipment item${addedCount !== 1 ? 's' : ''} added successfully` });
   };
 
   return (
@@ -485,10 +463,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     } catch (error) {
       console.error('Error fetching gang types:', error);
       setGangTypesFetched(true);
-      toast({
-        description: 'Failed to load gang types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load gang types');
     }
   };
 
@@ -500,10 +475,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
       setVehicleTypes(data);
     } catch (error) {
       console.error('Error fetching vehicle types:', error);
-      toast({
-        description: 'Failed to load vehicle types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load vehicle types');
     }
   };
 
@@ -515,10 +487,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
       setEquipment(data);
     } catch (error) {
       console.error('Error fetching equipment:', error);
-      toast({
-        description: 'Failed to load equipment',
-        variant: "destructive"
-      });
+      toast.error('Failed to load equipment');
     }
   };
 
@@ -530,10 +499,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
       setGangOrigins(data);
     } catch (error) {
       console.error('Error fetching gang origins:', error);
-      toast({
-        description: 'Failed to load gang origins',
-        variant: "destructive"
-      });
+      toast.error('Failed to load gang origins');
     }
   };
 
@@ -595,11 +561,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
 
     } catch (error) {
       console.error('Error fetching vehicle details:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch vehicle details",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to fetch vehicle details" });
     }
   };
 
@@ -671,10 +633,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         throw new Error('Failed to update vehicle type');
       }
 
-      toast({
-        title: "Success",
-        description: "Vehicle type has been updated successfully",
-      });
+      toast.success("Success", { description: "Vehicle type has been updated successfully" });
 
       // Refresh the vehicle details to get updated data with real database IDs
       if (selectedVehicle) {
@@ -689,11 +648,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
       return true;
     } catch (error) {
       console.error('Error updating vehicle type:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update vehicle type",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to update vehicle type" });
       return false;
     }
   };

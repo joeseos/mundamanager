@@ -77,15 +77,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         setCategories(data);
       } catch (error) {
         console.error('Error fetching categories:', error);
-        toast({
-          description: 'Failed to load categories',
-          variant: "destructive"
-        });
+        toast.error('Failed to load categories');
       }
     };
 
     fetchCategories();
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     const fetchWeapons = async () => {
@@ -102,15 +99,12 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         setWeapons(data);
       } catch (error) {
         console.error('Error fetching weapons:', error);
-        toast({
-          description: 'Failed to load weapons',
-          variant: "destructive"
-        });
+        toast.error('Failed to load weapons');
       }
     };
 
     fetchWeapons();
-  }, [equipmentType, toast]);
+  }, [equipmentType]);
 
   // Add this useEffect to fetch gang types
   useEffect(() => {
@@ -123,16 +117,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           setGangTypeOptions(data);
         } catch (error) {
           console.error('Error fetching gang types:', error);
-          toast({
-            description: 'Failed to load gang types',
-            variant: "destructive"
-          });
+          toast.error('Failed to load gang types');
         }
       }
     };
 
     fetchGangTypes();
-  }, [showAdjustedCostDialog, showAvailabilityDialog, toast]);
+  }, [showAdjustedCostDialog, showAvailabilityDialog]);
 
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];
@@ -171,10 +162,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -226,10 +214,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         throw new Error('Failed to create equipment');
       }
 
-      toast({
-        description: "Equipment created successfully",
-        variant: "default"
-      });
+      toast.success("Equipment created successfully");
       
       if (onSubmit) {
         onSubmit();
@@ -237,10 +222,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       onClose();
     } catch (error) {
       console.error('Error creating equipment:', error);
-      toast({
-        description: 'Failed to create equipment',
-        variant: "destructive"
-      });
+      toast.error('Failed to create equipment');
     } finally {
       setIsLoading(false);
     }

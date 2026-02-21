@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { createLoadout, updateLoadout, deleteLoadout, setActiveLoadout } from '@/app/actions/loadouts';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import { LuTrash2, LuPencil, LuCheck, LuX } from 'react-icons/lu';
 import { TbCornerLeftUp } from 'react-icons/tb';
 import { useMutation } from '@tanstack/react-query';
@@ -178,10 +178,7 @@ export default function FighterLoadoutsModal({
         setLoadouts(context.previousLoadouts);
         setSelectedLoadoutId(null);
       }
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to create loadout',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to create loadout');
     },
     onSuccess: (data, _loadoutName, context) => {
       // Replace temp ID with real ID from server
@@ -191,13 +188,13 @@ export default function FighterLoadoutsModal({
         ));
         setSelectedLoadoutId(data.loadout_id);
       }
-      toast({ description: `Created loadout "${data.loadout_name}"` });
+      toast.success(`Created loadout "${data.loadout_name}"`);
     }
   });
 
   const handleCreateLoadout = () => {
     if (!newLoadoutName.trim()) {
-      toast({ description: 'Please enter a loadout name', variant: 'destructive' });
+      toast.error('Please enter a loadout name');
       return;
     }
     createLoadoutMutation.mutate(newLoadoutName.trim());
@@ -225,21 +222,18 @@ export default function FighterLoadoutsModal({
     onError: (error, _vars, context) => {
       if (context) setLoadouts(context.previousLoadouts);
       // Keep editing mode on error so user can fix and retry
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to rename loadout',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to rename loadout');
     },
     onSuccess: () => {
       setEditingLoadoutId(null);
       setEditingName('');
-      toast({ description: 'Loadout renamed' });
+      toast.success('Loadout renamed');
     }
   });
 
   const handleRenameLoadout = (loadoutId: string) => {
     if (!editingName.trim()) {
-      toast({ description: 'Please enter a loadout name', variant: 'destructive' });
+      toast.error('Please enter a loadout name');
       return;
     }
     renameLoadoutMutation.mutate({ loadoutId, newName: editingName.trim() });
@@ -304,13 +298,10 @@ export default function FighterLoadoutsModal({
         setSelectedLoadoutId(context.previousSelectedLoadoutId);
         setPendingChanges(context.previousPendingChanges);
       }
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to delete loadout',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to delete loadout');
     },
     onSuccess: (_data, _loadoutId, context) => {
-      toast({ description: `Deleted loadout "${context?.deletedLoadout?.loadout_name}"` });
+      toast.success(`Deleted loadout "${context?.deletedLoadout?.loadout_name}"`);
     }
   });
 
@@ -336,16 +327,13 @@ export default function FighterLoadoutsModal({
     },
     onError: (error, _loadoutId, context) => {
       if (context) setActiveLoadoutIdState(context.previousActiveLoadoutId);
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to set active loadout',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to set active loadout');
     },
     onSuccess: (_data, loadoutId) => {
       const loadoutName = loadoutId
         ? loadouts.find(l => l.id === loadoutId)?.loadout_name
         : 'Show All Equipment';
-      toast({ description: `Active loadout: ${loadoutName}` });
+      toast.success(`Active loadout: ${loadoutName}`);
     }
   });
 
@@ -379,14 +367,11 @@ export default function FighterLoadoutsModal({
       return { updatedLoadouts };
     },
     onError: (error) => {
-      toast({
-        description: error instanceof Error ? error.message : 'Failed to save changes',
-        variant: 'destructive'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to save changes');
     },
     onSuccess: (_data, _changes, context) => {
       if (context) {
-        toast({ description: 'Loadout changes saved' });
+        toast.success('Loadout changes saved');
         onLoadoutsUpdate(context.updatedLoadouts, activeLoadoutId);
       }
     }

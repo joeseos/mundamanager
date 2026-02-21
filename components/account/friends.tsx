@@ -43,7 +43,6 @@ export default function FriendsSearchBar({
   const [isAdding, setIsAdding] = useState(false)
   const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null)
   const supabase = createClient()
-  const { toast } = useToast()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   // Optimistic state for accepted friends

@@ -151,10 +151,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentList(data);
       } catch (error) {
         console.error('Error fetching equipment:', error);
-        toast({
-          description: 'Failed to load equipment',
-          variant: "destructive"
-        });
+        toast.error('Failed to load equipment');
       }
     };
 
@@ -173,10 +170,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setCategories(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Error fetching categories:', error);
-        toast({
-          description: 'Failed to load categories',
-          variant: "destructive"
-        });
+        toast.error('Failed to load categories');
       }
     };
 
@@ -347,10 +341,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         }
       } catch (error) {
         console.error('Error in fetchEquipmentDetails:', error);
-        toast({
-          description: 'Failed to load equipment details',
-          variant: "destructive"
-        });
+        toast.error('Failed to load equipment details');
       } finally {
         setIsEquipmentDetailsLoading(false); // ✅ End loading after all operations
       }
@@ -376,10 +367,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setWeapons(data);
       } catch (error) {
         console.error('Error fetching weapons:', error);
-        toast({
-          description: 'Failed to load weapons',
-          variant: "destructive"
-        });
+        toast.error('Failed to load weapons');
       } finally {
         setIsWeaponsLoading(false);
       }
@@ -400,10 +388,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           setGangTypeOptions(data);
         } catch (error) {
           console.error('Error fetching gang types:', error);
-          toast({
-            description: 'Failed to load gang types',
-            variant: "destructive"
-          });
+          toast.error('Failed to load gang types');
         } finally {
           setIsGangTypesLoading(false);
         }
@@ -424,10 +409,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           setGangOriginList(data);
         } catch (error) {
           console.error('Error fetching gang origins:', error);
-          toast({
-            description: 'Failed to load gang origins',
-            variant: "destructive"
-          });
+          toast.error('Failed to load gang origins');
         }
       }
     };
@@ -446,10 +428,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           setGangVariantList(data);
         } catch (error) {
           console.error('Error fetching gang variants:', error);
-          toast({
-            description: 'Failed to load gang variants',
-            variant: "destructive"
-          });
+          toast.error('Failed to load gang variants');
         }
       }
     };
@@ -503,10 +482,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
   const handleSubmit = async () => {
     if (!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !equipmentCategory || !equipmentType) {
-      toast({
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -598,10 +574,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         }
       }
 
-      toast({
-        description: "Equipment updated successfully",
-        variant: "default"
-      });
+      toast.success("Equipment updated successfully");
       
       if (onSubmit) {
         onSubmit();
@@ -609,10 +582,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       onClose();
     } catch (error) {
       console.error('Error updating equipment:', error);
-      toast({
-        description: 'Failed to update equipment',
-        variant: "destructive"
-      });
+      toast.error('Failed to update equipment');
     } finally {
       setIsLoading(false);
     }
@@ -1506,10 +1476,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 a => a.gang_variant_id === selectedAvailabilityGangVariant
                               );
                               if (alreadyExists) {
-                                toast({
-                                  description: 'This variant already has an availability set',
-                                  variant: "destructive"
-                                });
+                                toast.error('This variant already has an availability set');
                                 return;
                               }
 
