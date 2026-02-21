@@ -738,36 +738,52 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         // Get vehicle weapons for crew members (same logic as fighter-card.tsx)
                         const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
                           if (!vehicle?.equipment) return [];
+
+                          const hardpoints = (vehicle.effects?.['hardpoint'] || []) as FighterEffect[];
+
                           return vehicle.equipment
                             .filter(item => item.equipment_type === 'weapon')
-                            .map(weapon => ({
-                              fighter_weapon_id: weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id,
-                              weapon_id: weapon.equipment_id,
-                              weapon_name: weapon.is_master_crafted || weapon.master_crafted 
-                                ? `${weapon.equipment_name} (Master-crafted)`
-                                : weapon.equipment_name,
-                              weapon_profiles: weapon.weapon_profiles?.map(profile => ({
-                                ...profile,
-                                range_short: profile.range_short,
-                                range_long: profile.range_long,
-                                strength: profile.strength,
-                                ap: profile.ap,
-                                damage: profile.damage,
-                                ammo: profile.ammo,
-                                acc_short: profile.acc_short,
-                                acc_long: profile.acc_long,
-                                traits: profile.traits || '',
-                                id: profile.id,
-                                profile_name: profile.profile_name,
-                                is_master_crafted: (profile as any).is_master_crafted || !!weapon.master_crafted || !!weapon.is_master_crafted
-                              })) || [],
-                              cost: weapon.cost
-                            })) as unknown as any[];
+                            .map(weapon => {
+                              const weaponFighterId = weapon.fighter_weapon_id || weapon.vehicle_weapon_id || weapon.equipment_id;
+                              const matchedHardpoint = hardpoints.find(hp => hp.fighter_equipment_id === weaponFighterId);
+                              const hpData = matchedHardpoint?.type_specific_data && typeof matchedHardpoint.type_specific_data !== 'string'
+                                ? matchedHardpoint.type_specific_data
+                                : undefined;
+
+                              return {
+                                fighter_weapon_id: weaponFighterId,
+                                weapon_id: weapon.equipment_id,
+                                weapon_name: weapon.is_master_crafted || weapon.master_crafted 
+                                  ? `${weapon.equipment_name} (Master-crafted)`
+                                  : weapon.equipment_name,
+                                weapon_profiles: weapon.weapon_profiles?.map(profile => ({
+                                  ...profile,
+                                  range_short: profile.range_short,
+                                  range_long: profile.range_long,
+                                  strength: profile.strength,
+                                  ap: profile.ap,
+                                  damage: profile.damage,
+                                  ammo: profile.ammo,
+                                  acc_short: profile.acc_short,
+                                  acc_long: profile.acc_long,
+                                  traits: profile.traits || '',
+                                  id: profile.id,
+                                  profile_name: profile.profile_name,
+                                  is_master_crafted: (profile as any).is_master_crafted || !!weapon.master_crafted || !!weapon.is_master_crafted
+                                })) || [],
+                                cost: weapon.cost,
+                                ...(hpData && {
+                                  hardpoint_location: (hpData.location && String(hpData.location).trim()) || 'Unknown',
+                                  hardpoint_arcs: Array.isArray(hpData.arcs) ? hpData.arcs as string[] : undefined,
+                                  hardpoint_operated_by: (hpData.operated_by === 'crew' || hpData.operated_by === 'passenger') ? hpData.operated_by : undefined,
+                                }),
+                              };
+                            }) as unknown as any[];
                         };
 
                         const vehicleWeapons = isCrew && vehicle ? getVehicleWeapons(vehicle) : [];
 
-                        // Show fighter weapons
+                        // Show fighter weapons (non-crew)
                         if (!isCrew && fighter.weapons && fighter.weapons.length > 0) {
                           return (
                             <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
@@ -776,20 +792,27 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           );
                         }
 
-                        // Show crew weapons
-                        if (isCrew && fighter.weapons && fighter.weapons.length > 0) {
-                          return (
-                            <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                              <WeaponTable weapons={fighter.weapons} entity="crew" viewMode="large" />
-                            </div>
-                          );
-                        }
+                        // Show crew weapons and vehicle weapons (crew)
+                        if (isCrew) {
+                          const hasCrewWeapons = fighter.weapons && fighter.weapons.length > 0;
+                          const hasVehicleWeapons = vehicleWeapons.length > 0;
 
-                        // Show vehicle weapons for crew
-                        if (isCrew && vehicleWeapons.length > 0) {
+                          if (!hasCrewWeapons && !hasVehicleWeapons) {
+                            return <span className="text-[9px]">—</span>;
+                          }
+
                           return (
-                            <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                              <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode="small" />
+                            <div className="space-y-1">
+                              {hasCrewWeapons && (
+                                <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
+                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode="large" />
+                                </div>
+                              )}
+                              {hasVehicleWeapons && (
+                                <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
+                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode="small" />
+                                </div>
+                              )}
                             </div>
                           );
                         }

@@ -55,13 +55,16 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
     return strength.toString();
   };
 
-  type VariantKey = string; // weapon_group_id|mc|reg|profileSignature|effectSignature
+  type VariantKey = string; // weapon_group_id|mc|reg|profileSignature|effectSignature|hardpointKey
   interface VariantBlock {
     weaponName: string;
     isMasterCrafted: boolean;
     baseProfiles: Array<{ profile: WeaponProfile; weaponId: string }>; // Track which weapon each profile comes from
     specials: Map<string, WeaponProfile>; // deduplicated by name
     effectNames?: string[]; // Names of effects that target this weapon
+    hardpointLocation?: string;
+    hardpointArcs?: string[];
+    hardpointOperatedBy?: 'crew' | 'passenger';
   }
 
   // Helper function to create a profile signature based on key stats
@@ -114,11 +117,13 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
     // Get master-crafted status for this specific weapon instance
     const isWeaponMasterCrafted = weaponMasterCraftedStatus.get(weapon.fighter_weapon_id) || false;
     
+    const hardpointKey = weapon.hardpoint_location || 'no-hp';
+
     weapon.weapon_profiles?.forEach((profile) => {
       const groupId = profile.weapon_group_id || weapon.fighter_weapon_id;
       // Use the weapon's profile signature for all profiles (base and special) so they stay together
-      // Include weapon instance master-crafted status, profile signature, and effect signature to properly separate weapons
-      const key: VariantKey = `${groupId}|${isWeaponMasterCrafted ? 'mc' : 'reg'}|${weaponProfileSignature}|${effectSignature}`;
+      // Include weapon instance master-crafted status, profile signature, effect signature, and hardpoint to properly separate weapons
+      const key: VariantKey = `${groupId}|${isWeaponMasterCrafted ? 'mc' : 'reg'}|${weaponProfileSignature}|${effectSignature}|${hardpointKey}`;
 
       if (!variantMap[key]) {
         variantMap[key] = {
@@ -127,6 +132,9 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
           baseProfiles: [],
           specials: new Map<string, WeaponProfile>(),
           effectNames: weapon.effect_names && weapon.effect_names.length > 0 ? weapon.effect_names : undefined,
+          hardpointLocation: weapon.hardpoint_location,
+          hardpointArcs: weapon.hardpoint_arcs,
+          hardpointOperatedBy: weapon.hardpoint_operated_by,
         };
       }
 
@@ -187,7 +195,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
         </thead>
         <tbody>
           {variantBlocks.map((block, blockIdx) => {
-            const { weaponName, isMasterCrafted, baseProfiles, specials, effectNames } = block;
+            const { weaponName, isMasterCrafted, baseProfiles, specials, effectNames, hardpointLocation, hardpointArcs, hardpointOperatedBy } = block;
 
             // Group profiles by name AND weapon ID to count duplicates correctly
             // Only count profiles as duplicates if they come from the same weapon instance
@@ -229,6 +237,25 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
               // Only add Master-crafted trait to profiles that are actually master-crafted, not to ammo
               if (profile.is_master_crafted) traitsList.push('Master-crafted');
 
+              // Hardpoint arc trait for vehicle weapons fitted to hardpoints
+              if (hardpointArcs && hardpointArcs.length > 0) {
+                const ARC_ORDER = ['Front', 'Left', 'Right', 'Rear'];
+                const allPresent = ARC_ORDER.every(a => hardpointArcs.includes(a));
+                if (allPresent) {
+                  traitsList.push('Arc (All Round)');
+                } else {
+                  const ordered = ARC_ORDER.filter(a => hardpointArcs.includes(a));
+                  traitsList.push(`Arc (${ordered.join(', ')})`);
+                }
+              }
+
+              // Hardpoint operated-by trait
+              if (hardpointOperatedBy === 'crew') {
+                traitsList.push('Crew Operated');
+              } else if (hardpointOperatedBy === 'passenger') {
+                traitsList.push('Passenger Operated');
+              }
+
               traitsList.sort((a, b) => a.localeCompare(b));
 
               const bg = blockIdx % 2 === 0 ? 'bg-primary/[0.07]' : '';
@@ -240,6 +267,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
                       {rowIdx === 0 && !profile.profile_name?.startsWith('-') ? (
                         <>
                           {weaponName}
+                          {hardpointLocation && ` (${hardpointLocation})`}
                           {isMasterCrafted && ` (MC)`}
                           {effectNames && effectNames.length > 0 && ` (${effectNames.join(', ')})`}
                           {!multipleBaseNames && duplicate > 1 && ` (x${duplicate})`}
