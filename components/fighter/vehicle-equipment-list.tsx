@@ -168,10 +168,13 @@ function FitWeaponModal({
   }));
 
   // Cost calculations
-  const defaultArcsCount = selected?.default_arcs?.length || 0;
-  const currentCost = selected?.credits_increase || 0;
-  const newCost = Math.max(0, editedArcs.length - defaultArcsCount) * 15;
-  const costDelta = newCost - currentCost;
+  const originalArcsCount = selected?.arcs?.length || 0;
+  const hasNoCurrentArcs = originalArcsCount === 0;
+  const freeArcAllowance = hasNoCurrentArcs ? 1 : 0;
+  const addedArcsCount = Math.max(0, editedArcs.length - originalArcsCount);
+  const chargeableArcs = Math.max(0, addedArcsCount - freeArcAllowance);
+  const newCost = chargeableArcs * 15;
+  const costDelta = newCost;
   const insufficientCredits = costDelta > 0 && gangCredits < costDelta;
 
   // Check if arcs/operated_by/location have changed from current values
@@ -186,11 +189,8 @@ function FitWeaponModal({
     setEditedArcs(prev => {
       if (checked) {
         return [...prev, arc];
-      } else {
-        // Don't allow removing last arc
-        if (prev.length === 1) return prev;
-        return prev.filter(a => a !== arc);
       }
+      return prev.filter(a => a !== arc);
     });
   };
 
@@ -274,6 +274,15 @@ function FitWeaponModal({
   return (
     <Modal
       title="Edit Hardpoints"
+      width="xl"
+      headerContent={
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Gang Credits</span>
+          <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm">
+            {gangCredits}
+          </span>
+        </div>
+      }
       content={
         <div className="space-y-4">
           {/* Hardpoints table */}
@@ -381,7 +390,7 @@ function FitWeaponModal({
                     ))}
                   </div>
                   {!editedOperatedBy && (
-                    <p className="text-xs text-muted-foreground mt-1">Please select Crew or Passenger</p>
+                    <p className="text-xs text-muted-foreground mt-1">Please select Crew or Passenger.</p>
                   )}
                 </div>
 
@@ -390,7 +399,6 @@ function FitWeaponModal({
                   <label className="block text-sm font-medium mb-2">Arcs</label>
                   <div className="space-y-2">
                     {ALL_ARCS.map(arc => {
-                      const isDefault = selected?.default_arcs?.includes(arc);
                       const isChecked = editedArcs.includes(arc);
                       return (
                         <div key={arc} className="flex items-center space-x-2">
@@ -398,15 +406,27 @@ function FitWeaponModal({
                             id={`arc-${arc}`}
                             checked={isChecked}
                             onCheckedChange={(checked) => handleArcToggle(arc, !!checked)}
-                            disabled={editedArcs.length === 1 && isChecked}
                           />
                           <label htmlFor={`arc-${arc}`} className="text-sm cursor-pointer">{arc}</label>
-                          {!isDefault && (
-                            <span className="text-sm text-muted-foreground">+15 credits</span>
-                          )}
                         </div>
                       );
                     })}
+                    {originalArcsCount === 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        First Arc is free. Each additional arc costs 15 credits.
+                      </p>
+                    )}
+                    {originalArcsCount > 0 && originalArcsCount < 4 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Each additional arc costs 15 credits.
+                      </p>
+                    )}
+                    {addedArcsCount > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Total cost: {newCost} credits.
+                      </p>
+                    )}
+                    
                   </div>
                 </div>
               </div>
