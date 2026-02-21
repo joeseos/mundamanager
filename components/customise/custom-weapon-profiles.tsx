@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
 import { ImInfo } from "react-icons/im";
 import { LuChevronUp, LuChevronDown } from "react-icons/lu";
 

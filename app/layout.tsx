@@ -6,9 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import ClientToaster from "@/components/ui/client-toaster";
 import { Toaster } from "@/components/ui/sonner"
-import { toast } from "sonner"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import SettingsModal from "@/components/settings-modal";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";

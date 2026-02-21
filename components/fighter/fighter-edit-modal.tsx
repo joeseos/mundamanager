@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
 
