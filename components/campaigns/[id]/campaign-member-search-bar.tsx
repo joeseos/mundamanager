@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { addMemberToCampaign } from "@/app/actions/campaigns/[id]/campaign-members"
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';

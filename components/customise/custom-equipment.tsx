@@ -58,7 +58,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [editWeaponProfiles, setEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [originalEditWeaponProfiles, setOriginalEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [weaponProfilesModified, setWeaponProfilesModified] = useState(false);
-  const { toast } = useToast();
+  
 
   // Helper functions for availability
   const combineAvailability = (letter: 'C' | 'R' | 'E' | 'I', number: number): string => {

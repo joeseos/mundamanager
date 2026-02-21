@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/utils/supabase/client"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import Modal from '@/components/ui/modal'
 import { deleteFriend } from '@/app/actions/friends'
 import { HiX } from "react-icons/hi";
@@ -119,10 +119,7 @@ export default function FriendsSearchBar({
 
       if (checkError) throw checkError;
       if (existing && existing.length > 0) {
-        toast({
-          variant: "destructive",
-          description: `A friend request already exists or you are already friends with ${friend.username}`
-        });
+        toast(`A friend request already exists or you are already friends with ${friend.username}`);
         setIsAdding(false);
         return;
       }
@@ -156,9 +153,7 @@ export default function FriendsSearchBar({
         onFriendAdd(friend);
       }
 
-      toast({
-        description: `Friend request sent to ${friend.username}`
-      });
+      toast(`Friend request sent to ${friend.username}`);
       setQuery('');
       setSearchResults([]);
       // Optionally refetch friends
@@ -166,10 +161,7 @@ export default function FriendsSearchBar({
       startTransition(() => router.refresh());
     } catch (error) {
       console.error('Error adding friend:', error);
-      toast({
-        variant: "destructive",
-        description: "Failed to send friend request"
-      });
+      toast.error("Failed to send friend request");
     } finally {
       setIsAdding(false)
     }
@@ -183,12 +175,12 @@ export default function FriendsSearchBar({
     });
     try {
       await deleteFriend(userId, friendToDelete.id);
-      toast({ description: `Removed ${friendToDelete.username} from your friends.` });
+      toast(`Removed ${friendToDelete.username} from your friends.`);
       setFriendToDelete(null);
       startTransition(() => router.refresh());
       return true;
     } catch (error) {
-      toast({ variant: 'destructive', description: 'Failed to remove friend.' });
+      toast.error('Failed to remove friend.');
       setFriendToDelete(null);
       startTransition(() => router.refresh()); // Revert optimistic update
       return false;

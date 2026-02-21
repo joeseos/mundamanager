@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch";
 import {
   saveFighterSkillAccessOverrides,
@@ -31,7 +31,7 @@ export function SkillAccessModal({
   isOpen,
   onClose
 }: SkillAccessModalProps) {
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const [skillAccess, setSkillAccess] = useState<LocalSkillAccess[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);

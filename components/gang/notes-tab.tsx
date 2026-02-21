@@ -40,7 +40,7 @@ function NoteEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savedContent, setSavedContent] = useState<string>('');
-  const { toast } = useToast();
+  
 
   // Update content when not editing
   useEffect(() => {

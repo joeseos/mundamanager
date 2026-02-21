@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { createClient } from "@/utils/supabase/client";
 import { FighterProps, Vehicle } from '@/types/fighter';
 import { StashItem } from '@/types/gang';
@@ -76,7 +76,7 @@ export default function GangInventory({
   const [sellManualCost, setSellManualCost] = useState<number>(0);
   const [sellLastRoll, setSellLastRoll] = useState<number | null>(null);
   const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
-  const { toast } = useToast();
+  
   
   // Effect selection modal state
   const [effectModalOpen, setEffectModalOpen] = useState(false);

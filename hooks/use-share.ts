@@ -1,7 +1,7 @@
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 
 export function useShare() {
-  const { toast } = useToast();
+  
 
   const shareUrl = async (title: string, url: string = window.location.href) => {
     if (navigator.share) {

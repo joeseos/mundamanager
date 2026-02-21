@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
 import { WeaponProfileInput, EquipmentGrants } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
@@ -134,7 +134,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
   const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string}>>([]);
 
-  const { toast } = useToast();
+  
 
   // Modify equipment list fetch to only happen when category is selected
   useEffect(() => {

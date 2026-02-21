@@ -51,7 +51,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [viewModalData, setViewModalData] = useState<CustomFighterType | null>(null);
   const [copyModalData, setCopyModalData] = useState<CustomFighterType | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomFighterType | null>(null);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for creating custom fighters

@@ -47,7 +47,7 @@ export default function CopyFighterModal({
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
   const [copyVehicles, setCopyVehicles] = useState(true);
   const router = useRouter();
-  const { toast } = useToast();
+  
 
   // Computed values for vehicles
   const hasVehicles = vehicles && vehicles.length > 0;

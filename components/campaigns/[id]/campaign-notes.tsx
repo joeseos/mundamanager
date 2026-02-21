@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { RichTextEditor, RichTextEditorHandle } from "@/components/ui/rich-text-editor";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
@@ -21,7 +21,7 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [savedContent, setSavedContent] = useState<string>('');
-  const { toast } = useToast();
+  
   const editorRef = useRef<RichTextEditorHandle>(null);
 
   // Calculate character count from HTML content (rough estimate)

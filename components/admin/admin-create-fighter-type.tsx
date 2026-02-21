@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
@@ -100,7 +100,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [subTypeName, setSubTypeName] = useState('');
 
-  const { toast } = useToast();
+  
 
   const fetchEquipmentByCategory = async () => {
     try {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,7 +41,7 @@ const GangOriginEquipmentModal: React.FC<GangOriginEquipmentModalProps> = ({
   onAdd,
   onClose,
 }) => {
-  const { toast } = useToast();
+  
   const [selectedOrigin, setSelectedOrigin] = useState("");
   const [equipmentSelections, setEquipmentSelections] = useState<string[]>([]);
   const [equipmentSelectValue, setEquipmentSelectValue] = useState("");
@@ -261,7 +261,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
   onAdd,
   onClose,
 }) => {
-  const { toast } = useToast();
+  
   const [selectedGangType, setSelectedGangType] = useState("");
   const [equipmentSelections, setEquipmentSelections] = useState<string[]>([]);
   const [equipmentSelectValue, setEquipmentSelectValue] = useState("");
@@ -436,7 +436,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
 };
 
 export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicleTypeModalProps) {
-  const { toast } = useToast();
+  
   const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
   const [gangTypesFetched, setGangTypesFetched] = useState(false);
   const [vehicleTypes, setVehicleTypes] = useState<{ id: number; vehicle_type: string }[]>([]);

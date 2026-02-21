@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption } from '@/types/fighter-type';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
@@ -232,7 +232,7 @@ export default function GangAdditions({
   onFighterAdded,
   gangAffiliationId,
 }: GangAdditionsProps) {
-  const { toast } = useToast();
+  
   const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
   const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
   const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);

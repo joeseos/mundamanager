@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { List } from "@/components/ui/list";
@@ -65,7 +65,7 @@ export function PowerBoostsList({
   const [selectedEffectIds, setSelectedEffectIds] = useState<string[]>([]);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
-  const { toast } = useToast();
+  
 
   // TanStack Query mutation for adding power boosts
   const addPowerBoostMutation = useMutation({

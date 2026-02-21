@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
@@ -51,7 +51,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
   const originalCost = item.cost ?? 0;
   const [manualCost, setManualCost] = useState(originalCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
-  const { toast } = useToast();
+  
 
   const handleRoll = () => {
     const r = rollD6();
@@ -122,7 +122,7 @@ export function WeaponList({
   onLoadoutsUpdate
 }: WeaponListProps) {
   const [showLoadoutsModal, setShowLoadoutsModal] = useState(false);
-  const { toast } = useToast();
+  
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<Equipment | null>(null);
   const [stashModalData, setStashModalData] = useState<Equipment | null>(null);

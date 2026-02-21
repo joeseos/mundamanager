@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
 
@@ -21,7 +21,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [gangOrigin, setGangOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     const fetchSkillTypes = async () => {

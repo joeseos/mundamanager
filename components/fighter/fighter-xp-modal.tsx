@@ -8,7 +8,7 @@ import Modal from "@/components/ui/modal";
 import { LuPlus, LuMinus } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 
 interface XpCase {
   id: string;
@@ -40,7 +40,7 @@ export function FighterXpModal({
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
-  const { toast } = useToast();
+  
   const fighterXpMutation = useMutation({
     mutationFn: updateFighterXpWithOoa,
     onError: (error) => {

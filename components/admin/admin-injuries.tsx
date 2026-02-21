@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import {
   FighterEffectType,
@@ -41,7 +41,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
   const [effectSelection, setEffectSelection] = useState<'fixed' | 'single_select' | 'multiple_select'>('fixed');
   const [addsToGlitchCount, setAddsToGlitchCount] = useState<boolean>(false);
 
-  const { toast } = useToast();
+  
 
   // Computed disabled state for form fields
   const isFormDisabled = (!isCreateMode && !selectedEffectId) || isLoading;

@@ -32,7 +32,7 @@ export function ShareCustomFighterModal({
   onSuccess
 }: ShareCustomFighterModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // Fetch shared campaigns using TanStack Query
@@ -184,7 +184,7 @@ export function ShareCustomEquipmentModal({
   onSuccess
 }: ShareCustomEquipmentModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // Fetch shared campaigns using TanStack Query

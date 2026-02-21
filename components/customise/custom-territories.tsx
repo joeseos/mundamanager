@@ -30,7 +30,7 @@ export function CustomiseTerritories({ className, initialTerritories = [], readO
   const [createForm, setCreateForm] = useState({
     territory_name: ''
   });
-  const { toast } = useToast();
+  
 
   // Handle opening the add territory modal
   const handleAddTerritory = () => {

@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { FighterProps } from '@/types/fighter';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StashItem, ResourceUpdate, DefaultImageEntry } from '@/types/gang';
@@ -174,7 +174,7 @@ export default function Gang({
   hidden: initialHidden,
 }: GangProps) {
   const safeGangVariant = gang_variants ?? [];
-  const { toast } = useToast();
+  
   
   const { shareUrl } = useShare();
   const gangContentRef = useRef<HTMLDivElement>(null);

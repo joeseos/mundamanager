@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Modal from "@/components/ui/modal";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
@@ -84,7 +84,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  const { toast } = useToast();
+  
   const session = useSession();
   const queryClient = useQueryClient();
 
@@ -426,7 +426,7 @@ export function SkillsList({
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAddSkillModalOpen, setIsAddSkillModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   // Internal state for optimistic updates

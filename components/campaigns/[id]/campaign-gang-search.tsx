@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Input } from "@/components/ui/input"
 import { createClient } from "@/utils/supabase/client"
 import { Database } from "@/types/supabase"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { LuTrash2 } from 'react-icons/lu'
 import { useMutation } from '@tanstack/react-query'

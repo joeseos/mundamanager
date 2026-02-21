@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from '../ui/modal';
 import { VehicleEquipment } from '@/types/fighter';
 import { List } from "@/components/ui/list";
@@ -106,7 +106,7 @@ function FitWeaponModal({
   onClose,
   onConfirm
 }: FitWeaponModalProps) {
-  const { toast } = useToast();
+  
   const [selectedHardpointId, setSelectedHardpointId] = useState<string | null>(currentHardpointId);
   const [editedArcs, setEditedArcs] = useState<string[]>([]);
   const [editedOperatedBy, setEditedOperatedBy] = useState<'crew' | 'passenger' | ''>('');
@@ -494,7 +494,7 @@ export function VehicleEquipmentList({
   onRegisterPurchase
 }: VehicleEquipmentListProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; equipmentId: string; name: string } | null>(null);
   const [sellModalData, setSellModalData] = useState<VehicleEquipment | null>(null);
   const [stashModalData, setStashModalData] = useState<VehicleEquipment | null>(null);

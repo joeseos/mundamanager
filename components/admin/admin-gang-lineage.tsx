@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { LuTrash2, LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
@@ -46,7 +46,7 @@ interface AdminGangLineageModalProps {
 }
 
 export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageModalProps) {
-  const { toast } = useToast();
+  
   
   // Split state for gang lineages by type and fighter types
   const [legacies, setLegacies] = useState<GangLineage[]>([]);

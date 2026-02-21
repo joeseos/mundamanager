@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from '@/components/ui/modal';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
@@ -163,7 +163,7 @@ export default function GangEditModal({
   isAdmin = false,
   onSave
 }: GangEditModalProps) {
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
   const router = useRouter();
   

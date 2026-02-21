@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal"
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { 

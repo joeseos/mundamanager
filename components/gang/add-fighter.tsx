@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
 import { FighterType } from '@/types/fighter-type';
 import { FighterProps } from '@/types/fighter';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { fighterTypeRank } from "@/utils/fighterTypeRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
@@ -239,7 +239,7 @@ export default function AddFighter({
   gangVariants = [],
   gangAffiliationId,
 }: AddFighterProps) {
-  const { toast } = useToast();
+  
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
   const [fighterName, setFighterName] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);

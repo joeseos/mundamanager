@@ -105,7 +105,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const linkInputRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
+  
 
   // Ref to hold the image insertion function (set after editor is ready)
   const insertImageRef = useRef<((url: string) => void) | null>(null);

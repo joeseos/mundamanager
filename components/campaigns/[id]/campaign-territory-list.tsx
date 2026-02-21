@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { LuSquarePen } from "react-icons/lu";
 import { LuTrash2 } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
@@ -90,7 +90,7 @@ export default function CampaignTerritoryList({
   permissions,
   onTerritoryUpdate
 }: CampaignTerritoryListProps) {
-  const { toast } = useToast();
+  
   const router = useRouter();
 
   // Use programmatic navigation to avoid Link prefetching

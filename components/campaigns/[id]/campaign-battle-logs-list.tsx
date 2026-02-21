@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
@@ -61,7 +61,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
-  const { toast } = useToast();
+  
   const router = useRouter();
 
   // Use programmatic navigation to avoid Link prefetching

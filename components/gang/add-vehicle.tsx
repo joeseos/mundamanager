@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { VehicleProps } from '@/types/vehicle';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
@@ -45,7 +45,7 @@ export default function AddVehicle({
   onGangCreditsUpdate,
   onGangWealthUpdate
 }: AddVehicleProps) {
-  const { toast } = useToast();
+  
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
   const [vehicleError, setVehicleError] = useState<string | null>(null);

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
 
@@ -45,7 +45,7 @@ export function AdminCampaignManagementModal({
   onClose, 
   onSubmit 
 }: AdminCampaignManagementModalProps) {
-  const { toast } = useToast();
+  
   
   // Category selection
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('campaign-types');
@@ -151,10 +151,7 @@ export function AdminCampaignManagementModal({
       setCampaignTypes(data);
     } catch (error) {
       console.error('Error fetching campaign types:', error);
-      toast({
-        description: 'Failed to load campaign types',
-        variant: "destructive"
-      });
+      toast.error('Failed to load campaign types');
     }
   };
 
@@ -166,10 +163,7 @@ export function AdminCampaignManagementModal({
       setTerritories(data);
     } catch (error) {
       console.error('Error fetching territories:', error);
-      toast({
-        description: 'Failed to load territories',
-        variant: "destructive"
-      });
+      toast.error('Failed to load territories');
     }
   };
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 
 enum OperationType {
   POST = 'POST',
@@ -30,7 +30,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
 
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     fetchScenarios();

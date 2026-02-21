@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/utils/supabase/client"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal"
 import Link from 'next/link'
 import { useMutation, useQuery } from '@tanstack/react-query'

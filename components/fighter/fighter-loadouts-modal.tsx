@@ -36,7 +36,7 @@ export default function FighterLoadoutsModal({
   onClose,
   onLoadoutsUpdate
 }: FighterLoadoutsModalProps) {
-  const { toast } = useToast();
+  
   const [loadouts, setLoadouts] = useState<FighterLoadout[]>(initialLoadouts);
   const [activeLoadoutId, setActiveLoadoutIdState] = useState<string | null>(initialActiveLoadoutId ?? null);
   const [selectedLoadoutId, setSelectedLoadoutId] = useState<string | null>(initialActiveLoadoutId ?? null);

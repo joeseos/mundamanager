@@ -53,7 +53,7 @@ export interface BuyEquipmentPayload {
 }
 
 export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
-  const { toast } = useToast();
+  
 
   const purchaseEquipment = async ({
     item,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox";
 import { campaignRank } from '@/utils/campaigns/campaignRank';
@@ -50,7 +50,7 @@ export default function TerritoryList({
   const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     setSelectedTypes([campaignTypeId]);

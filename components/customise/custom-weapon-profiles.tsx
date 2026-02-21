@@ -227,7 +227,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
 ProfileCard.displayName = 'ProfileCard';
 
 export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false }: CustomWeaponProfilesProps) {
-  const { toast } = useToast();
+  
 
   const createEmptyProfile = (): CustomWeaponProfile => ({
     profile_name: '',

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
@@ -60,7 +60,7 @@ export default function GangVehicles({
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   const [isSellLoading, setIsSellLoading] = useState(false);
   const [isUnassignLoading, setIsUnassignLoading] = useState(false);
-  const { toast } = useToast();
+  
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [sellingVehicle, setSellingVehicle] = useState<CombinedVehicleProps | null>(null);

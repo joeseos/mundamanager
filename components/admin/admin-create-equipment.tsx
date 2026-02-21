@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
@@ -65,7 +65,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [availabilityValue, setAvailabilityValue] = useState("");
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     const fetchCategories = async () => {

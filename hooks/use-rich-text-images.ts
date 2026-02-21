@@ -60,7 +60,7 @@ export function useRichTextImages({
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [hostedImageToRemove, setHostedImageToRemove] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { toast } = useToast();
+  
 
   // Storage URL helpers
   const getStorageBaseUrl = useCallback(() => {

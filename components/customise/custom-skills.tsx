@@ -41,7 +41,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const [skillTypes, setSkillTypes] = useState<SkillType[]>([]);
   const [editForm, setEditForm] = useState({ skill_name: '', skill_type_id: '' });
   const [createForm, setCreateForm] = useState({ skill_name: '', skill_type_id: '' });
-  const { toast } = useToast();
+  
   const supabase = createClient();
 
   const fetchSkillTypes = async () => {
@@ -481,7 +481,7 @@ function ShareCustomSkillModal({
   onSuccess,
 }: ShareCustomSkillModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({

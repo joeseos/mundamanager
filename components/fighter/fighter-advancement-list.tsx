@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { Skill, FighterSkills, FighterEffect as FighterEffectType } from '@/types/fighter';
 import { TypeSpecificData } from '@/types/fighter-effect';
@@ -173,7 +173,7 @@ interface SkillAccess {
 
 // AdvancementModal Component
 export function AdvancementModal({ fighterId, currentXp, fighterClass, advancements, skills, onClose, onAdvancementAdded, onSkillUpdate, onXpCreditsUpdate, onAdvancementUpdate, onCharacteristicUpdate }: AdvancementModalProps) {
-  const { toast } = useToast();
+  
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [availableAdvancements, setAvailableAdvancements] = useState<AvailableAdvancement[]>([]);
@@ -998,7 +998,7 @@ export function AdvancementsList({
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   // isDeleting unused; removed
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
-  const { toast } = useToast();
+  
   // removed queryClient – server actions handle cache revalidation
 
 

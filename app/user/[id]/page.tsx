@@ -17,7 +17,7 @@ import { CustomTerritory } from "@/app/lib/customise/custom-territories";
 import { CustomSkill } from "@/app/lib/customise/custom-skills";
 import { CustomFighterType } from "@/types/fighter";
 import { useSession } from "@/hooks/use-session";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 
 import Link from "next/link";
 
@@ -69,7 +69,7 @@ interface UserData {
 
 export default function UserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { toast } = useToast();
+  
   
   // Fetch user data using TanStack Query
   const { data: userData, isLoading, error } = useQuery({
@@ -97,10 +97,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   // Show error toast if user data failed to load
   useEffect(() => {
     if (error) {
-      toast({
-        description: 'Failed to load user data',
-        variant: 'destructive'
-      });
+      toast.error("Failed to load user data");
     }
   }, [error, toast]);
 

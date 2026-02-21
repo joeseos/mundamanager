@@ -7,6 +7,8 @@ import Image from 'next/image';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import ClientToaster from "@/components/ui/client-toaster";
+import { Toaster } from "@/components/ui/sonner"
+import { toast } from "sonner"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import SettingsModal from "@/components/settings-modal";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
@@ -120,7 +122,7 @@ export default async function RootLayout({
     patreonTierTitle = profile?.patreon_tier_title;
     patronStatus = profile?.patron_status;
   }
-
+  
   return (
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
@@ -247,7 +249,11 @@ export default async function RootLayout({
           </div>
         </main>
         <Footer />
-        <ClientToaster />
+        <Toaster 
+          richColors 
+          closeButton 
+          position="bottom-right" 
+        />
           </QueryClientProviderWrapper>
         </ClientThemeProvider>
       </body>

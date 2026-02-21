@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useTransition } from 'reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from "react-icons/lu";
 import { FighterType } from "@/types/fighter";
@@ -202,7 +202,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   }, [specialSkills]);
 
-  const { toast } = useToast();
+  
 
   // Memoize filtered skills to avoid recalculating on every render
   const availableSkills = useMemo(() => {

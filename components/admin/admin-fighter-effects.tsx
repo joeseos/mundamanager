@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
@@ -114,7 +114,7 @@ export function AdminFighterEffects({
   const [newModifierValue, setNewModifierValue] = useState<string>('');
   const [newModifierOperation, setNewModifierOperation] = useState<'add' | 'set'>('add');
   
-  const { toast } = useToast();
+  
 
   // Update local state when props change
   useEffect(() => {

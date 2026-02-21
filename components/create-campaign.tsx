@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createCampaign } from "@/app/actions/create-campaign"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
@@ -63,7 +63,7 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
 
 // Modal component
 export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTradingPostTypes, userId }: CreateCampaignModalProps) {
-  const { toast } = useToast();
+  
   const router = useRouter();
   const searchParams = useSearchParams();
   const [campaignName, setCampaignName] = useState("")
@@ -165,19 +165,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         // Trigger router refresh to update server state
         router.refresh();
       }
-      
-      toast({
-        title: "Success!",
-        description: `${campaignName} has been created successfully.`,
-      })
+
+      toast.success("Success!", { description: `${campaignName} has been created successfully.` });
     } catch (err) {
       console.error('Error creating campaign:', err)
       setError('Failed to create campaign. Please try again.')
-      toast({
-        title: "Error",
-        description: "Failed to create campaign. Please try again.",
-        variant: "destructive",
-      })
+      toast.error("Error", { description: "Failed to create campaign. Please try again." });      
     } finally {
       setIsLoading(false)
     }

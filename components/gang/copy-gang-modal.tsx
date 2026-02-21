@@ -25,7 +25,7 @@ export default function CopyGangModal({
   const [name, setName] = useState(`${currentName} copy`);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
+  
 
   if (!isOpen) return null;
 

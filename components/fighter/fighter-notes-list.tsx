@@ -40,7 +40,7 @@ function NoteEditor({
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [originalContent, setOriginalContent] = useState<string>('');
-  const { toast } = useToast();
+  
 
   const noteMutation = useMutation({
     mutationFn: onSave,

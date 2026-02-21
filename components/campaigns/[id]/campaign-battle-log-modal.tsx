@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,7 +62,7 @@ const CampaignBattleLogModal = ({
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<BattleLogTerritory[]>([]);
-  const { toast } = useToast();
+  
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
     const tzOffsetMs = now.getTimezoneOffset() * 60000;

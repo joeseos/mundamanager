@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 
 interface TradingPostType {
@@ -29,7 +29,7 @@ export function AdminTradingPost({
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
   const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(propTradingPostTypes);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  
 
   // Update trading post types when prop changes
   useEffect(() => {

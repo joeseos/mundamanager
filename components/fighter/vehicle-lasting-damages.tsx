@@ -63,7 +63,7 @@ export function VehicleDamagesList({
   const [selectedDamageId, setSelectedDamageId] = useState<string>('');
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [selectedRepairTypeId, setSelectedRepairTypeId] = useState<string>('');
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';

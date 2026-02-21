@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useTransition, useCallback } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
@@ -158,7 +158,7 @@ export default function CampaignPageContent({
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
-  const { toast } = useToast();
+  
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(0);
