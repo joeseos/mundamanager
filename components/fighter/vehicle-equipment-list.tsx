@@ -114,6 +114,7 @@ function FitWeaponModal({
   const [isSaving, setIsSaving] = useState(false);
   const [selectedWeaponId, setSelectedWeaponId] = useState<string>('');
   const [modalHardpoints, setModalHardpoints] = useState(hardpoints);
+  const [validationError, setValidationError] = useState<string>('');
 
   // Keep local hardpoints view in sync with incoming props when modal is (re)opened
   React.useEffect(() => {
@@ -139,6 +140,7 @@ function FitWeaponModal({
         const operatedBy = hp.operated_by || '';
         setEditedOperatedBy(operatedBy === 'crew' || operatedBy === 'passenger' ? operatedBy : '');
         setEditedLocation(hp.location || '');
+        setValidationError('');
         // Don't reset weapon selection if weaponName was provided (user came from weapon selection)
         if (!weaponName) {
           setSelectedWeaponId(''); // Reset weapon selection when hardpoint changes
@@ -217,17 +219,23 @@ function FitWeaponModal({
   };
 
   // Save all changes: arc/layout updates plus any weapon changes across hardpoints
-  const handleSave = async () => {
-    if (!selectedHardpointId || insufficientCredits) return;
+  const handleSave = async (): Promise<boolean> => {
+    if (!selectedHardpointId || insufficientCredits) return false;
     
     // Validate that operated_by is selected
     if (!editedOperatedBy || (editedOperatedBy !== 'crew' && editedOperatedBy !== 'passenger')) {
       toast.error('Validation Error', { description: 'Please select Crew or Passenger for "Operated By" before saving' });
-      return;
+      setValidationError('Please select Crew or Passenger for "Operated By" before saving.');
+      return false;
+    }
+    if (editedArcs.length === 0) {
+      setValidationError('Please select at least one arc before saving.');
+      return false;
     }
     
     setIsSaving(true);
     try {
+      setValidationError('');
       // Save arc changes if any
       if (hasArcChanges) {
         const updateResult = await updateVehicleHardpoint({
@@ -238,7 +246,11 @@ function FitWeaponModal({
           arcs: editedArcs,
           location: editedLocation
         });
-        if (!updateResult.success) throw new Error(updateResult.error || 'Failed to update hardpoint');
+        if (!updateResult.success) {
+          setValidationError(updateResult.error || 'Failed to update hardpoint');
+          setIsSaving(false);
+          return false;
+        }
       }
 
       // Persist any weapon changes after arc/layout updates
@@ -260,10 +272,12 @@ function FitWeaponModal({
       }
 
       toast.success('Changes saved');
-      onClose();
+      return true;
     } catch (err) {
+      setValidationError(err instanceof Error ? err.message : 'Failed to save');
       toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to save' });
       setIsSaving(false);
+      return false;
     }
   };
 
@@ -483,6 +497,9 @@ function FitWeaponModal({
 
               {insufficientCredits && (
                 <div className="text-red-600 text-sm font-medium">Insufficient credits!</div>
+              )}
+              {validationError && (
+                <div className="text-red-600 text-sm font-medium">{validationError}</div>
               )}
             </div>
           )}
