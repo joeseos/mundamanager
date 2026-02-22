@@ -744,7 +744,7 @@ export function VehicleEquipmentList({
     location: hp.type_specific_data?.location || '',
     fighter_equipment_id: hp.fighter_equipment_id || '',
     fitted_weapon_name: hp.fighter_equipment_id
-      ? (equipment.find(e => e.fighter_equipment_id === hp.fighter_equipment_id)?.equipment_name || '(unknown)')
+      ? (equipment.find(e => e.fighter_equipment_id === hp.fighter_equipment_id && e.equipment_type === 'weapon')?.equipment_name || '—')
       : '—'
   }));
 
