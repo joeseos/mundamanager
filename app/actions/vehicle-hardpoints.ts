@@ -167,12 +167,15 @@ export async function updateVehicleHardpoint(
 
     // --- Cost delta ---
     // default_arcs is the template baseline stored at creation. Never changes.
-    // Cost = arcs beyond the free baseline, at 15 credits each.
+    // First arc is free when hardpoint had no arcs previously.
+    // Cost = arcs beyond the baseline + free allowance, at 15 credits each.
     // Runtime validation: ensure default_arcs is an array
     const defaultArcs = Array.isArray(currentData.default_arcs) ? currentData.default_arcs : [];
     const defaultArcsCount: number = defaultArcs.length;
     const currentCreditsIncrease: number = currentData.credits_increase || 0;
-    const newCreditsIncrease = Math.max(0, uniqueArcs.length - defaultArcsCount) * 15;
+    // If the hardpoint has no default arcs, the first arc is always free.
+    const freeArcAllowance = defaultArcsCount === 0 ? 1 : 0;
+    const newCreditsIncrease = Math.max(0, uniqueArcs.length - defaultArcsCount - freeArcAllowance) * 15;
     const delta = newCreditsIncrease - currentCreditsIncrease;  // positive = buying, negative = refund
 
     // --- Pre-flight credit check (updateGangFinancials clamps to 0, doesn't fail) ---
