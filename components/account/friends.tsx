@@ -118,7 +118,7 @@ export default function FriendsSearchBar({
 
       if (checkError) throw checkError;
       if (existing && existing.length > 0) {
-        toast(`A friend request already exists or you are already friends with ${friend.username}`);
+        toast.error(`A friend request already exists or you are already friends with ${friend.username}`);
         setIsAdding(false);
         return;
       }
