@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 5JsFQFFWYsrwLvcIxkJb3o1z34Vcv5922g8ypq5wXTVxE7kLXan9IYKMj9Yd23e
+\restrict I7uXBG6QtWg2DSer7cVeTmgZm3Lf3WxW8ma0A6ynueQMcwBSbTuaKHYI0h6oA2w
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -4930,6 +4930,19 @@ CREATE TABLE public.custom_shared (
 
 
 --
+-- Name: custom_skill_types; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_skill_types (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    name text,
+    user_id uuid
+);
+
+
+--
 -- Name: custom_skills; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4939,7 +4952,9 @@ CREATE TABLE public.custom_skills (
     updated_at timestamp with time zone,
     skill_name text,
     user_id uuid,
-    skill_type_id uuid
+    skill_type_id uuid,
+    custom_skill_type_id uuid,
+    CONSTRAINT chk_custom_skills_skill_type_exclusive CHECK ((((skill_type_id IS NOT NULL) AND (custom_skill_type_id IS NULL)) OR ((skill_type_id IS NULL) AND (custom_skill_type_id IS NOT NULL))))
 );
 
 
@@ -6133,6 +6148,14 @@ ALTER TABLE ONLY public.custom_fighter_types
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_skill_types custom_skill_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skill_types
+    ADD CONSTRAINT custom_skill_types_pkey PRIMARY KEY (id);
 
 
 --
@@ -7386,6 +7409,14 @@ ALTER TABLE ONLY public.custom_shared
 
 
 --
+-- Name: custom_skills custom_skills_custom_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skills
+    ADD CONSTRAINT custom_skills_custom_skill_type_id_fkey FOREIGN KEY (custom_skill_type_id) REFERENCES public.custom_skill_types(id) ON DELETE CASCADE;
+
+
+--
 -- Name: custom_skills custom_skills_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8167,6 +8198,13 @@ CREATE POLICY "Allow authenticated users to create custom shares" ON public.cust
 
 
 --
+-- Name: custom_skill_types Allow authenticated users to create custom skill types; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom skill types" ON public.custom_skill_types FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_skills Allow authenticated users to create custom skills; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8255,6 +8293,13 @@ CREATE POLICY "Allow authenticated users to view custom fighter types" ON public
 --
 
 CREATE POLICY "Allow authenticated users to view custom shares" ON public.custom_shared FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_skill_types Allow authenticated users to view custom skill types; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom skill types" ON public.custom_skill_types FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9372,6 +9417,20 @@ CREATE POLICY "Only custom skill owner or admin can update" ON public.custom_ski
 
 
 --
+-- Name: custom_skill_types Only custom skill type owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom skill type owner or admin can delete" ON public.custom_skill_types FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_skill_types Only custom skill type owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom skill type owner or admin can update" ON public.custom_skill_types FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_territories Only custom territory owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9966,6 +10025,12 @@ ALTER TABLE public.custom_fighter_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_shared ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_skill_types; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_skill_types ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: custom_skills; Type: ROW SECURITY; Schema: public; Owner: -
@@ -10779,5 +10844,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5JsFQFFWYsrwLvcIxkJb3o1z34Vcv5922g8ypq5wXTVxE7kLXan9IYKMj9Yd23e
+\unrestrict I7uXBG6QtWg2DSer7cVeTmgZm3Lf3WxW8ma0A6ynueQMcwBSbTuaKHYI0h6oA2w
 
