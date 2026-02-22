@@ -59,7 +59,7 @@ export function AdminTradingPost({
     };
 
     fetchTradingPostTypes();
-  }, [showTradingPostDialog, propTradingPostTypes.length, toast]);
+  }, [showTradingPostDialog, propTradingPostTypes.length]);
 
   const handleSave = () => {
     toast.success("Trading Post selections saved. Remember to update the equipment to apply changes.");

@@ -99,7 +99,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
     if (error) {
       toast.error("Failed to load user data");
     }
-  }, [error, toast]);
+  }, [error]);
 
   if (isLoading) {
     return (
