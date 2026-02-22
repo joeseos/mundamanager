@@ -171,6 +171,8 @@ export function AdminFighterEffects({
         ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) }),
         ...(newEffect.cost && { cost: parseInt(newEffect.cost) }),
         ...(newEffect.is_editable && { is_editable: true }),
+        // default_arcs = immutable template baseline for cost calc; arcs = current player-facing state.
+        // At creation they're identical; arcs diverges later when the player modifies the hardpoint.
         ...(isHardpointCategory && {
           operated_by: newEffect.operated_by,
           arcs: newEffect.arcs,
@@ -312,6 +314,8 @@ export function AdminFighterEffects({
       // Set is_editable or remove it if false
       ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined }),
       // Hardpoint fields - always include when category is hardpoint, clear when not
+      // default_arcs = immutable template baseline for cost calc; arcs = current player-facing state.
+      // At creation they're identical; arcs diverges later when the player modifies the hardpoint.
       ...(isHardpointCategory
         ? { operated_by: newEffect.operated_by, arcs: newEffect.arcs, default_arcs: newEffect.arcs, location: newEffect.location }
         : { operated_by: undefined, arcs: undefined, default_arcs: undefined, location: undefined })
@@ -737,7 +741,7 @@ export function AdminFighterEffects({
                             setNewEffect(prev => ({
                               ...prev,
                               arcs: checked
-                                ? [...prev.arcs, arc]
+                                ? [...VALID_ARCS].filter(a => [...prev.arcs, arc].includes(a))
                                 : prev.arcs.filter(a => a !== arc)
                             }));
                           }}
