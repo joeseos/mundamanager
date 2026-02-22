@@ -48,6 +48,8 @@ const STAT_MAPPINGS = [
   { stat_name: 'wounds', display_name: 'Wounds', short_name: 'W', value_suffix: '' }
 ];
 
+const VALID_ARCS = ['Front', 'Left', 'Right', 'Rear'] as const;
+
 // Helper function to get display name from stat name
 const getDisplayName = (stat_name: string): string => {
   const mapping = STAT_MAPPINGS.find(m => m.stat_name === stat_name);
@@ -106,7 +108,10 @@ export function AdminFighterEffects({
     traits_to_remove: '',
     credits_increase: '',
     cost: '',
-    is_editable: false
+    is_editable: false,
+    operated_by: '' as '' | 'crew' | 'passenger',
+    arcs: [] as string[],
+    location: ''
   });
 
   // New modifier form state
@@ -124,6 +129,10 @@ export function AdminFighterEffects({
   useEffect(() => {
     setCategories(fighterEffectCategories);
   }, [fighterEffectCategories]);
+
+  const isHardpointCategory = categories.find(
+    c => c.id === newEffect.fighter_effect_category_id
+  )?.category_name === 'hardpoint';
 
   const handleAddEffect = async () => {
     if (!newEffect.effect_name) {
@@ -161,7 +170,13 @@ export function AdminFighterEffects({
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
         ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) }),
         ...(newEffect.cost && { cost: parseInt(newEffect.cost) }),
-        ...(newEffect.is_editable && { is_editable: true })
+        ...(newEffect.is_editable && { is_editable: true }),
+        ...(isHardpointCategory && {
+          operated_by: newEffect.operated_by,
+          arcs: newEffect.arcs,
+          default_arcs: newEffect.arcs,
+          location: newEffect.location
+        })
       };
 
       // Create effect with temp ID - will be saved when parent saves
@@ -194,7 +209,10 @@ export function AdminFighterEffects({
         traits_to_remove: '',
         credits_increase: '',
         cost: '',
-        is_editable: false
+        is_editable: false,
+        operated_by: '',
+        arcs: [],
+        location: ''
       });
 
       if (onUpdate) {
@@ -227,7 +245,10 @@ export function AdminFighterEffects({
       traits_to_remove: '',
       credits_increase: '',
       cost: '',
-      is_editable: false
+      is_editable: false,
+      operated_by: '',
+      arcs: [],
+      location: ''
     });
   };
 
@@ -245,7 +266,10 @@ export function AdminFighterEffects({
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
       cost: effect.type_specific_data?.cost?.toString() || '',
-      is_editable: effect.type_specific_data?.is_editable === true
+      is_editable: effect.type_specific_data?.is_editable === true,
+      operated_by: (effect.type_specific_data?.operated_by || '') as '' | 'crew' | 'passenger',
+      arcs: effect.type_specific_data?.arcs || [],
+      location: effect.type_specific_data?.location || ''
     });
     setShowEditEffectDialog(true);
   };
@@ -286,7 +310,11 @@ export function AdminFighterEffects({
       // Set cost or remove it if empty
       ...(newEffect.cost ? { cost: parseInt(newEffect.cost) } : { cost: undefined }),
       // Set is_editable or remove it if false
-      ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined })
+      ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined }),
+      // Hardpoint fields - always include when category is hardpoint, clear when not
+      ...(isHardpointCategory
+        ? { operated_by: newEffect.operated_by, arcs: newEffect.arcs, default_arcs: newEffect.arcs, location: newEffect.location }
+        : { operated_by: undefined, arcs: undefined, default_arcs: undefined, location: undefined })
     };
 
     // Clean undefined values from typeSpecificData
@@ -521,6 +549,24 @@ export function AdminFighterEffects({
                             Removes: {effect.type_specific_data.traits_to_remove.join(', ')}
                           </Badge>
                         )}
+
+                        {effect.type_specific_data?.operated_by && (
+                          <Badge variant="outline" className="border-purple-500 text-purple-600">
+                            {effect.type_specific_data.operated_by === 'crew' ? 'Crew Operated' : 'Passenger Operated'}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.arcs && effect.type_specific_data.arcs.length > 0 && (
+                          <Badge variant="outline" className="border-amber-500 text-amber-600">
+                            Arcs: {effect.type_specific_data.arcs.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.location && (
+                          <Badge variant="outline" className="border-teal-500 text-teal-600">
+                            Location: {effect.type_specific_data.location}
+                          </Badge>
+                        )}
                       </div>
                       <h4 className="font-medium">{effect.effect_name}</h4>
                        <p className="text-sm text-muted-foreground">
@@ -652,6 +698,57 @@ export function AdminFighterEffects({
                 ))}
               </select>
             </div>
+
+            {isHardpointCategory && (
+              <div className="border rounded-md p-4 space-y-4">
+                <h4 className="text-sm font-semibold">Hardpoint Configuration</h4>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Operated By</label>
+                  <select
+                    value={newEffect.operated_by}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, operated_by: e.target.value as '' | 'crew' | 'passenger' }))}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Not specified</option>
+                    <option value="crew">Crew</option>
+                    <option value="passenger">Passenger</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Location</label>
+                  <Input
+                    type="text"
+                    value={newEffect.location}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="e.g. hull, rear platform"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Fire Arcs</label>
+                  <div className="flex flex-wrap gap-4">
+                    {VALID_ARCS.map((arc) => (
+                      <label key={arc} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={newEffect.arcs.includes(arc)}
+                          onCheckedChange={(checked) => {
+                            setNewEffect(prev => ({
+                              ...prev,
+                              arcs: checked
+                                ? [...prev.arcs, arc]
+                                : prev.arcs.filter(a => a !== arc)
+                            }));
+                          }}
+                        />
+                        <span className="text-sm">{arc}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!hideEquipmentOption && (
               <div className="space-y-2">
