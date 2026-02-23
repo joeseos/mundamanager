@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict I7uXBG6QtWg2DSer7cVeTmgZm3Lf3WxW8ma0A6ynueQMcwBSbTuaKHYI0h6oA2w
+\restrict AThVgL2pOJ7aMRVeQEN1e0csznkafY65gaaZ26qNsmgJQRek3qQzWEeG2AmkBEX
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.11 (Ubuntu 16.11-1.pgdg24.04+1)
@@ -1162,9 +1162,9 @@ BEGIN
             cs.id AS skill_id,
             cs.skill_name AS skill_name,
             true AS is_custom,
-            cs.skill_type_id,
-            st.name AS skill_type_name,
-            st.legendary_name,
+            COALESCE(cs.skill_type_id, cs.custom_skill_type_id) AS skill_type_id,
+            COALESCE(st.name, cst.name) AS skill_type_name,
+            COALESCE(st.legendary_name, false) AS legendary_name,
             COALESCE(sao.access_level, ftsa.access_level) AS effective_access_level,
             NOT EXISTS (
                 SELECT 1 FROM fighter_skills fs
@@ -1173,7 +1173,8 @@ BEGIN
             ) AS available,
             0 AS skill_cost
         FROM custom_skills cs
-        JOIN skill_types st ON st.id = cs.skill_type_id
+        LEFT JOIN skill_types st ON st.id = cs.skill_type_id
+        LEFT JOIN custom_skill_types cst ON cst.id = cs.custom_skill_type_id
         -- Visibility: owned by current user OR shared to fighter's gang's campaign
         LEFT JOIN (
             SELECT DISTINCT csh.custom_skill_id
@@ -1181,7 +1182,7 @@ BEGIN
             JOIN campaign_gangs cg ON cg.campaign_id = csh.campaign_id
             WHERE cg.gang_id = v_gang_id
         ) shared ON shared.custom_skill_id = cs.id
-        -- Same access level joins as standard skills
+        -- Access level joins (custom skill types have no rows here, defaulting to 'none' = not denied)
         LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = cs.skill_type_id
             AND (
                 (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
@@ -4464,85 +4465,6 @@ BEGIN
     RETURN v::numeric;
 EXCEPTION WHEN OTHERS THEN
     RETURN 0;
-END;
-$$;
-
-
---
--- Name: update_gang_financials(uuid, integer, integer, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.update_gang_financials(p_gang_id uuid, p_credits_delta integer DEFAULT 0, p_rating_delta integer DEFAULT 0, p_stash_value_delta integer DEFAULT 0) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-    v_current_credits INTEGER;
-    v_current_rating INTEGER;
-    v_current_wealth INTEGER;
-    v_new_credits INTEGER;
-    v_new_rating INTEGER;
-    v_new_wealth INTEGER;
-    v_wealth_delta INTEGER;
-BEGIN
-    -- Lock the row for the duration of this transaction
-    SELECT credits, rating, wealth
-    INTO v_current_credits, v_current_rating, v_current_wealth
-    FROM gangs
-    WHERE id = p_gang_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Gang not found'
-        );
-    END IF;
-
-    -- Coalesce NULLs to 0
-    v_current_credits := COALESCE(v_current_credits, 0);
-    v_current_rating := COALESCE(v_current_rating, 0);
-    v_current_wealth := COALESCE(v_current_wealth, 0);
-
-    -- Overdraft check: fail fast if insufficient credits
-    IF p_credits_delta < 0 AND v_current_credits + p_credits_delta < 0 THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'Insufficient credits',
-            'old_values', jsonb_build_object(
-                'credits', v_current_credits,
-                'rating', v_current_rating,
-                'wealth', v_current_wealth
-            )
-        );
-    END IF;
-
-    -- Calculate new values with floor at 0
-    v_wealth_delta := p_rating_delta + p_credits_delta + p_stash_value_delta;
-    v_new_credits := GREATEST(0, v_current_credits + p_credits_delta);
-    v_new_rating := GREATEST(0, v_current_rating + p_rating_delta);
-    v_new_wealth := GREATEST(0, v_current_wealth + v_wealth_delta);
-
-    -- Update the row (already locked, guaranteed to succeed)
-    UPDATE gangs
-    SET credits = v_new_credits,
-        rating = v_new_rating,
-        wealth = v_new_wealth
-    WHERE id = p_gang_id;
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'old_values', jsonb_build_object(
-            'credits', v_current_credits,
-            'rating', v_current_rating,
-            'wealth', v_current_wealth
-        ),
-        'new_values', jsonb_build_object(
-            'credits', v_new_credits,
-            'rating', v_new_rating,
-            'wealth', v_new_wealth
-        )
-    );
 END;
 $$;
 
@@ -10844,5 +10766,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict I7uXBG6QtWg2DSer7cVeTmgZm3Lf3WxW8ma0A6ynueQMcwBSbTuaKHYI0h6oA2w
+\unrestrict AThVgL2pOJ7aMRVeQEN1e0csznkafY65gaaZ26qNsmgJQRek3qQzWEeG2AmkBEX
 
