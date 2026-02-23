@@ -11,6 +11,7 @@ import { editFighterStatus } from "@/app/actions/edit-fighter";
 import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
+import { Tooltip } from 'react-tooltip';
 
 interface Fighter {
   id: string;
@@ -26,6 +27,8 @@ interface Fighter {
   base_credits?: number;
   base_copy_cost?: number;
   is_spyrer?: boolean;
+  owner_name?: string;
+  fighter_class?: string;
   campaigns?: Array<{
     resources?: Array<{ resource_name: string }>;
   }>;
@@ -94,6 +97,8 @@ export function FighterActions({
       campaign.resources?.some(r => r.resource_name.toLowerCase() === 'meat')
     ) ?? false;
   }, [fighter?.campaigns]);
+
+  const isOwnedExoticBeast = fighter?.fighter_class === 'Exotic Beast' && !!fighter?.owner_name;
 
   // Calculate total vehicle equipment cost
   const vehicleEquipmentCost = useMemo(() => {
@@ -269,14 +274,30 @@ export function FighterActions({
             Copy Fighter
           </Button>
 
-          <Button
-            variant="destructive"
-            className="flex-1"
-            onClick={() => handleModalToggle('delete', true)}
-            disabled={!userPermissions.canEdit}
-          >
-            Delete Fighter
-          </Button>
+          {isOwnedExoticBeast ? (
+            <span
+              className="flex-1 inline-block"
+              data-tooltip-id="delete-owned-beast-tooltip"
+              data-tooltip-content="This Exotic Beast can't be deleted as it's linked to an Owner. Delete the Exotic Beast wargear on the owner instead. You can still apply other status to an Exotic Beast (Retired, Killed etc.)"
+            >
+              <Button
+                variant="destructive"
+                className="w-full"
+                disabled
+              >
+                Delete Fighter
+              </Button>
+            </span>
+          ) : (
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => handleModalToggle('delete', true)}
+              disabled={!userPermissions.canEdit}
+            >
+              Delete Fighter
+            </Button>
+          )}
         </div>
       </div>
 
@@ -435,6 +456,18 @@ export function FighterActions({
           }}
         />
       )}
+
+      <Tooltip
+        id="delete-owned-beast-tooltip"
+        place="top"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '20rem'
+        }}
+      />
 
       {modals.copy && (
         <CopyFighterModal
