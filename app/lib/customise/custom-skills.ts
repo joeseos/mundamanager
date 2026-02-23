@@ -1,10 +1,36 @@
 import { createClient } from "@/utils/supabase/server";
 
+export interface CustomSkillType {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export async function getUserCustomSkillTypes(userId: string): Promise<CustomSkillType[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('custom_skill_types')
+    .select('id, user_id, name, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching custom skill types:', error);
+    throw new Error(`Failed to fetch custom skill types: ${error.message}`);
+  }
+
+  return data || [];
+}
+
 export interface CustomSkill {
   id: string;
   user_id: string;
   skill_name: string;
-  skill_type_id: string;
+  skill_type_id?: string;
+  custom_skill_type_id?: string;
   skill_type_name?: string;
   created_at: string;
   updated_at?: string;
@@ -20,11 +46,11 @@ export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]
       user_id,
       skill_name,
       skill_type_id,
+      custom_skill_type_id,
       created_at,
       updated_at,
-      skill_types (
-        name
-      )
+      skill_types (name),
+      custom_skill_types (name)
     `)
     .eq('user_id', userId)
     .order('skill_name', { ascending: true });
@@ -39,7 +65,8 @@ export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]
     user_id: skill.user_id,
     skill_name: skill.skill_name,
     skill_type_id: skill.skill_type_id,
-    skill_type_name: skill.skill_types?.name || 'Unknown',
+    custom_skill_type_id: skill.custom_skill_type_id,
+    skill_type_name: skill.skill_types?.name || skill.custom_skill_types?.name || 'Unknown',
     created_at: skill.created_at,
     updated_at: skill.updated_at,
   }));

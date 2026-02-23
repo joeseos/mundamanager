@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomSkill } from '@/app/lib/customise/custom-skills';
-import { createCustomSkill, updateCustomSkill, deleteCustomSkill } from '@/app/actions/customise/custom-skills';
+import { createCustomSkill, updateCustomSkill, deleteCustomSkill, createCustomSkillType, updateCustomSkillType, deleteCustomSkillType } from '@/app/actions/customise/custom-skills';
 import { shareCustomSkill } from '@/app/actions/customise/custom-share';
 import Modal from '@/components/ui/modal';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
@@ -27,6 +28,7 @@ interface CustomiseSkillsProps {
 interface SkillType {
   id: string;
   name: string;
+  is_custom?: boolean;
 }
 
 export function CustomiseSkills({ className, initialSkills = [], readOnly = false, userId, userCampaigns = [] }: CustomiseSkillsProps) {
@@ -39,20 +41,29 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const [copyModalData, setCopyModalData] = useState<CustomSkill | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomSkill | null>(null);
   const [skillTypes, setSkillTypes] = useState<SkillType[]>([]);
-  const [editForm, setEditForm] = useState({ skill_name: '', skill_type_id: '' });
-  const [createForm, setCreateForm] = useState({ skill_name: '', skill_type_id: '' });
-  
+  const [editForm, setEditForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false });
+  const [createForm, setCreateForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false });
+
+  // Inline skill type creation/rename state
+  const [newSkillTypeName, setNewSkillTypeName] = useState('');
+  const [showNewSkillTypeInput, setShowNewSkillTypeInput] = useState<'create' | 'edit' | null>(null);
+  const [skillTypesToDelete, setSkillTypesToDelete] = useState<string[]>([]);
+
   const supabase = createClient();
 
   const fetchSkillTypes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('skill_types')
-        .select('id, name')
-        .order('name', { ascending: true });
+      const [standardResult, customResult] = await Promise.all([
+        supabase.from('skill_types').select('id, name').order('name', { ascending: true }),
+        supabase.from('custom_skill_types').select('id, name').order('name', { ascending: true }),
+      ]);
 
-      if (error) throw error;
-      setSkillTypes(data || []);
+      if (standardResult.error) throw standardResult.error;
+      if (customResult.error) throw customResult.error;
+
+      const standard = (standardResult.data || []).map(t => ({ ...t, is_custom: false }));
+      const custom = (customResult.data || []).map(t => ({ ...t, is_custom: true }));
+      setSkillTypes([...custom, ...standard]);
     } catch (error) {
       console.error('Error fetching skill types:', error);
       toast.error('Failed to load skill types');
@@ -61,24 +72,70 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const handleAddSkill = () => {
     setCreateModalOpen(true);
-    if (skillTypes.length === 0) {
+    if (skillTypes.filter(t => !t.is_custom).length === 0) {
       fetchSkillTypes();
     }
   };
 
+  const resetNewSkillTypeInput = () => {
+    setShowNewSkillTypeInput(null);
+    setNewSkillTypeName('');
+  };
+
+  const applySkillTypeDeletions = async () => {
+    if (skillTypesToDelete.length === 0) return;
+    for (const typeId of skillTypesToDelete) {
+      await deleteCustomSkillType(typeId);
+    }
+    setSkillTypes(prev => prev.filter(t => !skillTypesToDelete.includes(t.id)));
+    setSkills(prev => prev.filter(s => !skillTypesToDelete.includes(s.custom_skill_type_id || '')));
+    setSkillTypesToDelete([]);
+  };
+
+  // Returns the skill type ID to use, or null on failure
+  const resolveSkillTypeId = async (form: { skill_type_id: string; is_custom_type: boolean }): Promise<{ id: string; is_custom: boolean } | null> => {
+    if (showNewSkillTypeInput === 'create' && newSkillTypeName.trim()) {
+      const created = await createCustomSkillType({ name: newSkillTypeName.trim() });
+      const newType: SkillType = { id: created.id, name: created.name, is_custom: true };
+      setSkillTypes(prev => [newType, ...prev.filter(t => t.id !== created.id)]);
+      return { id: created.id, is_custom: true };
+    }
+    if (showNewSkillTypeInput === 'edit' && newSkillTypeName.trim() && form.skill_type_id) {
+      const updated = await updateCustomSkillType(form.skill_type_id, { name: newSkillTypeName.trim() });
+      setSkillTypes(prev => prev.map(t => t.id === form.skill_type_id ? { ...t, name: updated.name } : t));
+      return { id: form.skill_type_id, is_custom: true };
+    }
+    if (form.skill_type_id) {
+      return { id: form.skill_type_id, is_custom: form.is_custom_type };
+    }
+    return null;
+  };
+
   const handleCreateModalClose = () => {
     setCreateModalOpen(false);
-    setCreateForm({ skill_name: '', skill_type_id: '' });
+    setCreateForm({ skill_name: '', skill_type_id: '', is_custom_type: false });
+    resetNewSkillTypeInput();
+    setSkillTypesToDelete([]);
   };
 
   const handleCreateModalConfirm = async () => {
     try {
       setIsLoading(true);
+      const resolved = await resolveSkillTypeId(createForm);
+      if (!resolved) {
+        toast.error('Please select or create a skill set');
+        return false;
+      }
       const newSkill = await createCustomSkill({
         skill_name: createForm.skill_name,
-        skill_type_id: createForm.skill_type_id,
+        ...(resolved.is_custom
+          ? { custom_skill_type_id: resolved.id }
+          : { skill_type_id: resolved.id }
+        ),
       });
       setSkills(prev => [...prev, newSkill]);
+      await applySkillTypeDeletions();
+      resetNewSkillTypeInput();
       toast.success('Custom skill created successfully');
       return true;
     } catch (error) {
@@ -92,31 +149,45 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const handleEditSkill = (skill: CustomSkill) => {
     setEditModalData(skill);
+    const isCustomType = !!skill.custom_skill_type_id;
     setEditForm({
       skill_name: skill.skill_name,
-      skill_type_id: skill.skill_type_id,
+      skill_type_id: skill.custom_skill_type_id || skill.skill_type_id || '',
+      is_custom_type: isCustomType,
     });
-    if (skillTypes.length === 0) {
+    if (skillTypes.filter(t => !t.is_custom).length === 0) {
       fetchSkillTypes();
     }
   };
 
   const handleEditModalClose = () => {
     setEditModalData(null);
-    setEditForm({ skill_name: '', skill_type_id: '' });
+    setEditForm({ skill_name: '', skill_type_id: '', is_custom_type: false });
+    resetNewSkillTypeInput();
+    setSkillTypesToDelete([]);
   };
 
   const handleEditModalConfirm = async () => {
     if (!editModalData) return false;
     try {
       setIsLoading(true);
+      const resolved = await resolveSkillTypeId(editForm);
+      if (!resolved) {
+        toast.error('Please select or create a skill set');
+        return false;
+      }
       const updatedSkill = await updateCustomSkill(editModalData.id, {
         skill_name: editForm.skill_name,
-        skill_type_id: editForm.skill_type_id,
+        ...(resolved.is_custom
+          ? { custom_skill_type_id: resolved.id, skill_type_id: undefined }
+          : { skill_type_id: resolved.id, custom_skill_type_id: undefined }
+        ),
       });
       setSkills(prev =>
         prev.map(item => item.id === editModalData.id ? { ...item, ...updatedSkill } : item)
       );
+      await applySkillTypeDeletions();
+      resetNewSkillTypeInput();
       toast.success('Skill updated successfully');
       return true;
     } catch (error) {
@@ -151,10 +222,6 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const handleViewSkill = (skill: CustomSkill) => {
     setViewModalData(skill);
-    setEditForm({
-      skill_name: skill.skill_name,
-      skill_type_id: skill.skill_type_id,
-    });
   };
 
   const handleCopySkill = (skill: CustomSkill) => {
@@ -167,7 +234,10 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       setIsLoading(true);
       await createCustomSkill({
         skill_name: copyModalData.skill_name,
-        skill_type_id: copyModalData.skill_type_id,
+        ...(copyModalData.custom_skill_type_id
+          ? { custom_skill_type_id: copyModalData.custom_skill_type_id }
+          : { skill_type_id: copyModalData.skill_type_id }
+        ),
       });
       toast.success(`${copyModalData.skill_name} has been copied to your custom skills.`);
       return true;
@@ -238,9 +308,11 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       ];
 
   const renderSkillTypeOptions = () => {
-    // Group skill types by rank label
+    const customTypes = skillTypes.filter(t => t.is_custom);
+    const standardTypes = skillTypes.filter(t => !t.is_custom);
+
     const groupByLabel: Record<string, SkillType[]> = {};
-    skillTypes.forEach(type => {
+    standardTypes.forEach(type => {
       const rank = skillSetRank[type.name.toLowerCase()] ?? Infinity;
       let groupLabel = 'Misc.';
       if (rank <= 19) groupLabel = 'Universal Skill Sets';
@@ -254,27 +326,139 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       groupByLabel[groupLabel].push(type);
     });
 
-    // Sort group labels by their first rank
     const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
       const aRank = Math.min(...groupByLabel[a].map(t => skillSetRank[t.name.toLowerCase()] ?? Infinity));
       const bRank = Math.min(...groupByLabel[b].map(t => skillSetRank[t.name.toLowerCase()] ?? Infinity));
       return aRank - bRank;
     });
 
-    return sortedGroupLabels.map(groupLabel => {
-      const groupTypes = groupByLabel[groupLabel].sort((a, b) => {
-        const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
-        const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
-        return rankA - rankB;
-      });
-      return (
-        <optgroup key={groupLabel} label={groupLabel}>
-          {groupTypes.map(type => (
-            <option key={type.id} value={type.id}>{type.name}</option>
-          ))}
-        </optgroup>
-      );
-    });
+    return (
+      <>
+        {customTypes.length > 0 && (
+          <optgroup label="Custom Skill Sets">
+            {customTypes.sort((a, b) => a.name.localeCompare(b.name)).map(type => (
+              <option key={type.id} value={type.id}>{type.name}</option>
+            ))}
+          </optgroup>
+        )}
+        {sortedGroupLabels.map(groupLabel => {
+          const groupTypes = groupByLabel[groupLabel].sort((a, b) => {
+            const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
+            const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
+            return rankA - rankB;
+          });
+          return (
+            <optgroup key={groupLabel} label={groupLabel}>
+              {groupTypes.map(type => (
+                <option key={type.id} value={type.id}>{type.name}</option>
+              ))}
+            </optgroup>
+          );
+        })}
+      </>
+    );
+  };
+
+  const renderSkillTypeField = (
+    form: { skill_name: string; skill_type_id: string; is_custom_type: boolean },
+    setForm: (v: typeof form) => void
+  ) => {
+    const selectedType = skillTypes.find(t => t.id === form.skill_type_id);
+    const canRename = form.is_custom_type && selectedType;
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-muted-foreground">
+            Skill Set *
+          </label>
+          {canRename && showNewSkillTypeInput !== 'create' && (
+            <Button
+              type="button"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => {
+                setShowNewSkillTypeInput('edit');
+                setNewSkillTypeName(selectedType.name);
+              }}
+            >
+              Rename
+            </Button>
+          )}
+        </div>
+
+        {showNewSkillTypeInput ? (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newSkillTypeName}
+              onChange={(e) => setNewSkillTypeName(e.target.value)}
+              className="flex-1 p-2 border rounded-md text-sm"
+              placeholder={showNewSkillTypeInput === 'create' ? 'New skill set name' : 'New name'}
+              autoFocus
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={resetNewSkillTypeInput}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <select
+              value={form.skill_type_id}
+              onChange={(e) => {
+                const selected = skillTypes.find(t => t.id === e.target.value);
+                setForm({ ...form, skill_type_id: e.target.value, is_custom_type: selected?.is_custom ?? false });
+              }}
+              className="flex-1 p-1 border rounded"
+            >
+              <option value="">Select a skill set</option>
+              {renderSkillTypeOptions()}
+            </select>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setShowNewSkillTypeInput('create');
+                setNewSkillTypeName('');
+              }}
+            >
+              New
+            </Button>
+          </div>
+        )}
+
+        {/* Custom skill types list for deletion */}
+        {skillTypes.filter(t => t.is_custom).length > 0 && (
+          <div className="mt-2 space-y-1">
+            <p className="text-xs text-muted-foreground">Delete custom skill sets:</p>
+            {skillTypes.filter(t => t.is_custom).sort((a, b) => a.name.localeCompare(b.name)).map(type => (
+              <div key={type.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`delete-type-${type.id}`}
+                  checked={skillTypesToDelete.includes(type.id)}
+                  onCheckedChange={(checked) => {
+                    setSkillTypesToDelete(prev =>
+                      checked ? [...prev, type.id] : prev.filter(id => id !== type.id)
+                    );
+                  }}
+                />
+                <label
+                  htmlFor={`delete-type-${type.id}`}
+                  className="text-sm cursor-pointer"
+                >
+                  {type.name}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const sortSkills = (a: CustomSkill, b: CustomSkill) => {
@@ -313,25 +497,13 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                   placeholder="Enter skill name"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Skill Set *
-                </label>
-                <select
-                  value={createForm.skill_type_id}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, skill_type_id: e.target.value }))}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select a skill set</option>
-                  {renderSkillTypeOptions()}
-                </select>
-              </div>
+              {renderSkillTypeField(createForm, setCreateForm)}
             </div>
           }
           onClose={handleCreateModalClose}
           onConfirm={handleCreateModalConfirm}
           confirmText="Create Skill"
-          confirmDisabled={!createForm.skill_name.trim() || !createForm.skill_type_id || isLoading}
+          confirmDisabled={!createForm.skill_name.trim() || (!createForm.skill_type_id && !newSkillTypeName.trim()) || isLoading}
         />
       )}
 
@@ -353,25 +525,13 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                   placeholder="Enter skill name"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Skill Set *
-                </label>
-                <select
-                  value={editForm.skill_type_id}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, skill_type_id: e.target.value }))}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select a skill set</option>
-                  {renderSkillTypeOptions()}
-                </select>
-              </div>
+              {renderSkillTypeField(editForm, setEditForm)}
             </div>
           }
           onClose={handleEditModalClose}
           onConfirm={handleEditModalConfirm}
           confirmText="Save Changes"
-          confirmDisabled={!editForm.skill_name.trim() || !editForm.skill_type_id || isLoading}
+          confirmDisabled={!editForm.skill_name.trim() || (!editForm.skill_type_id && !newSkillTypeName.trim()) || isLoading}
         />
       )}
 
@@ -464,7 +624,7 @@ function ShareCustomSkillModal({
   onSuccess,
 }: ShareCustomSkillModalProps) {
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
-  
+
   const queryClient = useQueryClient();
 
   const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({

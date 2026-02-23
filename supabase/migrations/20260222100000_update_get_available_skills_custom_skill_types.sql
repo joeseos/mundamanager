@@ -121,52 +121,17 @@ BEGIN
                         -- Special costs for Legendary Names
                         WHEN a.legendary_name = TRUE THEN
                             jsonb_build_array(
-                                jsonb_build_object(
-                                    'type_id', 'selected',
-                                    'name', 'Selected',
-                                    'xp_cost', 6,
-                                    'credit_cost', 5
-                                ),
-                                jsonb_build_object(
-                                    'type_id', 'random',
-                                    'name', 'Random',
-                                    'xp_cost', 3,
-                                    'credit_cost', 5
-                                )
+                                jsonb_build_object('type_id', 'selected', 'name', 'Selected', 'xp_cost', 6, 'credit_cost', 5),
+                                jsonb_build_object('type_id', 'random', 'name', 'Random', 'xp_cost', 3, 'credit_cost', 5)
                             )
                         -- Regular skill costs
                         WHEN v_fighter_class IN ('Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist')
                         THEN jsonb_build_array(
-                            jsonb_build_object(
-                                'type_id', 'primary_selected',
-                                'name', 'Selected Primary',
-                                'xp_cost', 9,
-                                'credit_cost', 20
-                            ),
-                            jsonb_build_object(
-                                'type_id', 'primary_random',
-                                'name', 'Random Primary',
-                                'xp_cost', 6,
-                                'credit_cost', 20
-                            ),
-                            jsonb_build_object(
-                                'type_id', 'secondary_selected',
-                                'name', 'Selected Secondary',
-                                'xp_cost', 12,
-                                'credit_cost', 35
-                            ),
-                            jsonb_build_object(
-                                'type_id', 'secondary_random',
-                                'name', 'Random Secondary',
-                                'xp_cost', 9,
-                                'credit_cost', 35
-                            ),
-                            jsonb_build_object(
-                                'type_id', 'any_random',
-                                'name', 'Random Any',
-                                'xp_cost', 15,
-                                'credit_cost', 50
-                            )
+                            jsonb_build_object('type_id', 'primary_selected', 'name', 'Selected Primary', 'xp_cost', 9, 'credit_cost', 20),
+                            jsonb_build_object('type_id', 'primary_random', 'name', 'Random Primary', 'xp_cost', 6, 'credit_cost', 20),
+                            jsonb_build_object('type_id', 'secondary_selected', 'name', 'Selected Secondary', 'xp_cost', 12, 'credit_cost', 35),
+                            jsonb_build_object('type_id', 'secondary_random', 'name', 'Random Secondary', 'xp_cost', 9, 'credit_cost', 35),
+                            jsonb_build_object('type_id', 'any_random', 'name', 'Random Any', 'xp_cost', 15, 'credit_cost', 50)
                         )
                         ELSE '[]'::jsonb
                     END
