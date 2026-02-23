@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
@@ -370,18 +369,11 @@ export default function CampaignEditModal({
               />
             </div>
 
-            {isOwner && (
-              <Button
-                variant="destructive"
-                onClick={() => setShowDeleteModal(true)}
-                className="w-full"
-              >
-                Delete Campaign
-              </Button>
-            )}
           </div>
         }
         onClose={onClose}
+        onDelete={isOwner ? () => setShowDeleteModal(true) : undefined}
+        deleteLabel={isOwner ? 'Delete' : undefined}
         onConfirm={handleSubmit}
         confirmText="Save Changes"
         confirmDisabled={charCount > 1500}

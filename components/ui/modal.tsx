@@ -15,6 +15,8 @@ interface ModalProps {
   headerContent?: React.ReactNode;
   hideCancel?: boolean;
   width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
+  onDelete?: () => void;
+  deleteLabel?: string;
 }
 
 export default function Modal({ 
@@ -28,7 +30,9 @@ export default function Modal({
   confirmDisabled = false,
   headerContent,
   hideCancel,
-  width = 'md'
+  width = 'md',
+  onDelete,
+  deleteLabel,
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,9 +100,17 @@ export default function Modal({
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           {content || children}
         </div>
-
         {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
+            {onDelete && deleteLabel && (
+              <Button
+                variant="destructive"
+                onClick={onDelete}
+                className="mr-auto text-left px-4 py-2 border rounded"
+              >
+                {deleteLabel}
+              </Button>
+            )}
             {!hideCancel && (
               <Button
                 variant="outline"
