@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { redirect, notFound, forbidden } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
@@ -48,7 +48,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     );
 
     if (!canView) {
-      notFound();
+      forbidden();
     }
 
     // Fetch all related data in parallel using granular functions

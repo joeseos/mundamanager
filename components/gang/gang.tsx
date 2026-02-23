@@ -16,6 +16,7 @@ import AddFighter from './add-fighter';
 import GangAdditions from './gang-additions';
 import AddVehicle from './add-vehicle';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
+import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import html2canvas from 'html2canvas';
@@ -209,6 +210,7 @@ export default function Gang({
   const [gangOriginName, setGangOriginName] = useState(gang_origin_name || '');
   const [gangOriginCategoryName, setGangOriginCategoryName] = useState(gang_origin_category_name || '');
   const [hidden, setHidden] = useState(initialHidden);
+  const [shareHovered, setShareHovered] = useState(false);
   // Track allegiance for optimistic updates
   // Use undefined to indicate "not yet set" vs null which means "explicitly cleared"
   const [currentAllegiance, setCurrentAllegiance] = useState<{ id: string; name: string } | null | undefined>(
@@ -1020,9 +1022,17 @@ export default function Gang({
                 variant="ghost"
                 size="icon"
                 className="print:hidden"
-                title="Share Gang"
+                title={hidden ? undefined : "Share Gang"}
+                data-tooltip-id={hidden ? `share-hidden-tooltip-${id}` : undefined}
+                data-tooltip-content={hidden ? "This gang is currently hidden. Only Arbitrators can view it. You can adjust the gang visibility in Edit Gang." : undefined}
+                onMouseEnter={() => hidden && setShareHovered(true)}
+                onMouseLeave={() => setShareHovered(false)}
               >
-                <FiShare2 className="w-5 h-5" />
+                {hidden ? (
+                  shareHovered ? <FiShare2 className="w-5 h-5" /> : <AiFillEyeInvisible className="w-6 h-6" />
+                ) : (
+                  <FiShare2 className="w-5 h-5" />
+                )}
               </Button>
 
               {/* Print button */}
@@ -1345,6 +1355,19 @@ export default function Gang({
               maxWidth: '24rem'
             }}
           />
+          {hidden && (
+                  <Tooltip
+                  id={`share-hidden-tooltip-${id}`}
+                  place="top"
+                  className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+                  delayHide={100}
+                  clickable={true}
+                  style={{
+                    padding: '6px',
+                    maxWidth: '20rem'
+                  }}
+                />
+          )}
         </div>
 
         <div id="gang_card_additional_details" className="hidden print:block bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
