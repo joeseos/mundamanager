@@ -1101,6 +1101,8 @@ export default function FighterPage({
               base_credits: (fighterData.fighter as any).base_credits || 0,
               base_copy_cost: (fighterData.fighter as any).base_copy_cost || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
+              owner_name: fighterData.fighter?.owner_name,
+              fighter_class: fighterData.fighter?.fighter_class,
               campaigns: fighterData.fighter?.campaigns,
               vehicles: fighterData.fighter?.vehicles?.map(v => ({
                 id: v.id,
