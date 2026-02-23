@@ -52,8 +52,8 @@ export async function updateCustomSkill(
   skillId: string,
   updates: {
     skill_name?: string;
-    skill_type_id?: string;
-    custom_skill_type_id?: string;
+    skill_type_id?: string | null;
+    custom_skill_type_id?: string | null;
   }
 ) {
   const supabase = await createClient();
@@ -63,6 +63,13 @@ export async function updateCustomSkill(
     ...updates,
     updated_at: new Date().toISOString()
   };
+
+  // Ensure mutual exclusivity of skill type FKs
+  if (updates.custom_skill_type_id !== undefined) {
+    updateData.skill_type_id = null;
+  } else if (updates.skill_type_id !== undefined) {
+    updateData.custom_skill_type_id = null;
+  }
 
   if (updates.skill_name !== undefined) {
     updateData.skill_name = updates.skill_name.trimEnd();
