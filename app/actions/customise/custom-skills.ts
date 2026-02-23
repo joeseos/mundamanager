@@ -7,7 +7,8 @@ import { invalidateFighterAdvancement } from "@/utils/cache-tags";
 
 export async function createCustomSkill(data: {
   skill_name: string;
-  skill_type_id: string;
+  skill_type_id?: string;
+  custom_skill_type_id?: string;
 }) {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
@@ -17,7 +18,8 @@ export async function createCustomSkill(data: {
     .insert({
       user_id: user.id,
       skill_name: data.skill_name.trimEnd(),
-      skill_type_id: data.skill_type_id,
+      skill_type_id: data.skill_type_id ?? null,
+      custom_skill_type_id: data.custom_skill_type_id ?? null,
       created_at: new Date().toISOString()
     })
     .select(`
@@ -25,9 +27,11 @@ export async function createCustomSkill(data: {
       user_id,
       skill_name,
       skill_type_id,
+      custom_skill_type_id,
       created_at,
       updated_at,
-      skill_types (name)
+      skill_types (name),
+      custom_skill_types (name)
     `)
     .single();
 
@@ -40,7 +44,7 @@ export async function createCustomSkill(data: {
 
   return {
     ...newSkill,
-    skill_type_name: (newSkill as any).skill_types?.name || 'Unknown',
+    skill_type_name: (newSkill as any).skill_types?.name || (newSkill as any).custom_skill_types?.name || 'Unknown',
   };
 }
 
@@ -49,6 +53,7 @@ export async function updateCustomSkill(
   updates: {
     skill_name?: string;
     skill_type_id?: string;
+    custom_skill_type_id?: string;
   }
 ) {
   const supabase = await createClient();
@@ -79,9 +84,11 @@ export async function updateCustomSkill(
       user_id,
       skill_name,
       skill_type_id,
+      custom_skill_type_id,
       created_at,
       updated_at,
-      skill_types (name)
+      skill_types (name),
+      custom_skill_types (name)
     `)
     .single();
 
@@ -104,8 +111,143 @@ export async function updateCustomSkill(
 
   return {
     ...data,
-    skill_type_name: (data as any).skill_types?.name || 'Unknown',
+    skill_type_name: (data as any).skill_types?.name || (data as any).custom_skill_types?.name || 'Unknown',
   };
+}
+
+export async function createCustomSkillType(data: {
+  name: string;
+}) {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  const { data: newType, error } = await supabase
+    .from('custom_skill_types')
+    .insert({
+      user_id: user.id,
+      name: data.name.trimEnd(),
+      created_at: new Date().toISOString()
+    })
+    .select('id, user_id, name, created_at, updated_at')
+    .single();
+
+  if (error) {
+    console.error('Error creating custom skill type:', error);
+    throw new Error(`Failed to create skill set: ${error.message}`);
+  }
+
+  revalidatePath('/');
+
+  return newType;
+}
+
+export async function updateCustomSkillType(
+  skillTypeId: string,
+  updates: {
+    name?: string;
+  }
+) {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  const updateData: any = {
+    ...updates,
+    updated_at: new Date().toISOString()
+  };
+
+  if (updates.name !== undefined) {
+    updateData.name = updates.name.trimEnd();
+  }
+
+  // Find fighters that have custom skills in this type so we can invalidate their caches
+  const { data: skillsInType } = await supabase
+    .from('custom_skills')
+    .select('id')
+    .eq('custom_skill_type_id', skillTypeId);
+
+  const skillIds = skillsInType?.map(s => s.id) ?? [];
+
+  let affectedFighters: any[] = [];
+  if (skillIds.length > 0) {
+    const { data } = await supabase
+      .from('fighter_skills')
+      .select('fighter_id, fighters!inner(gang_id)')
+      .in('custom_skill_id', skillIds);
+    affectedFighters = data ?? [];
+  }
+
+  const { data, error } = await supabase
+    .from('custom_skill_types')
+    .update(updateData)
+    .eq('id', skillTypeId)
+    .eq('user_id', user.id)
+    .select('id, user_id, name, created_at, updated_at')
+    .single();
+
+  if (error) {
+    console.error('Error updating custom skill type:', error);
+    throw new Error(`Failed to update skill set: ${error.message}`);
+  }
+
+  revalidatePath('/');
+
+  if (affectedFighters && affectedFighters.length > 0) {
+    for (const row of affectedFighters) {
+      invalidateFighterAdvancement({
+        fighterId: row.fighter_id,
+        gangId: (row.fighters as any).gang_id,
+        advancementType: 'skill'
+      });
+    }
+  }
+
+  return data;
+}
+
+export async function deleteCustomSkillType(skillTypeId: string) {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  // Find fighters that have custom skills in this type so we can invalidate their caches
+  const { data: affectedSkills } = await supabase
+    .from('custom_skills')
+    .select('id')
+    .eq('custom_skill_type_id', skillTypeId)
+    .eq('user_id', user.id);
+
+  const skillIds = affectedSkills?.map(s => s.id) ?? [];
+
+  let affectedFighters: any[] = [];
+  if (skillIds.length > 0) {
+    const { data } = await supabase
+      .from('fighter_skills')
+      .select('fighter_id, fighters!inner(gang_id)')
+      .in('custom_skill_id', skillIds);
+    affectedFighters = data ?? [];
+  }
+
+  const { error } = await supabase
+    .from('custom_skill_types')
+    .delete()
+    .eq('id', skillTypeId)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error deleting custom skill type:', error);
+    throw new Error(`Failed to delete skill set: ${error.message}`);
+  }
+
+  revalidatePath('/');
+
+  for (const row of affectedFighters) {
+    invalidateFighterAdvancement({
+      fighterId: row.fighter_id,
+      gangId: (row.fighters as any).gang_id,
+      advancementType: 'skill'
+    });
+  }
+
+  return { success: true };
 }
 
 export async function deleteCustomSkill(skillId: string) {
