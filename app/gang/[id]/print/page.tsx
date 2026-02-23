@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
+import { redirect, notFound, forbidden } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 import { PermissionService } from "@/app/lib/user-permissions";
@@ -54,7 +54,7 @@ export default async function PrintGangPage(props: {
     );
 
     if (!canView) {
-      notFound();
+      forbidden();
     }
 
     // Fetch all related data in parallel using granular functions

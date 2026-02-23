@@ -53,6 +53,7 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['@/components/ui'],
     scrollRestoration: false,
+    authInterrupts: true,
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
