@@ -52,10 +52,11 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const supabase = createClient();
 
   const fetchSkillTypes = async () => {
+    if (!userId) return;
     try {
       const [standardResult, customResult] = await Promise.all([
         supabase.from('skill_types').select('id, name').order('name', { ascending: true }),
-        supabase.from('custom_skill_types').select('id, name').order('name', { ascending: true }),
+        supabase.from('custom_skill_types').select('id, name').eq('user_id', userId).order('name', { ascending: true }),
       ]);
 
       if (standardResult.error) throw standardResult.error;
@@ -72,9 +73,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const handleAddSkill = () => {
     setCreateModalOpen(true);
-    if (skillTypes.filter(t => !t.is_custom).length === 0) {
-      fetchSkillTypes();
-    }
+    fetchSkillTypes();
   };
 
   const resetNewSkillTypeInput = () => {
@@ -84,9 +83,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const applySkillTypeDeletions = async () => {
     if (skillTypesToDelete.length === 0) return;
-    for (const typeId of skillTypesToDelete) {
-      await deleteCustomSkillType(typeId);
-    }
+    await Promise.all(skillTypesToDelete.map(typeId => deleteCustomSkillType(typeId)));
     setSkillTypes(prev => prev.filter(t => !skillTypesToDelete.includes(t.id)));
     setSkills(prev => prev.filter(s => !skillTypesToDelete.includes(s.custom_skill_type_id || '')));
     setSkillTypesToDelete([]);
@@ -155,9 +152,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       skill_type_id: skill.custom_skill_type_id || skill.skill_type_id || '',
       is_custom_type: isCustomType,
     });
-    if (skillTypes.filter(t => !t.is_custom).length === 0) {
-      fetchSkillTypes();
-    }
+    fetchSkillTypes();
   };
 
   const handleEditModalClose = () => {
@@ -361,7 +356,8 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const renderSkillTypeField = (
     form: { skill_name: string; skill_type_id: string; is_custom_type: boolean },
-    setForm: (v: typeof form) => void
+    setForm: (v: typeof form) => void,
+    showDeleteSection: boolean = false
   ) => {
     const selectedType = skillTypes.find(t => t.id === form.skill_type_id);
     const canRename = form.is_custom_type && selectedType;
@@ -433,7 +429,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
         )}
 
         {/* Custom skill types list for deletion */}
-        {skillTypes.filter(t => t.is_custom).length > 0 && (
+        {showDeleteSection && skillTypes.filter(t => t.is_custom).length > 0 && (
           <div className="mt-2 space-y-1">
             <p className="text-xs text-muted-foreground">Delete custom skill sets:</p>
             {skillTypes.filter(t => t.is_custom).sort((a, b) => a.name.localeCompare(b.name)).map(type => (
@@ -525,7 +521,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                   placeholder="Enter skill name"
                 />
               </div>
-              {renderSkillTypeField(editForm, setEditForm)}
+              {renderSkillTypeField(editForm, setEditForm, true)}
             </div>
           }
           onClose={handleEditModalClose}

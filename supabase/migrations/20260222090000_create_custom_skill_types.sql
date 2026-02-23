@@ -64,3 +64,7 @@ ALTER TABLE public.custom_skills
     (skill_type_id IS NOT NULL AND custom_skill_type_id IS NULL)
     OR (skill_type_id IS NULL AND custom_skill_type_id IS NOT NULL)
   );
+
+-- Index for queries that look up custom_skills by custom_skill_type_id
+CREATE INDEX idx_custom_skills_custom_skill_type_id
+  ON public.custom_skills(custom_skill_type_id);
