@@ -33,6 +33,7 @@ interface EditFighterStatusParams {
   fighter_id: string;
   action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
   sell_value?: number;
+  refund_value?: number;
 }
 
 export interface UpdateFighterXpParams {
@@ -758,10 +759,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         const financialResult = await updateGangFinancials(supabase, {
           gangId,
           ratingDelta: delta,
+          creditsDelta: params.refund_value ?? 0,
           stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
         });
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
+        if (params.refund_value) invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list

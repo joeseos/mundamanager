@@ -1097,6 +1097,7 @@ export default function FighterPage({
               recovery: fighterData.fighter.recovery,
               captured: fighterData.fighter.captured,
               credits: fighterData.fighter.credits || 0,
+              refund_credits: ((fighterData.fighter as any).base_credits || 0) + (fighterData.equipment || []).reduce((sum: number, item: any) => sum + (item.cost || 0), 0),
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: (fighterData.fighter as any).base_credits || 0,
               base_copy_cost: (fighterData.fighter as any).base_copy_cost || 0,
