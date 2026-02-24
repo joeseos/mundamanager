@@ -42,17 +42,17 @@ export async function GET(request: Request) {
     }
     // Admin users see all gang types (including hidden) by default
 
-    const { data: gangTypes, error } = await query;
+    // Run gang_types and affiliations in parallel (independent queries)
+    const [gangTypesResult, affiliationsResult] = await Promise.all([
+      query,
+      supabase.from('gang_affiliation').select('id, name').order('name'),
+    ]);
 
+    const { data: gangTypes, error } = gangTypesResult;
     if (error) throw error;
 
-    // Fetch all available affiliations once (since they're not gang-type specific)
     let allAffiliations: any[] = [];
-    const { data: affiliations, error: affiliationError } = await supabase
-      .from('gang_affiliation')
-      .select('id, name')
-      .order('name');
-
+    const { data: affiliations, error: affiliationError } = affiliationsResult;
     if (!affiliationError && affiliations) {
       allAffiliations = affiliations;
     }

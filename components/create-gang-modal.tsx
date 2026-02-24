@@ -92,7 +92,6 @@ export function CreateGangButton() {
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
-  
   const router = useRouter();
   const searchParams = useSearchParams();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
@@ -155,6 +154,19 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
 
     fetchGangTypes();
   }, []);
+
+  // Preload other default images of the selected gang type so cycling with arrows is instant
+  useEffect(() => {
+    if (!gangType) return;
+    const entries = gangTypeImageArrays[gangType] || [];
+    if (entries.length <= 1) return;
+    entries.forEach((entry, idx) => {
+      if (idx !== currentImageIndex && entry?.url) {
+        const img = new window.Image();
+        img.src = entry.url;
+      }
+    });
+  }, [gangType, gangTypeImageArrays, currentImageIndex]);
 
   // Fetch gang variants when modal opens
   useEffect(() => {
