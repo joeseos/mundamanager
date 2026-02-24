@@ -175,6 +175,16 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     return `${months}mo ago`;
   };
 
+  // Render notification text with **bold** support (escapes HTML for XSS safety)
+  const renderNotificationText = (text: string) => {
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    return escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  };
+
   // Get icon based on notification type
   const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite') => {
     switch (type) {
@@ -229,9 +239,10 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     {getNotificationIcon(notification.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm mb-1 whitespace-pre-line">
-                      {notification.text}
-                    </p>
+                    <p
+                      className="text-sm mb-1 whitespace-pre-line"
+                      dangerouslySetInnerHTML={{ __html: renderNotificationText(notification.text) }}
+                    />
                     <p className="text-xs text-muted-foreground mb-2">
                       {timeAgo(notification.created_at)}
                     </p>

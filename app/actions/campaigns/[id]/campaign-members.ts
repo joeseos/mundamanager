@@ -485,7 +485,7 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     const supabase = await createClient();
 
     // Authenticate user
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
     const { campaignId, userId, newRole, previousRole } = params;
 
     const { error } = await supabase
@@ -505,6 +505,26 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
         .delete()
         .eq('user_id', userId)
         .eq('campaign_id', campaignId);
+    }
+
+    // If promoting from MEMBER to ARBITRATOR, send notification to the promoted user
+    if (previousRole === 'MEMBER' && newRole === 'ARBITRATOR') {
+      const { data: campaign } = await supabase
+        .from('campaigns')
+        .select('campaign_name')
+        .eq('id', campaignId)
+        .single();
+      const baseUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000'
+        : 'https://www.mundamanager.com';
+      await supabase.from('notifications').insert({
+        receiver_id: userId,
+        sender_id: user.id,
+        type: 'info',
+        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add new players and gangs\n• Edit player gangs\n• Manage Territories and Battle Logs\n• Add custom resources\n• Share your custom assets with the campaign (fighters, equipment, and more)\n\nClick this notification to go to the campaign.`,
+        link: `${baseUrl}/campaigns/${campaignId}`,
+        dismissed: false
+      });
     }
 
     // Get ALL gangs in this campaign (not just the user's gangs)
