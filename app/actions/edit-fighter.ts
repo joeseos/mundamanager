@@ -33,7 +33,7 @@ interface EditFighterStatusParams {
   fighter_id: string;
   action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
   sell_value?: number;
-  refund_value?: number;
+  refund?: boolean;
 }
 
 export interface UpdateFighterXpParams {
@@ -752,6 +752,20 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Error cleaning up fighter images:', imageError);
         }
 
+        // Compute refund amount server-side: base cost + equipment cost
+        let refundAmount = 0;
+        if (params.refund) {
+          const { data: equipmentRows } = await supabase
+            .from('fighter_equipment')
+            .select('purchase_cost')
+            .eq('fighter_id', params.fighter_id);
+
+          const equipmentCost = (equipmentRows || []).reduce(
+            (sum: number, row: { purchase_cost: number }) => sum + (row.purchase_cost || 0), 0
+          );
+          refundAmount = (fighter.credits || 0) + equipmentCost;
+        }
+
         // Update gang rating and wealth
         // - Rating decreases by full cost (fighter + vehicle) for active fighters
         // - Wealth decreases by fighter cost only (vehicle stays in gang as unassigned)
@@ -759,12 +773,12 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         const financialResult = await updateGangFinancials(supabase, {
           gangId,
           ratingDelta: delta,
-          creditsDelta: params.refund_value ?? 0,
+          creditsDelta: refundAmount,
           stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
         });
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
-        if (params.refund_value) invalidateGangCredits(gangId);
+        if (refundAmount) invalidateGangCredits(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list

@@ -122,7 +122,7 @@ export function FighterActions({
 
   // TanStack mutation for fighter status updates
   const statusMutation = useMutation({
-    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund_value?: number }) => {
+    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund?: boolean }) => {
       const result = await editFighterStatus({ fighter_id: fighterId, ...variables });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter status');
       return result;
@@ -314,7 +314,7 @@ export function FighterActions({
                 Are you sure you want to delete <strong>{fighter?.fighter_name}</strong>?
               </p>
 
-              {(fighter?.refund_credits ?? fighter?.credits ?? 0) > 0 && (
+              {(fighter?.refund_credits ?? 0) > 0 && (
                 <>
                   <label className="flex items-start gap-3 cursor-pointer">
                     <Checkbox
@@ -323,7 +323,7 @@ export function FighterActions({
                       onCheckedChange={(checked) => setRefundOnDelete(checked === true)}
                     />
                     <span className="text-sm">
-                      Return <strong>{fighter.refund_credits ?? fighter.credits} credits</strong> back to the gang stash
+                      Return <strong>{fighter.refund_credits ?? 0} credits</strong> back to the gang stash
                     </span>
                   </label>
                   <p className="text-amber-500 text-xs">
@@ -337,8 +337,7 @@ export function FighterActions({
           }
           onClose={() => handleModalToggle('delete', false)}
           onConfirm={async () => {
-            const refundValue = refundOnDelete ? (fighter?.refund_credits ?? fighter?.credits ?? 0) : 0;
-            statusMutation.mutate({ action: 'delete', refund_value: refundValue });
+            statusMutation.mutate({ action: 'delete', refund: refundOnDelete });
             handleModalToggle('delete', false);
             return true;
           }}
