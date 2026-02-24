@@ -61,6 +61,26 @@ export async function PATCH(request: Request) {
         .eq('campaign_id', campaignId);
     }
 
+    // If promoting from MEMBER to ARBITRATOR, send notification to the promoted user
+    if (previousRole === 'MEMBER' && newRole === 'ARBITRATOR') {
+      const { data: campaign } = await supabase
+        .from('campaigns')
+        .select('campaign_name')
+        .eq('id', campaignId)
+        .single();
+      const baseUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000'
+        : 'https://www.mundamanager.com';
+      await supabase.from('notifications').insert({
+        receiver_id: userId,
+        sender_id: requesterId,
+        type: 'info',
+        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add custom resources and allegiances\n• Add new players and gangs\n\nClick this notification to go to the campaign.`,
+        link: `${baseUrl}/campaigns/${campaignId}`,
+        dismissed: false
+      });
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error updating member role:', error);
