@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
-import { Button } from '../ui/button';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
@@ -929,18 +928,6 @@ export default function GangEditModal({
         )}
       </div>
 
-      {/* Only gang owners and admins can delete gangs - not campaign owners/arbitrators */}
-      {(isGangOwner || isAdmin) && (
-        <div className="mt-2">
-          <Button
-            onClick={() => setShowDeleteModal(true)}
-            variant="destructive"
-            className="w-full"
-          >
-            Delete Gang
-          </Button>
-        </div>
-      )}
     </div>
   );
 
@@ -953,6 +940,8 @@ export default function GangEditModal({
           onClose={onClose}
           onConfirm={handleSave}
           confirmText="Save Changes"
+          onDelete={(isGangOwner || isAdmin) ? () => setShowDeleteModal(true) : undefined}
+          deleteLabel={(isGangOwner || isAdmin) ? 'Delete' : undefined}
         />
       )}
 
