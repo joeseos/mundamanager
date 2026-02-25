@@ -25,6 +25,8 @@ interface FighterXpModalProps {
   currentKills: number;
   currentKillCount?: number;
   is_spyrer?: boolean;
+  /** Optional fighter name shown in helper when modal is opened from gang card (not from fighter detail page) */
+  helperFighterName?: string;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
@@ -37,6 +39,7 @@ export function FighterXpModal({
   currentKills,
   currentKillCount = 0,
   is_spyrer = false,
+  helperFighterName,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -241,6 +244,7 @@ export function FighterXpModal({
   return (
     <Modal
       title="Add XP"
+      helper={helperFighterName}
       headerContent={
         <div className="flex items-center">
           <span className="mr-2 text-sm text-muted-foreground">Fighter XP</span>

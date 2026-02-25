@@ -437,6 +437,7 @@ export default function GangPageContent({
           currentKills={xpModalFighter.kills ?? 0}
           currentKillCount={xpModalFighter.kill_count ?? 0}
           is_spyrer={xpModalFighter.is_spyrer}
+          helperFighterName={xpModalFighter.fighter_name}
           onClose={() => setXpModalFighter(null)}
           onXpUpdated={(newXp, _newTotalXp, newKills, newKillCount) => {
             setGangData(prev => ({
@@ -468,6 +469,7 @@ export default function GangPageContent({
         return (
           <Modal
             title={injuryModalTitle}
+            helper={currentFighter.fighter_name}
             onClose={() => {
               setInjuryModalFighter(null);
               setInjuryModalOpenAddOnMount(false);
@@ -565,6 +567,7 @@ export default function GangPageContent({
         return (
           <Modal
             title={vehicleDamageModalTitle}
+            helper={currentFighter.fighter_name}
             onClose={() => {
               setVehicleModalFighter(null);
               setVehicleModalOpenAddOnMount(false);
