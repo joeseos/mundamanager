@@ -12,6 +12,7 @@ import CopyFighterModal from "@/components/fighter/copy-fighter-modal";
 import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Fighter {
   id: string;
@@ -23,6 +24,7 @@ interface Fighter {
   recovery?: boolean;
   captured?: boolean;
   credits: number;
+  refund_credits?: number;
   cost_adjustment?: number;
   base_credits?: number;
   base_copy_cost?: number;
@@ -81,6 +83,8 @@ export function FighterActions({
   const router = useRouter();
   
   
+  const [refundOnDelete, setRefundOnDelete] = useState(true);
+
   const [modals, setModals] = useState<ActionModals>({
     delete: false,
     kill: false,
@@ -118,7 +122,7 @@ export function FighterActions({
 
   // TanStack mutation for fighter status updates
   const statusMutation = useMutation({
-    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number }) => {
+    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund?: boolean }) => {
       const result = await editFighterStatus({ fighter_id: fighterId, ...variables });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter status');
       return result;
@@ -305,21 +309,37 @@ export function FighterActions({
         <Modal
           title="Delete Fighter"
           content={
-            <div>
-              <p>Are you sure you want to delete <strong>{fighter?.fighter_name}</strong>?</p>
-              <br />
-              <p className="text-sm text-red-600">
-                This action cannot be undone.
+            <div className="space-y-4">
+              <p>
+                Are you sure you want to delete <strong>{fighter?.fighter_name}</strong>?
               </p>
+
+              {(fighter?.refund_credits ?? 0) > 0 && (
+                <>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={refundOnDelete}
+                      onCheckedChange={(checked) => setRefundOnDelete(checked === true)}
+                    />
+                    <span className="text-sm">
+                      Return <strong>{fighter.refund_credits ?? 0} credits</strong> back to the gang stash
+                    </span>
+                  </label>
+                  <p className="text-amber-500 text-xs">
+                    The refund only includes the fighter&apos;s base cost and equipment.
+                  </p>
+                </>
+              )}
+
+              <p className="text-sm text-red-600">This action cannot be undone.</p>
             </div>
           }
           onClose={() => handleModalToggle('delete', false)}
           onConfirm={async () => {
-            // Use direct mutation to avoid TS narrowing of union in helper
-            statusMutation.mutate({ action: 'delete' });
-            const success = true;
-            if (success) handleModalToggle('delete', false);
-            return success;
+            statusMutation.mutate({ action: 'delete', refund: refundOnDelete });
+            handleModalToggle('delete', false);
+            return true;
           }}
         />
       )}

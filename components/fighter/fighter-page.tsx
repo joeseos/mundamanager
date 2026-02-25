@@ -119,6 +119,7 @@ interface Fighter {
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   image_url?: string;
   base_credits?: number;
+  base_copy_cost?: number;
   is_spyrer?: boolean;
   selected_archetype_id?: string | null;
 }
@@ -1097,9 +1098,10 @@ export default function FighterPage({
               recovery: fighterData.fighter.recovery,
               captured: fighterData.fighter.captured,
               credits: fighterData.fighter.credits || 0,
+              refund_credits: (fighterData.fighter.base_credits || 0) + (fighterData.equipment || []).reduce((sum: number, item: Equipment) => sum + (item.cost || 0), 0),
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
-              base_credits: (fighterData.fighter as any).base_credits || 0,
-              base_copy_cost: (fighterData.fighter as any).base_copy_cost || 0,
+              base_credits: fighterData.fighter.base_credits || 0,
+              base_copy_cost: fighterData.fighter.base_copy_cost || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
               owner_name: fighterData.fighter?.owner_name,
               fighter_class: fighterData.fighter?.fighter_class,
@@ -1112,7 +1114,7 @@ export default function FighterPage({
                   purchase_cost: e.cost || 0
                 }))
               }))
-            } as any}
+            }}
             gang={{ id: fighterData.gang?.id || '', gang_name: fighterData.gang?.gang_affiliation_name || '', credits: fighterData.gang?.credits }}
             fighterId={fighterId}
             userPermissions={userPermissions}
