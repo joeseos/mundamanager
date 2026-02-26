@@ -450,7 +450,7 @@ const CampaignBattleLogModal = ({
     // Define what the new available territories should be
     let newAvailableTerritories: BattleLogTerritory[] = [];
 
-    if (winner && winner !== "draw") {
+    if (winner) {
       // Show ALL territories - players can challenge over any territory
       newAvailableTerritories = territories;
     }
@@ -903,10 +903,10 @@ const CampaignBattleLogModal = ({
             />
           </div>
 
-          {winner && winner !== "draw" && availableTerritories.length > 0 && (
+          {winner && availableTerritories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Claimed Territory
+                {winner === "draw" ? "Contested Territory" : "Claimed Territory"}
               </label>
               <Combobox
                 value={selectedTerritory}
