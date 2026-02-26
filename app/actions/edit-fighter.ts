@@ -1014,7 +1014,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     // Get fighter data (RLS will handle permissions)
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, user_id, cost_adjustment, kills, killed, retired, enslaved, captured, fighter_name')
+      .select('id, gang_id, user_id, cost_adjustment, kills, kill_count, killed, retired, enslaved, captured, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1025,6 +1025,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     const wasActive = countsTowardRating(fighter);
     const previousAdjustment = fighter.cost_adjustment || 0;
     const previousKills: number = fighter.kills || 0;
+    const previousKillCount: number = fighter.kill_count || 0;
 
     // Build update object with only provided fields
     const updateData: any = {
@@ -1158,6 +1159,18 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           action_type: 'fighter_kills_changed',
           old_value: previousKills,
           new_value: updatedFighter.kills,
+          user_id: user.id
+        });
+      }
+
+      if (params.kill_count !== undefined && previousKillCount !== (updatedFighter.kill_count || 0)) {
+        await logFighterAction({
+          gang_id: fighter.gang_id,
+          fighter_id: params.fighter_id,
+          fighter_name: updatedFighter.fighter_name,
+          action_type: 'kill_count_changed',
+          old_value: previousKillCount,
+          new_value: updatedFighter.kill_count || 0,
           user_id: user.id
         });
       }
