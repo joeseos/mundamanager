@@ -10,7 +10,7 @@ export interface FighterLogParams {
   fighter_name: string;
   action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
               'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_cost_adjusted' |
-              'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied';
+              'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied' | 'kill_count_changed';
   user_id?: string;
   old_value?: number | string;
   new_value?: number | string;
@@ -85,6 +85,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         break;
         case 'fighter_OOA_changed':
         description = `Fighter "${params.fighter_name}" OOA count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
+        break;
+      case 'kill_count_changed':
+        description = `Fighter "${params.fighter_name}" kill count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
       case 'fighter_cost_adjusted':
         description = `Fighter "${params.fighter_name}" cost adjustment changed from ${params.old_value || 0} to ${params.new_value || 0} credits.${financialChanges}`;
