@@ -81,7 +81,7 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         description = `Fighter "${params.fighter_name}" total XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
       case 'fighter_kills_changed':
-        description = `Fighter "${params.fighter_name}" kills changed from ${params.old_value || 0} to ${params.new_value || 0}`;
+        description = `Fighter "${params.fighter_name}" OOA count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
         case 'fighter_OOA_changed':
         description = `Fighter "${params.fighter_name}" OOA count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
