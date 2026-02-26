@@ -119,7 +119,7 @@ export async function addCharacteristicAdvancement(
     // Get the effect type details
     const { data: effectType, error: effectTypeError } = await supabase
       .from('fighter_effect_types')
-      .select('id, effect_name, type_specific_data')
+      .select('id, effect_name, type_specific_data, sort_order')
       .eq('id', params.fighter_effect_type_id)
       .single();
 
@@ -155,6 +155,7 @@ export async function addCharacteristicAdvancement(
         fighter_effect_type_id: params.fighter_effect_type_id,
         effect_name: effectType.effect_name,
         type_specific_data: mergedTypeData,
+        sort_order: effectType.sort_order ?? null,
         user_id: fighter.user_id
       })
       .select('id')
@@ -341,7 +342,7 @@ export async function addSkillAdvancement(
 
       const { data: linkedEffectTypes } = await supabase
         .from('fighter_effect_types')
-        .select('id, effect_name, type_specific_data')
+        .select('id, effect_name, type_specific_data, sort_order')
         .eq(skillFilterColumn, skillFilterValue);
 
       if (linkedEffectTypes && linkedEffectTypes.length > 0) {
@@ -354,6 +355,7 @@ export async function addSkillAdvancement(
               fighter_effect_type_id: effectType.id,
               effect_name: effectType.effect_name,
               type_specific_data: effectType.type_specific_data,
+              sort_order: effectType.sort_order ?? null,
               fighter_skill_id: insertedSkill.id,
               user_id: fighter.user_id
             })
@@ -851,7 +853,7 @@ export async function addPowerBoost(
     // Get the power boost type details
     const { data: effectType, error: effectTypeError } = await supabase
       .from('fighter_effect_types')
-      .select('id, effect_name, type_specific_data')
+      .select('id, effect_name, type_specific_data, sort_order')
       .eq('id', params.power_boost_type_id)
       .single();
 
@@ -873,6 +875,7 @@ export async function addPowerBoost(
         fighter_effect_type_id: params.power_boost_type_id,
         effect_name: effectType.effect_name,
         type_specific_data: mergedTypeData,
+        sort_order: effectType.sort_order ?? null,
         user_id: fighter.user_id
       })
       .select('id')
@@ -920,7 +923,7 @@ export async function addPowerBoost(
         // Get the effect type details
         const { data: childEffectType, error: childEffectTypeError } = await supabase
           .from('fighter_effect_types')
-          .select('id, effect_name, type_specific_data')
+          .select('id, effect_name, type_specific_data, sort_order')
           .eq('id', effectTypeId)
           .single();
 
@@ -937,6 +940,7 @@ export async function addPowerBoost(
             fighter_effect_type_id: effectTypeId,
             effect_name: childEffectType.effect_name,
             type_specific_data: childEffectType.type_specific_data,
+            sort_order: childEffectType.sort_order ?? null,
             user_id: fighter.user_id
           })
           .select('id')

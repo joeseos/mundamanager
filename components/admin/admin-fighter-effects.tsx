@@ -111,7 +111,8 @@ export function AdminFighterEffects({
     is_editable: false,
     operated_by: '' as '' | 'crew' | 'passenger',
     arcs: [] as string[],
-    location: ''
+    location: '',
+    sort_order: ''
   });
 
   // New modifier form state
@@ -188,7 +189,8 @@ export function AdminFighterEffects({
         effect_name: newEffect.effect_name,
         fighter_effect_category_id: newEffect.fighter_effect_category_id || null,
         type_specific_data: typeSpecificData,
-        modifiers: []
+        modifiers: [],
+        sort_order: newEffect.sort_order ? parseInt(newEffect.sort_order) : null
       };
 
       const updatedEffects = [...fighterEffectTypes, newEffectType];
@@ -214,7 +216,8 @@ export function AdminFighterEffects({
         is_editable: false,
         operated_by: '',
         arcs: [],
-        location: ''
+        location: '',
+        sort_order: ''
       });
 
       if (onUpdate) {
@@ -250,7 +253,8 @@ export function AdminFighterEffects({
       is_editable: false,
       operated_by: '',
       arcs: [],
-      location: ''
+      location: '',
+      sort_order: ''
     });
   };
 
@@ -271,7 +275,8 @@ export function AdminFighterEffects({
       is_editable: effect.type_specific_data?.is_editable === true,
       operated_by: (effect.type_specific_data?.operated_by || '') as '' | 'crew' | 'passenger',
       arcs: effect.type_specific_data?.arcs || [],
-      location: effect.type_specific_data?.location || ''
+      location: effect.type_specific_data?.location || '',
+      sort_order: effect.sort_order?.toString() || ''
     });
     setShowEditEffectDialog(true);
   };
@@ -333,7 +338,8 @@ export function AdminFighterEffects({
       ...editingEffect,
       effect_name: newEffect.effect_name,
       fighter_effect_category_id: newEffect.fighter_effect_category_id || null,
-      type_specific_data: typeSpecificData
+      type_specific_data: typeSpecificData,
+      sort_order: newEffect.sort_order ? parseInt(newEffect.sort_order) : null
     };
 
     // Update local state
@@ -572,7 +578,12 @@ export function AdminFighterEffects({
                           </Badge>
                         )}
                       </div>
-                      <h4 className="font-medium">{effect.effect_name}</h4>
+                      <h4 className="font-medium">
+                        {effect.sort_order != null && (
+                          <span className="text-xs text-muted-foreground mr-2">#{effect.sort_order}</span>
+                        )}
+                        {effect.effect_name}
+                      </h4>
                        <p className="text-sm text-muted-foreground">
                         {categories.find(c => c.id === effect.fighter_effect_category_id)?.category_name || 'No category'}
                       </p>
@@ -685,7 +696,22 @@ export function AdminFighterEffects({
               />
             </div>
 
-
+            <div>
+              <label className="block text-sm font-medium mb-1">Sort Order</label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={newEffect.sort_order}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setNewEffect(prev => ({ ...prev, sort_order: value }));
+                }}
+                placeholder="#"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Controls display order. Lower numbers appear first.
+              </p>
+            </div>
 
             <div>
               <label className="block text-sm font-medium mb-1">Category</label>

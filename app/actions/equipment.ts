@@ -105,6 +105,7 @@ export async function insertEffectWithModifiers(
           id,
           effect_name,
           type_specific_data,
+          sort_order,
           fighter_effect_type_modifiers (
             stat_name,
             default_numeric_value,
@@ -115,6 +116,7 @@ export async function insertEffectWithModifiers(
           id,
           effect_name,
           type_specific_data,
+          sort_order,
           fighter_effect_type_modifiers (
             stat_name,
             default_numeric_value
@@ -161,6 +163,7 @@ export async function insertEffectWithModifiers(
         fighter_effect_type_id: effectType.id,
         effect_name: effectType.effect_name,
         type_specific_data: effectType.type_specific_data,
+        sort_order: effectType.sort_order ?? null,
         user_id: params.user_id
       })
       .select('id')

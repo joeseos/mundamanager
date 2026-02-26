@@ -177,6 +177,7 @@ async function applyEffectsForEquipmentOptimized(
       fighter_effect_type_id: effectType.id,
       effect_name: effectType.effect_name,
       type_specific_data: effectType.type_specific_data,
+      sort_order: effectType.sort_order ?? null,
       fighter_equipment_id: fighterEquipmentId,
       user_id: userId
     }));
@@ -712,6 +713,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       effect_name,
                       fighter_effect_category_id,
                       type_specific_data,
+                      sort_order,
                       fighter_effect_categories (
                         id,
                         category_name

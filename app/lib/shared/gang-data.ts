@@ -1067,6 +1067,7 @@ export const getGangFightersList = async (
             fighter_equipment_id,
             effect_name,
             type_specific_data,
+            sort_order,
             created_at,
             updated_at,
             fighter_effect_type:fighter_effect_type_id (
@@ -1083,7 +1084,8 @@ export const getGangFightersList = async (
             )
           `)
           .in('fighter_id', fighterIds)
-          .is('vehicle_id', null),
+          .is('vehicle_id', null)
+          .order('sort_order', { ascending: true, nullsFirst: false }),
 
         // Batch fetch all vehicles for all fighters
         supabase
@@ -1231,6 +1233,7 @@ export const getGangFightersList = async (
                 fighter_equipment_id,
                 effect_name,
                 type_specific_data,
+                sort_order,
                 created_at,
                 updated_at,
                 fighter_effect_type:fighter_effect_type_id (
@@ -1247,6 +1250,7 @@ export const getGangFightersList = async (
                 )
               `)
               .in('vehicle_id', vehicleIds)
+              .order('sort_order', { ascending: true, nullsFirst: false })
           : Promise.resolve({ data: [] })
       ]);
 
@@ -1505,6 +1509,7 @@ export const getGangFightersList = async (
             effect_name: effectData.effect_name,
             fighter_equipment_id: effectData.fighter_equipment_id,
             type_specific_data: effectData.type_specific_data,
+            sort_order: effectData.sort_order ?? null,
             created_at: effectData.created_at,
             updated_at: effectData.updated_at,
             fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
@@ -1723,6 +1728,7 @@ export const getGangFightersList = async (
               fighter_equipment_id: effectData.fighter_equipment_id,
               effect_name: effectData.effect_name,
               type_specific_data: effectData.type_specific_data,
+              sort_order: effectData.sort_order ?? null,
               created_at: effectData.created_at,
               updated_at: effectData.updated_at,
               fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
@@ -2080,6 +2086,7 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
       effect_name,
       fighter_equipment_id,
       type_specific_data,
+      sort_order,
       created_at,
       updated_at,
       fighter_effect_type:fighter_effect_type_id (
@@ -2095,7 +2102,8 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
         operation
       )
     `)
-    .eq('vehicle_id', vehicleId);
+    .eq('vehicle_id', vehicleId)
+    .order('sort_order', { ascending: true, nullsFirst: false });
 
   if (error) return {};
 
@@ -2113,6 +2121,7 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
       effect_name: effectData.effect_name,
       fighter_equipment_id: effectData.fighter_equipment_id,
       type_specific_data: effectData.type_specific_data,
+      sort_order: effectData.sort_order ?? null,
       created_at: effectData.created_at,
       updated_at: effectData.updated_at,
       fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
