@@ -31,6 +31,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'fighter_total_xp_changed': 'Total XP changed',
   'fighter_kills_changed': 'OOA count changed',
   'fighter_OOA_changed': 'OOA count changed',
+  'fighter_kill_count_changed': 'Kill count changed',
   'fighter_cost_adjusted': 'Cost adjusted',
 
   // Fighter advancement
