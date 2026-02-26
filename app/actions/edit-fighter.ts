@@ -963,7 +963,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
       console.error('Failed to log fighter XP change:', logError);
     }
 
-    // Log kills change if OOA count was provided
+    // Log OOA change if OOA count was provided
     if (params.ooa_count && params.ooa_count > 0) {
       try {
         await logFighterAction({
@@ -976,7 +976,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
           user_id: user.id
         });
       } catch (logError) {
-        console.error('Failed to log fighter kills change:', logError);
+        console.error('Failed to log fighter OOA change:', logError);
       }
     }
 

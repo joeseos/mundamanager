@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Modal from '@/components/ui/modal';
+import { getLogTypeLabel } from '@/utils/log-types';
 
 interface FighterLog {
   id: string;
@@ -62,59 +63,7 @@ export default function FighterLogs({ gangId, fighterId, fighterName, vehicleId,
     }
   }, [isOpen, gangId, fighterId, vehicleId]);
 
-  const getActionTypeDisplay = (actionType: string) => {
-    const actionTypeMap: { [key: string]: string } = {
-      // Fighter actions
-      'fighter_added': 'Fighter added',
-      'fighter_removed': 'Fighter removed',
-      'fighter_killed': 'Fighter killed',
-      'fighter_resurected': 'Fighter resurected',
-      'fighter_retired': 'Fighter retired',
-      'fighter_enslaved': 'Fighter enslaved',
-      'fighter_xp_changed': 'XP changed',
-      'fighter_total_xp_changed': 'Total XP changed',
-      'fighter_kills_changed': 'Kills count changed',
-      'fighter_OOA_changed': 'OOA count changed',
-      'fighter_cost_adjusted': 'Cost adjusted',
-      'equipment_purchased': 'Equipment purchased',
-      'equipment_sold': 'Equipment sold',
-      'Equipment removed': 'Equipment removed',
-      'equipment_moved_to_stash': 'Equipment to stash',
-      'equipment_moved_from_stash': 'Equipment from stash',
-      'fighter_characteristic_advancement': 'Characteristic advanced',
-      'fighter_skill_advancement': 'Skill advanced',
-      'fighter_skill_learned': 'Skill learned',
-      'fighter_skill_removed': 'Skill removed',
-      'fighter_characteristic_removed': 'Characteristic removed',
-      'fighter_injured': 'Fighter injured',
-      'fighter_recovered': 'Fighter recovered',
-      'fighter_rescued': 'Fighter rescued',
-      'fighter_starved': 'Fighter starved',
-      'fighter_fed': 'Fighter fed',
-      'fighter_captured': 'Fighter captured',
-      'fighter_released': 'Fighter released',
-      'fighter_copied': 'Fighter copied',
-      'name_changed': 'Name changed',
-      'injury_roll': 'Injury Roll',
-      // Vehicle actions
-      'vehicle_added': 'Vehicle added',
-      'vehicle_deleted': 'Vehicle removed',
-      'vehicle_updated': 'Vehicle updated',
-      'vehicle_removed': 'Vehicle removed',
-      'vehicle_cost_changed': 'Vehicle cost changed',
-      'vehicle_assignment_changed': 'Vehicle assigned',
-      'vehicle_name_changed': 'Vehicle name changed',
-      'vehicle_equipment_purchased': 'Vehicle equipment purchased',
-      'vehicle_equipment_sold': 'Vehicle equipment sold',
-      'Vehicle equipment removed': 'Vehicle equipment removed',
-      'vehicle_equipment_moved_to_stash': 'Vehicle equipment to stash',
-      'vehicle_equipment_moved_from_stash': 'Vehicle equipment from stash',
-      'vehicle_damage_added': 'Vehicle damage sustained',
-      'vehicle_damage_removed': 'Vehicle damage recovered',
-      'vehicle_damage_repaired': 'Vehicle damage repaired'
-    };
-    return actionTypeMap[actionType] || actionType;
-  };
+  const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType);
 
   const sortLogs = (a: FighterLog, b: FighterLog) => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();

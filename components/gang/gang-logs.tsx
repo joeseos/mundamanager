@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '@/components/ui/modal';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
+import { getLogTypeLabel } from '@/utils/log-types';
 
 interface GangLog {
   id: string;
@@ -55,82 +56,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
     }
   }, [isOpen, gangId]);
 
-  const getActionTypeDisplay = (actionType: string) => {
-    const actionTypeMap: { [key: string]: string } = {
-      'credits_earned': 'Credits earned',
-      'credits_spent': 'Credits spent',
-      'credits_changed': 'Credits changed',
-      'reputation_gained': 'Reputation gained',
-      'reputation_lost': 'Reputation lost',
-      'reputation_changed': 'Reputation changed',
-      'fighter_added': 'Fighter added',
-      'fighter_removed': 'Fighter removed',
-      'fighter_killed': 'Fighter killed',
-      'fighter_resurected': 'Fighter resurected',
-      'fighter_retired': 'Fighter retired',
-      'fighter_unretired': 'Fighter unretired',
-      'fighter_enslaved': 'Fighter enslaved',
-      'fighter_xp_changed': 'Fighter XP changed',
-      'fighter_total_xp_changed': 'Fighter total XP changed',
-      'fighter_kills_changed': 'Fighter kills count changed',
-      'fighter_OOA_changed': 'Fighter OOA count changed',
-      'fighter_cost_adjusted': 'Fighter cost adjusted',
-      'equipment_purchased': 'Equipment purchased',
-      'equipment_purchased_to_stash': 'Equipment purchased to stash',
-      'equipment_sold': 'Equipment sold',
-      'Equipment removed': 'Equipment removed',
-      'equipment_moved_to_stash': 'Equipment moved to stash',
-      'equipment_moved_from_stash': 'Equipment moved from stash',
-      'equipment_granted': 'Equipment granted',
-      'vehicle_equipment_granted': 'Vehicle equipment granted',
-      'vehicle_added': 'Vehicle added',
-      'vehicle_deleted': 'Vehicle removed',
-      'vehicle_sold': 'Vehicle sold',
-      'vehicle_updated': 'Vehicle updated',
-      'vehicle_removed': 'Vehicle removed',
-      'vehicle_cost_changed': 'Vehicle cost changed',
-      'vehicle_assigned': 'Vehicle assigned',
-      'vehicle_unassigned': 'Vehicle unassigned',
-      'vehicle_name_changed': 'Vehicle name changed',
-      'vehicle_equipment_purchased': 'Vehicle equipment purchased',
-      'vehicle_equipment_sold': 'Vehicle equipment sold',
-      'Vehicle equipment removed': 'Vehicle equipment removed',
-      'vehicle_equipment_moved_to_stash': 'Vehicle equipment moved to stash',
-      'vehicle_equipment_moved_from_stash': 'Vehicle equipment moved from stash',
-      'vehicle_damage_added': 'Vehicle damage sustained',
-      'vehicle_damage_removed': 'Vehicle damage recovered',
-      'vehicle_damage_repaired': 'Vehicle damage repaired',
-      'stash_update': 'Stash updated',
-      'alignment_change': 'Alignment changed',
-      'gang_created': 'Gang created',
-      'gang_deleted': 'Gang deleted',
-      'name_change': 'Name changed',
-      'name_changed': 'Name changed',
-      'gang_type_changed': 'Gang type changed',
-      'fighter_characteristic_advancement': 'Characteristic advanced',
-      'fighter_skill_advancement': 'Skill advanced',
-      'fighter_skill_learned': 'Skill learned',
-      'fighter_skill_removed': 'Skill removed',
-      'fighter_characteristic_removed': 'Characteristic removed',
-      'fighter_injured': 'Fighter injured',
-      'fighter_recovered': 'Fighter recovered',
-      'fighter_rescued': 'Fighter rescued',
-      'fighter_starved': 'Fighter starved',
-      'fighter_fed': 'Fighter fed',
-      'fighter_captured': 'Fighter captured',
-      'fighter_released': 'Fighter released',
-      'fighter_copied': 'Fighter copied',
-      'campaign_joined': 'Campaign joined',
-      'campaign_left': 'Campaign left',
-      'battle_won': 'Battle won',
-      'battle_lost': 'Battle lost',
-      'battle_draw': 'Battle draw',
-      'territory_claimed': 'Territory claimed',
-      'territory_lost': 'Territory lost',
-      'injury_roll': 'Injury Roll'
-    };
-    return actionTypeMap[actionType] || actionType;
-  };
+  const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType);
 
   const sortLogs = (a: GangLog, b: GangLog) => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
