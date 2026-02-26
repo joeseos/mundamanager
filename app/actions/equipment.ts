@@ -295,7 +295,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           .from('custom_equipment')
           .select('id, equipment_name, equipment_type, cost, is_editable')
           .eq('id', params.custom_equipment_id)
-          .eq('user_id', user.id)
           .single(),
         
         // Custom weapon profiles (fetch even if not weapon to avoid second query)
@@ -316,7 +315,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             sort_order
           `)
           .or(`custom_equipment_id.eq.${params.custom_equipment_id},weapon_group_id.eq.${params.custom_equipment_id}`)
-          .eq('user_id', user.id)
           .order('sort_order', { nullsFirst: false })
           .order('profile_name')
       ]);
