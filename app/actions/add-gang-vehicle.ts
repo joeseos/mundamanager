@@ -135,6 +135,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
             credits_increase: 0,
             location: config.location || ''
           },
+          sort_order: i + 1,
           user_id: user.id
         });
         if (hpError) {

@@ -545,6 +545,7 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           id,
           effect_name,
           type_specific_data,
+          sort_order,
           created_at,
           updated_at,
           fighter_equipment_id,
@@ -562,7 +563,8 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           )
         `)
         .eq('fighter_id', fighterId)
-        .is('vehicle_id', null);
+        .is('vehicle_id', null)
+        .order('sort_order', { ascending: true, nullsFirst: false });
 
       if (error) throw error;
 
@@ -579,6 +581,7 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           id: effectData.id,
           effect_name: effectData.effect_name,
           type_specific_data: effectData.type_specific_data,
+          sort_order: effectData.sort_order ?? null,
           created_at: effectData.created_at,
           updated_at: effectData.updated_at || undefined,
           fighter_equipment_id: effectData.fighter_equipment_id || undefined,
@@ -659,6 +662,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
             effect_name,
             fighter_equipment_id,
             type_specific_data,
+            sort_order,
             created_at,
             updated_at,
             fighter_effect_type:fighter_effect_type_id (
@@ -675,6 +679,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
             )
           `)
           .eq('vehicle_id', vehicle.id)
+          .order('sort_order', { ascending: true, nullsFirst: false })
       ]);
 
       const vehicleEquipment = equipmentResult.data || [];
@@ -842,6 +847,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           effect_name: effectData.effect_name,
           fighter_equipment_id: effectData.fighter_equipment_id,
           type_specific_data: effectData.type_specific_data,
+          sort_order: effectData.sort_order ?? null,
           created_at: effectData.created_at,
           updated_at: effectData.updated_at,
           fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],

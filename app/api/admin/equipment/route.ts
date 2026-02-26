@@ -293,6 +293,7 @@ export async function GET(request: Request) {
             effect_name,
             fighter_effect_category_id,
             type_specific_data,
+            sort_order,
             fighter_effect_type_modifiers (
               id,
               stat_name,
@@ -300,7 +301,8 @@ export async function GET(request: Request) {
               operation
             )
           `)
-          .eq('type_specific_data->>equipment_id', id);
+          .eq('type_specific_data->>equipment_id', id)
+          .order('sort_order', { ascending: true, nullsFirst: false });
 
         if (effectsError) {
           console.warn('Error fetching fighter effects:', effectsError);
@@ -311,6 +313,7 @@ export async function GET(request: Request) {
             effect_name: effect.effect_name,
             fighter_effect_category_id: effect.fighter_effect_category_id,
             type_specific_data: effect.type_specific_data,
+            sort_order: effect.sort_order ?? null,
             modifiers: effect.fighter_effect_type_modifiers || []
           }));
         }
@@ -1255,7 +1258,8 @@ export async function PATCH(request: Request) {
               .insert({
                 effect_name: effect.effect_name,
                 fighter_effect_category_id: effect.fighter_effect_category_id,
-                type_specific_data: effect.type_specific_data || { equipment_id: id }
+                type_specific_data: effect.type_specific_data || { equipment_id: id },
+                sort_order: effect.sort_order ?? null
               })
               .select()
               .single();
@@ -1292,7 +1296,8 @@ export async function PATCH(request: Request) {
               .update({
                 effect_name: effect.effect_name,
                 fighter_effect_category_id: effect.fighter_effect_category_id,
-                type_specific_data: effect.type_specific_data || { equipment_id: id }
+                type_specific_data: effect.type_specific_data || { equipment_id: id },
+                sort_order: effect.sort_order ?? null
               })
               .eq('id', effect.id);
             

@@ -20,6 +20,7 @@ interface CreateEffectRequest {
 interface EffectType {
   id: string;
   effect_name: string;
+  sort_order?: number | null;
   fighter_effect_type_modifiers: Array<{
     id: string;
     stat_name: string;
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
       .select(`
         id,
         effect_name,
+        sort_order,
         fighter_effect_type_modifiers (
           id,
           stat_name,
@@ -375,6 +377,7 @@ async function createNewEffect(
       fighter_id,
       fighter_effect_type_id: effectType.id,
       effect_name: effectType.effect_name,
+      sort_order: effectType.sort_order ?? null,
       user_id
     })
     .select()

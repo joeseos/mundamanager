@@ -85,6 +85,7 @@ export interface FighterEffectType {
   fighter_effect_category_id: string | null;
   type_specific_data: TypeSpecificData | null;
   modifiers: FighterEffectTypeModifier[];
+  sort_order?: number | null;
   fighter_effect_categories?: FighterEffectCategory;
 }
 
@@ -108,6 +109,7 @@ export interface FighterEffect {
   fighter_equipment_id?: string;
   fighter_effect_modifiers: FighterEffectModifier[];
   type_specific_data?: TypeSpecificData | string;
+  sort_order?: number | null;
   created_at?: string;
   updated_at?: string;
 }

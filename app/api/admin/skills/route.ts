@@ -31,6 +31,7 @@ export async function GET(request: Request) {
           effect_name,
           fighter_effect_category_id,
           type_specific_data,
+          sort_order,
           fighter_effect_categories(id, category_name)
         `)
         .eq('id', effectTypeId)
@@ -89,9 +90,11 @@ export async function GET(request: Request) {
           effect_name,
           fighter_effect_category_id,
           type_specific_data,
+          sort_order,
           fighter_effect_categories(id, category_name)
         `)
-        .in('type_specific_data->>skill_id', skillIds);
+        .in('type_specific_data->>skill_id', skillIds)
+        .order('sort_order', { ascending: true, nullsFirst: false });
 
       // Fetch modifiers for the effect types
       let modifiers: any[] = [];
@@ -229,7 +232,8 @@ export async function POST(request: Request) {
         .insert({
           effect_name: body.effect_name,
           fighter_effect_category_id: body.fighter_effect_category_id || null,
-          type_specific_data: typeSpecificData
+          type_specific_data: typeSpecificData,
+          sort_order: body.sort_order ?? null
         })
         .select()
         .single();
@@ -340,7 +344,8 @@ export async function PATCH(request: Request) {
         .update({
           effect_name: body.effect_name,
           fighter_effect_category_id: body.fighter_effect_category_id,
-          type_specific_data: typeSpecificData
+          type_specific_data: typeSpecificData,
+          sort_order: body.sort_order ?? null
         })
         .eq('id', id)
         .select()

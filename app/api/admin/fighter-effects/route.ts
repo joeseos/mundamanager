@@ -77,9 +77,11 @@ export async function GET(request: NextRequest) {
             effect_name,
             fighter_effect_category_id,
             type_specific_data,
+            sort_order,
             fighter_effect_categories(id, category_name)
           `)
-          .eq('type_specific_data->>equipment_id', equipmentId);
+          .eq('type_specific_data->>equipment_id', equipmentId)
+          .order('sort_order', { ascending: true, nullsFirst: false });
         
         if (error) {
           console.error('Error with SQL query:', error);
@@ -124,6 +126,7 @@ export async function GET(request: NextRequest) {
             effect_name,
             fighter_effect_category_id,
             type_specific_data,
+            sort_order,
             fighter_effect_categories(id, category_name)
           `);
           
@@ -187,9 +190,11 @@ export async function GET(request: NextRequest) {
           effect_name,
           fighter_effect_category_id,
           type_specific_data,
+          sort_order,
           fighter_effect_categories(id, category_name)
         `)
         .eq('fighter_effect_category_id', categoryId)
+        .order('sort_order', { ascending: true, nullsFirst: false })
         .order('effect_name');
 
       if (error) {
@@ -229,6 +234,7 @@ export async function GET(request: NextRequest) {
         effect_name,
         fighter_effect_category_id,
         type_specific_data,
+        sort_order,
         fighter_effect_categories(id, category_name)
       `);
     
@@ -385,14 +391,15 @@ export async function POST(request: NextRequest) {
         .insert({
           effect_name: body.effect_name,
           fighter_effect_category_id: body.fighter_effect_category_id || null,
-          type_specific_data: typeSpecificData
+          type_specific_data: typeSpecificData,
+          sort_order: body.sort_order ?? null
         })
         .select()
         .single();
-      
+
       if (error) {
         console.error('Error creating fighter effect:', error);
-        
+
         // Try alternative approach if there's a JSON error
         if (error.message.includes('invalid input syntax for type json')) {
           // Try using JSON.stringify and direct DB parameter approach
@@ -401,7 +408,8 @@ export async function POST(request: NextRequest) {
             .insert({
               effect_name: body.effect_name,
               fighter_effect_category_id: body.fighter_effect_category_id || null,
-              type_specific_data: JSON.stringify(typeSpecificData)
+              type_specific_data: JSON.stringify(typeSpecificData),
+              sort_order: body.sort_order ?? null
             })
             .select()
             .single();
@@ -473,7 +481,8 @@ export async function PATCH(request: NextRequest) {
       .update({
         effect_name: body.effect_name,
         fighter_effect_category_id: body.fighter_effect_category_id || null,
-        ...(typeSpecificData !== undefined && { type_specific_data: typeSpecificData })
+        ...(typeSpecificData !== undefined && { type_specific_data: typeSpecificData }),
+        ...(body.sort_order !== undefined && { sort_order: body.sort_order ?? null })
       })
       .eq('id', id)
       .select()
