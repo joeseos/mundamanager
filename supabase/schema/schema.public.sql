@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict cz9gMWbUefWYADmdzzgJ2jjdZ3D9xJdCl3OYnGkTgYamoHJXIIMTyVUe5HwbbPQ
+\restrict luCSrnDOLMjhB4VLT6ap98lVRw4D0WuAuGxFURTnnE6HfagddQDxeadvoQahxkj
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.12 (Ubuntu 16.12-1.pgdg24.04+1)
@@ -4069,6 +4069,19 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: OLDfighter_effect_injuries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."OLDfighter_effect_injuries" (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    fighter_effect_id uuid,
+    fighter_skill_id uuid
+);
+
+
+--
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4644,19 +4657,6 @@ CREATE TABLE public.fighter_effect_categories (
     category_name text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone
-);
-
-
---
--- Name: fighter_effect_injuries; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.fighter_effect_injuries (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone,
-    fighter_effect_id uuid,
-    fighter_skill_id uuid
 );
 
 
@@ -5750,10 +5750,10 @@ ALTER TABLE ONLY public.fighter_effect_categories
 
 
 --
--- Name: fighter_effect_injuries fighter_effect_injuries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: OLDfighter_effect_injuries fighter_effect_injuries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.fighter_effect_injuries
+ALTER TABLE ONLY public."OLDfighter_effect_injuries"
     ADD CONSTRAINT fighter_effect_injuries_pkey PRIMARY KEY (id);
 
 
@@ -7070,10 +7070,10 @@ ALTER TABLE ONLY public.fighter_defaults
 
 
 --
--- Name: fighter_effect_injuries fighter_effect_injuries_fighter_effect_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: OLDfighter_effect_injuries fighter_effect_injuries_fighter_effect_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.fighter_effect_injuries
+ALTER TABLE ONLY public."OLDfighter_effect_injuries"
     ADD CONSTRAINT fighter_effect_injuries_fighter_effect_id_fkey FOREIGN KEY (fighter_effect_id) REFERENCES public.fighter_effects(id) ON DELETE CASCADE;
 
 
@@ -8365,6 +8365,12 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
    FROM public.campaign_gangs cg
   WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
+
+--
+-- Name: OLDfighter_effect_injuries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public."OLDfighter_effect_injuries" ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_triumphs Only admin can create campaign_triumphs entries; Type: POLICY; Schema: public; Owner: -
@@ -9752,12 +9758,6 @@ CREATE POLICY fighter_defaults_update_policy ON public.fighter_defaults FOR UPDA
 ALTER TABLE public.fighter_effect_categories ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: fighter_effect_injuries; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.fighter_effect_injuries ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: fighter_effect_modifiers; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10377,5 +10377,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict cz9gMWbUefWYADmdzzgJ2jjdZ3D9xJdCl3OYnGkTgYamoHJXIIMTyVUe5HwbbPQ
+\unrestrict luCSrnDOLMjhB4VLT6ap98lVRw4D0WuAuGxFURTnnE6HfagddQDxeadvoQahxkj
 
