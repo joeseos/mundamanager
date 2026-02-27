@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
           effect_name,
           fighter_effect_category_id,
           type_specific_data,
+          sort_order,
           fighter_effect_categories(id, category_name)
         `)
         .eq(`type_specific_data->>${filterField}`, filterValue);
@@ -90,6 +91,7 @@ export async function GET(request: NextRequest) {
           effect_name,
           fighter_effect_category_id,
           type_specific_data,
+          sort_order,
           fighter_effect_categories(id, category_name)
         `);
         

@@ -323,7 +323,9 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                 fighter_effect_type_id,
                 effect_name,
                 type_specific_data,
+                sort_order,
                 target_equipment_id,
+                fighter_effect_type:fighter_effect_type_id ( sort_order ),
                 fighter_effect_modifiers ( stat_name, numeric_value, operation )
               `)
               .in('target_equipment_id', fighterEquipmentIds)
@@ -371,18 +373,29 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
       });
 
       const targetingEffectsMap = new Map<string, any[]>();
-      const targetingEffectNamesMap = new Map<string, string[]>(); // Map of target_equipment_id -> effect_names[]
       (targetingEffectsData.data || []).forEach((effect: any) => {
         if (!targetingEffectsMap.has(effect.target_equipment_id)) {
           targetingEffectsMap.set(effect.target_equipment_id, []);
-          targetingEffectNamesMap.set(effect.target_equipment_id, []);
         }
         targetingEffectsMap.get(effect.target_equipment_id)!.push(effect);
-        // Collect unique effect names for this target equipment
-        const existingNames = targetingEffectNamesMap.get(effect.target_equipment_id)!;
-        if (effect.effect_name && !existingNames.includes(effect.effect_name)) {
-          existingNames.push(effect.effect_name);
-        }
+      });
+      // Sort effects by sort_order (type as default, instance as override) and build names map
+      const targetingEffectNamesMap = new Map<string, string[]>();
+      targetingEffectsMap.forEach((effects, targetId) => {
+        const sorted = [...effects].sort((a: any, b: any) => {
+          const effectTypeA = a.fighter_effect_type as { sort_order?: number | null } | null;
+          const effectTypeB = b.fighter_effect_type as { sort_order?: number | null } | null;
+          const orderA = effectTypeA?.sort_order ?? a.sort_order ?? Infinity;
+          const orderB = effectTypeB?.sort_order ?? b.sort_order ?? Infinity;
+          return orderA - orderB;
+        });
+        const names: string[] = [];
+        sorted.forEach((effect: any) => {
+          if (effect.effect_name && !names.includes(effect.effect_name)) {
+            names.push(effect.effect_name);
+          }
+        });
+        targetingEffectNamesMap.set(targetId, names);
       });
 
       // Map fighter_equipment_id -> loadout_ids[]
@@ -550,6 +563,7 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           updated_at,
           fighter_equipment_id,
           fighter_effect_type:fighter_effect_type_id (
+            sort_order,
             fighter_effect_category:fighter_effect_category_id (
               category_name
             )
@@ -577,11 +591,12 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
           effectsByCategory[categoryName] = [];
         }
 
+        const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
         effectsByCategory[categoryName].push({
           id: effectData.id,
           effect_name: effectData.effect_name,
           type_specific_data: effectData.type_specific_data,
-          sort_order: effectData.sort_order ?? null,
+          sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
           created_at: effectData.created_at,
           updated_at: effectData.updated_at || undefined,
           fighter_equipment_id: effectData.fighter_equipment_id || undefined,
@@ -666,6 +681,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
             created_at,
             updated_at,
             fighter_effect_type:fighter_effect_type_id (
+              sort_order,
               fighter_effect_category:fighter_effect_category_id (
                 category_name
               )
@@ -837,6 +853,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
       const processedEffects: Record<string, any[]> = {};
       (effectsResult.data || []).forEach((effectData: any) => {
         const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
+        const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
 
         if (!processedEffects[categoryName]) {
           processedEffects[categoryName] = [];
@@ -847,7 +864,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           effect_name: effectData.effect_name,
           fighter_equipment_id: effectData.fighter_equipment_id,
           type_specific_data: effectData.type_specific_data,
-          sort_order: effectData.sort_order ?? null,
+          sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
           created_at: effectData.created_at,
           updated_at: effectData.updated_at,
           fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
