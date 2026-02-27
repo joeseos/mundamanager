@@ -59,14 +59,15 @@ export function FighterPromotionModal({
   // Reset state on each open, pre-select the first eligible type
   useEffect(() => {
     if (isOpen) {
-      const firstId = eligibleTypes.length > 0 ? eligibleTypes[0].id : '';
-      setSelectedTypeId(firstId);
-      // Initialize new special rules from the first eligible type
-      const firstType = eligibleTypes.length > 0 ? eligibleTypes[0] : null;
+      const eligible = targetClass
+        ? fighterTypes.filter(ft => ft.fighter_class === targetClass)
+        : [];
+      const firstType = eligible.length > 0 ? eligible[0] : null;
+      setSelectedTypeId(firstType?.id || '');
       setNewSpecialRules(firstType?.special_rules ? [...firstType.special_rules] : []);
       setNewRuleInput('');
     }
-  }, [isOpen, eligibleTypes]);
+  }, [isOpen, targetClass, fighterTypes]);
 
   // When selection changes, update new special rules from the selected type
   const handleTypeChange = (typeId: string) => {
@@ -141,7 +142,7 @@ export function FighterPromotionModal({
           {currentSpecialRules.length > 0 && (
             <div>
               <label className="block text-sm font-medium mb-1">
-                Special Rules To Be Removed
+                Rules From Current Type
               </label>
               <div className="flex flex-wrap gap-2">
                 {currentSpecialRules.map((rule, index) => (

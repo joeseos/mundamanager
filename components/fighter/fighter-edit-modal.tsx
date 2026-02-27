@@ -1765,13 +1765,14 @@ export function EditFighterModal({
 
       {/* Promotion modal */}
       <FighterPromotionModal
-        currentClass={effectiveFighterClass || fighter.fighter_class || ''}
+        currentClass={effectiveFighterClass || ''}
         currentSpecialRules={formValues.special_rules}
         fighterTypes={fighterTypes}
         isOpen={showPromotionModal}
         onClose={() => setShowPromotionModal(false)}
         onPromoted={(data) => {
           setSelectedFighterTypeId(data.fighter_type_id);
+          setHasExplicitlySelectedType(true);
           setFormValues(prev => ({
             ...prev,
             fighter_type: data.fighter_type,
