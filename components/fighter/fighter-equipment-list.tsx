@@ -384,9 +384,11 @@ export function WeaponList({
       }
       const effectTypes = await response.json();
       // Filter to only show editable effects (is_editable: true in type_specific_data)
-      const editableEffects = effectTypes.filter((et: any) =>
-        et.type_specific_data?.is_editable === true
-      );
+      const editableEffects = effectTypes
+        .filter((et: any) => et.type_specific_data?.is_editable === true)
+        .sort((a: FighterEffectType, b: FighterEffectType) =>
+          (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
+        );
       setUpgradeEffectTypes(editableEffects);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load effect options');
@@ -452,14 +454,15 @@ export function WeaponList({
         return item;
       });
 
-      // Build optimistic FighterEffect objects and add to fighterEffects
+      // Build optimistic FighterEffect objects and add to fighterEffects (include sort_order for display ordering)
       const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => ({
         id: `temp-${Date.now()}-${index}`,
         effect_name: effect.effect_name,
         fighter_equipment_id: equipmentData.fighter_equipment_id,
         fighter_effect_type_id: effect.id,
         fighter_effect_modifiers: [],
-        type_specific_data: effect.type_specific_data ?? undefined
+        type_specific_data: effect.type_specific_data ?? undefined,
+        sort_order: effect.sort_order ?? null
       }));
 
       // Add new effects to 'equipment' category (or create it)
@@ -734,12 +737,13 @@ export function WeaponList({
   // Only show editable effects (user-added via edit modal)
   const renderEffectRows = (item: Equipment) => {
     const allEffects = Object.values(fighterEffects).flat();
-    const equipmentEffects = allEffects.filter((e) => {
-      if (e.fighter_equipment_id !== item.fighter_equipment_id) return false;
-
-      const typeData = typeof e.type_specific_data === 'object' ? e.type_specific_data : null;
-      return typeData?.is_editable === true;
-    });
+    const equipmentEffects = allEffects
+      .filter((e) => {
+        if (e.fighter_equipment_id !== item.fighter_equipment_id) return false;
+        const typeData = typeof e.type_specific_data === 'object' ? e.type_specific_data : null;
+        return typeData?.is_editable === true;
+      })
+      .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
     if (equipmentEffects.length === 0) return null;
 
