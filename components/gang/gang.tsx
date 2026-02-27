@@ -1001,6 +1001,7 @@ export default function Gang({
                 size="icon"
                 className="print:hidden"
                 title="View Gang Logs"
+                disabled={!userPermissions?.canEdit}
               >
                 <LuLogs className="w-[23px] h-[23px]" />
               </Button>

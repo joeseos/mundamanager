@@ -465,6 +465,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             size="icon"
             className="print:hidden"
             title="View Fighter Logs"
+            disabled={!canShowEditButtons}
           >
             <LuLogs className="w-[23px] h-[23px]" />
           </Button>
