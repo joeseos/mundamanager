@@ -863,6 +863,11 @@ export function EditFighterModal({
         if (overrideClass) {
           submitData.fighter_class = overrideClass.class_name;
           submitData.fighter_class_id = overrideClass.id;
+        } else {
+          // Class ID set but not in standardFighterClasses (e.g. promotion to Exotic Beast Specialist)
+          // Use the values from formValues which were set by the promotion modal
+          submitData.fighter_class = formValues.fighter_class;
+          submitData.fighter_class_id = formValues.fighter_class_id;
         }
       } else if (selectedFighterClassId === '' && !shouldUpdateFighterType) {
         // "Default" selected and no fighter type change - use the selected fighter type's default class
@@ -1304,12 +1309,15 @@ export function EditFighterModal({
       <FighterPromotionModal
         currentClass={effectiveFighterClass || ''}
         currentSpecialRules={formValues.special_rules}
+        currentFighterType={formValues.fighter_type}
+        currentFighterTypeId={selectedFighterTypeId}
         fighterTypes={fighterTypes}
         isOpen={showPromotionModal}
         onClose={() => setShowPromotionModal(false)}
         onPromoted={(data) => {
           setSelectedFighterTypeId(data.fighter_type_id);
           setHasExplicitlySelectedType(true);
+          setSelectedFighterClassId(data.fighter_class_id);
           setFormValues(prev => ({
             ...prev,
             fighter_type: data.fighter_type,
