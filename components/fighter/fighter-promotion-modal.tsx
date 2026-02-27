@@ -142,7 +142,7 @@ export function FighterPromotionModal({
           {currentSpecialRules.length > 0 && (
             <div>
               <label className="block text-sm font-medium mb-1">
-                Rules From Current Type
+              Special Rules To Be Removed
               </label>
               <div className="flex flex-wrap gap-2">
                 {currentSpecialRules.map((rule, index) => (
