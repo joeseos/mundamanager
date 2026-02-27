@@ -12,6 +12,7 @@ import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
+import { FighterPromotionModal } from './fighter-promotion-modal';
 
 // Constants for archetype eligibility
 const UNDERHIVE_OUTCASTS_GANG_TYPE_ID = '77fc520f-b453-46ef-9ef0-6a12872934f8';
@@ -641,6 +642,9 @@ export function EditFighterModal({
   // State for skill access modal
   const [showSkillAccessModal, setShowSkillAccessModal] = useState(false);
 
+  // State for promotion modal
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
+
   // State for fighter class override ('': use default from fighter type)
   const [selectedFighterClassId, setSelectedFighterClassId] = useState<string>('');
 
@@ -676,6 +680,11 @@ export function EditFighterModal({
     }
     return defaultFighterClassName;
   }, [selectedFighterClassId, standardFighterClasses, defaultFighterClassName]);
+
+  // Determine if this fighter is eligible for promotion
+  const isEligibleForPromotion = ['Ganger', 'Juve', 'Prospect', 'Exotic Beast'].includes(
+    effectiveFighterClass || fighter.fighter_class || ''
+  );
 
   // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
   const canUseArchetypes = gangTypeId === UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
@@ -1433,6 +1442,16 @@ export function EditFighterModal({
               )}
             </div>
             
+            {/* Promotion */}
+            {isEligibleForPromotion && (
+              <div>
+                <h3 className="text-sm font-medium mb-2">Promotion</h3>
+                <Button onClick={() => setShowPromotionModal(true)} className="w-full">
+                  Promote Fighter
+                </Button>
+              </div>
+            )}
+
             {/* Fighter Type Dropdown */}
             <div>
               <label htmlFor="fighter_type_id" className="block text-sm font-medium mb-1">
@@ -1742,6 +1761,28 @@ export function EditFighterModal({
         fighterId={fighter.id}
         isOpen={showSkillAccessModal}
         onClose={() => setShowSkillAccessModal(false)}
+      />
+
+      {/* Promotion modal */}
+      <FighterPromotionModal
+        currentClass={effectiveFighterClass || ''}
+        currentSpecialRules={formValues.special_rules}
+        fighterTypes={fighterTypes}
+        isOpen={showPromotionModal}
+        onClose={() => setShowPromotionModal(false)}
+        onPromoted={(data) => {
+          setSelectedFighterTypeId(data.fighter_type_id);
+          setHasExplicitlySelectedType(true);
+          setFormValues(prev => ({
+            ...prev,
+            fighter_type: data.fighter_type,
+            fighter_type_id: data.fighter_type_id,
+            fighter_class: data.fighter_class,
+            fighter_class_id: data.fighter_class_id,
+            special_rules: data.special_rules,
+          }));
+          setShowPromotionModal(false);
+        }}
       />
     </>
   );
