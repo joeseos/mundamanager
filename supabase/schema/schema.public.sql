@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict luCSrnDOLMjhB4VLT6ap98lVRw4D0WuAuGxFURTnnE6HfagddQDxeadvoQahxkj
+\restrict Yv5FQZdhCQfYEul3vnVasOL3YCfR4C9Jxt1bdU57LjgK8jQaL4cJceZv7dvDxLx
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.12 (Ubuntu 16.12-1.pgdg24.04+1)
@@ -4097,6 +4097,62 @@ CREATE TABLE public.alliances (
 
 
 --
+-- Name: battle_session_fighters; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.battle_session_fighters (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    battle_session_id uuid NOT NULL,
+    participant_id uuid NOT NULL,
+    fighter_id uuid NOT NULL,
+    xp_earned integer DEFAULT 0 NOT NULL,
+    pending_injuries jsonb DEFAULT '[]'::jsonb NOT NULL,
+    out_of_action boolean DEFAULT false NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: battle_session_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.battle_session_participants (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    battle_session_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    gang_id uuid NOT NULL,
+    role text DEFAULT 'none'::text NOT NULL,
+    gang_rating_snapshot integer,
+    credits_earned integer DEFAULT 0 NOT NULL,
+    reputation_change integer DEFAULT 0 NOT NULL,
+    confirmed boolean DEFAULT false NOT NULL,
+    confirmed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
+);
+
+
+--
+-- Name: battle_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.battle_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid NOT NULL,
+    campaign_id uuid,
+    scenario text,
+    status text DEFAULT 'active'::text NOT NULL,
+    winner_gang_id uuid,
+    note text,
+    campaign_battle_id uuid,
+    CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'review'::text, 'confirmed'::text, 'cancelled'::text])))
+);
+
+
+--
 -- Name: campaign_allegiances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5283,7 +5339,7 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'friend_request'::text, 'gang_invite'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
 );
 
 
@@ -5491,6 +5547,46 @@ CREATE TABLE public.weapon_profiles (
 
 ALTER TABLE ONLY public.alliances
     ADD CONSTRAINT alliances_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: battle_session_fighters battle_session_fighters_battle_session_id_fighter_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_fighters
+    ADD CONSTRAINT battle_session_fighters_battle_session_id_fighter_id_key UNIQUE (battle_session_id, fighter_id);
+
+
+--
+-- Name: battle_session_fighters battle_session_fighters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_fighters
+    ADD CONSTRAINT battle_session_fighters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: battle_session_participants battle_session_participants_battle_session_id_gang_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_battle_session_id_gang_id_key UNIQUE (battle_session_id, gang_id);
+
+
+--
+-- Name: battle_session_participants battle_session_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: battle_sessions battle_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -6174,6 +6270,55 @@ ALTER TABLE ONLY public.equipment
 
 
 --
+-- Name: battle_session_fighters_participant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_fighters_participant_idx ON public.battle_session_fighters USING btree (participant_id);
+
+
+--
+-- Name: battle_session_fighters_session_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_fighters_session_idx ON public.battle_session_fighters USING btree (battle_session_id);
+
+
+--
+-- Name: battle_session_participants_session_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_participants_session_idx ON public.battle_session_participants USING btree (battle_session_id);
+
+
+--
+-- Name: battle_session_participants_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_participants_user_idx ON public.battle_session_participants USING btree (user_id);
+
+
+--
+-- Name: battle_sessions_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_campaign_id_idx ON public.battle_sessions USING btree (campaign_id);
+
+
+--
+-- Name: battle_sessions_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions USING btree (created_by);
+
+
+--
+-- Name: battle_sessions_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_status_idx ON public.battle_sessions USING btree (status);
+
+
+--
 -- Name: campaign_battles_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6731,6 +6876,86 @@ CREATE TRIGGER trigger_campaign_member_notification AFTER INSERT ON public.campa
 --
 
 CREATE TRIGGER trigger_friend_request_notification AFTER INSERT ON public.friends FOR EACH ROW WHEN (((new.status)::text = 'pending'::text)) EXECUTE FUNCTION public.notify_friend_request_sent();
+
+
+--
+-- Name: battle_session_fighters battle_session_fighters_battle_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_fighters
+    ADD CONSTRAINT battle_session_fighters_battle_session_id_fkey FOREIGN KEY (battle_session_id) REFERENCES public.battle_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: battle_session_fighters battle_session_fighters_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_fighters
+    ADD CONSTRAINT battle_session_fighters_fighter_id_fkey FOREIGN KEY (fighter_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
+
+
+--
+-- Name: battle_session_fighters battle_session_fighters_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_fighters
+    ADD CONSTRAINT battle_session_fighters_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.battle_session_participants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: battle_session_participants battle_session_participants_battle_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_battle_session_id_fkey FOREIGN KEY (battle_session_id) REFERENCES public.battle_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: battle_session_participants battle_session_participants_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: battle_session_participants battle_session_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+
+
+--
+-- Name: battle_sessions battle_sessions_campaign_battle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_campaign_battle_id_fkey FOREIGN KEY (campaign_battle_id) REFERENCES public.campaign_battles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: battle_sessions battle_sessions_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE SET NULL;
+
+
+--
+-- Name: battle_sessions battle_sessions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+
+
+--
+-- Name: battle_sessions battle_sessions_winner_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_winner_gang_id_fkey FOREIGN KEY (winner_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -10377,5 +10602,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict luCSrnDOLMjhB4VLT6ap98lVRw4D0WuAuGxFURTnnE6HfagddQDxeadvoQahxkj
+\unrestrict Yv5FQZdhCQfYEul3vnVasOL3YCfR4C9Jxt1bdU57LjgK8jQaL4cJceZv7dvDxLx
 
