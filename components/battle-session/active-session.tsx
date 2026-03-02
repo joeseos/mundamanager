@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   addParticipant,
-  removeParticipant,
+  inviteToSession,
   setSessionScenario,
   moveToReview,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
 import ParticipantCard from './participant-card';
+import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import type { BattleSessionFull } from '@/types/battle-session';
@@ -33,13 +35,14 @@ export default function ActiveSession({
   scenarios,
   refetch,
 }: ActiveSessionProps) {
+  const router = useRouter();
   const [selectedGangId, setSelectedGangId] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteSearchResults, setInviteSearchResults] = useState<{ id: string; username: string }[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [inviteGangs, setInviteGangs] = useState<{ id: string; name: string }[]>([]);
-  const [selectedInviteGangId, setSelectedInviteGangId] = useState('');
+  const [selectedInviteUserId, setSelectedInviteUserId] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const isOwner = session.created_by === userId;
 
   // Gangs already in session
@@ -61,8 +64,8 @@ export default function ActiveSession({
       0
     )
   );
-  const maxRating = Math.max(...ratings, 0);
-  const minRating = Math.min(...ratings, 0);
+  const maxRating = ratings.length > 0 ? Math.max(...ratings) : 0;
+  const minRating = ratings.length > 0 ? Math.min(...ratings) : 0;
   const ratingDiff = ratings.length >= 2 ? maxRating - minRating : 0;
 
   useEffect(() => {
@@ -109,36 +112,21 @@ export default function ActiveSession({
   });
 
   const inviteMutation = useMutation({
-    mutationFn: async () => {
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('username', inviteUsername)
-        .single();
-
-      if (!profile) throw new Error('User not found');
-      if (!selectedInviteGangId) throw new Error('No gang selected');
-
-      return addParticipant({
+    mutationFn: () =>
+      inviteToSession({
         session_id: session.id,
-        gang_id: selectedInviteGangId,
-        user_id: profile.id,
-      });
-    },
+        user_id: selectedInviteUserId,
+      }),
     onSuccess: (result) => {
-      if (result && result.success) {
+      if (result.success) {
         setInviteUsername('');
-        setInviteGangs([]);
-        setSelectedInviteGangId('');
-        toast.success('Player invited');
-        refetch();
+        setSelectedInviteUserId('');
+        toast.success('Invite sent');
       } else {
-        toast.error(result?.error || 'Failed to invite player');
+        toast.error(result.error || 'Failed to invite player');
       }
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: () => toast.error('Failed to invite player'),
   });
 
   const moveToReviewMutation = useMutation({
@@ -154,6 +142,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Battle cancelled');
+        router.back();
       } else {
         toast.error(result.error);
       }
@@ -176,11 +165,25 @@ export default function ActiveSession({
         {isOwner && (
           <Button
             variant="destructive"
-            onClick={() => cancelMutation.mutate()}
+            onClick={() => setShowCancelModal(true)}
             disabled={cancelMutation.isPending}
           >
             Cancel Battle
           </Button>
+        )}
+        {showCancelModal && (
+          <Modal
+            title="Cancel Battle Session"
+            onClose={() => setShowCancelModal(false)}
+            onConfirm={async () => {
+              cancelMutation.mutate();
+              return false; // keep modal open until redirect
+            }}
+            confirmText="Delete Session"
+            confirmDisabled={cancelMutation.isPending}
+          >
+            <p>Are you sure you want to cancel this battle session? This will delete all records.</p>
+          </Modal>
         )}
       </div>
 
@@ -213,8 +216,8 @@ export default function ActiveSession({
           </div>
         )}
 
-        {/* Invite by username (standalone only) */}
-        {!session.campaign_id && (
+        {/* Invite by username (standalone, owner only) */}
+        {!session.campaign_id && isOwner && (
           <div className="flex gap-2">
             <div className="relative flex-1 space-y-2">
               <div className="relative">
@@ -224,8 +227,7 @@ export default function ActiveSession({
                   onChange={(e) => {
                     setInviteUsername(e.target.value);
                     setShowSuggestions(true);
-                    setInviteGangs([]);
-                    setSelectedInviteGangId('');
+                    setSelectedInviteUserId('');
                   }}
                   placeholder="Invite player by username..."
                   className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
@@ -244,27 +246,9 @@ export default function ActiveSession({
                             type="button"
                             onClick={() => {
                               setInviteUsername(profile.username);
+                              setSelectedInviteUserId(profile.id);
                               setShowSuggestions(false);
                               setInviteSearchResults([]);
-                              setInviteGangs([]);
-                              setSelectedInviteGangId('');
-                              const fetchGangs = async () => {
-                                const { createClient } = await import('@/utils/supabase/client');
-                                const supabase = createClient();
-                                const { data: profileData } = await supabase
-                                  .from('profiles')
-                                  .select('id')
-                                  .eq('username', profile.username)
-                                  .single();
-                                if (!profileData) return;
-                                const { data: gangs } = await supabase
-                                  .from('gangs')
-                                  .select('id, name')
-                                  .eq('user_id', profileData.id);
-                                setInviteGangs(gangs ?? []);
-                                if (gangs?.length === 1) setSelectedInviteGangId(gangs[0].id);
-                              };
-                              fetchGangs();
                             }}
                             className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
                           >
@@ -276,22 +260,10 @@ export default function ActiveSession({
                   </div>
                 )}
               </div>
-              {inviteGangs.length > 1 && (
-                <select
-                  value={selectedInviteGangId}
-                  onChange={(e) => setSelectedInviteGangId(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
-                >
-                  <option value="">Select gang...</option>
-                  {inviteGangs.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-              )}
             </div>
             <Button
               onClick={() => inviteMutation.mutate()}
-              disabled={!inviteUsername.trim() || !selectedInviteGangId || inviteMutation.isPending}
+              disabled={!selectedInviteUserId || inviteMutation.isPending}
               className="w-20"
             >
               Invite

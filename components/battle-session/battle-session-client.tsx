@@ -30,15 +30,7 @@ export default function BattleSessionClient({
 
   let content: React.ReactNode;
 
-  if (currentSession.status === 'cancelled') {
-    content = (
-      <div className="bg-card shadow-md rounded-lg p-6 py-12 text-center">
-        <h2 className="text-xl font-bold text-neutral-500">
-          This battle session has been cancelled.
-        </h2>
-      </div>
-    );
-  } else if (currentSession.status === 'confirmed') {
+  if (currentSession.status === 'confirmed') {
     content = <ConfirmedSession session={currentSession} userId={userId} />;
   } else if (currentSession.status === 'review') {
     content = (
