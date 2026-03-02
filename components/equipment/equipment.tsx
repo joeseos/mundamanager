@@ -676,7 +676,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   placeholder="Search equipment..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value.toLowerCase())}
-                  className="w-full px-3 py-2 pr-8 border rounded-md text-sm"
+                  className="w-full px-3 py-2 pr-8 border rounded-md text-base md:text-sm"
                 />
                 {searchQuery && (
                   <button
