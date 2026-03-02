@@ -203,15 +203,15 @@
       background-color: #faf9f7 !important;
     }
 
-    /* Default: suppress brushstroke in print (non-fancy contexts) */
-    .fancy-print-top-bar {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
+    /* Suppress brushstroke in print for non-fancy contexts (regular page print) */
+    body:not(.fancy-print) .fancy-print-top-bar {
       background: none !important;
     }
 
-    /* Fancy print: restore brushstroke with ALL necessary sub-properties */
+    /* Fancy print: ensure brushstroke renders on iOS Safari (no "Print backgrounds" toggle) */
     body.fancy-print .fancy-print-top-bar {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
       background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png') !important;
       background-size: 100% 100% !important;
       background-position: center !important;
