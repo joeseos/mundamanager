@@ -394,7 +394,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       <div className="flex items-center mb-20">
         <div className="flex w-full items-center">
           <div
-            className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
+            className="absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar"
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',

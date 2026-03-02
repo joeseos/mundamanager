@@ -203,13 +203,13 @@
       background-color: #faf9f7 !important;
     }
 
-    /* Suppress brushstroke when printing from regular pages (non-fancy context) */
-    body:not(.fancy-print) .fancy-print-top-bar {
-      background: none !important;
-    }
-
     body.fancy-print .fancy-print-top-bar {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
       background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png') !important;
+      background-size: 100% 100% !important;
+      background-position: center !important;
+      background-repeat: no-repeat !important;
     }
 
     body.fancy-print .fancy-print-keep-color-heading {
