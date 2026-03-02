@@ -17,6 +17,44 @@ import type {
 } from '@/types/battle-session';
 
 // =============================================================================
+// Authorization Helpers
+// =============================================================================
+
+async function verifySessionCreator(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string,
+  userId: string
+): Promise<{ authorized: boolean; error?: string }> {
+  const { data: session } = await supabase
+    .from('battle_sessions')
+    .select('created_by')
+    .eq('id', sessionId)
+    .single();
+
+  if (!session) return { authorized: false, error: 'Session not found' };
+  if (session.created_by !== userId)
+    return { authorized: false, error: 'Only the session creator can perform this action' };
+  return { authorized: true };
+}
+
+async function verifySessionParticipant(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string,
+  userId: string
+): Promise<{ authorized: boolean; participantId?: string; error?: string }> {
+  const { data: participant } = await supabase
+    .from('battle_session_participants')
+    .select('id')
+    .eq('battle_session_id', sessionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!participant)
+    return { authorized: false, error: 'You are not a participant in this session' };
+  return { authorized: true, participantId: participant.id };
+}
+
+// =============================================================================
 // Session Lifecycle
 // =============================================================================
 
@@ -173,20 +211,28 @@ export async function getUserBattleSessions(): Promise<BattleSession[]> {
     const user = await getAuthenticatedUser(supabase);
 
     // Get sessions where user is creator or participant
-    const { data: participantSessions } = await supabase
-      .from('battle_session_participants')
-      .select('battle_session_id')
-      .eq('user_id', user.id);
+    const [{ data: createdSessions }, { data: participantSessions }] =
+      await Promise.all([
+        supabase
+          .from('battle_sessions')
+          .select('id')
+          .eq('created_by', user.id),
+        supabase
+          .from('battle_session_participants')
+          .select('battle_session_id')
+          .eq('user_id', user.id),
+      ]);
 
-    const participantSessionIds =
-      participantSessions?.map((p) => p.battle_session_id) || [];
+    const allIds = new Set<string>();
+    createdSessions?.forEach((s) => allIds.add(s.id));
+    participantSessions?.forEach((p) => allIds.add(p.battle_session_id));
+
+    if (allIds.size === 0) return [];
 
     const { data: sessions } = await supabase
       .from('battle_sessions')
       .select('*')
-      .or(
-        `created_by.eq.${user.id}${participantSessionIds.length > 0 ? `,id.in.(${participantSessionIds.join(',')})` : ''}`
-      )
+      .in('id', Array.from(allIds))
       .order('updated_at', { ascending: false });
 
     return sessions || [];
@@ -274,7 +320,7 @@ export async function cancelBattleSession(
 
     const { error } = await supabase
       .from('battle_sessions')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .delete()
       .eq('id', sessionId);
 
     if (error) return { success: false, error: error.message };
@@ -295,7 +341,10 @@ export async function setSessionScenario(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const { error } = await supabase
       .from('battle_sessions')
@@ -318,7 +367,10 @@ export async function setSessionWinner(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const { error } = await supabase
       .from('battle_sessions')
@@ -335,6 +387,46 @@ export async function setSessionWinner(
   } catch (err) {
     console.error('Error setting winner:', err);
     return { success: false, error: 'Failed to set winner' };
+  }
+}
+
+// =============================================================================
+// Invites
+// =============================================================================
+
+export async function inviteToSession(params: {
+  session_id: string;
+  user_id: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const currentUser = await getAuthenticatedUser(supabase);
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('id, status, created_by')
+      .eq('id', params.session_id)
+      .single();
+
+    if (!session) return { success: false, error: 'Session not found' };
+    if (session.created_by !== currentUser.id)
+      return { success: false, error: 'Only the session creator can invite players' };
+    if (session.status !== 'active')
+      return { success: false, error: 'Session is not active' };
+
+    await supabase.from('notifications').insert({
+      receiver_id: params.user_id,
+      sender_id: currentUser.id,
+      type: 'invite',
+      text: 'You have been invited to a battle session. Click here to join and select your gang.',
+      link: `/battle-session/${params.session_id}`,
+      dismissed: false,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('Error inviting to session:', err);
+    return { success: false, error: 'Failed to invite player' };
   }
 }
 
@@ -406,7 +498,7 @@ export async function addParticipant(params: {
       await supabase.from('notifications').insert({
         receiver_id: params.user_id,
         sender_id: currentUser.id,
-        type: 'battle_invite',
+        type: 'invite',
         text: 'You have been invited to a battle session.',
         link: `/battle-session/${params.session_id}`,
         dismissed: false,
@@ -426,7 +518,23 @@ export async function removeParticipant(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
+
+    // Allow session creator or self-removal
+    const { data: participant } = await supabase
+      .from('battle_session_participants')
+      .select('user_id')
+      .eq('id', participantId)
+      .eq('battle_session_id', sessionId)
+      .single();
+
+    if (!participant) return { success: false, error: 'Participant not found' };
+
+    const isSelfRemoval = participant.user_id === user.id;
+    if (!isSelfRemoval) {
+      const auth = await verifySessionCreator(supabase, sessionId, user.id);
+      if (!auth.authorized) return { success: false, error: 'Only the session creator can remove other participants' };
+    }
 
     const { error } = await supabase
       .from('battle_session_participants')
@@ -485,7 +593,10 @@ export async function removeFighterFromSession(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const { error } = await supabase
       .from('battle_session_fighters')
@@ -544,7 +655,7 @@ export async function updateFighterOutcome(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     const updateData: Record<string, any> = {};
     if (params.xp_earned !== undefined) updateData.xp_earned = params.xp_earned;
@@ -559,6 +670,9 @@ export async function updateFighterOutcome(params: {
       .single();
 
     if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
+
+    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const { error } = await supabase
       .from('battle_session_fighters')
@@ -584,7 +698,7 @@ export async function addPendingInjury(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     // Fetch current injuries
     const { data: fighter, error: fetchError } = await supabase
@@ -594,6 +708,9 @@ export async function addPendingInjury(params: {
       .single();
 
     if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
+
+    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const injuries: PendingInjury[] = fighter.pending_injuries || [];
     injuries.push({
@@ -624,7 +741,7 @@ export async function removePendingInjury(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     const { data: fighter, error: fetchError } = await supabase
       .from('battle_session_fighters')
@@ -633,6 +750,9 @@ export async function removePendingInjury(params: {
       .single();
 
     if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
+
+    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const injuries: PendingInjury[] = fighter.pending_injuries || [];
     if (params.injury_index < 0 || params.injury_index >= injuries.length)
@@ -662,7 +782,7 @@ export async function updateGangOutcome(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     const updateData: Record<string, any> = {};
     if (params.credits_earned !== undefined)
@@ -678,6 +798,9 @@ export async function updateGangOutcome(params: {
 
     if (fetchError || !participant)
       return { success: false, error: 'Participant not found' };
+
+    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const { error } = await supabase
       .from('battle_session_participants')
@@ -771,7 +894,7 @@ export async function applyBattleResults(
     // Fetch session data for cache invalidation and logging
     const { data: participants } = await supabase
       .from('battle_session_participants')
-      .select('user_id, gang_id, credits_earned, reputation_change')
+      .select('id, user_id, gang_id, credits_earned, reputation_change')
       .eq('battle_session_id', sessionId);
 
     const { data: fighters } = await supabase
@@ -789,15 +912,9 @@ export async function applyBattleResults(
     }
 
     if (fighters) {
-      // Build participant→gang lookup
+      // Build participant→gang lookup from the already-fetched participants
       const participantMap = new Map<string, string>();
-      if (participants) {
-        const { data: partRows } = await supabase
-          .from('battle_session_participants')
-          .select('id, gang_id')
-          .eq('battle_session_id', sessionId);
-        partRows?.forEach((pr) => participantMap.set(pr.id, pr.gang_id));
-      }
+      participants?.forEach((pr) => participantMap.set(pr.id, pr.gang_id));
 
       for (const f of fighters) {
         const gangId = participantMap.get(f.participant_id);

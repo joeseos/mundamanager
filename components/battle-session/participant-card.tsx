@@ -378,21 +378,6 @@ export default function ParticipantCard({
     0
   );
 
-  const makeOptimisticFighter = (
-    f: { id: string; fighter_name: string; credits: number }
-  ): BattleSessionFighter => ({
-    id: `temp-${f.id}`,
-    battle_session_id: session.id,
-    participant_id: participant.id,
-    fighter_id: f.id,
-    xp_earned: 0,
-    pending_injuries: [],
-    out_of_action: false,
-    note: null,
-    created_at: new Date().toISOString(),
-    fighter: { id: f.id, fighter_name: f.fighter_name, credits: f.credits },
-  });
-
   const removeMutation = useMutation({
     mutationFn: () => removeParticipant(session.id, participant.id),
     onSuccess: () => refetch?.(),
@@ -412,57 +397,39 @@ export default function ParticipantCard({
         participant_id: participant.id,
         fighter_ids: [fighterId],
       }),
-    onMutate: (fighterId) => {
-      const prev = localFighters;
-      const f = gangFighters.find((gf) => gf.id === fighterId);
-      if (f) setLocalFighters((cur) => [...cur, makeOptimisticFighter(f)]);
-      return { prev };
-    },
-    onSuccess: (result, fighterId, context) => {
+    onSuccess: (result, fighterId) => {
       if (!result.success) {
         toast.error(result.error || 'Failed to add fighter');
-        setLocalFighters(context!.prev);
         return;
       }
       const name = gangFighters.find((gf) => gf.id === fighterId)?.fighter_name;
       toast.success(`${name ?? 'Fighter'} added`);
+      refetch?.();
     },
-    onError: (_err, _id, context) => {
+    onError: () => {
       toast.error('Failed to add fighter');
-      setLocalFighters(context!.prev);
     },
   });
 
   const addAllFightersMutation = useMutation({
-    mutationFn: () =>
-      bulkAddFightersToSession({
+    mutationFn: () => {
+      const fighterIds = Array.from(new Set(availableFighters.map((f) => f.id)));
+      return bulkAddFightersToSession({
         session_id: session.id,
         participant_id: participant.id,
-        fighter_ids: Array.from(new Set(availableFighters.map((f) => f.id))),
-      }),
-    onMutate: () => {
-      const prev = localFighters;
-      const snapshot = availableFighters;
-      const seen = new Set<string>();
-      const unique = snapshot.filter((f) => {
-        if (seen.has(f.id)) return false;
-        seen.add(f.id);
-        return true;
-      });
-      setLocalFighters((cur) => [...cur, ...unique.map(makeOptimisticFighter)]);
-      return { prev, count: unique.length };
+        fighter_ids: fighterIds,
+      }).then((result) => ({ ...result, count: fighterIds.length }));
     },
-    onSuccess: (result, _, context) => {
+    onSuccess: (result) => {
       if (!result.success) {
         toast.error(result.error || 'Failed to add fighters');
-        setLocalFighters(context!.prev);
         return;
       }
-      toast.success(`${context!.count} fighter${context!.count !== 1 ? 's' : ''} added`);
+      toast.success(`${result.count} fighter${result.count !== 1 ? 's' : ''} added`);
+      refetch?.();
     },
-    onError: (_err, _vars, context) => {
+    onError: () => {
       toast.error('Failed to add fighters');
-      setLocalFighters(context!.prev);
     },
   });
 
@@ -488,7 +455,7 @@ export default function ParticipantCard({
     if (!isMutating) {
       setLocalFighters(participant.fighters);
     }
-  }, [participant.fighters]);
+  }, [participant.fighters, isMutating]);
 
 
   return (

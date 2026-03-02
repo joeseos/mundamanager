@@ -9,6 +9,7 @@ export function useBattleSession(sessionId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const channelRef = useRef<any>(null);
   const gangChannelRef = useRef<any>(null);
+  const supabaseRef = useRef<any>(null);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -34,6 +35,7 @@ export function useBattleSession(sessionId: string) {
       try {
         const { createClient } = await import('@/utils/supabase/client');
         const supabase = createClient();
+        supabaseRef.current = supabase;
 
         const handleChange = () => {
           if (mounted) fetchSession();
@@ -83,12 +85,9 @@ export function useBattleSession(sessionId: string) {
 
     return () => {
       mounted = false;
-      if (channelRef.current) {
-        import('@/utils/supabase/client').then(({ createClient }) => {
-          const supabase = createClient();
-          supabase.removeChannel(channelRef.current);
-          channelRef.current = null;
-        });
+      if (channelRef.current && supabaseRef.current) {
+        supabaseRef.current.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
   }, [sessionId, fetchSession]);
@@ -134,13 +133,9 @@ export function useBattleSession(sessionId: string) {
 
     return () => {
       mounted = false;
-      const ch = gangChannelRef.current;
-      if (ch) {
-        import('@/utils/supabase/client').then(({ createClient }) => {
-          const supabase = createClient();
-          supabase.removeChannel(ch);
-          gangChannelRef.current = null;
-        });
+      if (gangChannelRef.current && supabaseRef.current) {
+        supabaseRef.current.removeChannel(gangChannelRef.current);
+        gangChannelRef.current = null;
       }
     };
   }, [gangIdsKey, sessionId, fetchSession]);

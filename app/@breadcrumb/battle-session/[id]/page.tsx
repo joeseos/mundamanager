@@ -116,7 +116,7 @@ export default async function BattleSessionBreadcrumb({
                 className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
-                {id}
+                Battle Session
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
