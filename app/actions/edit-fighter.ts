@@ -699,8 +699,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
       case 'delete': {
         // Calculate fighter cost before deletion (for rating delta and logging)
-        const isActive = countsTowardRating(fighter);
-        const effectiveCost = isActive ? await getEffectiveCost() : 0;
+        // Captured fighters still count toward rating (their cost was never subtracted,
+        // unlike killed/retired/enslaved which had cost subtracted at status change time)
+        const shouldSubtractCost = countsTowardRating(fighter) || fighter.captured;
+        const effectiveCost = shouldSubtractCost ? await getEffectiveCost() : 0;
         const delta = -effectiveCost;
 
         // Get vehicle cost before deletion (vehicle will become unassigned via cascade)

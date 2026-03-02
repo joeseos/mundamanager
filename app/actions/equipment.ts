@@ -790,7 +790,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           updategangsCollection: {
             records: [{
               id: params.gang_id,
-              credits: gang.credits - finalPurchaseCost
+              credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
+              rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
+              wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost))
             }]
           },
           insertIntofighter_equipmentCollection: {
@@ -809,7 +811,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           updategangsCollection: {
             records: [{
               id: params.gang_id,
-              credits: gang.credits - finalPurchaseCost
+              credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
+              rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
+              wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost))
             }]
           },
           insertIntofighter_equipmentCollection: {
