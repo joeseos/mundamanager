@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Tee9nIYkl7kEbdrSpxXsvfvrziSX2AnkOdLwGBu1ihB5dLsjowWIExu9i7zVJoC
+\restrict pZ4U1FxJYLffkmEuJ5dlcMUq4D4bgNMfLbVxT77PVkZQOdqsL69rV0FfVw0bz1s
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.12 (Ubuntu 16.12-1.pgdg24.04+1)
@@ -10602,5 +10602,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Tee9nIYkl7kEbdrSpxXsvfvrziSX2AnkOdLwGBu1ihB5dLsjowWIExu9i7zVJoC
+\unrestrict pZ4U1FxJYLffkmEuJ5dlcMUq4D4bgNMfLbVxT77PVkZQOdqsL69rV0FfVw0bz1s
 
