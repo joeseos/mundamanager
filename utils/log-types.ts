@@ -42,15 +42,15 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'fighter_characteristic_removed': 'Characteristic removed',
   'fighter_injured': 'Fighter injured',
   'fighter_recovered': 'Fighter recovered',
-  'injury_roll': 'Injury Roll',
+  'injury_roll': 'Lasting Injury roll',
 
   // Equipment
   'equipment_purchased': 'Equipment purchased',
   'equipment_purchased_to_stash': 'Equipment purchased to stash',
   'equipment_sold': 'Equipment sold',
   'Equipment removed': 'Equipment removed',
-  'equipment_moved_to_stash': 'Equipment to stash',
-  'equipment_moved_from_stash': 'Equipment from stash',
+  'equipment_moved_to_stash': 'Equipment moved to stash',
+  'equipment_moved_from_stash': 'Equipment moved from stash',
   'equipment_granted': 'Equipment granted',
 
   // Vehicles
@@ -74,9 +74,10 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'vehicle_equipment_granted': 'Vehicle equipment granted',
 
   // Vehicle damage
-  'vehicle_damage_added': 'Vehicle damage sustained',
-  'vehicle_damage_removed': 'Vehicle damage recovered',
-  'vehicle_damage_repaired': 'Vehicle damage repaired',
+  'vehicle_damage_added': 'Vehicle Lasting Damage sustained',
+  'vehicle_damage_removed': 'Vehicle Lasting Damage removed',
+  'vehicle_damage_repaired': 'Vehicle Lasting Damage repaired',
+  'vehicle_damage_roll': 'Vehicle Lasting Damage roll',
 
   // Gang
   'stash_update': 'Stash updated',

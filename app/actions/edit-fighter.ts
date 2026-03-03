@@ -900,6 +900,10 @@ export interface UpdateFighterXpWithOoaParams {
   fighter_id: string;
   xp_to_add: number;
   ooa_count?: number; // Number of OOA actions to add to kills
+  /** XP breakdown by case id (e.g. { seriousInjury: 2, outOfAction: 2 }) for rich log format */
+  xp_breakdown?: Record<string, number>;
+  /** Optional note for Misc. XP - logged if present when misc is in breakdown */
+  xp_misc_note?: string;
 }
 
 export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParams): Promise<EditFighterResult> {
@@ -950,7 +954,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
 
     if (updateError) throw updateError;
 
-    // Log XP change
+    // Log XP change (combined with OOA when both change)
     try {
       await logFighterAction({
         gang_id: fighter.gang_id,
@@ -959,27 +963,16 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
         action_type: 'fighter_xp_changed',
         old_value: fighter.xp,
         new_value: updatedFighter.xp,
-        user_id: user.id
+        user_id: user.id,
+        xp_breakdown: params.xp_breakdown,
+        xp_misc_note: params.xp_misc_note,
+        ...(params.ooa_count && params.ooa_count > 0 && {
+          old_ooa: fighter.kills,
+          new_ooa: updatedFighter.kills
+        })
       });
     } catch (logError) {
       console.error('Failed to log fighter XP change:', logError);
-    }
-
-    // Log OOA change if OOA count was provided
-    if (params.ooa_count && params.ooa_count > 0) {
-      try {
-        await logFighterAction({
-          gang_id: fighter.gang_id,
-          fighter_id: params.fighter_id,
-          fighter_name: fighter.fighter_name,
-          action_type: 'fighter_OOA_changed',
-          old_value: fighter.kills,
-          new_value: updatedFighter.kills,
-          user_id: user.id
-        });
-      } catch (logError) {
-        console.error('Failed to log fighter OOA change:', logError);
-      }
     }
 
     // Invalidate cache - surgical XP-only invalidation

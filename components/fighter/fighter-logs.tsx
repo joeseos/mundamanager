@@ -101,7 +101,21 @@ export default function FighterLogs({ gangId, fighterId, fighterName, vehicleId,
     {
       key: 'description',
       label: 'Description',
-      render: (value: string) => value
+      render: (value: string) => {
+        if (!value) return value;
+        const newlineIndex = value.indexOf('\n');
+        if (newlineIndex === -1) return value;
+        const main = value.slice(0, newlineIndex);
+        const financial = value.slice(newlineIndex + 1).trim();
+        if (!financial) return main;
+        return (
+          <span className="block">
+            {main}
+            <br />
+            <span className="text-xs text-muted-foreground block mt-0.5">{financial}</span>
+          </span>
+        );
+      }
     }
   ];
 
@@ -161,7 +175,7 @@ export default function FighterLogs({ gangId, fighterId, fighterName, vehicleId,
                     <td
                       key={column.key}
                       className={`px-2 sm:px-3 py-1 sm:py-2 text-sm align-top ${
-                        column.key === 'description' ? '' : 'sm:whitespace-nowrap'
+                        column.key === 'description' ? 'whitespace-pre-line' : 'sm:whitespace-nowrap'
                       }`}
                       style={column.width ? { width: column.width, minWidth: column.width } : undefined}
                     >
