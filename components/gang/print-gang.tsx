@@ -392,7 +392,6 @@ export default function PrintGang({ gang }: PrintGangProps) {
       {viewMode === "roster" && (
         <div className="min-w-fit bg-white text-black border border-black print:border-0 print-gang-roster"
             style={{
-              colorScheme: "light",
               ["--background" as any]: "var(--light-background)",
               ["--foreground" as any]: "var(--light-foreground)",
               ["--card" as any]: "var(--light-card)",
@@ -937,7 +936,6 @@ export default function PrintGang({ gang }: PrintGangProps) {
           <div
             className="min-w-fit bg-white text-black print:bg-transparent print:min-w-0"
             style={{
-              colorScheme: "light",
               ["--background" as any]: "var(--light-background)",
               ["--foreground" as any]: "var(--light-foreground)",
               ["--card" as any]: "var(--light-card)",
