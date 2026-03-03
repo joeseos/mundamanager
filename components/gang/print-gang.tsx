@@ -1253,7 +1253,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   const fighterCurrentStats = fighter.current_stats || fighterBaseStats;
 
                   return (
-                    <div key={`${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`} className="w-[630px] break-inside-avoid">
+                    <div key={`${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`} className="w-[630px] h-[435px] break-inside-avoid">
                       <FighterCard
                         id={fighter.id}
                         name={fighter.fighter_name}

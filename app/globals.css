@@ -183,7 +183,6 @@
       background-color: transparent !important;
       box-shadow: none !important;
       border-width: 3px !important; /* Firefox workaround when printing borders less than border-4 in tailwind */
-      margin-right: 6px !important;
     }
 
     .print-fighters {
