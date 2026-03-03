@@ -962,7 +962,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 <>
                   {/* Gang Card */}
                   {showGangCard && (
-                  <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-4 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
+                  <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-2 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
                     {/* Fancy print top bar - matching fighter card structure */}
                     <div className="flex mb-[50px]">
                       <div className="flex w-full">
@@ -1147,7 +1147,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
         
                   {/* Additional Details Card */}
                   {showAdditionalDetails && ((campaigns && campaigns[0]?.territories?.length > 0) || (stash && stash.length > 0) || note) && (
-                    <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-4 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
+                    <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-2 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
                       {/* Fancy print top bar - matching fighter card structure */}
                       <div className="flex mb-[50px]">
                         <div className="flex w-full">
@@ -1391,7 +1391,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 <>
                   {/* Gang Card */}
                   {showGangCard && (
-                  <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-4 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
+                  <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-2 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
                 {/* Fancy print top bar - matching fighter card structure */}
                 <div className="flex mb-[50px]">
                   <div className="flex w-full">
@@ -1576,7 +1576,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
     
                   {/* Additional Details Card */}
                   {showAdditionalDetails && ((campaigns && campaigns[0]?.territories?.length > 0) || (stash && stash.length > 0) || note) && (
-                    <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-4 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
+                    <div className="relative w-[630px] h-[435px] border-[3px] border-black rounded-lg p-2 break-inside-avoid text-base text-black fighter-card-bg print-fighter-card overflow-hidden" style={{ backgroundColor: '#faf9f7' }}>
                   {/* Fancy print top bar - matching fighter card structure */}
                   <div className="flex mb-[50px]">
                     <div className="flex w-full">
