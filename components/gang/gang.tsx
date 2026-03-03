@@ -913,7 +913,7 @@ export default function Gang({
       className={`space-y-4 print:space-y-[5px] ${viewMode !== 'normal' ? 'w-full max-w-full' : ''}`}
     >
       <div className="print:flex space-y-4 justify-center print:justify-start print:space-y-0">
-        <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
+        <div id="gang_card" className="bg-card shadow-md rounded-lg p-2 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           {/* Left Section: Gang Image */}
           <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
             {getDefaultImageUrl() ? (
