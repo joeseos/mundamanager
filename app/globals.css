@@ -203,6 +203,11 @@
       background-color: #faf9f7 !important;
     }
 
+    /* Suppress brushstroke on regular page prints (non-fancy) */
+    body:not(.fancy-print) .fancy-print-top-bar {
+      background-image: none !important;
+    }
+
     body.fancy-print .fancy-print-top-bar {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
