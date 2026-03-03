@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
@@ -172,18 +172,20 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [showInactiveFighterLoadouts, setShowInactiveFighterLoadouts] = useState(false);
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
 
-  // Handle print with style
-  const handlePrint = () => {
+  // Keep body class in sync with printStyle so it's already present when print triggers
+  useEffect(() => {
     if (printStyle === 'fancy') {
       document.body.classList.add('fancy-print');
     } else {
       document.body.classList.remove('fancy-print');
     }
-
-    setTimeout(() => {
-      window.print();
+    return () => {
       document.body.classList.remove('fancy-print');
-    }, 100);
+    };
+  }, [printStyle]);
+
+  const handlePrint = () => {
+    window.print();
   };
 
   // Order fighters by positioning and filter based on options
