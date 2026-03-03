@@ -143,30 +143,6 @@
       margin: 8mm;  /* this affects the margin in the printer settings */
     }
 
-    /* Force light theme colors when printing by referencing the original light theme values */
-    :root,
-    .dark {
-      --background: var(--light-background) !important;
-      --foreground: var(--light-foreground) !important;
-      --card: var(--light-card) !important;
-      --card-foreground: var(--light-card-foreground) !important;
-      --popover: var(--light-popover) !important;
-      --popover-foreground: var(--light-popover-foreground) !important;
-      --primary: var(--light-primary) !important;
-      --primary-foreground: var(--light-primary-foreground) !important;
-      --secondary: var(--light-secondary) !important;
-      --secondary-foreground: var(--light-secondary-foreground) !important;
-      --muted: var(--light-muted) !important;
-      --muted-foreground: var(--light-muted-foreground) !important;
-      --accent: var(--light-accent) !important;
-      --accent-foreground: var(--light-accent-foreground) !important;
-      --destructive: var(--light-destructive) !important;
-      --destructive-foreground: var(--light-destructive-foreground) !important;
-      --border: var(--light-border) !important;
-      --input: var(--light-input) !important;
-      --ring: var(--light-ring) !important;
-    }
-
     .print-reset {
       max-width: none !important;
       width: auto !important;
