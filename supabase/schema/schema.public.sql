@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict pZ4U1FxJYLffkmEuJ5dlcMUq4D4bgNMfLbVxT77PVkZQOdqsL69rV0FfVw0bz1s
+\restrict eFc6cuitUEAjCD7feqmiPMp1cJYE95O0J5NFfoVd7OFPOgUkPlsnyPLJmGFpEZZ
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.12 (Ubuntu 16.12-1.pgdg24.04+1)
@@ -6837,6 +6837,13 @@ CREATE INDEX territories_campaign_type_id_idx ON public.territories USING btree 
 
 
 --
+-- Name: vehicles_engine_slots_occupied_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vehicles_engine_slots_occupied_idx ON public.vehicles USING btree (engine_slots_occupied);
+
+
+--
 -- Name: vehicles_fighter_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10602,5 +10609,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict pZ4U1FxJYLffkmEuJ5dlcMUq4D4bgNMfLbVxT77PVkZQOdqsL69rV0FfVw0bz1s
+\unrestrict eFc6cuitUEAjCD7feqmiPMp1cJYE95O0J5NFfoVd7OFPOgUkPlsnyPLJmGFpEZZ
 
