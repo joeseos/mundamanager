@@ -39,7 +39,8 @@ RETURNS TABLE (
     equipment_selection jsonb,
     total_cost numeric,
     sub_type jsonb,
-    free_skill boolean
+    free_skill boolean,
+    delegation_cost numeric
 ) LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY
@@ -796,7 +797,8 @@ BEGIN
                 )
             ELSE NULL
         END AS sub_type,
-        ft.free_skill
+        ft.free_skill,
+        ft.delegation_cost
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
