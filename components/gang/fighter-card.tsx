@@ -438,7 +438,7 @@ const FighterCard = memo(function FighterCard({
       <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
         <div className="flex w-full">
           <div
-            className={`absolute inset-0 bg-no-repeat bg-cover print:!bg-none fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
+            className={`absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
