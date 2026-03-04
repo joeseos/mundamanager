@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict eFc6cuitUEAjCD7feqmiPMp1cJYE95O0J5NFfoVd7OFPOgUkPlsnyPLJmGFpEZZ
+\restrict btcVxm3u4sEen3SdHeny7vNS4gmnM9gznhrY6ANkgIqUz9CfwYBJl44TXW8ychG
 
 -- Dumped from database version 15.6
--- Dumped by pg_dump version 16.12 (Ubuntu 16.12-1.pgdg24.04+1)
+-- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -5068,7 +5068,8 @@ CREATE TABLE public.fighter_types (
     fighter_sub_type text,
     alliance_id uuid,
     alliance_crew_name text,
-    is_spyrer boolean DEFAULT false
+    is_spyrer boolean DEFAULT false,
+    delegation_cost numeric
 );
 
 
@@ -10609,5 +10610,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eFc6cuitUEAjCD7feqmiPMp1cJYE95O0J5NFfoVd7OFPOgUkPlsnyPLJmGFpEZZ
+\unrestrict btcVxm3u4sEen3SdHeny7vNS4gmnM9gznhrY6ANkgIqUz9CfwYBJl44TXW8ychG
 
