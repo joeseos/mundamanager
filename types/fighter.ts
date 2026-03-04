@@ -282,6 +282,7 @@ export interface CustomFighterType {
   gang_type_id?: string;
   special_rules?: string[];
   free_skill?: boolean;
+  delegation_cost?: number | null;
   fighter_class?: string;
   fighter_class_id?: string;
   skill_access?: {

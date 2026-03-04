@@ -59,4 +59,5 @@ export interface FighterType {
   available_legacies?: Array<{id: string, name: string}>;
   is_spyrer?: boolean;
   free_skill?: boolean;
+  delegation_cost?: number | null;
 }
