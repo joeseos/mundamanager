@@ -2,6 +2,41 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
+
+export interface VehicleDamageRollLogParams {
+  gang_id: string;
+  vehicle_id: string;
+  vehicle_name: string;
+  fighter_id?: string;
+  fighter_name?: string;
+  damage_name: string;
+  damage_table: string;
+  dice_data: { result: number };
+}
+
+export async function logRolledVehicleDamage(params: VehicleDamageRollLogParams): Promise<GangLogActionResult> {
+  try {
+    const fighterContext = params.fighter_name
+      ? ` (owned by ${params.fighter_name})`
+      : '';
+    const description = `Vehicle "${params.vehicle_name}"${fighterContext} rolled ${params.dice_data?.result} on the ${params.damage_table} table, resulting in: "${params.damage_name}"`;
+
+    return await createGangLog({
+      gang_id: params.gang_id,
+      action_type: 'vehicle_damage_roll',
+      description,
+      fighter_id: params.fighter_id,
+      vehicle_id: params.vehicle_id,
+      user_id: undefined
+    });
+  } catch (error) {
+    console.error('Error logging vehicle damage roll:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to log vehicle damage roll'
+    };
+  }
+}
 import { formatFinancialChanges } from "./log-helpers";
 
 export interface VehicleLogParams {

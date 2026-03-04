@@ -176,7 +176,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                     <td
                       key={column.key}
                       className={`px-2 sm:px-3 py-1 sm:py-2 text-sm align-top ${
-                        column.key === 'description' ? '' : 'sm:whitespace-nowrap'
+                        column.key === 'description' ? 'whitespace-pre-line' : 'sm:whitespace-nowrap'
                       } ${
                         column.align === 'right' ? 'text-right' :
                         column.align === 'center' ? 'text-center' : 'text-left'

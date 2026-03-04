@@ -419,8 +419,10 @@ export function InjuriesList({
   // Persists a resolved dice roll to the backend for auditing / verification.
   // Fire-and-forget mutation; success and error handling are managed by the mutation.
   const logRolledInjury = (injury: FighterEffect, roll: number) => {
-    const injuryTable = is_spyrer ? 'rig glitch' : (fighter_class === 'Crew' ? 'lasting injury crew' : 'lasting injury');
-  
+    const injuryTable = is_spyrer
+      ? 'Rig Glitch'
+      : (fighter_class === 'Crew' ? 'Lasting Injury Crew' : 'Lasting Injury');
+
     logInjuryRollMutation.mutate({
       fighter_id: fighterId,
       injury_type_id: injury.id,

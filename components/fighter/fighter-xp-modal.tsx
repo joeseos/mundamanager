@@ -84,6 +84,8 @@ export function FighterXpModal({
     }, {} as Record<string, boolean>)
   );
 
+  const [miscNote, setMiscNote] = useState('');
+
   // Handle toggling a checkbox
   const handleXpCheckboxChange = (id: string) => {
     setXpCheckboxes(prev => {
@@ -172,11 +174,26 @@ export function FighterXpModal({
     // Close modal immediately for instant UX
     handleModalClose();
 
+    // Build XP breakdown for rich log format (only when it matches the amount)
+    const xpBreakdown: Record<string, number> = {};
+    if (amount > 0 && totalXpFromCountsAndCheckboxes === amount) {
+      [...xpCountCases, ...xpCheckboxCases].forEach((xpCase) => {
+        const count = xpCase.id in xpCheckboxes
+          ? (xpCheckboxes[xpCase.id] ? 1 : 0)
+          : (xpCounts[xpCase.id] ?? 0);
+        if (count > 0) {
+          xpBreakdown[xpCase.id] = count;
+        }
+      });
+    }
+
     // Fire mutation in background
     fighterXpMutation.mutateAsync({
       fighter_id: fighterId,
       xp_to_add: amount,
-      ooa_count: ooaCount
+      ooa_count: ooaCount,
+      xp_breakdown: Object.keys(xpBreakdown).length > 0 ? xpBreakdown : undefined,
+      xp_misc_note: miscNote.trim() || undefined
     }).then((result) => {
       if (!result.success) {
         throw new Error(result.error || 'Failed to add XP');
@@ -232,9 +249,10 @@ export function FighterXpModal({
         return acc;
       }, {} as Record<string, number>)
     );
-    // Clear XP amount and error
+    // Clear XP amount, error, and misc note
     setXpAmount('');
     setXpError('');
+    setMiscNote('');
     // Call the parent onClose function
     onClose();
   };
@@ -258,32 +276,43 @@ export function FighterXpModal({
           <div className="space-y-2">
             {/* Repeatable XP with counters */}
             {xpCountCases.map((xpCase) => (
-              <div key={xpCase.id} className="flex items-center justify-between">
-                <label className="text-sm text-foreground">
-                  {xpCase.label} <span className="text-xs text-muted-foreground">(+{xpCase.xp} XP each)</span>
-                  {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
-                    <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
-                  )}
-                </label>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                    onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
-                  >
-                    <LuMinus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                    onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
-                  >
-                    <LuPlus className="h-4 w-4" />
-                  </Button>
+              <div key={xpCase.id}>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-foreground">
+                    {xpCase.label} <span className="text-xs text-muted-foreground">(+{xpCase.xp} XP each)</span>
+                    {xpCase.onSelectText && xpCounts[xpCase.id] > 0 && (
+                      <p className="text-xs text-amber-700">{xpCase.onSelectText(xpCounts[xpCase.id])}</p>
+                    )}
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
+                      onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
+                    >
+                      <LuMinus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
+                      onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
+                    >
+                      <LuPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
+                {xpCase.id === 'misc' && xpCounts.misc > 0 && (
+                  <Input
+                    type="text"
+                    value={miscNote}
+                    onChange={(e) => setMiscNote(e.target.value)}
+                    placeholder="Reason (optional)"
+                    className="mt-1.5 ml-0 text-sm w-48"
+                  />
+                )}
               </div>
             ))}
 

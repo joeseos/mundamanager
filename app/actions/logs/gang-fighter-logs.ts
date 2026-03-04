@@ -168,17 +168,17 @@ export async function logRolledFighterInjury(params: FighterInjuryLogParams): Pr
       description 
     });
   } catch (error) {
-    console.error('Error logging the rolled fighter injury:', error);
+    console.error('Error logging the rolled Lasting Injury:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to log the rolled fighter injury'
+      error: error instanceof Error ? error.message : 'Failed to log the Lasting Injury rolled'
     };
   }
 }
 
 export async function logFighterInjury(params: FighterInjuryLogParams): Promise<GangLogActionResult> {
   try {
-    let description = `Fighter "${params.fighter_name}" sustained serious injury: "${params.injury_name}"`;
+    let description = `Fighter "${params.fighter_name}" sustained Lasting Injury: "${params.injury_name}"`;
     
     return await createGangLog({
       gang_id: params.gang_id,
@@ -187,10 +187,10 @@ export async function logFighterInjury(params: FighterInjuryLogParams): Promise<
       description
     });
   } catch (error) {
-    console.error('Error logging fighter injury:', error);
+    console.error('Error logging Lasting Injury:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to log fighter injury'
+      error: error instanceof Error ? error.message : 'Failed to log Lasting Injury'
     };
   }
 }
@@ -201,16 +201,16 @@ export async function logFighterRecovery(params: FighterRecoveryLogParams): Prom
     
     switch (params.recovery_type) {
       case 'injury_removed':
-        description = `Fighter "${params.fighter_name}" recovered from injury: "${params.recovered_from}"`;
+        description = `Fighter "${params.fighter_name}" recovered from Lasting Injury: "${params.recovered_from}"`;
         break;
       case 'recovered':
         description = `Fighter "${params.fighter_name}" recovered and is ready for battle`;
         break;  
       case 'sent_to_recovery':
-        description = `Fighter "${params.fighter_name}" sent to recovery`;
+        description = `Fighter "${params.fighter_name}" sent to Recovery`;
         break;
       default:
-        description = `Fighter "${params.fighter_name}" recovery status changed`;
+        description = `Fighter "${params.fighter_name}" Recovery status changed`;
     }
 
     return await createGangLog({
@@ -223,7 +223,7 @@ export async function logFighterRecovery(params: FighterRecoveryLogParams): Prom
     console.error('Error logging fighter recovery:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to log fighter recovery'
+      error: error instanceof Error ? error.message : 'Failed to log fighter Recovery'
     };
   }
 }

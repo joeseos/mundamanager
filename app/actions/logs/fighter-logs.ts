@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
-import { formatFinancialChanges } from "./log-helpers";
+import { formatFinancialChanges, formatXpBreakdown } from "./log-helpers";
 
 export interface FighterLogParams {
   gang_id: string;
@@ -18,6 +18,13 @@ export interface FighterLogParams {
   status_reason?: 'killed' | 'retired' | 'enslaved' | null;
   source_fighter_name?: string;
   copy_type?: 'base' | 'experienced';
+  /** XP breakdown by case id (e.g. { seriousInjury: 2, outOfAction: 2 }) - for rich XP log format */
+  xp_breakdown?: Record<string, number>;
+  /** Optional note for Misc. XP - appended to Misc. in breakdown when present */
+  xp_misc_note?: string;
+  /** OOA/kills values for combined XP+OOA log line */
+  old_ooa?: number;
+  new_ooa?: number;
   oldCredits?: number;
   oldRating?: number;
   oldWealth?: number;
@@ -74,18 +81,46 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
       case 'fighter_enslaved':
         description = `Fighter "${params.fighter_name}" was enslaved.${financialChanges}`;
         break;
-      case 'fighter_xp_changed':
-        description = `Fighter "${params.fighter_name}" XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
+      case 'fighter_xp_changed': {
+        const oldXp = Number(params.old_value ?? 0);
+        const newXp = Number(params.new_value ?? 0);
+        const delta = newXp - oldXp;
+        const breakdown = params.xp_breakdown && Object.keys(params.xp_breakdown).length > 0
+          ? formatXpBreakdown(params.xp_breakdown, params.xp_misc_note)
+          : '';
+        if (delta > 0 && breakdown) {
+          const gainLine = `Fighter "${params.fighter_name}" gained ${delta} XP (${breakdown})`;
+          const summaryParts: string[] = [`XP: ${oldXp} → ${newXp}`];
+          if (params.old_ooa !== undefined && params.new_ooa !== undefined && params.old_ooa !== params.new_ooa) {
+            summaryParts.push(`OOA: ${params.old_ooa} → ${params.new_ooa}`);
+          }
+          description = summaryParts.length > 1
+            ? `${gainLine}\n${summaryParts.join(' | ')}`
+            : `${gainLine}\n${summaryParts[0]}`;
+        } else if (delta < 0) {
+          const loseLine = `Fighter "${params.fighter_name}" lost ${Math.abs(delta)} XP`;
+          const summaryParts: string[] = [`XP: ${oldXp} → ${newXp}`];
+          if (params.old_ooa !== undefined && params.new_ooa !== undefined && params.old_ooa !== params.new_ooa) {
+            summaryParts.push(`OOA: ${params.old_ooa} → ${params.new_ooa}`);
+          }
+          description = summaryParts.length > 1
+            ? `${loseLine}\n${summaryParts.join(' | ')}`
+            : `${loseLine}\n${summaryParts[0]}`;
+        } else {
+          description = `Fighter "${params.fighter_name}" XP changed from ${oldXp} to ${newXp}`;
+        }
         break;
+      }
       case 'fighter_total_xp_changed':
         description = `Fighter "${params.fighter_name}" total XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
       case 'fighter_kills_changed':
-        description = `Fighter "${params.fighter_name}" OOA count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
+      case 'fighter_OOA_changed': {
+        const oldOoa = params.old_value ?? 0;
+        const newOoa = params.new_value ?? 0;
+        description = `Fighter "${params.fighter_name}" OOA count has been set to ${newOoa}\nOOA: ${oldOoa} → ${newOoa}`;
         break;
-        case 'fighter_OOA_changed':
-        description = `Fighter "${params.fighter_name}" OOA count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
-        break;
+      }
       case 'fighter_kill_count_changed':
         description = `Fighter "${params.fighter_name}" kill count changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
