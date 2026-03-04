@@ -734,15 +734,11 @@ export function WeaponList({
   };
 
   // Render equipment effects as child rows beneath the equipment they apply to
-  // Only show editable effects (user-added via edit modal)
+  // Show all effects; only editable ones can be removed
   const renderEffectRows = (item: Equipment) => {
     const allEffects = Object.values(fighterEffects).flat();
     const equipmentEffects = allEffects
-      .filter((e) => {
-        if (e.fighter_equipment_id !== item.fighter_equipment_id) return false;
-        const typeData = typeof e.type_specific_data === 'object' ? e.type_specific_data : null;
-        return typeData?.is_editable === true;
-      })
+      .filter((e) => e.fighter_equipment_id === item.fighter_equipment_id)
       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
     if (equipmentEffects.length === 0) return null;
@@ -779,23 +775,25 @@ export function WeaponList({
           </td>
           <td className="px-1 py-1">
             <div className="flex justify-end gap-1">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  setDeleteEffectModalData({
-                    effectId: effect.id,
-                    fighterEquipmentId: item.fighter_equipment_id,
-                    effectName: effect.effect_name,
-                    creditsIncrease: typeof typeData === 'object' && typeof typeData?.credits_increase === 'number' ? typeData.credits_increase : 0
-                  });
-                }}
-                disabled={!userPermissions.canEdit || deleteEffectMutation.isPending}
-                className="text-xs px-1.5 h-6"
-                title="Delete"
-              >
-                <LuTrash2 className="h-4 w-4" />
-              </Button>
+              {typeData?.is_editable === true && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setDeleteEffectModalData({
+                      effectId: effect.id,
+                      fighterEquipmentId: item.fighter_equipment_id,
+                      effectName: effect.effect_name,
+                      creditsIncrease: typeof typeData === 'object' && typeof typeData?.credits_increase === 'number' ? typeData.credits_increase : 0
+                    });
+                  }}
+                  disabled={!userPermissions.canEdit || deleteEffectMutation.isPending}
+                  className="text-xs px-1.5 h-6"
+                  title="Delete"
+                >
+                  <LuTrash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </td>
         </tr>
