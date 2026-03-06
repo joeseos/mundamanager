@@ -13,6 +13,7 @@ export async function updateCustomEquipment(
     equipment_category?: string;
     equipment_type?: 'wargear' | 'weapon';
     availability?: string;
+    is_consumable?: boolean;
   }
 ) {
   const supabase = await createClient();
@@ -112,6 +113,7 @@ export async function createCustomEquipment(data: {
   cost: number;
   equipment_category: string;
   equipment_type: 'wargear' | 'weapon';
+  is_consumable?: boolean;
 }) {
   const supabase = await createClient();
   
@@ -142,6 +144,7 @@ export async function createCustomEquipment(data: {
       equipment_category: categoryData.category_name,
       equipment_category_id: categoryData.id,
       equipment_type: data.equipment_type,
+      is_consumable: data.is_consumable ?? false,
       created_at: new Date().toISOString()
     })
     .select()

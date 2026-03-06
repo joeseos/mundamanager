@@ -833,6 +833,7 @@ export function VehicleEquipmentList({
       equipment_id: item.equipment_id,
       slot: slot,
       hardpoint_location: hardpointLocation,
+      is_consumable: item.is_consumable,
       _equipment: item as Equipment
     };
   });
@@ -918,18 +919,18 @@ export function VehicleEquipmentList({
               }
             },
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
+          },
+          {
+            icon: <LuTrash2 className="h-4 w-4" />,
+            variant: 'outline_remove',
+            onClick: (item) => setDeleteModalData({
+              id: item.fighter_equipment_id,
+              equipmentId: item.equipment_id,
+              name: item.equipment_name
+            }),
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit,
+            visible: (item) => item.is_consumable === true
           }
-          // Delete Action Removed - Not needed for now
-          // {
-          //   icon: <LuTrash2 className="h-4 w-4" />,
-          //   variant: 'outline_remove',
-          //   onClick: (item) => setDeleteModalData({
-          //     id: item.fighter_equipment_id,
-          //     equipmentId: item.equipment_id,
-          //     name: item.equipment_name
-          //   }),
-          //   disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
-          // }
         ]}
         onAdd={onAddEquipment}
         addButtonDisabled={!userPermissions.canEdit}
@@ -945,7 +946,7 @@ export function VehicleEquipmentList({
               <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>
               <br />
               <p className="text-sm text-red-600">
-                This action cannot be undone and will remove any associated stat effects.
+                <strong>Warning:</strong> This does not refund the cost of the equipment and the removal is permanent.
               </p>
             </div>
           }

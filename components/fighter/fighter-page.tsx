@@ -206,7 +206,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       is_editable: item.is_editable || false,
       target_equipment_id: item.target_equipment_id,
       effect_names: item.effect_names,
-      loadout_ids: item.loadout_ids
+      loadout_ids: item.loadout_ids,
+      is_consumable: item.is_consumable
     };
   });
 
@@ -223,7 +224,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     core_equipment: false,
     vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
     vehicle_equipment_id: item.vehicle_weapon_id || item.id,
-    weapon_profiles: item.weapon_profiles
+    weapon_profiles: item.weapon_profiles,
+    is_consumable: item.is_consumable
   }));
 
   // Preserve all effects from server, with defaults for required categories

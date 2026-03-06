@@ -19,6 +19,7 @@ export interface ListAction {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link' | 'success' | 'outline_accept' | 'outline_cancel' | 'outline_remove';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   disabled?: (item: any) => boolean;
+  visible?: (item: any) => boolean;
   className?: string;
   title?: string;
 }
@@ -143,7 +144,9 @@ export function List<T = any>({
                     {actions.length > 0 && (
                       <td className="px-1 py-1">
                         <div className="flex justify-end gap-1">
-                          {actions.map((action, actionIndex) => (
+                          {actions
+                            .filter((action) => !action.visible || action.visible(item))
+                            .map((action, actionIndex) => (
                             <Button
                               key={actionIndex}
                               variant={action.variant || 'destructive'}

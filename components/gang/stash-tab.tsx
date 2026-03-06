@@ -1095,7 +1095,7 @@ export default function GangInventory({
               <p>Are you sure you want to delete <strong>{getItemName(stash[deleteModalIdx])}</strong>?</p>
               <br />
               <p className="text-sm text-red-600">
-                This action cannot be undone.
+                <strong>Warning:</strong> This does not refund the cost of the equipment and the removal is permanent.
               </p>
             </div>
           }
