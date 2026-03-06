@@ -106,6 +106,7 @@ export interface Equipment {
   equipment_tradingpost?: boolean;
   trading_post_names?: string[];
   from_fighters_list?: boolean;
+  is_consumable?: boolean;
 }
 
 /**
@@ -134,6 +135,7 @@ export interface CustomEquipment {
   equipment_type?: string;
   created_at: string;
   updated_at?: string;
+  is_consumable?: boolean;
 }
 
 /**

@@ -44,7 +44,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
-    availability_number: 6
+    availability_number: 6,
+    is_consumable: false
   });
   const [createForm, setCreateForm] = useState({
     equipment_name: '',
@@ -52,7 +53,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     availability_number: 6,
     cost: '',
     equipment_category: '',
-    equipment_type: 'wargear' as 'wargear' | 'weapon'
+    equipment_type: 'wargear' as 'wargear' | 'weapon',
+    is_consumable: false
   });
   const [createWeaponProfiles, setCreateWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [editWeaponProfiles, setEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
@@ -116,13 +118,14 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       availability_number: 6,
       cost: '',
       equipment_category: '',
-      equipment_type: 'wargear'
+      equipment_type: 'wargear',
+      is_consumable: false
     });
     setCreateWeaponProfiles([]);
   };
 
   // Handle create form changes
-  const handleCreateFormChange = (field: string, value: string | number) => {
+  const handleCreateFormChange = (field: string, value: string | number | boolean) => {
     setCreateForm(prev => ({
       ...prev,
       [field]: value
@@ -259,7 +262,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: parsed.letter,
-      availability_number: parsed.number
+      availability_number: parsed.number,
+      is_consumable: equipment.is_consumable ?? false
     });
     
     // Reset weapon profiles modification flag
@@ -309,7 +313,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: parsed.letter,
-      availability_number: parsed.number
+      availability_number: parsed.number,
+      is_consumable: equipment.is_consumable ?? false
     });
     
     // Reset weapon profiles modification flag
@@ -353,7 +358,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_category: '',
       equipment_type: 'wargear',
       availability_letter: 'C',
-      availability_number: 6
+      availability_number: 6,
+      is_consumable: false
     });
     setEditWeaponProfiles([]);
     setOriginalEditWeaponProfiles([]);
@@ -381,7 +387,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         cost: parseInt(editForm.cost),
         equipment_category: editForm.equipment_category,
         equipment_type: editForm.equipment_type,
-        availability: combineAvailability(editForm.availability_letter, editForm.availability_number)
+        availability: combineAvailability(editForm.availability_letter, editForm.availability_number),
+        is_consumable: editForm.is_consumable
       });
 
       // Handle weapon profiles based on equipment type
@@ -542,7 +549,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     }
   };
 
-  const handleFormChange = async (field: string, value: string | number) => {
+  const handleFormChange = async (field: string, value: string | number | boolean) => {
     setEditForm(prev => ({
       ...prev,
       [field]: value
@@ -685,6 +692,23 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   />
                 </div>
 
+                <div className="col-span-1 md:col-span-2">
+                  <label className="flex items-start space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={editForm.is_consumable}
+                      onChange={(e) => handleFormChange('is_consumable', e.target.checked)}
+                      className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-muted-foreground">Consumable</span>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Can be consumed by the fighter (e.g. chem-alchemy, Limited ammo).
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
                 {/* Weapon Profiles Section */}
                 {editForm.equipment_type === 'weapon' && (
                   <div className="col-span-1 md:col-span-2 pt-4 border-t">
@@ -810,7 +834,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
       {deleteModalData && (
         <Modal
-          title="Delete Equipment"
+          title="Delete Custom Equipment"
           content={
             <div className="space-y-4">
               <p>Are you sure you want to delete <strong>{deleteModalData.equipment_name}</strong>?</p>
@@ -940,6 +964,23 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     className="w-full p-2 border rounded-md [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="Enter cost"
                   />
+                </div>
+
+                <div className="col-span-1 md:col-span-2">
+                  <label className="flex items-start space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={createForm.is_consumable}
+                      onChange={(e) => handleCreateFormChange('is_consumable', e.target.checked)}
+                      className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-muted-foreground">Consumable</span>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Can be consumed by the fighter (e.g. chem-alchemy, Limited ammo).
+                      </p>
+                    </div>
+                  </label>
                 </div>
 
                 {/* Weapon Profiles Section */}

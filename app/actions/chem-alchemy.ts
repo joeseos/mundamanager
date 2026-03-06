@@ -52,7 +52,7 @@ export async function createChemAlchemy({
       throw new Error('Not enough credits');
     }
 
-    // Create the custom equipment entry
+    // Create the custom equipment entry (elixirs are consumable by definition)
     const { data: customEquipment, error: customEquipmentError } = await supabase
       .from('custom_equipment')
       .insert([{
@@ -63,7 +63,8 @@ export async function createChemAlchemy({
         equipment_category_id: '258bcb60-5f87-4c55-b1b6-bbdddc7d1fc3',
         equipment_type: 'wargear',
         user_id: user.id,
-        variant: `${type} - ${effects.map(e => e.name).join(', ')}`
+        variant: `${type} - ${effects.map(e => e.name).join(', ')}`,
+        is_consumable: true
       }])
       .select()
       .single();

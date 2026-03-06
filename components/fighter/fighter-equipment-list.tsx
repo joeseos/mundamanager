@@ -708,7 +708,7 @@ export function WeaponList({
                   setStashModalData(item);
                 }}
                 disabled={!userPermissions.canEdit}
-                className="text-xs px-1.5 h-6"
+                className="text-xs px-1.5 w-7 h-6"
                 title="Store in Stash"
               >
                 <FaBox className="h-4 w-4" /> {/* Stash */}
@@ -720,11 +720,27 @@ export function WeaponList({
                   setSellModalData(item);
                 }}
                 disabled={!userPermissions.canEdit}
-                className="text-xs px-1.5 h-6"
+                className="text-xs px-1.5 w-7 h-6"
                 title="Sell"
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
+              {item.is_consumable && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setDeleteModalData({
+                    id: item.fighter_equipment_id,
+                    equipmentId: item.equipment_id,
+                    name: item.equipment_name
+                  })}
+                  disabled={!userPermissions.canEdit}
+                  className="text-xs px-1.5 w-7 h-6"
+                  title="Delete"
+                >
+                  <LuTrash2 className="h-4 w-4" />
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -912,7 +928,7 @@ export function WeaponList({
               <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>
               <br />
               <p className="text-sm text-red-600">
-                This action cannot be undone.
+                <strong>Warning:</strong> This does not refund the cost of the equipment and the removal is permanent.
               </p>
             </div>
           }

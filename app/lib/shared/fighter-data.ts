@@ -202,12 +202,14 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
           equipment:equipment_id (
             equipment_name,
             equipment_type,
-            equipment_category
+            equipment_category,
+            is_consumable
           ),
           custom_equipment:custom_equipment_id (
             equipment_name,
             equipment_type,
-            equipment_category
+            equipment_category,
+            is_consumable
           )
         `)
         .eq('fighter_id', fighterId)
@@ -466,7 +468,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             weapon_profiles: weaponProfiles,
             target_equipment_id: targetEquipmentId,
             effect_names: effectNames.length > 0 ? effectNames : undefined,
-            loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined
+            loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,
+            is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false
           };
         })
       );
@@ -661,12 +664,14 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
             equipment:equipment_id (
               equipment_name,
               equipment_type,
-              equipment_category
+              equipment_category,
+              is_consumable
             ),
             custom_equipment:custom_equipment_id (
               equipment_name,
               equipment_type,
-              equipment_category
+              equipment_category,
+              is_consumable
             )
           `)
           .eq('vehicle_id', vehicle.id),
@@ -845,7 +850,8 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
           purchase_cost: item.purchase_cost || 0,
           is_editable: item.is_editable || false,
-          weapon_profiles: weaponProfiles
+          weapon_profiles: weaponProfiles,
+          is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false
         };
       });
 

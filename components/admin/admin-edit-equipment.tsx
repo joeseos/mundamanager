@@ -81,6 +81,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isEditable, setIsEditable] = useState(false);
+  const [isConsumable, setIsConsumable] = useState(false);
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
   const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, cost?: number}>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -189,6 +190,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentType('');
         setCoreEquipment(false);
         setIsEditable(false);
+        setIsConsumable(false);
         setGrantsEquipment(null);
         setWeaponProfiles([{
           profile_name: '',
@@ -232,6 +234,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         setEquipmentType(data.equipment_type);
         setCoreEquipment(data.core_equipment || false);
         setIsEditable(data.is_editable || false);
+        setIsConsumable(data.is_consumable || false);
 
         // Set grants equipment config if it exists
         if (data.grants_equipment) {
@@ -512,6 +515,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_type: equipmentType,
         core_equipment: coreEquipment,
         is_editable: isEditable,
+        is_consumable: isConsumable,
         grants_equipment: normalizedGrantsEquipment,
         ...(equipmentType === 'weapon' ? { 
           weapon_profiles: weaponProfiles.map(profile => ({
@@ -766,6 +770,23 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     <span className="text-sm font-medium text-muted-foreground">Editable After Purchase</span>
                     <p className="text-sm text-muted-foreground mt-1">
                       Allows adding/removing effects on this equipment after purchase.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="col-span-1">
+                <label className="flex items-start space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={isConsumable}
+                    onChange={(e) => setIsConsumable(e.target.checked)}
+                    className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Consumable</span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Can be consumed by the fighter (e.g. chem-alchemy, Limited ammo).
                     </p>
                   </div>
                 </label>
