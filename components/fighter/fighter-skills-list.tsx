@@ -140,33 +140,13 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
   useEffect(() => {
     const fetchCategoriesAndAccess = async () => {
       try {
-        // Get the session from the hook
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        // Fetch standard and custom skill types in parallel
-        const headers = {
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-          'Authorization': `Bearer ${session?.access_token || ''}`,
-          'Content-Type': 'application/json',
-        };
-        const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        // Fetch standard and custom skill types via API (filtered server-side)
+        const response = await fetch(`/api/skill-types?fighterId=${fighterId}`);
+        if (!response.ok) throw new Error('Failed to fetch skill sets');
+        const allTypes = await response.json();
 
-        const [skillTypesResponse, customSkillTypesResponse] = await Promise.all([
-          fetch(`${baseUrl}/rest/v1/skill_types`, { headers }),
-          fetch(`${baseUrl}/rest/v1/custom_skill_types?select=id,name`, { headers }),
-        ]);
-
-        if (!skillTypesResponse.ok) {
-          throw new Error('Failed to fetch skill sets');
-        }
-        const skillTypesData = await skillTypesResponse.json();
-        const customSkillTypesData = customSkillTypesResponse.ok
-          ? await customSkillTypesResponse.json()
-          : [];
-
-        const standard = skillTypesData.map((t: any) => ({ ...t, is_custom: false }));
-        const custom = customSkillTypesData.map((t: any) => ({ ...t, is_custom: true }));
+        const standard = allTypes.filter((t: any) => !t.is_custom);
+        const custom = allTypes.filter((t: any) => t.is_custom);
         setCategories([...standard, ...custom]);
 
         // Fetch skill access for this fighter
