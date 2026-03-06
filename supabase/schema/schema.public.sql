@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict MvXosH1ZJxQ2qx2UW7R58Lv55hb1Gn6mqA0k1dq6vYy8we5nMC8mWk7MZt51VDT
+\restrict JLknfTzekExXCjkOqBBJz2CZpudvcXGgUMg64c0xodKiaz0xlBTOsNVvfc0CUTZ
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -4464,7 +4464,8 @@ CREATE TABLE public.custom_equipment (
     equipment_category_id uuid,
     equipment_type text,
     user_id uuid NOT NULL,
-    is_editable boolean DEFAULT false
+    is_editable boolean DEFAULT false,
+    is_consumable boolean DEFAULT false
 );
 
 
@@ -4603,7 +4604,8 @@ CREATE TABLE public.equipment (
     equipment_category_id uuid NOT NULL,
     updated_at timestamp with time zone,
     is_editable boolean DEFAULT false,
-    grants_equipment jsonb
+    grants_equipment jsonb,
+    is_consumable boolean DEFAULT false
 );
 
 
@@ -10612,5 +10614,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict MvXosH1ZJxQ2qx2UW7R58Lv55hb1Gn6mqA0k1dq6vYy8we5nMC8mWk7MZt51VDT
+\unrestrict JLknfTzekExXCjkOqBBJz2CZpudvcXGgUMg64c0xodKiaz0xlBTOsNVvfc0CUTZ
 
