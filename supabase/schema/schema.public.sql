@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict JLknfTzekExXCjkOqBBJz2CZpudvcXGgUMg64c0xodKiaz0xlBTOsNVvfc0CUTZ
+\restrict bY2y8jI8sV7aFrPZqExkXGyifbzAPRyfQ2fkebBXBExtQYH4LqkQXrbIP0P0bL2
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -5033,6 +5033,7 @@ CREATE TABLE public.fighter_type_skill_access (
     skill_type_id uuid,
     access_level text NOT NULL,
     custom_fighter_type_id uuid,
+    custom_skill_type_id uuid,
     CONSTRAINT fighter_type_skill_access_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'allowed'::text])))
 );
 
@@ -7656,6 +7657,14 @@ ALTER TABLE ONLY public.fighter_type_gang_legacies
 
 ALTER TABLE ONLY public.fighter_type_skill_access
     ADD CONSTRAINT fighter_type_skill_access_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_skill_access fighter_type_skill_access_custom_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_skill_access
+    ADD CONSTRAINT fighter_type_skill_access_custom_skill_type_id_fkey FOREIGN KEY (custom_skill_type_id) REFERENCES public.custom_skill_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10614,5 +10623,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JLknfTzekExXCjkOqBBJz2CZpudvcXGgUMg64c0xodKiaz0xlBTOsNVvfc0CUTZ
+\unrestrict bY2y8jI8sV7aFrPZqExkXGyifbzAPRyfQ2fkebBXBExtQYH4LqkQXrbIP0P0bL2
 
