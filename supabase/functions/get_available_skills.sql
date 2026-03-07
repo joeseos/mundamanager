@@ -86,14 +86,17 @@ BEGIN
             JOIN campaign_gangs cg ON cg.campaign_id = csh.campaign_id
             WHERE cg.gang_id = v_gang_id
         ) shared ON shared.custom_skill_id = cs.id
-        -- Access level joins (custom skill types have no rows here, defaulting to 'none' = not denied)
-        LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = cs.skill_type_id
+        -- Access level joins: match on skill_type_id OR custom_skill_type_id
+        LEFT JOIN fighter_type_skill_access ftsa ON (
+                (ftsa.skill_type_id IS NOT NULL AND ftsa.skill_type_id = cs.skill_type_id)
+                OR (ftsa.custom_skill_type_id IS NOT NULL AND ftsa.custom_skill_type_id = cs.custom_skill_type_id)
+            )
             AND (
                 (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
                 OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
             )
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-            AND sao.skill_type_id = cs.skill_type_id
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
         AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied'
     ),
