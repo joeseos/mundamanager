@@ -1,13 +1,21 @@
-DROP FUNCTION IF EXISTS public.get_available_skills(uuid);
+-- Add custom_skill_type_id column to fighter_type_skill_access
+ALTER TABLE fighter_type_skill_access
+  ADD COLUMN custom_skill_type_id uuid REFERENCES custom_skill_types(id) ON DELETE CASCADE;
 
-CREATE OR REPLACE FUNCTION public.get_available_skills(
-    fighter_id UUID
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE INDEX idx_ftsa_custom_skill_type_id ON fighter_type_skill_access(custom_skill_type_id);
+
+ALTER TABLE fighter_type_skill_access
+  ADD CONSTRAINT chk_ftsa_skill_type_xor
+  CHECK (
+    (skill_type_id IS NOT NULL AND custom_skill_type_id IS NULL)
+    OR (skill_type_id IS NULL AND custom_skill_type_id IS NOT NULL)
+  );
+
+-- Update get_available_skills to handle custom_skill_type_id in fighter_type_skill_access
+CREATE OR REPLACE FUNCTION public.get_available_skills(fighter_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
     v_result jsonb;
     v_fighter_class text;

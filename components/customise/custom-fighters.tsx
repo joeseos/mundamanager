@@ -18,6 +18,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
+import { skillSetRank } from '@/utils/skillSetRank';
 
 interface UserCampaign {
   id: string;
@@ -31,6 +32,68 @@ interface CustomiseFightersProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+}
+
+type SkillTypeItem = { id: string; skill_type: string; is_custom?: boolean };
+
+function SkillSetOptions({ skillTypes, excludeIds }: {
+  skillTypes: SkillTypeItem[];
+  excludeIds?: Set<string>;
+}) {
+  const available = excludeIds
+    ? skillTypes.filter(st => !excludeIds.has(st.id))
+    : skillTypes;
+  const customTypes = available.filter(st => st.is_custom);
+  const standardTypes = available.filter(st => !st.is_custom);
+
+  const groupByLabel: Record<string, SkillTypeItem[]> = {};
+  standardTypes.forEach(st => {
+    const rank = skillSetRank[st.skill_type.toLowerCase()] ?? Infinity;
+    let groupLabel = 'Misc.';
+    if (rank <= 19) groupLabel = 'Universal Skill Sets';
+    else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
+    else if (rank <= 59) groupLabel = 'Wyrd Powers';
+    else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+    else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
+    else if (rank <= 89) groupLabel = 'Legendary Names';
+    else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+    if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
+    groupByLabel[groupLabel].push(st);
+  });
+
+  const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
+    const aRank = Math.min(...groupByLabel[a].map(st => skillSetRank[st.skill_type.toLowerCase()] ?? Infinity));
+    const bRank = Math.min(...groupByLabel[b].map(st => skillSetRank[st.skill_type.toLowerCase()] ?? Infinity));
+    return aRank - bRank;
+  });
+
+  return (
+    <>
+      {customTypes.length > 0 && (
+        <optgroup label="Custom Skill Sets">
+          {customTypes
+            .sort((a, b) => a.skill_type.localeCompare(b.skill_type))
+            .map(st => (
+              <option key={st.id} value={st.id}>{st.skill_type}</option>
+            ))}
+        </optgroup>
+      )}
+      {sortedGroupLabels.map(groupLabel => {
+        const groupTypes = groupByLabel[groupLabel].sort((a, b) => {
+          const rankA = skillSetRank[a.skill_type.toLowerCase()] ?? Infinity;
+          const rankB = skillSetRank[b.skill_type.toLowerCase()] ?? Infinity;
+          return rankA - rankB;
+        });
+        return (
+          <optgroup key={groupLabel} label={groupLabel}>
+            {groupTypes.map(st => (
+              <option key={st.id} value={st.id}>{st.skill_type}</option>
+            ))}
+          </optgroup>
+        );
+      })}
+    </>
+  );
 }
 
 interface GangType {
@@ -263,11 +326,12 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [freeSkill, setFreeSkill] = useState(false);
 
   // Skill access state
-  const [skillTypes, setSkillTypes] = useState<Array<{id: string, skill_type: string, name?: string}>>([]);
+  const [skillTypes, setSkillTypes] = useState<Array<{id: string, skill_type: string, name?: string, is_custom?: boolean}>>([]);
   const [skillAccess, setSkillAccess] = useState<{
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
     skill_type_name?: string;
+    is_custom?: boolean;
   }[]>([]);
   const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
 
@@ -449,7 +513,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   const transformedData = skillData.map((type: any) => ({
                     id: type.id,
                     skill_type: type.name || type.skill_type,
-                    name: type.name
+                    name: type.name,
+                    is_custom: type.is_custom || false
                   }));
                   setSkillTypes(transformedData);
                 }
@@ -630,7 +695,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       const existingSkillAccess = fighter.skill_access.map(access => ({
         skill_type_id: access.skill_type_id,
         skill_type_name: access.skill_type_name,
-        access_level: access.access_level
+        access_level: access.access_level,
+        is_custom: access.is_custom || false
       }));
       setSkillAccess(existingSkillAccess);
     }
@@ -1106,13 +1172,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="p-1 border rounded"
                 >
                   <option value="">Add Skill Set</option>
-                  {skillTypes
-                    .filter(st => !skillAccess.some(sa => sa.skill_type_id === st.id))
-                    .map(st => (
-                      <option key={st.id} value={st.id}>
-                        {st.skill_type}
-                      </option>
-                    ))}
+                  <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} />
                 </select>
                 <Button
                   type="button"
@@ -1121,9 +1181,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                       skillTypeToAdd &&
                       !skillAccess.some(sa => sa.skill_type_id === skillTypeToAdd)
                     ) {
+                      const skillTypeData = skillTypes.find(st => st.id === skillTypeToAdd);
                       setSkillAccess(prev => [
                         ...prev,
-                        { skill_type_id: skillTypeToAdd, access_level: 'allowed' }
+                        { skill_type_id: skillTypeToAdd, access_level: 'allowed', is_custom: skillTypeData?.is_custom || false }
                       ]);
                       setSkillTypeToAdd('');
                     }
@@ -1148,11 +1209,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select a skill set</option>
-                  {skillTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.skill_type}
-                    </option>
-                  ))}
+                  <SkillSetOptions skillTypes={skillTypes} />
                 </select>
 
                 <select
@@ -1507,13 +1564,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="p-1 border rounded"
                 >
                   <option value="">Add Skill Set</option>
-                  {skillTypes
-                    .filter(st => !skillAccess.some(sa => sa.skill_type_id === st.id))
-                    .map(st => (
-                      <option key={st.id} value={st.id}>
-                        {st.skill_type}
-                      </option>
-                    ))}
+                  <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} />
                 </select>
                 <Button
                   type="button"
@@ -1522,9 +1573,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                       skillTypeToAdd &&
                       !skillAccess.some(sa => sa.skill_type_id === skillTypeToAdd)
                     ) {
+                      const skillTypeData = skillTypes.find(st => st.id === skillTypeToAdd);
                       setSkillAccess(prev => [
                         ...prev,
-                        { skill_type_id: skillTypeToAdd, access_level: 'allowed' }
+                        { skill_type_id: skillTypeToAdd, access_level: 'allowed', is_custom: skillTypeData?.is_custom || false }
                       ]);
                       setSkillTypeToAdd('');
                     }
@@ -1549,11 +1601,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select a skill set</option>
-                  {skillTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.skill_type}
-                    </option>
-                  ))}
+                  <SkillSetOptions skillTypes={skillTypes} />
                 </select>
 
                 <select

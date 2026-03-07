@@ -52,6 +52,62 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
         console.error('Error inserting shares:', insertError);
         return { success: false, error: `Failed to share fighter: ${insertError.message}` };
       }
+
+      // Auto-share custom skill types referenced by this fighter's skill access
+      const { data: fighterSkillAccess } = await supabase
+        .from('fighter_type_skill_access')
+        .select('custom_skill_type_id')
+        .eq('custom_fighter_type_id', customFighterTypeId)
+        .not('custom_skill_type_id', 'is', null);
+
+      const customSkillTypeIds = (fighterSkillAccess ?? [])
+        .map(a => a.custom_skill_type_id)
+        .filter(Boolean) as string[];
+
+      if (customSkillTypeIds.length > 0) {
+        // Find all custom skills belonging to these custom skill types (owned by user)
+        const { data: customSkills } = await supabase
+          .from('custom_skills')
+          .select('id')
+          .in('custom_skill_type_id', customSkillTypeIds)
+          .eq('user_id', user.id);
+
+        const customSkillIds = (customSkills ?? []).map(s => s.id);
+
+        if (customSkillIds.length > 0) {
+          // Batch check: get all existing shares across all campaigns at once
+          const { data: existingShares } = await supabase
+            .from('custom_shared')
+            .select('custom_skill_id, campaign_id')
+            .in('campaign_id', campaignIds)
+            .eq('user_id', user.id)
+            .in('custom_skill_id', customSkillIds);
+
+          const alreadyShared = new Set(
+            (existingShares ?? []).map(s => `${s.campaign_id}:${s.custom_skill_id}`)
+          );
+
+          const newSkillShares = campaignIds.flatMap(campaignId =>
+            customSkillIds
+              .filter(skillId => !alreadyShared.has(`${campaignId}:${skillId}`))
+              .map(skillId => ({
+                custom_skill_id: skillId,
+                campaign_id: campaignId,
+                user_id: user.id
+              }))
+          );
+
+          if (newSkillShares.length > 0) {
+            const { error: shareSkillsError } = await supabase
+              .from('custom_shared')
+              .insert(newSkillShares);
+
+            if (shareSkillsError) {
+              console.error('Error auto-sharing custom skills for fighter:', shareSkillsError);
+            }
+          }
+        }
+      }
     }
 
     // Ensure the home page (customise tab) reflects new sharing state

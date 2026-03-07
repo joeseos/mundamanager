@@ -58,8 +58,13 @@ export async function GET(request: Request) {
       .from('fighter_type_skill_access')
       .select(`
         skill_type_id,
+        custom_skill_type_id,
         access_level,
         skill_types (
+          id,
+          name
+        ),
+        custom_skill_types (
           id,
           name
         )
@@ -109,18 +114,19 @@ export async function GET(request: Request) {
     // Format the response with defaults and overrides
     // access_level = default from fighter type, override_access_level = override from archetype
     // UI computes effective level as: override_access_level ?? access_level
-    const formattedSkillAccess = skillAccess.map(access => {
-      const overrideLevel = overrideMap.get(access.skill_type_id) || null;
+    const formattedSkillAccess = (skillAccess || []).map((access) => {
+      const effectiveId = access.skill_type_id || access.custom_skill_type_id;
+      const overrideLevel = overrideMap.get(effectiveId) || null;
       return {
-        skill_type_id: access.skill_type_id,
+        skill_type_id: effectiveId,
         access_level: access.access_level, // default from fighter type
         override_access_level: overrideLevel, // override from archetype (or null)
-        skill_type_name: (access.skill_types as any)?.name || 'Unknown'
+        skill_type_name: (access.skill_types as any)?.name || (access.custom_skill_types as any)?.name || 'Unknown'
       };
     });
 
     // Add overrides that don't have defaults (e.g., from archetypes)
-    const defaultSkillTypeIds = new Set(skillAccess.map(a => a.skill_type_id));
+    const defaultSkillTypeIds = new Set((skillAccess || []).map((a) => a.skill_type_id || a.custom_skill_type_id));
 
     // Find overrides that don't have a corresponding default
     const overrideOnlySkillTypeIds = (overrides || [])
