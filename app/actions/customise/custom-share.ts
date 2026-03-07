@@ -75,26 +75,35 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
         const customSkillIds = (customSkills ?? []).map(s => s.id);
 
         if (customSkillIds.length > 0) {
-          for (const campaignId of campaignIds) {
-            // Check which skills are already shared to this campaign
-            const { data: existingShares } = await supabase
-              .from('custom_shared')
-              .select('custom_skill_id')
-              .eq('campaign_id', campaignId)
-              .eq('user_id', user.id)
-              .in('custom_skill_id', customSkillIds);
+          // Batch check: get all existing shares across all campaigns at once
+          const { data: existingShares } = await supabase
+            .from('custom_shared')
+            .select('custom_skill_id, campaign_id')
+            .in('campaign_id', campaignIds)
+            .eq('user_id', user.id)
+            .in('custom_skill_id', customSkillIds);
 
-            const alreadySharedIds = new Set((existingShares ?? []).map(s => s.custom_skill_id));
-            const newSkillShares = customSkillIds
-              .filter(id => !alreadySharedIds.has(id))
+          const alreadyShared = new Set(
+            (existingShares ?? []).map(s => `${s.campaign_id}:${s.custom_skill_id}`)
+          );
+
+          const newSkillShares = campaignIds.flatMap(campaignId =>
+            customSkillIds
+              .filter(skillId => !alreadyShared.has(`${campaignId}:${skillId}`))
               .map(skillId => ({
                 custom_skill_id: skillId,
                 campaign_id: campaignId,
                 user_id: user.id
-              }));
+              }))
+          );
 
-            if (newSkillShares.length > 0) {
-              await supabase.from('custom_shared').insert(newSkillShares);
+          if (newSkillShares.length > 0) {
+            const { error: shareSkillsError } = await supabase
+              .from('custom_shared')
+              .insert(newSkillShares);
+
+            if (shareSkillsError) {
+              console.error('Error auto-sharing custom skills for fighter:', shareSkillsError);
             }
           }
         }

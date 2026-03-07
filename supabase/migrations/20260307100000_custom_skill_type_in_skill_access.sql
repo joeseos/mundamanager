@@ -4,6 +4,13 @@ ALTER TABLE fighter_type_skill_access
 
 CREATE INDEX idx_ftsa_custom_skill_type_id ON fighter_type_skill_access(custom_skill_type_id);
 
+ALTER TABLE fighter_type_skill_access
+  ADD CONSTRAINT chk_ftsa_skill_type_xor
+  CHECK (
+    (skill_type_id IS NOT NULL AND custom_skill_type_id IS NULL)
+    OR (skill_type_id IS NULL AND custom_skill_type_id IS NOT NULL)
+  );
+
 -- Update get_available_skills to handle custom_skill_type_id in fighter_type_skill_access
 CREATE OR REPLACE FUNCTION public.get_available_skills(fighter_id uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
