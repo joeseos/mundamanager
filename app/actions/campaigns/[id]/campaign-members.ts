@@ -75,6 +75,20 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     // If adding your own gang, auto-accept. If adding someone else's gang, set to PENDING
     const isOwnGang = user.id === userId;
 
+    // Prevent duplicate: one gang per campaign
+    const { data: existingRows } = await supabase
+      .from('campaign_gangs')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .eq('gang_id', gangId)
+      .limit(1);
+    if (existingRows && existingRows.length > 0) {
+      return {
+        success: false,
+        error: 'This gang is already in the campaign'
+      };
+    }
+
     if (campaignMemberId) {
       const { data: insertedData, error } = await supabase
         .from('campaign_gangs')
