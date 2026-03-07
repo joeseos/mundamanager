@@ -518,7 +518,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             return (
               <div key={index}>
                 <div className="flex items-center space-x-1">
-                  <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                  <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
                     {roleLetter}
                   </span>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
@@ -592,7 +592,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           return (
             <div key={index}>
               <div className="flex items-center space-x-1">
-                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
+                <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
                   {roleLetter}
                 </span>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
