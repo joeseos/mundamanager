@@ -466,52 +466,83 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                       result = 'Draw';
                     }
 
-                    // Get all participating gangs (deduplicated by gang_id)
-                    const participatingGangsMap = new Map<string, { id: string; name: string; gang_colour: string }>();
+                    // Get all participating gangs with roles - mirror campaign-battle-logs-list logic:
+                    // When participants array exists with gang data, use ONLY participants for roles.
+                    // Only fall back to attacker/defender when participants don't provide the data.
+                    type GangWithRole = { id: string; name: string; gang_colour: string; role?: 'attacker' | 'defender' };
+                    let participatingGangs: GangWithRole[] = [];
 
-                    // Add from attacker/defender structure
-                    if (battle.attacker && battle.attacker.id) {
-                      participatingGangsMap.set(battle.attacker.id, {
-                        id: battle.attacker.id,
-                        name: battle.attacker.name,
-                        gang_colour: battle.attacker.gang_colour || '#000000'
-                      });
-                    }
-                    if (battle.defender && battle.defender.id) {
-                      participatingGangsMap.set(battle.defender.id, {
-                        id: battle.defender.id,
-                        name: battle.defender.name,
-                        gang_colour: battle.defender.gang_colour || '#000000'
-                      });
-                    }
-
-                    // Add from participants array
+                    let participants: any[] = [];
                     if (battle.participants) {
                       try {
-                        const participants = typeof battle.participants === 'string'
+                        participants = typeof battle.participants === 'string'
                           ? JSON.parse(battle.participants)
-                          : battle.participants;
-
-                        if (Array.isArray(participants)) {
-                          participants.forEach((p: any) => {
-                            if (p.gang_id && p.gang_name && !participatingGangsMap.has(p.gang_id)) {
-                              participatingGangsMap.set(p.gang_id, {
-                                id: p.gang_id,
-                                name: p.gang_name,
-                                gang_colour: p.gang_colour || '#000000'
-                              });
-                            }
-                          });
-                        }
+                          : Array.isArray(battle.participants) ? battle.participants : [];
                       } catch (e) {
-                        // Ignore parse errors
+                        participants = [];
                       }
                     }
 
-                    const participatingGangs = Array.from(participatingGangsMap.values());
+                    const hasParticipantGangs = participants.some((p: any) => p && p.gang_id);
 
-                    // Filter out the user's own gang
-                    const opponentGangs = participatingGangs.filter(gang => gang.id !== gangId);
+                    if (hasParticipantGangs) {
+                      // Use participants as source of truth - role only from participant.role
+                      participatingGangs = participants
+                        .filter((p: any) => p.gang_id)
+                        .map((p: any) => ({
+                          id: p.gang_id,
+                          name: p.gang_name || 'Unknown',
+                          gang_colour: p.gang_colour || '#000000',
+                          role: p.role === 'attacker' || p.role === 'defender' ? p.role : undefined
+                        }));
+                      // Deduplicate by gang_id, keeping first occurrence
+                      const seen = new Set<string>();
+                      participatingGangs = participatingGangs.filter(g => {
+                        if (seen.has(g.id)) return false;
+                        seen.add(g.id);
+                        return true;
+                      });
+                      // Fill in names/colours from attacker/defender when participant lacks them
+                      if (battle.attacker?.id && battle.attacker?.name) {
+                        const g = participatingGangs.find(x => x.id === battle.attacker!.id);
+                        if (g && g.name === 'Unknown') g.name = battle.attacker.name;
+                        if (g && !g.gang_colour) g.gang_colour = battle.attacker.gang_colour || '#000000';
+                      }
+                      if (battle.defender?.id && battle.defender?.name) {
+                        const g = participatingGangs.find(x => x.id === battle.defender!.id);
+                        if (g && g.name === 'Unknown') g.name = battle.defender.name;
+                        if (g && !g.gang_colour) g.gang_colour = battle.defender.gang_colour || '#000000';
+                      }
+                    } else {
+                      // Fallback: no participants with gang data - use attacker/defender structure
+                      if (battle.attacker && battle.attacker.id) {
+                        participatingGangs.push({
+                          id: battle.attacker.id,
+                          name: battle.attacker.name,
+                          gang_colour: battle.attacker.gang_colour || '#000000',
+                          role: 'attacker'
+                        });
+                      }
+                      if (battle.defender && battle.defender.id) {
+                        participatingGangs.push({
+                          id: battle.defender.id,
+                          name: battle.defender.name,
+                          gang_colour: battle.defender.gang_colour || '#000000',
+                          role: 'defender'
+                        });
+                      }
+                    }
+
+                    // Filter out the user's own gang and sort: attacker first, then defender
+                    const roleOrder = (r: 'attacker' | 'defender' | undefined) => r === 'attacker' ? 0 : r === 'defender' ? 1 : 99;
+                    const opponentGangs = participatingGangs
+                      .filter(gang => gang.id !== gangId)
+                      .sort((a, b) => {
+                        const roleA = roleOrder(a.role);
+                        const roleB = roleOrder(b.role);
+                        if (roleA !== roleB) return roleA - roleB;
+                        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                      });
 
                     return (
                       <tr key={battle.id} className="border-b">
@@ -519,23 +550,31 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                         <td className="px-4 py-2">{battle.scenario || battle.scenario_name || 'N/A'}</td>
                         <td className="px-4 py-2">{battle.territory_name || '-'}</td>
                         <td className="px-4 py-2">
-                          <div className="flex flex-wrap gap-2">
+                          <div className="space-y-1">
                             {opponentGangs.length > 0 ? (
-                              opponentGangs.map((gang) => (
-                                <Badge
-                                  key={gang.id}
-                                  variant="outline"
-                                  className="cursor-pointer hover:bg-secondary"
-                                  style={{ color: gang.gang_colour }}
-                                >
-                                  <Link
-                                    href={`/gang/${gang.id}`}
-                                    className="flex items-center"
-                                  >
-                                    {gang.name}
-                                  </Link>
-                                </Badge>
-                              ))
+                              opponentGangs.map((gang) => {
+                                const roleColor = gang.role === 'attacker' ? 'bg-red-500' : gang.role === 'defender' ? 'bg-blue-500' : 'bg-muted';
+                                const roleLetter = gang.role === 'attacker' ? 'A' : gang.role === 'defender' ? 'D' : null;
+                                return (
+                                  <div key={gang.id}>
+                                    <div className="flex items-center space-x-1">
+                                      {roleLetter && (
+                                        <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`} title={gang.role === 'attacker' ? 'Attacker' : 'Defender'}>
+                                          {roleLetter}
+                                        </span>
+                                      )}
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted" style={{ color: gang.gang_colour }}>
+                                        <Link
+                                          href={`/gang/${gang.id}`}
+                                          className="hover:text-muted-foreground transition-colors"
+                                        >
+                                          {gang.name}
+                                        </Link>
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
