@@ -279,7 +279,7 @@ export async function updateGangAllegiance(params: UpdateGangAllegianceParams) {
     // Verify gang is in the campaign and get the campaign_gangs record
     const { data: campaignGang, error: campaignGangError } = await supabase
       .from('campaign_gangs')
-      .select('id, campaign_id')
+      .select('id')
       .eq('gang_id', params.gangId)
       .eq('campaign_id', params.campaignId)
       .single();

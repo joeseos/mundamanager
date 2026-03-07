@@ -74,6 +74,20 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
       campaignMemberId = newMember.id;
     }
     
+    // Prevent duplicate: one gang per campaign
+    const { data: existingRows } = await supabase
+      .from('campaign_gangs')
+      .select('id')
+      .eq('campaign_id', campaignId)
+      .eq('gang_id', gangId)
+      .limit(1);
+    if (existingRows && existingRows.length > 0) {
+      return {
+        success: false,
+        error: 'This gang is already in the campaign'
+      };
+    }
+
     // Prepare allegiance fields
     const allegianceData: any = {};
     if (params.allegianceId) {
