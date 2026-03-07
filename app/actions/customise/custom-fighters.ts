@@ -29,6 +29,7 @@ export interface CreateCustomFighterData {
   skill_access: {
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
+    is_custom?: boolean;
   }[];
   default_skills?: string[];
   default_equipment?: string[];
@@ -78,7 +79,8 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
       const skillAccessRows = data.skill_access.map((row) => ({
         custom_fighter_type_id: newCustomFighter.id,
         fighter_type_id: null,
-        skill_type_id: row.skill_type_id,
+        skill_type_id: row.is_custom ? null : row.skill_type_id,
+        custom_skill_type_id: row.is_custom ? row.skill_type_id : null,
         access_level: row.access_level
       }));
 
@@ -141,8 +143,13 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         *,
         fighter_type_skill_access (
           skill_type_id,
+          custom_skill_type_id,
           access_level,
           skill_types (
+            id,
+            name
+          ),
+          custom_skill_types (
             id,
             name
           )
@@ -181,9 +188,10 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
     const transformedFighter: CustomFighterType = {
       ...completeFighter,
       skill_access: skillAccessData.map((sa) => ({
-        skill_type_id: sa.skill_type_id,
+        skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
         access_level: sa.access_level,
-        skill_type_name: sa.skill_types?.name || 'Unknown'
+        skill_type_name: sa.skill_types?.name || sa.custom_skill_types?.name || 'Unknown',
+        is_custom: !!sa.custom_skill_type_id
       })),
       default_skills: defaultsData
         .filter((d) => d.skill_id)
@@ -333,7 +341,8 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       const skillAccessRows = data.skill_access.map((row) => ({
         custom_fighter_type_id: id,
         fighter_type_id: null,
-        skill_type_id: row.skill_type_id,
+        skill_type_id: row.is_custom ? null : row.skill_type_id,
+        custom_skill_type_id: row.is_custom ? row.skill_type_id : null,
         access_level: row.access_level
       }));
 
@@ -407,8 +416,13 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         *,
         fighter_type_skill_access (
           skill_type_id,
+          custom_skill_type_id,
           access_level,
           skill_types (
+            id,
+            name
+          ),
+          custom_skill_types (
             id,
             name
           )
@@ -447,9 +461,10 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
     const transformedFighter: CustomFighterType = {
       ...completeFighter,
       skill_access: skillAccessData.map((sa) => ({
-        skill_type_id: sa.skill_type_id,
+        skill_type_id: sa.skill_type_id || sa.custom_skill_type_id,
         access_level: sa.access_level,
-        skill_type_name: sa.skill_types?.name || 'Unknown'
+        skill_type_name: sa.skill_types?.name || sa.custom_skill_types?.name || 'Unknown',
+        is_custom: !!sa.custom_skill_type_id
       })),
       default_skills: defaultsData
         .filter((d) => d.skill_id)

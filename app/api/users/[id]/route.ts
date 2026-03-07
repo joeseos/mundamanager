@@ -177,8 +177,13 @@ export async function GET(
           .select(`
             custom_fighter_type_id,
             skill_type_id,
+            custom_skill_type_id,
             access_level,
             skill_types (
+              id,
+              name
+            ),
+            custom_skill_types (
               id,
               name
             )
@@ -235,9 +240,10 @@ export async function GET(
           acc[row.custom_fighter_type_id] = [];
         }
         acc[row.custom_fighter_type_id].push({
-          skill_type_id: row.skill_type_id,
+          skill_type_id: row.skill_type_id || row.custom_skill_type_id,
           access_level: row.access_level,
-          skill_type_name: row.skill_types?.name || 'Unknown'
+          skill_type_name: row.skill_types?.name || row.custom_skill_types?.name || 'Unknown',
+          is_custom: !!row.custom_skill_type_id
         });
         return acc;
       }, {});
