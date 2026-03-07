@@ -26,8 +26,13 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
     .select(`
       custom_fighter_type_id,
       skill_type_id,
+      custom_skill_type_id,
       access_level,
       skill_types (
+        id,
+        name
+      ),
+      custom_skill_types (
         id,
         name
       )
@@ -102,12 +107,13 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
       acc[row.custom_fighter_type_id] = [];
     }
     acc[row.custom_fighter_type_id].push({
-      skill_type_id: row.skill_type_id,
+      skill_type_id: row.skill_type_id || row.custom_skill_type_id,
       access_level: row.access_level,
-      skill_type_name: (row.skill_types as any)?.name || 'Unknown'
+      skill_type_name: (row.skill_types as any)?.name || (row.custom_skill_types as any)?.name || 'Unknown',
+      is_custom: !!row.custom_skill_type_id
     });
     return acc;
-  }, {} as Record<string, { skill_type_id: string; access_level: 'primary' | 'secondary' | 'allowed'; skill_type_name: string }[]>);
+  }, {} as Record<string, { skill_type_id: string; access_level: 'primary' | 'secondary' | 'allowed'; skill_type_name: string; is_custom: boolean }[]>);
 
   // Group default skills by custom fighter type ID
   const defaultSkillsByFighter = (defaultSkillsData || []).reduce((acc, row) => {
