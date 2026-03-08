@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict bY2y8jI8sV7aFrPZqExkXGyifbzAPRyfQ2fkebBXBExtQYH4LqkQXrbIP0P0bL2
+\restrict Hio08jNW0m4y5RJDop8SVBpSiFboHAB6bN44f7w4dPT7VaEQPuS7Rw6jyav7WxE
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -1183,14 +1183,17 @@ BEGIN
             JOIN campaign_gangs cg ON cg.campaign_id = csh.campaign_id
             WHERE cg.gang_id = v_gang_id
         ) shared ON shared.custom_skill_id = cs.id
-        -- Access level joins (custom skill types have no rows here, defaulting to 'none' = not denied)
-        LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = cs.skill_type_id
+        -- Access level joins: match on skill_type_id OR custom_skill_type_id
+        LEFT JOIN fighter_type_skill_access ftsa ON (
+                (ftsa.skill_type_id IS NOT NULL AND ftsa.skill_type_id = cs.skill_type_id)
+                OR (ftsa.custom_skill_type_id IS NOT NULL AND ftsa.custom_skill_type_id = cs.custom_skill_type_id)
+            )
             AND (
                 (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
                 OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
             )
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-            AND sao.skill_type_id = cs.skill_type_id
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
         AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied'
     ),
@@ -4435,7 +4438,8 @@ CREATE TABLE public.campaigns (
     has_power boolean DEFAULT false,
     has_sustenance boolean DEFAULT false,
     has_salvage boolean DEFAULT false,
-    trading_posts jsonb
+    trading_posts jsonb,
+    discord_webhook_url text
 );
 
 
@@ -5033,6 +5037,7 @@ CREATE TABLE public.fighter_type_skill_access (
     skill_type_id uuid,
     access_level text NOT NULL,
     custom_fighter_type_id uuid,
+    custom_skill_type_id uuid,
     CONSTRAINT fighter_type_skill_access_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'allowed'::text])))
 );
 
@@ -6867,6 +6872,13 @@ CREATE INDEX vehicles_vehicle_name_idx ON public.vehicles USING btree (vehicle_n
 --
 
 CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree (weapon_id);
+
+
+--
+-- Name: campaign_battles discord-campaign-bot; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER "discord-campaign-bot" AFTER INSERT ON public.campaign_battles FOR EACH ROW EXECUTE FUNCTION supabase_functions.http_request('https://iojoritxhpijprgkjfre.supabase.co/functions/v1/discord-campaign-bot', 'POST', '{"Content-type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlvam9yaXR4aHBpanByZ2tqZnJlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyNTEwODQ3MywiZXhwIjoyMDQwNjg0NDczfQ.99X86eWJFLQQ4cG_cH7I-Cgi3-SPkGQBv67hh6qyA6Q"}', '{}', '5000');
 
 
 --
@@ -10622,5 +10634,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bY2y8jI8sV7aFrPZqExkXGyifbzAPRyfQ2fkebBXBExtQYH4LqkQXrbIP0P0bL2
+\unrestrict Hio08jNW0m4y5RJDop8SVBpSiFboHAB6bN44f7w4dPT7VaEQPuS7Rw6jyav7WxE
 
