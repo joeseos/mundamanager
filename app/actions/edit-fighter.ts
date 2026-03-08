@@ -979,6 +979,9 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
     revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
+    if (params.ooa_count && params.ooa_count > 0) {
+      revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(fighter.gang_id));
+    }
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {

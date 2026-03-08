@@ -2177,3 +2177,78 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
     }
   )();
 };
+
+export interface OoaBreakdownItem {
+  fighter_name: string;
+  fighter_type: string;
+  fighter_class: string;
+  kills: number;
+}
+
+export interface DeathsBreakdownItem {
+  fighter_name: string;
+  fighter_type: string;
+  fighter_class: string;
+}
+
+export interface GangFighterStats {
+  ooa_caused: number;
+  deaths_suffered: number;
+  ooa_breakdown: OoaBreakdownItem[];
+  deaths_breakdown: DeathsBreakdownItem[];
+}
+
+export const getGangFighterStats = async (
+  gangId: string,
+  supabase: any
+): Promise<GangFighterStats> => {
+  return unstable_cache(
+    async () => {
+      const { data: fighters, error } = await supabase
+        .from('fighters')
+        .select('fighter_name, fighter_type, fighter_class, kills, killed')
+        .eq('gang_id', gangId);
+
+      if (error) throw error;
+
+      const fighterList = fighters || [];
+      const ooaCaused = fighterList.reduce(
+        (sum: number, f: { kills: number }) => sum + (Number(f.kills) || 0),
+        0
+      );
+      const deathsSuffered = fighterList.filter(
+        (f: { killed: boolean }) => f.killed === true
+      ).length;
+
+      const ooaBreakdown: OoaBreakdownItem[] = fighterList
+        .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string; kills: number }) => ({
+          fighter_name: f.fighter_name || 'Unknown',
+          fighter_type: f.fighter_type || '—',
+          fighter_class: f.fighter_class || '—',
+          kills: Number(f.kills) || 0
+        }))
+        .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
+
+      const deathsBreakdown: DeathsBreakdownItem[] = fighterList
+        .filter((f: { killed: boolean }) => f.killed === true)
+        .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string }) => ({
+          fighter_name: f.fighter_name || 'Unknown',
+          fighter_type: f.fighter_type || '—',
+          fighter_class: f.fighter_class || '—'
+        }));
+
+      return {
+        ooa_caused: ooaCaused,
+        deaths_suffered: deathsSuffered,
+        ooa_breakdown: ooaBreakdown,
+        deaths_breakdown: deathsBreakdown
+      };
+    },
+    [`gang-fighter-stats-${gangId}`],
+    {
+      tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId)],
+      revalidate: false
+    }
+  )();
+};

@@ -64,6 +64,7 @@ export const CACHE_TAGS = {
   COMPUTED_GANG_FIGHTER_COUNT: (id: string) => `computed-gang-fighter-count-${id}`, // active fighter count
   COMPUTED_GANG_VEHICLE_COUNT: (id: string) => `computed-gang-vehicle-count-${id}`, // vehicle count
   COMPUTED_GANG_BEAST_COUNT: (id: string) => `computed-gang-beast-count-${id}`,   // exotic beast count
+  COMPUTED_GANG_FIGHTER_STATS: (id: string) => `computed-gang-fighter-stats-${id}`, // OOA caused + deaths suffered
   
   // Campaign computed values
   COMPUTED_CAMPAIGN_LEADERBOARD: (id: string) => `computed-campaign-leaderboard-${id}`, // gang rankings
@@ -438,6 +439,7 @@ export function invalidateGangPermissionsForUser(params: {
 // Legacy function names maintained for backward compatibility
 export const invalidateFighterData = (fighterId: string, gangId: string) => {
   invalidateFighterAdvancement({ fighterId, gangId, advancementType: 'stat' });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId));
 };
 
 export const invalidateVehicleData = (vehicleId: string) => {
