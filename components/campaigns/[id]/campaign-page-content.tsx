@@ -848,6 +848,8 @@ export default function CampaignPageContent({
                     noContainer={true}
                     hideAddButton={true}
                     userId={userId || ''}
+                    isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+                    isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                   />
                 </div>
               </div>

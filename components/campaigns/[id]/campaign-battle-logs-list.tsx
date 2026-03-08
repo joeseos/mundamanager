@@ -9,7 +9,11 @@ import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
+import { updateMemberRole } from "@/app/actions/campaigns/[id]/campaign-members";
 import Modal from "@/components/ui/modal";
+import Link from "next/link";
+import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
+import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member, Scenario } from '@/types/campaign';
@@ -21,6 +25,8 @@ interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
 }
 
+type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+
 interface CampaignBattleLogsListProps {
   campaignId: string;
   battles: Battle[];
@@ -31,11 +37,26 @@ interface CampaignBattleLogsListProps {
   noContainer?: boolean;
   hideAddButton?: boolean;
   userId: string;
+  isCampaignOwner?: boolean;
+  isCampaignAdmin?: boolean;
 }
 
 export interface CampaignBattleLogsListRef {
   openAddModal: () => void;
 }
+
+const formatRole = (role: MemberRole | undefined) => {
+  switch (role) {
+    case 'OWNER':
+      return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
+    case 'ARBITRATOR':
+      return <MdLocalPolice className="h-4 w-4" title="Arbitrator (Click to change role)" />;
+    case 'MEMBER':
+      return <HiUser className="h-4 w-4" title="Member (Click to change role)" />;
+    default:
+      return <HiUser className="h-4 w-4" title="Member (Click to change role)" />;
+  }
+};
 
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
@@ -53,7 +74,9 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     territories = [],
     noContainer = false,
     hideAddButton = false,
-    userId
+    userId,
+    isCampaignOwner = false,
+    isCampaignAdmin = false,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -61,6 +84,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null);
   
   const router = useRouter();
 
@@ -89,6 +114,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   // Sorting state
   const [sortField, setSortField] = useState<string>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Standings sort state (separate from battle log sorting)
+  const [standingsSortField, setStandingsSortField] = useState<'gang' | 'player' | 'allegiance' | 'victories' | 'defeats' | 'draws'>('victories');
+  const [standingsSortDirection, setStandingsSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -280,6 +309,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
   };
 
+  // Handle standings column header click for sorting
+  const handleStandingsSort = (field: 'gang' | 'player' | 'allegiance' | 'victories' | 'defeats' | 'draws') => {
+    if (standingsSortField === field) {
+      setStandingsSortDirection(standingsSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setStandingsSortField(field);
+      const numericFields = ['victories', 'defeats', 'draws'];
+      setStandingsSortDirection(numericFields.includes(field) ? 'desc' : 'asc');
+    }
+  };
+
   // Reset pagination when filters or sort change
   useEffect(() => {
     setCurrentPage(1);
@@ -428,6 +468,94 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       name: gangNameMap.get(gangId) || 'Unknown'
     };
   };
+
+  // Check whether a gang participated in a given battle
+  const gangParticipatedIn = useCallback((battle: Battle, gangId: string): boolean => {
+    let participants = battle.participants;
+    if (participants && typeof participants === 'string') {
+      try { participants = JSON.parse(participants); } catch { participants = []; }
+    }
+    if (participants && Array.isArray(participants)) {
+      return participants.some((p: BattleParticipant) => p.gang_id === gangId);
+    }
+    return battle.attacker_id === gangId || battle.defender_id === gangId;
+  }, []);
+
+  // Compute gang standings from battles + members
+  const gangStandings = useMemo(() => {
+    const rows: Array<{
+      gangId: string;
+      gangName: string;
+      gangColour: string;
+      playerName: string;
+      playerId: string;
+      playerRole: MemberRole | undefined;
+      allegianceName: string;
+      victories: number;
+      defeats: number;
+      draws: number;
+    }> = [];
+
+    members.forEach(member => {
+      if (!member.gangs) return;
+      member.gangs.forEach(gang => {
+        const gangId = gang.id;
+        let victories = 0;
+        let defeats = 0;
+        let draws = 0;
+
+        localBattles.forEach(battle => {
+          if (!gangParticipatedIn(battle, gangId)) return;
+          if (battle.winner_id === null) {
+            draws++;
+          } else if (battle.winner_id === gangId) {
+            victories++;
+          } else {
+            defeats++;
+          }
+        });
+
+        rows.push({
+          gangId,
+          gangName: gang.name,
+          gangColour: gang.gang_colour || '#000000',
+          playerName: member.profile?.username || member.username || '',
+          playerId: member.user_id,
+          playerRole: member.role as MemberRole | undefined,
+          allegianceName: gang.allegiance?.name || '',
+          victories,
+          defeats,
+          draws,
+        });
+      });
+    });
+
+    rows.sort((a, b) => {
+      let aVal: string | number;
+      let bVal: string | number;
+
+      switch (standingsSortField) {
+        case 'gang': aVal = a.gangName.toLowerCase(); bVal = b.gangName.toLowerCase(); break;
+        case 'player': aVal = a.playerName.toLowerCase(); bVal = b.playerName.toLowerCase(); break;
+        case 'allegiance': aVal = a.allegianceName.toLowerCase(); bVal = b.allegianceName.toLowerCase(); break;
+        case 'victories': aVal = a.victories; bVal = b.victories; break;
+        case 'defeats': aVal = a.defeats; bVal = b.defeats; break;
+        case 'draws': aVal = a.draws; bVal = b.draws; break;
+        default: aVal = a.victories; bVal = b.victories;
+      }
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const cmp = aVal.localeCompare(bVal);
+        return standingsSortDirection === 'asc' ? cmp : -cmp;
+      }
+
+      if (aVal < bVal) return standingsSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return standingsSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return rows;
+  }, [members, localBattles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
   // Check if user can edit/delete this battle
   const canUserEditBattle = useCallback((battle: Battle): boolean => {
@@ -662,6 +790,37 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const handleDeleteModalClose = () => {
     setShowDeleteModal(false);
     setBattleToDelete(null);
+  };
+
+  // Handle role change confirmation
+  const handleRoleChange = async () => {
+    if (!roleChange) return false;
+    if (!isCampaignOwner && !isCampaignAdmin) {
+      toast.error("You don't have permission to change roles");
+      return false;
+    }
+    try {
+      const result = await updateMemberRole({
+        campaignId,
+        userId: roleChange.memberId,
+        newRole: roleChange.newRole,
+        previousRole: roleChange.currentRole
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      onBattleAdd();
+      toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
+      setShowRoleModal(false);
+      setRoleChange(null);
+      return true;
+    } catch (error) {
+      console.error('Error updating role:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to update role");
+      return false;
+    }
   };
 
   // The content to render
@@ -1028,6 +1187,99 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       )}
 
+      {/* Standings Table */}
+      <div className="mt-8">
+        <h3 className="text-xl md:text-2xl font-bold mb-3">Standings</h3>
+        <div className="rounded-md border overflow-x-auto">
+          <table className="w-full text-xs md:text-sm">
+            <thead>
+              <tr className="bg-muted border-b">
+                {(['gang', 'player', 'allegiance', 'victories', 'defeats', 'draws'] as const).map(field => (
+                  <th
+                    key={field}
+                    className={`p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none whitespace-nowrap ${field === 'gang' ? 'max-w-[12rem]' : ''}`}
+                    onClick={() => handleStandingsSort(field)}
+                  >
+                    <div className="flex items-center gap-1">
+                      {field.charAt(0).toUpperCase() + field.slice(1)}
+                      {standingsSortField === field && (
+                        <span className="text-muted-foreground">
+                          {standingsSortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {gangStandings.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-muted-foreground italic text-center py-4">
+                    No gangs in this campaign
+                  </td>
+                </tr>
+              ) : (
+                gangStandings.map(row => (
+                  <tr key={row.gangId} className="border-b last:border-0">
+                    <td className="p-1 md:p-2 max-w-[12rem]">
+                      <span
+                        className="inline-block max-w-full px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+                        style={{ color: row.gangColour }}
+                        title={row.gangName}
+                      >
+                        <a
+                          href={`/gang/${row.gangId}`}
+                          className="hover:text-muted-foreground transition-colors block truncate"
+                          onClick={(e) => handleGangClick(e, row.gangId)}
+                        >
+                          {row.gangName}
+                        </a>
+                      </span>
+                    </td>
+                    <td className="p-1 md:p-2">
+                      <div className="flex items-center gap-2">
+                        {(isCampaignOwner || isCampaignAdmin) && row.playerId !== userId && row.playerRole && row.playerRole !== 'OWNER' ? (
+                          <button
+                            onClick={() => {
+                              setRoleChange({
+                                memberId: row.playerId,
+                                username: row.playerName,
+                                currentRole: row.playerRole || 'MEMBER',
+                                newRole: row.playerRole === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                              });
+                              setShowRoleModal(true);
+                            }}
+                            className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted hover:text-muted-foreground transition-colors"
+                          >
+                            {formatRole(row.playerRole)}
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
+                            {formatRole(row.playerRole)}
+                          </span>
+                        )}
+                        <Link
+                          href={`/user/${row.playerId}`}
+                          prefetch={false}
+                          className="text-xs font-medium hover:text-muted-foreground transition-colors"
+                        >
+                          {row.playerName}
+                        </Link>
+                      </div>
+                    </td>
+                    <td className="p-1 md:p-2">{row.allegianceName || ''}</td>
+                    <td className="p-1 md:p-2 text-green-600 dark:text-green-400 font-medium">{row.victories}</td>
+                    <td className="p-1 md:p-2 text-red-600 dark:text-red-400 font-medium">{row.defeats}</td>
+                    <td className="p-1 md:p-2 font-medium">{row.draws}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Battle Log Modal for Add/Edit */}
       <CampaignBattleLogModal
         campaignId={campaignId}
@@ -1092,6 +1344,27 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           }}
           confirmText="Close"
           hideCancel
+        />
+      )}
+      {showRoleModal && roleChange && (
+        <Modal
+          title="Change Player Role"
+          content={
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to change <span className="font-bold">{roleChange.username}</span>&apos;s role from{' '}
+                <span className="font-bold">{roleChange.currentRole}</span> to{' '}
+                <span className="font-bold">{roleChange.newRole}</span>?
+              </p>
+            </div>
+          }
+          onClose={() => {
+            setShowRoleModal(false);
+            setRoleChange(null);
+          }}
+          onConfirm={handleRoleChange}
+          confirmText="Change Role"
+          confirmDisabled={false}
         />
       )}
     </>
