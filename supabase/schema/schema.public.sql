@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Hio08jNW0m4y5RJDop8SVBpSiFboHAB6bN44f7w4dPT7VaEQPuS7Rw6jyav7WxE
+\restrict bRpx9S1dC0F1UJgIXw1TwZ6Zciyp65XTb3911CmPh8bgyQsLVIKuqh16XOJgTMb
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -4439,7 +4439,8 @@ CREATE TABLE public.campaigns (
     has_sustenance boolean DEFAULT false,
     has_salvage boolean DEFAULT false,
     trading_posts jsonb,
-    discord_webhook_url text
+    discord_channel_id text,
+    discord_guild_id text
 );
 
 
@@ -10634,5 +10635,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Hio08jNW0m4y5RJDop8SVBpSiFboHAB6bN44f7w4dPT7VaEQPuS7Rw6jyav7WxE
+\unrestrict bRpx9S1dC0F1UJgIXw1TwZ6Zciyp65XTb3911CmPh8bgyQsLVIKuqh16XOJgTMb
 
