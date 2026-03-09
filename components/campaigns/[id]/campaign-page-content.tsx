@@ -121,6 +121,8 @@ interface CampaignPageContentProps {
     has_sustenance: boolean;
     has_salvage: boolean;
     trading_posts: string[];
+    discord_guild_id?: string | null;
+    discord_channel_id?: string | null;
     battles: Battle[];
       triumphs: {
         id: string;
@@ -283,6 +285,8 @@ export default function CampaignPageContent({
     description: string;
     status: string;
     trading_posts: string[];
+    discord_guild_id?: string | null;
+    discord_channel_id?: string | null;
   }) => {
     try {
       const result = await updateCampaignSettings({
@@ -290,7 +294,9 @@ export default function CampaignPageContent({
         campaign_name: formValues.campaign_name,
         description: formValues.description,
         trading_posts: formValues.trading_posts,
-        status: formValues.status
+        status: formValues.status,
+        ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
+        ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
       });
 
       if (!result.success) {
@@ -298,7 +304,7 @@ export default function CampaignPageContent({
       }
 
       const now = new Date().toISOString();
-      
+
       // Update local state
       setCampaignData(prev => ({
         ...prev,
@@ -307,6 +313,8 @@ export default function CampaignPageContent({
         trading_posts: formValues.trading_posts,
         status: formValues.status,
         updated_at: now,
+        ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
+        ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
       }));
       
       toast.success("Campaign settings updated successfully");
@@ -892,7 +900,9 @@ export default function CampaignPageContent({
             trading_posts: campaignData.trading_posts || [],
             status: campaignData.status,
             campaign_type_name: campaignData.campaign_type_name,
-            campaign_type_id: campaignData.campaign_type_id
+            campaign_type_id: campaignData.campaign_type_id,
+            discord_guild_id: campaignData.discord_guild_id,
+            discord_channel_id: campaignData.discord_channel_id,
           }}
           tradingPostTypes={tradingPostTypes || []}
           onClose={() => setShowEditModal(false)}

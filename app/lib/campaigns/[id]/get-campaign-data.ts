@@ -28,7 +28,9 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       has_salvage,
       trading_posts,
       note,
-      image_url
+      image_url,
+      discord_guild_id,
+      discord_channel_id
     `)
     .eq('id', campaignId)
     .single();

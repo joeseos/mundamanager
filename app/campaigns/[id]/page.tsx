@@ -124,6 +124,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       has_sustenance: campaignBasic.has_sustenance,
       has_salvage: campaignBasic.has_salvage,
       trading_posts: campaignBasic.trading_posts || [],
+      discord_guild_id: campaignBasic.discord_guild_id || null,
+      discord_channel_id: campaignBasic.discord_channel_id || null,
       note: campaignBasic.note,
       members: campaignMembers,
       territories: campaignTerritories,

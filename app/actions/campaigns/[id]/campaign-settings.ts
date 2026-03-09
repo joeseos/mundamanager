@@ -18,6 +18,8 @@ export interface UpdateCampaignSettingsParams {
   trading_posts?: string[];
   note?: string;
   status?: string;
+  discord_guild_id?: string | null;
+  discord_channel_id?: string | null;
 }
 
 /**
@@ -41,7 +43,9 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       has_salvage,
       trading_posts,
       note,
-      status
+      status,
+      discord_guild_id,
+      discord_channel_id
     } = params;
 
     // Only include provided fields in the update
@@ -57,6 +61,8 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (trading_posts !== undefined) updateData.trading_posts = trading_posts;
     if (note !== undefined) updateData.note = note;
     if (status !== undefined) updateData.status = status;
+    if (discord_guild_id !== undefined) updateData.discord_guild_id = discord_guild_id;
+    if (discord_channel_id !== undefined) updateData.discord_channel_id = discord_channel_id;
 
     const { error } = await supabase
       .from('campaigns')
