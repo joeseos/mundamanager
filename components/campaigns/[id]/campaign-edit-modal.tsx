@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
@@ -30,6 +31,8 @@ interface EditCampaignModalProps {
     trading_posts: string[];
     campaign_type_name?: string;
     campaign_type_id?: string;
+    discord_guild_id?: string | null;
+    discord_channel_id?: string | null;
   };
   onClose: () => void;
   onSave: (updatedData: {
@@ -37,6 +40,8 @@ interface EditCampaignModalProps {
     description: string;
     trading_posts: string[];
     status: string;
+    discord_guild_id?: string | null;
+    discord_channel_id?: string | null;
   }) => Promise<boolean>;
   isOwner: boolean;
   isArbitrator?: boolean;
@@ -81,7 +86,10 @@ export default function CampaignEditModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [confirmText, setConfirmText] = useState('');
-  
+  const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
+
   const router = useRouter();
 
   // Reset form values when campaign data changes or when modal opens
@@ -93,18 +101,74 @@ export default function CampaignEditModal({
       tradingPosts: campaignData.trading_posts || [],
     });
     setCharCount((campaignData.description ?? '').length);
+    setSelectedChannelId(campaignData.discord_channel_id || '');
   }, [campaignData]);
+
+  // Fetch Discord channels when guild is connected
+  useEffect(() => {
+    if (campaignData.discord_guild_id && isOpen) {
+      setLoadingChannels(true);
+      fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(channels => setDiscordChannels(channels))
+        .catch(() => setDiscordChannels([]))
+        .finally(() => setLoadingChannels(false));
+    }
+  }, [campaignData.discord_guild_id, isOpen]);
 
 
   // Handler for form submission
   const handleSubmit = async () => {
+    const saveData: Parameters<typeof onSave>[0] = {
+      campaign_name: formValues.campaignName,
+      description: formValues.description,
+      trading_posts: formValues.tradingPosts,
+      status: formValues.status,
+    };
+
+    // Include discord_channel_id if guild is connected
+    if (campaignData.discord_guild_id) {
+      saveData.discord_channel_id = selectedChannelId || null;
+    }
+
+    const result = await onSave(saveData);
+    return result;
+  };
+
+  const handleConnectDiscord = () => {
+    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+    if (!clientId || !appUrl) {
+      toast.error('Discord integration is not configured');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      permissions: '2048',
+      scope: 'bot',
+      redirect_uri: `${appUrl}/api/discord/callback`,
+      response_type: 'code',
+      state: campaignData.id,
+    });
+    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+    window.open(url, '_blank', 'width=500,height=800');
+  };
+
+  const handleDisconnectDiscord = async () => {
     const result = await onSave({
       campaign_name: formValues.campaignName,
       description: formValues.description,
       trading_posts: formValues.tradingPosts,
       status: formValues.status,
+      discord_guild_id: null,
+      discord_channel_id: null,
     });
-    return result;
+    if (result) {
+      setDiscordChannels([]);
+      setSelectedChannelId('');
+    }
   };
 
   const handleTradingPostToggle = (tradingPostId: string, enabled: boolean) => {
@@ -332,6 +396,66 @@ export default function CampaignEditModal({
                   onMembersUpdate={onMembersUpdate}
                   onAllegianceRenamed={onAllegianceRenamed}
                 />
+              </div>
+            )}
+
+            {/* Discord Integration */}
+            {(isOwner || isArbitrator || isAdmin) && (
+              <div>
+                <h3 className="text-sm font-medium flex items-center space-x-2">
+                  <span>Discord Bot</span>
+                  <span
+                    className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+                    data-tooltip-id="resources-tooltip"
+                    data-tooltip-html="Connect a Discord bot to automatically post battle reports to a channel in your Discord server."
+                  >
+                    <ImInfo />
+                  </span>
+                </h3>
+                {campaignData.discord_guild_id ? (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Connected</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        Server ID: {campaignData.discord_guild_id}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">
+                        Battle report channel
+                      </label>
+                      {loadingChannels ? (
+                        <p className="text-xs text-muted-foreground">Loading channels...</p>
+                      ) : (
+                        <Combobox
+                          options={discordChannels.map(ch => ({ value: ch.id, label: `#${ch.name}` }))}
+                          value={selectedChannelId}
+                          onValueChange={setSelectedChannelId}
+                          placeholder="Select a channel"
+                          className="w-full"
+                        />
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleDisconnectDiscord}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      onClick={handleConnectDiscord}
+                      size="sm"
+                    >
+                      Connect Discord Bot
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
