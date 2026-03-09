@@ -61,8 +61,8 @@ interface CreateGangModalProps {
   onClose: () => void;
 }
 
-// Default image index to display (0 = Silhouette image, 1 = Gang image by Djidiouf)
-const DEFAULT_IMAGE_INDEX = 1;
+// Default image index to display (0 = Silhouette, 1 = Djidiouf, 2 = Carl R Johnston Grey, 3 = Carl R Johnston Colour)
+const DEFAULT_IMAGE_INDEX = 3;
 
 // Button component that opens the modal
 export function CreateGangButton() {
