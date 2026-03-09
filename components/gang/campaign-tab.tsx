@@ -1,8 +1,11 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { Tooltip } from 'react-tooltip';
+import { fighterClassRank } from '@/utils/fighterClassRank';
 import { createClient } from "@/utils/supabase/client";
 import { Battle } from '@/types/campaign';
 import Modal from "@/components/ui/modal";
@@ -287,17 +290,107 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
     fetchBattleLogs();
   }, [gangId, campaigns]);
 
+  // Fetch fighter stats (OOA caused, deaths suffered) via API with TanStack Query
+  const { data: fighterStats } = useQuery({
+    queryKey: ['gang-fighter-stats', gangId],
+    queryFn: async () => {
+      const response = await fetch(`/api/gangs/${gangId}/stats`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch fighter stats');
+      }
+      return response.json() as Promise<{
+        ooa_caused: number;
+        deaths_suffered: number;
+        ooa_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_class: string; kills: number }>;
+        deaths_breakdown?: Array<{ fighter_name: string; fighter_type: string; fighter_class: string }>;
+      }>;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const ooaCaused = fighterStats?.ooa_caused ?? 0;
+  const deathsSuffered = fighterStats?.deaths_suffered ?? 0;
+
+  const escapeHtml = (s: string) =>
+    String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+  const ooaTooltipHtml = useMemo(() => {
+    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">OOA caused</div>';
+    const breakdown = fighterStats?.ooa_breakdown ?? [];
+    if (breakdown.length === 0) {
+      return `${title}<div>No OOA recorded</div>`;
+    }
+    const getClassRank = (c: string) =>
+      fighterClassRank[c.toLowerCase().trim()] ?? 99;
+    const sorted = [...breakdown].sort(
+      (a, b) => getClassRank(a.fighter_class) - getClassRank(b.fighter_class)
+    );
+    const rows = sorted
+      .map(
+        (f) =>
+          `<div style="display:flex;justify-content:space-between;gap:12px;">` +
+          `<span style="text-align:left;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.fighter_name)} - ${escapeHtml(f.fighter_type)} (${escapeHtml(f.fighter_class)})</span>` +
+          `<span style="text-align:right;flex-shrink:0;">${f.kills}</span>` +
+          `</div>`
+      )
+      .join('');
+    const footer =
+      `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
+      `<span style="text-align:left;">Total:</span>` +
+      `<span style="text-align:right;">${ooaCaused}</span>` +
+      `</div>`;
+    return `${title}${rows}${footer}`;
+  }, [fighterStats?.ooa_breakdown, ooaCaused]);
+
+  const deathsTooltipHtml = useMemo(() => {
+    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Deaths suffered</div>';
+    const breakdown = fighterStats?.deaths_breakdown ?? [];
+    if (breakdown.length === 0) {
+      return `${title}<div>No deaths recorded</div>`;
+    }
+    const getClassRank = (c: string) =>
+      fighterClassRank[c.toLowerCase().trim()] ?? 99;
+    const sorted = [...breakdown].sort(
+      (a, b) => getClassRank(a.fighter_class) - getClassRank(b.fighter_class)
+    );
+    const rows = sorted
+      .map(
+        (f) =>
+          `<div style="display:flex;justify-content:space-between;gap:12px;">` +
+          `<span style="text-align:left;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.fighter_name)} - ${escapeHtml(f.fighter_type)} (${escapeHtml(f.fighter_class)})</span>` +
+          `<span style="text-align:right;flex-shrink:0;">1</span>` +
+          `</div>`
+      )
+      .join('');
+    const footer =
+      `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
+      `<span style="text-align:left;">Total:</span>` +
+      `<span style="text-align:right;">${deathsSuffered}</span>` +
+      `</div>`;
+    return `${title}${rows}${footer}`;
+  }, [fighterStats?.deaths_breakdown, deathsSuffered]);
+
   return (
     <div>
       <div className="divide-y">
         {campaigns.length > 0 ? (
           [...campaigns]
             .sort((a, b) => a.campaign_name.localeCompare(b.campaign_name))
-            .map((campaign) => (
+            .map((campaign) => {
+              const campaignBattles = battleLogs.filter(b => b.campaign_id === campaign.campaign_id);
+              const campaignTotalBattles = campaignBattles.length;
+
+              return (
               <div key={campaign.campaign_id} className="mb-6">
                 {/* Campaign Header */}
                 <div className="text-muted-foreground mb-4">
-                  <div className="flex flex-wrap gap-4">
+                  <div className="flex flex-wrap gap-4 mb-1">
                     <div className="flex items-center gap-1 text-sm">
                       Campaign: <Badge variant="outline" className="cursor-pointer hover:bg-secondary">
                         <Link href={`/campaigns/${campaign.campaign_id}`} className="flex items-center">
@@ -307,12 +400,44 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="flex items-center gap-1">
-                        Player's Role: 
+                        Player&apos;s Role: 
                         <Badge variant="secondary" className="gap-1">
                           {formatRoleIcon(campaign.role)}
                           {getRoleTitle(campaign.role)}
                         </Badge>
                       </span>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="grid grid-cols-2 md:gap-x-20 gap-x-10 text-sm">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Territories:</span>
+                          <span className="font-semibold">{campaign.territories?.length ?? 0}</span>
+                        </div>
+                        <div
+                          className="flex justify-between cursor-help"
+                          data-tooltip-id="ooa-caused-tooltip"
+                          data-tooltip-html={ooaTooltipHtml}
+                        >
+                          <span className="text-muted-foreground">OOA caused:</span>
+                          <span className="font-semibold">{ooaCaused}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Battles fought:</span>
+                          <span className="font-semibold">{campaignTotalBattles}</span>
+                        </div>
+                        <div
+                          className="flex justify-between cursor-help"
+                          data-tooltip-id="deaths-suffered-tooltip"
+                          data-tooltip-html={deathsTooltipHtml}
+                        >
+                          <span className="text-muted-foreground">Deaths suffered:</span>
+                          <span className="font-semibold">{deathsSuffered}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -378,7 +503,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                   <div className="text-muted-foreground italic text-center py-4">No territories controlled.</div>
                 )}
               </div>
-            ))
+              );
+            })
         ) : (
           <div className="text-muted-foreground italic text-center p-4">
             No campaigns joined.
@@ -627,6 +753,29 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
           width="lg"
         />
       )}
+
+      <Tooltip
+        id="ooa-caused-tooltip"
+        place="top"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '24rem'
+        }}
+      />
+      <Tooltip
+        id="deaths-suffered-tooltip"
+        place="top"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '24rem'
+        }}
+      />
     </div>
   );
 } 

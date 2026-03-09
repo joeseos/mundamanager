@@ -1159,6 +1159,7 @@ export default function Gang({
               )}
             </div>
 
+            {/* Gang Wealth and Statistics */}
             <div className="mt-2">
               <div className="grid grid-cols-2 md:gap-x-20 gap-x-10 text-sm">
 
