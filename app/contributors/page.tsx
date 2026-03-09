@@ -104,6 +104,11 @@ export default async function ContributorsPage() {
     { name: "Professor Bleep Bloop" },
   ];
 
+  const graphicArtists: Contributor[] = [
+    { name: "Carl R Johnston", link: "https://linktr.ee/UnderhiveArt" },
+    { name: "Djidiouf", link: "https://www.ashenquarter.com" },
+  ];
+
   const contentCreators: Contributor[] = [
     //{ name: "Rokksville", link: "https://www.instagram.com/rokksville" },
     //{ name: "Wellywood", link: "https://www.youtube.com/@wellywoodwargaming" },
@@ -248,6 +253,34 @@ export default async function ContributorsPage() {
                 <p className="text-muted-foreground mb-2 mt-4">
                   Learn more about contributing on our <Link href="/join-the-team" className="underline hover:text-red-800">Join the Team</Link> page.
                 </p>
+              </section>
+
+              <section id="graphic-artists" className="scroll-mt-24">
+                <h2 className="text-xl font-semibold text-foreground mb-1">Graphic Artists</h2>
+                <p className="text-muted-foreground mb-2">
+                  We are grateful to the graphic artists who help create the visual elements of Munda Manager. They have contributed the following:
+                </p>
+                <ul className="list-disc marker:text-red-800 pl-6 space-y-2 mb-4">
+                  <li className="text-muted-foreground">Gang illustrations</li>
+                  <li className="text-muted-foreground">UI graphic elements</li>
+                </ul>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {graphicArtists.map((artist, index) => (
+                    artist.link ? (
+                      <a
+                        key={index}
+                        href={artist.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex hover:[&>*]:text-red-800 transition-colors"
+                      >
+                        <Badge variant="outline">{artist.name}</Badge>
+                      </a>
+                    ) : (
+                      <Badge key={index} variant="outline">{artist.name}</Badge>
+                    )
+                  ))}
+                </div>
               </section>
 
               <section id="community" className="scroll-mt-24">
