@@ -55,6 +55,7 @@ interface EditCampaignModalProps {
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
   onResourcesChange?: () => void;
   predefinedResources?: Array<{ id: string; resource_name: string }>;
+  onDiscordConnected?: (guildId: string) => void;
 }
 
 export default function CampaignEditModal({
@@ -74,6 +75,7 @@ export default function CampaignEditModal({
   campaignResources = [],
   onResourcesChange,
   predefinedResources = [],
+  onDiscordConnected,
 }: EditCampaignModalProps) {
   // Local state for form values - initialized from props
   const [formValues, setFormValues] = useState({
@@ -116,6 +118,20 @@ export default function CampaignEditModal({
     }
   }, [campaignData.discord_guild_id, isOpen]);
 
+  // Listen for postMessage from Discord OAuth popup
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'discord-connected' && event.data.guildId) {
+        onDiscordConnected?.(event.data.guildId);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isOpen, onDiscordConnected]);
 
   // Handler for form submission
   const handleSubmit = async () => {
@@ -147,7 +163,7 @@ export default function CampaignEditModal({
     const params = new URLSearchParams({
       client_id: clientId,
       permissions: '2048',
-      scope: 'bot',
+      scope: 'bot identify',
       redirect_uri: `${appUrl}/api/discord/callback`,
       response_type: 'code',
       state: campaignData.id,
