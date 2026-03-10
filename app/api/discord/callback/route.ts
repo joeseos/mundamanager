@@ -65,7 +65,23 @@ export async function GET(request: NextRequest) {
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId))
     revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId))
 
-    return NextResponse.redirect(new URL(`/campaigns/${campaignId}?discord=connected`, request.url))
+    // Return self-closing HTML that notifies the opener window via postMessage
+    const origin = new URL(request.url).origin
+    const html = `<!DOCTYPE html>
+<html><head><title>Discord Connected</title></head>
+<body style="font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#111;color:#fff">
+<p>Connected! You can close this window.</p>
+<script>
+  if (window.opener) {
+    window.opener.postMessage({ type: 'discord-connected', guildId: ${JSON.stringify(guildId)} }, ${JSON.stringify(origin)});
+  }
+  window.close();
+</script>
+</body></html>`
+
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html' },
+    })
   } catch (error) {
     console.error('Discord callback error:', error)
     return NextResponse.redirect(new URL(`/campaigns/${campaignId}?error=unexpected`, request.url))

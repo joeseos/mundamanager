@@ -953,6 +953,9 @@ export default function CampaignPageContent({
             // Cache invalidation is handled by the mutation in campaign-resources-actions
             // This callback is kept for potential future use
           }}
+          onDiscordConnected={(guildId) => {
+            setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
+          }}
         />
 
         <CampaignImageEditModal
