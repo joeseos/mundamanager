@@ -116,7 +116,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Standings sort state (separate from battle log sorting)
-  const [standingsSortField, setStandingsSortField] = useState<'gang' | 'player' | 'allegiance' | 'victories' | 'defeats' | 'draws'>('victories');
+  const [standingsSortField, setStandingsSortField] = useState<'gang' | 'player' | 'allegiance' | 'battles' | 'victories' | 'defeats' | 'draws'>('victories');
   const [standingsSortDirection, setStandingsSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Pagination state
@@ -310,12 +310,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // Handle standings column header click for sorting
-  const handleStandingsSort = (field: 'gang' | 'player' | 'allegiance' | 'victories' | 'defeats' | 'draws') => {
+  const handleStandingsSort = (field: 'gang' | 'player' | 'allegiance' | 'battles' | 'victories' | 'defeats' | 'draws') => {
     if (standingsSortField === field) {
       setStandingsSortDirection(standingsSortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setStandingsSortField(field);
-      const numericFields = ['victories', 'defeats', 'draws'];
+      const numericFields = ['battles', 'victories', 'defeats', 'draws'];
       setStandingsSortDirection(numericFields.includes(field) ? 'desc' : 'asc');
     }
   };
@@ -491,6 +491,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       playerId: string;
       playerRole: MemberRole | undefined;
       allegianceName: string;
+      battles: number;
       victories: number;
       defeats: number;
       draws: number;
@@ -500,12 +501,14 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (!member.gangs) return;
       member.gangs.forEach(gang => {
         const gangId = gang.id;
+        let battles = 0;
         let victories = 0;
         let defeats = 0;
         let draws = 0;
 
         localBattles.forEach(battle => {
           if (!gangParticipatedIn(battle, gangId)) return;
+          battles++;
           if (battle.winner_id === null) {
             draws++;
           } else if (battle.winner_id === gangId) {
@@ -523,6 +526,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           playerId: member.user_id,
           playerRole: member.role as MemberRole | undefined,
           allegianceName: gang.allegiance?.name || '',
+          battles,
           victories,
           defeats,
           draws,
@@ -538,6 +542,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         case 'gang': aVal = a.gangName.toLowerCase(); bVal = b.gangName.toLowerCase(); break;
         case 'player': aVal = a.playerName.toLowerCase(); bVal = b.playerName.toLowerCase(); break;
         case 'allegiance': aVal = a.allegianceName.toLowerCase(); bVal = b.allegianceName.toLowerCase(); break;
+        case 'battles': aVal = a.battles; bVal = b.battles; break;
         case 'victories': aVal = a.victories; bVal = b.victories; break;
         case 'defeats': aVal = a.defeats; bVal = b.defeats; break;
         case 'draws': aVal = a.draws; bVal = b.draws; break;
@@ -1076,7 +1081,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                     {formatDate(battle.created_at)}
                   </td>
 
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="p-1 md:p-2 align-top text-right">
                     {battle.cycle || '-'}
                   </td>
 
@@ -1194,13 +1199,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           <table className="w-full text-xs md:text-sm">
             <thead>
               <tr className="bg-muted border-b">
-                {(['gang', 'player', 'allegiance', 'victories', 'defeats', 'draws'] as const).map(field => (
+                {(['gang', 'player', 'allegiance', 'battles', 'victories', 'defeats', 'draws'] as const).map(field => (
                   <th
                     key={field}
-                    className={`p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none whitespace-nowrap ${field === 'gang' ? 'max-w-[12rem]' : ''}`}
+                    className={`p-1 md:p-2 font-medium cursor-pointer hover:bg-muted transition-colors select-none whitespace-nowrap ${['battles', 'victories', 'defeats', 'draws'].includes(field) ? 'text-right' : 'text-left'} ${field === 'gang' ? 'max-w-[12rem]' : ''}`}
                     onClick={() => handleStandingsSort(field)}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className={`flex items-center gap-1 ${['battles', 'victories', 'defeats', 'draws'].includes(field) ? 'justify-end' : ''}`}>
                       {field.charAt(0).toUpperCase() + field.slice(1)}
                       {standingsSortField === field && (
                         <span className="text-muted-foreground">
@@ -1215,7 +1220,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
             <tbody>
               {gangStandings.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-muted-foreground italic text-center py-4">
+                  <td colSpan={7} className="text-muted-foreground italic text-center py-4">
                     No gangs in this campaign
                   </td>
                 </tr>
@@ -1269,9 +1274,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                       </div>
                     </td>
                     <td className="p-1 md:p-2">{row.allegianceName || ''}</td>
-                    <td className="p-1 md:p-2 text-green-600 dark:text-green-400 font-medium">{row.victories}</td>
-                    <td className="p-1 md:p-2 text-red-600 dark:text-red-400 font-medium">{row.defeats}</td>
-                    <td className="p-1 md:p-2 font-medium">{row.draws}</td>
+                    <td className="p-1 md:p-2 font-medium text-right">{row.battles}</td>
+                    <td className="p-1 md:p-2 text-green-600 dark:text-green-400 font-medium text-right">{row.victories}</td>
+                    <td className="p-1 md:p-2 text-red-600 dark:text-red-400 font-medium text-right">{row.defeats}</td>
+                    <td className="p-1 md:p-2 font-medium text-right">{row.draws}</td>
                   </tr>
                 ))
               )}
