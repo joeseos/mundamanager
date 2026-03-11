@@ -884,7 +884,12 @@ export default function CampaignPageContent({
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Triumphs</h2>
                 </div>
-                <CampaignTriumphs triumphs={campaignData.triumphs || []} />
+                <CampaignTriumphs
+                  triumphs={campaignData.triumphs || []}
+                  battles={campaignData.battles || []}
+                  members={campaignData.members || []}
+                  territories={campaignData.territories || []}
+                />
               </div>
             </div>
           )}
