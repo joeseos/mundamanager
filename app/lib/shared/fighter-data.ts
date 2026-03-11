@@ -57,6 +57,10 @@ export interface FighterBasic {
   position?: string;
   active_loadout_id?: string | null;
   selected_archetype_id?: string | null;
+  selected_archetype?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface FighterType {
@@ -162,7 +166,11 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           image_url,
           position,
           active_loadout_id,
-          selected_archetype_id
+          selected_archetype_id,
+          selected_archetype:selected_archetype_id (
+            id,
+            name
+          )
         `)
         .eq('id', fighterId)
         .single();
