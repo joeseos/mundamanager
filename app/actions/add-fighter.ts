@@ -849,6 +849,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     }
                   } catch (beastError) {
                     console.error('Error creating exotic beast for equipment:', equipmentItem.equipment_id, beastError);
+                    throw beastError;
                   }
                 }
 
