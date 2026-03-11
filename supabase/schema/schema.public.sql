@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict uk4Tmo34obJyfxtwdwkLne3QHmvna6J5UeFKF517PQuCcYypEQrMAdAWWvkONk2
+\restrict vRsBAnln53AO8OYcizl5xYeIHbaU6EC6dGGkKsN7JTAoAd09SQKRjK1uvCfV6HW
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -7968,6 +7968,98 @@ CREATE POLICY "Admins, arbitrators, or gang
 
 
 --
+-- Name: battle_sessions Admins, arbs or creator can delete battle sessions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs or creator can delete battle sessions" ON public.battle_sessions FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid))));
+
+
+--
+-- Name: battle_session_fighters Admins, arbs or own participant can delete fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs or own participant can delete fighters" ON public.battle_session_fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: battle_session_fighters Admins, arbs or own participant can insert fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs or own participant can insert fighters" ON public.battle_session_fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: battle_session_fighters Admins, arbs or own participant can update fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs or own participant can update fighters" ON public.battle_session_fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: battle_sessions Admins, arbs, creator or participants can update battle session; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs, creator or participants can update battle session" ON public.battle_sessions FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.battle_session_id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.battle_session_id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: battle_session_participants Admins, arbs, session creator or self can delete participants; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs, session creator or self can delete participants" ON public.battle_session_participants FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid))));
+
+
+--
+-- Name: battle_session_participants Admins, arbs, session creator or self can insert participants; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs, session creator or self can insert participants" ON public.battle_session_participants FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid))));
+
+
+--
+-- Name: battle_session_participants Admins, arbs, session creator or self can update participants; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs, session creator or self can update participants" ON public.battle_session_participants FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid)))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
+   FROM public.battle_sessions bs
+  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid))));
+
+
+--
 -- Name: custom_equipment Allow authenticated users to create custom equipment; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8014,6 +8106,27 @@ CREATE POLICY "Allow authenticated users to create custom territories" ON public
 --
 
 CREATE POLICY "Allow authenticated users to create custom weapon profiles" ON public.custom_weapon_profiles FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: battle_session_fighters Allow authenticated users to view battle session fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view battle session fighters" ON public.battle_session_fighters FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: battle_session_participants Allow authenticated users to view battle session participants; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view battle session participants" ON public.battle_session_participants FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: battle_sessions Allow authenticated users to view battle sessions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view battle sessions" ON public.battle_sessions FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -8477,6 +8590,15 @@ CREATE POLICY "Battle participants or campaign admins can update battles" ON pub
 CREATE POLICY "Campaign OWNER/ARBITRATOR or system admin can delete members, m" ON public.campaign_members FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (campaign_id IN ( SELECT cm.campaign_id
    FROM public.campaign_members cm
   WHERE ((cm.user_id = ( SELECT auth.uid() AS uid)) AND (cm.role = ANY (ARRAY['ARBITRATOR'::text, 'OWNER'::text])))))));
+
+
+--
+-- Name: battle_sessions Campaign members can create battle sessions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign members can create battle sessions" ON public.battle_sessions FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (campaign_id IN ( SELECT cm.campaign_id
+   FROM public.campaign_members cm
+  WHERE (cm.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
@@ -9734,6 +9856,24 @@ CREATE POLICY authenticated_view_vehicles ON public.vehicles FOR SELECT TO authe
 
 
 --
+-- Name: battle_session_fighters; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.battle_session_fighters ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: battle_session_participants; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.battle_session_participants ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: battle_sessions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.battle_sessions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: campaign_allegiances; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10635,5 +10775,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict uk4Tmo34obJyfxtwdwkLne3QHmvna6J5UeFKF517PQuCcYypEQrMAdAWWvkONk2
+\unrestrict vRsBAnln53AO8OYcizl5xYeIHbaU6EC6dGGkKsN7JTAoAd09SQKRjK1uvCfV6HW
 
