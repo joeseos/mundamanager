@@ -88,6 +88,10 @@ interface FighterDetailsCardProps {
     fighter_type_id: string;
     name?: string;
   } | null;
+  selected_archetype?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
@@ -249,7 +253,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   userPermissions,
   owner_name,
   image_url,
-  fighter_gang_legacy
+  fighter_gang_legacy,
+  selected_archetype
 }: FighterDetailsCardProps) {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState(image_url);
@@ -509,6 +514,15 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
         <div className="mt-2 text-left">
           <div className="text-sm text-muted-foreground">
             Gang Legacy: <Badge variant="secondary">{fighter_gang_legacy.name}</Badge>
+          </div>
+        </div>
+      )}
+
+      {/* Show Archetype information */}
+      {selected_archetype?.name && (
+        <div className="mt-2 text-left">
+          <div className="text-sm text-muted-foreground">
+            Archetype: <Badge variant="secondary">{selected_archetype.name}</Badge>
           </div>
         </div>
       )}

@@ -1190,22 +1190,13 @@ export function EditFighterModal({
                   onChange={(e) => setSelectedArchetypeId(e.target.value)}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">None (Use Default)</option>
+                  <option value="">None</option>
                   {archetypesData?.archetypes?.map((archetype: Archetype) => (
                     <option key={archetype.id} value={archetype.id}>
                       {archetype.name}
                     </option>
                   ))}
                 </select>
-                {fighter.selected_archetype_id ? (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current: {archetypesData?.archetypes?.find((a: Archetype) => a.id === fighter.selected_archetype_id)?.name || fighter.selected_archetype_id}
-                  </div>
-                ) : (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Current: None (Use Default)
-                  </div>
-                )}
                 <p className="text-xs text-muted-foreground mt-1">
                   Selecting an archetype will change the fighter&apos;s skill access.
                 </p>

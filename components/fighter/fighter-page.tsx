@@ -690,6 +690,7 @@ export default function FighterPage({
             owner_name={initialFighterData.fighter?.owner_name}
             fighter_gang_legacy={(fighterData as any)?.fighter?.fighter_gang_legacy}
             image_url={fighterData.fighter?.image_url}
+            selected_archetype={(fighterData as any)?.fighter?.selected_archetype}
           />
 
           {/* Vehicle Equipment Section - only show if fighter has a vehicle */}
