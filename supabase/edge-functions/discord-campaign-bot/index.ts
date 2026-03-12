@@ -42,14 +42,19 @@ Deno.serve(async (req) => {
 
     const gangMap = new Map(gangs?.map((g) => [g.id, g]) ?? []);
 
-    const attackerName = gangMap.get(battle.attacker_id)?.name ?? "Unknown";
-    const defenderName = gangMap.get(battle.defender_id)?.name ?? "Unknown";
     const winnerGang = battle.winner_id ? gangMap.get(battle.winner_id) : null;
 
-    const fields = [
-      { name: "⚔️ Attacker", value: attackerName, inline: true },
-      { name: "🛡️ Defender", value: defenderName, inline: true },
-    ];
+    const fields: { name: string; value: string; inline: boolean }[] = [];
+
+    if (battle.attacker_id) {
+      const attackerName = gangMap.get(battle.attacker_id)?.name ?? "Unknown";
+      fields.push({ name: "⚔️ Attacker", value: attackerName, inline: true });
+    }
+
+    if (battle.defender_id) {
+      const defenderName = gangMap.get(battle.defender_id)?.name ?? "Unknown";
+      fields.push({ name: "🛡️ Defender", value: defenderName, inline: true });
+    }
 
     if (winnerGang) {
       fields.push({ name: "🏆 Winner", value: winnerGang.name, inline: false });
