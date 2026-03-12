@@ -594,11 +594,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         }
       } catch (beastCreationError) {
         // Clean up the equipment that was just inserted since the beast it grants failed to create
-        if (params.buy_for_gang_stash) {
-          await supabase.from('gang_stash').delete().eq('id', newEquipmentId);
-        } else {
-          await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
-        }
+        await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
         throw beastCreationError;
       }
     }

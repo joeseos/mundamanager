@@ -108,9 +108,9 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         if (newVehicleIds.length) await supabase.from('fighter_effects').delete().in('vehicle_id', newVehicleIds);
       } catch (_) {}
       try { if (newFighterIds.length) await supabase.from('fighter_skills').delete().in('fighter_id', newFighterIds); } catch (_) {}
+      try { if (newFighterIds.length) await supabase.from('fighter_exotic_beasts').delete().in('fighter_pet_id', newFighterIds); } catch (_) {}
       try { await supabase.from('fighter_equipment').delete().eq('gang_id', newGangId); } catch (_) {}
       try { if (newVehicleIds.length) await supabase.from('vehicles').delete().in('id', newVehicleIds); } catch (_) {}
-      try { if (newFighterIds.length) await supabase.from('fighter_exotic_beasts').delete().in('fighter_pet_id', newFighterIds); } catch (_) {}
       try { if (newFighterIds.length) await supabase.from('fighters').delete().in('id', newFighterIds); } catch (_) {}
       try { await supabase.from('gangs').delete().eq('id', newGangId); } catch (_) {}
       throw err;
