@@ -163,7 +163,7 @@ export async function createExoticBeastsForEquipment(
       const skills = await addDefaultSkillsToBeast(supabase, newFighter.id, beastConfig.fighter_type_id, params.userId);
 
       // Create ownership record
-      const { data: ownershipRecord } = await supabase
+      const { data: ownershipRecord, error: ownershipError } = await supabase
         .from('fighter_exotic_beasts')
         .insert({
           fighter_owner_id: params.ownerFighterId || null,  // null for stash
@@ -173,60 +173,67 @@ export async function createExoticBeastsForEquipment(
         .select('id')
         .single();
 
-      if (ownershipRecord) {
-        // Link the beast to its ownership record for cascade deletion
-        await supabase
-          .from('fighters')
-          .update({ fighter_pet_id: ownershipRecord.id })
-          .eq('id', newFighter.id);
-
-        // Use the equipment and skills data we just created (no need to fetch again)
-        const beastData = {
-          id: newFighter.id,
-          fighter_name: newFighter.fighter_name,
-          fighter_type: newFighter.fighter_type,
-          fighter_class: newFighter.fighter_class,
-          fighter_type_id: beastConfig.fighter_type_id,
-          credits: fighterType.cost || 0,
-          equipment_source: 'Granted by equipment',
-          created_at: newFighter.created_at,
-          // Owner information (null for stash purchases)
-          owner: params.ownerFighterId ? {
-            id: params.ownerFighterId,
-            fighter_name: params.ownerFighterName || ''
-          } : null,
-          // Complete stats from the fighter type
-          movement: fighterType.movement,
-          weapon_skill: fighterType.weapon_skill,
-          ballistic_skill: fighterType.ballistic_skill,
-          strength: fighterType.strength,
-          toughness: fighterType.toughness,
-          wounds: fighterType.wounds,
-          initiative: fighterType.initiative,
-          attacks: fighterType.attacks,
-          leadership: fighterType.leadership,
-          cool: fighterType.cool,
-          willpower: fighterType.willpower,
-          intelligence: fighterType.intelligence,
-          xp: 0,
-          kills: 0,
-          special_rules: fighterType.special_rules || [],
-          equipment: equipment,
-          skills: skills
-        };
-        
-        createdBeasts.push(beastData);
+      if (ownershipError || !ownershipRecord) {
+        // Clean up the orphaned beast fighter
+        await supabase.from('fighters').delete().eq('id', newFighter.id);
+        throw new Error(`Failed to create beast ownership record: ${ownershipError?.message || 'No record returned'}`);
       }
+
+      // Link the beast to its ownership record for cascade deletion
+      const { error: linkError } = await supabase
+        .from('fighters')
+        .update({ fighter_pet_id: ownershipRecord.id })
+        .eq('id', newFighter.id);
+
+      if (linkError) {
+        // Clean up both the ownership record and the beast fighter
+        await supabase.from('fighter_exotic_beasts').delete().eq('id', ownershipRecord.id);
+        await supabase.from('fighters').delete().eq('id', newFighter.id);
+        throw new Error(`Failed to link beast to ownership record: ${linkError.message}`);
+      }
+
+      // Use the equipment and skills data we just created (no need to fetch again)
+      const beastData = {
+        id: newFighter.id,
+        fighter_name: newFighter.fighter_name,
+        fighter_type: newFighter.fighter_type,
+        fighter_class: newFighter.fighter_class,
+        fighter_type_id: beastConfig.fighter_type_id,
+        credits: fighterType.cost || 0,
+        equipment_source: 'Granted by equipment',
+        created_at: newFighter.created_at,
+        // Owner information (null for stash purchases)
+        owner: params.ownerFighterId ? {
+          id: params.ownerFighterId,
+          fighter_name: params.ownerFighterName || ''
+        } : null,
+        // Complete stats from the fighter type
+        movement: fighterType.movement,
+        weapon_skill: fighterType.weapon_skill,
+        ballistic_skill: fighterType.ballistic_skill,
+        strength: fighterType.strength,
+        toughness: fighterType.toughness,
+        wounds: fighterType.wounds,
+        initiative: fighterType.initiative,
+        attacks: fighterType.attacks,
+        leadership: fighterType.leadership,
+        cool: fighterType.cool,
+        willpower: fighterType.willpower,
+        intelligence: fighterType.intelligence,
+        xp: 0,
+        kills: 0,
+        special_rules: fighterType.special_rules || [],
+        equipment: equipment,
+        skills: skills
+      };
+
+      createdBeasts.push(beastData);
     }
 
     return { success: true, createdBeasts };
   } catch (error) {
     console.error('Error in exotic beast creation process:', error);
-    return { 
-      success: false, 
-      createdBeasts: [],
-      error: error instanceof Error ? error.message : 'Unknown error in beast creation'
-    };
+    throw error;
   }
 }
 

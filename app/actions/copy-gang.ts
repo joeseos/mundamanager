@@ -108,6 +108,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         if (newVehicleIds.length) await supabase.from('fighter_effects').delete().in('vehicle_id', newVehicleIds);
       } catch (_) {}
       try { if (newFighterIds.length) await supabase.from('fighter_skills').delete().in('fighter_id', newFighterIds); } catch (_) {}
+      try { if (newFighterIds.length) await supabase.from('fighter_exotic_beasts').delete().in('fighter_pet_id', newFighterIds); } catch (_) {}
       try { await supabase.from('fighter_equipment').delete().eq('gang_id', newGangId); } catch (_) {}
       try { if (newVehicleIds.length) await supabase.from('vehicles').delete().in('id', newVehicleIds); } catch (_) {}
       try { if (newFighterIds.length) await supabase.from('fighters').delete().in('id', newFighterIds); } catch (_) {}
@@ -133,6 +134,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         delete insertObj.id;
         insertObj.gang_id = newGangId;
         insertObj.user_id = user.id;
+        insertObj.fighter_pet_id = null; // Will be set after copying fighter_exotic_beasts
         // Do not set last_updated; let DB defaults handle timestamps
 
         const { data: newFighter, error: insertFighterError } = await supabase
@@ -278,6 +280,52 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           }
           if (inserted) {
             equipmentIdMap.set(item.id, inserted.id);
+          }
+        }
+      }
+    }
+
+    // 7.5) Copy fighter_exotic_beasts rows and link copied beast fighters
+    if (oldFighterIds.length > 0) {
+      const { data: sourceBeastRecords, error: beastLoadError } = await supabase
+        .from('fighter_exotic_beasts')
+        .select('*')
+        .in('fighter_pet_id', oldFighterIds);
+
+      if (beastLoadError) {
+        await cleanupOnError(new Error(`Failed to load beast records: ${beastLoadError.message}`));
+      }
+
+      if (sourceBeastRecords && sourceBeastRecords.length > 0) {
+        for (const record of sourceBeastRecords) {
+          const newPetId = fighterIdMap.get(record.fighter_pet_id);
+          const newOwnerId = record.fighter_owner_id ? fighterIdMap.get(record.fighter_owner_id) : null;
+          const newEquipmentId = record.fighter_equipment_id ? equipmentIdMap.get(record.fighter_equipment_id) : null;
+
+          if (!newPetId) continue; // Beast fighter wasn't copied
+
+          const { data: newRecord, error: beastInsertError } = await supabase
+            .from('fighter_exotic_beasts')
+            .insert({
+              fighter_owner_id: newOwnerId || null,
+              fighter_pet_id: newPetId,
+              fighter_equipment_id: newEquipmentId || null,
+            })
+            .select('id')
+            .single();
+
+          if (beastInsertError || !newRecord) {
+            await cleanupOnError(new Error(`Failed to copy beast ownership: ${beastInsertError?.message}`));
+          }
+
+          // Link the copied beast fighter to its new ownership record
+          const { error: linkError } = await supabase
+            .from('fighters')
+            .update({ fighter_pet_id: newRecord!.id })
+            .eq('id', newPetId);
+
+          if (linkError) {
+            await cleanupOnError(new Error(`Failed to link copied beast: ${linkError.message}`));
           }
         }
       }

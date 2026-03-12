@@ -593,7 +593,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           );
         }
       } catch (beastCreationError) {
-        console.error('Error in beast creation process:', beastCreationError);
+        // Clean up the equipment that was just inserted since the beast it grants failed to create
+        await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
+        throw beastCreationError;
       }
     }
 
@@ -614,7 +616,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           // Note: Don't add to rating since equipment is in stash
         }
       } catch (error) {
-        console.error('Error creating beasts for stash equipment:', error);
+        // Clean up the stash equipment that was just inserted since the beast it grants failed to create
+        await supabase.from('gang_stash').delete().eq('id', newEquipmentId);
+        throw error;
       }
     }
 
