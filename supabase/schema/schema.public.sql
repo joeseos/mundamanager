@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict pFPglm0rzglLgGNYop2O9h5bQBImFo8Gj5Bx7qOuyhf2Qo6sSAuYu3LRIs8lSZx
+\restrict tygdgWkd0P06zQEuebUdtX2tY6s4vc7Re5DzOO77ZaXEJyIHD0qDypG9HL1lbav
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -5137,6 +5137,7 @@ CREATE TABLE public.fighters (
     kill_count numeric,
     active_loadout_id uuid,
     selected_archetype_id uuid,
+    captured_by_gang_id uuid,
     CONSTRAINT fighters_label_check CHECK ((length(label) <= 5))
 );
 
@@ -7709,6 +7710,14 @@ ALTER TABLE ONLY public.fighter_types
 
 ALTER TABLE ONLY public.fighters
     ADD CONSTRAINT fighters_active_loadout_id_fkey FOREIGN KEY (active_loadout_id) REFERENCES public.fighter_loadouts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighters fighters_captured_by_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighters
+    ADD CONSTRAINT fighters_captured_by_gang_id_fkey FOREIGN KEY (captured_by_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -10775,5 +10784,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict pFPglm0rzglLgGNYop2O9h5bQBImFo8Gj5Bx7qOuyhf2Qo6sSAuYu3LRIs8lSZx
+\unrestrict tygdgWkd0P06zQEuebUdtX2tY6s4vc7Re5DzOO77ZaXEJyIHD0qDypG9HL1lbav
 
