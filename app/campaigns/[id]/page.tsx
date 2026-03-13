@@ -18,7 +18,8 @@ import {
   getAllTerritoriesWithCustom,
   getCampaignGangsForModal,
   getCampaignAllegiances,
-  getCampaignResources
+  getCampaignResources,
+  getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -90,7 +91,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       allTerritories,
       tradingPostTypesResult,
       campaignAllegiances,
-      campaignResources
+      campaignResources,
+      campaignCaptives
     ] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
@@ -100,7 +102,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         .select('id, trading_post_name')
         .order('trading_post_name'),
       getCampaignAllegiances(params.id, supabase),
-      getCampaignResources(params.id, supabase)
+      getCampaignResources(params.id, supabase),
+      getCampaignCaptives(params.id, supabase)
     ]);
 
     const tradingPostTypes = tradingPostTypesResult.data || [];
@@ -130,7 +133,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
-      triumphs: campaignTriumphs
+      triumphs: campaignTriumphs,
+      captives: campaignCaptives
     };
     
     if (!campaignData.id) {

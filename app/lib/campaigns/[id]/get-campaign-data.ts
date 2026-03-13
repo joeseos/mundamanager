@@ -958,6 +958,66 @@ export async function getCampaignAllegiances(campaignId: string, supabase: Supab
 }
 
 /**
+ * Get captives held by gangs in a campaign.
+ * Returns fighters captured by campaign gangs, grouped by holding gang.
+ * Not cached - captives change when fighters are captured/rescued.
+ */
+export async function getCampaignCaptives(campaignId: string, supabaseClient?: SupabaseClient) {
+  const supabase = supabaseClient ?? await createClient();
+  const { data: campaignGangs, error: gangsError } = await supabase
+    .from('campaign_gangs')
+    .select('gang_id')
+    .eq('campaign_id', campaignId)
+    .eq('status', 'ACCEPTED');
+
+  if (gangsError || !campaignGangs?.length) return [];
+
+  const gangIds = campaignGangs.map((cg) => cg.gang_id);
+
+  const { data: fighters, error: fightersError } = await supabase
+    .from('fighters')
+    .select('id, fighter_name, fighter_type, gang_id, captured_by_gang_id')
+    .eq('captured', true)
+    .in('captured_by_gang_id', gangIds);
+
+  if (fightersError || !fighters?.length) return [];
+
+  const gangIdsToResolve = new Set<string>();
+  for (const f of fighters) {
+    gangIdsToResolve.add(f.captured_by_gang_id as string);
+    gangIdsToResolve.add(f.gang_id);
+  }
+
+  const { data: gangs } = await supabase
+    .from('gangs')
+    .select('id, name')
+    .in('id', Array.from(gangIdsToResolve));
+
+  const gangNameMap = new Map((gangs ?? []).map((g) => [g.id, g.name]));
+
+  const byHoldingGang: Record<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangName: string }> }> = {};
+
+  for (const f of fighters) {
+    const key = f.captured_by_gang_id as string;
+    if (!byHoldingGang[key]) {
+      byHoldingGang[key] = {
+        gangId: key,
+        gangName: gangNameMap.get(key) ?? 'Unknown',
+        captives: []
+      };
+    }
+    byHoldingGang[key].captives.push({
+      fighterId: f.id,
+      fighterName: f.fighter_name,
+      fighterType: f.fighter_type ?? undefined,
+      originalGangName: gangNameMap.get(f.gang_id) ?? 'Unknown'
+    });
+  }
+
+  return Object.values(byHoldingGang).sort((a, b) => a.gangName.localeCompare(b.gangName));
+}
+
+/**
  * Get available resources for a campaign
  * Returns predefined campaign type resources and custom campaign resources
  */

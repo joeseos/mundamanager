@@ -949,6 +949,7 @@ export const getGangFightersList = async (
           enslaved,
           recovery,
           captured,
+          captured_by_gang_id,
           free_skill,
           kills,
           kill_count,
@@ -1010,7 +1011,8 @@ export const getGangFightersList = async (
         allBeastOwnershipInfo,
         allEquipmentTargetingEffects,
         allLoadoutEquipment,
-        allLoadouts
+        allLoadouts,
+        allCapturedByGangs
       ] = await Promise.all([
         // Batch fetch all equipment for all fighters
         supabase
@@ -1168,7 +1170,15 @@ export const getGangFightersList = async (
               .from('fighter_loadouts')
               .select('id, loadout_name')
               .in('id', allLoadoutIdsForFetch)
-          : Promise.resolve({ data: [] })
+          : Promise.resolve({ data: [] }),
+
+        // Batch fetch captured-by gang names
+        (() => {
+          const capturedByGangIds = Array.from(new Set((fighters || []).filter((f: any) => f.captured_by_gang_id).map((f: any) => f.captured_by_gang_id)));
+          return capturedByGangIds.length > 0
+            ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
+            : Promise.resolve({ data: [] });
+        })()
       ]);
 
       // Step 3: Fetch weapon profiles in batch for all weapons found
@@ -1385,6 +1395,12 @@ export const getGangFightersList = async (
       const loadoutNameMap = new Map<string, string>();
       (allLoadouts.data || []).forEach((loadout: any) => {
         loadoutNameMap.set(loadout.id, loadout.loadout_name);
+      });
+
+      // Create captured-by gang name map: gang_id -> name
+      const capturedByGangNameMap = new Map<string, string>();
+      (allCapturedByGangs?.data || []).forEach((g: any) => {
+        capturedByGangNameMap.set(g.id, g.name);
       });
 
       // Create fighter lookup map for O(1) beast lookups
@@ -1897,6 +1913,7 @@ export const getGangFightersList = async (
           captured: fighter.captured || false,
           free_skill: fighter.free_skill || false,
           image_url: fighter.image_url,
+          captured_by_gang_name: fighter.captured_by_gang_id ? capturedByGangNameMap.get(fighter.captured_by_gang_id) : undefined,
           owner_name: ownershipInfo?.owner_name,
           beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
           active_loadout_id: activeLoadoutId || undefined,

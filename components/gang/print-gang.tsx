@@ -1300,6 +1300,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         base_stats={fighterBaseStats}
                         current_stats={fighterCurrentStats}
                         owner_name={fighter.owner_name}
+                        captured_by_gang_name={(fighter as { captured_by_gang_name?: string }).captured_by_gang_name}
                         active_loadout_name={(fighter as any).active_loadout_name}
                       />
 

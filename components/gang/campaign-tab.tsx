@@ -15,6 +15,7 @@ import { HiUser } from "react-icons/hi2";
 import { IoHome } from "react-icons/io5";
 import { LuSwords } from "react-icons/lu";
 import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
+import { GiHandcuffs } from "react-icons/gi";
 
 interface Territory {
   id: string;
@@ -291,6 +292,27 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
   }, [gangId, campaigns]);
 
   // Fetch fighter stats (OOA caused, deaths suffered) via API with TanStack Query
+  // Fetch captives held by this gang
+  const { data: captivesData } = useQuery({
+    queryKey: ['gang-captives', gangId],
+    queryFn: async () => {
+      const response = await fetch(`/api/gangs/${gangId}/captives`);
+      if (!response.ok) throw new Error('Failed to fetch captives');
+      return response.json() as Promise<{
+        captives: Array<{
+          fighterId: string;
+          fighterName: string;
+          fighterType?: string;
+          originalGangName: string;
+        }>;
+      }>;
+    },
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const captives = captivesData?.captives ?? [];
+
   const { data: fighterStats } = useQuery({
     queryKey: ['gang-fighter-stats', gangId],
     queryFn: async () => {
@@ -736,6 +758,44 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
           </div>
         );
       })()}
+
+      {/* Captives */}
+      {campaigns.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <GiHandcuffs className="h-5 w-5 text-red-500" />
+            Captives
+          </h3>
+          {captives.length === 0 ? (
+            <p className="text-muted-foreground italic text-sm">
+              No fighters are currently held captive by this gang.
+            </p>
+          ) : (
+            <div className="border rounded-lg p-3 bg-muted/30">
+              <ul className="flex flex-wrap items-center gap-1.5">
+                <GiHandcuffs className="h-4 w-4 shrink-0 text-red-500" />
+                {captives.map((c) => (
+                  <li key={c.fighterId}>
+                    <Link
+                      href={`/fighter/${c.fighterId}`}
+                      prefetch={false}
+                      className="inline-flex"
+                    >
+                      <Badge variant="outline" className="hover:bg-muted font-normal">
+                        {c.fighterName}
+                        {c.fighterType && (
+                          <span className="ml-1 text-muted-foreground">— {c.fighterType}</span>
+                        )}
+                        <span className="ml-1 text-muted-foreground">({c.originalGangName})</span>
+                      </Badge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Battle Report Modal */}
       {selectedBattleReport && (
