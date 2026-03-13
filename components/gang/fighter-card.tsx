@@ -51,6 +51,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   disableLink?: boolean;
   viewMode?: 'normal' | 'small' | 'medium' | 'large';
   owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
+  captured_by_gang_name?: string;
   image_url?: string;
   isDragging?: boolean;
   active_loadout_name?: string;  // Name of the active loadout
@@ -156,6 +157,7 @@ const FighterCard = memo(function FighterCard({
   disableLink = false,
   viewMode = 'normal',
   owner_name,
+  captured_by_gang_name,
   image_url,
   isDragging = false,
   active_loadout_name,
@@ -500,7 +502,7 @@ const FighterCard = memo(function FighterCard({
       {!isInactive && (
         <>
           {/* Show active loadout and owner information */}
-          {(active_loadout_name || owner_name) && (
+          {(active_loadout_name || owner_name || (captured && captured_by_gang_name)) && (
             <div className="-mt-5 flex items-center gap-2">
               {/* Active loadout badge on the left */}
               {active_loadout_name && (
@@ -508,14 +510,24 @@ const FighterCard = memo(function FighterCard({
                   Loadout: <span className="font-semibold">{active_loadout_name}</span>
                 </div>
               )}
-              {/* Em dash separator when both are present */}
-              {active_loadout_name && owner_name && (
+              {/* Em dash separator */}
+              {active_loadout_name && (owner_name || (captured && captured_by_gang_name)) && (
                 <span className="text-sm italic">—</span>
               )}
-              {/* Owner information on the right */}
+              {/* Owner information */}
               {owner_name && (
                 <div className="text-sm italic">
                   Owned by <span className="font-semibold">{owner_name}</span>
+                </div>
+              )}
+              {/* Em dash separator */}
+              {owner_name && captured && captured_by_gang_name && (
+                <span className="text-sm italic">—</span>
+              )}
+              {/* Captured by gang information */}
+              {captured && captured_by_gang_name && (
+                <div className="text-sm italic">
+                  Captured by: <span className="font-semibold">{captured_by_gang_name}</span>
                 </div>
               )}
             </div>

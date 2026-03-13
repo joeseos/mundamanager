@@ -34,6 +34,7 @@ interface EditFighterStatusParams {
   action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
   sell_value?: number;
   refund?: boolean;
+  captured_by_gang_id?: string;
 }
 
 export interface UpdateFighterXpParams {
@@ -666,7 +667,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .from('fighters')
           .update({ 
             captured: willBeCaptured,
-            recovery: willBeCaptured ? false : fighter.recovery, // Clear recovery if capturing
+            captured_by_gang_id: willBeCaptured ? (params.captured_by_gang_id ?? null) : null,
+            recovery: willBeCaptured ? false : fighter.recovery,
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)

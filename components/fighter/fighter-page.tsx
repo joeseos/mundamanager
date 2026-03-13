@@ -117,6 +117,8 @@ interface Fighter {
   weapons?: any[];
   wargear?: any[];
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  captured_by_gang_name?: string;
+  captured_by_gang_id?: string;
   image_url?: string;
   base_credits?: number;
   base_copy_cost?: number;
@@ -688,6 +690,8 @@ export default function FighterPage({
             vehicleEquipment={fighterData.vehicleEquipment}
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
+            captured_by_gang_name={fighterData.fighter?.captured_by_gang_name}
+            captured_by_gang_id={fighterData.fighter?.captured_by_gang_id}
             fighter_gang_legacy={(fighterData as any)?.fighter?.fighter_gang_legacy}
             image_url={fighterData.fighter?.image_url}
             selected_archetype={(fighterData as any)?.fighter?.selected_archetype}

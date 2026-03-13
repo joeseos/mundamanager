@@ -18,6 +18,7 @@ import { LuSwords, LuTrophy, LuCodeXml } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { ImInfo } from "react-icons/im";
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
+import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
@@ -124,15 +125,20 @@ interface CampaignPageContentProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     battles: Battle[];
-      triumphs: {
-        id: string;
-        triumph: string;
-        criteria: string;
-        campaign_type_id: string;
-        created_at: string;
-        updated_at: string | null;
-      }[];
-    };
+    triumphs: {
+      id: string;
+      triumph: string;
+      criteria: string;
+      campaign_type_id: string;
+      created_at: string;
+      updated_at: string | null;
+    }[];
+    captives?: Array<{
+      gangId: string;
+      gangName: string;
+      captives: Array<{ fighterId: string; fighterName: string; originalGangName: string }>;
+    }>;
+  };
   userId?: string;
   permissions: CampaignPermissions | null;
   campaignTypes: CampaignType[];
@@ -730,6 +736,12 @@ export default function CampaignPageContent({
                 isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                 availableResources={campaignResources}
               />
+            </div>
+
+            {/* Campaign Captured Fighters Section */}
+            <div className="mb-8">
+              <h2 className="text-xl md:text-2xl font-bold mb-4">Captured Fighters</h2>
+              <CampaignCaptivesList captives={campaignData.captives ?? []} />
             </div>
   
             {/* Campaign Territories Section */}

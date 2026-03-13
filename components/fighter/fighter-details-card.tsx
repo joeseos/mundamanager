@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { FighterDetailsStatsTable } from '../ui/fighter-details-stats-table';
@@ -82,6 +83,8 @@ interface FighterDetailsCardProps {
   gangId?: string;
   userPermissions: UserPermissions;
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  captured_by_gang_name?: string;
+  captured_by_gang_id?: string;
   image_url?: string;
   fighter_gang_legacy?: {
     id: string;
@@ -252,6 +255,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   gangId,
   userPermissions,
   owner_name,
+  captured_by_gang_name,
+  captured_by_gang_id,
   image_url,
   fighter_gang_legacy,
   selected_archetype
@@ -503,8 +508,26 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       {/* Show owner information for owned fighters */}
       {owner_name && (
         <div className="mt-2 text-left">
-          <div className="text-sm text-foreground">
-            Owned by <Badge variant="secondary">{owner_name}</Badge>
+          <div className="text-sm text-muted-foreground">
+            Owned by: <Badge variant="secondary">{owner_name}</Badge>
+          </div>
+        </div>
+      )}
+      
+      {/* Show captured-by gang information */}
+      {captured && captured_by_gang_name && (
+        <div className="mt-2 text-left">
+          <div className="text-sm text-muted-foreground">
+            Captured by:{' '}
+            {captured_by_gang_id ? (
+              <Link href={`/gang/${captured_by_gang_id}`} prefetch={false} className="inline-block">
+                <Badge variant="outline" className="hover:bg-secondary/80 cursor-pointer">
+                  {captured_by_gang_name}
+                </Badge>
+              </Link>
+            ) : (
+              <Badge variant="secondary">{captured_by_gang_name}</Badge>
+            )}
           </div>
         </div>
       )}

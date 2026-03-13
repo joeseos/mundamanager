@@ -4,7 +4,8 @@ import {
   getCampaignBasic, 
   getCampaignMembers, 
   getCampaignTerritories, 
-  getCampaignBattles 
+  getCampaignBattles,
+  getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { revalidateTag } from 'next/cache';
 
@@ -31,12 +32,14 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaignBasic,
       campaignMembers,
       campaignTerritories,
-      campaignBattles
+      campaignBattles,
+      campaignCaptives
     ] = await Promise.all([
       getCampaignBasic(campaignId),
       getCampaignMembers(campaignId),
       getCampaignTerritories(campaignId),
-      getCampaignBattles(campaignId)
+      getCampaignBattles(campaignId),
+      getCampaignCaptives(campaignId)
     ]);
 
     // Return 404 if campaign not found
@@ -69,7 +72,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       has_salvage: campaignBasic.has_salvage,
       members: campaignMembers,
       territories: campaignTerritories,
-      battles: campaignBattles
+      battles: campaignBattles,
+      captives: campaignCaptives
     };
 
     return NextResponse.json(campaignData);

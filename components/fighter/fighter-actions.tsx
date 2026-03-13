@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
@@ -13,6 +13,7 @@ import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox } from '@/components/ui/combobox';
 
 interface Fighter {
   id: string;
@@ -32,6 +33,7 @@ interface Fighter {
   owner_name?: string;
   fighter_class?: string;
   campaigns?: Array<{
+    campaign_id: string;
     resources?: Array<{ resource_name: string }>;
   }>;
   vehicles?: Array<{
@@ -96,6 +98,56 @@ export function FighterActions({
     copy: false
   });
 
+  const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; owner_username?: string }>>([]);
+  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
+
+  const campaignIds = useMemo(() =>
+    fighter?.campaigns?.map(c => c.campaign_id).filter(Boolean) ?? [],
+    [fighter?.campaigns]
+  );
+
+  useEffect(() => {
+    if (!modals.captured || fighter?.captured || campaignIds.length === 0) {
+      setCampaignGangs([]);
+      setSelectedCapturingGangId('');
+      return;
+    }
+
+    let cancelled = false;
+    setIsFetchingGangs(true);
+
+    const fetchGangs = async () => {
+      try {
+        const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
+        const seenIds = new Set<string>();
+
+        for (const campaignId of campaignIds) {
+          const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
+          if (!res.ok) continue;
+          const gangs = await res.json();
+          for (const g of gangs) {
+            if (g.id !== gang.id && !seenIds.has(g.id)) {
+              seenIds.add(g.id);
+              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, owner_username: g.owner_username });
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setCampaignGangs(allGangs);
+        }
+      } catch (err) {
+        console.error('Failed to fetch campaign gangs:', err);
+      } finally {
+        if (!cancelled) setIsFetchingGangs(false);
+      }
+    };
+
+    fetchGangs();
+    return () => { cancelled = true; };
+  }, [modals.captured, fighter?.captured, campaignIds, gang.id]);
+
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign =>
       campaign.resources?.some(r => r.resource_name.toLowerCase() === 'meat')
@@ -122,7 +174,7 @@ export function FighterActions({
 
   // TanStack mutation for fighter status updates
   const statusMutation = useMutation({
-    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund?: boolean }) => {
+    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund?: boolean; captured_by_gang_id?: string }) => {
       const result = await editFighterStatus({ fighter_id: fighterId, ...variables });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter status');
       return result;
@@ -200,8 +252,12 @@ export function FighterActions({
 
   // Delete handled via statusMutation; close modal immediately in onConfirm
 
-  const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number) => {
-    statusMutation.mutate({ action, sell_value: action === 'sell' ? sellValue : undefined });
+  const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number, capturedByGangId?: string) => {
+    statusMutation.mutate({
+      action,
+      sell_value: action === 'sell' ? sellValue : undefined,
+      captured_by_gang_id: action === 'capture' ? capturedByGangId : undefined,
+    });
     return true;
   };
 
@@ -458,20 +514,64 @@ export function FighterActions({
         <Modal
           title={fighter?.captured ? "Rescue Fighter" : "Capture Fighter"}
           content={
-            <div>
+            <div className="space-y-4">
               <p>
                 {fighter?.captured
                   ? `Are you sure you want to rescue "${fighter?.fighter_name}" from captivity?`
                   : `Are you sure you want to mark "${fighter?.fighter_name}" as captured?`
                 }
               </p>
+              {!fighter?.captured && campaignIds.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Captured by
+                  </label>
+                  {isFetchingGangs ? (
+                    <p className="text-sm text-muted-foreground">Loading gangs...</p>
+                  ) : campaignGangs.length > 0 ? (
+                    <Combobox
+                      options={campaignGangs
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(g => {
+                          const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                          return {
+                            value: g.id,
+                            label: (
+                              <span>
+                                <span>{g.name}</span>
+                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                              </span>
+                            ),
+                            displayValue: `${g.name}${owner}`,
+                          };
+                        })
+                      }
+                      value={selectedCapturingGangId}
+                      onValueChange={setSelectedCapturingGangId}
+                      placeholder="Select capturing gang..."
+                      clearable
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
+                  )}
+                </div>
+              )}
             </div>
           }
-          onClose={() => handleModalToggle('captured', false)}
+          onClose={() => {
+            handleModalToggle('captured', false);
+            setSelectedCapturingGangId('');
+          }}
           onConfirm={async () => {
-            const success = await handleActionConfirm('capture');
+            const success = await handleActionConfirm(
+              'capture',
+              undefined,
+              selectedCapturingGangId || undefined
+            );
             if (success) {
               handleModalToggle('captured', false);
+              setSelectedCapturingGangId('');
             }
           }}
         />

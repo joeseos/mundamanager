@@ -117,10 +117,11 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       .map((beast: any) => beast.fighter_pet_id)
       .filter(Boolean);
 
-    // Parallel batch: beast fighters and gang variants (non-critical queries)
+    // Parallel batch: beast fighters, gang variants, and captured-by gang name (non-critical queries)
     const [
       beastFightersResult,
-      gangVariantsResult
+      gangVariantsResult,
+      capturedByGangResult
     ] = await Promise.all([
       // Beast fighters (only if needed)
       beastIds.length > 0
@@ -145,7 +146,16 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             .select('id, variant')
             .in('id', gangBasic.gang_variants!)
             .then((result: any) => result.error ? { data: [] } : result)
-        : Promise.resolve({ data: [] })
+        : Promise.resolve({ data: [] }),
+      // Captured-by gang name (only if fighter is captured by a specific gang)
+      fighterBasic.captured_by_gang_id
+        ? supabase
+            .from('gangs')
+            .select('name')
+            .eq('id', fighterBasic.captured_by_gang_id)
+            .single()
+            .then((result: any) => result.error ? null : result.data?.name ?? null)
+        : Promise.resolve(null)
     ]);
 
     // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
@@ -258,6 +268,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         campaigns,
         owned_beasts: ownedBeasts,
         owner_name: ownerName,
+        captured_by_gang_name: capturedByGangResult ?? undefined,
       },
       gang: {
         id: gangBasic.id,

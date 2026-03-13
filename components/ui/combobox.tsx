@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { LuCheck, LuChevronsUpDown } from "react-icons/lu";
+import { LuCheck, LuChevronsUpDown, LuX } from "react-icons/lu";
 import { cn } from "@/app/lib/utils"
 
 /**
@@ -38,6 +38,7 @@ interface ComboboxProps {
   className?: string
   allowCustom?: boolean
   customPlaceholder?: string
+  clearable?: boolean
   onFocus?: () => void
 }
 
@@ -50,6 +51,7 @@ export function Combobox({
   className,
   allowCustom = false,
   customPlaceholder = "Enter custom value...",
+  clearable = false,
   onFocus
 }: ComboboxProps) {
   type DropdownDirection = 'up' | 'down'
@@ -245,7 +247,7 @@ export function Combobox({
               : "placeholder:text-muted-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "pr-10",
+            clearable && value ? "pr-16" : "pr-10",
             selectedOption && typeof selectedOption.label !== 'string' && !open && "text-transparent placeholder:text-transparent"
           )}
           placeholder={
@@ -272,6 +274,20 @@ export function Combobox({
               {selectedOption.displayValue || selectedOption.label}
             </span>
           </div>
+        )}
+        {clearable && value && !disabled && (
+          <button
+            type="button"
+            className="absolute right-10 top-0 h-full px-3 flex items-center justify-center hover:bg-primary/30"
+            onClick={(e) => {
+              e.stopPropagation()
+              onValueChange?.('')
+              setSearchValue('')
+              setInputValue('')
+            }}
+          >
+            <LuX className="h-4 w-4 opacity-50" />
+          </button>
         )}
         <button
           type="button"

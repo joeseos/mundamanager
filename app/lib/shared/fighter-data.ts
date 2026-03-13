@@ -48,6 +48,7 @@ export interface FighterBasic {
   enslaved?: boolean;
   recovery?: boolean;
   captured?: boolean;
+  captured_by_gang_id?: string | null;
   free_skill?: boolean;
   kills?: number;
   kill_count?: number;
@@ -158,6 +159,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
           enslaved,
           recovery,
           captured,
+          captured_by_gang_id,
           free_skill,
           kills,
           kill_count,
