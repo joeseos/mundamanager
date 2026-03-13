@@ -738,9 +738,9 @@ export default function CampaignPageContent({
               />
             </div>
 
-            {/* Campaign Captives Section */}
+            {/* Campaign Captured Fighters Section */}
             <div className="mb-8">
-              <h2 className="text-xl md:text-2xl font-bold mb-4">Captives</h2>
+              <h2 className="text-xl md:text-2xl font-bold mb-4">Captured Fighters</h2>
               <CampaignCaptivesList captives={campaignData.captives ?? []} />
             </div>
   

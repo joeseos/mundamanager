@@ -759,12 +759,12 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
         );
       })()}
 
-      {/* Captives */}
+      {/* Captured Fighters */}
       {campaigns.length > 0 && (
         <div className="mt-8">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <GiHandcuffs className="h-5 w-5 text-red-500" />
-            Captives
+            Captured Fighters
           </h3>
           {captives.length === 0 ? (
             <p className="text-muted-foreground italic text-sm">
