@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { MdCurrencyExchange } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { LuTrash2, LuSquarePen } from 'react-icons/lu';
+import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
 import { TbCornerLeftUp } from 'react-icons/tb';
 import { rollD6 } from '@/utils/dice';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -693,7 +694,7 @@ export function WeaponList({
               size="sm"
               onClick={() => handleOpenUpgradeModal(item)}
               disabled={!userPermissions.canEdit}
-              className="text-xs px-1.5 h-6"
+              className="text-xs px-1.5 w-7 h-6"
               title="Edit Equipment"
             >
               <LuSquarePen className="h-4 w-4" />
@@ -701,6 +702,22 @@ export function WeaponList({
           )}
           {!item.core_equipment && (
             <>
+              {item.is_consumable && (
+                <Button
+                  variant="outline_remove"
+                  size="sm"
+                  onClick={() => setDeleteModalData({
+                    id: item.fighter_equipment_id,
+                    equipmentId: item.equipment_id,
+                    name: item.equipment_name
+                  })}
+                  disabled={!userPermissions.canEdit}
+                  className="text-xs px-1.5 w-7.5 h-6"
+                  title="Consume / Remove"
+                >
+                  <MdOutlineRemoveCircleOutline className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -708,7 +725,7 @@ export function WeaponList({
                   setStashModalData(item);
                 }}
                 disabled={!userPermissions.canEdit}
-                className="text-xs px-1.5 w-7 h-6"
+                className="text-xs px-1.5 w-7.5 h-6"
                 title="Store in Stash"
               >
                 <FaBox className="h-4 w-4" /> {/* Stash */}
@@ -720,27 +737,11 @@ export function WeaponList({
                   setSellModalData(item);
                 }}
                 disabled={!userPermissions.canEdit}
-                className="text-xs px-1.5 w-7 h-6"
+                className="text-xs px-1.5 w-7.5 h-6"
                 title="Sell"
               >
                 <MdCurrencyExchange className="h-4 w-4" /> {/* Sell */}
               </Button>
-              {item.is_consumable && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setDeleteModalData({
-                    id: item.fighter_equipment_id,
-                    equipmentId: item.equipment_id,
-                    name: item.equipment_name
-                  })}
-                  disabled={!userPermissions.canEdit}
-                  className="text-xs px-1.5 w-7 h-6"
-                  title="Delete"
-                >
-                  <LuTrash2 className="h-4 w-4" />
-                </Button>
-              )}
             </>
           )}
         </div>
@@ -793,7 +794,7 @@ export function WeaponList({
             <div className="flex justify-end gap-1">
               {typeData?.is_editable === true && (
                 <Button
-                  variant="destructive"
+                  variant="outline_remove"
                   size="sm"
                   onClick={() => {
                     setDeleteEffectModalData({
@@ -804,7 +805,7 @@ export function WeaponList({
                     });
                   }}
                   disabled={!userPermissions.canEdit || deleteEffectMutation.isPending}
-                  className="text-xs px-1.5 h-6"
+                  className="text-xs px-1.5 w-7.5 h-6"
                   title="Delete"
                 >
                   <LuTrash2 className="h-4 w-4" />
