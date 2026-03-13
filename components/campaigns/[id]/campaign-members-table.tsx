@@ -419,8 +419,9 @@ export default function MembersTable({
         } : null
       };
 
-      // Find the member index in the members array
-      const memberIndex = members.findIndex(m => m.user_id === variables.userId);
+      // Match the exact member row that was clicked (we always have campaignMemberId from the Add Gang flow)
+      if (!variables.campaignMemberId) return {};
+      const memberIndex = members.findIndex(m => m.id === variables.campaignMemberId);
       if (memberIndex === -1) return {};
 
       // Create updated member with the new gang
@@ -467,9 +468,8 @@ export default function MembersTable({
     },
     onError: (error, variables, context) => {
       // Rollback optimistic update
-      if (context?.previousMembers) {
-        // Find the previous member state
-        const previousMember = context.previousMembers.find(m => m.user_id === variables.userId);
+      if (context?.previousMembers && variables.campaignMemberId) {
+        const previousMember = context.previousMembers.find(m => m.id === variables.campaignMemberId);
         if (previousMember) {
           onMemberUpdate({ updatedMember: previousMember });
         }
