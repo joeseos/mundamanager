@@ -13,7 +13,7 @@ import { moveEquipmentToStash } from '@/app/actions/move-to-stash';
 import { fitWeaponToHardpoint, updateVehicleHardpoint } from '@/app/actions/vehicle-hardpoints';
 import { MdCurrencyExchange, MdOutlineLinkOff } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
-import { LuTrash2 } from 'react-icons/lu';
+import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
 import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
 import { Equipment } from '@/types/equipment';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -891,6 +891,17 @@ export function VehicleEquipmentList({
         ]}
         actions={[
           {
+            icon: <MdOutlineRemoveCircleOutline className="h-4 w-4" />,
+            variant: 'outline_remove',
+            onClick: (item) => setDeleteModalData({
+              id: item.fighter_equipment_id,
+              equipmentId: item.equipment_id,
+              name: item.equipment_name
+            }),
+            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit,
+            visible: (item) => item.is_consumable === true
+          },
+          {
             icon: <FaBox className="h-4 w-4" />,
             variant: 'outline',
             onClick: (item) => {
@@ -919,17 +930,6 @@ export function VehicleEquipmentList({
               }
             },
             disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit
-          },
-          {
-            icon: <LuTrash2 className="h-4 w-4" />,
-            variant: 'outline_remove',
-            onClick: (item) => setDeleteModalData({
-              id: item.fighter_equipment_id,
-              equipmentId: item.equipment_id,
-              name: item.equipment_name
-            }),
-            disabled: (item) => item.core_equipment || isLoading || !userPermissions.canEdit,
-            visible: (item) => item.is_consumable === true
           }
         ]}
         onAdd={onAddEquipment}
