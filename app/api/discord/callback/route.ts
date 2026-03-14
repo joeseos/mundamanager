@@ -6,20 +6,33 @@ import { CACHE_TAGS } from '@/utils/cache-tags'
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
+
+  // 1. Log all incoming search params
+  console.log('[Discord Callback] Incoming params:', Object.fromEntries(searchParams.entries()))
+
   const guildId = searchParams.get('guild_id')
   const state = searchParams.get('state') // campaignId
 
   if (!guildId || !state) {
+    // 2. Log which param is missing
+    console.log('[Discord Callback] Missing params — guild_id:', guildId, 'state:', state)
     return NextResponse.redirect(new URL('/?error=missing_params', request.url))
   }
 
   const campaignId = state
+
+  // 3. Log guildId and campaignId
+  console.log('[Discord Callback] guildId:', guildId, 'campaignId:', campaignId)
 
   try {
     const supabase = await createClient()
 
     // Authenticate user
     const userId = await getUserIdFromClaims(supabase)
+
+    // 4. Log userId (or null)
+    console.log('[Discord Callback] userId:', userId)
+
     if (!userId) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -43,7 +56,12 @@ export async function GET(request: NextRequest) {
     const isAppAdmin = profileResult.data?.user_role === 'admin'
     const isCampaignAdmin = !!memberResult.data
 
+    // 5. Log auth query results
+    console.log('[Discord Callback] Auth check — userId:', userId, 'isCampaignAdmin:', isCampaignAdmin, 'isAppAdmin:', isAppAdmin, 'memberResult error:', memberResult.error, 'profileResult error:', profileResult.error)
+
     if (!isCampaignAdmin && !isAppAdmin) {
+      // 6. Log unauthorized before redirect
+      console.log('[Discord Callback] Unauthorized — redirecting. campaignId:', campaignId, 'userId:', userId)
       return NextResponse.redirect(new URL(`/campaigns/${campaignId}?error=unauthorized`, request.url))
     }
 
@@ -56,10 +74,13 @@ export async function GET(request: NextRequest) {
       })
       .eq('id', campaignId)
 
+    // 7. Log DB update result
     if (updateError) {
-      console.error('Failed to save discord_guild_id:', updateError)
+      console.error('[Discord Callback] DB update error:', updateError)
       return NextResponse.redirect(new URL(`/campaigns/${campaignId}?error=save_failed`, request.url))
     }
+
+    console.log('[Discord Callback] DB update success — guildId:', guildId, 'campaignId:', campaignId)
 
     // Invalidate campaign cache
     revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId))
@@ -78,6 +99,8 @@ export async function GET(request: NextRequest) {
   window.close();
 </script>
 </body></html>`
+
+    console.log('[Discord Callback] Success — returning HTML. guildId:', guildId, 'campaignId:', campaignId)
 
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' },
