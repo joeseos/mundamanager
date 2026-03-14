@@ -53,7 +53,7 @@ function applyNumericModifiers(
     parsedBase = baseValue;
   } else if (typeof baseValue === 'string' && options.parseStrings) {
     // Remove common formatting characters
-    const cleaned = baseValue.replace(/[+\-\s]/g, '').trim();
+    const cleaned = baseValue.replace(/["\s]/g, '').replace(/\+$/, '').trim();
 
     if (cleaned === '' || cleaned === 'N/A') {
       // Unparseable values like "-", "N/A", etc.
