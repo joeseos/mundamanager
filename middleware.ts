@@ -14,7 +14,8 @@ export async function middleware(request: NextRequest) {
   const authPages = ['/sign-in', '/sign-up'];
 
   if (authPages.includes(pathname)) {
-    // Create minimal Supabase client for auth check only
+    let response = NextResponse.next({ request });
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -23,8 +24,12 @@ export async function middleware(request: NextRequest) {
           getAll() {
             return request.cookies.getAll();
           },
-          setAll() {
-            // No-op for read-only auth check
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+            response = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            );
           },
         },
       }
@@ -33,10 +38,9 @@ export async function middleware(request: NextRequest) {
     const userId = await getUserIdFromClaims(supabase);
 
     if (userId) {
-      // Already authenticated, redirect to home
       return NextResponse.redirect(new URL('/', request.url));
     }
-    return NextResponse.next({ request });
+    return response;
   }
 
   // Public pages - accessible to everyone, no auth check
