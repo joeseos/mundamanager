@@ -393,7 +393,7 @@ export default function CampaignPageContent({
     e.currentTarget.src = "https://res.cloudinary.com/dle0tkpbl/image/upload/v1732965431/default-gang_image.jpg";
   };
 
-  const canEditImage = !!(permissions?.isOwner || permissions?.isArbitrator || permissions?.isAdmin);
+  const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -482,22 +482,20 @@ export default function CampaignPageContent({
                   <FiMap className="size-[80px] text-muted-foreground" />
                 </div>
               )}
-              {canEditImage && (
-                <div
-                  className={`absolute z-20 w-[250px] h-[250px] cursor-pointer hover:opacity-80 transition-opacity`}
-                  onClick={() => setShowImageModal(true)}
-                >
-                  <Image
-                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                    alt="Cogwheel"
-                    width={250}
-                    height={250}
-                    className="absolute z-20 w-[250px] h-auto"
-                    priority
-                    quality={100}
-                  />
-                </div>
-              )}
+              <div
+                className={`absolute z-20 w-[250px] h-[250px] transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : 'pointer-events-none'}`}
+                {...(canEditImage && { onClick: () => setShowImageModal(true) })}
+              >
+                <Image
+                  src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
+                  alt="Cogwheel"
+                  width={250}
+                  height={250}
+                  className="absolute z-20 w-[250px] h-auto"
+                  priority
+                  quality={100}
+                />
+              </div>
             </div>
 
             {/* Right Section: Content */}
