@@ -36,7 +36,8 @@ export async function PATCH(request: Request) {
       .select('role')
       .eq('campaign_id', campaignId)
       .eq('user_id', userId)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     const previousRole = currentRoleData?.role;
 

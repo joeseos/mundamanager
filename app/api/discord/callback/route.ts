@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
         .eq('campaign_id', campaignId)
         .eq('user_id', userId)
         .in('role', ['OWNER', 'ARBITRATOR'])
+        .limit(1)
         .maybeSingle(),
       supabase
         .from('profiles')
