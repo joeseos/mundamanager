@@ -153,7 +153,8 @@ export async function POST(request: Request) {
       .select('role')
       .eq('campaign_id', campaignId)
       .eq('user_id', requesterId)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     // Allow if:
     // 1. User is OWNER/ARBITRATOR, or
@@ -215,7 +216,8 @@ export async function DELETE(request: Request) {
       .select('role')
       .eq('campaign_id', campaignId)
       .eq('user_id', requesterId)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (requesterId !== userId && memberData?.role !== 'OWNER' && memberData?.role !== 'ARBITRATOR') {
       return NextResponse.json(

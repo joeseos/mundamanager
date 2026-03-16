@@ -48,6 +48,7 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
       .select('id')
       .eq('campaign_id', campaignId)
       .eq('user_id', userId)
+      .limit(1)
       .maybeSingle();
     
     if (memberFetchError) throw memberFetchError;

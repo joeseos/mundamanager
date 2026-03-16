@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         .eq('campaign_id', campaignResult.data.id)
         .eq('user_id', userId)
         .in('role', ['OWNER', 'ARBITRATOR'])
+        .limit(1)
         .maybeSingle()
 
       if (!memberData) {
