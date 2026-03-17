@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import Image from 'next/image'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import type { CustomEquipment } from '@/app/lib/customise/custom-equipment'
@@ -13,6 +12,8 @@ import { CustomiseEquipment } from '@/components/customise/custom-equipment'
 import { CustomiseTerritories } from '@/components/customise/custom-territories'
 import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
+import { GangsTab } from '@/components/home/gangs-tab'
+import { CampaignsTab } from '@/components/home/campaigns-tab'
 
 interface UserCampaign {
   id: string;
@@ -80,7 +81,6 @@ export default function HomeTabs({
     };
   }, [handleTabChange]);
 
-  // Check for tab parameter in URL
   useEffect(() => {
     const tabParam = searchParams.get('tab') as TabKey | null;
     const tabIndex = tabParam ? TAB_KEYS.indexOf(tabParam) : -1;
@@ -116,158 +116,9 @@ export default function HomeTabs({
 
       {/* Tab Content */}
       <div className="space-y-4">
-        {activeTab === 0 && (
-          <div className="bg-card shadow-md rounded-lg p-4">
-            <h2 className="text-xl md:text-2xl font-bold mb-4">Gangs</h2>
-            {gangs.length === 0 ? (
-              <p className="text-center text-muted-foreground">No gangs created yet.</p>
-            ) : (
-              <ul className="space-y-3">
-                {[...gangs].sort((a, b) => {
-                  const dateA = new Date(b.last_updated || b.created_at).getTime();
-                  const dateB = new Date(a.last_updated || a.created_at).getTime();
-                  return dateA - dateB;
-                }).map((gang) => (
-                  <li key={gang.id}>
-                    <a href={`/gang/${gang.id}`} className="flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200">
-                      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
-                        {(() => {
-                          // Helper function to get the default image URL
-                          let imageUrl: string | null = null;
-                          
-                          // If custom image exists, use it
-                          if (gang.image_url) {
-                            imageUrl = gang.image_url;
-                          }
-                          // Else if default_gang_image is set and gang_type_default_image_urls exists and index is valid
-                          else if (gang.default_gang_image !== null && gang.default_gang_image !== undefined && 
-                                   gang.gang_type_default_image_urls && 
-                                   Array.isArray(gang.gang_type_default_image_urls) &&
-                                   gang.default_gang_image >= 0 && 
-                                   gang.default_gang_image < gang.gang_type_default_image_urls.length) {
-                            imageUrl = gang.gang_type_default_image_urls[gang.default_gang_image].url;
-                          }
-                          
-                          return imageUrl ? (
-                            <Image
-                              src={imageUrl}
-                              alt={gang.name}
-                              width={60}
-                              height={60}
-                              className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
-                              priority={false}
-                              onError={(e) => {
-                                console.error('Failed to load image:', e.currentTarget.src);
-                                e.currentTarget.src = "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp";
-                              }}
-                            />
-                          ) : (
-                            <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                              {gang.name.charAt(0)}
-                            </div>
-                          );
-                        })()}
-                        <Image
-                          src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                          alt=""
-                          width={80}
-                          height={80}
-                          className="absolute z-20 scale-110"
-                          priority
-                          sizes="80px, 80px"
-                        />
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{gang.name}</h3>
-                        <div className="text-sm md:text-base text-muted-foreground">
-                          <span className="truncate block">
-                            {gang.gang_type}
-                            {gang.gang_variants && gang.gang_variants.length > 0
-                              ? ` (${gang.gang_variants.map(v => v.variant).join(', ')})`
-                              : ''}
-                          </span>
-                          <span>Rating: {gang.rating ?? 0}</span>
-                          {gang.campaigns && gang.campaigns.length > 0 && (
-                            <span className="block">Campaign: {gang.campaigns[0].campaign_name}</span>
-                          )}
-                        </div>
-                      </div>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {activeTab === 0 && <GangsTab gangs={gangs} />}
 
-        {activeTab === 1 && (
-          <div className="bg-card shadow-md rounded-lg p-4">
-            <h2 className="text-xl md:text-2xl font-bold mb-4">Campaigns</h2>
-            {campaigns.length === 0 ? (
-              <p className="text-center text-muted-foreground">No campaigns created yet.</p>
-            ) : (
-              <ul className="space-y-3">
-                {[...campaigns].sort((a, b) => {
-                  const dateA = new Date(a.updated_at || a.created_at).getTime();
-                  const dateB = new Date(b.updated_at || b.created_at).getTime();
-                  return dateB - dateA;
-                }).map((campaign) => (
-                  <li key={campaign.campaign_member_id}>
-                    <a href={`/campaigns/${campaign.id}`} className="flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200">
-                      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
-                        {campaign.image_url || campaign.campaign_type_image_url ? (
-                          <Image
-                            src={campaign.image_url || campaign.campaign_type_image_url}
-                            alt={campaign.campaign_name}
-                            width={60}
-                            height={60}
-                            className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
-                            priority={false}
-                            onError={(e) => {
-                              console.error('Failed to load image:', e.currentTarget.src);
-                              e.currentTarget.src = "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/underhive-gang-badzone-enforcers_ntnpzu.jpg";
-                            }}
-                          />
-                        ) : (
-                          <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                            {campaign.campaign_name.charAt(0)}
-                          </div>
-                        )}
-                        <Image
-                          src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                          alt=""
-                          width={80}
-                          height={80}
-                          className="absolute z-20 scale-110"
-                          priority
-                          sizes="80px, 80px"
-                        />
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{campaign.campaign_name}</h3>
-                        <div className="text-sm md:text-base text-muted-foreground">
-                          <span className="truncate block">{campaign.campaign_type}</span>
-                          {campaign.user_gangs && campaign.user_gangs.length > 0 && (
-                            <span>
-                              {campaign.user_gangs.length === 1
-                                ? 'Your Gang: '
-                                : 'Your Gangs: '}
-                              {campaign.user_gangs
-                                .slice()
-                                .sort((a, b) => a.name.localeCompare(b.name))
-                                .map(gang => gang.name)
-                                .join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {activeTab === 1 && <CampaignsTab campaigns={campaigns} />}
 
         {activeTab === 2 && (
           <div className="bg-card shadow-md rounded-lg p-4 space-y-6">
@@ -302,4 +153,4 @@ export default function HomeTabs({
       </div>
     </div>
   );
-} 
+}

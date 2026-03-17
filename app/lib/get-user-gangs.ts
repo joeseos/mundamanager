@@ -24,6 +24,8 @@ export type Gang = {
   last_updated: string;
   gang_variants: Array<{id: string, variant: string}>;
   campaigns: Array<{campaign_id: string, campaign_name: string}>;
+  is_favourite: boolean;
+  favourite_order: number | null;
 };
 
 // Type for raw gang data from Supabase with nested gang_types
@@ -91,6 +93,8 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
         created_at,
         last_updated,
         gang_variants,
+        is_favourite,
+        favourite_order,
         gang_types!gang_type_id(image_url, default_image_urls)
       `)
       .eq('user_id', user.id)
@@ -183,7 +187,9 @@ export const getUserGangs = cache(async function fetchUserGangs(): Promise<Gang[
       created_at: gang.created_at,
       last_updated: gang.last_updated,
       gang_variants: gang.gang_variants,
-      campaigns: gang.campaigns
+      campaigns: gang.campaigns,
+      is_favourite: gang.is_favourite ?? false,
+      favourite_order: gang.favourite_order ?? null,
     }));
 
     console.log(`Server: Processed ${gangsWithRatings.length} gangs with ratings`);

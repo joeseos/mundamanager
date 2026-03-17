@@ -15,6 +15,8 @@ export type Campaign = {
   image_url: string;
   campaign_type_image_url: string;
   user_gangs?: { id: string; name: string }[];
+  is_favourite: boolean;
+  favourite_order: number | null;
 };
 
 // Use React's cache for Server Component memoization
@@ -28,7 +30,7 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
     // First get campaign members for this user
     const { data: campaignMembers, error: membersError } = await supabase
       .from('campaign_members')
-      .select('id, campaign_id, role, status')
+      .select('id, campaign_id, role, status, is_favourite, favourite_order')
       .eq('user_id', user.id);
 
     if (membersError) {
@@ -90,7 +92,9 @@ export const getUserCampaigns = cache(async function fetchUserCampaigns(): Promi
         role: memberData?.role || '',
         status: memberData?.status || '',
         image_url: campaign.image_url || '',
-        campaign_type_image_url: typeData?.image_url || ''
+        campaign_type_image_url: typeData?.image_url || '',
+        is_favourite: memberData?.is_favourite ?? false,
+        favourite_order: memberData?.favourite_order ?? null,
       };
     }) as Campaign[];
 
