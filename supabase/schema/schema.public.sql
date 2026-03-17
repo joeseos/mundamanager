@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict oFOsLUkFG2L2haIrfazinHxPyqv8bA9Yqw7DBgem28Sf3f1jMUynEMdFKPMYbQI
+\restrict W7ZWlDUUNAAbhT045OC3Dc9dtL1oKq4epSTqtK6ynRN7cDvW3nyyOeLoIf1t8Fh
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -4294,6 +4294,8 @@ CREATE TABLE public.campaign_members (
     joined_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
+    is_favourite boolean DEFAULT false NOT NULL,
+    favourite_order integer,
     CONSTRAINT campaign_members_role_check CHECK ((role = ANY (ARRAY['ADMIN'::text, 'MEMBER'::text, 'OWNER'::text, 'ARBITRATOR'::text])))
 );
 
@@ -5326,7 +5328,9 @@ CREATE TABLE public.gangs (
     sustenance numeric,
     salvage numeric,
     hidden boolean DEFAULT false,
-    default_gang_image numeric
+    default_gang_image numeric,
+    is_favourite boolean DEFAULT false NOT NULL,
+    favourite_order integer
 );
 
 
@@ -6832,6 +6836,13 @@ CREATE INDEX idx_vehicles_gang_id ON public.vehicles USING btree (gang_id);
 --
 
 CREATE INDEX notifications_receiver_id_idx ON public.notifications USING btree (receiver_id);
+
+
+--
+-- Name: scenarios_scenario_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenario_name);
 
 
 --
@@ -10791,5 +10802,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict oFOsLUkFG2L2haIrfazinHxPyqv8bA9Yqw7DBgem28Sf3f1jMUynEMdFKPMYbQI
+\unrestrict W7ZWlDUUNAAbhT045OC3Dc9dtL1oKq4epSTqtK6ynRN7cDvW3nyyOeLoIf1t8Fh
 
