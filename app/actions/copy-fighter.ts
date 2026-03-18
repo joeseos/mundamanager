@@ -98,7 +98,12 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           vehicle_id
         ),
         fighter_skills(
-          skill_id
+          id,
+          skill_id,
+          custom_skill_id,
+          credits_increase,
+          xp_cost,
+          is_advance
         ),
         fighter_effects(
           id,
@@ -107,6 +112,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           type_specific_data,
           fighter_equipment_id,
           target_equipment_id,
+          fighter_skill_id,
           fighter_effect_type:fighter_effect_type_id(
             fighter_effect_category:fighter_effect_category_id(
               category_name
@@ -361,6 +367,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     // Copy equipment (fighter equipment only - no vehicle_id)
     // Build equipment ID map for effect FK remapping
     const equipmentIdMap = new Map<string, string>();
+    // Build skill ID map for effect FK remapping (fighter_skill_id)
+    const skillIdMap = new Map<string, string>();
 
     if (sourceFighter.fighter_equipment && sourceFighter.fighter_equipment.length > 0) {
       const sourceEquipNonVehicle = sourceFighter.fighter_equipment
@@ -428,16 +436,25 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       const skillsToCopy = sourceFighter.fighter_skills.map((skill: any) => ({
         fighter_id: newFighterId,
         skill_id: skill.skill_id,
+        custom_skill_id: skill.custom_skill_id ?? null,
+        credits_increase: skill.credits_increase ?? 0,
+        xp_cost: skill.xp_cost ?? 0,
+        is_advance: skill.is_advance ?? false,
         user_id: gang.user_id
       }));
 
-      const { error: skillsError } = await supabase
+      const { data: insertedSkills, error: skillsError } = await supabase
         .from('fighter_skills')
-        .insert(skillsToCopy);
+        .insert(skillsToCopy)
+        .select('id');
 
       if (skillsError) {
         return await rollbackFighter(`Failed to copy skills: ${skillsError.message}`);
       }
+
+      sourceFighter.fighter_skills.forEach((skill: any, i: number) => {
+        if (insertedSkills?.[i]?.id) skillIdMap.set(skill.id, insertedSkills[i].id);
+      });
     }
 
     // Copy effects and modifiers (when experienced: all effects; when not: exclude injuries and advancements)
@@ -465,6 +482,13 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
               console.warn(`Equipment ID remap miss: target_equipment_id ${effect.target_equipment_id} not found in map`);
             }
           }
+          let mappedSkillId: string | null = null;
+          if (effect.fighter_skill_id) {
+            mappedSkillId = skillIdMap.get(effect.fighter_skill_id) || null;
+            if (!mappedSkillId) {
+              console.warn(`Skill ID remap miss: fighter_skill_id ${effect.fighter_skill_id} not found in map`);
+            }
+          }
           return {
             fighter_id: newFighterId,
             effect_name: effect.effect_name,
@@ -472,6 +496,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             type_specific_data: effect.type_specific_data,
             fighter_equipment_id: mappedEquipId,
             target_equipment_id: mappedTargetId,
+            fighter_skill_id: mappedSkillId,
             user_id: gang.user_id
           };
         });
