@@ -833,7 +833,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     <>
       {!noContainer && (
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
           {!hideAddButton && (
             <Button
               onClick={() => {

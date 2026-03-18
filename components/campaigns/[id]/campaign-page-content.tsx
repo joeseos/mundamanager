@@ -431,7 +431,7 @@ export default function CampaignPageContent({
             } flex items-center justify-center`}
           >
             <LuSwords className="size-4" />
-            <span className="ml-2 hidden sm:inline">Battle Log</span>
+            <span className="ml-2 hidden sm:inline">Battle Logs</span>
           </button>
           <button
             onClick={() => setActiveTab(3)}
@@ -844,7 +844,7 @@ export default function CampaignPageContent({
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-xl md:text-2xl font-bold">Battle Log</h2>
+                  <h2 className="text-xl md:text-2xl font-bold">Battle Logs</h2>
                   {safePermissions.canAddBattleLogs && (
                     <Button
                       className="bg-neutral-900 hover:bg-gray-800 text-white"
