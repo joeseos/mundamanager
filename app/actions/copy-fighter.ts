@@ -120,7 +120,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           ),
           fighter_effect_modifiers(
             stat_name,
-            numeric_value
+            numeric_value,
+            operation
           )
         ),
         fighter_injuries(
@@ -533,7 +534,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
                 allModifiers.push({
                   fighter_effect_id: newEffectId,
                   stat_name: modifier.stat_name,
-                  numeric_value: modifier.numeric_value
+                  numeric_value: modifier.numeric_value,
+                  operation: modifier.operation ?? null
                 });
               });
             }
@@ -622,7 +624,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           const modifiersToCopy = effect.fighter_effect_modifiers.map((m: any) => ({
             fighter_effect_id: newEffect.id,
             stat_name: m.stat_name,
-            numeric_value: m.numeric_value
+            numeric_value: m.numeric_value,
+            operation: m.operation ?? null
           }));
 
           const { error: modifiersError } = await supabase
@@ -652,7 +655,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
               fighter_effect_type:fighter_effect_type_id(
                 fighter_effect_category:fighter_effect_category_id(category_name)
               ),
-              fighter_effect_modifiers(stat_name, numeric_value)
+              fighter_effect_modifiers(stat_name, numeric_value, operation)
             )
           `)
           .eq('id', beastRecord.fighter_pet_id)
@@ -834,7 +837,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
                     allBeastModifiers.push({
                       fighter_effect_id: newEffectId,
                       stat_name: modifier.stat_name,
-                      numeric_value: modifier.numeric_value
+                      numeric_value: modifier.numeric_value,
+                      operation: modifier.operation ?? null
                     });
                   });
                 }
