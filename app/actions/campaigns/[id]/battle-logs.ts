@@ -33,8 +33,6 @@ export interface BattleLogParams {
   participants: BattleParticipant[];
   claimed_territories?: TerritoryClaimRequest[];
   created_at?: string;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
   cycle?: number | null;
 }
 
@@ -154,23 +152,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       cycle
     } = params;
 
-    // Get territory IDs if a territory is being claimed
-    let territory_id: string | null = null;
-    let custom_territory_id: string | null = null;
-
-    if (claimed_territories.length > 0) {
-      const { data: territoryData } = await supabase
-        .from('campaign_territories')
-        .select('territory_id, custom_territory_id')
-        .eq('id', claimed_territories[0].campaign_territory_id)
-        .single();
-
-      if (territoryData) {
-        territory_id = territoryData.territory_id;
-        custom_territory_id = territoryData.custom_territory_id;
-      }
-    }
-
     // First, create the battle record
     const { data: battle, error: battleError } = await supabase
       .from('campaign_battles')
@@ -184,8 +165,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           note,
           participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
           created_at: created_at ?? new Date().toISOString(),
-          territory_id,
-          custom_territory_id,
+          campaign_territory_id: claimed_territories.length > 0 ? claimed_territories[0].campaign_territory_id : null,
           cycle
         }
       ])
@@ -290,23 +270,6 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       throw new Error('Battle not found or access denied');
     }
 
-    // Get territory IDs if a territory is being claimed
-    let territory_id: string | null = null;
-    let custom_territory_id: string | null = null;
-
-    if (claimed_territories.length > 0) {
-      const { data: territoryData } = await supabase
-        .from('campaign_territories')
-        .select('territory_id, custom_territory_id')
-        .eq('id', claimed_territories[0].campaign_territory_id)
-        .single();
-
-      if (territoryData) {
-        territory_id = territoryData.territory_id;
-        custom_territory_id = territoryData.custom_territory_id;
-      }
-    }
-
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
       scenario,
@@ -316,8 +279,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       note,
       participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
       updated_at: new Date().toISOString(),
-      territory_id,
-      custom_territory_id,
+      campaign_territory_id: claimed_territories.length > 0 ? claimed_territories[0].campaign_territory_id : null,
       cycle
     };
     if (created_at) {

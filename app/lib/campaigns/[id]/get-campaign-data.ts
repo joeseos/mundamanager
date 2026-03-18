@@ -436,8 +436,7 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       note,
       participants,
       scenario_id,
-      territory_id,
-      custom_territory_id,
+      campaign_territory_id,
       cycle
     `)
     .eq('campaign_id', campaignId)
@@ -480,31 +479,24 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
   const gangMap = new Map(gangsData.map(gang => [gang.id, gang]));
   const scenarioMap = new Map(scenariosData.map(scenario => [scenario.id, scenario]));
 
-  // Fetch territory names from campaign_territories
-  const territoryIds = data?.map(b => b.territory_id || b.custom_territory_id).filter(Boolean) || [];
-  let territoriesMap = new Map<string, string>();
+  // Fetch territory names from campaign_territories by instance ID
+  const campaignTerritoryIds = data?.map(b => b.campaign_territory_id).filter(Boolean) || [];
+  const territoriesMap = new Map<string, string>(); // campaign_territory_id → name
 
-  if (territoryIds.length > 0) {
+  if (campaignTerritoryIds.length > 0) {
     const { data: territories } = await supabase
       .from('campaign_territories')
-      .select('territory_id, custom_territory_id, territory_name')
-      .eq('campaign_id', campaignId)
-      .or(`territory_id.in.(${territoryIds.join(',')}),custom_territory_id.in.(${territoryIds.join(',')})`);
+      .select('id, territory_name')
+      .in('id', campaignTerritoryIds);
 
-    if (territories) {
-      territories.forEach(t => {
-        const key = t.territory_id || t.custom_territory_id;
-        if (key) {
-          territoriesMap.set(key, t.territory_name);
-        }
-      });
-    }
+    territories?.forEach(t => territoriesMap.set(t.id, t.territory_name));
   }
 
   return data?.map(battle => {
     const scenarioDetails = scenarioMap.get(battle.scenario_id);
-    const territoryKey = battle.territory_id || battle.custom_territory_id;
-    const territoryName = territoryKey ? territoriesMap.get(territoryKey) : undefined;
+    const territoryName = battle.campaign_territory_id
+      ? territoriesMap.get(battle.campaign_territory_id)
+      : undefined;
 
     return {
       id: battle.id,
@@ -518,8 +510,7 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
-      territory_id: battle.territory_id,
-      custom_territory_id: battle.custom_territory_id,
+      campaign_territory_id: battle.campaign_territory_id,
       territory_name: territoryName,
       cycle: battle.cycle,
       attacker: battle.attacker_id ? {
