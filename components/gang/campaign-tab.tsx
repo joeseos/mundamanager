@@ -128,8 +128,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             winner_id,
             note,
             participants,
-            territory_id,
-            custom_territory_id,
+            campaign_territory_id,
             campaign_id
           `)
           .in('campaign_id', campaignIds)
@@ -205,35 +204,24 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
         const gangMap = new Map(gangsData.map(gang => [gang.id, gang]));
         const gangColourMap = new Map(gangsData.map(gang => [gang.id, gang.gang_colour || '#000000']));
 
-        // Fetch territory names
-        const territoryIds = gangBattles
-          .map(b => b.territory_id || b.custom_territory_id)
+        // Fetch territory names by campaign_territory_id
+        const campaignTerritoryIds = gangBattles
+          .map(b => b.campaign_territory_id)
           .filter(Boolean);
-        
-        let territoriesMap = new Map<string, string>();
-        if (territoryIds.length > 0) {
-          for (const campaignId of campaignIds) {
-            const { data: territories } = await supabase
-              .from('campaign_territories')
-              .select('territory_id, custom_territory_id, territory_name')
-              .eq('campaign_id', campaignId)
-              .or(`territory_id.in.(${territoryIds.join(',')}),custom_territory_id.in.(${territoryIds.join(',')})`);
-            
-            if (territories) {
-              territories.forEach(t => {
-                const key = t.territory_id || t.custom_territory_id;
-                if (key) {
-                  territoriesMap.set(key, t.territory_name);
-                }
-              });
-            }
-          }
+
+        const territoriesMap = new Map<string, string>(); // campaign_territory_id → name
+        if (campaignTerritoryIds.length > 0) {
+          const { data: territories } = await supabase
+            .from('campaign_territories')
+            .select('id, territory_name')
+            .in('id', campaignTerritoryIds);
+
+          territories?.forEach(t => territoriesMap.set(t.id, t.territory_name));
         }
 
         // Transform battles with additional data
         const enrichedBattles: BattleLog[] = gangBattles.map(battle => {
           const campaign = campaigns.find(c => c.campaign_id === battle.campaign_id);
-          const territoryKey = battle.territory_id || battle.custom_territory_id;
           
           // Process participants to include names
           let participantsWithNames = battle.participants;
@@ -259,7 +247,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             ...battle,
             campaign_id: battle.campaign_id,
             campaign_name: campaign?.campaign_name || 'Unknown Campaign',
-            territory_name: territoryKey ? territoriesMap.get(territoryKey) : undefined,
+            territory_name: battle.campaign_territory_id ? territoriesMap.get(battle.campaign_territory_id) : undefined,
             participants: participantsWithNames,
             attacker: battle.attacker_id ? {
               id: battle.attacker_id,

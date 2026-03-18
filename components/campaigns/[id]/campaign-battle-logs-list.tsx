@@ -1295,8 +1295,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           name: t.territory_name,
           controlled_by: t.gang_id || undefined,
           is_custom: t.is_custom,
-          territory_id: t.territory_id,
-          custom_territory_id: t.custom_territory_id,
           default_gang_territory: t.default_gang_territory
         }))}
         isOpen={showBattleModal}

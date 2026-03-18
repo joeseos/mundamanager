@@ -34,8 +34,7 @@ export interface Battle {
   winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string;
-  territory_id?: string | null;
-  custom_territory_id?: string | null;
+  campaign_territory_id?: string | null;
   territory_name?: string;
   cycle?: number | null;
   attacker?: GangReference;

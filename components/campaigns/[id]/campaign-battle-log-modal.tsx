@@ -114,8 +114,9 @@ const CampaignBattleLogModal = ({
         winner_id: battleData.winner_id,
         note: battleData.note,
         participants: battleData.participants,
-        territory_id: battleData.territory_id,
-        custom_territory_id: battleData.custom_territory_id,
+        campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
+          ? battleData.claimed_territories[0].campaign_territory_id
+          : null,
         territory_name: territoryName,
         cycle: battleData.cycle,
         // Add full gang objects for display
@@ -197,8 +198,9 @@ const CampaignBattleLogModal = ({
               winner_id: battleData.winner_id,
               note: battleData.note,
               participants: battleData.participants,
-              territory_id: battleData.territory_id,
-              custom_territory_id: battleData.custom_territory_id,
+              campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
+                ? battleData.claimed_territories[0].campaign_territory_id
+                : null,
               territory_name: territoryName,
               cycle: battleData.cycle,
               updated_at: new Date().toISOString(),
@@ -421,15 +423,9 @@ const CampaignBattleLogModal = ({
     setNotes(battleToEdit.note || "");
 
     // Set territory if the battle has one
-    if (battleToEdit.territory_id || battleToEdit.custom_territory_id) {
-      const matchedTerritory = territories.find(t =>
-        (battleToEdit.territory_id && t.territory_id === battleToEdit.territory_id) ||
-        (battleToEdit.custom_territory_id && t.custom_territory_id === battleToEdit.custom_territory_id)
-      );
-
-      if (matchedTerritory) {
-        setSelectedTerritory(matchedTerritory.id);
-      }
+    if (battleToEdit.campaign_territory_id) {
+      const matched = territories.find(t => t.id === battleToEdit.campaign_territory_id);
+      if (matched) setSelectedTerritory(matched.id);
     }
   }, [battleToEdit, scenarios, territories]);
 

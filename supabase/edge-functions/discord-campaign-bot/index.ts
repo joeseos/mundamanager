@@ -44,6 +44,17 @@ Deno.serve(async (req) => {
 
     const winnerGang = battle.winner_id ? gangMap.get(battle.winner_id) : null;
 
+    // Resolve territory name via campaign_territory_id
+    let territoryName: string | null = null;
+    if (battle.campaign_territory_id) {
+      const { data: territory } = await supabase
+        .from("campaign_territories")
+        .select("territory_name")
+        .eq("id", battle.campaign_territory_id)
+        .single();
+      territoryName = territory?.territory_name ?? null;
+    }
+
     const fields: { name: string; value: string; inline: boolean }[] = [];
 
     if (battle.attacker_id) {
@@ -66,6 +77,10 @@ Deno.serve(async (req) => {
 
     if (battle.cycle) {
       fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: true });
+    }
+
+    if (territoryName) {
+      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: true });
     }
 
     if (participants.length > 0) {

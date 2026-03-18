@@ -201,6 +201,7 @@ interface DataBattle {
   scenario_number: string | null;
   note: string;
   participants: any;
+  campaign_territory_id: string | null;
   territory_id: string | null;
   territory_is_custom: boolean;
   territory_name?: string;
@@ -280,8 +281,9 @@ function transformBattleForData(battle: any): DataBattle {
     scenario_number: battle.scenario_number,
     note: battle.note,
     participants: battle.participants,
-    territory_id: battle.territory_id || battle.custom_territory_id,
-    territory_is_custom: !!battle.custom_territory_id,
+    campaign_territory_id: battle.campaign_territory_id || null,
+    territory_id: null,
+    territory_is_custom: false,
     territory_name: battle.territory_name
   };
 
