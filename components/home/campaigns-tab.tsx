@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { toggleCampaignFavourite } from '@/app/actions/toggle-campaign-favourite'
-import { reorderFavouriteCampaigns } from '@/app/actions/reorder-favourite-campaigns'
+import { toggleFavourite } from '@/app/actions/toggle-favourite'
+import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/components/home/use-dnd-sensors'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
@@ -16,7 +15,6 @@ interface CampaignsTabProps {
 }
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
-  const router = useRouter();
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
   const [isMounted, setIsMounted] = useState(false);
   const sensors = useDndSensorsConfig();
@@ -62,14 +60,12 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
       );
     });
 
-    const result = await toggleCampaignFavourite({ campaign_member_id: campaignMemberId, is_favourite: isFavourite });
+    const result = await toggleFavourite({ type: 'campaign', id: campaignMemberId, is_favourite: isFavourite });
     if (!result.success) {
       setLocalCampaigns(previousCampaigns);
       toast.error(result.error || 'Failed to update favourite');
-    } else {
-      router.refresh();
     }
-  }, [localCampaigns, router]);
+  }, [localCampaigns]);
 
   const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
     const { active, over } = event;
@@ -93,7 +89,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
       return updated;
     });
 
-    const result = await reorderFavouriteCampaigns({ campaign_member_ids: newMemberIds });
+    const result = await reorderFavourites({ type: 'campaign', ids: newMemberIds });
     if (!result.success) {
       toast.error(result.error || 'Failed to reorder favourites');
     }

@@ -38,8 +38,8 @@ export default async function Home() {
     customFighterTypes,
     customSkills
   ] = await Promise.all([
-    getUserGangs(),
-    getUserCampaigns(),
+    getUserGangs(user.id, supabase),
+    getUserCampaigns(user.id, supabase),
     getUserCustomEquipment(user.id),
     getUserCustomTerritories(),
     getUserCustomFighterTypes(user.id),

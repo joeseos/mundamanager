@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { toggleGangFavourite } from '@/app/actions/toggle-gang-favourite'
-import { reorderFavouriteGangs } from '@/app/actions/reorder-favourite-gangs'
+import { toggleFavourite } from '@/app/actions/toggle-favourite'
+import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/components/home/use-dnd-sensors'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
@@ -16,7 +15,6 @@ interface GangsTabProps {
 }
 
 export function GangsTab({ gangs }: GangsTabProps) {
-  const router = useRouter();
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
   const [isMounted, setIsMounted] = useState(false);
   const sensors = useDndSensorsConfig();
@@ -62,14 +60,12 @@ export function GangsTab({ gangs }: GangsTabProps) {
       );
     });
 
-    const result = await toggleGangFavourite({ gang_id: gangId, is_favourite: isFavourite });
+    const result = await toggleFavourite({ type: 'gang', id: gangId, is_favourite: isFavourite });
     if (!result.success) {
       setLocalGangs(previousGangs);
       toast.error(result.error || 'Failed to update favourite');
-    } else {
-      router.refresh();
     }
-  }, [localGangs, router]);
+  }, [localGangs]);
 
   const handleDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
     const { active, over } = event;
@@ -93,7 +89,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
       return updated;
     });
 
-    const result = await reorderFavouriteGangs({ gang_ids: newGangIds });
+    const result = await reorderFavourites({ type: 'gang', ids: newGangIds });
     if (!result.success) {
       toast.error(result.error || 'Failed to reorder favourites');
     }
