@@ -72,7 +72,7 @@ export async function reorderFavourites(
 
     return { success: true };
   } catch (error) {
-    console.error(`Error reordering favourite ${entityLabel}:`, error);
+    console.error(`Error reordering favourite ${params.type}s:`, error);
     return { success: false, error: 'An unexpected error occurred' };
   }
 }
