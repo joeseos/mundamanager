@@ -151,6 +151,12 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           engine_slots_occupied,
           special_rules,
           cost
+        ),
+        fighter_exotic_beasts!fighter_exotic_beasts_fighter_owner_id_fkey(
+          id,
+          fighter_owner_id,
+          fighter_pet_id,
+          fighter_equipment_id
         )
       `)
       .eq('id', params.fighter_id)
@@ -307,9 +313,17 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
     const vehicleIdMap = new Map<string, string>();
     let copiedVehicleCount = 0;
 
+    // Beast fighter IDs for rollback
+    const newBeastFighterIds: string[] = [];
+
     // Helper function to rollback (delete the created fighter) on error
     const rollbackFighter = async (errorMessage: string) => {
       console.error('Rolling back fighter creation due to error:', errorMessage);
+
+      // Delete any created beast fighters (beast ownership records and effects cascade)
+      if (newBeastFighterIds.length > 0) {
+        await supabase.from('fighters').delete().in('id', newBeastFighterIds);
+      }
 
       // Delete any created vehicles first (due to FK constraint)
       if (vehicleIdMap.size > 0) {
@@ -618,6 +632,252 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           if (modifiersError) {
             return await rollbackFighter(`Failed to copy vehicle effect modifiers: ${modifiersError.message}`);
           }
+        }
+      }
+    }
+
+    // Copy exotic beasts
+    if (sourceFighter.fighter_exotic_beasts && sourceFighter.fighter_exotic_beasts.length > 0) {
+      for (const beastRecord of sourceFighter.fighter_exotic_beasts) {
+        // Fetch full beast fighter data
+        const { data: beastFighter, error: beastFetchError } = await supabase
+          .from('fighters')
+          .select(`
+            *,
+            fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted),
+            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance),
+            fighter_effects(
+              id, effect_name, fighter_effect_type_id, type_specific_data,
+              fighter_equipment_id, target_equipment_id, fighter_skill_id,
+              fighter_effect_type:fighter_effect_type_id(
+                fighter_effect_category:fighter_effect_category_id(category_name)
+              ),
+              fighter_effect_modifiers(stat_name, numeric_value)
+            )
+          `)
+          .eq('id', beastRecord.fighter_pet_id)
+          .single();
+
+        if (beastFetchError || !beastFighter) {
+          return await rollbackFighter(`Failed to fetch beast fighter: ${beastFetchError?.message}`);
+        }
+
+        // Insert new beast fighter (fighter_pet_id set to null initially, linked after ownership record)
+        const { data: newBeastFighter, error: beastInsertError } = await supabase
+          .from('fighters')
+          .insert({
+            gang_id: params.target_gang_id,
+            fighter_name: beastFighter.fighter_name,
+            fighter_type: beastFighter.fighter_type,
+            fighter_type_id: beastFighter.fighter_type_id,
+            fighter_class: beastFighter.fighter_class,
+            fighter_class_id: beastFighter.fighter_class_id,
+            fighter_sub_type: beastFighter.fighter_sub_type,
+            fighter_sub_type_id: beastFighter.fighter_sub_type_id,
+            custom_fighter_type_id: beastFighter.custom_fighter_type_id,
+            fighter_gang_legacy_id: beastFighter.fighter_gang_legacy_id,
+            user_id: gang.user_id,
+            movement: beastFighter.movement,
+            weapon_skill: beastFighter.weapon_skill,
+            ballistic_skill: beastFighter.ballistic_skill,
+            strength: beastFighter.strength,
+            toughness: beastFighter.toughness,
+            wounds: beastFighter.wounds,
+            initiative: beastFighter.initiative,
+            attacks: beastFighter.attacks,
+            leadership: beastFighter.leadership,
+            cool: beastFighter.cool,
+            willpower: beastFighter.willpower,
+            intelligence: beastFighter.intelligence,
+            xp: params.copy_as_experienced ? beastFighter.xp : 0,
+            total_xp: params.copy_as_experienced ? beastFighter.total_xp : 0,
+            kills: params.copy_as_experienced ? beastFighter.kills : 0,
+            credits: beastFighter.credits,
+            cost_adjustment: beastFighter.cost_adjustment,
+            special_rules: beastFighter.special_rules,
+            free_skill: beastFighter.free_skill,
+            label: beastFighter.label,
+            image_url: beastFighter.image_url,
+            note: beastFighter.note,
+            note_backstory: beastFighter.note_backstory,
+            killed: false,
+            retired: false,
+            enslaved: false,
+            captured: false,
+            recovery: false,
+            starved: false,
+            fighter_pet_id: null
+          })
+          .select('id')
+          .single();
+
+        if (beastInsertError || !newBeastFighter) {
+          return await rollbackFighter(`Failed to copy beast fighter: ${beastInsertError?.message}`);
+        }
+
+        newBeastFighterIds.push(newBeastFighter.id);
+
+        // Copy beast equipment — build per-beast equipment ID map for effect FK remapping
+        const beastEquipmentIdMap = new Map<string, string>();
+        if (beastFighter.fighter_equipment && beastFighter.fighter_equipment.length > 0) {
+          for (const eq of beastFighter.fighter_equipment) {
+            const { data: insertedBeastEquip, error: beastEquipError } = await supabase
+              .from('fighter_equipment')
+              .insert({
+                fighter_id: newBeastFighter.id,
+                equipment_id: eq.equipment_id,
+                custom_equipment_id: eq.custom_equipment_id,
+                purchase_cost: eq.purchase_cost,
+                original_cost: eq.original_cost,
+                is_master_crafted: eq.is_master_crafted || false,
+                gang_id: params.target_gang_id,
+                user_id: gang.user_id
+              })
+              .select('id')
+              .single();
+
+            if (beastEquipError) {
+              return await rollbackFighter(`Failed to copy beast equipment: ${beastEquipError.message}`);
+            }
+            if (insertedBeastEquip) {
+              beastEquipmentIdMap.set(eq.id, insertedBeastEquip.id);
+            }
+          }
+        }
+
+        // Copy beast skills (only when copying as experienced)
+        const beastSkillIdMap = new Map<string, string>();
+        if (params.copy_as_experienced && beastFighter.fighter_skills && beastFighter.fighter_skills.length > 0) {
+          const beastSkillsToCopy = beastFighter.fighter_skills.map((skill: any) => ({
+            fighter_id: newBeastFighter.id,
+            skill_id: skill.skill_id,
+            custom_skill_id: skill.custom_skill_id ?? null,
+            credits_increase: skill.credits_increase ?? 0,
+            xp_cost: skill.xp_cost ?? 0,
+            is_advance: skill.is_advance ?? false,
+            user_id: gang.user_id
+          }));
+
+          const { data: insertedBeastSkills, error: beastSkillsError } = await supabase
+            .from('fighter_skills')
+            .insert(beastSkillsToCopy)
+            .select('id');
+
+          if (beastSkillsError) {
+            return await rollbackFighter(`Failed to copy beast skills: ${beastSkillsError.message}`);
+          }
+
+          beastFighter.fighter_skills.forEach((skill: any, i: number) => {
+            if (insertedBeastSkills?.[i]?.id) beastSkillIdMap.set(skill.id, insertedBeastSkills[i].id);
+          });
+        }
+
+        // Copy beast effects and modifiers
+        if (beastFighter.fighter_effects && beastFighter.fighter_effects.length > 0) {
+          const beastEffectsToCopyList = params.copy_as_experienced
+            ? beastFighter.fighter_effects
+            : beastFighter.fighter_effects.filter((effect: any) => {
+                const categoryName = effect.fighter_effect_type?.fighter_effect_category?.category_name;
+                return categoryName !== 'injuries' && categoryName !== 'advancements' && categoryName !== 'power-boosts';
+              });
+
+          if (beastEffectsToCopyList.length > 0) {
+            const beastEffectsToCopy = beastEffectsToCopyList.map((effect: any) => {
+              let mappedEquipId: string | null = null;
+              if (effect.fighter_equipment_id) {
+                mappedEquipId = beastEquipmentIdMap.get(effect.fighter_equipment_id) || null;
+                if (!mappedEquipId) {
+                  console.warn(`Beast equipment ID remap miss: fighter_equipment_id ${effect.fighter_equipment_id} not found in map`);
+                }
+              }
+              let mappedTargetId: string | null = null;
+              if (effect.target_equipment_id) {
+                mappedTargetId = beastEquipmentIdMap.get(effect.target_equipment_id) || null;
+                if (!mappedTargetId) {
+                  console.warn(`Beast equipment ID remap miss: target_equipment_id ${effect.target_equipment_id} not found in map`);
+                }
+              }
+              let mappedSkillId: string | null = null;
+              if (effect.fighter_skill_id) {
+                mappedSkillId = beastSkillIdMap.get(effect.fighter_skill_id) || null;
+                if (!mappedSkillId) {
+                  console.warn(`Beast skill ID remap miss: fighter_skill_id ${effect.fighter_skill_id} not found in map`);
+                }
+              }
+              return {
+                fighter_id: newBeastFighter.id,
+                effect_name: effect.effect_name,
+                fighter_effect_type_id: effect.fighter_effect_type_id,
+                type_specific_data: effect.type_specific_data,
+                fighter_equipment_id: mappedEquipId,
+                target_equipment_id: mappedTargetId,
+                fighter_skill_id: mappedSkillId,
+                user_id: gang.user_id
+              };
+            });
+
+            const { data: insertedBeastEffects, error: beastEffectsError } = await supabase
+              .from('fighter_effects')
+              .insert(beastEffectsToCopy)
+              .select('id');
+
+            if (beastEffectsError) {
+              return await rollbackFighter(`Failed to copy beast effects: ${beastEffectsError.message}`);
+            }
+
+            if (insertedBeastEffects) {
+              const allBeastModifiers: any[] = [];
+              beastEffectsToCopyList.forEach((sourceEffect: any, index: number) => {
+                const newEffectId = insertedBeastEffects[index]?.id;
+                if (newEffectId && sourceEffect.fighter_effect_modifiers) {
+                  sourceEffect.fighter_effect_modifiers.forEach((modifier: any) => {
+                    allBeastModifiers.push({
+                      fighter_effect_id: newEffectId,
+                      stat_name: modifier.stat_name,
+                      numeric_value: modifier.numeric_value
+                    });
+                  });
+                }
+              });
+
+              if (allBeastModifiers.length > 0) {
+                const { error: beastModifiersError } = await supabase
+                  .from('fighter_effect_modifiers')
+                  .insert(allBeastModifiers);
+
+                if (beastModifiersError) {
+                  return await rollbackFighter(`Failed to copy beast effect modifiers: ${beastModifiersError.message}`);
+                }
+              }
+            }
+          }
+        }
+
+        // Create ownership record — remap fighter_equipment_id via the owner's equipmentIdMap
+        const { data: ownershipRecord, error: ownershipError } = await supabase
+          .from('fighter_exotic_beasts')
+          .insert({
+            fighter_owner_id: newFighterId,
+            fighter_pet_id: newBeastFighter.id,
+            fighter_equipment_id: beastRecord.fighter_equipment_id
+              ? equipmentIdMap.get(beastRecord.fighter_equipment_id) || null
+              : null
+          })
+          .select('id')
+          .single();
+
+        if (ownershipError || !ownershipRecord) {
+          return await rollbackFighter(`Failed to create beast ownership record: ${ownershipError?.message}`);
+        }
+
+        // Link the beast fighter back to the ownership record
+        const { error: beastLinkError } = await supabase
+          .from('fighters')
+          .update({ fighter_pet_id: ownershipRecord.id })
+          .eq('id', newBeastFighter.id);
+
+        if (beastLinkError) {
+          return await rollbackFighter(`Failed to link beast fighter to ownership record: ${beastLinkError.message}`);
         }
       }
     }
