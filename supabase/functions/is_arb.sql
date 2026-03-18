@@ -2,6 +2,7 @@ CREATE OR REPLACE FUNCTION private.is_arb(campaign_id_param uuid)
 RETURNS boolean
 LANGUAGE sql
 SECURITY DEFINER
+SET search_path = public, private
 STABLE
 AS $$
   SELECT EXISTS (

@@ -46,7 +46,7 @@ BEGIN
 
    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Create trigger on campaign_gangs table
 DROP TRIGGER IF EXISTS on_gang_invite ON campaign_gangs;

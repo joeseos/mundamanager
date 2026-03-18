@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION public.gang_logs(p_gang_id uuid, p_action_type text, 
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path = public
 AS $function$
 DECLARE
     log_id UUID;

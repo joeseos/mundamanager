@@ -41,7 +41,7 @@ RETURNS TABLE (
     sub_type jsonb,
     free_skill boolean,
     delegation_cost numeric
-) LANGUAGE plpgsql SECURITY DEFINER AS $$
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN QUERY
     SELECT
