@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict W7ZWlDUUNAAbhT045OC3Dc9dtL1oKq4epSTqtK6ynRN7cDvW3nyyOeLoIf1t8Fh
+\restrict uh8xNzDhhkk6Bw9VALieNxvn3Oxfxk0TCftJ9gfXA3JNniVR1ph6RMpQ0dA9vy5
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -428,6 +428,7 @@ $$;
 
 CREATE FUNCTION public.gang_logs(p_gang_id uuid, p_action_type text, p_description text, p_fighter_id uuid DEFAULT NULL::uuid, p_vehicle_id uuid DEFAULT NULL::uuid) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
     AS $$
 DECLARE
     log_id UUID;
@@ -459,6 +460,7 @@ $$;
 
 CREATE FUNCTION public.get_add_fighter_details(p_gang_type_id uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
     AS $$
 BEGIN
     RETURN QUERY
@@ -1290,6 +1292,7 @@ $$;
 
 CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, fighters_tradingpost_only boolean DEFAULT NULL::boolean, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, discounted_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[])
     LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
     AS $_$
     -- Regular equipment
     SELECT DISTINCT
@@ -1760,346 +1763,6 @@ $_$;
 
 
 --
--- Name: get_equipment_with_discounts(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_equipment_with_discounts(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, discounted_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    AS $_$
-    -- Regular equipment
-    SELECT DISTINCT
-        e.id,
-        e.equipment_name,
-        -- Natural NULL handling for availability - gang origin takes precedence when available
-        COALESCE(
-            (SELECT availability FROM equipment_availability WHERE gang_origin_id = gang_data.gang_origin_id AND equipment_id = e.id LIMIT 1),
-            ea_var.availability,
-            ea.availability,
-            e.availability
-        ) as availability,
-        e.cost::numeric as base_cost,
-        -- Gang origin OVERRIDES gang type completely - but only for items with origin data
-        CASE
-            WHEN gang_data.gang_origin_id IS NOT NULL
-                 AND EXISTS(SELECT 1 FROM equipment_discounts
-                           WHERE equipment_id = e.id
-                           AND gang_origin_id = gang_data.gang_origin_id) THEN
-                -- Use ONLY origin + fighter/legacy discounts (no gang_type!)
-                COALESCE((
-                    SELECT GREATEST(0, MAX(ed2.discount::numeric))
-                    FROM equipment_discounts ed2
-                    WHERE ed2.equipment_id = e.id
-                    AND (ed2.gang_origin_id = gang_data.gang_origin_id
-                         OR ed2.fighter_type_id = $3
-                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
-                         OR (gang_data.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.affiliation_ft_id))
-                ), 0)
-            ELSE
-                -- Use gang_type + fighter/legacy discounts (no origin!)
-                COALESCE((
-                    SELECT GREATEST(0, MAX(ed2.discount::numeric))
-                    FROM equipment_discounts ed2
-                    WHERE ed2.equipment_id = e.id
-                    AND ((ed2.gang_type_id = $1 AND ed2.fighter_type_id IS NULL)
-                         OR ed2.fighter_type_id = $3
-                         OR (gang_data.legacy_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
-                         OR (gang_data.affiliation_ft_id IS NOT NULL AND ed2.fighter_type_id = gang_data.affiliation_ft_id))
-                ), 0)
-        END as discounted_cost,
-        -- Gang origin OVERRIDES gang type completely for adjusted cost - but only for items with origin data
-        CASE
-            WHEN gang_data.gang_origin_id IS NOT NULL
-                 AND EXISTS(SELECT 1 FROM equipment_discounts
-                           WHERE equipment_id = e.id
-                           AND gang_origin_id = gang_data.gang_origin_id) THEN
-                -- Use ONLY origin + fighter/legacy adjusted costs (no gang_type!)
-                COALESCE(
-                    (SELECT MIN(ed3.adjusted_cost::numeric)
-                     FROM equipment_discounts ed3
-                     WHERE ed3.equipment_id = e.id
-                     AND ed3.adjusted_cost IS NOT NULL
-                     AND (ed3.gang_origin_id = gang_data.gang_origin_id
-                          OR ed3.fighter_type_id = $3
-                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
-                          OR (gang_data.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.affiliation_ft_id))),
-                    e.cost::numeric - COALESCE((
-                        SELECT GREATEST(0, MAX(ed4.discount::numeric))
-                        FROM equipment_discounts ed4
-                        WHERE ed4.equipment_id = e.id
-                        AND ed4.discount IS NOT NULL
-                        AND (ed4.gang_origin_id = gang_data.gang_origin_id
-                             OR ed4.fighter_type_id = $3
-                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
-                             OR (gang_data.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.affiliation_ft_id))
-                    ), 0),
-                    e.cost::numeric
-                )
-            ELSE
-                -- Use gang_type + fighter/legacy adjusted costs (no origin!)
-                COALESCE(
-                    (SELECT MIN(ed3.adjusted_cost::numeric)
-                     FROM equipment_discounts ed3
-                     WHERE ed3.equipment_id = e.id
-                     AND ed3.adjusted_cost IS NOT NULL
-                     AND ((ed3.gang_type_id = $1 AND ed3.fighter_type_id IS NULL)
-                          OR ed3.fighter_type_id = $3
-                          OR (gang_data.legacy_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
-                          OR (gang_data.affiliation_ft_id IS NOT NULL AND ed3.fighter_type_id = gang_data.affiliation_ft_id))),
-                    e.cost::numeric - COALESCE((
-                        SELECT GREATEST(0, MAX(ed4.discount::numeric))
-                        FROM equipment_discounts ed4
-                        WHERE ed4.equipment_id = e.id
-                        AND ed4.discount IS NOT NULL
-                        AND ((ed4.gang_type_id = $1 AND ed4.fighter_type_id IS NULL)
-                             OR ed4.fighter_type_id = $3
-                             OR (gang_data.legacy_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.legacy_ft_id AND $4 = true)
-                             OR (gang_data.affiliation_ft_id IS NOT NULL AND ed4.fighter_type_id = gang_data.affiliation_ft_id))
-                    ), 0),
-                    e.cost::numeric
-                )
-        END as adjusted_cost,
-        e.equipment_category,
-        e.equipment_type,
-        e.created_at,
-        CASE
-            WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL OR ea_var.id IS NOT NULL THEN true
-            ELSE false
-        END as fighter_type_equipment,
-        (
-            -- Gang trading post access (always available)
-            EXISTS (
-                SELECT 1
-                FROM gang_types gt, trading_post_equipment tpe
-                WHERE gt.gang_type_id = $1
-                AND tpe.trading_post_type_id = gt.trading_post_type_id
-                AND tpe.equipment_id = e.id
-            )
-            OR
-            -- Fighter trading post access (when fighter_type_id available)
-            EXISTS (
-                SELECT 1
-                FROM fighter_equipment_tradingpost fet,
-                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                WHERE (fet.fighter_type_id = $3
-                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                AND equip_id = e.id::text
-            )
-        ) as equipment_tradingpost,
-        false as is_custom,
-        -- Aggregate weapon profiles into a JSON array
-        COALESCE(
-            (
-                SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'id', wp.id,
-                        'profile_name', wp.profile_name,
-                        'range_short', wp.range_short,
-                        'range_long', wp.range_long,
-                        'acc_short', wp.acc_short,
-                        'acc_long', wp.acc_long,
-                        'strength', wp.strength,
-                        'ap', wp.ap,
-                        'damage', wp.damage,
-                        'ammo', wp.ammo,
-                        'traits', wp.traits,
-                        'sort_order', wp.sort_order
-                    )
-                    ORDER BY COALESCE(wp.sort_order, 999), wp.profile_name
-                )
-                FROM weapon_profiles wp
-                WHERE wp.weapon_id = e.id
-            ),
-            '[]'::jsonb
-        ) as weapon_profiles,
-        -- Determine vehicle upgrade slot from effect modifiers
-        CASE 
-            WHEN e.equipment_type = 'vehicle_upgrade' THEN (
-                SELECT 
-                    CASE 
-                        WHEN EXISTS (
-                            SELECT 1 FROM fighter_effect_types fet
-                            JOIN fighter_effect_type_modifiers fetm ON fet.id = fetm.fighter_effect_type_id
-                            WHERE fet.type_specific_data->>'equipment_id' = e.id::text
-                            AND fetm.stat_name = 'body_slots' 
-                            AND fetm.default_numeric_value > 0
-                        ) THEN 'Body'
-                        WHEN EXISTS (
-                            SELECT 1 FROM fighter_effect_types fet
-                            JOIN fighter_effect_type_modifiers fetm ON fet.id = fetm.fighter_effect_type_id
-                            WHERE fet.type_specific_data->>'equipment_id' = e.id::text
-                            AND fetm.stat_name = 'drive_slots' 
-                            AND fetm.default_numeric_value > 0
-                        ) THEN 'Drive'
-                        WHEN EXISTS (
-                            SELECT 1 FROM fighter_effect_types fet
-                            JOIN fighter_effect_type_modifiers fetm ON fet.id = fetm.fighter_effect_type_id
-                            WHERE fet.type_specific_data->>'equipment_id' = e.id::text
-                            AND fetm.stat_name = 'engine_slots' 
-                            AND fetm.default_numeric_value > 0
-                        ) THEN 'Engine'
-                        ELSE NULL
-                    END
-            )
-            ELSE NULL
-        END as vehicle_upgrade_slot,
-        -- Enrich grants_equipment options with equipment names
-        CASE
-            WHEN e.grants_equipment IS NOT NULL AND e.grants_equipment->'options' IS NOT NULL THEN
-                jsonb_set(
-                    e.grants_equipment,
-                    '{options}',
-                    COALESCE(
-                        (SELECT jsonb_agg(
-                            opt || jsonb_build_object('equipment_name', COALESCE(eq.equipment_name, 'Unknown'))
-                        )
-                        FROM jsonb_array_elements(e.grants_equipment->'options') opt
-                        LEFT JOIN equipment eq ON eq.id = (opt->>'equipment_id')::uuid),
-                        '[]'::jsonb
-                    )
-                )
-            ELSE e.grants_equipment
-        END as grants_equipment,
-        COALESCE(e.is_editable, false) as is_editable
-    FROM equipment e
-    -- Simplified LATERAL join - always executes, no conditionals
-    LEFT JOIN LATERAL (
-        SELECT
-            g.gang_origin_id,
-            g.gang_variants,
-            fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id AS affiliation_ft_id
-        FROM gangs g
-        LEFT JOIN fighters f ON (f.id = $6 AND f.gang_id = g.id)  -- Fighter must belong to this gang
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
-        LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
-        WHERE g.id = $8  -- Always try to join gang data
-    ) gang_data ON TRUE
-    -- Join with equipment_availability to get gang-specific availability
-    LEFT JOIN equipment_availability ea ON e.id = ea.equipment_id
-        AND ea.gang_type_id = $1
-    LEFT JOIN equipment_availability ea_var ON e.id = ea_var.equipment_id
-        AND ea_var.gang_variant_id IS NOT NULL
-        AND gang_data.gang_variants ? ea_var.gang_variant_id::text
-    LEFT JOIN fighter_type_equipment fte ON e.id = fte.equipment_id
-        AND (fte.fighter_type_id = $3
-             OR fte.vehicle_type_id = $3
-             OR (gang_data.legacy_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.legacy_ft_id OR fte.vehicle_type_id = gang_data.legacy_ft_id) AND $4 = true)
-             OR (gang_data.affiliation_ft_id IS NOT NULL AND (fte.fighter_type_id = gang_data.affiliation_ft_id OR fte.vehicle_type_id = gang_data.affiliation_ft_id)))
-        AND (
-            -- If the row has gang_origin_id, it must match the gang's origin
-            (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gang_data.gang_origin_id)
-            AND
-            -- If the row has gang_type_id, it must match the gang's type
-            (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
-        )
-    WHERE 
-        (
-            COALESCE(e.core_equipment, false) = false
-            OR
-            (
-                e.core_equipment = true
-                AND (fte.fighter_type_id IS NOT NULL OR $3 IS NULL)
-            )
-        )
-        AND
-        ($2 IS NULL 
-         OR trim(both from e.equipment_category) = trim(both from $2))
-        AND (only_equipment_id IS NULL OR e.id = only_equipment_id)
-        AND
-        (
-            $4 IS NULL
-            OR (
-                CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL OR ea_var.id IS NOT NULL THEN true
-                    ELSE false
-                END
-            ) = $4
-        )
-        AND
-        (
-            $5 IS NULL
-            OR (
-                -- Simplified trading post logic - natural NULL handling
-                EXISTS (
-                    SELECT 1
-                    FROM gang_types gt, trading_post_equipment tpe
-                    WHERE gt.gang_type_id = $1
-                    AND tpe.trading_post_type_id = gt.trading_post_type_id
-                    AND tpe.equipment_id = e.id
-                )
-                OR
-                EXISTS (
-                    SELECT 1
-                    FROM fighter_equipment_tradingpost fet,
-                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                    WHERE (fet.fighter_type_id = $3
-                           OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                    AND equip_id = e.id::text
-                )
-            ) = $5
-        )
-
-    UNION ALL
-
-    -- Custom equipment
-    SELECT 
-        ce.id,
-        ce.equipment_name,
-        ce.availability as availability,
-        ce.cost::numeric as base_cost,
-        ce.cost::numeric as discounted_cost, -- No discounts for custom equipment
-        ce.cost::numeric as adjusted_cost,   -- No adjustments for custom equipment
-        ce.equipment_category,
-        ce.equipment_type,
-        ce.created_at,
-        true as fighter_type_equipment,      -- Custom equipment is available for fighters
-        true as equipment_tradingpost,       -- Custom equipment is available in trading post
-        true as is_custom,
-        -- Custom equipment weapon profiles (if any)
-        COALESCE(
-            (
-                SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'id', cwp.id,
-                        'profile_name', cwp.profile_name,
-                        'range_short', cwp.range_short,
-                        'range_long', cwp.range_long,
-                        'acc_short', cwp.acc_short,
-                        'acc_long', cwp.acc_long,
-                        'strength', cwp.strength,
-                        'ap', cwp.ap,
-                        'damage', cwp.damage,
-                        'ammo', cwp.ammo,
-                        'traits', cwp.traits,
-                        'sort_order', cwp.sort_order
-                    )
-                    ORDER BY COALESCE(cwp.sort_order, 999), cwp.profile_name
-                )
-                FROM custom_weapon_profiles cwp
-                WHERE cwp.custom_equipment_id = ce.id
-            ),
-            '[]'::jsonb
-        ) as weapon_profiles,
-        -- Custom equipment doesn't have vehicle upgrade slots
-        NULL as vehicle_upgrade_slot,
-        NULL::jsonb as grants_equipment,
-        COALESCE(ce.is_editable, false) as is_editable
-    FROM custom_equipment ce
-    LEFT JOIN (
-        SELECT cs.custom_equipment_id
-        FROM custom_shared cs
-        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
-        WHERE cg.gang_id = $8  -- gang_id parameter
-    ) shared ON shared.custom_equipment_id = ce.id
-    WHERE
-        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL) -- User's own or shared to gang's campaign
-        AND ($2 IS NULL
-         OR trim(both from ce.equipment_category) = trim(both from $2))
-        AND (only_equipment_id IS NULL OR ce.id = only_equipment_id)
-$_$;
-
-
---
 -- Name: get_fighter_available_advancements(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2253,6 +1916,7 @@ $$;
 
 CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, free_skill boolean, delegation_cost numeric)
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
     AS $$
 BEGIN
     RETURN QUERY
@@ -3926,6 +3590,7 @@ COMMENT ON FUNCTION public.get_gang_permissions(p_user_id uuid, p_gang_id uuid) 
 
 CREATE FUNCTION public.notify_campaign_member_added() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public'
     AS $$
 DECLARE
    campaign_name_var TEXT;
@@ -3962,7 +3627,8 @@ $$;
 --
 
 CREATE FUNCTION public.notify_friend_request_sent() RETURNS trigger
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
     AS $$
 DECLARE
    requester_username_var TEXT;
@@ -4002,6 +3668,7 @@ $$;
 
 CREATE FUNCTION public.notify_gang_invite() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
     AS $$
 DECLARE
    gang_name_var TEXT;
@@ -4051,40 +3718,9 @@ END;
 $$;
 
 
---
--- Name: safe_to_numeric(text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.safe_to_numeric(v text) RETURNS numeric
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF v IS NULL OR v = '' THEN
-        RETURN 0;
-    END IF;
-    RETURN v::numeric;
-EXCEPTION WHEN OTHERS THEN
-    RETURN 0;
-END;
-$$;
-
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
-
---
--- Name: OLDfighter_effect_injuries; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public."OLDfighter_effect_injuries" (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone,
-    fighter_effect_id uuid,
-    fighter_skill_id uuid
-);
-
 
 --
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
@@ -5862,14 +5498,6 @@ ALTER TABLE ONLY public.fighter_effect_categories
 
 
 --
--- Name: OLDfighter_effect_injuries fighter_effect_injuries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."OLDfighter_effect_injuries"
-    ADD CONSTRAINT fighter_effect_injuries_pkey PRIMARY KEY (id);
-
-
---
 -- Name: fighter_effect_skills fighter_effect_skills_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6919,7 +6547,7 @@ CREATE TRIGGER trigger_campaign_member_notification AFTER INSERT ON public.campa
 -- Name: friends trigger_friend_request_notification; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trigger_friend_request_notification AFTER INSERT ON public.friends FOR EACH ROW WHEN (((new.status)::text = 'pending'::text)) EXECUTE FUNCTION public.notify_friend_request_sent();
+CREATE TRIGGER trigger_friend_request_notification AFTER INSERT ON public.friends FOR EACH ROW EXECUTE FUNCTION public.notify_friend_request_sent();
 
 
 --
@@ -7336,14 +6964,6 @@ ALTER TABLE ONLY public.fighter_defaults
 
 ALTER TABLE ONLY public.fighter_defaults
     ADD CONSTRAINT fighter_defaults_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES public.skills(id);
-
-
---
--- Name: OLDfighter_effect_injuries fighter_effect_injuries_fighter_effect_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."OLDfighter_effect_injuries"
-    ADD CONSTRAINT fighter_effect_injuries_fighter_effect_id_fkey FOREIGN KEY (fighter_effect_id) REFERENCES public.fighter_effects(id) ON DELETE CASCADE;
 
 
 --
@@ -8772,12 +8392,6 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
    FROM public.campaign_gangs cg
   WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
-
---
--- Name: OLDfighter_effect_injuries; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public."OLDfighter_effect_injuries" ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_triumphs Only admin can create campaign_triumphs entries; Type: POLICY; Schema: public; Owner: -
@@ -10802,5 +10416,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict W7ZWlDUUNAAbhT045OC3Dc9dtL1oKq4epSTqtK6ynRN7cDvW3nyyOeLoIf1t8Fh
+\unrestrict uh8xNzDhhkk6Bw9VALieNxvn3Oxfxk0TCftJ9gfXA3JNniVR1ph6RMpQ0dA9vy5
 
