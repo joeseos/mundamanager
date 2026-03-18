@@ -332,6 +332,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     }
 
     // 8) Copy fighter skills
+    const skillIdMap = new Map<string, string>();
     if (oldFighterIds.length > 0) {
       const { data: skills, error: skillsError } = await supabase
         .from('fighter_skills')
@@ -349,12 +350,16 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
           return o;
         });
-        const { error: insertSkillsError } = await supabase
+        const { data: insertedSkills, error: insertSkillsError } = await supabase
           .from('fighter_skills')
-          .insert(inserts);
+          .insert(inserts)
+          .select('id');
         if (insertSkillsError) {
           await cleanupOnError(new Error(`Failed to insert fighter skills: ${insertSkillsError.message}`));
         }
+        skills.forEach((item: any, i: number) => {
+          if (insertedSkills?.[i]?.id) skillIdMap.set(item.id, insertedSkills[i].id);
+        });
       }
     }
 
@@ -430,6 +435,15 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         insertObj.target_equipment_id = mapped || null;
       } else {
         insertObj.target_equipment_id = null;
+      }
+      if (eff.fighter_skill_id) {
+        const mapped = skillIdMap.get(eff.fighter_skill_id);
+        if (!mapped) {
+          console.warn(`Skill ID remap miss: fighter_skill_id ${eff.fighter_skill_id} not found in map`);
+        }
+        insertObj.fighter_skill_id = mapped || null;
+      } else {
+        insertObj.fighter_skill_id = null;
       }
 
       const { data: newEff, error: insertEffError } = await supabase
