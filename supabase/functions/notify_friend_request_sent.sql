@@ -29,7 +29,7 @@ BEGIN
    
    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger on friends table
 DROP TRIGGER IF EXISTS trigger_friend_request_notification ON friends;

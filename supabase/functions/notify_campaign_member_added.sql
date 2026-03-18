@@ -1,5 +1,6 @@
 CREATE OR REPLACE FUNCTION notify_campaign_member_added()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SET search_path = public AS $$
 DECLARE
    campaign_name_var TEXT;
 BEGIN
