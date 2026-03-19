@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS, invalidateGangCredits, invalidateUserGangsList } from '@/utils/cache-tags';
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -211,6 +211,9 @@ export async function addCharacteristicAdvancement(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
+
+    // Home page gangs list cache (server-side, user-scoped)
+    invalidateUserGangsList(fighter.user_id);
     
     // If this is a beast fighter, also invalidate owner's cache
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
@@ -444,6 +447,9 @@ export async function addSkillAdvancement(
         });
         invalidateGangCredits(fighter.gang_id);
       }
+
+      // Home page gangs list cache (server-side, user-scoped)
+      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
@@ -768,6 +774,9 @@ export async function deleteAdvancement(
         // Advancement skill or effect: only decrease rating (XP was the currency)
         await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
       }
+
+      // Home page gangs list cache (server-side, user-scoped)
+      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
@@ -1020,6 +1029,9 @@ export async function addPowerBoost(
       if (!result.success) {
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
       }
+
+      // Home page gangs list cache (server-side, user-scoped)
+      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache
@@ -1153,6 +1165,9 @@ export async function deletePowerBoost(
       if (!result.success) {
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
       }
+
+      // Home page gangs list cache (server-side, user-scoped)
+      invalidateUserGangsList(fighter.user_id);
     }
 
     // Invalidate fighter cache

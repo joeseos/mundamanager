@@ -166,6 +166,16 @@ export const CACHE_TAGS = {
 // =============================================================================
 
 /**
+ * User gangs list invalidation (Home page gangs list).
+ *
+ * The home gangs list is cached via `CACHE_TAGS.USER_GANGS(userId)` and must be explicitly
+ * revalidated when any gang list fields change (e.g. name, variants, rating, last_updated).
+ */
+export const invalidateUserGangsList = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_GANGS(userId));
+};
+
+/**
  * Equipment Purchase Invalidation Pattern
  * Triggered when: User buys equipment for fighter
  * Data changed: Fighter equipment, gang credits, gang rating, fighter cost

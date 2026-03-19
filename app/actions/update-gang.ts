@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateGangCredits, invalidateUserGangsList } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
@@ -442,6 +442,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       // Log the error but don't fail the update
       console.error('Failed to log gang resource changes:', logError);
     }
+
+    // Home page gangs list cache (server-side, user-scoped)
+    invalidateUserGangsList(gang.user_id);
 
     return {
       success: true,

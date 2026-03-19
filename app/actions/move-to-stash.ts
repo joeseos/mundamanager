@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
@@ -98,6 +98,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
+    let gangOwnerUserId: string | null = null;
     let vehicleAssigned = false;
     let fighterIsActive = true; // Default to true for non-fighter equipment
     
@@ -105,7 +106,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, killed, retired, enslaved, captured')
+        .select('gang_id, user_id, killed, retired, enslaved, captured')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -113,6 +114,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         throw new Error('Fighter not found for this equipment');
       }
       gangId = fighter.gang_id;
+      gangOwnerUserId = fighter.user_id ?? null;
       fighterIsActive = countsTowardRating(fighter);
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle
@@ -142,6 +144,16 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
+    }
+
+    // Determine owner user id from gang if not already known (vehicles / admin paths)
+    if (!gangOwnerUserId) {
+      const { data: gangOwner } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', gangId)
+        .single();
+      gangOwnerUserId = gangOwner?.user_id ?? null;
     }
 
     // If user is not an admin, check if they have permission for this gang
@@ -317,6 +329,11 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       gangId: gangId,
       userId: user.id
     });
+
+    // Home page gangs list cache (server-side, user-scoped)
+    if (gangOwnerUserId) {
+      invalidateUserGangsList(gangOwnerUserId);
+    }
 
     return {
       success: true,
