@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict uh8xNzDhhkk6Bw9VALieNxvn3Oxfxk0TCftJ9gfXA3JNniVR1ph6RMpQ0dA9vy5
+\restrict 7kbQa33ioRamdjxenY8e9RumHRlQ57LFxFEvNCZg4jE9wEbDFCaZNtVaMIbr7AB
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -3831,7 +3831,8 @@ CREATE TABLE public.campaign_battles (
     scenario text,
     territory_id uuid,
     custom_territory_id uuid,
-    cycle integer
+    cycle integer,
+    campaign_territory_id uuid
 );
 
 
@@ -5970,6 +5971,27 @@ CREATE INDEX campaign_battles_campaign_id_idx ON public.campaign_battles USING b
 
 
 --
+-- Name: campaign_battles_campaign_territory_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_campaign_territory_id_idx ON public.campaign_battles USING btree (campaign_territory_id);
+
+
+--
+-- Name: campaign_territories_custom_territory_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_custom_territory_id_idx ON public.campaign_territories USING btree (custom_territory_id);
+
+
+--
+-- Name: campaign_territories_territory_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_territory_id_idx ON public.campaign_territories USING btree (territory_id);
+
+
+--
 -- Name: campaigns_discord_guild_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6636,6 +6658,14 @@ ALTER TABLE ONLY public.battle_sessions
 
 ALTER TABLE ONLY public.campaign_allegiances
     ADD CONSTRAINT campaign_allegiances_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_battles campaign_battles_campaign_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_campaign_territory_id_fkey FOREIGN KEY (campaign_territory_id) REFERENCES public.campaign_territories(id) ON DELETE SET NULL;
 
 
 --
@@ -10416,5 +10446,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict uh8xNzDhhkk6Bw9VALieNxvn3Oxfxk0TCftJ9gfXA3JNniVR1ph6RMpQ0dA9vy5
+\unrestrict 7kbQa33ioRamdjxenY8e9RumHRlQ57LFxFEvNCZg4jE9wEbDFCaZNtVaMIbr7AB
 
