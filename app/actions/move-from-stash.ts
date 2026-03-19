@@ -13,7 +13,8 @@ import {
   invalidateGangStash,
   invalidateFighterAdvancement,
   invalidateVehicleData,
-  CACHE_TAGS
+  CACHE_TAGS,
+  invalidateUserGangsList
 } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { 
@@ -509,6 +510,11 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       gangId: stashData.gang_id,
       userId: user.id
     });
+
+    // Home page gangs list cache (server-side, user-scoped)
+    if (fighterOwnerId) {
+      invalidateUserGangsList(fighterOwnerId);
+    }
     
     // Invalidate caches for affected exotic beasts
     if (affectedBeastIds.length > 0) {

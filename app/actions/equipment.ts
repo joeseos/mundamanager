@@ -11,7 +11,8 @@ import {
   invalidateGangStash,
   invalidateGangRating,
   invalidateFighterAdvancement,
-  CACHE_TAGS
+  CACHE_TAGS,
+  invalidateUserGangsList
 } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
@@ -638,6 +639,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
+    // Home page gangs list cache (server-side, user-scoped)
+    invalidateUserGangsList(gang.user_id);
+
     // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
     try {
       await logEquipmentAction({
@@ -1053,6 +1057,19 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       await updateGangRatingSimple(supabase, params.gang_id, ratingDelta);
     }
 
+    // Home page gangs list cache (server-side, user-scoped)
+    try {
+      const { data: gangOwner } = await supabase
+        .from('gangs')
+        .select('user_id')
+        .eq('id', params.gang_id)
+        .single();
+
+      if (gangOwner?.user_id) {
+        invalidateUserGangsList(gangOwner.user_id);
+      }
+    } catch {}
+
     // Get fresh fighter total cost after deletion for accurate response
     let freshFighterTotalCost = null;
     try {
@@ -1352,6 +1369,16 @@ export async function applySelfUpgradesToEquipment(params: {
       }
     }
 
+    // Home page gangs list cache (server-side, user-scoped)
+    try {
+      const { data: fighterOwner } = await supabase
+        .from('fighters')
+        .select('user_id')
+        .eq('id', params.fighter_id)
+        .single();
+      if (fighterOwner?.user_id) invalidateUserGangsList(fighterOwner.user_id);
+    } catch {}
+
     // Invalidate caches once at the end
     try {
       invalidateFighterAdvancement({
@@ -1431,6 +1458,16 @@ export async function deleteEquipmentEffect(
         console.error('Failed to update gang rating/wealth:', e);
       }
     }
+
+    // Home page gangs list cache (server-side, user-scoped)
+    try {
+      const { data: fighterOwner } = await supabase
+        .from('fighters')
+        .select('user_id')
+        .eq('id', params.fighter_id)
+        .single();
+      if (fighterOwner?.user_id) invalidateUserGangsList(fighterOwner.user_id);
+    } catch {}
 
     // Invalidate caches
     try {

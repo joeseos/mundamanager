@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterAddition } from '@/utils/cache-tags';
+import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
@@ -1019,6 +1019,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       gangId: params.gang_id,
       userId: effectiveUserId
     });
+
+    // Home page gangs list cache (server-side, user-scoped)
+    invalidateUserGangsList(gangData.user_id);
 
     // Log fighter addition
     try {
