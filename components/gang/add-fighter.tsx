@@ -63,6 +63,7 @@ interface EquipmentSelectionCategory {
   select_type?: 'optional' | 'optional_single' | 'single' | 'multiple';
   default?: EquipmentDefaultItem[];
   options?: GangEquipmentOption[];
+  replacement_mode?: 'flexible' | 'strict';
 }
 
 interface EquipmentSelection {
@@ -110,24 +111,33 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                     // For optional/optional_single type, separate defaults and replacements
                     const defaults = group.filter((item: any) => item.is_default);
                     const allReplacements: GangEquipmentOption[] = [];
-                    
+
                     // Collect all replacements from all defaults
                     defaults.forEach((defaultItem: any) => {
                       if (defaultItem.replacements && Array.isArray(defaultItem.replacements)) {
                         defaultItem.replacements.forEach((replacement: any) => {
-                          allReplacements.push({
-                            id: replacement.id,
-                            equipment_name: replacement.equipment_name,
-                            equipment_type: replacement.equipment_type,
-                            equipment_category: replacement.equipment_category,
-                            cost: replacement.cost || 0,
-                            max_quantity: replacement.max_quantity || 1,
-                            is_editable: replacement.is_editable || false
-                          });
+                          // Deduplicate by id, keeping the highest max_quantity
+                          const existing = allReplacements.find(r => r.id === replacement.id);
+                          if (existing) {
+                            existing.max_quantity = Math.max(existing.max_quantity, replacement.max_quantity || 1);
+                          } else {
+                            allReplacements.push({
+                              id: replacement.id,
+                              equipment_name: replacement.equipment_name,
+                              equipment_type: replacement.equipment_type,
+                              equipment_category: replacement.equipment_category,
+                              cost: replacement.cost || 0,
+                              max_quantity: replacement.max_quantity || 1,
+                              is_editable: replacement.is_editable || false
+                            });
+                          }
                         });
                       }
                     });
-                    
+
+                    // Read replacement_mode from any default item
+                    const replacement_mode = defaults.find((item: any) => item.replacement_mode)?.replacement_mode as 'flexible' | 'strict' | undefined;
+
                     result[key] = {
                       name: `${categoryName.charAt(0).toUpperCase() + categoryName.slice(1)} ${groupIndex + 1}`,
                       select_type: selectType,
@@ -139,7 +149,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                         quantity: item.quantity || 1,
                         is_editable: item.is_editable || false
                       })),
-                      options: allReplacements
+                      options: allReplacements,
+                      ...(replacement_mode ? { replacement_mode } : {})
                     };
                   } else {
                     // For single and multiple types, use items as options
@@ -168,24 +179,33 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                 // For optional/optional_single type, separate defaults and replacements
                 const defaults = categoryData.filter((item: any) => item.is_default);
                 const allReplacements: GangEquipmentOption[] = [];
-                
+
                 // Collect all replacements from all defaults
                 defaults.forEach((defaultItem: any) => {
                   if (defaultItem.replacements && Array.isArray(defaultItem.replacements)) {
                     defaultItem.replacements.forEach((replacement: any) => {
-                      allReplacements.push({
-                        id: replacement.id,
-                        equipment_name: replacement.equipment_name,
-                        equipment_type: replacement.equipment_type,
-                        equipment_category: replacement.equipment_category,
-                        cost: replacement.cost || 0,
-                        max_quantity: replacement.max_quantity || 1,
-                        is_editable: replacement.is_editable || false
-                      });
+                      // Deduplicate by id, keeping the highest max_quantity
+                      const existing = allReplacements.find(r => r.id === replacement.id);
+                      if (existing) {
+                        existing.max_quantity = Math.max(existing.max_quantity, replacement.max_quantity || 1);
+                      } else {
+                        allReplacements.push({
+                          id: replacement.id,
+                          equipment_name: replacement.equipment_name,
+                          equipment_type: replacement.equipment_type,
+                          equipment_category: replacement.equipment_category,
+                          cost: replacement.cost || 0,
+                          max_quantity: replacement.max_quantity || 1,
+                          is_editable: replacement.is_editable || false
+                        });
+                      }
                     });
                   }
                 });
-                
+
+                // Read replacement_mode from any default item
+                const replacement_mode = defaults.find((item: any) => item.replacement_mode)?.replacement_mode as 'flexible' | 'strict' | undefined;
+
                 result[key] = {
                   name: categoryName.charAt(0).toUpperCase() + categoryName.slice(1),
                   select_type: selectType,
@@ -196,7 +216,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                     equipment_category: item.equipment_category,
                     quantity: item.quantity || 1
                   })),
-                  options: allReplacements
+                  options: allReplacements,
+                  ...(replacement_mode ? { replacement_mode } : {})
                 };
               } else {
                 // For single and multiple types, use items as options
@@ -626,8 +647,30 @@ export default function AddFighter({
             return null;
           }
 
+          // Compute slot counts for optional categories
+          const totalSlots = isOptional && categoryData.default
+            ? categoryData.default.reduce((sum, d) => sum + (d.quantity || 1), 0)
+            : 0;
+          const replacementMode = (categoryData.replacement_mode || 'flexible') as 'flexible' | 'strict';
+
+          // For flexible mode: compute used slots from selectedEquipmentIds for this category
+          const usedSlots = isOptional
+            ? (categoryData.options || []).filter(o =>
+                selectedEquipmentIds.includes(`${categoryId}-${o.id}`)
+              ).length
+            : 0;
+          const remainingSlots = totalSlots - usedSlots;
+
+          // For strict mode: find currently selected radio option
+          const strictSelectedId = isOptional && replacementMode === 'strict'
+            ? selectedEquipmentIds.find(id =>
+                (categoryData.options || []).some((o: any) => `${categoryId}-${o.id}` === id)
+              )
+            : undefined;
+
           return (
             <div key={categoryId} className="space-y-3">
+              {/* Default equipment display */}
               {categoryData.default && categoryData.default.length > 0 && (
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-muted-foreground">
@@ -635,10 +678,24 @@ export default function AddFighter({
                   </label>
                   <div className="space-y-1">
                     {categoryData.default.map((item: EquipmentDefaultItem, index: number) => {
-                      // Access equipment_name with type assertion for safety
                       const defaultItem = item as any;
                       const equipmentName = defaultItem.equipment_name || "Equipment";
-                      
+
+                      // For optional categories, show remaining quantity dynamically
+                      if (isOptional && totalSlots > 0) {
+                        const displayQty = isOptional && replacementMode === 'strict'
+                          ? (strictSelectedId ? 0 : item.quantity)
+                          : Math.max(0, item.quantity - (index === 0 ? usedSlots : 0));
+                        if (displayQty <= 0) return null;
+                        return (
+                          <div key={`${item.id}-${index}`} className="flex items-center gap-2">
+                            <div className="bg-muted px-3 py-1 rounded-full text-sm">
+                              {displayQty}x {equipmentName}
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div key={`${item.id}-${index}`} className="flex items-center gap-2">
                           <div className="bg-muted px-3 py-1 rounded-full text-sm">
@@ -654,14 +711,17 @@ export default function AddFighter({
               {categoryData.options && categoryData.options.length > 0 && (
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-muted-foreground">
-                    {isOptional ? `Optional ${categoryName} (Replaces one default)` : 
-                     isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)` :
-                     isSingle ? `Select ${categoryName} (Choose one)` : 
-                     `Additional ${categoryName} (Select any)`}
+                    {isOptional
+                      ? (replacementMode === 'strict'
+                        ? `Optional ${categoryName} (replace all ${totalSlots})`
+                        : `Optional ${categoryName} (replace up to ${totalSlots})`)
+                      : isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)`
+                      : isSingle ? `Select ${categoryName} (Choose one)`
+                      : `Additional ${categoryName} (Select any)`}
                   </label>
-                  
+
                   <div className="space-y-1">
-                    {/* Add "Keep Default" option for optional_single selections */}
+                    {/* Keep Default option for optional_single */}
                     {isOptionalSingle && (
                       <div className="flex items-center gap-2">
                         <input
@@ -670,41 +730,31 @@ export default function AddFighter({
                           id={`${categoryId}-keep-default`}
                           checked={!categoryData.options?.some((o: any) => selectedEquipmentIds.includes(`${categoryId}-${o.id}`))}
                           onChange={() => {
-                            // Remove all selections for this category (keep default)
                             setSelectedEquipmentIds((prev) => {
                               const currentCategoryOptions = categoryData.options || [];
                               return prev.filter(id =>
                                 !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
                               );
                             });
-
-                            // Remove all equipment selections for this category and restore default if needed
                             setSelectedEquipment((prev) => {
                               const currentCategoryOptions = categoryData.options || [];
                               let filtered = prev.filter(item =>
                                 !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
                               );
-                              
-                              // For optional_single, restore default equipment when "Keep Default" is selected
                               if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
-                                // Add back all default equipment for this category
                                 categoryData.default.forEach((defaultItem: any) => {
-                                  // Only add if not already present
                                   if (!filtered.some(item => item.equipment_id === defaultItem.id)) {
                                     filtered.push({
                                       equipment_id: defaultItem.id,
-                                      cost: 0, // Default equipment has cost 0
+                                      cost: 0,
                                       quantity: defaultItem.quantity || 1,
                                       is_editable: defaultItem.is_editable || false
                                     });
                                   }
                                 });
                               }
-                              
                               return filtered;
                             });
-
-                            // Reset cost to remove any equipment costs from this category
                             setFighterCost((prevCost) => {
                               const currentCategoryOptions = categoryData.options || [];
                               const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
@@ -722,33 +772,215 @@ export default function AddFighter({
                         </label>
                       </div>
                     )}
-                    
-                    {/* Combine all options from all categories into a flat list, sorted alphabetically */}
-                    {sortedCategories.flatMap(category => 
+
+                    {/* Strict mode: Keep Default radio for optional categories */}
+                    {isOptional && replacementMode === 'strict' && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`equipment-selection-${categoryId}`}
+                          id={`${categoryId}-keep-default`}
+                          checked={!strictSelectedId}
+                          onChange={() => {
+                            // Clear all selections for this category, restore defaults
+                            setSelectedEquipmentIds((prev) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              return prev.filter(id =>
+                                !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                              );
+                            });
+                            setSelectedEquipment((prev) => {
+                              const currentCategoryOptions = categoryData.options || [];
+                              let filtered = prev.filter(item =>
+                                !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                              );
+                              // Restore defaults
+                              if (categoryData.default && categoryData.default.length > 0) {
+                                categoryData.default.forEach((defaultItem: any) => {
+                                  if (!filtered.some(item => item.equipment_id === defaultItem.id)) {
+                                    filtered.push({
+                                      equipment_id: defaultItem.id,
+                                      cost: 0,
+                                      quantity: defaultItem.quantity || 1,
+                                      is_editable: defaultItem.is_editable || false
+                                    });
+                                  }
+                                });
+                              }
+                              return filtered;
+                            });
+                            // Subtract previous strict selection cost
+                            if (strictSelectedId) {
+                              const prevOption = (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId);
+                              if (prevOption) {
+                                setFighterCost((prevCost) =>
+                                  String(parseInt(prevCost || '0') - (prevOption.cost || 0) * totalSlots)
+                                );
+                              }
+                            }
+                          }}
+                        />
+                        <label htmlFor={`${categoryId}-keep-default`} className="text-sm font-medium">
+                          Keep Default
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Render options */}
+                    {sortedCategories.flatMap(category =>
                       categorizedOptions[category]
                     )
                     .sort((a, b) => {
-                      // Sort alphabetically
                       const nameA = a.equipment_name || '';
                       const nameB = b.equipment_name || '';
                       return nameA.localeCompare(nameB);
                     })
                     .map((option) => {
-                      // Create unique identifier for this option in this category
                       const uniqueOptionId = `${categoryId}-${option.id}`;
-                      
-                      return (
-                        <div key={uniqueOptionId} className="flex items-center gap-2">
-                          {(isSingle || isOptionalSingle) ? (
+
+                      // === OPTIONAL + FLEXIBLE MODE: checkboxes (each = 1 slot) ===
+                      if (isOptional && replacementMode === 'flexible') {
+                        const isChecked = selectedEquipmentIds.includes(uniqueOptionId);
+                        const isDisabled = !isChecked && remainingSlots <= 0;
+
+                        return (
+                          <div key={uniqueOptionId} className="flex items-center gap-2">
+                            <Checkbox
+                              id={uniqueOptionId}
+                              checked={isChecked}
+                              disabled={isDisabled}
+                              onCheckedChange={(checked) => {
+                                const optionCost = option.cost || 0;
+
+                                if (checked === true) {
+                                  setSelectedEquipmentIds(prev => [...prev, uniqueOptionId]);
+
+                                  // Rebuild selectedEquipment for this category
+                                  setSelectedEquipment(prev => {
+                                    const currentCategoryOptions = categoryData.options || [];
+                                    // Remove all category options and defaults
+                                    let filtered = prev.filter(item =>
+                                      !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                                    );
+                                    if (categoryData.default) {
+                                      categoryData.default.forEach((d: any) => {
+                                        filtered = filtered.filter(item => item.equipment_id !== d.id);
+                                      });
+                                    }
+
+                                    // Re-add all checked replacements (each qty 1)
+                                    const newSelectedIds = [...selectedEquipmentIds, uniqueOptionId];
+                                    currentCategoryOptions.forEach((o: any) => {
+                                      if (newSelectedIds.includes(`${categoryId}-${o.id}`)) {
+                                        filtered.push({
+                                          equipment_id: o.id,
+                                          cost: o.cost || 0,
+                                          quantity: 1,
+                                          is_editable: o.is_editable || false
+                                        });
+                                      }
+                                    });
+
+                                    // Add remaining defaults
+                                    const newUsed = newSelectedIds.filter(id =>
+                                      currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                    ).length;
+                                    const remainingDefaults = totalSlots - newUsed;
+                                    if (remainingDefaults > 0 && categoryData.default && categoryData.default.length > 0) {
+                                      const firstDefault = categoryData.default[0] as any;
+                                      filtered.push({
+                                        equipment_id: firstDefault.id,
+                                        cost: 0,
+                                        quantity: remainingDefaults,
+                                        is_editable: firstDefault.is_editable || false
+                                      });
+                                    }
+
+                                    return filtered;
+                                  });
+
+                                  setFighterCost(prevCost =>
+                                    String(parseInt(prevCost || '0') + optionCost)
+                                  );
+                                } else {
+                                  setSelectedEquipmentIds(prev => prev.filter(id => id !== uniqueOptionId));
+
+                                  setSelectedEquipment(prev => {
+                                    const currentCategoryOptions = categoryData.options || [];
+                                    let filtered = prev.filter(item =>
+                                      !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                                    );
+                                    if (categoryData.default) {
+                                      categoryData.default.forEach((d: any) => {
+                                        filtered = filtered.filter(item => item.equipment_id !== d.id);
+                                      });
+                                    }
+
+                                    // Re-add remaining checked replacements
+                                    const newSelectedIds = selectedEquipmentIds.filter(id => id !== uniqueOptionId);
+                                    currentCategoryOptions.forEach((o: any) => {
+                                      if (newSelectedIds.includes(`${categoryId}-${o.id}`)) {
+                                        filtered.push({
+                                          equipment_id: o.id,
+                                          cost: o.cost || 0,
+                                          quantity: 1,
+                                          is_editable: o.is_editable || false
+                                        });
+                                      }
+                                    });
+
+                                    // Add remaining defaults
+                                    const newUsed = newSelectedIds.filter(id =>
+                                      currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                    ).length;
+                                    const remainingDefaults = totalSlots - newUsed;
+                                    if (remainingDefaults > 0 && categoryData.default && categoryData.default.length > 0) {
+                                      const firstDefault = categoryData.default[0] as any;
+                                      filtered.push({
+                                        equipment_id: firstDefault.id,
+                                        cost: 0,
+                                        quantity: remainingDefaults,
+                                        is_editable: firstDefault.is_editable || false
+                                      });
+                                    }
+
+                                    return filtered;
+                                  });
+
+                                  setFighterCost(prevCost =>
+                                    String(parseInt(prevCost || '0') - optionCost)
+                                  );
+                                }
+                              }}
+                            />
+                            <label htmlFor={uniqueOptionId} className="text-sm">
+                              {option.equipment_name || 'Loading...'}
+                              {` ${option.cost >= 0 ? '+' : ''}${option.cost} credits`}
+                            </label>
+                          </div>
+                        );
+                      }
+
+                      // === OPTIONAL + STRICT MODE: radio buttons ===
+                      if (isOptional && replacementMode === 'strict') {
+                        return (
+                          <div key={uniqueOptionId} className="flex items-center gap-2">
                             <input
                               type="radio"
                               name={`equipment-selection-${categoryId}`}
                               id={uniqueOptionId}
-                              checked={selectedEquipmentIds.includes(uniqueOptionId)}
+                              checked={strictSelectedId === uniqueOptionId}
                               onChange={() => {
-                                // Only one can be selected in this category
+                                const optionCost = option.cost || 0;
+
+                                // Find previous strict selection cost
+                                const prevOption = strictSelectedId
+                                  ? (categoryData.options || []).find((o: any) => `${categoryId}-${o.id}` === strictSelectedId)
+                                  : undefined;
+                                const prevCostPerUnit = prevOption?.cost || 0;
+
+                                // Update selectedEquipmentIds
                                 setSelectedEquipmentIds((prev) => {
-                                  // Remove all previous selections for this specific category only
                                   const currentCategoryOptions = categoryData.options || [];
                                   const filtered = prev.filter(id =>
                                     !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
@@ -756,130 +988,135 @@ export default function AddFighter({
                                   return [...filtered, uniqueOptionId];
                                 });
 
-                              // Update equipment with costs - handle default replacement for optional_single
-                              setSelectedEquipment((prev) => {
-                                // Remove previous selections from this specific category only
-                                // We need to track which category each equipment came from
-                                const currentCategoryOptions = categoryData.options || [];
-                                const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
-                                  currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                                );
-                                
-                                // Remove equipment that was previously selected in this category
-                                let filtered = prev.filter(item => {
-                                  // Check if this item was selected from the current category
-                                  const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
-                                    const equipmentIdFromSelected = selectedId.split('-').pop();
-                                    return equipmentIdFromSelected === item.equipment_id;
-                                  });
-                                  return !wasSelectedFromThisCategory;
+                                // Update selectedEquipment: remove defaults + previous, add new with totalSlots quantity
+                                setSelectedEquipment((prev) => {
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  let filtered = prev.filter(item =>
+                                    !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
+                                  );
+                                  // Remove defaults
+                                  if (categoryData.default) {
+                                    categoryData.default.forEach((d: any) => {
+                                      filtered = filtered.filter(item => item.equipment_id !== d.id);
+                                    });
+                                  }
+                                  return [...filtered, {
+                                    equipment_id: option.id,
+                                    cost: optionCost,
+                                    quantity: totalSlots,
+                                    is_editable: option.is_editable || false
+                                  }];
                                 });
-                                
-                                // For optional_single selections, also remove default equipment when selecting a replacement
-                                if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
-                                  // Remove all default equipment from this category
-                                  categoryData.default.forEach((defaultItem: any) => {
-                                    filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
-                                  });
-                                }
 
-                                return [...filtered, {
-                                  equipment_id: option.id,
-                                  cost: option.cost || 0,
-                                  quantity: 1,
-                                  is_editable: option.is_editable || false
-                                }];
-                              });
-
-                              // Update cost using functional update
-                              setFighterCost((prevCost) => {
-                                // Find previous selection in this specific category only
-                                const currentCategoryOptions = categoryData.options || [];
-                                const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
-                                  currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                // Update cost
+                                setFighterCost((prevCost) =>
+                                  String(parseInt(prevCost || '0') - (prevCostPerUnit * totalSlots) + (optionCost * totalSlots))
                                 );
-                                const prevSelectedCost = prevSelectedUniqueId
-                                  ? currentCategoryOptions.find((o: any) => `${categoryId}-${o.id}` === prevSelectedUniqueId)?.cost || 0
-                                  : 0;
-                                const optionCost = option.cost || 0;
-                                return String(parseInt(prevCost || '0') - prevSelectedCost + optionCost);
-                              });
-                            }}
-                          />
-                        ) : (
+                              }}
+                            />
+                            <label htmlFor={uniqueOptionId} className="text-sm">
+                              {totalSlots}x {option.equipment_name || 'Loading...'}
+                              {` ${option.cost * totalSlots >= 0 ? '+' : ''}${option.cost * totalSlots} credits`}
+                            </label>
+                          </div>
+                        );
+                      }
+
+                      // === SINGLE / OPTIONAL_SINGLE: radio buttons ===
+                      if (isSingle || isOptionalSingle) {
+                        return (
+                          <div key={uniqueOptionId} className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`equipment-selection-${categoryId}`}
+                              id={uniqueOptionId}
+                              checked={selectedEquipmentIds.includes(uniqueOptionId)}
+                              onChange={() => {
+                                setSelectedEquipmentIds((prev) => {
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  const filtered = prev.filter(id =>
+                                    !currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                  );
+                                  return [...filtered, uniqueOptionId];
+                                });
+
+                                setSelectedEquipment((prev) => {
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
+                                    currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                  );
+                                  let filtered = prev.filter(item => {
+                                    const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
+                                      const equipmentIdFromSelected = selectedId.split('-').pop();
+                                      return equipmentIdFromSelected === item.equipment_id;
+                                    });
+                                    return !wasSelectedFromThisCategory;
+                                  });
+                                  if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
+                                    categoryData.default.forEach((defaultItem: any) => {
+                                      filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
+                                    });
+                                  }
+                                  return [...filtered, {
+                                    equipment_id: option.id,
+                                    cost: option.cost || 0,
+                                    quantity: 1,
+                                    is_editable: option.is_editable || false
+                                  }];
+                                });
+
+                                setFighterCost((prevCost) => {
+                                  const currentCategoryOptions = categoryData.options || [];
+                                  const prevSelectedUniqueId = selectedEquipmentIds.find(id =>
+                                    currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                  );
+                                  const prevSelectedCost = prevSelectedUniqueId
+                                    ? currentCategoryOptions.find((o: any) => `${categoryId}-${o.id}` === prevSelectedUniqueId)?.cost || 0
+                                    : 0;
+                                  const optionCost = option.cost || 0;
+                                  return String(parseInt(prevCost || '0') - prevSelectedCost + optionCost);
+                                });
+                              }}
+                            />
+                            <label htmlFor={uniqueOptionId} className="text-sm">
+                              {option.equipment_name || 'Loading...'}
+                              {` ${option.cost >= 0 ? '+' : ''}${option.cost} credits`}
+                            </label>
+                          </div>
+                        );
+                      }
+
+                      // === MULTIPLE: checkboxes (default) ===
+                      return (
+                        <div key={uniqueOptionId} className="flex items-center gap-2">
                           <Checkbox
                             id={uniqueOptionId}
                             checked={selectedEquipmentIds.includes(uniqueOptionId)}
                             onCheckedChange={(checked) => {
-                              const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
-                              const baseCost = selectedType?.total_cost || 0;
-                              
-                              // Get the option's cost
                               const optionCost = option.cost || 0;
-                              
+
                               if (checked === true) {
-                                // For optional/multiple selection, add to existing selections
                                 setSelectedEquipmentIds([...selectedEquipmentIds, uniqueOptionId]);
-                                
-                                // Check if this is replacing a default item
-                                const isReplacement = categoryData.select_type === 'optional' || categoryData.select_type === 'optional_single';
-                                if (isReplacement && categoryData.default && categoryData.default.length > 0) {
-                                  // Remove the default item and add the replacement
-                                  const defaultItem = categoryData.default[0] as any;
-                                  setSelectedEquipment(prev => {
-                                    const filtered = prev.filter(item => item.equipment_id !== defaultItem.id);
-                                    return [...filtered, {
-                                      equipment_id: option.id,
-                                      cost: optionCost,
-                                      quantity: 1,
-                                      is_editable: option.is_editable || false
-                                    }];
-                                  });
-                                } else {
-                                  // Just add the new equipment
-                                  setSelectedEquipment([...selectedEquipment, {
-                                    equipment_id: option.id,
-                                    cost: optionCost,
-                                    quantity: 1,
-                                    is_editable: option.is_editable || false
-                                  }]);
-                                }
-                                
+                                setSelectedEquipment([...selectedEquipment, {
+                                  equipment_id: option.id,
+                                  cost: optionCost,
+                                  quantity: 1,
+                                  is_editable: option.is_editable || false
+                                }]);
                                 setFighterCost(String(parseInt(fighterCost || '0') + optionCost));
                               } else {
-                                // Remove this option
                                 setSelectedEquipmentIds(selectedEquipmentIds.filter(id => id !== uniqueOptionId));
-                                
-                                // Check if this was replacing a default item
-                                const isReplacement = categoryData.select_type === 'optional' || categoryData.select_type === 'optional_single';
-                                if (isReplacement && categoryData.default && categoryData.default.length > 0) {
-                                  // Add back the default item and remove the replacement
-                                  const defaultItem = categoryData.default[0] as any;
-                                  setSelectedEquipment(prev => {
-                                    const filtered = prev.filter(item => item.equipment_id !== option.id);
-                                    return [...filtered, {
-                                      equipment_id: defaultItem.id,
-                                      cost: 0, // Default items have cost 0
-                                      quantity: defaultItem.quantity || 1,
-                                      is_editable: defaultItem.is_editable || false
-                                    }];
-                                  });
-                                } else {
-                                  // Just remove the equipment
-                                  setSelectedEquipment(selectedEquipment.filter(item => item.equipment_id !== option.id));
-                                }
-                                
+                                setSelectedEquipment(selectedEquipment.filter(item => item.equipment_id !== option.id));
                                 setFighterCost(String(parseInt(fighterCost || '0') - optionCost));
                               }
                             }}
                           />
-                        )}
-                        <label htmlFor={uniqueOptionId} className="text-sm">
-                          {option.equipment_name || 'Loading...'}
-                          {` ${option.cost >= 0 ? '+' : ''}${option.cost} credits`}
-                        </label>
-                      </div>
-                    );
+                          <label htmlFor={uniqueOptionId} className="text-sm">
+                            {option.equipment_name || 'Loading...'}
+                            {` ${option.cost >= 0 ? '+' : ''}${option.cost} credits`}
+                          </label>
+                        </div>
+                      );
                     })}
                   </div>
                 </div>
@@ -924,10 +1161,11 @@ export default function AddFighter({
       if (selectedType?.equipment_selection) {
         const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
         setSelectedEquipment(defaultEquipment);
-        
+        setSelectedEquipmentIds([]);
+
         // Calculate total cost of default equipment
         const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        
+
         // Update fighter cost to include default equipment cost
         const baseCost = selectedType.total_cost || 0;
         setFighterCost(String(baseCost + defaultCost));
@@ -942,10 +1180,11 @@ export default function AddFighter({
       if (selectedType?.equipment_selection) {
         const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
         setSelectedEquipment(defaultEquipment);
-        
+        setSelectedEquipmentIds([]);
+
         // Calculate total cost of default equipment
         const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        
+
         // Update fighter cost to include default equipment cost
         const baseCost = selectedType.total_cost || 0;
         setFighterCost(String(baseCost + defaultCost));

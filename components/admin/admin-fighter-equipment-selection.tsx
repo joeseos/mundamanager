@@ -40,6 +40,7 @@ export interface SelectionCategory {
   default?: EquipmentOption[];
   options?: EquipmentOption[];
   name?: string;
+  replacement_mode?: 'flexible' | 'strict';
 }
 
 export interface EquipmentSelection {
@@ -282,6 +283,32 @@ export function AdminFighterEquipmentSelection({
                 </div>
               </div>
 
+              {category.select_type === 'optional' && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Replacement Mode
+                  </label>
+                  <select
+                    value={category.replacement_mode || 'flexible'}
+                    onChange={(e) => {
+                      const replacement_mode = e.target.value as 'flexible' | 'strict';
+                      setEquipmentSelection(prev => ({
+                        ...prev,
+                        [categoryId]: {
+                          ...prev[categoryId],
+                          replacement_mode
+                        }
+                      }));
+                    }}
+                    className="w-full p-2 border rounded-md"
+                    disabled={disabled}
+                  >
+                    <option value="flexible">Flexible (mix and match)</option>
+                    <option value="strict">Strict (replace all as group)</option>
+                  </select>
+                </div>
+              )}
+
               {(category.select_type === 'optional' || category.select_type === 'optional_single') && (
                 <div className="mt-4 border-t pt-4">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -393,6 +420,8 @@ export function AdminFighterEquipmentSelection({
                           setEquipmentSelection(prev => {
                             const defaults = prev[categoryId].default || [];
                             if (defaults.length === 0) return prev;
+                            // Compute total default slots for auto-defaulting max_quantity
+                            const totalDefaultSlots = defaults.reduce((sum, d) => sum + (d.quantity || 1), 0);
                             // Attach to the first default
                             const updatedDefaults = defaults.map((d, i) =>
                               i === 0
@@ -400,7 +429,7 @@ export function AdminFighterEquipmentSelection({
                                     ...d,
                                     replacements: [
                                       ...(d.replacements || []),
-                                      { id: value, cost: 0, max_quantity: 1 }
+                                      { id: value, cost: 0, max_quantity: totalDefaultSlots }
                                     ]
                                   }
                                 : d
@@ -452,7 +481,11 @@ export function AdminFighterEquipmentSelection({
                     {(category.select_type === 'optional' || category.select_type === 'optional_single') && category.default && category.default.length > 0 && category.default[0].replacements && category.default[0].replacements.length > 0 && (
                       <div className="space-y-1">
                         <label className="block text-sm font-medium text-muted-foreground">
-                          {category.select_type === 'optional_single' ? 'Optional Equipment (Choose One)' : 'Optional Equipment'}
+                          {category.select_type === 'optional_single' ? 'Optional Equipment (Choose One)' :
+                           `Optional Equipment${(() => {
+                             const totalSlots = (category.default || []).reduce((sum, d) => sum + (d.quantity || 1), 0);
+                             return totalSlots > 1 ? ` (${totalSlots} default slots)` : '';
+                           })()}`}
                         </label>
                         <div className="space-y-2">
                           {category.default[0].replacements.map((item, index) => {
@@ -689,9 +722,10 @@ export function guiToDataModel(gui: EquipmentSelection): EquipmentSelectionDataM
           cost: 0,
           quantity: def.quantity,
           is_default: true,
-          replacements: def.replacements || []
+          replacements: def.replacements || [],
+          ...(category.replacement_mode ? { replacement_mode: category.replacement_mode } : {})
         }));
-        
+
         if (optionalGroup.length > 0) {
           result[type][name].push(optionalGroup);
         }
@@ -725,7 +759,9 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
           if (type === 'optional' || type === 'optional_single') {
             // For optional types, we need to handle defaults with replacements
             const defaults = group.filter(opt => opt.is_default);
-            
+            // Read replacement_mode from any default item (they all share the same mode)
+            const replacement_mode = (defaults.find((opt: any) => opt.replacement_mode) as any)?.replacement_mode as 'flexible' | 'strict' | undefined;
+
             gui[id] = {
               id,
               name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -736,7 +772,8 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
                 quantity: opt.quantity || 1,
                 replacements: opt.replacements || []
               })),
-              options: [] // Keep empty for optional type since replacements are in default
+              options: [], // Keep empty for optional type since replacements are in default
+              ...(replacement_mode ? { replacement_mode } : {})
             };
           } else {
             // For single and multiple types, use group as options

@@ -105,6 +105,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -146,6 +147,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -194,6 +196,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -235,6 +238,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -285,6 +289,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -326,6 +331,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -374,6 +380,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -415,6 +422,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -465,6 +473,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -506,6 +515,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -554,6 +564,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -595,6 +606,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
