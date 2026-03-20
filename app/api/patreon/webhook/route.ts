@@ -35,7 +35,7 @@ interface PatreonMember {
 
 interface PatreonWebhookPayload {
   data: PatreonMember;
-  included?: PatreonTier[];
+  included?: Array<{ id: string; type: string; attributes: Record<string, any> }>;
 }
 
 interface DatabaseUserData {
@@ -82,8 +82,10 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
     .digest('hex');
 
   try {
-    // Direct string comparison should work for hex strings
-    return signature === expectedSignature;
+    const expectedBuffer = new Uint8Array(Buffer.from(expectedSignature, 'hex'));
+    const signatureBuffer = new Uint8Array(Buffer.from(signature, 'hex'));
+    if (expectedBuffer.length !== signatureBuffer.length) return false;
+    return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
   } catch (error) {
     console.error('Error comparing webhook signatures:', error);
     return false;
@@ -101,24 +103,33 @@ async function matchPatreonToUser(patreonEmail: string, patreonUserId: string) {
 
   if (patreonEmail) {
     try {
-      const { data: users, error: listError } = await supabase.auth.admin.listUsers();
+      let page = 1;
+      let hasMore = true;
 
-      if (!listError && users?.users) {
+      while (hasMore) {
+        const { data: users, error: listError } = await supabase.auth.admin.listUsers({
+          page,
+          perPage: 1000
+        });
+
+        if (listError || !users?.users || users.users.length === 0) break;
+
         const matchingUser = users.users.find(user =>
           user.email?.toLowerCase() === patreonEmail.toLowerCase()
         );
 
         if (matchingUser) {
-          const { data: profile, error: profileError } = await supabase
+          const { data: profile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', matchingUser.id)
             .single();
 
-          if (!profileError && profile) {
-            return profile;
-          }
+          if (profile) return profile;
         }
+
+        hasMore = users.users.length === 1000;
+        page++;
       }
     } catch (adminError) {
       console.error(`Webhook admin auth query failed for ${patreonEmail}:`, adminError);
