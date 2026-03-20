@@ -109,6 +109,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -148,6 +149,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -194,6 +196,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -233,6 +236,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -281,6 +285,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -320,6 +325,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -366,6 +372,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -405,6 +412,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -453,6 +461,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -492,6 +501,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -538,6 +548,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -577,6 +588,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -625,6 +637,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -664,6 +677,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -710,6 +724,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -749,6 +764,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
