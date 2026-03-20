@@ -91,6 +91,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
+  const [delegationCost, setDelegationCost] = useState('');
   const [selectedFighterClass, setSelectedFighterClass] = useState<string>('');
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -512,6 +513,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // Set the form data
       setFighterType(data.fighter_type || '');
       setBaseCost(data.cost?.toString() || '0');
+      setDelegationCost(data.delegation_cost?.toString() || '');
       setSelectedFighterClass(data.fighter_class || '');
       setMovement(data.movement?.toString() || '0');
       setWeaponSkill(data.weapon_skill?.toString() || '0');
@@ -1124,6 +1126,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         is_gang_addition: isGangAddition,
         is_spyrer: isSpyrer,
         alignment: alignment || null,
+        delegation_cost: delegationCost ? parseInt(delegationCost) : null,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -1568,22 +1571,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       </option>
                     ))}
                   </select>
-
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                      Alignment
-                    </label>
-                    <select
-                      value={alignment}
-                      onChange={(e) => setAlignment(e.target.value)}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="">Select Alignment</option>
-                      <option value="Law Abiding">Law Abiding</option>
-                      <option value="Outlaw">Outlaw</option>
-                      <option value="Unaligned">Unaligned</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div>
@@ -1595,6 +1582,36 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     value={baseCost}
                     onChange={(e) => setBaseCost(e.target.value)}
                     placeholder="e.g. 125"
+                    className="w-full"
+                    min="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Alignment
+                  </label>
+                  <select
+                    value={alignment}
+                    onChange={(e) => setAlignment(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select Alignment</option>
+                    <option value="Law Abiding">Law Abiding</option>
+                    <option value="Outlaw">Outlaw</option>
+                    <option value="Unaligned">Unaligned</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Delegation Cost
+                  </label>
+                  <Input
+                    type="number"
+                    value={delegationCost}
+                    onChange={(e) => setDelegationCost(e.target.value)}
+                    placeholder="e.g. 50"
                     className="w-full"
                     min="0"
                   />

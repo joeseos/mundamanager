@@ -57,6 +57,7 @@ interface EquipmentWithId extends Equipment {
 export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFighterTypeModalProps) {
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
+  const [delegationCost, setDelegationCost] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
   const [selectedFighterClass, setSelectedFighterClass] = useState<FighterClass | ''>('');
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
@@ -337,6 +338,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         is_gang_addition: isGangAddition,
         is_spyrer: isSpyrer,
         alignment: alignment || null,
+        delegation_cost: delegationCost ? parseInt(delegationCost) : null,
         default_equipment: selectedEquipment,
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
@@ -509,22 +511,39 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   min="0"
                 />
               </div>
+
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Alignment
-              </label>
-              <select
-                value={alignment}
-                onChange={(e) => setAlignment(e.target.value)}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Select Alignment</option>
-                <option value="Law Abiding">Law Abiding</option>
-                <option value="Outlaw">Outlaw</option>
-                <option value="Unaligned">Unaligned</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Alignment
+                </label>
+                <select
+                  value={alignment}
+                  onChange={(e) => setAlignment(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="">Select Alignment</option>
+                  <option value="Law Abiding">Law Abiding</option>
+                  <option value="Outlaw">Outlaw</option>
+                  <option value="Unaligned">Unaligned</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Delegation Cost
+                </label>
+                <Input
+                  type="number"
+                  value={delegationCost}
+                  onChange={(e) => setDelegationCost(e.target.value)}
+                  placeholder="e.g. 50"
+                  className="w-full"
+                  min="0"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-2 md:gap-4">

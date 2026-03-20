@@ -23,6 +23,7 @@ interface AddFighterParams {
   selected_equipment?: SelectedEquipment[];
   default_equipment?: SelectedEquipment[];
   use_base_cost_for_rating?: boolean;
+  use_delegation_cost?: boolean;
   fighter_gang_legacy_id?: string;
 }
 
@@ -404,7 +405,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       sum + (item.cost * (item.quantity || 1)), 0) || 0;
 
     // Calculate rating cost based on use_base_cost_for_rating setting
-    const ratingCost = params.use_base_cost_for_rating ? (baseCost + totalEquipmentCost) : fighterCost;
+    const ratingCost = params.use_base_cost_for_rating
+      ? ((params.use_delegation_cost && effectiveFighterData.delegation_cost)
+          ? effectiveFighterData.delegation_cost + totalEquipmentCost
+          : baseCost + totalEquipmentCost)
+      : fighterCost;
 
     // Check if gang has enough credits (only if fighter cost > 0)
     if (fighterCost > 0 && gangData.credits < fighterCost) {

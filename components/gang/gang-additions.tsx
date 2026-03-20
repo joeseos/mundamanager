@@ -245,6 +245,7 @@ export default function GangAdditions({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [useDelegationCost, setUseDelegationCost] = useState(false);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
 
@@ -325,6 +326,7 @@ export default function GangAdditions({
         is_gang_addition: type.is_gang_addition || true,
         alliance_id: type.alliance_id || '',
         alliance_crew_name: type.alliance_crew_name || '',
+        delegation_cost: type.delegation_cost ?? null,
         equipment_selection: type.equipment_selection,
         sub_type: type.sub_type,
         fighter_sub_type_id: type.sub_type?.id
@@ -784,7 +786,11 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
   // Add helper method to get the base cost
   const getBaseCost = () => {
-    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+    const effectiveTypeId = selectedSubTypeId || selectedGangAdditionTypeId;
+    const selectedType = gangAdditionTypes.find(t => t.id === effectiveTypeId);
+    if (useDelegationCost && selectedType?.delegation_cost) {
+      return selectedType.delegation_cost;
+    }
     return selectedType?.cost || 0;
   };
 
@@ -826,7 +832,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
         
         // Update fighter cost to include default equipment cost
-        const baseCost = selectedType.total_cost || 0;
+        const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
         setFighterCost(String(baseCost + defaultCost));
       }
     }
@@ -839,12 +845,12 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
       if (selectedType?.equipment_selection) {
         const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
         setSelectedEquipment(defaultEquipment);
-        
+
         // Calculate total cost of default equipment
         const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        
+
         // Update fighter cost to include default equipment cost
-        const baseCost = selectedType.total_cost || 0;
+        const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
         setFighterCost(String(baseCost + defaultCost));
       }
     }
@@ -905,7 +911,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         cost: parsedCost,
         selected_equipment: selectedEquipmentForBackend,
         default_equipment: defaultEquipment,
-        use_base_cost_for_rating: useBaseCostForRating
+        use_base_cost_for_rating: useBaseCostForRating,
+        use_delegation_cost: useDelegationCost
       });
 
       if (!result.success) {
@@ -1154,6 +1161,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);  // Reset equipment with costs
     setUseBaseCostForRating(true);
+    setUseDelegationCost(false);
     setFetchError(null);
   };
 
@@ -1285,6 +1293,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             setSelectedSubTypeId(''); // Reset sub-type selection
             setSelectedEquipmentIds([]); // Reset equipment selections when type changes
             setSelectedEquipment([]); // Reset equipment with costs
+            setUseDelegationCost(false); // Reset delegation cost when type changes
             
             if (typeId) {
               // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
@@ -1399,8 +1408,10 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
                 // Add fighters in this group
                 fighters.forEach(({ fighter, cost }: { fighter: any; cost: number }) => {
-                  const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${cost} credits`;
-                  
+                  const delegationCost = fighter.delegation_cost;
+                  const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
+                  const displayName = `${fighter.limitation && fighter.limitation > 0 ? `0-${fighter.limitation} ` : ''}${fighter.fighter_type} - ${costDisplay}`;
+
                   options.push({
                     value: fighter.id,
                     label: <span className="ml-3">{displayName}</span>,
@@ -1508,6 +1519,35 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             )}
           </p>
         )}
+
+        {/* Checkbox: Use Delegation Cost */}
+        {(() => {
+          const effectiveTypeId = selectedSubTypeId || selectedGangAdditionTypeId;
+          const selectedType = gangAdditionTypes.find(t => t.id === effectiveTypeId);
+          return selectedType?.delegation_cost ? (
+            <div className="flex items-center space-x-2 mb-4 mt-2">
+              <Checkbox
+                id="use-delegation-cost"
+                checked={useDelegationCost}
+                onCheckedChange={(checked) => {
+                  const isDelegation = checked as boolean;
+                  setUseDelegationCost(isDelegation);
+                  const baseCost = isDelegation
+                    ? selectedType.delegation_cost!
+                    : selectedType.total_cost;
+                  const equipmentCost = getSelectedEquipmentCost();
+                  setFighterCost(String(baseCost + equipmentCost));
+                }}
+              />
+              <label
+                htmlFor="use-delegation-cost"
+                className="text-sm font-medium text-muted-foreground cursor-pointer"
+              >
+                Use Delegation Cost
+              </label>
+            </div>
+          ) : null;
+        })()}
 
         {/* Checkbox:Use Listed Cost for Rating */}
         <div className="flex items-center space-x-2 mb-4 mt-2">
