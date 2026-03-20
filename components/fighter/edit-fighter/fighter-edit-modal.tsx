@@ -219,7 +219,7 @@ export function EditFighterModal({
   }, [selectedFighterClassId, standardFighterClasses, defaultFighterClassName]);
 
   // Determine if this fighter is eligible for promotion
-  const isEligibleForPromotion = ['Ganger', 'Juve', 'Prospect', 'Exotic Beast'].includes(
+  const isEligibleForPromotion = ['Ganger', 'Juve', 'Prospect', 'Champion', 'Exotic Beast'].includes(
     effectiveFighterClass || fighter.fighter_class || ''
   );
 

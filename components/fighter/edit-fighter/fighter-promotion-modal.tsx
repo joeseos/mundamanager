@@ -9,6 +9,7 @@ const PROMOTION_MAP: Record<string, string> = {
   'Ganger': 'Specialist',
   'Juve': 'Specialist',
   'Prospect': 'Champion',
+  'Champion': 'Leader',
   'Exotic Beast': 'Exotic Beast Specialist',
 };
 
