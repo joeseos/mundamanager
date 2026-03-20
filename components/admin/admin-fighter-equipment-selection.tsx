@@ -481,11 +481,12 @@ export function AdminFighterEquipmentSelection({
                     {(category.select_type === 'optional' || category.select_type === 'optional_single') && category.default && category.default.length > 0 && category.default[0].replacements && category.default[0].replacements.length > 0 && (
                       <div className="space-y-1">
                         <label className="block text-sm font-medium text-muted-foreground">
-                          {category.select_type === 'optional_single' ? 'Optional Equipment (Choose One)' :
-                           `Optional Equipment${(() => {
-                             const totalSlots = (category.default || []).reduce((sum, d) => sum + (d.quantity || 1), 0);
-                             return totalSlots > 1 ? ` (${totalSlots} default slots)` : '';
-                           })()}`}
+                          {category.select_type === 'optional_single'
+                            ? 'Optional Equipment (Choose One)'
+                            : (() => {
+                                const totalSlots = (category.default || []).reduce((sum, d) => sum + (d.quantity || 1), 0);
+                                return totalSlots > 1 ? `Optional Equipment (${totalSlots} default slots)` : 'Optional Equipment';
+                              })()}
                         </label>
                         <div className="space-y-2">
                           {category.default[0].replacements.map((item, index) => {

@@ -683,9 +683,18 @@ export default function AddFighter({
 
                       // For optional categories, show remaining quantity dynamically
                       if (isOptional && totalSlots > 0) {
-                        const displayQty = isOptional && replacementMode === 'strict'
-                          ? (strictSelectedId ? 0 : item.quantity)
-                          : Math.max(0, item.quantity - (index === 0 ? usedSlots : 0));
+                        let displayQty: number;
+                        if (replacementMode === 'strict') {
+                          displayQty = strictSelectedId ? 0 : item.quantity;
+                        } else {
+                          // Distribute usedSlots across defaults in order
+                          const slotsBefore = categoryData.default!
+                            .slice(0, index)
+                            .reduce((s, d) => s + (d.quantity || 1), 0);
+                          const slotsConsumedBefore = Math.min(usedSlots, slotsBefore);
+                          const slotsLeft = usedSlots - slotsConsumedBefore;
+                          displayQty = Math.max(0, (item.quantity || 1) - slotsLeft);
+                        }
                         if (displayQty <= 0) return null;
                         return (
                           <div key={`${item.id}-${index}`} className="flex items-center gap-2">
@@ -851,15 +860,18 @@ export default function AddFighter({
                               disabled={isDisabled}
                               onCheckedChange={(checked) => {
                                 const optionCost = option.cost || 0;
+                                const adding = checked === true;
 
-                                if (checked === true) {
-                                  setSelectedEquipmentIds(prev => [...prev, uniqueOptionId]);
+                                // Compute new selected IDs upfront to avoid stale closure
+                                setSelectedEquipmentIds(prev => {
+                                  const newIds = adding
+                                    ? [...prev, uniqueOptionId]
+                                    : prev.filter(id => id !== uniqueOptionId);
 
-                                  // Rebuild selectedEquipment for this category
-                                  setSelectedEquipment(prev => {
+                                  // Rebuild selectedEquipment using the authoritative newIds
+                                  setSelectedEquipment(prevEquip => {
                                     const currentCategoryOptions = categoryData.options || [];
-                                    // Remove all category options and defaults
-                                    let filtered = prev.filter(item =>
+                                    let filtered = prevEquip.filter(item =>
                                       !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
                                     );
                                     if (categoryData.default) {
@@ -868,10 +880,9 @@ export default function AddFighter({
                                       });
                                     }
 
-                                    // Re-add all checked replacements (each qty 1)
-                                    const newSelectedIds = [...selectedEquipmentIds, uniqueOptionId];
+                                    // Re-add checked replacements (each qty 1)
                                     currentCategoryOptions.forEach((o: any) => {
-                                      if (newSelectedIds.includes(`${categoryId}-${o.id}`)) {
+                                      if (newIds.includes(`${categoryId}-${o.id}`)) {
                                         filtered.push({
                                           equipment_id: o.id,
                                           cost: o.cost || 0,
@@ -882,8 +893,8 @@ export default function AddFighter({
                                     });
 
                                     // Add remaining defaults
-                                    const newUsed = newSelectedIds.filter(id =>
-                                      currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                    const newUsed = currentCategoryOptions.filter((o: any) =>
+                                      newIds.includes(`${categoryId}-${o.id}`)
                                     ).length;
                                     const remainingDefaults = totalSlots - newUsed;
                                     if (remainingDefaults > 0 && categoryData.default && categoryData.default.length > 0) {
@@ -899,58 +910,12 @@ export default function AddFighter({
                                     return filtered;
                                   });
 
-                                  setFighterCost(prevCost =>
-                                    String(parseInt(prevCost || '0') + optionCost)
-                                  );
-                                } else {
-                                  setSelectedEquipmentIds(prev => prev.filter(id => id !== uniqueOptionId));
+                                  return newIds;
+                                });
 
-                                  setSelectedEquipment(prev => {
-                                    const currentCategoryOptions = categoryData.options || [];
-                                    let filtered = prev.filter(item =>
-                                      !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
-                                    );
-                                    if (categoryData.default) {
-                                      categoryData.default.forEach((d: any) => {
-                                        filtered = filtered.filter(item => item.equipment_id !== d.id);
-                                      });
-                                    }
-
-                                    // Re-add remaining checked replacements
-                                    const newSelectedIds = selectedEquipmentIds.filter(id => id !== uniqueOptionId);
-                                    currentCategoryOptions.forEach((o: any) => {
-                                      if (newSelectedIds.includes(`${categoryId}-${o.id}`)) {
-                                        filtered.push({
-                                          equipment_id: o.id,
-                                          cost: o.cost || 0,
-                                          quantity: 1,
-                                          is_editable: o.is_editable || false
-                                        });
-                                      }
-                                    });
-
-                                    // Add remaining defaults
-                                    const newUsed = newSelectedIds.filter(id =>
-                                      currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
-                                    ).length;
-                                    const remainingDefaults = totalSlots - newUsed;
-                                    if (remainingDefaults > 0 && categoryData.default && categoryData.default.length > 0) {
-                                      const firstDefault = categoryData.default[0] as any;
-                                      filtered.push({
-                                        equipment_id: firstDefault.id,
-                                        cost: 0,
-                                        quantity: remainingDefaults,
-                                        is_editable: firstDefault.is_editable || false
-                                      });
-                                    }
-
-                                    return filtered;
-                                  });
-
-                                  setFighterCost(prevCost =>
-                                    String(parseInt(prevCost || '0') - optionCost)
-                                  );
-                                }
+                                setFighterCost(prevCost =>
+                                  String(parseInt(prevCost || '0') + (adding ? optionCost : -optionCost))
+                                );
                               }}
                             />
                             <label htmlFor={uniqueOptionId} className="text-sm">
