@@ -66,6 +66,7 @@ export async function GET(request: Request) {
           is_gang_addition,
           is_spyrer,
           alignment,
+          delegation_cost,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
@@ -107,6 +108,7 @@ export async function GET(request: Request) {
           is_gang_addition,
           is_spyrer,
           alignment,
+          delegation_cost,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
@@ -257,6 +259,7 @@ export async function GET(request: Request) {
           is_gang_addition,
           is_spyrer,
           alignment,
+          delegation_cost,
           equipment_discounts:equipment_discounts(
             equipment_id,
             adjusted_cost
@@ -447,6 +450,7 @@ export async function GET(request: Request) {
         is_gang_addition,
         is_spyrer,
         alignment,
+        delegation_cost,
         equipment_discounts:equipment_discounts(
           equipment_id,
           adjusted_cost
@@ -535,6 +539,7 @@ export async function PUT(request: Request) {
         is_gang_addition: data.is_gang_addition,
         is_spyrer: data.is_spyrer,
         alignment: data.alignment,
+        delegation_cost: data.delegation_cost ?? null,
         updated_at: data.updated_at
       })
       .eq('id', id);
@@ -862,7 +867,8 @@ export async function POST(request: Request) {
         free_skill: data.free_skill,
         is_gang_addition: data.is_gang_addition,
         is_spyrer: data.is_spyrer,
-        alignment: data.alignment
+        alignment: data.alignment,
+        delegation_cost: data.delegation_cost ?? null
       })
       .select()
       .single();
