@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7kbQa33ioRamdjxenY8e9RumHRlQ57LFxFEvNCZg4jE9wEbDFCaZNtVaMIbr7AB
+\restrict NiQOs4fLPjHAmIMRQmWQgcACR5byLoW0l7xlRDpTNTs1rJbjdN70K7pAwBYbCsF
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -530,6 +530,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -571,6 +572,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -619,6 +621,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -660,6 +663,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -710,6 +714,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -751,6 +756,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -799,6 +805,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -840,6 +847,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -890,6 +898,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -931,6 +940,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -979,6 +989,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -1020,6 +1031,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -1985,6 +1997,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2024,6 +2037,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2070,6 +2084,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2109,6 +2124,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2157,6 +2173,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2196,6 +2213,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2242,6 +2260,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2281,6 +2300,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2329,6 +2349,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2368,6 +2389,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2414,6 +2436,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2453,6 +2476,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2501,6 +2525,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2540,6 +2565,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -2586,6 +2612,7 @@ BEGIN
                                                             'cost', (item_data->>'cost')::numeric,
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
+                                                            'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
                                                                     SELECT jsonb_agg(
@@ -2625,6 +2652,7 @@ BEGIN
                                                         'cost', (item_data->>'cost')::numeric,
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
+                                                        'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
                                                                 SELECT jsonb_agg(
@@ -10446,5 +10474,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7kbQa33ioRamdjxenY8e9RumHRlQ57LFxFEvNCZg4jE9wEbDFCaZNtVaMIbr7AB
+\unrestrict NiQOs4fLPjHAmIMRQmWQgcACR5byLoW0l7xlRDpTNTs1rJbjdN70K7pAwBYbCsF
 
