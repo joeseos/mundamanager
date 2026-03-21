@@ -7,6 +7,9 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const fighterId = searchParams.get('fighterId');
+    /** When set, skill access rows are loaded for this promoted fighter type instead of the fighter's current type. */
+    const previewFighterTypeId = searchParams.get('previewFighterTypeId');
+    const previewCustomFighterTypeId = searchParams.get('previewCustomFighterTypeId');
     if (!fighterId) {
       return NextResponse.json({ error: 'Missing fighterId' }, { status: 400 });
     }
@@ -70,8 +73,12 @@ export async function GET(request: Request) {
         )
       `);
 
-    // Query based on fighter type (regular or custom)
-    if (fighter.custom_fighter_type_id) {
+    // Query based on fighter type (regular or custom), or a preview type after promotion
+    if (previewFighterTypeId) {
+      query = query.eq('fighter_type_id', previewFighterTypeId);
+    } else if (previewCustomFighterTypeId) {
+      query = query.eq('custom_fighter_type_id', previewCustomFighterTypeId);
+    } else if (fighter.custom_fighter_type_id) {
       // Custom fighter type
       query = query.eq('custom_fighter_type_id', fighter.custom_fighter_type_id);
     } else if (fighter.fighter_type_id) {

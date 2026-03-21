@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
@@ -18,6 +18,10 @@ import {
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
 import { LuUndo2 } from 'react-icons/lu';
+import {
+  GangerExoticBeastAdvancementRollSection,
+  type GangerAdvancementRollHandle
+} from '@/components/fighter/ganger-exotic-beast-advancement-roll-section';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -32,6 +36,26 @@ interface AdvancementModalProps {
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onAdvancementUpdate: (updatedAdvancements: FighterEffectType[]) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
+  userPermissions?: UserPermissions;
+  preFetchedFighterTypes?: Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    total_cost: number;
+  }>;
+  onEnsureFighterTypes?: () => Promise<void>;
+  fighterSpecialRules?: string[];
+  fighterTypeName?: string;
+  fighterTypeId?: string;
+  onFighterDetailsUpdate?: (patch: {
+    fighter_class?: string;
+    fighter_class_id?: string;
+    fighter_type?: string;
+    fighter_type_id?: string;
+    special_rules?: string[];
+  }) => void;
 }
 
 interface StatChangeCategory {
@@ -144,6 +168,25 @@ interface AdvancementsListProps {
   onSkillUpdate?: (updatedSkills: FighterSkills) => void;
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
+  preFetchedFighterTypes?: Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    total_cost: number;
+  }>;
+  onEnsureFighterTypes?: () => Promise<void>;
+  fighterSpecialRules?: string[];
+  fighterTypeName?: string;
+  fighterTypeId?: string;
+  onFighterDetailsUpdate?: (patch: {
+    fighter_class?: string;
+    fighter_class_id?: string;
+    fighter_type?: string;
+    fighter_type_id?: string;
+    special_rules?: string[];
+  }) => void;
 }
 
 interface TransformedAdvancement {
@@ -172,7 +215,26 @@ interface SkillAccess {
 }
 
 // AdvancementModal Component
-export function AdvancementModal({ fighterId, currentXp, fighterClass, advancements, skills, onClose, onAdvancementAdded, onSkillUpdate, onXpCreditsUpdate, onAdvancementUpdate, onCharacteristicUpdate }: AdvancementModalProps) {
+export function AdvancementModal({
+  fighterId,
+  currentXp,
+  fighterClass,
+  advancements,
+  skills,
+  onClose,
+  onAdvancementAdded,
+  onSkillUpdate,
+  onXpCreditsUpdate,
+  onAdvancementUpdate,
+  onCharacteristicUpdate,
+  userPermissions,
+  preFetchedFighterTypes = [],
+  onEnsureFighterTypes,
+  fighterSpecialRules = [],
+  fighterTypeName = '',
+  fighterTypeId = '',
+  onFighterDetailsUpdate
+}: AdvancementModalProps) {
   
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -185,6 +247,14 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
   // skillsData not used in optimistic path; removed
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
+  /** When true, ganger roll UI must not overwrite footer XP/credits from suggested values. */
+  const [gangerCostsUserOverride, setGangerCostsUserOverride] = useState(false);
+  const gangerRollRef = useRef<GangerAdvancementRollHandle>(null);
+  const [gangerBuyUi, setGangerBuyUi] = useState<{ canBuy: boolean; pending: boolean }>({
+    canBuy: false,
+    pending: false
+  });
+  const [gangerPurchaseBusy, setGangerPurchaseBusy] = useState(false);
   // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   // No client-side invalidations; rely on server tag revalidation
@@ -554,7 +624,29 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
     }
   };
 
+  const isGangerOrExoticBeastRestricted =
+    fighterClass === 'Ganger' || fighterClass === 'Exotic Beast';
+
+  const gangerRollBuy =
+    isGangerOrExoticBeastRestricted &&
+    !!userPermissions &&
+    !!onEnsureFighterTypes &&
+    !!onFighterDetailsUpdate;
+
   const handleAdvancementPurchase = async () => {
+    if (gangerRollBuy) {
+      const roll = gangerRollRef.current;
+      if (!roll) return;
+      setGangerPurchaseBusy(true);
+      try {
+        const ok = await roll.purchase(editableXpCost, editableCreditsIncrease);
+        if (ok) onClose();
+      } finally {
+        setGangerPurchaseBusy(false);
+      }
+      return;
+    }
+
     if (!selectedAdvancement) return;
 
     // Close modal immediately for instant UX
@@ -608,6 +700,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
 
   // Update the useEffect that handles XP cost changes
   const handleXpCostChange = (value: number) => {
+    if (gangerRollBuy) setGangerCostsUserOverride(true);
     setEditableXpCost(value);
     // Update the advancement with new values
     if (selectedAdvancement) {
@@ -619,6 +712,19 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       });
     }
   };
+
+  const purchaseBlockingBusy =
+    addCharacteristicMutation.isPending ||
+    addSkillMutation.isPending ||
+    gangerPurchaseBusy;
+
+  const buyAdvancementDisabled = gangerRollBuy
+    ? !gangerBuyUi.canBuy || purchaseBlockingBusy || gangerBuyUi.pending
+    : !selectedAdvancement ||
+      (advancementType === 'skill' && !skillAcquisitionType) ||
+      !selectedAdvancement.has_enough_xp ||
+      editableXpCost < 0 ||
+      purchaseBlockingBusy;
 
   // Render the AdvancementModal component
   return (
@@ -646,12 +752,45 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             <p className="text-sm text-muted-foreground mb-2">
               XP cost and rating increase are automatically calculated based on the type and number of advancements.
             </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Gangers and Exotic Beasts have access to a restricted selection.
-            </p>
           </div>
 
+          {userPermissions &&
+            onEnsureFighterTypes &&
+            onFighterDetailsUpdate &&
+            (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') && (
+              <GangerExoticBeastAdvancementRollSection
+                ref={gangerRollRef}
+                fighterId={fighterId}
+                fighterXp={currentXp}
+                fighterClass={fighterClass}
+                advancements={advancements}
+                skills={skills}
+                userPermissions={userPermissions}
+                onAdvancementUpdate={onAdvancementUpdate}
+                onSkillUpdate={onSkillUpdate}
+                onXpCreditsUpdate={onXpCreditsUpdate}
+                preFetchedFighterTypes={preFetchedFighterTypes}
+                onEnsureFighterTypes={onEnsureFighterTypes}
+                fighterSpecialRules={fighterSpecialRules}
+                fighterTypeName={fighterTypeName}
+                fighterTypeId={fighterTypeId}
+                onFighterDetailsUpdate={onFighterDetailsUpdate}
+                modalXpCost={editableXpCost}
+                modalCreditsIncrease={editableCreditsIncrease}
+                onSuggestedCostsChange={(xp, credits) => {
+                  if (!gangerCostsUserOverride) {
+                    setEditableXpCost(xp);
+                    setEditableCreditsIncrease(credits);
+                  }
+                }}
+                onCostsSuggestionContextChange={() => setGangerCostsUserOverride(false)}
+                onPurchaseUiChange={setGangerBuyUi}
+              />
+            )}
+
           <div className="space-y-4">
+          {!isGangerOrExoticBeastRestricted && (
+            <>
             <div className="relative">
               <select
                 className="w-full p-2 border rounded-md"
@@ -665,18 +804,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
               >
                 <option key="default" value="">Select Advancement Type</option>
                 <option key="characteristic" value="characteristic">Characteristic</option>
-                <option
-                  key="skill"
-                  value="skill"
-                  disabled={fighterClass === 'Ganger' || fighterClass === 'Exotic Beast'}
-                  style={{
-                    color: (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') ? '#9CA3AF' : 'inherit',
-                    fontStyle: (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') ? 'italic' : 'normal'
-                  }}
-                >
-                  Skill{(fighterClass === 'Ganger' || fighterClass === 'Exotic Beast')
-                    ? ` (Not available for ${fighterClass}s)`
-                    : ''}
+                <option key="skill" value="skill">
+                  Skill
                 </option>
               </select>
             </div>
@@ -891,6 +1020,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                 )}
               </>
             )}
+            </>
+          )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -917,6 +1048,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                   value={editableCreditsIncrease}
                   onChange={(e) => {
                     const value = parseInt(e.target.value) || 0;
+                    if (gangerRollBuy) setGangerCostsUserOverride(true);
                     setEditableCreditsIncrease(value);
                     // Update the advancement with new value
                     if (selectedAdvancement) {
@@ -938,26 +1070,19 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             <div className="border-t pt-2 flex justify-end gap-2">
             <button
                 onClick={onClose}
-                disabled={addCharacteristicMutation.isPending || addSkillMutation.isPending}
+                disabled={purchaseBlockingBusy || gangerBuyUi.pending}
                 className={`px-4 py-2 border rounded hover:bg-muted ${
-                  (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
+                  purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 Cancel
               </button>
               <Button
-                onClick={handleAdvancementPurchase}
+                onClick={() => void handleAdvancementPurchase()}
                 className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
-                (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
+                purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-                disabled={
-                  !selectedAdvancement ||
-                  (advancementType === 'skill' && !skillAcquisitionType) ||
-                  !selectedAdvancement.has_enough_xp ||
-                  editableXpCost < 0 ||
-                  addCharacteristicMutation.isPending ||
-                  addSkillMutation.isPending
-                }
+                disabled={buyAdvancementDisabled}
               >
                 Buy Advancement
               </Button>
@@ -981,7 +1106,13 @@ export function AdvancementsList({
   onAdvancementUpdate,
   onSkillUpdate,
   onXpCreditsUpdate,
-  onCharacteristicUpdate
+  onCharacteristicUpdate,
+  preFetchedFighterTypes = [],
+  onEnsureFighterTypes,
+  fighterSpecialRules = [],
+  fighterTypeName = '',
+  fighterTypeId = '',
+  onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   // isDeleting unused; removed
@@ -1276,6 +1407,13 @@ export function AdvancementsList({
           onXpCreditsUpdate={onXpCreditsUpdate}
           onAdvancementUpdate={onAdvancementUpdate}
           onCharacteristicUpdate={onCharacteristicUpdate}
+          userPermissions={userPermissions}
+          preFetchedFighterTypes={preFetchedFighterTypes}
+          onEnsureFighterTypes={onEnsureFighterTypes}
+          fighterSpecialRules={fighterSpecialRules}
+          fighterTypeName={fighterTypeName}
+          fighterTypeId={fighterTypeId}
+          onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}
 

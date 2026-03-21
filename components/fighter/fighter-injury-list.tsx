@@ -16,7 +16,7 @@ import {
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
-import { rollD66, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew, resolveRigGlitchFromUtil, resolveRigGlitchRangeFromUtilByName } from '@/utils/dice';
+import { rollD66Outcome, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew, resolveRigGlitchFromUtil, resolveRigGlitchRangeFromUtilByName } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { Combobox } from '@/components/ui/combobox';
@@ -628,7 +628,7 @@ export function InjuriesList({
           }}
           getName={(i: FighterEffect) => (i as any).effect_name}
           inline
-          rollFn={rollD66}
+          rollFn={rollD66Outcome}
           resolveNameForRoll={(r) => {
             const resolver = is_spyrer ? resolveRigGlitchFromUtil : (fighter_class === 'Crew' ? resolveInjuryFromUtilCrew : resolveInjuryFromUtil);
             return resolver(r)?.name;
