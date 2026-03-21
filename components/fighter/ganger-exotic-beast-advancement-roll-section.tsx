@@ -698,6 +698,37 @@ export const GangerExoticBeastAdvancementRollSection = forwardRef<
     []
   );
 
+  const primarySetComboboxOptions = useMemo(
+    () =>
+      primarySets.map((p) => ({
+        value: p.skill_type_id,
+        label: p.skill_type_name,
+        displayValue: p.skill_type_name
+      })),
+    [primarySets]
+  );
+
+  const skillInSetComboboxOptions = useMemo(
+    () =>
+      skillsInSet.map((s) => ({
+        value: s.skill_id,
+        label: s.available ? s.skill_name : `${s.skill_name} (unavailable)`,
+        displayValue: s.skill_name,
+        disabled: !s.available
+      })),
+    [skillsInSet]
+  );
+
+  const selectedPrimarySkillTypeId =
+    selectedSetIndex !== null && primarySets[selectedSetIndex]
+      ? primarySets[selectedSetIndex].skill_type_id
+      : '';
+
+  const selectedSkillId =
+    selectedSkillIndex !== null && skillsInSet[selectedSkillIndex]
+      ? skillsInSet[selectedSkillIndex].skill_id
+      : '';
+
   if (fighterClass !== 'Ganger' && fighterClass !== 'Exotic Beast') return null;
 
   const pairDetail = selectedRow?.kind === 'pair' && pairStatName ? charMap[pairStatName] : null;
@@ -812,27 +843,55 @@ export const GangerExoticBeastAdvancementRollSection = forwardRef<
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="default"
-              onClick={rollPrimarySkillSet}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Primary skill set</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="default"
+                onClick={rollPrimarySkillSet}
+                disabled={
+                  !userPermissions.canEdit ||
+                  !pendingPromotion ||
+                  primarySetsLoading ||
+                  primarySets.length === 0 ||
+                  logSubRollMutation.isPending
+                }
+              >
+                Roll for Primary skill set
+              </Button>
+              {skillSetRoll !== null && primarySets[selectedSetIndex ?? -1] && (
+                <span className="text-sm text-muted-foreground">
+                  {formatRollOutcomeLine(skillSetRoll, [skillSetRoll])}:{' '}
+                  <strong className="text-foreground">{primarySets[selectedSetIndex!].skill_type_name}</strong>
+                </span>
+              )}
+            </div>
+            <Combobox
+              value={selectedPrimarySkillTypeId}
+              onValueChange={(v) => {
+                const idx = primarySets.findIndex((p) => p.skill_type_id === v);
+                if (idx === -1) return;
+                setSelectedSetIndex(idx);
+                setSkillSetRoll(null);
+                setSkillPickRoll(null);
+                setSelectedSkillIndex(null);
+              }}
+              placeholder={
+                primarySetsLoading
+                  ? 'Loading…'
+                  : primarySets.length === 0
+                    ? 'No Primary sets'
+                    : 'Select or search Primary skill set'
+              }
+              options={primarySetComboboxOptions}
               disabled={
                 !userPermissions.canEdit ||
                 !pendingPromotion ||
                 primarySetsLoading ||
-                primarySets.length === 0 ||
-                logSubRollMutation.isPending
+                primarySets.length === 0
               }
-            >
-              Roll for Primary skill set
-            </Button>
-            {skillSetRoll !== null && primarySets[selectedSetIndex ?? -1] && (
-              <span className="text-sm">
-                {formatRollOutcomeLine(skillSetRoll, [skillSetRoll])}:{' '}
-                <strong>{primarySets[selectedSetIndex!].skill_type_name}</strong>
-              </span>
-            )}
+            />
           </div>
           {pendingPromotion && primarySetsLoading && (
             <p className="text-xs text-muted-foreground">Loading Primary skill sets for promoted type…</p>
@@ -842,23 +901,48 @@ export const GangerExoticBeastAdvancementRollSection = forwardRef<
               No Primary skill sets on this promoted fighter type (check the fighter type configuration).
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="default"
-              onClick={rollSkillInSet}
-              disabled={
-                !userPermissions.canEdit || selectedSetIndex === null || logSubRollMutation.isPending
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Skill</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="default"
+                onClick={rollSkillInSet}
+                disabled={
+                  !userPermissions.canEdit || selectedSetIndex === null || logSubRollMutation.isPending
+                }
+              >
+                Roll for skill
+              </Button>
+              {skillPickRoll !== null && skillsInSet[selectedSkillIndex ?? -1] && (
+                <span className="text-sm text-muted-foreground">
+                  {formatRollOutcomeLine(skillPickRoll, [skillPickRoll])}:{' '}
+                  <strong className="text-foreground">{skillsInSet[selectedSkillIndex!].skill_name}</strong>
+                </span>
+              )}
+            </div>
+            <Combobox
+              value={selectedSkillId}
+              onValueChange={(v) => {
+                const idx = skillsInSet.findIndex((s) => s.skill_id === v);
+                if (idx === -1) return;
+                setSelectedSkillIndex(idx);
+                setSkillPickRoll(null);
+              }}
+              placeholder={
+                selectedSetIndex === null
+                  ? 'Choose a Primary skill set first'
+                  : skillsInSet.length === 0
+                    ? 'Loading skills…'
+                    : 'Select or search skill'
               }
-            >
-              Roll for skill
-            </Button>
-            {skillPickRoll !== null && skillsInSet[selectedSkillIndex ?? -1] && (
-              <span className="text-sm">
-                {formatRollOutcomeLine(skillPickRoll, [skillPickRoll])}:{' '}
-                <strong>{skillsInSet[selectedSkillIndex!].skill_name}</strong>
-              </span>
-            )}
+              options={skillInSetComboboxOptions}
+              disabled={
+                !userPermissions.canEdit ||
+                selectedSetIndex === null ||
+                skillsInSet.length === 0
+              }
+            />
           </div>
         </div>
       )}
