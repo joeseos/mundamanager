@@ -310,7 +310,7 @@ export function FighterXpModal({
                     value={miscNote}
                     onChange={(e) => setMiscNote(e.target.value)}
                     placeholder="Reason (optional)"
-                    className="mt-1.5 ml-0 text-sm w-48"
+                    className="mt-1.5 ml-0 text-base md:text-sm w-48"
                   />
                 )}
               </div>
