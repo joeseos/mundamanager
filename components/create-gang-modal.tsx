@@ -174,7 +174,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       if (availableVariants.length === 0 && !isLoadingVariants) {
         setIsLoadingVariants(true);
         try {
-          const response = await fetch('/api/gang_variant_types');
+          const response = await fetch('/api/gang-variant-types');
           if (!response.ok) {
             throw new Error('Failed to fetch gang variants');
           }

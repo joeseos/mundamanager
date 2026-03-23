@@ -425,7 +425,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     const fetchGangVariants = async () => {
       if (showVariantAvailabilityDialog) {
         try {
-          const response = await fetch('/api/gang_variant_types');
+          const response = await fetch('/api/gang-variant-types');
           if (!response.ok) throw new Error('Failed to fetch gang variants');
           const data = await response.json();
           setGangVariantList(data);
