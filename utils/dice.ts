@@ -254,7 +254,7 @@ export const GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE: TableEntry[] = [
   { range: [7, 7], name: '+1" Movement or +1 Initiative', kind: 'pair', pairOptions: ['Movement', 'Initiative'] },
   { range: [8, 9], name: '+1 Willpower or Intelligence', kind: 'pair', pairOptions: ['Willpower', 'Intelligence'] },
   { range: [10, 11], name: '+1 Leadership or Cool', kind: 'pair', pairOptions: ['Leadership', 'Cool'] },
-  { range: [12, 12], name: 'Become Specialist and gain random Primary skill', kind: 'specialist' },
+  { range: [12, 12], name: 'Become Specialist and gain a random Primary skill', kind: 'specialist' },
 ];
 
 export const resolveGangerExoticBeastAdvancementFromUtil = (roll: number): TableEntry | undefined =>
