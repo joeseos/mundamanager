@@ -10,6 +10,8 @@ export async function GET(request: Request) {
     /** When set, skill access rows are loaded for this promoted fighter type instead of the fighter's current type. */
     const previewFighterTypeId = searchParams.get('previewFighterTypeId');
     const previewCustomFighterTypeId = searchParams.get('previewCustomFighterTypeId');
+    /** When set, also return the individual skills in this skill type (must be a Primary set). */
+    const skillTypeId = searchParams.get('skillTypeId');
     if (!fighterId) {
       return NextResponse.json({ error: 'Missing fighterId' }, { status: 400 });
     }
@@ -162,6 +164,69 @@ export async function GET(request: Request) {
           });
         }
       }
+    }
+
+    // When skillTypeId is provided, also return individual skills for that skill type
+    if (skillTypeId) {
+      // Verify the requested skill type has "primary" effective access
+      const matchedAccess = formattedSkillAccess.find(
+        (a) => a.skill_type_id === skillTypeId
+      );
+      const effectiveAccess = matchedAccess
+        ? (matchedAccess.override_access_level ?? matchedAccess.access_level)
+        : null;
+
+      if (effectiveAccess !== 'primary') {
+        return NextResponse.json(
+          { error: 'Skill type is not a Primary set for this fighter type' },
+          { status: 400 }
+        );
+      }
+
+      // Fetch gang origin
+      const { data: gangData } = await supabase
+        .from('gangs')
+        .select('gang_origin_id')
+        .eq('id', fighter.gang_id)
+        .single();
+      const gangOriginId = gangData?.gang_origin_id ?? null;
+
+      // Fetch skills in this skill type
+      const { data: skillsRaw, error: skillsErr } = await supabase
+        .from('skills')
+        .select('id, name, skill_type_id, gang_origin_id')
+        .eq('skill_type_id', skillTypeId);
+
+      if (skillsErr) {
+        return NextResponse.json({ error: skillsErr.message }, { status: 500 });
+      }
+
+      // Filter by gang origin
+      const skillsFiltered = (skillsRaw || []).filter((s) => {
+        if (s.gang_origin_id == null) return true;
+        return gangOriginId != null && s.gang_origin_id === gangOriginId;
+      });
+
+      // Fetch owned skills
+      const { data: ownedRows } = await supabase
+        .from('fighter_skills')
+        .select('skill_id')
+        .eq('fighter_id', fighterId)
+        .not('skill_id', 'is', null);
+
+      const ownedIds = new Set((ownedRows || []).map((o) => o.skill_id).filter(Boolean));
+
+      const skills = skillsFiltered.map((s) => ({
+        skill_id: s.id,
+        skill_name: s.name ?? 'Unknown',
+        skill_type_id: s.skill_type_id as string,
+        available: !ownedIds.has(s.id),
+      }));
+
+      return NextResponse.json({
+        skill_access: formattedSkillAccess,
+        skills,
+      });
     }
 
     return NextResponse.json({
