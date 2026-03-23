@@ -603,7 +603,7 @@ export function AdvancementModal({
     let cancelled = false;
     const run = async () => {
       const res = await fetch(
-        `/api/fighters/specialist-preview-skills?fighterId=${encodeURIComponent(fighterId)}&skillTypeId=${encodeURIComponent(typeId)}&previewFighterTypeId=${encodeURIComponent(gangerPendingPromotion.fighter_type_id)}`
+        `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&skillTypeId=${encodeURIComponent(typeId)}&previewFighterTypeId=${encodeURIComponent(gangerPendingPromotion.fighter_type_id)}`
       );
       if (!res.ok || cancelled) {
         if (!cancelled) setGangerSkillsInSet([]);
