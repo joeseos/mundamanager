@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict eKHIFIeE9bRW5zvo1h7KCisZTeqt9LYf4bjx8KWYw6vibFsM0xnZyShEfR0TEFY
+\restrict 2lsoqAppm1usHuTzYtPuFHCduxvbsKOdrBSKgyuUC25yds5ZuR1Mhcg38p4H3ap
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -1906,6 +1906,11 @@ BEGIN
     'current_xp', v_fighter_xp,
     'fighter_class', v_fighter_class,
     'uses_flat_cost', v_uses_flat_cost,
+    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
+    'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
+      'xp_cost', 6,
+      'credits_increase', 20
+    ) ELSE NULL END,
     'characteristics', COALESCE(
       (SELECT jsonb_object_agg(
         characteristic_name,
@@ -10474,5 +10479,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eKHIFIeE9bRW5zvo1h7KCisZTeqt9LYf4bjx8KWYw6vibFsM0xnZyShEfR0TEFY
+\unrestrict 2lsoqAppm1usHuTzYtPuFHCduxvbsKOdrBSKgyuUC25yds5ZuR1Mhcg38p4H3ap
 
