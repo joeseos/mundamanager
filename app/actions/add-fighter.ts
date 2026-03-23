@@ -971,9 +971,60 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       }
 
                       if (grantedInserts.length > 0) {
-                        await supabase
+                        const { data: insertedGrantedEquipment } = await supabase
                           .from('fighter_equipment')
-                          .insert(grantedInserts);
+                          .insert(grantedInserts)
+                          .select(`
+                            id,
+                            equipment_id,
+                            original_cost,
+                            purchase_cost,
+                            equipment!equipment_id(
+                              id,
+                              equipment_name,
+                              equipment_type,
+                              equipment_category_id,
+                              cost
+                            )
+                          `);
+
+                        if (insertedGrantedEquipment && insertedGrantedEquipment.length > 0) {
+                          // Fetch weapon profiles for any granted weapons
+                          const grantedWeaponIds = insertedGrantedEquipment
+                            .filter((item: any) => (item.equipment as any)?.equipment_type === 'weapon')
+                            .map((item: any) => item.equipment_id);
+
+                          let grantedWeaponProfiles: any[] = [];
+                          if (grantedWeaponIds.length > 0) {
+                            const { data: grantedProfilesData } = await supabase
+                              .from('weapon_profiles')
+                              .select('*')
+                              .in('weapon_id', grantedWeaponIds);
+                            grantedWeaponProfiles = grantedProfilesData || [];
+                          }
+
+                          // Append granted equipment to equipmentWithProfiles
+                          const grantedMapped = insertedGrantedEquipment.map((item: any) => {
+                            const equipmentType = (item.equipment as any)?.equipment_type;
+                            const itemWeaponProfiles = equipmentType === 'weapon'
+                              ? grantedWeaponProfiles.filter((wp: any) => wp.weapon_id === item.equipment_id)
+                              : [];
+
+                            return {
+                              fighter_equipment_id: item.id,
+                              equipment_id: item.equipment_id || undefined,
+                              custom_equipment_id: undefined,
+                              equipment_name: (item.equipment as any)?.equipment_name || 'Unknown',
+                              equipment_type: equipmentType || 'unknown',
+                              equipment_category: 'unknown',
+                              cost: item.purchase_cost,
+                              weapon_profiles: itemWeaponProfiles,
+                              is_editable: false
+                            };
+                          });
+
+                          equipmentWithProfiles = [...equipmentWithProfiles, ...grantedMapped];
+                        }
                       }
                     }
                   }
