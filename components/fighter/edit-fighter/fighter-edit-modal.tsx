@@ -206,8 +206,12 @@ export function EditFighterModal({
       const selectedType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
       if (selectedType) return selectedType.fighter_class;
     }
+    // Use the type's default class from the fighter data (works for hanger-ons etc.
+    // whose type isn't in the gang-type-filtered fighterTypes list)
+    const typeDefaultClass = (fighter.fighter_type as any)?.fighter_class;
+    if (typeDefaultClass) return typeDefaultClass;
     return fighter.fighter_class || 'Unknown';
-  }, [selectedFighterTypeId, fighterTypes, fighter.fighter_class]);
+  }, [selectedFighterTypeId, fighterTypes, fighter.fighter_class, fighter.fighter_type]);
 
   // The effective fighter class: override if selected, otherwise default from type
   const effectiveFighterClass = useMemo(() => {

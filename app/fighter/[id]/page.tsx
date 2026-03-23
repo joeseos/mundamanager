@@ -255,6 +255,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
+          fighter_class: fighterTypeData?.fighter_class,
           alliance_crew_name: fighterTypeData?.alliance_crew_name
         },
         fighter_sub_type: fighterSubTypeData ? {
