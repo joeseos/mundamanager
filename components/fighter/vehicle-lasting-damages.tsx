@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import Modal from '../ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import DiceRoller from '@/components/dice-roller';
-import { rollD6, resolveVehicleDamageFromUtil, getVehicleDamageRollForName, resolveVehicleRepairFromUtil, getVehicleRepairRollForName, VEHICLE_REPAIR_TABLE } from '@/utils/dice';
+import { rollNd6Outcome, resolveVehicleDamageFromUtil, getVehicleDamageRollForName, resolveVehicleRepairFromUtil, getVehicleRepairRollForName, VEHICLE_REPAIR_TABLE } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { addVehicleDamage, verifyAndLogRolledVehicleDamage } from '@/app/actions/add-vehicle-damage';
@@ -446,7 +446,7 @@ export function VehicleDamagesList({
             }}
             getName={(i: FighterEffect) => (i as any).effect_name}
             inline
-            rollFn={rollD6}
+            rollFn={() => rollNd6Outcome(1)}
             resolveNameForRoll={(roll) => {
               return resolveVehicleDamageFromUtil(roll);
             }}
@@ -627,7 +627,7 @@ export function VehicleDamagesList({
                   }}
                   getName={(i: FighterEffect) => (i as any).effect_name}
                   inline
-                  rollFn={rollD6}
+                  rollFn={() => rollNd6Outcome(1)}
                   resolveNameForRoll={(roll) => {
                     return resolveVehicleDamageFromUtil(roll);
                   }}
@@ -768,7 +768,7 @@ export function VehicleDamagesList({
                       return { min, max };
                     }}
                     getName={(i: { id: string; effect_name: string }) => i.effect_name}
-                    rollFn={rollD6}
+                    rollFn={() => rollNd6Outcome(1)}
                     resolveNameForRoll={(roll) => {
                       return resolveVehicleRepairFromUtil(roll);
                     }}

@@ -40,6 +40,12 @@ interface ComboboxProps {
   customPlaceholder?: string
   clearable?: boolean
   onFocus?: () => void
+  /**
+   * "auto" flips the menu upward when there is little space below.
+   * "down" always opens below the input (max height limited by space below).
+   * "up" always opens above the input (max height limited by space above).
+   */
+  dropdownPlacement?: 'auto' | 'down' | 'up'
 }
 
 export function Combobox({
@@ -52,7 +58,8 @@ export function Combobox({
   allowCustom = false,
   customPlaceholder = "Enter custom value...",
   clearable = false,
-  onFocus
+  onFocus,
+  dropdownPlacement = 'auto'
 }: ComboboxProps) {
   type DropdownDirection = 'up' | 'down'
   type DropdownPosition = {
@@ -167,22 +174,39 @@ export function Combobox({
       let maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
       let bottom = 0
 
-      // If there is not enough space below but more space above, open upwards
-      if (spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow) {
+      if (dropdownPlacement === 'up') {
         direction = 'up'
         maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
-        // Align the bottom of the dropdown with the top of the input, regardless of
-        // the dropdown’s actual content height. Using bottom positioning keeps the
-        // dropdown “attached” to the combobox.
         bottom = viewportHeight - rect.top
+        top = 0
+      } else if (dropdownPlacement === 'down') {
+        direction = 'down'
+        top = rect.bottom
+        maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
+        bottom = 0
+      } else {
+        // auto: flip up when low on space below and more room above
+        if (spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow) {
+          direction = 'up'
+          maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
+          bottom = viewportHeight - rect.top
+          top = 0
+        }
       }
 
       // Fallback in extreme edge-cases where computed height is non-positive
       if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
-        direction = 'down'
-        maxHeight = maxDropdownHeight
-        top = rect.bottom
-        bottom = 0
+        if (dropdownPlacement === 'up') {
+          direction = 'down'
+          top = rect.bottom
+          maxHeight = Math.min(maxDropdownHeight, Math.max(1, spaceBelow - viewportMargin))
+          bottom = 0
+        } else {
+          direction = 'down'
+          maxHeight = maxDropdownHeight
+          top = rect.bottom
+          bottom = 0
+        }
       }
 
       setPosition({
@@ -194,7 +218,7 @@ export function Combobox({
         direction
       })
     }
-  }, [open])
+  }, [open, dropdownPlacement])
 
   React.useEffect(() => {
     updatePosition()

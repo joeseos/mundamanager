@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { getGangRating } from "@/app/lib/shared/gang-data";
+import { formatRollOutcomeLine } from "@/utils/dice";
 
 // Advancement Logging Functions
 
@@ -48,6 +49,15 @@ interface FighterInjuryLogParams {
   fighter_name: string;
   injury_name: string;
   injury_table?: string;
+  dice_data?: any;
+}
+
+interface GangerAdvancementRollLogParams {
+  gang_id: string;
+  fighter_id: string;
+  fighter_name: string;
+  advancement_table: string;
+  outcome_label: string;
   dice_data?: any;
 }
 
@@ -153,6 +163,45 @@ export async function logSkillAdvancementDeletion(params: AdvancementDeletionLog
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to log advancement deletion'
+    };
+  }
+}
+
+function gangerAdvancementRollDetailLine(diceData: unknown): string | null {
+  if (!diceData || typeof diceData !== 'object') return null;
+  const d = diceData as { result?: unknown; dice?: unknown };
+  if (typeof d.result !== 'number') return null;
+  const dice =
+    Array.isArray(d.dice) && d.dice.length > 0 && d.dice.every((x) => typeof x === 'number')
+      ? (d.dice as number[])
+      : [d.result];
+  return formatRollOutcomeLine(d.result, dice);
+}
+
+export async function logRolledGangerAdvancement(params: GangerAdvancementRollLogParams): Promise<GangLogActionResult> {
+  try {
+    const resultNum =
+      params.dice_data &&
+      typeof params.dice_data === 'object' &&
+      typeof (params.dice_data as { result?: unknown }).result === 'number'
+        ? (params.dice_data as { result: number }).result
+        : '?';
+
+    const detail = gangerAdvancementRollDetailLine(params.dice_data);
+    const firstLine = `Fighter "${params.fighter_name}" rolled ${resultNum} on the ${params.advancement_table} table, resulting in: "${params.outcome_label}"`;
+    const description = detail ? `${firstLine}\n${detail}` : firstLine;
+
+    return await createGangLog({
+      gang_id: params.gang_id,
+      fighter_id: params.fighter_id,
+      action_type: 'ganger_advancement_roll',
+      description
+    });
+  } catch (error) {
+    console.error('Error logging the Ganger / Exotic Beast advancement roll:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to log the advancement roll'
     };
   }
 }

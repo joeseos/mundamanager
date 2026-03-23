@@ -1,9 +1,62 @@
-// Dice utilities and Lasting Injury D66 mapping
+// Dice utilities and roll tables (injuries, vehicles, ganger advancement, etc.)
 
 export const roll = (sides: number): number => Math.floor(Math.random() * sides) + 1;
-export const rollD6 = (): number => roll(6);
+
+/** Three-sided die — not a multiple of D6; keep separate from `rollNd6`. */
 export const rollD3 = (): number => roll(3);
+
+function assertPositiveIntegerDiceCount(count: number, fnName: string): void {
+  if (!Number.isInteger(count) || count < 1) {
+    throw new RangeError(`${fnName}: count must be a positive integer`);
+  }
+}
+
+function rollNd6DiceValues(count: number): number[] {
+  assertPositiveIntegerDiceCount(count, 'rollNd6');
+  return Array.from({ length: count }, () => roll(6));
+}
+
+/** Sum of `count` D6 only (e.g. `rollNd6(2)` for 2D6). For per-die breakdown use `rollNd6Outcome`. */
+export function rollNd6(count: number): number {
+  return rollNd6DiceValues(count).reduce((sum, d) => sum + d, 0);
+}
+
+export const rollD6 = (): number => rollNd6(1);
+
 export const rollD66 = (): number => rollD6() * 10 + rollD6();
+
+/** Total and individual dice — used by DiceRoller for display (e.g. `Roll 11 (6, 5): …`). */
+export type RollOutcome = { total: number; dice: number[] };
+
+/** Inline / log-style line: `Roll 11 (6, 5): Outcome name` — shared by DiceRoller and pool rolls (use `[r]` for a single draw). */
+export function formatRollOutcomeLine(total: number, dice: number[], resultLabel?: string): string {
+  const diceStr = dice.join(', ');
+  const core = `Roll ${total} (${diceStr})`;
+  return resultLabel !== undefined && resultLabel !== '' ? `${core}: ${resultLabel}` : core;
+}
+
+/** Normalise a legacy `number` roll (shown as a single die) or a full outcome. */
+export function normaliseRollFnResult(raw: number | RollOutcome): RollOutcome {
+  if (typeof raw === 'object' && raw !== null && Array.isArray(raw.dice)) {
+    return { total: raw.total, dice: [...raw.dice] };
+  }
+  const n = raw as number;
+  return { total: n, dice: [n] };
+}
+
+/** Roll any number of D6 (1D6, 2D6, 4D6, …). `total` is the sum; `dice` is each die in order. */
+export function rollNd6Outcome(count: number): RollOutcome {
+  const dice = rollNd6DiceValues(count);
+  const total = dice.reduce((sum, d) => sum + d, 0);
+  return { total, dice };
+}
+
+/** D66: `total` is tens×10+ones; `dice` is [tens, ones], e.g. 52 → [5, 2]. */
+export function rollD66Outcome(): RollOutcome {
+  const tens = rollD6();
+  const ones = rollD6();
+  return { total: tens * 10 + ones, dice: [tens, ones] };
+}
 
 export type TableEntry = {
   range: [number, number];
@@ -11,6 +64,10 @@ export type TableEntry = {
   note?: string;
   is_multiple?: boolean;
   banned?: string[];
+  /** Ganger / Exotic Beast advancement: specialist vs characteristic pair. */
+  kind?: 'specialist' | 'pair';
+  /** When `kind` is `pair`, the two characteristics to choose between. */
+  pairOptions?: readonly [string, string];
 };
 
 // ============================================================================
@@ -185,4 +242,27 @@ export const resolvePowerBoostRangeFromUtilByName = (
   return entry?.range;
 };
 
+// ============================================================================
+// Ganger / Exotic Beast Advancement - 2D6 table
+// ============================================================================
 
+// 2D6 table for Ganger / Exotic Beast Advancement
+export const GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE: TableEntry[] = [
+  { range: [2, 2], name: 'Become Specialist and gain a random Primary skill', kind: 'specialist' },
+  { range: [3, 4], name: '+1 Weapon Skill or Ballistic Skill', kind: 'pair', pairOptions: ['Weapon Skill', 'Ballistic Skill'] },
+  { range: [5, 6], name: '+1 Strength or Toughness', kind: 'pair', pairOptions: ['Strength', 'Toughness'] },
+  { range: [7, 7], name: '+1" Movement or +1 Initiative', kind: 'pair', pairOptions: ['Movement', 'Initiative'] },
+  { range: [8, 9], name: '+1 Willpower or Intelligence', kind: 'pair', pairOptions: ['Willpower', 'Intelligence'] },
+  { range: [10, 11], name: '+1 Leadership or Cool', kind: 'pair', pairOptions: ['Leadership', 'Cool'] },
+  { range: [12, 12], name: 'Become Specialist and gain a random Primary skill', kind: 'specialist' },
+];
+
+export const resolveGangerExoticBeastAdvancementFromUtil = (roll: number): TableEntry | undefined =>
+  GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+
+export const resolveGangerExoticBeastAdvancementRangeFromUtilByName = (
+  name: string
+): [number, number] | undefined => {
+  const entry = GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE.find((e) => e.name === name);
+  return entry?.range;
+};

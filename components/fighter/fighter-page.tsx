@@ -820,6 +820,34 @@ export default function FighterPage({
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
+            preFetchedFighterTypes={preFetchedFighterTypes}
+            onEnsureFighterTypes={async () => {
+              if (fighterData.gang?.id && fighterData.gang?.gang_type_id) {
+                await fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id);
+              }
+            }}
+            fighterSpecialRules={fighterData.fighter?.special_rules || []}
+            fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
+            fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+            onFighterDetailsUpdate={(patch) => {
+              setFighterData((prev) => ({
+                ...prev,
+                fighter: prev.fighter
+                  ? {
+                      ...prev.fighter,
+                      fighter_class: patch.fighter_class ?? prev.fighter.fighter_class,
+                      special_rules: patch.special_rules ?? prev.fighter.special_rules,
+                      fighter_type:
+                        patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
+                          ? {
+                              fighter_type: patch.fighter_type,
+                              fighter_type_id: patch.fighter_type_id
+                            }
+                          : prev.fighter.fighter_type
+                    }
+                  : null
+              }));
+            }}
             onAdvancementUpdate={(updatedAdvancements) => {
               setFighterData(prev => ({
                 ...prev,

@@ -11,7 +11,7 @@ import { useMutation } from '@tanstack/react-query';
 import { LuUndo2 } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import DiceRoller from '@/components/dice-roller';
-import { resolvePowerBoostFromUtil, resolvePowerBoostRangeFromUtilByName, rollD6 } from '@/utils/dice';
+import { resolvePowerBoostFromUtil, resolvePowerBoostRangeFromUtilByName, rollNd6Outcome } from '@/utils/dice';
 import { addPowerBoost, deletePowerBoost } from '@/app/actions/fighter-advancement';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 
@@ -487,7 +487,7 @@ export function PowerBoostsList({
                   }}
                   getName={(boost: FighterEffectType) => boost.effect_name}
                   inline
-                  rollFn={rollD6}
+                  rollFn={() => rollNd6Outcome(1)}
                   resolveNameForRoll={(roll) => resolvePowerBoostFromUtil(roll)?.name}
                   onRolled={(rolled) => {
                     if (rolled.length > 0) {

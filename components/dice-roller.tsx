@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Modal from '@/components/ui/modal';
+import { formatRollOutcomeLine, normaliseRollFnResult, type RollOutcome } from '@/utils/dice';
 
-type Result<T> = { roll: number; item: T };
+type Result<T> = { roll: number; item: T; dice: number[] };
 
 type Props<T> = {
   items: T[];
@@ -12,9 +13,11 @@ type Props<T> = {
   getName: (item: T) => string;
   onConfirm?: (results: Array<Result<T>>) => Promise<void> | void;
   onRolled?: (results: Array<Result<T>>) => void;
-  onRoll?: (roll: number) => void; // called when no item matched
+  /** Called when no table row matched (inline mode). Includes dice breakdown when the roll produced them. */
+  onRoll?: (roll: number, dice: number[]) => void;
   inline?: boolean; // if true, show results inline instead of modal and call onRolled
-  rollFn: () => number; // required die roll (e.g., D6 / D66)
+  /** Return a total, or totals plus individual dice for breakdown in the UI. */
+  rollFn: () => number | RollOutcome;
   resolveNameForRoll?: (roll: number) => string | undefined; // display-only fallback label
   buttonText?: string;
   disabled?: boolean;
@@ -40,7 +43,7 @@ export default function DiceRoller<T>({
   const [rolling, setRolling] = React.useState(false);
   const [applying, setApplying] = React.useState(false);
   const [results, setResults] = React.useState<Array<Result<T>>>([]);
-  const [lastRoll, setLastRoll] = React.useState<number | null>(null);
+  const [lastOutcome, setLastOutcome] = React.useState<RollOutcome | null>(null);
 
   const resolveByRoll = React.useCallback(
     (r: number): T | undefined => {
@@ -58,19 +61,19 @@ export default function DiceRoller<T>({
       setRolling(true);
       if (ensureItems) await ensureItems();
 
-      const r = rollFn();
-      setLastRoll(r);
-      const first = resolveByRoll(r);
+      const raw = rollFn();
+      const { total, dice } = normaliseRollFnResult(raw);
+      setLastOutcome({ total, dice });
+      const first = resolveByRoll(total);
       const out: Array<Result<T>> = [];
-      if (first) out.push({ roll: r, item: first });
+      if (first) out.push({ roll: total, item: first, dice });
 
       setResults(out);
       if (inline) {
-        // if DB matches (legacy) for ranges are made, out.length will be > 0
         if (out.length > 0) {
           onRolled && onRolled(out);
         } else {
-          onRoll && onRoll(r);
+          onRoll && onRoll(total, dice);
         }
       } else {
         setOpen(true);
@@ -78,7 +81,7 @@ export default function DiceRoller<T>({
     } finally {
       setRolling(false);
     }
-  }, [ensureItems, resolveByRoll, getName, inline, onRolled]);
+  }, [ensureItems, resolveByRoll, inline, onRolled, onRoll, rollFn]);
 
   const handleConfirm = async () => {
     setApplying(true);
@@ -110,15 +113,17 @@ export default function DiceRoller<T>({
             {results.length > 0 ? (
               results.map((r, idx) => (
                 <span key={idx}>
-                  {idx > 0 ? ', ' : ''}Roll {r.roll}: {getName(r.item)}
+                  {idx > 0 ? ', ' : ''}
+                  {formatRollOutcomeLine(r.roll, r.dice, getName(r.item))}
                 </span>
               ))
-            ) : lastRoll !== null ? (
+            ) : lastOutcome !== null ? (
               <span>
-                {(() => {
-                  const name = resolveNameForRoll?.(lastRoll);
-                  return name ? `Roll ${lastRoll}: ${name}` : `Roll ${lastRoll}`;
-                })()}
+                {formatRollOutcomeLine(
+                  lastOutcome.total,
+                  lastOutcome.dice,
+                  resolveNameForRoll?.(lastOutcome.total)
+                )}
               </span>
             ) : null}
           </div>
@@ -131,11 +136,20 @@ export default function DiceRoller<T>({
           content={
             <div className="space-y-3">
               {results.length === 0 ? (
-                <div className="text-sm text-red-600">No entry matched the roll. Check ranges.</div>
+                <div className="text-sm space-y-2">
+                  <div className="text-red-600">No entry matched the roll. Check ranges.</div>
+                  {lastOutcome && (
+                    <div className="text-muted-foreground">
+                      {formatRollOutcomeLine(lastOutcome.total, lastOutcome.dice)}
+                    </div>
+                  )}
+                </div>
               ) : (
                 results.map((r, idx) => (
                   <div key={idx} className="p-2 border rounded">
-                    <div className="font-semibold">Roll {r.roll}: {getName(r.item)}</div>
+                    <div className="font-semibold">
+                      {formatRollOutcomeLine(r.roll, r.dice, getName(r.item))}
+                    </div>
                   </div>
                 ))
               )}
@@ -150,5 +164,4 @@ export default function DiceRoller<T>({
     </>
   );
 }
-
 

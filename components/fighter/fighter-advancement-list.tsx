@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
@@ -15,9 +15,22 @@ import { useMutation } from '@tanstack/react-query';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
-  deleteAdvancement 
+  deleteAdvancement,
+  verifyAndLogRolledGangerAdvancementRoll
 } from '@/app/actions/fighter-advancement';
+import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
+import DiceRoller from '@/components/dice-roller';
+import { Combobox } from '@/components/ui/combobox';
+import { FighterPromotionModal } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
+import {
+  roll,
+  formatRollOutcomeLine,
+  rollNd6Outcome,
+  GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE,
+  resolveGangerExoticBeastAdvancementFromUtil,
+  type TableEntry
+} from '@/utils/dice';
 
 // AdvancementModal Interfaces
 interface AdvancementModalProps {
@@ -32,6 +45,26 @@ interface AdvancementModalProps {
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onAdvancementUpdate: (updatedAdvancements: FighterEffectType[]) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
+  userPermissions?: UserPermissions;
+  preFetchedFighterTypes?: Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    total_cost: number;
+  }>;
+  onEnsureFighterTypes?: () => Promise<void>;
+  fighterSpecialRules?: string[];
+  fighterTypeName?: string;
+  fighterTypeId?: string;
+  onFighterDetailsUpdate?: (patch: {
+    fighter_class?: string;
+    fighter_class_id?: string;
+    fighter_type?: string;
+    fighter_type_id?: string;
+    special_rules?: string[];
+  }) => void;
 }
 
 interface StatChangeCategory {
@@ -144,6 +177,25 @@ interface AdvancementsListProps {
   onSkillUpdate?: (updatedSkills: FighterSkills) => void;
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
+  preFetchedFighterTypes?: Array<{
+    id: string;
+    fighter_type: string;
+    fighter_class: string;
+    fighter_class_id?: string;
+    special_rules?: string[];
+    total_cost: number;
+  }>;
+  onEnsureFighterTypes?: () => Promise<void>;
+  fighterSpecialRules?: string[];
+  fighterTypeName?: string;
+  fighterTypeId?: string;
+  onFighterDetailsUpdate?: (patch: {
+    fighter_class?: string;
+    fighter_class_id?: string;
+    fighter_type?: string;
+    fighter_type_id?: string;
+    special_rules?: string[];
+  }) => void;
 }
 
 interface TransformedAdvancement {
@@ -171,8 +223,55 @@ interface SkillAccess {
   skill_type_name: string;
 }
 
+function effectiveSkillAccess(a: SkillAccess): 'primary' | 'secondary' | 'allowed' | null {
+  return (a.override_access_level ?? a.access_level) ?? null;
+}
+
+const GANGER_ADVANCEMENT_TABLE_LABEL = 'Ganger / Exotic Beast Advancement';
+
+type GangerAdvancementComboRow = TableEntry & { id: string };
+
+const GANGER_ADVANCEMENT_COMBO_OPTIONS: GangerAdvancementComboRow[] = GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE.map(
+  (entry) => ({
+    ...entry,
+    id: `ganger-adv-${entry.range[0]}-${entry.range[1]}`
+  })
+);
+
+function formatGangerAdvancementRangeLabel(entry: TableEntry): string {
+  const [a, b] = entry.range;
+  return a === b ? `${a}` : `${a}-${b}`;
+}
+
+type GangerCharAdv = {
+  id: string;
+  characteristic_code: string;
+  xp_cost: number;
+  credits_increase: number;
+  times_increased?: number;
+};
+
 // AdvancementModal Component
-export function AdvancementModal({ fighterId, currentXp, fighterClass, advancements, skills, onClose, onAdvancementAdded, onSkillUpdate, onXpCreditsUpdate, onAdvancementUpdate, onCharacteristicUpdate }: AdvancementModalProps) {
+export function AdvancementModal({
+  fighterId,
+  currentXp,
+  fighterClass,
+  advancements,
+  skills,
+  onClose,
+  onAdvancementAdded,
+  onSkillUpdate,
+  onXpCreditsUpdate,
+  onAdvancementUpdate,
+  onCharacteristicUpdate,
+  userPermissions,
+  preFetchedFighterTypes = [],
+  onEnsureFighterTypes,
+  fighterSpecialRules = [],
+  fighterTypeName = '',
+  fighterTypeId = '',
+  onFighterDetailsUpdate
+}: AdvancementModalProps) {
   
   const [categories, setCategories] = useState<(StatChangeCategory | SkillType)[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -185,38 +284,82 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
   // skillsData not used in optimistic path; removed
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
+  /** When true, ganger roll UI must not overwrite footer XP/credits from suggested values. */
+  const [gangerCostsUserOverride, setGangerCostsUserOverride] = useState(false);
+  const [gangerBuyUi, setGangerBuyUi] = useState<{ canBuy: boolean; pending: boolean }>({
+    canBuy: false,
+    pending: false
+  });
+  const [gangerPurchaseBusy, setGangerPurchaseBusy] = useState(false);
+  // Ganger / Exotic Beast advancement roll UI (inline)
+  const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
+  const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
+  const [gangerCharMap, setGangerCharMap] = useState<Record<string, GangerCharAdv>>({});
+  const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
+    xp_cost: 6,
+    credits_increase: 20
+  });
+  const [gangerPairStatName, setGangerPairStatName] = useState('');
+  const [gangerPrimarySets, setGangerPrimarySets] = useState<SkillAccess[]>([]);
+  const [gangerPrimarySetsLoading, setGangerPrimarySetsLoading] = useState(false);
+  const [gangerSkillSetRoll, setGangerSkillSetRoll] = useState<number | null>(null);
+  const [gangerSelectedSetIndex, setGangerSelectedSetIndex] = useState<number | null>(null);
+  const [gangerSkillsInSet, setGangerSkillsInSet] = useState<
+    { skill_id: string; skill_name: string; skill_type_id: string; available: boolean }[]
+  >([]);
+  const [gangerSkillPickRoll, setGangerSkillPickRoll] = useState<number | null>(null);
+  const [gangerSelectedSkillIndex, setGangerSelectedSkillIndex] = useState<number | null>(null);
+  const [gangerPromotionOpen, setGangerPromotionOpen] = useState(false);
+  const [gangerPendingPromotion, setGangerPendingPromotion] = useState<{
+    fighter_type: string;
+    fighter_type_id: string;
+    fighter_class: string;
+    fighter_class_id: string;
+    special_rules: string[];
+  } | null>(null);
   // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   // No client-side invalidations; rely on server tag revalidation
 
   // TanStack Query mutations
   const addCharacteristicMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; fighter_effect_type_id: string; xp_cost: number; credits_increase: number }) => {
-      const result = await addCharacteristicAdvancement(variables);
+    mutationFn: async (variables: {
+      fighter_id: string;
+      fighter_effect_type_id: string;
+      xp_cost: number;
+      credits_increase: number;
+      ganger_pair_stat_name?: string;
+      ganger_characteristic_code?: string;
+    }) => {
+      const { ganger_pair_stat_name: _a, ganger_characteristic_code: _b, ...rest } = variables;
+      const result = await addCharacteristicAdvancement(rest);
       if (!result.success) {
         throw new Error(result.error || 'Failed to add characteristic advancement');
       }
       return result;
     },
     onMutate: async (variables) => {
-      if (!selectedAdvancement) return {};
+      const statChangeName =
+        variables.ganger_pair_stat_name ?? selectedAdvancement?.stat_change_name;
+      if (!statChangeName) return {};
 
       // Snapshot the previous value for rollback
       const previousAdvancements = [...advancements];
 
       // Create optimistic advancement with predictable structure
-      const advancementName = `Characteristic: ${selectedAdvancement.stat_change_name}`;
-      const optimisticId = `optimistic-char-${fighterId}-${selectedAdvancement.stat_change_name?.replace(/\s+/g, '-').toLowerCase()}`;
+      const advancementName = `Characteristic: ${statChangeName}`;
+      const optimisticId = `optimistic-char-${fighterId}-${statChangeName.replace(/\s+/g, '-').toLowerCase()}`;
+      const characteristicCode =
+        variables.ganger_characteristic_code ??
+        (selectedAdvancement?.characteristic_code ||
+          statChangeName.toLowerCase().replace(/\s+/g, '_'));
       const optimisticAdvancement = {
         id: optimisticId,
         effect_name: advancementName,
         fighter_effect_modifiers: [{
           id: `${optimisticId}-modifier`,
           fighter_effect_id: optimisticId,
-          // Prefer the API-provided characteristic_code if present; fallback to normalized name
-          stat_name: (selectedAdvancement.characteristic_code || (selectedAdvancement.stat_change_name || '')
-            .toLowerCase()
-            .replace(/\s+/g, '_')),
+          stat_name: characteristicCode,
           numeric_value: 1
         }],
         created_at: new Date().toISOString(),
@@ -246,8 +389,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
     onSuccess: (result, variables, context) => {
       // Don't manually replace - let the cache invalidation handle it
       // This prevents race conditions between manual updates and cache refresh
-      
-      toast.success("Success!", { description: `Successfully added ${selectedAdvancement?.stat_change_name}` });
+      const name = variables.ganger_pair_stat_name ?? selectedAdvancement?.stat_change_name;
+      toast.success("Success!", { description: `Successfully added ${name}` });
     },
     onError: (error, variables, context) => {
       // Rollback optimistic advancement update
@@ -268,17 +411,24 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
   });
 
   const addSkillMutation = useMutation({
-    mutationFn: async (variables: { fighter_id: string; skill_id: string; xp_cost: number; credits_increase: number; is_advance: boolean }) => {
-      const result = await addSkillAdvancement(variables);
+    mutationFn: async (variables: {
+      fighter_id: string;
+      skill_id: string;
+      xp_cost: number;
+      credits_increase: number;
+      is_advance: boolean;
+      ganger_skill_name?: string;
+    }) => {
+      const { ganger_skill_name: _g, ...rest } = variables;
+      const result = await addSkillAdvancement(rest);
       if (!result.success) {
         throw new Error(result.error || 'Failed to add skill advancement');
       }
       return result;
     },
     onMutate: async (variables) => {
-      if (!selectedAdvancement) return {};
-
-      const skillName = selectedAdvancement?.stat_change_name || 'Unknown Skill';
+      const skillName = variables.ganger_skill_name ?? selectedAdvancement?.stat_change_name;
+      if (!skillName) return {};
       
       // Store previous states for rollback
       const previousAdvancements = [...advancements];
@@ -313,8 +463,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
     onSuccess: (result, variables, context) => {
       // Don't do anything - let the cache refresh handle the real data
       // The optimistic update will be replaced naturally when the cache refreshes
-      
-      toast.success("Success!", { description: `Successfully added ${selectedAdvancement?.stat_change_name}` });
+      const name = variables.ganger_skill_name ?? selectedAdvancement?.stat_change_name;
+      toast.success("Success!", { description: `Successfully added ${name}` });
     },
     onError: (error, variables, context) => {
       // Rollback skills update
@@ -325,6 +475,576 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       toast.error(error instanceof Error ? error.message : 'Failed to add advancement');
     }
   });
+
+  const gangerSelectedRow = useMemo(
+    () => GANGER_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === gangerSelectedRowId),
+    [gangerSelectedRowId]
+  );
+
+  const isGangerOrExoticBeastClass =
+    fighterClass === 'Ganger' || fighterClass === 'Exotic Beast';
+
+  const gangerModalRollBuy =
+    isGangerOrExoticBeastClass &&
+    !!userPermissions &&
+    !!onEnsureFighterTypes &&
+    !!onFighterDetailsUpdate;
+
+  useEffect(() => {
+    if (!isGangerOrExoticBeastClass || !fighterId) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+            },
+            body: JSON.stringify({ fighter_id: fighterId })
+          }
+        );
+        if (!response.ok || cancelled) return;
+        const data = await response.json();
+        if (cancelled) return;
+        const ch = data?.characteristics as Record<string, GangerCharAdv> | undefined;
+        if (ch && typeof ch === 'object') setGangerCharMap(ch);
+        const spec = data?.ganger_to_specialist_advancement as
+          | { xp_cost?: number; credits_increase?: number }
+          | undefined;
+        if (spec && typeof spec.xp_cost === 'number') {
+          setGangerSpecialistCosts({
+            xp_cost: spec.xp_cost,
+            credits_increase: typeof spec.credits_increase === 'number' ? spec.credits_increase : 0
+          });
+        }
+      } catch {
+        // non-fatal
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [fighterId, isGangerOrExoticBeastClass]);
+
+  useEffect(() => {
+    if (gangerSelectedRow?.kind !== 'specialist' || !gangerPendingPromotion?.fighter_type_id) {
+      setGangerPrimarySets([]);
+      setGangerPrimarySetsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setGangerPrimarySetsLoading(true);
+    const run = async () => {
+      try {
+        const res = await fetch(
+          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(gangerPendingPromotion.fighter_type_id)}`
+        );
+        if (!res.ok || cancelled) {
+          if (!cancelled) setGangerPrimarySets([]);
+          return;
+        }
+        const data = await res.json();
+        const access = (data.skill_access || []) as SkillAccess[];
+        const primaries = access.filter((a) => effectiveSkillAccess(a) === 'primary');
+        if (!cancelled) setGangerPrimarySets(primaries);
+      } catch {
+        if (!cancelled) setGangerPrimarySets([]);
+      } finally {
+        if (!cancelled) setGangerPrimarySetsLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [fighterId, gangerSelectedRow?.kind, gangerPendingPromotion?.fighter_type_id]);
+
+  useEffect(() => {
+    if (!gangerSelectedRow) {
+      setGangerPairStatName('');
+      return;
+    }
+    if (gangerSelectedRow.kind !== 'pair' || !gangerSelectedRow.pairOptions) return;
+    const [a, b] = gangerSelectedRow.pairOptions;
+    setGangerPairStatName((prev) => (prev && [a, b].includes(prev) ? prev : a));
+  }, [gangerSelectedRowId, gangerSelectedRow]);
+
+  useEffect(() => {
+    if (gangerSelectedRow?.kind !== 'specialist') {
+      setGangerPendingPromotion(null);
+      setGangerSkillSetRoll(null);
+      setGangerSkillPickRoll(null);
+      setGangerSelectedSetIndex(null);
+      setGangerSelectedSkillIndex(null);
+    }
+  }, [gangerSelectedRow?.kind]);
+
+  useEffect(() => {
+    setGangerSkillSetRoll(null);
+    setGangerSkillPickRoll(null);
+    setGangerSelectedSetIndex(null);
+    setGangerSelectedSkillIndex(null);
+  }, [gangerPendingPromotion?.fighter_type_id]);
+
+  useEffect(() => {
+    if (
+      gangerSelectedSetIndex === null ||
+      !gangerPrimarySets[gangerSelectedSetIndex] ||
+      !gangerPendingPromotion?.fighter_type_id
+    ) {
+      setGangerSkillsInSet([]);
+      return;
+    }
+    const typeId = gangerPrimarySets[gangerSelectedSetIndex].skill_type_id;
+    let cancelled = false;
+    const run = async () => {
+      const res = await fetch(
+        `/api/fighters/specialist-preview-skills?fighterId=${encodeURIComponent(fighterId)}&skillTypeId=${encodeURIComponent(typeId)}&previewFighterTypeId=${encodeURIComponent(gangerPendingPromotion.fighter_type_id)}`
+      );
+      if (!res.ok || cancelled) {
+        if (!cancelled) setGangerSkillsInSet([]);
+        return;
+      }
+      const data = (await res.json()) as {
+        skills?: { skill_id: string; skill_name: string; skill_type_id: string; available: boolean }[];
+      };
+      if (!cancelled) setGangerSkillsInSet(data.skills ?? []);
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [fighterId, gangerSelectedSetIndex, gangerPrimarySets, gangerPendingPromotion?.fighter_type_id]);
+
+  const logGangerRollMutation = useMutation({
+    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
+      const result = await verifyAndLogRolledGangerAdvancementRoll({
+        fighter_id: fighterId,
+        advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
+        outcome_label: variables.outcome_label,
+        dice_data: variables.dice_data
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to log advancement roll');
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Advancement roll logged');
+    },
+    onError: (e: Error) => {
+      toast.error(e?.message || 'Failed to log advancement roll');
+    }
+  });
+
+  const logGangerSubRollMutation = useMutation({
+    mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
+      const result = await verifyAndLogRolledGangerAdvancementRoll({
+        fighter_id: fighterId,
+        advancement_table: GANGER_ADVANCEMENT_TABLE_LABEL,
+        outcome_label: variables.outcome_label,
+        dice_data: variables.dice_data
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to log sub-roll');
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Sub-roll recorded in gang log');
+    },
+    onError: (e: Error) => {
+      toast.error(e?.message || 'Failed to log sub-roll');
+    }
+  });
+
+  const applyGangerSpecialistMutation = useMutation({
+    mutationFn: async (vars: {
+      promotion: {
+        fighter_type: string;
+        fighter_type_id: string;
+        fighter_class: string;
+        fighter_class_id: string;
+        special_rules: string[];
+      };
+      skill_id: string;
+      xp_cost: number;
+      credits_increase: number;
+      skillName: string;
+    }) => {
+      const u = await updateFighterDetails({
+        fighter_id: fighterId,
+        fighter_class: vars.promotion.fighter_class,
+        fighter_class_id: vars.promotion.fighter_class_id,
+        fighter_type: vars.promotion.fighter_type,
+        fighter_type_id: vars.promotion.fighter_type_id,
+        special_rules: vars.promotion.special_rules
+      });
+      if (!u.success) throw new Error(u.error || 'Failed to promote fighter');
+      const s = await addSkillAdvancement({
+        fighter_id: fighterId,
+        skill_id: vars.skill_id,
+        xp_cost: vars.xp_cost,
+        credits_increase: vars.credits_increase,
+        is_advance: true
+      });
+      if (!s.success) throw new Error(s.error || 'Failed to add skill');
+      return { u, s };
+    },
+    onMutate: async (vars) => {
+      const previousSkills = { ...skills };
+      const optimisticSkillId = `optimistic-skill-roll-${Date.now()}`;
+      if (onSkillUpdate) {
+        onSkillUpdate({
+          ...skills,
+          [vars.skillName]: {
+            id: optimisticSkillId,
+            credits_increase: vars.credits_increase,
+            xp_cost: vars.xp_cost,
+            is_advance: true,
+            acquired_at: new Date().toISOString(),
+            fighter_injury_id: null
+          }
+        });
+      }
+      if (onXpCreditsUpdate) onXpCreditsUpdate(-vars.xp_cost, vars.credits_increase);
+      return { previousSkills };
+    },
+    onSuccess: (_data, vars) => {
+      onFighterDetailsUpdate?.({
+        fighter_class: vars.promotion.fighter_class,
+        fighter_class_id: vars.promotion.fighter_class_id,
+        fighter_type: vars.promotion.fighter_type,
+        fighter_type_id: vars.promotion.fighter_type_id,
+        special_rules: vars.promotion.special_rules
+      });
+      toast.success('Advancement purchased');
+    },
+    onError: (e: Error, vars, context) => {
+      if (context?.previousSkills && onSkillUpdate) onSkillUpdate(context.previousSkills);
+      if (vars && onXpCreditsUpdate) onXpCreditsUpdate(vars.xp_cost, -vars.credits_increase);
+      toast.error(e?.message || 'Failed to apply promotion and skill');
+    }
+  });
+
+  const logGangerResolvedRollWithCooldown = (row: TableEntry, rollTotal: number, dice: number[]) => {
+    if (gangerRollCooldown || logGangerRollMutation.isPending) return false;
+    setGangerRollCooldown(true);
+    try {
+      const combo = GANGER_ADVANCEMENT_COMBO_OPTIONS.find(
+        (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
+      );
+      if (combo) {
+        setGangerCostsUserOverride(false);
+        setGangerSelectedRowId(combo.id);
+      }
+      logGangerRollMutation.mutate({
+        outcome_label: row.name,
+        dice_data: { result: rollTotal, dice }
+      });
+      return true;
+    } finally {
+      setTimeout(() => setGangerRollCooldown(false), 2000);
+    }
+  };
+
+  const executeGangerPairPurchase = useCallback(
+    async (xpCost: number, creditsIncrease: number): Promise<boolean> => {
+      if (!gangerSelectedRowId || !gangerSelectedRow || gangerSelectedRow.kind !== 'pair' || !gangerPairStatName) {
+        toast.error('Select a table outcome');
+        return false;
+      }
+      const det = gangerCharMap[gangerPairStatName];
+      if (!det?.id) {
+        toast.error('Could not resolve characteristic data');
+        return false;
+      }
+      if (currentXp < xpCost) {
+        toast.error('Insufficient XP');
+        return false;
+      }
+      const characteristicCode =
+        det.characteristic_code || gangerPairStatName.toLowerCase().replace(/\s+/g, '_');
+      try {
+        await addCharacteristicMutation.mutateAsync({
+          fighter_id: fighterId,
+          fighter_effect_type_id: det.id,
+          xp_cost: xpCost,
+          credits_increase: creditsIncrease,
+          ganger_pair_stat_name: gangerPairStatName,
+          ganger_characteristic_code: characteristicCode
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [
+      gangerSelectedRowId,
+      gangerSelectedRow,
+      gangerPairStatName,
+      gangerCharMap,
+      currentXp,
+      fighterId,
+      addCharacteristicMutation
+    ]
+  );
+
+  const executeGangerSpecialistPurchase = useCallback(
+    async (xpCost: number, creditsIncrease: number): Promise<boolean> => {
+      if (!gangerSelectedRowId || !gangerSelectedRow || gangerSelectedRow.kind !== 'specialist') {
+        toast.error('Select a table outcome');
+        return false;
+      }
+      if (!gangerPendingPromotion) {
+        toast.error('Confirm promotion in the Promote Fighter modal first');
+        return false;
+      }
+      if (gangerSelectedSetIndex === null || !gangerPrimarySets[gangerSelectedSetIndex]) {
+        toast.error('Choose a Primary skill set');
+        return false;
+      }
+      if (gangerSelectedSkillIndex === null || !gangerSkillsInSet[gangerSelectedSkillIndex]) {
+        toast.error('Choose a skill');
+        return false;
+      }
+      const sk = gangerSkillsInSet[gangerSelectedSkillIndex];
+      if (!sk.available) {
+        toast.error('Selected skill is not available');
+        return false;
+      }
+      if (currentXp < xpCost) {
+        toast.error('Insufficient XP');
+        return false;
+      }
+      try {
+        await applyGangerSpecialistMutation.mutateAsync({
+          promotion: gangerPendingPromotion,
+          skill_id: sk.skill_id,
+          xp_cost: xpCost,
+          credits_increase: creditsIncrease,
+          skillName: sk.skill_name
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [
+      gangerSelectedRowId,
+      gangerSelectedRow,
+      gangerPendingPromotion,
+      gangerSelectedSetIndex,
+      gangerPrimarySets,
+      gangerSelectedSkillIndex,
+      gangerSkillsInSet,
+      currentXp,
+      applyGangerSpecialistMutation
+    ]
+  );
+
+  const purchaseGangerAdvancement = useCallback(
+    async (xpCost: number, creditsIncrease: number): Promise<boolean> => {
+      if (!gangerSelectedRow) return false;
+      if (gangerSelectedRow.kind === 'pair') {
+        return executeGangerPairPurchase(xpCost, creditsIncrease);
+      }
+      if (gangerSelectedRow.kind === 'specialist') {
+        return executeGangerSpecialistPurchase(xpCost, creditsIncrease);
+      }
+      return false;
+    },
+    [gangerSelectedRow, executeGangerPairPurchase, executeGangerSpecialistPurchase]
+  );
+
+  useEffect(() => {
+    if (!gangerModalRollBuy) return;
+    const pending =
+      applyGangerSpecialistMutation.isPending ||
+      logGangerSubRollMutation.isPending ||
+      logGangerRollMutation.isPending;
+    if (!userPermissions?.canEdit) {
+      setGangerBuyUi({ canBuy: false, pending });
+      return;
+    }
+    if (!gangerSelectedRowId || !gangerSelectedRow) {
+      setGangerBuyUi({ canBuy: false, pending });
+      return;
+    }
+    if (editableXpCost < 0 || currentXp < editableXpCost) {
+      setGangerBuyUi({ canBuy: false, pending });
+      return;
+    }
+    if (gangerSelectedRow.kind === 'pair') {
+      const ok = !!(gangerPairStatName && gangerCharMap[gangerPairStatName]?.id);
+      setGangerBuyUi({ canBuy: ok, pending });
+      return;
+    }
+    if (gangerSelectedRow.kind === 'specialist') {
+      const sk =
+        gangerSelectedSkillIndex !== null ? gangerSkillsInSet[gangerSelectedSkillIndex] : undefined;
+      const ok = !!(
+        gangerPendingPromotion &&
+        gangerSelectedSetIndex !== null &&
+        gangerSelectedSkillIndex !== null &&
+        sk?.available
+      );
+      setGangerBuyUi({ canBuy: ok, pending });
+      return;
+    }
+    setGangerBuyUi({ canBuy: false, pending });
+  }, [
+    gangerModalRollBuy,
+    userPermissions?.canEdit,
+    gangerSelectedRowId,
+    gangerSelectedRow,
+    editableXpCost,
+    currentXp,
+    gangerPairStatName,
+    gangerCharMap,
+    gangerPendingPromotion,
+    gangerSelectedSetIndex,
+    gangerSelectedSkillIndex,
+    gangerSkillsInSet,
+    applyGangerSpecialistMutation.isPending,
+    logGangerSubRollMutation.isPending,
+    logGangerRollMutation.isPending
+  ]);
+
+  useEffect(() => {
+    if (!gangerModalRollBuy) return;
+    if (!gangerSelectedRow) return;
+    if (gangerSelectedRow.kind === 'pair' && gangerPairStatName) {
+      const det = gangerCharMap[gangerPairStatName];
+      if (det) {
+        if (!gangerCostsUserOverride) {
+          setEditableXpCost(det.xp_cost ?? 6);
+          setEditableCreditsIncrease(det.credits_increase ?? 0);
+        }
+      }
+      return;
+    }
+    if (gangerSelectedRow.kind === 'specialist') {
+      if (!gangerCostsUserOverride) {
+        setEditableXpCost(gangerSpecialistCosts.xp_cost);
+        setEditableCreditsIncrease(gangerSpecialistCosts.credits_increase);
+      }
+    }
+  }, [
+    gangerModalRollBuy,
+    gangerSelectedRow,
+    gangerPairStatName,
+    gangerCharMap,
+    gangerSpecialistCosts,
+    gangerCostsUserOverride
+  ]);
+
+  const rollGangerPrimarySkillSet = () => {
+    if (!gangerPendingPromotion) {
+      toast.error('Confirm promotion in the Promote Fighter modal first');
+      return;
+    }
+    if (gangerPrimarySetsLoading) {
+      toast.error('Loading Primary skill sets…');
+      return;
+    }
+    if (gangerPrimarySets.length === 0) {
+      toast.error('No Primary skill sets for the promoted fighter type');
+      return;
+    }
+    if (logGangerSubRollMutation.isPending) return;
+    const r = roll(gangerPrimarySets.length);
+    const chosen = gangerPrimarySets[r - 1];
+    setGangerSkillSetRoll(r);
+    setGangerSelectedSetIndex(r - 1);
+    setGangerSkillPickRoll(null);
+    setGangerSelectedSkillIndex(null);
+    logGangerSubRollMutation.mutate({
+      outcome_label: `Specialist — Primary skill set: ${chosen.skill_type_name}`,
+      dice_data: {
+        result: r,
+        dice: [r],
+        pool_size: gangerPrimarySets.length,
+        roll_type: 'primary_skill_set'
+      }
+    });
+  };
+
+  const rollGangerSkillInSet = () => {
+    if (gangerSkillsInSet.length === 0) {
+      toast.error('No skills in this set (or still loading)');
+      return;
+    }
+    if (logGangerSubRollMutation.isPending) return;
+    const r = roll(gangerSkillsInSet.length);
+    const chosen = gangerSkillsInSet[r - 1];
+    setGangerSkillPickRoll(r);
+    setGangerSelectedSkillIndex(r - 1);
+    logGangerSubRollMutation.mutate({
+      outcome_label: `Specialist — Skill: ${chosen.skill_name}`,
+      dice_data: {
+        result: r,
+        dice: [r],
+        pool_size: gangerSkillsInSet.length,
+        roll_type: 'skill_in_set'
+      }
+    });
+  };
+
+  const gangerAdvancementComboboxOptions = useMemo(
+    () =>
+      GANGER_ADVANCEMENT_COMBO_OPTIONS.flatMap((row) => {
+        const range = formatGangerAdvancementRangeLabel(row);
+        const displayText = `${range}: ${row.name}`;
+        return [
+          {
+            value: row.id,
+            label: (
+              <>
+                <span className="text-muted-foreground inline-block w-14 text-center mr-1">{range}</span>
+                {row.name}
+              </>
+            ),
+            displayValue: displayText
+          }
+        ];
+      }),
+    []
+  );
+
+  const gangerPrimarySetComboboxOptions = useMemo(
+    () =>
+      gangerPrimarySets.map((p) => ({
+        value: p.skill_type_id,
+        label: p.skill_type_name,
+        displayValue: p.skill_type_name
+      })),
+    [gangerPrimarySets]
+  );
+
+  const gangerSkillInSetComboboxOptions = useMemo(
+    () =>
+      gangerSkillsInSet.map((s) => ({
+        value: s.skill_id,
+        label: s.available ? s.skill_name : `${s.skill_name} (unavailable)`,
+        displayValue: s.skill_name,
+        disabled: !s.available
+      })),
+    [gangerSkillsInSet]
+  );
+
+  const gangerSelectedPrimarySkillTypeId =
+    gangerSelectedSetIndex !== null && gangerPrimarySets[gangerSelectedSetIndex]
+      ? gangerPrimarySets[gangerSelectedSetIndex].skill_type_id
+      : '';
+
+  const gangerSelectedSkillId =
+    gangerSelectedSkillIndex !== null && gangerSkillsInSet[gangerSelectedSkillIndex]
+      ? gangerSkillsInSet[gangerSelectedSkillIndex].skill_id
+      : '';
+
+  const gangerPairDetail =
+    gangerSelectedRow?.kind === 'pair' && gangerPairStatName ? gangerCharMap[gangerPairStatName] : null;
 
   // Fetch stat change categories
   useEffect(() => {
@@ -554,7 +1274,21 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
     }
   };
 
+  const isGangerOrExoticBeastRestricted =
+    fighterClass === 'Ganger' || fighterClass === 'Exotic Beast';
+
   const handleAdvancementPurchase = async () => {
+    if (gangerModalRollBuy) {
+      setGangerPurchaseBusy(true);
+      try {
+        const ok = await purchaseGangerAdvancement(editableXpCost, editableCreditsIncrease);
+        if (ok) onClose();
+      } finally {
+        setGangerPurchaseBusy(false);
+      }
+      return;
+    }
+
     if (!selectedAdvancement) return;
 
     // Close modal immediately for instant UX
@@ -608,6 +1342,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
 
   // Update the useEffect that handles XP cost changes
   const handleXpCostChange = (value: number) => {
+    if (gangerModalRollBuy) setGangerCostsUserOverride(true);
     setEditableXpCost(value);
     // Update the advancement with new values
     if (selectedAdvancement) {
@@ -619,6 +1354,22 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
       });
     }
   };
+
+  const purchaseBlockingBusy =
+    addCharacteristicMutation.isPending ||
+    addSkillMutation.isPending ||
+    gangerPurchaseBusy ||
+    applyGangerSpecialistMutation.isPending ||
+    logGangerSubRollMutation.isPending ||
+    logGangerRollMutation.isPending;
+
+  const buyAdvancementDisabled = gangerModalRollBuy
+    ? !gangerBuyUi.canBuy || purchaseBlockingBusy || gangerBuyUi.pending
+    : !selectedAdvancement ||
+      (advancementType === 'skill' && !skillAcquisitionType) ||
+      !selectedAdvancement.has_enough_xp ||
+      editableXpCost < 0 ||
+      purchaseBlockingBusy;
 
   // Render the AdvancementModal component
   return (
@@ -646,12 +1397,254 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             <p className="text-sm text-muted-foreground mb-2">
               XP cost and rating increase are automatically calculated based on the type and number of advancements.
             </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Gangers and Exotic Beasts have access to a restricted selection.
-            </p>
           </div>
 
+          {userPermissions &&
+            onEnsureFighterTypes &&
+            onFighterDetailsUpdate &&
+            (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') && (
+              <div className="mb-4 space-y-4">
+                <div>
+                  <h4 className="font-semibold">Ganger / Exotic Beast</h4>
+                  <p className="text-sm text-muted-foreground">
+                    The roll is recorded in your gang log. You can select or adjust the outcome below, whether using
+                    this roll or applying your own.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <DiceRoller
+                    items={GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE}
+                    getRange={(r) => ({ min: r.range[0], max: r.range[1] })}
+                    getName={(r) => r.name}
+                    inline
+                    rollFn={() => rollNd6Outcome(2)}
+                    resolveNameForRoll={(t) => resolveGangerExoticBeastAdvancementFromUtil(t)?.name}
+                    onRolled={(rolled) => {
+                      if (rolled.length > 0) {
+                        const total = rolled[0].roll;
+                        const dice = rolled[0].dice;
+                        const row = resolveGangerExoticBeastAdvancementFromUtil(total);
+                        if (row) logGangerResolvedRollWithCooldown(row, total, dice);
+                      }
+                    }}
+                    onRoll={(total, dice) => {
+                      const row = resolveGangerExoticBeastAdvancementFromUtil(total);
+                      if (row) logGangerResolvedRollWithCooldown(row, total, dice);
+                    }}
+                    buttonText="Roll 2D6"
+                    disabled={
+                      !userPermissions.canEdit ||
+                      logGangerRollMutation.isPending ||
+                      logGangerSubRollMutation.isPending ||
+                      gangerRollCooldown
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2 pt-2 border-t">
+                  <label className="text-sm font-medium">Advancements</label>
+                  <Combobox
+                    value={gangerSelectedRowId}
+                    onValueChange={(v) => {
+                      setGangerCostsUserOverride(false);
+                      setGangerSelectedRowId(v);
+                      const row = v ? GANGER_ADVANCEMENT_COMBO_OPTIONS.find((x) => x.id === v) : undefined;
+                      if (row?.kind === 'pair' && row.pairOptions) {
+                        setGangerPairStatName(row.pairOptions[0]);
+                      }
+                    }}
+                    placeholder="Select an Advancement"
+                    options={gangerAdvancementComboboxOptions}
+                    dropdownPlacement="down"
+                  />
+                </div>
+
+                {gangerSelectedRow?.kind === 'pair' && gangerSelectedRow.pairOptions && (
+                  <div className="space-y-3 border-t pt-3">
+                    <p className="text-sm font-medium">Choose a characteristic</p>
+                    <div className="flex flex-col gap-2">
+                      {gangerSelectedRow.pairOptions.map((name) => (
+                        <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="radio"
+                            name="pair-stat"
+                            checked={gangerPairStatName === name}
+                            onChange={() => {
+                              setGangerCostsUserOverride(false);
+                              setGangerPairStatName(name);
+                            }}
+                          />
+                          {name}
+                        </label>
+                      ))}
+                    </div>
+                    {gangerPairDetail && (
+                      <p className="text-xs text-muted-foreground">
+                        Times increased on this characteristic: {gangerPairDetail.times_increased ?? 0}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {gangerSelectedRow?.kind === 'specialist' && (
+                  <div className="space-y-3 border-t pt-3">
+                    <p className="text-sm text-amber-500">
+                      Promote the fighter to Specialist first so they gain access to their Primary Skill sets, then
+                      choose or roll for a Primary set and a skill.
+                    </p>
+
+                    <div className="flex justify-center">
+                      <Button
+                        type="button"
+                        variant="default"
+                        className="w-full sm:w-auto"
+                        onClick={async () => {
+                          await onEnsureFighterTypes();
+                          setGangerPromotionOpen(true);
+                        }}
+                        disabled={!userPermissions.canEdit}
+                      >
+                        Promote to Specialist
+                      </Button>
+                    </div>
+
+                    {gangerPendingPromotion && (
+                      <p className="text-xs text-green-600 dark:text-green-400">
+                        Promotion confirmed. Once the advancement is applied, this promotion cannot be undone.
+                      </p>
+                    )}
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Primary skill set</label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="default"
+                          onClick={rollGangerPrimarySkillSet}
+                          disabled={
+                            !userPermissions.canEdit ||
+                            !gangerPendingPromotion ||
+                            gangerPrimarySetsLoading ||
+                            gangerPrimarySets.length === 0 ||
+                            logGangerSubRollMutation.isPending
+                          }
+                        >
+                          Roll for Primary skill set
+                        </Button>
+                        {gangerSkillSetRoll !== null && gangerPrimarySets[gangerSelectedSetIndex ?? -1] && (
+                          <span className="text-sm text-muted-foreground">
+                            {formatRollOutcomeLine(gangerSkillSetRoll, [gangerSkillSetRoll])}:{' '}
+                            <strong className="text-foreground">
+                              {gangerPrimarySets[gangerSelectedSetIndex!].skill_type_name}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                      <Combobox
+                        value={gangerSelectedPrimarySkillTypeId}
+                        onValueChange={(v) => {
+                          const idx = gangerPrimarySets.findIndex((p) => p.skill_type_id === v);
+                          if (idx === -1) return;
+                          setGangerSelectedSetIndex(idx);
+                          setGangerSkillSetRoll(null);
+                          setGangerSkillPickRoll(null);
+                          setGangerSelectedSkillIndex(null);
+                        }}
+                        placeholder={
+                          gangerPrimarySetsLoading
+                            ? 'Loading…'
+                            : gangerPrimarySets.length === 0
+                              ? 'No Primary skill sets'
+                              : 'Select or search a Primary skill set'
+                        }
+                        options={gangerPrimarySetComboboxOptions}
+                        disabled={
+                          !userPermissions.canEdit ||
+                          !gangerPendingPromotion ||
+                          gangerPrimarySetsLoading ||
+                          gangerPrimarySets.length === 0
+                        }
+                        dropdownPlacement="down"
+                      />
+                    </div>
+                    {gangerPendingPromotion && gangerPrimarySetsLoading && (
+                      <p className="text-xs text-muted-foreground">Loading Primary skill sets for promoted type…</p>
+                    )}
+                    {gangerPendingPromotion && !gangerPrimarySetsLoading && gangerPrimarySets.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No Primary skill sets on this promoted fighter type (check the fighter type configuration).
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Skill</label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="default"
+                          onClick={rollGangerSkillInSet}
+                          disabled={
+                            !userPermissions.canEdit ||
+                            gangerSelectedSetIndex === null ||
+                            logGangerSubRollMutation.isPending
+                          }
+                        >
+                          Roll for skill
+                        </Button>
+                        {gangerSkillPickRoll !== null && gangerSkillsInSet[gangerSelectedSkillIndex ?? -1] && (
+                          <span className="text-sm text-muted-foreground">
+                            {formatRollOutcomeLine(gangerSkillPickRoll, [gangerSkillPickRoll])}:{' '}
+                            <strong className="text-foreground">
+                              {gangerSkillsInSet[gangerSelectedSkillIndex!].skill_name}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                      <Combobox
+                        value={gangerSelectedSkillId}
+                        onValueChange={(v) => {
+                          const idx = gangerSkillsInSet.findIndex((s) => s.skill_id === v);
+                          if (idx === -1) return;
+                          setGangerSelectedSkillIndex(idx);
+                          setGangerSkillPickRoll(null);
+                        }}
+                        placeholder={
+                          gangerSelectedSetIndex === null
+                            ? 'Choose a Primary skill set first'
+                            : gangerSkillsInSet.length === 0
+                              ? 'Loading skills…'
+                              : 'Select or search a skill'
+                        }
+                        options={gangerSkillInSetComboboxOptions}
+                        disabled={
+                          !userPermissions.canEdit ||
+                          gangerSelectedSetIndex === null ||
+                          gangerSkillsInSet.length === 0
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <FighterPromotionModal
+                  currentClass={fighterClass}
+                  currentSpecialRules={fighterSpecialRules}
+                  currentFighterType={fighterTypeName}
+                  currentFighterTypeId={fighterTypeId}
+                  fighterTypes={preFetchedFighterTypes}
+                  isOpen={gangerPromotionOpen}
+                  onClose={() => setGangerPromotionOpen(false)}
+                  onPromoted={(data) => {
+                    setGangerPendingPromotion(data);
+                    setGangerPromotionOpen(false);
+                  }}
+                />
+              </div>
+            )}
+
           <div className="space-y-4">
+          {!isGangerOrExoticBeastRestricted && (
+            <>
             <div className="relative">
               <select
                 className="w-full p-2 border rounded-md"
@@ -665,18 +1658,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
               >
                 <option key="default" value="">Select Advancement Type</option>
                 <option key="characteristic" value="characteristic">Characteristic</option>
-                <option
-                  key="skill"
-                  value="skill"
-                  disabled={fighterClass === 'Ganger' || fighterClass === 'Exotic Beast'}
-                  style={{
-                    color: (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') ? '#9CA3AF' : 'inherit',
-                    fontStyle: (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') ? 'italic' : 'normal'
-                  }}
-                >
-                  Skill{(fighterClass === 'Ganger' || fighterClass === 'Exotic Beast')
-                    ? ` (Not available for ${fighterClass}s)`
-                    : ''}
+                <option key="skill" value="skill">
+                  Skill
                 </option>
               </select>
             </div>
@@ -891,6 +1874,8 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                 )}
               </>
             )}
+            </>
+          )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -917,6 +1902,7 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
                   value={editableCreditsIncrease}
                   onChange={(e) => {
                     const value = parseInt(e.target.value) || 0;
+                    if (gangerModalRollBuy) setGangerCostsUserOverride(true);
                     setEditableCreditsIncrease(value);
                     // Update the advancement with new value
                     if (selectedAdvancement) {
@@ -938,26 +1924,19 @@ export function AdvancementModal({ fighterId, currentXp, fighterClass, advanceme
             <div className="border-t pt-2 flex justify-end gap-2">
             <button
                 onClick={onClose}
-                disabled={addCharacteristicMutation.isPending || addSkillMutation.isPending}
+                disabled={purchaseBlockingBusy || gangerBuyUi.pending}
                 className={`px-4 py-2 border rounded hover:bg-muted ${
-                  (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
+                  purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 Cancel
               </button>
               <Button
-                onClick={handleAdvancementPurchase}
+                onClick={() => void handleAdvancementPurchase()}
                 className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
-                (addCharacteristicMutation.isPending || addSkillMutation.isPending) ? 'opacity-50 cursor-not-allowed' : ''
+                purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
               }`}
-                disabled={
-                  !selectedAdvancement ||
-                  (advancementType === 'skill' && !skillAcquisitionType) ||
-                  !selectedAdvancement.has_enough_xp ||
-                  editableXpCost < 0 ||
-                  addCharacteristicMutation.isPending ||
-                  addSkillMutation.isPending
-                }
+                disabled={buyAdvancementDisabled}
               >
                 Buy Advancement
               </Button>
@@ -981,7 +1960,13 @@ export function AdvancementsList({
   onAdvancementUpdate,
   onSkillUpdate,
   onXpCreditsUpdate,
-  onCharacteristicUpdate
+  onCharacteristicUpdate,
+  preFetchedFighterTypes = [],
+  onEnsureFighterTypes,
+  fighterSpecialRules = [],
+  fighterTypeName = '',
+  fighterTypeId = '',
+  onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
   // isDeleting unused; removed
@@ -1276,6 +2261,13 @@ export function AdvancementsList({
           onXpCreditsUpdate={onXpCreditsUpdate}
           onAdvancementUpdate={onAdvancementUpdate}
           onCharacteristicUpdate={onCharacteristicUpdate}
+          userPermissions={userPermissions}
+          preFetchedFighterTypes={preFetchedFighterTypes}
+          onEnsureFighterTypes={onEnsureFighterTypes}
+          fighterSpecialRules={fighterSpecialRules}
+          fighterTypeName={fighterTypeName}
+          fighterTypeId={fighterTypeId}
+          onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}
 

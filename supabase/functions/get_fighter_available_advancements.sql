@@ -130,6 +130,11 @@ BEGIN
     'current_xp', v_fighter_xp,
     'fighter_class', v_fighter_class,
     'uses_flat_cost', v_uses_flat_cost,
+    -- Ganger/Exotic Beast: Specialist table row (random Primary skill) — same flat costs as other ganger advances
+    'ganger_to_specialist_advancement', CASE WHEN v_uses_flat_cost THEN jsonb_build_object(
+      'xp_cost', 6,
+      'credits_increase', 20
+    ) ELSE NULL END,
     'characteristics', COALESCE(
       (SELECT jsonb_object_agg(
         characteristic_name,
