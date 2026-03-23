@@ -816,7 +816,7 @@ export default function Gang({
   const handleEditModalOpen = async () => {
     // Fetch variants BEFORE opening modal (like the original)
     try {
-      const response = await fetch('/api/gang_variant_types');
+      const response = await fetch('/api/gang-variant-types');
       if (!response.ok) throw new Error('Failed to fetch variants');
       const data = await response.json();
       setAvailableVariants(data);
