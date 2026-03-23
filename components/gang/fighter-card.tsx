@@ -168,6 +168,7 @@ const FighterCard = memo(function FighterCard({
   const contentRef = useRef<HTMLDivElement>(null);
   const [isMultiline, setIsMultiline] = useState(false);
   const isCrew = fighter_class === 'Crew';
+  const isLoading = id.startsWith('temp-');
 
   // View Mode card size
   const sizeStyles = {
@@ -417,8 +418,9 @@ const FighterCard = memo(function FighterCard({
     // Allow right-click, middle-click, and modifier keys for native behavior
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
+    if (isLoading) return;
     router.push(`/fighter/${id}`);
-  }, [id, router]);
+  }, [id, router, isLoading]);
 
   const cardContent = (
     <div
@@ -427,6 +429,7 @@ const FighterCard = memo(function FighterCard({
       {...(dragAttributes || {})}
       className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
         ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 shrink-0`} fighter-card-bg
+        ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
         style={{
           backgroundColor: '#faf9f7',
@@ -437,6 +440,11 @@ const FighterCard = memo(function FighterCard({
           touchAction: 'manipulation'
         }}
       >
+      {isLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/10 rounded-lg">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground" />
+        </div>
+      )}
       <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
         <div className="flex w-full">
           <div
@@ -780,7 +788,7 @@ const FighterCard = memo(function FighterCard({
   // This check is needed to prevent the card from being clickable when it's being dragged
   // Using <a> + onClick instead of <Link> to avoid prefetching on page load and hover
   const clickableContent = disableLink ? cardContent : (
-    <a href={`/fighter/${id}`} onClick={handleCardClick}>
+    <a href={isLoading ? '#' : `/fighter/${id}`} onClick={handleCardClick}>
       {cardContent}
     </a>
   );
