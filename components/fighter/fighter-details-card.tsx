@@ -497,7 +497,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             onClick={onEdit}
             disabled={!canShowEditButtons}
           >
-            Edit Fighter
+            Edit
           </Button>
         </div>
       </div> 
