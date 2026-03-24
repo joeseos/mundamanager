@@ -22,7 +22,7 @@ export default async function GangPrintRosterBreadcrumb({
     .from('gangs')
     .select('name')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
   return (
     <div 

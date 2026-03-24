@@ -19,9 +19,16 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       .from('gangs')
       .select('*')
       .eq('id', params.id)
-      .single();
+      .maybeSingle();
 
     if (gangError) throw gangError;
+
+    if (!gangData) {
+      return NextResponse.json(
+        { error: "Gang not found" },
+        { status: 404 }
+      );
+    }
 
     // Fetch variant details if gang_variants is present and is an array
     let variantDetails: any[] = [];
