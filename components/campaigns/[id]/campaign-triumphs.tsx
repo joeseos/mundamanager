@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useMemo } from 'react';
+import Link from 'next/link';
 import type { Battle, BattleParticipant } from '@/types/campaign';
 
 interface CampaignTriumph {
@@ -14,9 +15,11 @@ interface CampaignTriumph {
 
 interface TriumphMember {
   user_id: string;
+  username?: string;
   gangs: {
     id: string;
     name: string;
+    gang_type?: string;
     gang_colour: string;
     rating?: number;
     wealth?: number;
@@ -45,7 +48,10 @@ interface CampaignTriumphsProps {
 interface GangInfo {
   id: string;
   name: string;
+  type: string;
   colour: string;
+  playerId: string;
+  playerName: string;
   allegianceName: string;
   rating: number;
   wealth: number;
@@ -55,8 +61,17 @@ interface GangInfo {
 interface RankedEntry {
   gangId: string;
   gangName: string;
+  gangType: string;
   gangColour: string;
+  playerId: string;
+  playerName: string;
   value: number;
+  rank: number;
+}
+
+interface RankedAllegianceEntry {
+  name: string;
+  victories: number;
   rank: number;
 }
 
@@ -73,7 +88,7 @@ function parseBattleParticipants(battle: Battle): BattleParticipant[] {
 }
 
 function applyCompetitionRanking(
-  sorted: Array<{ gangId: string; gangName: string; gangColour: string; value: number }>,
+  sorted: Array<{ gangId: string; gangName: string; gangType: string; gangColour: string; playerId: string; playerName: string; value: number }>,
 ): RankedEntry[] {
   const ranked: RankedEntry[] = [];
   for (let i = 0; i < sorted.length; i++) {
@@ -93,7 +108,10 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
           map.set(gang.id, {
             id: gang.id,
             name: gang.name,
+            type: gang.gang_type || '-',
             colour: gang.gang_colour || '#000000',
+            playerId: member.user_id,
+            playerName: member.username || 'Unknown',
             allegianceName: gang.allegiance?.name || '',
             rating: gang.rating || 0,
             wealth: gang.wealth || 0,
@@ -114,9 +132,15 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
       if (!allegiance) return;
       counts.set(allegiance, (counts.get(allegiance) || 0) + 1);
     });
-    return Array.from(counts.entries())
+    const sorted = Array.from(counts.entries())
       .map(([name, victories]) => ({ name, victories }))
       .sort((a, b) => b.victories - a.victories);
+    const ranked: RankedAllegianceEntry[] = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const rank = i === 0 || sorted[i].victories !== sorted[i - 1].victories ? i + 1 : ranked[i - 1].rank;
+      ranked.push({ ...sorted[i], rank });
+    }
+    return ranked;
   }, [battles, gangMap]);
 
   const topByTerritories = useMemo(() => {
@@ -128,7 +152,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
     const sorted = Array.from(counts.entries())
       .map(([gangId, value]) => {
         const info = gangMap.get(gangId);
-        return { gangId, gangName: info?.name || 'Unknown', gangColour: info?.colour || '#000000', value };
+        return { gangId, gangName: info?.name || 'Unknown', gangType: info?.type || '-', gangColour: info?.colour || '#000000', playerId: info?.playerId || '', playerName: info?.playerName || 'Unknown', value };
       })
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
@@ -146,7 +170,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
     const sorted = Array.from(counts.entries())
       .map(([gangId, value]) => {
         const info = gangMap.get(gangId);
-        return { gangId, gangName: info?.name || 'Unknown', gangColour: info?.colour || '#000000', value };
+        return { gangId, gangName: info?.name || 'Unknown', gangType: info?.type || '-', gangColour: info?.colour || '#000000', playerId: info?.playerId || '', playerName: info?.playerName || 'Unknown', value };
       })
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
@@ -161,7 +185,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
     const sorted = Array.from(counts.entries())
       .map(([gangId, value]) => {
         const info = gangMap.get(gangId);
-        return { gangId, gangName: info?.name || 'Unknown', gangColour: info?.colour || '#000000', value };
+        return { gangId, gangName: info?.name || 'Unknown', gangType: info?.type || '-', gangColour: info?.colour || '#000000', playerId: info?.playerId || '', playerName: info?.playerName || 'Unknown', value };
       })
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
@@ -170,7 +194,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
   const topByWealth = useMemo(() => {
     const sorted = Array.from(gangMap.values())
       .filter(g => g.wealth > 0)
-      .map(g => ({ gangId: g.id, gangName: g.name, gangColour: g.colour, value: g.wealth }))
+      .map(g => ({ gangId: g.id, gangName: g.name, gangType: g.type, gangColour: g.colour, playerId: g.playerId, playerName: g.playerName, value: g.wealth }))
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
   }, [gangMap]);
@@ -178,7 +202,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
   const topByReputation = useMemo(() => {
     const sorted = Array.from(gangMap.values())
       .filter(g => g.reputation > 0)
-      .map(g => ({ gangId: g.id, gangName: g.name, gangColour: g.colour, value: g.reputation }))
+      .map(g => ({ gangId: g.id, gangName: g.name, gangType: g.type, gangColour: g.colour, playerId: g.playerId, playerName: g.playerName, value: g.reputation }))
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
   }, [gangMap]);
@@ -186,7 +210,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
   const topByRating = useMemo(() => {
     const sorted = Array.from(gangMap.values())
       .filter(g => g.rating > 0)
-      .map(g => ({ gangId: g.id, gangName: g.name, gangColour: g.colour, value: g.rating }))
+      .map(g => ({ gangId: g.id, gangName: g.name, gangType: g.type, gangColour: g.colour, playerId: g.playerId, playerName: g.playerName, value: g.rating }))
       .sort((a, b) => b.value - a.value);
     return applyCompetitionRanking(sorted);
   }, [gangMap]);
@@ -235,6 +259,7 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted border-b">
+                  <th className="w-16 px-4 py-2 text-center font-medium">Rank</th>
                   <th className="px-4 py-2 text-left font-medium">Allegiance</th>
                   <th className="px-4 py-2 text-right font-medium">Victories</th>
                 </tr>
@@ -242,8 +267,9 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
               <tbody>
                 {victoriesByAllegiance.map((row) => (
                   <tr key={row.name} className="border-b last:border-0">
+                    <td className="w-16 px-4 py-2 text-center font-medium">{formatRank(row.rank)}</td>
                     <td className="px-4 py-2 font-medium">{row.name}</td>
-                    <td className="px-4 py-2 text-right text-green-600 dark:text-green-400 font-medium">{row.victories}</td>
+                    <td className="px-4 py-2 text-right font-medium">{row.victories}</td>
                   </tr>
                 ))}
               </tbody>
@@ -307,19 +333,21 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
 function RankedTable({ entries, valueLabel }: { entries: RankedEntry[]; valueLabel: string }) {
   return (
     <div className="rounded-md border overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="bg-muted border-b">
-            <th className="w-16 px-4 py-2 text-left font-medium">Rank</th>
-            <th className="px-4 py-2 text-left font-medium">Gang</th>
-            <th className="px-4 py-2 text-right font-medium">{valueLabel}</th>
+            <th className="w-16 px-4 py-2 text-center font-medium">Rank</th>
+            <th className="w-1/3 px-4 py-2 text-left font-medium">Gang</th>
+            <th className="w-1/5 px-4 py-2 text-left font-medium">Type</th>
+            <th className="w-1/3 px-4 py-2 text-left font-medium">Player</th>
+            <th className="w-24 px-4 py-2 text-right font-medium">{valueLabel}</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
             <tr key={entry.gangId} className="border-b last:border-0">
-              <td className="w-16 px-4 py-2 font-medium">{formatRank(entry.rank)}</td>
-              <td className="px-4 py-2">
+              <td className="w-16 px-4 py-2 text-center font-medium">{formatRank(entry.rank)}</td>
+              <td className="w-1/3 px-4 py-2">
                 <span
                   className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
                   style={{ color: entry.gangColour }}
@@ -327,7 +355,23 @@ function RankedTable({ entries, valueLabel }: { entries: RankedEntry[]; valueLab
                   {entry.gangName}
                 </span>
               </td>
-              <td className="px-4 py-2 text-right font-medium">{entry.value}</td>
+              <td className="w-1/5 px-4 py-2">
+                <span className="text-muted-foreground">{entry.gangType || '-'}</span>
+              </td>
+              <td className="w-1/3 px-4 py-2">
+                {entry.playerId ? (
+                  <Link
+                    href={`/user/${entry.playerId}`}
+                    prefetch={false}
+                    className="font-medium hover:text-muted-foreground transition-colors"
+                  >
+                    {entry.playerName || 'Unknown'}
+                  </Link>
+                ) : (
+                  entry.playerName || 'Unknown'
+                )}
+              </td>
+              <td className="w-24 px-4 py-2 text-right font-medium">{entry.value}</td>
             </tr>
           ))}
         </tbody>
