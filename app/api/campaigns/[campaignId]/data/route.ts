@@ -181,6 +181,7 @@ interface DataGang {
   status: string;
   rating: number;
   wealth: number;
+  credits: number;
   reputation: number;
   exploration_points: number | null;
   meat: number | null;
@@ -225,6 +226,7 @@ function transformGangForData(gang: any): DataGang {
     status: gang.status,
     rating: gang.rating,
     wealth: gang.wealth,
+    credits: gang.credits,
     reputation: gang.reputation,
     exploration_points: gang.exploration_points,
     meat: gang.meat,

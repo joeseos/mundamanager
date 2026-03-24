@@ -136,7 +136,8 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         sustenance,
         salvage,
         rating,
-        wealth
+        wealth,
+        credits
       `)
       .in('id', gangIds);
 
