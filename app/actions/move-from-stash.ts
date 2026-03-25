@@ -426,11 +426,15 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .from('fighter_exotic_beasts')
         .select(`
           id, fighter_pet_id,
-          fighters!fighter_pet_id (
+          fighters!fighter_pet_id!inner (
             fighter_equipment!fighter_id (purchase_cost)
           )
         `)
-        .eq('fighter_equipment_id', params.stash_id);
+        .eq('fighter_equipment_id', params.stash_id)
+        .eq('fighters.killed', false)
+        .eq('fighters.retired', false)
+        .eq('fighters.enslaved', false)
+        .eq('fighters.captured', false);
 
       beastOwnership = data;
       if (data && data.length > 0) {

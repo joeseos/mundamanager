@@ -189,11 +189,15 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         .from('fighter_exotic_beasts')
         .select(`
           fighter_pet_id,
-          fighters!fighter_pet_id (
+          fighters!fighter_pet_id!inner (
             fighter_equipment!fighter_id (purchase_cost)
           )
         `)
-        .eq('fighter_equipment_id', params.fighter_equipment_id);
+        .eq('fighter_equipment_id', params.fighter_equipment_id)
+        .eq('fighters.killed', false)
+        .eq('fighters.retired', false)
+        .eq('fighters.enslaved', false)
+        .eq('fighters.captured', false);
 
       if (beastData && beastData.length > 0) {
         beastEquipmentCost = beastData.reduce((sum: number, beast: any) => {
@@ -369,11 +373,15 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
         .from('fighter_exotic_beasts')
         .select(`
           fighter_pet_id,
-          fighters!fighter_pet_id (
+          fighters!fighter_pet_id!inner (
             fighter_equipment!fighter_id (purchase_cost)
           )
         `)
-        .eq('fighter_equipment_id', params.stash_id);
+        .eq('fighter_equipment_id', params.stash_id)
+        .eq('fighters.killed', false)
+        .eq('fighters.retired', false)
+        .eq('fighters.enslaved', false)
+        .eq('fighters.captured', false);
 
       if (beastData && beastData.length > 0) {
         beastEquipmentCost = beastData.reduce((sum: number, beast: any) => {
