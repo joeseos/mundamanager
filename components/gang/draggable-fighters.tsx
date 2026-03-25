@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, Sensor } from '@dnd-kit/core';
-import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
 import { UserPermissions } from '@/types/user-permissions';
@@ -66,31 +67,7 @@ export function DraggableFighters({
     .map(([_, id]) => fighters.find(f => f.id === id))
     .filter(Boolean) as FighterProps[]; // Filter out undefined and null values
 
-  const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: {
-      delay: 600,
-      tolerance: 10,
-    },
-  });
-  const pointerSensor = useSensor(PointerSensor, {
-    activationConstraint: {
-      delay: 150,
-      tolerance: 5,
-    },
-  });
-  const sensors = useSensors(
-    typeof window === "undefined" ? pointerSensor :
-    (() => {
-      const isMobile = /Mobi|Android|iPhone|iPad|Tablet/i.test(navigator.userAgent) || 
-                       ('ontouchstart' in window) || 
-                       (navigator.maxTouchPoints > 0);
-      
-      return isMobile ? touchSensor : pointerSensor;
-    })(),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates
-    })
-  );
+  const sensors = useDndSensorsConfig();
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
