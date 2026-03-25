@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuFlag } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuFlag, LuSearch } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
@@ -17,6 +17,7 @@ import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
 import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-management";
+import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,6 +33,7 @@ export default function AdminPage() {
   const [showScenarios, setShowScenarios] = useState(false);
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
   const [showCampaignManagement, setShowCampaignManagement] = useState(false);
+  const [showSupportTools, setShowSupportTools] = useState(false);
 
   const coreSections = [
     {
@@ -115,6 +117,13 @@ export default function AdminPage() {
     icon: LuChartColumn
   };
 
+  const supportToolsSection = {
+    title: "Support Tools",
+    description: "Search users, gangs, fighters, and campaigns",
+    action: () => setShowSupportTools(true),
+    icon: LuSearch
+  };
+
   return (
     <>      
       <main className="flex min-h-screen flex-col items-center">
@@ -144,21 +153,24 @@ export default function AdminPage() {
 
             <hr className="my-6 border-t border-border" />
 
-            <div className="grid grid-cols-1">
-              <button
-                onClick={statsSection.action}
-                className="p-4 bg-muted rounded-lg shadow hover:shadow-md transition-shadow text-left"
-              >
-                <div className="flex items-start space-x-3">
-                  <statsSection.icon className="h-6 w-6 text-muted-foreground shrink-0" />
-                  <div>
-                    <h2 className="text-lg md:text-xl font-semibold mb-2">
-                      {statsSection.title}
-                    </h2>
-                    <p className="text-muted-foreground">{statsSection.description}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[supportToolsSection, statsSection].map((section) => (
+                <button
+                  key={section.title}
+                  onClick={section.action}
+                  className="p-4 bg-muted rounded-lg shadow hover:shadow-md transition-shadow text-left"
+                >
+                  <div className="flex items-start space-x-3">
+                    <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />
+                    <div>
+                      <h2 className="text-lg md:text-xl font-semibold mb-2">
+                        {section.title}
+                      </h2>
+                      <p className="text-muted-foreground">{section.description}</p>
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -257,6 +269,13 @@ export default function AdminPage() {
           <AdminCampaignManagementModal
             onClose={() => setShowCampaignManagement(false)}
             onSubmit={() => setShowCampaignManagement(false)}
+          />
+        )}
+
+        {showSupportTools && (
+          <AdminSupportToolsModal
+            onClose={() => setShowSupportTools(false)}
+            onSubmit={() => setShowSupportTools(false)}
           />
         )}
       </main>

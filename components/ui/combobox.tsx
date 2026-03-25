@@ -265,13 +265,15 @@ export function Combobox({
           ref={inputRef}
           type="text"
           className={cn(
-            "flex h-10 w-full rounded-md border border-border bg-muted px-3 py-2 text-base md:text-sm",
+            "flex h-10 w-full min-w-0 rounded-md border border-border bg-muted px-3 py-2 text-base md:text-sm",
             selectedOption && typeof selectedOption.label === 'string' && !open
               ? "placeholder:text-foreground"
               : "placeholder:text-muted-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            clearable && value ? "pr-16" : "pr-10",
+            // Reserve space for chevron (~48px) and optional clear (~48px) so text does not sit under icons
+            clearable && value ? "pr-[5.5rem]" : "pr-12",
+            selectedOption && !open && inputValue === "" && "truncate",
             selectedOption && typeof selectedOption.label !== 'string' && !open && "text-transparent placeholder:text-transparent"
           )}
           placeholder={
@@ -293,8 +295,13 @@ export function Combobox({
           disabled={disabled}
         />
         {selectedOption && typeof selectedOption.label !== 'string' && !open && (
-          <div className="absolute inset-0 flex items-center px-3 py-2 pointer-events-none">
-            <span className="flex items-center gap-1 text-sm text-foreground">
+          <div
+            className={cn(
+              "absolute inset-y-0 left-3 flex items-center pointer-events-none overflow-hidden",
+              clearable && value ? "right-[5.5rem]" : "right-12"
+            )}
+          >
+            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
               {selectedOption.displayValue || selectedOption.label}
             </span>
           </div>
@@ -302,7 +309,7 @@ export function Combobox({
         {clearable && value && !disabled && (
           <button
             type="button"
-            className="absolute right-10 top-0 h-full px-3 flex items-center justify-center hover:bg-primary/30"
+            className="absolute right-10 top-0 z-[1] h-full px-3 flex items-center justify-center hover:bg-primary/30"
             onClick={(e) => {
               e.stopPropagation()
               onValueChange?.('')
@@ -315,7 +322,7 @@ export function Combobox({
         )}
         <button
           type="button"
-          className="absolute right-0 top-0 h-full px-3 flex items-center justify-center hover:bg-primary/30 rounded-r-md"
+          className="absolute right-0 top-0 z-[1] h-full px-3 flex items-center justify-center hover:bg-primary/30 rounded-r-md"
           onClick={() => setOpen(!open)}
           disabled={disabled}
         >
@@ -373,7 +380,7 @@ export function Combobox({
             </div>
           ) : (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              No options found
+              No results found
             </div>
           )}
           
