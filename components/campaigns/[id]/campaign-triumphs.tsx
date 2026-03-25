@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 import type { Battle, BattleParticipant } from '@/types/campaign';
 
 interface CampaignTriumph {
@@ -259,7 +260,9 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-muted border-b">
-                  <th className="w-16 px-4 py-2 text-center font-medium">Rank</th>
+                  <th className="w-16 px-4 py-2 font-medium">
+                    <div className="flex justify-center">Rank</div>
+                  </th>
                   <th className="px-4 py-2 text-left font-medium">Allegiance</th>
                   <th className="px-4 py-2 text-right font-medium">Victories</th>
                 </tr>
@@ -267,7 +270,9 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
               <tbody>
                 {victoriesByAllegiance.map((row) => (
                   <tr key={row.name} className="border-b last:border-0">
-                    <td className="w-16 px-4 py-2 text-center font-medium">{formatRank(row.rank)}</td>
+                    <td className="w-16 px-4 py-2 align-middle">
+                      <div className="flex justify-center font-medium">{formatRank(row.rank)}</div>
+                    </td>
                     <td className="px-4 py-2 font-medium">{row.name}</td>
                     <td className="px-4 py-2 text-right font-medium">{row.victories}</td>
                   </tr>
@@ -332,46 +337,64 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
 
 function RankedTable({ entries, valueLabel }: { entries: RankedEntry[]; valueLabel: string }) {
   return (
-    <div className="rounded-md border overflow-x-auto">
-      <table className="w-full table-fixed text-sm">
+    <div className="rounded-md border overflow-x-auto overscroll-x-contain">
+      {/*
+        table-auto + min-width: wide tables scroll horizontally on narrow viewports instead of
+        squeezing columns (table-fixed + w-full caused cramped layouts on mobile).
+      */}
+      <table className="w-full min-w-[36rem] table-auto text-xs sm:min-w-0 sm:text-sm">
         <thead>
           <tr className="bg-muted border-b">
-            <th className="w-16 px-4 py-2 text-center font-medium">Rank</th>
-            <th className="w-1/3 px-4 py-2 text-left font-medium">Gang</th>
-            <th className="w-1/5 px-4 py-2 text-left font-medium">Type</th>
-            <th className="w-1/3 px-4 py-2 text-left font-medium">Player</th>
-            <th className="w-24 px-4 py-2 text-right font-medium">{valueLabel}</th>
+            <th className="w-[3rem] min-w-[3rem] max-w-[3rem] shrink-0 px-0 py-2 font-medium sm:px-1">
+              <div className="flex justify-center">Rank</div>
+            </th>
+            <th className="w-[12rem] min-w-[12rem] max-w-[12rem] shrink-0 px-4 py-2 text-left font-medium sm:w-[18rem] sm:min-w-[18rem] sm:max-w-[18rem] sm:px-6">Gang</th>
+            <th className="w-[14rem] min-w-[14rem] max-w-[14rem] shrink-0 px-2 py-2 text-left font-medium sm:px-4">Type</th>
+            <th className="min-w-[6rem] px-2 py-2 text-left font-medium sm:min-w-0 sm:px-4">Player</th>
+            <th className="w-16 shrink-0 whitespace-nowrap px-2 py-2 text-right font-medium sm:w-24 sm:px-4">{valueLabel}</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
             <tr key={entry.gangId} className="border-b last:border-0">
-              <td className="w-16 px-4 py-2 text-center font-medium">{formatRank(entry.rank)}</td>
-              <td className="w-1/3 px-4 py-2">
-                <span
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                  style={{ color: entry.gangColour }}
-                >
-                  {entry.gangName}
+              <td className="align-top w-[3rem] min-w-[3rem] max-w-[3rem] shrink-0 px-0 py-2 sm:px-1">
+                <div className="flex justify-center font-medium">{formatRank(entry.rank)}</div>
+              </td>
+              <td className="align-top w-[12rem] min-w-[12rem] max-w-[12rem] shrink-0 px-2 py-2 sm:w-[18rem] sm:min-w-[18rem] sm:max-w-[18rem] sm:px-4">
+                <span className="inline-flex max-w-full" style={{ color: entry.gangColour }}>
+                  <Link
+                    href={`/gang/${entry.gangId}`}
+                    prefetch={false}
+                    className="inline-flex max-w-full hover:text-muted-foreground transition-colors"
+                  >
+                    <Badge
+                      variant="outline"
+                      className="h-auto max-w-full cursor-pointer whitespace-normal break-words border-transparent bg-muted px-2.5 py-1 text-left text-[0.7rem] font-semibold text-inherit hover:bg-muted/80 sm:text-xs"
+                    >
+                      {entry.gangName}
+                    </Badge>
+                  </Link>
                 </span>
               </td>
-              <td className="w-1/5 px-4 py-2">
-                <span className="text-muted-foreground">{entry.gangType || '-'}</span>
+              <td className="align-top w-[14rem] min-w-[14rem] max-w-[14rem] shrink-0 px-2 py-2 sm:px-4">
+                <span className="block truncate text-muted-foreground" title={entry.gangType || '-'}>
+                  {entry.gangType || '-'}
+                </span>
               </td>
-              <td className="w-1/3 px-4 py-2">
+              <td className="align-top min-w-0 px-2 py-2 sm:px-4">
                 {entry.playerId ? (
                   <Link
                     href={`/user/${entry.playerId}`}
                     prefetch={false}
-                    className="font-medium hover:text-muted-foreground transition-colors"
+                    className="text-xs font-medium hover:text-muted-foreground transition-colors sm:text-sm"
                   >
                     {entry.playerName || 'Unknown'}
                   </Link>
                 ) : (
-                  entry.playerName || 'Unknown'
+                  <span className="text-xs sm:text-sm">{entry.playerName || 'Unknown'}</span>
                 )}
               </td>
-              <td className="w-24 px-4 py-2 text-right font-medium">{entry.value}</td>
+              <td className="align-top w-16 shrink-0 whitespace-nowrap px-2 py-2 text-right font-medium sm:w-24 sm:px-4">{entry.value}</td>
             </tr>
           ))}
         </tbody>
