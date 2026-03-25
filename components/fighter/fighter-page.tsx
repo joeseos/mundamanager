@@ -200,7 +200,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
         : item.equipment_name,
       equipment_type: item.equipment_type,
       equipment_category: item.equipment_category,
-      cost: item.purchase_cost,
+      cost: item.purchase_cost + (item.beast_equipment_cost || 0),
       base_cost: item.original_cost,
       weapon_profiles: item.weapon_profiles,
       core_equipment: item.core_equipment,

@@ -90,7 +90,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         equipment_id,
         custom_equipment_id,
         purchase_cost,
-        is_master_crafted
+        is_master_crafted,
+        equipment:equipment_id (equipment_category)
       `)
       .eq('id', params.stash_id)
       .eq('gang_stash', true)
@@ -415,12 +416,40 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
+    // Query beast equipment cost before rating calculation (only for exotic beast equipment)
+    let beastEquipmentCost = 0;
+    let beastOwnership: any[] | null = null;
+    const isExoticBeastEquipment = (stashData as any).equipment?.equipment_category?.toLowerCase() === 'status items: exotic beasts';
+
+    if (params.fighter_id && !isCustomEquipment && stashData.equipment_id && isExoticBeastEquipment) {
+      const { data } = await supabase
+        .from('fighter_exotic_beasts')
+        .select(`
+          id, fighter_pet_id,
+          fighters!fighter_pet_id (
+            fighter_equipment!fighter_id (purchase_cost)
+          )
+        `)
+        .eq('fighter_equipment_id', params.stash_id);
+
+      beastOwnership = data;
+      if (data && data.length > 0) {
+        beastEquipmentCost = data.reduce((sum: number, beast: any) => {
+          const equipCost = (beast.fighters?.fighter_equipment as any[])?.reduce(
+            (s: number, eq: any) => s + (eq.purchase_cost || 0), 0
+          ) || 0;
+          return sum + equipCost;
+        }, 0);
+      }
+    }
+
     // Determine rating delta (only if fighter is active)
     let ratingDelta = 0;
     if (fighterIsActive) {
       if (params.fighter_id) {
         ratingDelta += (stashData.purchase_cost || 0);
         ratingDelta += effectsCreditsDelta;
+        ratingDelta += beastEquipmentCost;
       } else if (params.vehicle_id) {
         ratingDelta += (stashData.purchase_cost || 0);
         ratingDelta += effectsCreditsDelta;
@@ -429,7 +458,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     // Calculate equipment value for wealth calculation
     // Wealth includes stash value, so moving equipment from stash decreases wealth by equipment value
-    const equipmentValue = (stashData.purchase_cost || 0) + effectsCreditsDelta;
+    const equipmentValue = (stashData.purchase_cost || 0) + effectsCreditsDelta + beastEquipmentCost;
 
     // Wealth delta calculation:
     // - If fighter is active: rating increases (ratingDelta is positive), but stash value decreases (equipmentValue is negative)
@@ -455,20 +484,24 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     let affectedBeastIds: string[] = [];
 
     if (params.fighter_id && !isCustomEquipment && stashData.equipment_id) {
-      // Get existing beast ownership records for this equipment
-      const { data: beastOwnership } = await supabase
-        .from('fighter_exotic_beasts')
-        .select('id, fighter_pet_id')
-        .eq('fighter_equipment_id', params.stash_id);
+      // For exotic beast equipment, reuse already-fetched data; otherwise query
+      let beastOwnershipData = beastOwnership;
+      if (!beastOwnershipData) {
+        const { data } = await supabase
+          .from('fighter_exotic_beasts')
+          .select('id, fighter_pet_id')
+          .eq('fighter_equipment_id', params.stash_id);
+        beastOwnershipData = data;
+      }
 
-      if (beastOwnership && beastOwnership.length > 0) {
+      if (beastOwnershipData && beastOwnershipData.length > 0) {
         // Update ownership to new fighter
         await supabase
           .from('fighter_exotic_beasts')
           .update({ fighter_owner_id: params.fighter_id })
           .eq('fighter_equipment_id', params.stash_id);
 
-        affectedBeastIds = beastOwnership.map(b => b.fighter_pet_id);
+        affectedBeastIds = beastOwnershipData.map((b: any) => b.fighter_pet_id);
       }
     }
 
@@ -484,6 +517,10 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
           gangId: stashData.gang_id,
           advancementType: 'effect'
         });
+      }
+      // If moving exotic beast equipment, invalidate beast costs cache for the receiving fighter
+      if (isExoticBeastEquipment) {
+        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighter_id));
       }
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(params.fighter_id, stashData.gang_id, supabase);
