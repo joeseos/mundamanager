@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict bNh8OygQgt3OT1Ks8GnAcQ7TwDYVOd4M79fFGV71KbmzBTY7s3u5SdFsvANICc5
+\restrict NtciMi5aCC7jwp63AUoHcYcHoGeq4deqNV8pA4Vh8H8oIPwwBcEEuWgZcKFgfyV
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -6088,6 +6088,13 @@ CREATE INDEX exotic_beasts_fighter_type_id_idx ON public.exotic_beasts USING btr
 
 
 --
+-- Name: fighter_classes_class_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_classes_class_name_idx ON public.fighter_classes USING btree (class_name);
+
+
+--
 -- Name: fighter_defaults_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6176,6 +6183,13 @@ CREATE INDEX fighter_types_fighter_type_idx ON public.fighter_types USING btree 
 --
 
 CREATE INDEX fighter_types_gang_type_idx ON public.fighter_types USING btree (gang_type);
+
+
+--
+-- Name: fighters_fighter_class_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_fighter_class_id_idx ON public.fighters USING btree (fighter_class_id);
 
 
 --
@@ -10479,5 +10493,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bNh8OygQgt3OT1Ks8GnAcQ7TwDYVOd4M79fFGV71KbmzBTY7s3u5SdFsvANICc5
+\unrestrict NtciMi5aCC7jwp63AUoHcYcHoGeq4deqNV8pA4Vh8H8oIPwwBcEEuWgZcKFgfyV
 
