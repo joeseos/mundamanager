@@ -51,7 +51,7 @@ function applyNumericModifiers(
 
   if (typeof baseValue === 'number') {
     parsedBase = baseValue;
-  } else if (typeof baseValue === 'string' && options.parseStrings) {
+  } else if (typeof baseValue === 'string' && baseValue != "" && options.parseStrings) {
     // Remove common formatting characters
     const cleaned = baseValue.replace(/["\s]/g, '').replace(/\+$/, '').trim();
 
