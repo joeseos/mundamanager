@@ -320,6 +320,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         gang_colour: gangDetails?.gang_colour || '#000000',
         rating: gangDetails?.rating || 0,
         wealth: gangDetails?.wealth || 0,
+        credits: gangDetails?.credits || 0,
         reputation: gangDetails?.reputation || 0,
         territory_count: territoryCounts[cg.gang_id] || 0,
 
