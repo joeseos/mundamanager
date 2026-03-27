@@ -128,6 +128,10 @@ export const CACHE_TAGS = {
   GLOBAL_GANG_COUNT: () => `global-gang-count`,                       // total gang count for homepage
   GLOBAL_CAMPAIGN_COUNT: () => `global-campaign-count`,               // total campaign count for homepage
   
+  // Battle session data
+  BASE_BATTLE_SESSION: (id: string) => `base-battle-session-${id}`,
+  USER_BATTLE_SESSIONS: (userId: string) => `user-battle-sessions-${userId}`,
+
   // Gang-specific reference data
   GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
   GANG_EQUIPMENT_OPTIONS: (id: string) => `gang-equipment-options-${id}`, // equipment available to gang
