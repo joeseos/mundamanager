@@ -1030,7 +1030,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
       }, 0);
       
       return fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
-             (fighterBasic.cost_adjustment || 0) + beastCosts;
+             (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     },
     [`fighter-total-cost-${fighterId}`],
     {
@@ -1046,18 +1046,19 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
 
 /**
  * Calculate cost of fighter's owned exotic beasts
+ * Returns total cost (for rating) and per-equipment beast equipment costs (for sell value)
  * Cache: COMPUTED_FIGHTER_BEAST_COSTS
  */
-export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any): Promise<number> => {
+export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any): Promise<{ total: number; byEquipmentId: Record<string, number> }> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('fighter_exotic_beasts')
-        .select('fighter_pet_id')
+        .select('fighter_pet_id, fighter_equipment_id')
         .eq('fighter_owner_id', fighterId);
 
       if (error || !data || data.length === 0) {
-        return 0;
+        return { total: 0, byEquipmentId: {} };
       }
 
       const beastIds = data.map((beast: any) => beast.fighter_pet_id);
@@ -1085,21 +1086,30 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
         .eq('captured', false);
 
       if (beastError || !beastData) {
-        return 0;
+        return { total: 0, byEquipmentId: {} };
       }
 
-      return beastData.reduce((total: number, beast: any) => {
-        const equipmentCost = (beast.fighter_equipment as any[])?.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0) || 0;
-        const skillsCost = (beast.fighter_skills as any[])?.reduce((sum, skill) => sum + (skill.credits_increase || 0), 0) || 0;
-        const effectsCost = (beast.fighter_effects as any[])?.reduce((sum, effect) => {
-          return sum + (effect.type_specific_data?.credits_increase || 0);
+      const byEquipmentId: Record<string, number> = {};
+      const total = beastData.reduce((sum: number, beast: any) => {
+        const equipmentCost = (beast.fighter_equipment as any[])?.reduce((s, eq) => s + (eq.purchase_cost || 0), 0) || 0;
+        const skillsCost = (beast.fighter_skills as any[])?.reduce((s, skill) => s + (skill.credits_increase || 0), 0) || 0;
+        const effectsCost = (beast.fighter_effects as any[])?.reduce((s, effect) => {
+          return s + (effect.type_specific_data?.credits_increase || 0);
         }, 0) || 0;
-        
+
         // Use the original fighter type cost instead of beast.credits (which is 0)
         const baseBeastCost = (beast.fighter_types as any)?.cost || 0;
-        
-        return total + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beast.cost_adjustment || 0);
+
+        // Map beast's equipment cost to the granting equipment for sell value
+        const ownership = data.find((o: any) => o.fighter_pet_id === beast.id);
+        if (ownership?.fighter_equipment_id) {
+          byEquipmentId[ownership.fighter_equipment_id] = equipmentCost;
+        }
+
+        return sum + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beast.cost_adjustment || 0);
       }, 0);
+
+      return { total, byEquipmentId };
     },
     [`fighter-beast-costs-${fighterId}`],
     {

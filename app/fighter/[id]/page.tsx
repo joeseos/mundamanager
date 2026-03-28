@@ -223,8 +223,16 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       }, 0);
 
       totalCost = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
-                  (fighterBasic.cost_adjustment || 0) + beastCosts;
+                  (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     }
+
+    // Enrich exotic beast equipment with beast's purchased equipment costs
+    equipment.forEach((eq: any) => {
+      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts'
+          && beastCosts.byEquipmentId[eq.fighter_equipment_id]) {
+        eq.beast_equipment_cost = beastCosts.byEquipmentId[eq.fighter_equipment_id];
+      }
+    });
 
     // Filter effects by active loadout (for stats/display)
     // Total cost above uses ALL effects (correct for gang rating)
