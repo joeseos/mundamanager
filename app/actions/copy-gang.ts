@@ -197,8 +197,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       await cleanupOnError(new Error(`Failed to load stash items: ${stashError.message}`));
     }
 
+    const equipmentIdMap = new Map<string, string>();
+
     if (stashEquipment && stashEquipment.length > 0) {
-      const inserts = stashEquipment.map((item: any) => {
+      for (const item of stashEquipment) {
         const o: any = { ...item };
         delete o.id;
         o.gang_id = newGangId;
@@ -206,18 +208,23 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         o.fighter_id = null;
         o.vehicle_id = null;
         o.gang_stash = true;
-        return o;
-      });
-      const { error: stashInsertError } = await supabase
-        .from('fighter_equipment')
-        .insert(inserts);
-      if (stashInsertError) {
-        await cleanupOnError(new Error(`Failed to insert stash items: ${stashInsertError.message}`));
+
+        const { data: inserted, error: stashInsertError } = await supabase
+          .from('fighter_equipment')
+          .insert(o)
+          .select('id')
+          .single();
+
+        if (stashInsertError) {
+          await cleanupOnError(new Error(`Failed to insert stash item: ${stashInsertError.message}`));
+        }
+        if (inserted) {
+          equipmentIdMap.set(item.id, inserted.id);
+        }
       }
     }
 
     // 6) Copy fighter equipment (build equipment ID map for effect FK remapping)
-    const equipmentIdMap = new Map<string, string>();
     const oldFighterIds = Array.from(fighterIdMap.keys());
     if (oldFighterIds.length > 0) {
       const { data: fighterEquip, error: feError } = await supabase
