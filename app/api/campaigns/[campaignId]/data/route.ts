@@ -15,6 +15,25 @@ interface RateLimitEntry {
 
 const dataRateLimitMap = new Map<string, RateLimitEntry>();
 
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("origin");
+
+  return {
+    // Public endpoint: allow cross-origin consumers.
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Vary": "Origin"
+  };
+}
+
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: getCorsHeaders(request)
+  });
+}
+
 /**
  * Extract client IP from Vercel request headers
  * Vercel sets x-forwarded-for with the true client IP
@@ -317,6 +336,7 @@ function transformBattleForData(battle: any): DataBattle {
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
   const { campaignId } = params;
+  const corsHeaders = getCorsHeaders(request);
   
   // Get format from query parameter (e.g., ?format=xml)
   const url = new URL(request.url);
@@ -326,11 +346,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     return format === 'xml'
       ? new NextResponse(objectToXml({ error: "Campaign ID is required" }, 'error'), {
           status: 400,
-          headers: { 'Content-Type': 'application/xml' }
+          headers: { 'Content-Type': 'application/xml', ...corsHeaders }
         })
       : NextResponse.json(
           { error: "Campaign ID is required" },
-          { status: 400 }
+          { status: 400, headers: corsHeaders }
         );
   }
 
@@ -355,11 +375,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       return format === 'xml'
         ? new NextResponse(objectToXml({ error: errorMessage }, 'error'), {
             status: 429,
-            headers: { ...rateLimitHeaders, 'Content-Type': 'application/xml' }
+            headers: { ...rateLimitHeaders, 'Content-Type': 'application/xml', ...corsHeaders }
           })
         : NextResponse.json({ error: errorMessage }, {
             status: 429,
-            headers: rateLimitHeaders
+            headers: { ...rateLimitHeaders, ...corsHeaders }
           });
     }
 
@@ -393,11 +413,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       return format === 'xml'
         ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
             status: 404,
-            headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders }
+            headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders, ...corsHeaders }
           })
         : NextResponse.json(
             { error: 'Campaign not found' },
-            { status: 404, headers: rateLimitHeaders }
+            { status: 404, headers: { ...rateLimitHeaders, ...corsHeaders } }
           );
     }
 
@@ -463,22 +483,23 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         headers: {
           'Content-Type': 'application/xml',
           'Content-Disposition': `inline; filename="campaign_${campaignId}.xml"`,
-          ...rateLimitHeaders
+          ...rateLimitHeaders,
+          ...corsHeaders
         }
       });
     }
 
-    return NextResponse.json(campaignData, { headers: rateLimitHeaders });
+    return NextResponse.json(campaignData, { headers: { ...rateLimitHeaders, ...corsHeaders } });
   } catch (error) {
     console.error('Error generating campaign data:', error);
     return format === 'xml'
       ? new NextResponse(objectToXml({ error: "Failed to generate campaign data" }, 'error'), {
           status: 500,
-          headers: { 'Content-Type': 'application/xml' }
+          headers: { 'Content-Type': 'application/xml', ...corsHeaders }
         })
       : NextResponse.json(
           { error: "Failed to generate campaign data" },
-          { status: 500 }
+          { status: 500, headers: corsHeaders }
         );
   }
 }
