@@ -42,7 +42,6 @@ export default function CopyFighterModal({
 }: CopyFighterModalProps) {
   const [name, setName] = useState(currentName);
   const [submitting, setSubmitting] = useState(false);
-  const [addToRating, setAddToRating] = useState(true);
   const [deductCredits, setDeductCredits] = useState(true);
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
   const [copyVehicles, setCopyVehicles] = useState(true);
@@ -74,7 +73,6 @@ export default function CopyFighterModal({
   const resetModalState = () => {
     setName(currentName);
     setSubmitting(false);
-    setAddToRating(true);
     setDeductCredits(true);
     setCopyAsExperienced(false);
     setCopyVehicles(true);
@@ -93,7 +91,7 @@ export default function CopyFighterModal({
       fighter_id: fighterId,
       target_gang_id: currentGangId,
       new_name: name.trim(),
-      add_to_rating: addToRating,
+      add_to_rating: true,
       deduct_credits: deductCredits,
       copy_as_experienced: copyAsExperienced,
       calculated_cost: calculatedCost,
@@ -180,17 +178,6 @@ export default function CopyFighterModal({
 
           <div className="border-t pt-3 mt-3">
             <div className="text-xs font-semibold text-muted-foreground mb-2">Credits & Rating</div>
-
-            <div className="flex items-center space-x-2 mb-4">
-              <Checkbox
-                id="addToRating"
-                checked={addToRating}
-                onCheckedChange={(checked) => setAddToRating(checked === true)}
-              />
-              <label htmlFor="addToRating" className="text-sm font-medium text-muted-foreground cursor-pointer">
-                Add fighter cost to gang rating ({calculatedCost} credits)
-              </label>
-            </div>
 
             <div className="flex items-center space-x-2">
               <Checkbox
