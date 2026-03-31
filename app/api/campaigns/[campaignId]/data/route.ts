@@ -15,22 +15,19 @@ interface RateLimitEntry {
 
 const dataRateLimitMap = new Map<string, RateLimitEntry>();
 
-function getCorsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get("origin");
-
+function getCorsHeaders(): Record<string, string> {
   return {
     // Public endpoint: allow cross-origin consumers.
-    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Vary": "Origin"
+    "Access-Control-Allow-Headers": "Content-Type"
   };
 }
 
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, {
     status: 204,
-    headers: getCorsHeaders(request)
+    headers: getCorsHeaders()
   });
 }
 
@@ -336,7 +333,7 @@ function transformBattleForData(battle: any): DataBattle {
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
   const { campaignId } = params;
-  const corsHeaders = getCorsHeaders(request);
+  const corsHeaders = getCorsHeaders();
   
   // Get format from query parameter (e.g., ?format=xml)
   const url = new URL(request.url);
