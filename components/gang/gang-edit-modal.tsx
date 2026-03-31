@@ -494,7 +494,7 @@ export default function GangEditModal({
 
     // Handle resource deltas - only include if non-empty and non-zero
     const creditsDifference = parseInt(formState.credits) || 0;
-    if (creditsDifference < 0 && Math.abs(creditsDifference) > credits) {
+    if (credits + creditsDifference < 0) {
       toast.error('Insufficient credits', {
         description: `Cannot subtract ${Math.abs(creditsDifference)} credits. Current balance: ${credits}`
       });
