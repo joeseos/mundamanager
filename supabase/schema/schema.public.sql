@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict mcNlEsKv9GlRYWHxm4XUUtFKzURxMoxQMg98aXRcffPWT1f1cHWnTKUuWO4K4H2
+\restrict fQcc4WaNfYIOnwFVRidgDTB93qglnp0BglbaPrGWgr7ZZugsgf4pWY0SEj8SGWX
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -5115,7 +5115,8 @@ CREATE TABLE public.territories (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     campaign_type_id uuid,
     territory_name text NOT NULL,
-    updated_at timestamp with time zone
+    updated_at timestamp with time zone,
+    playing_card_value text
 );
 
 
@@ -6078,6 +6079,13 @@ CREATE INDEX equipment_availability_gang_origin_id_idx ON public.equipment_avail
 --
 
 CREATE INDEX equipment_discounts_gang_origin_id_idx ON public.equipment_discounts USING btree (gang_origin_id);
+
+
+--
+-- Name: equipment_equipment_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_equipment_name_idx ON public.equipment USING btree (equipment_name);
 
 
 --
@@ -10493,5 +10501,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict mcNlEsKv9GlRYWHxm4XUUtFKzURxMoxQMg98aXRcffPWT1f1cHWnTKUuWO4K4H2
+\unrestrict fQcc4WaNfYIOnwFVRidgDTB93qglnp0BglbaPrGWgr7ZZugsgf4pWY0SEj8SGWX
 
