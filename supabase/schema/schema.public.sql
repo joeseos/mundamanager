@@ -4328,8 +4328,7 @@ CREATE TABLE public.exotic_beasts (
 CREATE TABLE public.fighter_classes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    class_name text,
-    standard_class boolean DEFAULT false
+    class_name text
 );
 
 
