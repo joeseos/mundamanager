@@ -15,7 +15,6 @@ export async function GET() {
     const { data: fighterClasses, error } = await supabase
       .from('fighter_classes')
       .select('id, class_name')
-      .eq('standard_class', true)
       .order('class_name');
 
     if (error) {
