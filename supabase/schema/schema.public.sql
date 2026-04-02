@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict TMt5MTcgP91LDQQpoeCMv1ejlpPCdCFfXUvCDijwOCeYaHDuAYDbflCsEuQidNA
+\restrict w9rEqv5PLVU4H63jMIAgcGpvh2gGBjbfU9BfmOl39yjecsczUKWSLdtrhF1sfis
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -4328,7 +4328,8 @@ CREATE TABLE public.exotic_beasts (
 CREATE TABLE public.fighter_classes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    class_name text
+    class_name text,
+    standard_class boolean DEFAULT false
 );
 
 
@@ -10464,5 +10465,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict TMt5MTcgP91LDQQpoeCMv1ejlpPCdCFfXUvCDijwOCeYaHDuAYDbflCsEuQidNA
+\unrestrict w9rEqv5PLVU4H63jMIAgcGpvh2gGBjbfU9BfmOl39yjecsczUKWSLdtrhF1sfis
 
