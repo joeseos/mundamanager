@@ -66,9 +66,10 @@ export function isStatusIncompatible(
   
   switch (targetStatus) {
     case 'kill':
-      // Can't kill if already retired, enslaved, captured, or in recovery
+      // Can't kill if already retired, enslaved, or captured
+      // Can kill if in recovery
       // But can always resurrect (toggle off)
-      return !fighter.killed && !!(fighter.retired || fighter.enslaved || fighter.captured || fighter.recovery);
+      return !fighter.killed && !!(fighter.retired || fighter.enslaved || fighter.captured);
     
     case 'retire':
       // Can't retire if already killed, enslaved, captured, or in recovery
