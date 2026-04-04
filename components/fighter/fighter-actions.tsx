@@ -182,7 +182,7 @@ export function FighterActions({
     onMutate: (vars) => {
       const optimistic: Partial<Fighter> = {};
       switch (vars.action) {
-        case 'kill': optimistic.killed = !fighter.killed; break;
+        case 'kill': optimistic.killed = !fighter.killed; optimistic.recovery = false; break;
         case 'retire': optimistic.retired = !fighter.retired; break;
         case 'sell': optimistic.enslaved = true; break;
         case 'rescue': optimistic.enslaved = false; break;
