@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 5PuI02ZWqkKL0ZZ7FymwCzP6Z7cEsxDfHe2k8P0ZiVGWiwtW3DD9EJjVYw1iS9M
+\restrict fatCaSRIuqfQ6DNWc8a1IOK1yMba0SKuiCQXI7PSohZBfK6m3D40cgYCdGftQ9L
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -6116,6 +6116,13 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 
 
 --
+-- Name: fighter_equipment_tradingpost_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_tradingpost_fighter_type_id_idx ON public.fighter_equipment_tradingpost USING btree (fighter_type_id);
+
+
+--
 -- Name: fighter_equipment_vehicle_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10465,5 +10472,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5PuI02ZWqkKL0ZZ7FymwCzP6Z7cEsxDfHe2k8P0ZiVGWiwtW3DD9EJjVYw1iS9M
+\unrestrict fatCaSRIuqfQ6DNWc8a1IOK1yMba0SKuiCQXI7PSohZBfK6m3D40cgYCdGftQ9L
 
