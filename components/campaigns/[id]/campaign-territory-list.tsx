@@ -19,6 +19,7 @@ import {
   removeTerritoryFromCampaign,
   updateTerritoryStatus
 } from "@/app/actions/campaigns/[id]/campaign-territories";
+import { getPlayingCardSortKey } from "@/app/lib/territory-playing-card-options";
 
 interface Gang {
   id: string;
@@ -46,6 +47,7 @@ interface Territory {
   territory_id: string | null;
   custom_territory_id?: string | null;
   territory_name: string;
+  playing_card?: string | null;
   gang_id: string | null;
   created_at: string;
   ruined?: boolean;
@@ -67,6 +69,7 @@ interface TerritoryUpdate {
   updates?: {
     ruined?: boolean;
     default_gang_territory?: boolean;
+    playing_card?: string | null;
   };
 }
 
@@ -107,7 +110,7 @@ export default function CampaignTerritoryList({
   const [showTerritoryEditModal, setShowTerritoryEditModal] = useState(false);
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
-  const [sortField, setSortField] = useState<'territory' | 'controllingGang'>('territory');
+  const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Helper function to get gang details from members data
@@ -259,13 +262,15 @@ export default function CampaignTerritoryList({
       territoryId: string;
       ruined: boolean;
       default_gang_territory: boolean;
+      playing_card: string | null;
       territoryName: string;
     }) => {
       const result = await updateTerritoryStatus({
         campaignId,
         territoryId: variables.territoryId,
         ruined: variables.ruined,
-        default_gang_territory: variables.default_gang_territory
+        default_gang_territory: variables.default_gang_territory,
+        playing_card: variables.playing_card
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to update territory');
@@ -282,7 +287,8 @@ export default function CampaignTerritoryList({
         territoryId: variables.territoryId,
         updates: {
           ruined: variables.ruined,
-          default_gang_territory: variables.default_gang_territory
+          default_gang_territory: variables.default_gang_territory,
+          playing_card: variables.playing_card
         }
       });
       
@@ -312,13 +318,18 @@ export default function CampaignTerritoryList({
     setShowTerritoryEditModal(true);
   };
 
-  const handleTerritoryUpdate = async (updates: { ruined: boolean; default_gang_territory: boolean }) => {
+  const handleTerritoryUpdate = async (updates: {
+    ruined: boolean;
+    default_gang_territory: boolean;
+    playing_card: string | null;
+  }) => {
     if (!territoryToEdit) return false;
 
     updateTerritoryMutation.mutate({
       territoryId: territoryToEdit.id,
       ruined: updates.ruined,
       default_gang_territory: updates.default_gang_territory,
+      playing_card: updates.playing_card,
       territoryName: territoryToEdit.territory_name
     });
     
@@ -326,7 +337,7 @@ export default function CampaignTerritoryList({
   };
 
   // Handle column header click for sorting
-  const handleSort = (field: 'territory' | 'controllingGang') => {
+  const handleSort = (field: 'ref' | 'territory' | 'controllingGang') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -336,7 +347,7 @@ export default function CampaignTerritoryList({
   };
 
   // Sort indicator component
-  const SortIndicator = ({ field }: { field: 'territory' | 'controllingGang' }) => {
+  const SortIndicator = ({ field }: { field: 'ref' | 'territory' | 'controllingGang' }) => {
     if (sortField !== field) return null;
     return (
       <span className="ml-1">
@@ -372,6 +383,16 @@ export default function CampaignTerritoryList({
     return { controlledTerritories, uncontrolledTerritories };
   };
 
+  const getSortKeyForTerritory = (territory: Territory): string => {
+    if (sortField === 'territory') {
+      return territory.territory_name;
+    }
+    if (sortField === 'controllingGang') {
+      return territory.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled';
+    }
+    return getPlayingCardSortKey(territory.playing_card);
+  };
+
   // Helper function to create a unified sorted list for display
   const createSortedDisplayList = (territories: Territory[]) => {
     const { controlledTerritories, uncontrolledTerritories } = groupTerritoriesForDisplay(territories);
@@ -380,7 +401,7 @@ export default function CampaignTerritoryList({
     const controlledItems = controlledTerritories.map(territory => ({
       type: 'controlled' as const,
       territory,
-      sortKey: sortField === 'territory' ? territory.territory_name : (territory.owning_gangs?.[0]?.name || 'ZZZ_Uncontrolled')
+      sortKey: getSortKeyForTerritory(territory)
     }));
 
     // Create display items for uncontrolled territories (grouped)
@@ -388,7 +409,7 @@ export default function CampaignTerritoryList({
       type: 'uncontrolled' as const,
       territory,
       count,
-      sortKey: sortField === 'territory' ? territory.territory_name : 'ZZZ_Uncontrolled'
+      sortKey: getSortKeyForTerritory(territory)
     }));
 
     // Combine and sort all items
@@ -474,7 +495,14 @@ export default function CampaignTerritoryList({
           <thead>
             <tr className="bg-muted border-b">
               <th 
-                className="w-2/5 px-4 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-11 min-w-[2.75rem] px-1 py-2 text-center font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                onClick={() => handleSort('ref')}
+              >
+                Ref.
+                <SortIndicator field="ref" />
+              </th>
+              <th 
+                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
@@ -493,7 +521,7 @@ export default function CampaignTerritoryList({
           <tbody>
             {territories.length === 0 ? (
               <tr>
-                <td colSpan={3} className="text-muted-foreground italic text-center py-4">
+                <td colSpan={4} className="text-muted-foreground italic text-center py-4">
                   No territories in this campaign
                 </td>
               </tr>
@@ -501,7 +529,12 @@ export default function CampaignTerritoryList({
               sortedDisplayItems.map((item, index) => (
                 <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}`} 
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
-                  <td className="w-2/5 px-4 py-2">
+                  <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
+                    <span className="text-gray-400 inline-block w-10 text-center">
+                      {item.territory.playing_card?.trim() ? item.territory.playing_card.trim() : '\u00A0'}
+                    </span>
+                  </td>
+                  <td className="w-2/5 px-2 py-2">
                     <div className="font-medium">
                       {item.territory.territory_name}
                       {item.territory.ruined && (
@@ -646,6 +679,7 @@ export default function CampaignTerritoryList({
           territoryName={territoryToEdit.territory_name}
           currentRuined={territoryToEdit.ruined || false}
           currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
+          currentPlayingCard={territoryToEdit.playing_card ?? null}
           isUpdating={updateTerritoryMutation.isPending}
         />
       )}

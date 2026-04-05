@@ -35,6 +35,8 @@ export interface UpdateTerritoryStatusParams {
   territoryId: string;
   ruined: boolean;
   default_gang_territory: boolean;
+  /** Stored on `campaign_territories.playing_card`; null clears the value */
+  playing_card: string | null;
 }
 
 /**
@@ -273,15 +275,28 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
       }
     }
 
-    const insertData: any = {
+    const insertData: Record<string, unknown> = {
       campaign_id: campaignId,
       territory_name: territoryName
     };
 
     if (isCustom) {
       insertData.custom_territory_id = customTerritoryId;
+      insertData.playing_card = null;
     } else {
       insertData.territory_id = territoryId;
+      const { data: templateTerritory, error: templateError } = await supabase
+        .from('territories')
+        .select('playing_card')
+        .eq('id', territoryId!)
+        .maybeSingle();
+
+      if (templateError) {
+        console.error('Error fetching territory template for playing_card:', templateError);
+      }
+      const rawCard = templateTerritory?.playing_card;
+      insertData.playing_card =
+        typeof rawCard === 'string' && rawCard.trim() ? rawCard.trim() : null;
     }
 
     const { error } = await supabase
@@ -401,13 +416,14 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
 export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, territoryId, ruined, default_gang_territory } = params;
+    const { campaignId, territoryId, ruined, default_gang_territory, playing_card } = params;
     
     const { error } = await supabase
       .from('campaign_territories')
       .update({ 
         ruined: ruined,
-        default_gang_territory: default_gang_territory
+        default_gang_territory: default_gang_territory,
+        playing_card: playing_card
       })
       .eq('id', territoryId)
       .eq('campaign_id', campaignId);
