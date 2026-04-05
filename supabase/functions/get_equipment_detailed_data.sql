@@ -167,6 +167,15 @@ AS $$
                 WHERE (fet.fighter_type_id = $3
                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                 AND equip_id = e.id::text
+                AND (
+                    $10 IS NULL
+                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                )
             )
             OR
             -- Campaign authorized trading post access
@@ -266,6 +275,11 @@ AS $$
                  AND eq = e.id::text
              ))
            )
+           AND (
+             $10 IS NULL
+             OR tpe.trading_post_type_id = (SELECT gt2.trading_post_type_id FROM gang_types gt2 WHERE gt2.gang_type_id = $1)
+             OR (array_length($10, 1) > 0 AND tpe.trading_post_type_id = ANY($10))
+           )
         ) AS trading_post_names
     FROM equipment e
     LEFT JOIN LATERAL (
@@ -334,6 +348,15 @@ AS $$
                                 WHERE (fet.fighter_type_id = $3
                                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                                 AND equip_id = e.id::text
+                                AND (
+                                    $10 IS NULL
+                                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                                )
                             )
                         ELSE
                             (
@@ -352,6 +375,15 @@ AS $$
                                     WHERE (fet.fighter_type_id = $3
                                            OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                                     AND equip_id = e.id::text
+                                    AND (
+                                        $10 IS NULL
+                                        OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                                   JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                                   WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                        OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                                   WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                        OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                                    )
                                 )
                             )
                     END
@@ -384,6 +416,15 @@ AS $$
                             WHERE (fet.fighter_type_id = $3
                                    OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                             AND equip_id = e.id::text
+                            AND (
+                                $10 IS NULL
+                                OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                           JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                           WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                           WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                            )
                         )
                     ELSE
                         (
@@ -402,6 +443,15 @@ AS $$
                                 WHERE (fet.fighter_type_id = $3
                                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                                 AND equip_id = e.id::text
+                                AND (
+                                    $10 IS NULL
+                                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                                )
                             )
                         )
                 END
