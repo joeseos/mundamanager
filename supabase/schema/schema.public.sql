@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict fatCaSRIuqfQ6DNWc8a1IOK1yMba0SKuiCQXI7PSohZBfK6m3D40cgYCdGftQ9L
+\restrict hkOTmV2srDRQwMUEgedbDKdjl848cLFtkRwE68Vd31GLh8EYW9YGcacRflpqWpI
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -1431,6 +1431,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                 WHERE (fet.fighter_type_id = $3
                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                 AND equip_id = e.id::text
+                AND (
+                    $10 IS NULL
+                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                )
             )
             OR
             -- Campaign authorized trading post access
@@ -1530,6 +1539,11 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                  AND eq = e.id::text
              ))
            )
+           AND (
+             $10 IS NULL
+             OR tpe.trading_post_type_id = (SELECT gt2.trading_post_type_id FROM gang_types gt2 WHERE gt2.gang_type_id = $1)
+             OR (array_length($10, 1) > 0 AND tpe.trading_post_type_id = ANY($10))
+           )
         ) AS trading_post_names
     FROM equipment e
     LEFT JOIN LATERAL (
@@ -1598,6 +1612,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                                 WHERE (fet.fighter_type_id = $3
                                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                                 AND equip_id = e.id::text
+                                AND (
+                                    $10 IS NULL
+                                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                                )
                             )
                         ELSE
                             (
@@ -1616,6 +1639,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                                     WHERE (fet.fighter_type_id = $3
                                            OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                                     AND equip_id = e.id::text
+                                    AND (
+                                        $10 IS NULL
+                                        OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                                   JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                                   WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                        OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                                   WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                        OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                                    )
                                 )
                             )
                     END
@@ -1648,6 +1680,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                             WHERE (fet.fighter_type_id = $3
                                    OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                             AND equip_id = e.id::text
+                            AND (
+                                $10 IS NULL
+                                OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                           JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                           WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                           WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                            )
                         )
                     ELSE
                         (
@@ -1666,6 +1707,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                                 WHERE (fet.fighter_type_id = $3
                                        OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
                                 AND equip_id = e.id::text
+                                AND (
+                                    $10 IS NULL
+                                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+                                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+                                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+                                )
                             )
                         )
                 END
@@ -3976,7 +4026,8 @@ CREATE TABLE public.campaign_territories (
     ruined boolean DEFAULT false,
     updated_at timestamp with time zone,
     default_gang_territory boolean DEFAULT false,
-    custom_territory_id uuid
+    custom_territory_id uuid,
+    playing_card text
 );
 
 
@@ -5080,7 +5131,7 @@ CREATE TABLE public.territories (
     campaign_type_id uuid,
     territory_name text NOT NULL,
     updated_at timestamp with time zone,
-    playing_card_value text
+    playing_card text
 );
 
 
@@ -10472,5 +10523,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fatCaSRIuqfQ6DNWc8a1IOK1yMba0SKuiCQXI7PSohZBfK6m3D40cgYCdGftQ9L
+\unrestrict hkOTmV2srDRQwMUEgedbDKdjl848cLFtkRwE68Vd31GLh8EYW9YGcacRflpqWpI
 
