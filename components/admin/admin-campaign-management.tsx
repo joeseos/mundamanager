@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Combobox } from "@/components/ui/combobox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
@@ -25,6 +26,7 @@ interface Territory {
   id: string;
   territory_name: string;
   campaign_type_id?: string | null;
+  playing_card?: string | null;
 }
 
 interface CampaignTriumph {
@@ -40,6 +42,19 @@ interface AdminCampaignManagementModalProps {
   onClose: () => void;
   onSubmit?: () => void;
 }
+
+const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const CARD_SUITS = ['♦️', '♠️', '♥️', '♣️'];
+const NONE_CARD_VALUE = '__none__';
+const territoryCardOptions = [
+  { value: NONE_CARD_VALUE, label: 'None' },
+  ...CARD_SUITS.flatMap((suit) =>
+    CARD_RANKS.map((rank) => ({
+      value: `${rank}${suit}`,
+      label: `${rank}${suit}`
+    }))
+  )
+];
 
 export function AdminCampaignManagementModal({ 
   onClose, 
@@ -76,6 +91,7 @@ export function AdminCampaignManagementModal({
   const [selectedTerritoryId, setSelectedTerritoryId] = useState('');
   const [territoryName, setTerritoryName] = useState('');
   const [territoryCampaignTypeId, setTerritoryCampaignTypeId] = useState('');
+  const [territoryCardValue, setTerritoryCardValue] = useState('');
   const [isCreateModeTerritory, setIsCreateModeTerritory] = useState(false);
   
   // Triumphs form state
@@ -103,6 +119,7 @@ export function AdminCampaignManagementModal({
     setSelectedTerritoryId('');
     setTerritoryName('');
     setTerritoryCampaignTypeId('');
+    setTerritoryCardValue('');
     setIsCreateModeTerritory(false);
     
     setSelectedTriumphId('');
@@ -349,6 +366,7 @@ export function AdminCampaignManagementModal({
     if (selected) {
       setTerritoryName(selected.territory_name);
       setTerritoryCampaignTypeId(selected.campaign_type_id || '');
+      setTerritoryCardValue(selected.playing_card || '');
     }
   };
 
@@ -356,6 +374,7 @@ export function AdminCampaignManagementModal({
     setSelectedTerritoryId('');
     setTerritoryName('');
     setTerritoryCampaignTypeId('');
+    setTerritoryCardValue('');
     setIsCreateModeTerritory(true);
   };
 
@@ -376,7 +395,8 @@ export function AdminCampaignManagementModal({
           method = 'POST';
           body = JSON.stringify({
             territory_name: territoryName.trim(),
-            campaign_type_id: territoryCampaignTypeId || null
+            campaign_type_id: territoryCampaignTypeId || null,
+            playing_card: territoryCardValue.trim() || null
           });
           break;
         case OperationType.UPDATE:
@@ -384,7 +404,8 @@ export function AdminCampaignManagementModal({
           body = JSON.stringify({
             id: selectedTerritoryId,
             territory_name: territoryName.trim(),
-            campaign_type_id: territoryCampaignTypeId || null
+            campaign_type_id: territoryCampaignTypeId || null,
+            playing_card: territoryCardValue.trim() || null
           });
           break;
         default:
@@ -411,6 +432,7 @@ export function AdminCampaignManagementModal({
       setSelectedTerritoryId('');
       setTerritoryName('');
       setTerritoryCampaignTypeId('');
+      setTerritoryCardValue('');
       setIsCreateModeTerritory(false);
 
       if (onSubmit) {
@@ -575,6 +597,41 @@ export function AdminCampaignManagementModal({
   };
 
   const activeForm = getActiveFormState();
+  const territorySelectOptions = territories.map((territory) => {
+    const playingCardValue = territory.playing_card?.trim();
+    const hasPlayingCardValue = Boolean(playingCardValue);
+    const campaignTypeName = campaignTypes.find(
+      (type) => type.id === territory.campaign_type_id
+    )?.campaign_type_name;
+    const hasCampaignTypeName = Boolean(campaignTypeName);
+    const territoryMeta = hasCampaignTypeName ? campaignTypeName : '';
+
+    return {
+      value: territory.id,
+      label: (
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-gray-400 inline-block w-8 text-center mr-1">
+            {hasPlayingCardValue ? playingCardValue : '\u00A0'}
+          </span>
+          <span>{territory.territory_name}</span>
+          {hasCampaignTypeName && (
+            <span className="text-xs text-muted-foreground">
+              {`• ${campaignTypeName}`}
+            </span>
+          )}
+        </span>
+      ),
+      displayValue: [
+        hasPlayingCardValue ? playingCardValue : null,
+        territory.territory_name,
+        territoryMeta || null
+      ].filter(Boolean).join(' ')
+    };
+  });
+  const campaignTypeSelectOptions = campaignTypes.map((type) => ({
+    value: type.id,
+    label: type.campaign_type_name
+  }));
 
   return (
     <div
@@ -770,19 +827,14 @@ export function AdminCampaignManagementModal({
                       Create New
                     </Button>
                   </div>
-                  <select
+                  <Combobox
                     value={selectedTerritoryId}
-                    onChange={(e) => handleTerritorySelect(e.target.value)}
-                    className="w-full p-2 border rounded-md"
+                    onValueChange={handleTerritorySelect}
+                    options={territorySelectOptions}
+                    placeholder="Select a territory to edit"
+                    clearable
                     disabled={isLoading}
-                  >
-                    <option value="">Select a territory to edit</option>
-                    {territories.map((territory) => (
-                      <option key={territory.id} value={territory.id}>
-                        {territory.territory_name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {isCreateModeTerritory && (
                     <p className="text-xs text-amber-600 mt-1">
                       Creating new territory. Select from dropdown to cancel and edit existing.
@@ -808,19 +860,31 @@ export function AdminCampaignManagementModal({
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Campaign Type
                   </label>
-                  <select
+                  <Combobox
                     value={territoryCampaignTypeId}
-                    onChange={(e) => setTerritoryCampaignTypeId(e.target.value)}
-                    className="w-full p-2 border rounded-md"
+                    onValueChange={setTerritoryCampaignTypeId}
+                    options={[
+                      { value: '', label: 'None (unassigned)' },
+                      ...campaignTypeSelectOptions
+                    ]}
+                    placeholder="None (unassigned)"
                     disabled={!isCreateModeTerritory && !selectedTerritoryId}
-                  >
-                    <option value="">None (unassigned)</option>
-                    {campaignTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.campaign_type_name}
-                      </option>
-                    ))}
-                  </select>
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Playing Card
+                  </label>
+                  <Combobox
+                    value={territoryCardValue || NONE_CARD_VALUE}
+                    onValueChange={(value) => setTerritoryCardValue(value === NONE_CARD_VALUE ? '' : value)}
+                    options={territoryCardOptions}
+                    placeholder="Select or enter a card value"
+                    allowCustom
+                    clearable
+                    disabled={!isCreateModeTerritory && !selectedTerritoryId}
+                  />
                 </div>
               </>
             )}

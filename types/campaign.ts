@@ -78,6 +78,7 @@ export interface CampaignTerritory {
   created_at: string;
   ruined: boolean;
   default_gang_territory: boolean;
+  playing_card?: string | null;
   is_custom: boolean;
   owning_gangs: GangReference[];
 }

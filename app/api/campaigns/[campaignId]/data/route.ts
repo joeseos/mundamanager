@@ -185,6 +185,7 @@ interface DataTerritory {
   created_at: string;
   ruined: boolean;
   default_gang_territory: boolean;
+  playing_card?: string | null;
   is_custom: boolean;
   owning_gangs: DataGangReference[];
 }
@@ -268,6 +269,7 @@ function transformTerritoryForData(territory: any, isNested: boolean = false): D
     created_at: territory.created_at,
     ruined: territory.ruined ?? false,
     default_gang_territory: territory.default_gang_territory ?? false,
+    playing_card: territory.playing_card ?? null,
     is_custom: territory.is_custom ?? false,
     owning_gangs: (territory.owning_gangs ?? []).map((g: any) => ({
       id: g.id,
