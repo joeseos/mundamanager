@@ -192,7 +192,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           .eq('campaign_id', campaignId);
 
         if (error) {
-          console.error('Territory update failed:', error);
+          throw new Error(`Failed to claim territory: ${error.message}`);
         }
       }
     }
