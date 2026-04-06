@@ -37,6 +37,8 @@ export interface UpdateTerritoryStatusParams {
   default_gang_territory: boolean;
   /** Stored on `campaign_territories.playing_card`; null clears the value */
   playing_card: string | null;
+  /** Stored on `campaign_territories.description`; null clears the value */
+  description: string | null;
 }
 
 /**
@@ -416,14 +418,15 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
 export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams) {
   try {
     const supabase = await createClient();
-    const { campaignId, territoryId, ruined, default_gang_territory, playing_card } = params;
+    const { campaignId, territoryId, ruined, default_gang_territory, playing_card, description } = params;
     
     const { error } = await supabase
       .from('campaign_territories')
       .update({ 
         ruined: ruined,
         default_gang_territory: default_gang_territory,
-        playing_card: playing_card
+        playing_card: playing_card,
+        description: description
       })
       .eq('id', territoryId)
       .eq('campaign_id', campaignId);

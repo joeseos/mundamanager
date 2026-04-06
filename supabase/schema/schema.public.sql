@@ -4027,7 +4027,8 @@ CREATE TABLE public.campaign_territories (
     updated_at timestamp with time zone,
     default_gang_territory boolean DEFAULT false,
     custom_territory_id uuid,
-    playing_card text
+    playing_card text,
+    description text
 );
 
 

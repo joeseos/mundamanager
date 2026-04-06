@@ -6,6 +6,8 @@ import Modal from "@/components/ui/modal"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
+import { ImInfo } from "react-icons/im"
+import { Tooltip } from "react-tooltip"
 import {
   TERRITORY_PLAYING_CARD_NONE,
   TERRITORY_PLAYING_CARD_CUSTOM,
@@ -20,15 +22,18 @@ interface TerritoryEditModalProps {
     ruined: boolean;
     default_gang_territory: boolean;
     playing_card: string | null;
+    description: string | null;
   }) => void;
   territoryName: string;
   currentRuined: boolean;
   currentDefaultGangTerritory: boolean;
   currentPlayingCard?: string | null;
+  currentDescription?: string | null;
   groupedTerritories?: Array<{
     id: string;
     territory_name: string;
     playing_card?: string | null;
+    description?: string | null;
   }>;
   selectedTerritoryId?: string;
   onSelectTerritory?: (territoryId: string) => void;
@@ -54,6 +59,13 @@ function deriveInitialPlayingCardSelection(currentPlayingCard: string | null | u
   return { selectedRef: TERRITORY_PLAYING_CARD_CUSTOM, customPlayingCard: raw };
 }
 
+function normaliseDescription(value: string | null | undefined): string | null {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1000;
+
 export default function TerritoryEditModal({
   isOpen,
   onClose,
@@ -62,6 +74,7 @@ export default function TerritoryEditModal({
   currentRuined,
   currentDefaultGangTerritory,
   currentPlayingCard,
+  currentDescription,
   groupedTerritories = [],
   selectedTerritoryId,
   onSelectTerritory,
@@ -72,7 +85,13 @@ export default function TerritoryEditModal({
   const [defaultGangTerritory, setDefaultGangTerritory] = useState(currentDefaultGangTerritory);
   const [selectedRef, setSelectedRef] = useState(initialPlayingCard.selectedRef);
   const [customPlayingCard, setCustomPlayingCard] = useState(initialPlayingCard.customPlayingCard);
+  const [description, setDescription] = useState(currentDescription || '');
   const [hasChanged, setHasChanged] = useState(false);
+
+  const getCharCount = (htmlContent: string) => {
+    const textContent = htmlContent.replace(/<[^>]*>/g, '');
+    return textContent.length;
+  };
 
   const effectivePlayingCard = useMemo(() => {
     if (selectedRef === TERRITORY_PLAYING_CARD_NONE) return null;
@@ -90,16 +109,18 @@ export default function TerritoryEditModal({
       setDefaultGangTerritory(currentDefaultGangTerritory);
       setSelectedRef(next.selectedRef);
       setCustomPlayingCard(next.customPlayingCard);
+      setDescription(currentDescription || '');
       setHasChanged(false);
     }
-  }, [isOpen, currentRuined, currentDefaultGangTerritory, currentPlayingCard]);
+  }, [isOpen, currentRuined, currentDefaultGangTerritory, currentPlayingCard, currentDescription]);
 
   // Track changes
   useEffect(() => {
     setHasChanged(
       ruined !== currentRuined ||
       defaultGangTerritory !== currentDefaultGangTerritory ||
-      normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard)
+      normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard) ||
+      normaliseDescription(description) !== normaliseDescription(currentDescription)
     );
   }, [
     ruined,
@@ -107,23 +128,34 @@ export default function TerritoryEditModal({
     defaultGangTerritory,
     currentDefaultGangTerritory,
     effectivePlayingCard,
-    currentPlayingCard
+    currentPlayingCard,
+    description,
+    currentDescription
   ]);
 
   const comboboxValue =
     selectedRef === TERRITORY_PLAYING_CARD_CUSTOM
       ? TERRITORY_PLAYING_CARD_CUSTOM
       : selectedRef || TERRITORY_PLAYING_CARD_NONE;
+  const isDescriptionOverLimit = getCharCount(description) > TERRITORY_DESCRIPTION_CHAR_LIMIT;
 
   const handleConfirm = () => {
     if (selectedRef === TERRITORY_PLAYING_CARD_CUSTOM && !customPlayingCard.trim()) {
       toast.error('Please enter a custom playing card value');
       return false;
     }
+
+    const descriptionCharCount = getCharCount(description);
+    if (descriptionCharCount > TERRITORY_DESCRIPTION_CHAR_LIMIT) {
+      toast.error(`Description cannot exceed ${TERRITORY_DESCRIPTION_CHAR_LIMIT} characters`);
+      return false;
+    }
+
     onConfirm({
       ruined,
       default_gang_territory: defaultGangTerritory,
-      playing_card: effectivePlayingCard
+      playing_card: effectivePlayingCard,
+      description: normaliseDescription(description)
     });
     return true;
   };
@@ -185,7 +217,7 @@ export default function TerritoryEditModal({
           </div>
         )}
       </div>
-
+      
       <div className="flex items-center space-x-2">
         <Checkbox
           id="ruined-checkbox"
@@ -213,18 +245,59 @@ export default function TerritoryEditModal({
           Default Gang Territory
         </label>
       </div>
+
+      {/* Description — layout aligned with campaign-edit-modal */}
+      <div>
+        <label className="flex justify-between items-center text-sm font-medium text-muted-foreground mb-1">
+          <div className="flex items-center space-x-2">
+            <span>Description</span>
+            <span
+              className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+              data-tooltip-id="territory-description-tooltip"
+              data-tooltip-html={
+                'The territory description is shown as a tooltip in the campaign territories list so participants can read notes about this territory.'
+              }
+            >
+              <ImInfo />
+            </span>
+          </div>
+          <span className={`text-sm ${isDescriptionOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+            {description.length}/{TERRITORY_DESCRIPTION_CHAR_LIMIT} characters
+          </span>
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full p-2 border rounded min-h-[200px]"
+          placeholder="Enter territory description..."
+        />
+      </div>
     </div>
   );
 
   return (
-    <Modal
-      title="Edit Territory"
-      helper={`Modify settings for ${territoryName}`}
-      content={modalContent}
-      onClose={onClose}
-      onConfirm={handleConfirm}
-      confirmText="Update Territory"
-      confirmDisabled={!hasChanged || isUpdating}
-    />
+    <>
+      <Modal
+        title="Edit Territory"
+        helper={`Modify settings for ${territoryName}`}
+        content={modalContent}
+        onClose={onClose}
+        onConfirm={handleConfirm}
+        confirmText="Update Territory"
+        confirmDisabled={!hasChanged || isUpdating || isDescriptionOverLimit}
+        width="2xl"
+      />
+      <Tooltip
+        id="territory-description-tooltip"
+        place="top"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '20rem'
+        }}
+      />
+    </>
   );
 }
