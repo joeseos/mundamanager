@@ -232,7 +232,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       winner: winner?.name ? { id: winner_id, name: winner.name } : undefined
     };
 
-    // 🎯 Invalidate cache - battles and territories if claimed
+    // Invalidate cache - battles and territories if claimed
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
     if (claimed_territories.length > 0) {
