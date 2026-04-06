@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hkOTmV2srDRQwMUEgedbDKdjl848cLFtkRwE68Vd31GLh8EYW9YGcacRflpqWpI
+\restrict 9qTyEPPZpwHQkSadMkyDHwvzqN8VXC4kBkGqCFNrXjN93p6MGYRcqSGWojbWsKL
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -1306,6 +1306,20 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
+    WITH filtered_fet AS (
+        SELECT fet.fighter_type_id, equip_id::uuid AS equipment_id
+        FROM fighter_equipment_tradingpost fet,
+             jsonb_array_elements_text(fet.equipment_tradingpost) AS equip_id
+        WHERE (
+            $10 IS NULL
+            OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                       JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
+                       WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
+            OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
+                       WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
+            OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
+        )
+    )
     -- Regular equipment
     SELECT DISTINCT
         e.id,
@@ -1425,21 +1439,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             OR
             -- Fighter trading post access
             EXISTS (
-                SELECT 1
-                FROM fighter_equipment_tradingpost fet,
-                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                WHERE (fet.fighter_type_id = $3
-                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                AND equip_id = e.id::text
-                AND (
-                    $10 IS NULL
-                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
-                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
-                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
-                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
-                )
+                SELECT 1 FROM filtered_fet ff
+                WHERE (ff.fighter_type_id = $3
+                       OR (gang_data.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gang_data.affiliation_ft_id))
+                AND ff.equipment_id = e.id
             )
             OR
             -- Campaign authorized trading post access
@@ -1534,9 +1537,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
              EXISTS (SELECT 1 FROM gang_types gt WHERE gt.gang_type_id = $1 AND gt.trading_post_type_id = tpe.trading_post_type_id)
              OR ($10 IS NOT NULL AND array_length($10, 1) > 0 AND tpe.trading_post_type_id = ANY($10))
              OR ($3 IS NOT NULL AND EXISTS (
-               SELECT 1 FROM fighter_equipment_tradingpost fet, jsonb_array_elements_text(fet.equipment_tradingpost) AS eq
-               WHERE (fet.fighter_type_id = $3 OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                 AND eq = e.id::text
+               SELECT 1 FROM filtered_fet ff
+               WHERE (ff.fighter_type_id = $3 OR (gang_data.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gang_data.affiliation_ft_id))
+                 AND ff.equipment_id = e.id
              ))
            )
            AND (
@@ -1606,21 +1609,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     CASE
                         WHEN $9 = true THEN
                             EXISTS (
-                                SELECT 1
-                                FROM fighter_equipment_tradingpost fet,
-                                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                                WHERE (fet.fighter_type_id = $3
-                                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                                AND equip_id = e.id::text
-                                AND (
-                                    $10 IS NULL
-                                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
-                                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
-                                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
-                                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
-                                )
+                                SELECT 1 FROM filtered_fet ff
+                                WHERE (ff.fighter_type_id = $3
+                                       OR (gang_data.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gang_data.affiliation_ft_id))
+                                AND ff.equipment_id = e.id
                             )
                         ELSE
                             (
@@ -1633,21 +1625,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                                 )
                                 OR
                                 EXISTS (
-                                    SELECT 1
-                                    FROM fighter_equipment_tradingpost fet,
-                                         jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                                    WHERE (fet.fighter_type_id = $3
-                                           OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                                    AND equip_id = e.id::text
-                                    AND (
-                                        $10 IS NULL
-                                        OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                                   JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
-                                                   WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
-                                        OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                                   WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
-                                        OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
-                                    )
+                                    SELECT 1 FROM filtered_fet ff
+                                    WHERE (ff.fighter_type_id = $3
+                                           OR (gang_data.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gang_data.affiliation_ft_id))
+                                    AND ff.equipment_id = e.id
                                 )
                             )
                     END
@@ -1674,21 +1655,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                 CASE
                     WHEN $9 = true THEN
                         EXISTS (
-                            SELECT 1
-                            FROM fighter_equipment_tradingpost fet,
-                                 jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                            WHERE (fet.fighter_type_id = $3
-                                   OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                            AND equip_id = e.id::text
-                            AND (
-                                $10 IS NULL
-                                OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                           JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
-                                           WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
-                                OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                           WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
-                                OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
-                            )
+                            SELECT 1 FROM filtered_fet ff
+                            WHERE (ff.fighter_type_id = $3
+                                   OR (gang_data.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gang_data.affiliation_ft_id))
+                            AND ff.equipment_id = e.id
                         )
                     ELSE
                         (
@@ -1701,21 +1671,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                             )
                             OR
                             EXISTS (
-                                SELECT 1
-                                FROM fighter_equipment_tradingpost fet,
-                                     jsonb_array_elements_text(fet.equipment_tradingpost) as equip_id
-                                WHERE (fet.fighter_type_id = $3
-                                       OR (gang_data.affiliation_ft_id IS NOT NULL AND fet.fighter_type_id = gang_data.affiliation_ft_id))
-                                AND equip_id = e.id::text
-                                AND (
-                                    $10 IS NULL
-                                    OR EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                               JOIN gang_types gt ON gt.trading_post_type_id = tpe.trading_post_type_id
-                                               WHERE tpe.equipment_id = equip_id::uuid AND gt.gang_type_id = $1)
-                                    OR (array_length($10, 1) > 0 AND EXISTS (SELECT 1 FROM trading_post_equipment tpe
-                                               WHERE tpe.equipment_id = equip_id::uuid AND tpe.trading_post_type_id = ANY($10)))
-                                    OR NOT EXISTS (SELECT 1 FROM trading_post_equipment tpe WHERE tpe.equipment_id = equip_id::uuid)
-                                )
+                                SELECT 1 FROM filtered_fet ff
+                                WHERE (ff.fighter_type_id = $3
+                                       OR (gang_data.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gang_data.affiliation_ft_id))
+                                AND ff.equipment_id = e.id
                             )
                         )
                 END
@@ -10524,5 +10483,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hkOTmV2srDRQwMUEgedbDKdjl848cLFtkRwE68Vd31GLh8EYW9YGcacRflpqWpI
+\unrestrict 9qTyEPPZpwHQkSadMkyDHwvzqN8VXC4kBkGqCFNrXjN93p6MGYRcqSGWojbWsKL
 
