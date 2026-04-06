@@ -261,7 +261,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // First, verify the battle exists and belongs to the campaign
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
-      .select('id')
+      .select('id, campaign_territory_id')
       .eq('id', battleId)
       .eq('campaign_id', campaignId)
       .single();
@@ -295,6 +295,24 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       .single();
 
     if (battleError) throw battleError;
+
+    // Release old territory if it was removed or changed
+    const newTerritoryId = claimed_territories.length > 0
+      ? claimed_territories[0].campaign_territory_id
+      : null;
+
+    if (existingBattle.campaign_territory_id &&
+        existingBattle.campaign_territory_id !== newTerritoryId) {
+      const { error: releaseError } = await supabase
+        .from('campaign_territories')
+        .update({ gang_id: null })
+        .eq('id', existingBattle.campaign_territory_id)
+        .eq('campaign_id', campaignId);
+
+      if (releaseError) {
+        console.error('Failed to release old territory:', releaseError);
+      }
+    }
 
     // Process territory claims if any
     if (claimed_territories.length > 0 && winner_id) {
@@ -342,10 +360,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       winner: winner?.name ? { id: winner_id, name: winner.name } : undefined
     };
 
-    // 🎯 Invalidate cache - battles and territories if claimed
+    // 🎯 Invalidate cache - battles and territories if claimed or released
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
-    if (claimed_territories.length > 0) {
+    if (claimed_territories.length > 0 || existingBattle.campaign_territory_id) {
       revalidateTag(`campaign-territories-${campaignId}`);
       revalidateTag(`campaign-${campaignId}`);
     }
@@ -369,7 +387,7 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
     // First, verify the battle exists and belongs to the campaign
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
-      .select('id')
+      .select('id, campaign_territory_id')
       .eq('id', battleId)
       .eq('campaign_id', campaignId)
       .single();
@@ -377,6 +395,19 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
     if (checkError || !existingBattle) {
       console.error('Battle not found or access denied', checkError);
       throw new Error('Battle not found or access denied');
+    }
+
+    // Release territory if the battle had one claimed
+    if (existingBattle.campaign_territory_id) {
+      const { error: releaseError } = await supabase
+        .from('campaign_territories')
+        .update({ gang_id: null })
+        .eq('id', existingBattle.campaign_territory_id)
+        .eq('campaign_id', campaignId);
+
+      if (releaseError) {
+        console.error('Failed to release territory:', releaseError);
+      }
     }
 
     // Delete the battle
@@ -390,9 +421,13 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
       throw deleteError;
     }
 
-    // Invalidate battles cache
+    // Invalidate battles cache and territory cache if needed
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
+    if (existingBattle.campaign_territory_id) {
+      revalidateTag(`campaign-territories-${campaignId}`);
+      revalidateTag(`campaign-${campaignId}`);
+    }
   } catch (error) {
     console.error('Error deleting battle log:', error);
     throw error;
