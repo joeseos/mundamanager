@@ -25,6 +25,13 @@ interface TerritoryEditModalProps {
   currentRuined: boolean;
   currentDefaultGangTerritory: boolean;
   currentPlayingCard?: string | null;
+  groupedTerritories?: Array<{
+    id: string;
+    territory_name: string;
+    playing_card?: string | null;
+  }>;
+  selectedTerritoryId?: string;
+  onSelectTerritory?: (territoryId: string) => void;
   isUpdating?: boolean;
 }
 
@@ -55,6 +62,9 @@ export default function TerritoryEditModal({
   currentRuined,
   currentDefaultGangTerritory,
   currentPlayingCard,
+  groupedTerritories = [],
+  selectedTerritoryId,
+  onSelectTerritory,
   isUpdating = false
 }: TerritoryEditModalProps) {
   const initialPlayingCard = deriveInitialPlayingCardSelection(currentPlayingCard);
@@ -120,6 +130,28 @@ export default function TerritoryEditModal({
 
   const modalContent = (
     <div className="space-y-4">
+      {groupedTerritories.length > 1 && (
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Territories in this group
+          </label>
+          <Combobox
+            value={selectedTerritoryId || groupedTerritories[0]?.id || ''}
+            onValueChange={(value) => onSelectTerritory?.(value)}
+            options={groupedTerritories.map((territory) => ({
+              value: territory.id,
+              label: territory.playing_card?.trim()
+                ? `${territory.territory_name} • ${territory.playing_card.trim()}`
+                : territory.territory_name,
+              displayValue: territory.playing_card?.trim()
+                ? `${territory.territory_name} ${territory.playing_card.trim()}`
+                : territory.territory_name
+            }))}
+            placeholder="Select a territory to edit"
+          />
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-muted-foreground mb-1">
           Playing card (Ref.)

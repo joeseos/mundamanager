@@ -61,6 +61,14 @@ interface Territory {
   } | null;
 }
 
+type DisplayItem = {
+  type: 'controlled' | 'uncontrolled';
+  territory: Territory;
+  territories: Territory[];
+  count: number;
+  sortKey: string;
+};
+
 interface TerritoryUpdate {
   action: 'assign' | 'remove' | 'update' | 'delete';
   territoryId: string;
@@ -109,6 +117,7 @@ export default function CampaignTerritoryList({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showTerritoryEditModal, setShowTerritoryEditModal] = useState(false);
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
+  const [editGroupTerritories, setEditGroupTerritories] = useState<Territory[]>([]);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -302,6 +311,7 @@ export default function CampaignTerritoryList({
       // Close modal
       setShowTerritoryEditModal(false);
       setTerritoryToEdit(null);
+      setEditGroupTerritories([]);
     },
     onError: (error, variables, context) => {
       // Rollback by refreshing data from server
@@ -313,7 +323,11 @@ export default function CampaignTerritoryList({
   });
 
   // Territory editing
-  const handleEditClick = (territory: Territory) => {
+  const handleEditClick = (territory: Territory, groupedTerritories?: Territory[]) => {
+    const territoriesToEdit = groupedTerritories && groupedTerritories.length > 0
+      ? groupedTerritories
+      : [territory];
+    setEditGroupTerritories(territoriesToEdit);
     setTerritoryToEdit(territory);
     setShowTerritoryEditModal(true);
   };
@@ -359,7 +373,7 @@ export default function CampaignTerritoryList({
   // Helper function to group territories for display
   const groupTerritoriesForDisplay = (territories: Territory[]) => {
     const controlledTerritories: Territory[] = [];
-    const uncontrolledTerritories: { [key: string]: { territory: Territory; count: number } } = {};
+    const uncontrolledTerritories: { [key: string]: { territory: Territory; territories: Territory[]; count: number } } = {};
 
     territories.forEach(territory => {
       const hasGang = territory.owning_gangs && territory.owning_gangs.length > 0;
@@ -367,13 +381,16 @@ export default function CampaignTerritoryList({
       if (hasGang) {
         controlledTerritories.push(territory);
       } else {
-        // Group uncontrolled territories by name AND ruined status
-        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}`;
+        // Group uncontrolled territories by name, ruined status, and ref
+        // so territories with different playing cards are listed separately.
+        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}`;
         if (uncontrolledTerritories[key]) {
           uncontrolledTerritories[key].count++;
+          uncontrolledTerritories[key].territories.push(territory);
         } else {
           uncontrolledTerritories[key] = {
             territory: territory,
+            territories: [territory],
             count: 1
           };
         }
@@ -394,20 +411,23 @@ export default function CampaignTerritoryList({
   };
 
   // Helper function to create a unified sorted list for display
-  const createSortedDisplayList = (territories: Territory[]) => {
+  const createSortedDisplayList = (territories: Territory[]): DisplayItem[] => {
     const { controlledTerritories, uncontrolledTerritories } = groupTerritoriesForDisplay(territories);
     
     // Create display items for controlled territories
     const controlledItems = controlledTerritories.map(territory => ({
       type: 'controlled' as const,
       territory,
+      territories: [territory],
+      count: 1,
       sortKey: getSortKeyForTerritory(territory)
     }));
 
     // Create display items for uncontrolled territories (grouped)
-    const uncontrolledItems = Object.entries(uncontrolledTerritories).map(([groupKey, { territory, count }]) => ({
+    const uncontrolledItems = Object.entries(uncontrolledTerritories).map(([groupKey, { territory, territories: groupedTerritories, count }]) => ({
       type: 'uncontrolled' as const,
       territory,
+      territories: groupedTerritories,
       count,
       sortKey: getSortKeyForTerritory(territory)
     }));
@@ -527,7 +547,7 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               sortedDisplayItems.map((item, index) => (
-                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}`} 
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}`} 
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
                     <span className="text-gray-400 inline-block w-10 text-center">
@@ -606,7 +626,7 @@ export default function CampaignTerritoryList({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleEditClick(item.territory)}
+                          onClick={() => handleEditClick(item.territory, item.territories)}
                           className="h-8 w-8 p-0"
                           aria-label="Edit territory"
                         >
@@ -674,12 +694,23 @@ export default function CampaignTerritoryList({
           onClose={() => {
             setShowTerritoryEditModal(false);
             setTerritoryToEdit(null);
+            setEditGroupTerritories([]);
           }}
           onConfirm={handleTerritoryUpdate}
           territoryName={territoryToEdit.territory_name}
           currentRuined={territoryToEdit.ruined || false}
           currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
           currentPlayingCard={territoryToEdit.playing_card ?? null}
+          {...({
+            groupedTerritories: editGroupTerritories,
+            selectedTerritoryId: territoryToEdit.id,
+            onSelectTerritory: (territoryId: string) => {
+              const selected = editGroupTerritories.find((territory) => territory.id === territoryId);
+              if (selected) {
+                setTerritoryToEdit(selected);
+              }
+            }
+          } as any)}
           isUpdating={updateTerritoryMutation.isPending}
         />
       )}
