@@ -19,7 +19,7 @@ import {
   removeTerritoryFromCampaign,
   updateTerritoryStatus
 } from "@/app/actions/campaigns/[id]/campaign-territories";
-import { getPlayingCardSortKey } from "@/app/lib/territory-playing-card-options";
+import { getPlayingCardSortKey } from "@/utils/campaigns/territory-playing-card-options";
 
 interface Gang {
   id: string;

@@ -21,6 +21,7 @@ interface Territory {
   id: string;
   territory_id?: string;
   territory_name: string;
+  playing_card?: string | null;
   ruined?: boolean;
   default_gang_territory?: boolean;
   created_at?: string;
@@ -470,6 +471,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-muted border-b">
+                          <th className="px-2 py-2 font-medium text-center w-11 min-w-[2.75rem]">Ref.</th>
                           <th className="px-4 py-2 font-medium text-left">Territory</th>
                           <th className="px-4 py-2 font-medium text-right">Status</th>
                         </tr>
@@ -479,6 +481,11 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                           .sort((a, b) => a.territory_name.localeCompare(b.territory_name))
                           .map((territory) => (
                             <tr key={territory.id} className="border-b last:border-0">
+                              <td className="px-1 py-2 text-center align-middle">
+                                <span className="text-gray-400 inline-block w-10 text-center">
+                                  {territory.playing_card?.trim() ? territory.playing_card.trim() : '\u00A0'}
+                                </span>
+                              </td>
                               <td className="px-4 py-2 text-left">{territory.territory_name}</td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">

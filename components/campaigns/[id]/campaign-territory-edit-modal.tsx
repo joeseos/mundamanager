@@ -11,7 +11,7 @@ import {
   TERRITORY_PLAYING_CARD_CUSTOM,
   territoryPlayingCardEditOptions,
   parseStandardPlayingCard
-} from "@/app/lib/territory-playing-card-options"
+} from "@/utils/campaigns/territory-playing-card-options"
 
 interface TerritoryEditModalProps {
   isOpen: boolean;
