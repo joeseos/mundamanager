@@ -152,6 +152,14 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       cycle
     } = params;
 
+    if (claimed_territories.length > 1) {
+      throw new Error('Only a single territory claim per battle is supported');
+    }
+
+    const newTerritoryId = claimed_territories.length > 0
+      ? claimed_territories[0].campaign_territory_id
+      : null;
+
     // First, create the battle record
     const { data: battle, error: battleError } = await supabase
       .from('campaign_battles')
@@ -165,7 +173,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           note,
           participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
           created_at: created_at ?? new Date().toISOString(),
-          campaign_territory_id: claimed_territories.length > 0 ? claimed_territories[0].campaign_territory_id : null,
+          campaign_territory_id: newTerritoryId,
           cycle
         }
       ])
@@ -258,6 +266,14 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       cycle
     } = params;
 
+    if (claimed_territories.length > 1) {
+      throw new Error('Only a single territory claim per battle is supported');
+    }
+
+    const newTerritoryId = claimed_territories.length > 0
+      ? claimed_territories[0].campaign_territory_id
+      : null;
+
     // First, verify the battle exists and belongs to the campaign
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
@@ -270,37 +286,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       throw new Error('Battle not found or access denied');
     }
 
-    // Build update payload conditionally including created_at if provided
-    const updatePayload: any = {
-      scenario,
-      attacker_id,
-      defender_id,
-      winner_id,
-      note,
-      participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
-      updated_at: new Date().toISOString(),
-      campaign_territory_id: claimed_territories.length > 0 ? claimed_territories[0].campaign_territory_id : null,
-      cycle
-    };
-    if (created_at) {
-      updatePayload.created_at = created_at;
-    }
-
-    // Update the battle record
-    const { data: battle, error: battleError } = await supabase
-      .from('campaign_battles')
-      .update(updatePayload)
-      .eq('id', battleId)
-      .select()
-      .single();
-
-    if (battleError) throw battleError;
-
     // Release old territory if it was removed or changed
-    const newTerritoryId = claimed_territories.length > 0
-      ? claimed_territories[0].campaign_territory_id
-      : null;
-
     if (existingBattle.campaign_territory_id &&
         existingBattle.campaign_territory_id !== newTerritoryId) {
       const { error: releaseError } = await supabase
@@ -310,20 +296,50 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
         .eq('campaign_id', campaignId);
 
       if (releaseError) {
-        console.error('Failed to release old territory:', releaseError);
+        throw new Error(`Failed to release old territory: ${releaseError.message}`);
       }
     }
 
-    // Process territory claims if any
+    // Claim new territory if any
     if (claimed_territories.length > 0 && winner_id) {
       for (const territory of claimed_territories) {
-        await supabase
+        const { error: claimError } = await supabase
           .from('campaign_territories')
           .update({ gang_id: winner_id })
           .eq('id', territory.campaign_territory_id)
           .eq('campaign_id', campaignId);
+
+        if (claimError) {
+          throw new Error(`Failed to claim territory: ${claimError.message}`);
+        }
       }
     }
+
+    // Build update payload conditionally including created_at if provided
+    const updatePayload: any = {
+      scenario,
+      attacker_id,
+      defender_id,
+      winner_id,
+      note,
+      participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
+      updated_at: new Date().toISOString(),
+      campaign_territory_id: newTerritoryId,
+      cycle
+    };
+    if (created_at) {
+      updatePayload.created_at = created_at;
+    }
+
+    // Update the battle record last — territory operations are already committed
+    const { data: battle, error: battleError } = await supabase
+      .from('campaign_battles')
+      .update(updatePayload)
+      .eq('id', battleId)
+      .select()
+      .single();
+
+    if (battleError) throw battleError;
 
     // Then fetch the related data for display and logging
     const [
@@ -397,7 +413,7 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
       throw new Error('Battle not found or access denied');
     }
 
-    // Release territory if the battle had one claimed
+    // Release territory before deleting — if this fails, abort to avoid orphaning the territory
     if (existingBattle.campaign_territory_id) {
       const { error: releaseError } = await supabase
         .from('campaign_territories')
@@ -406,7 +422,7 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
         .eq('campaign_id', campaignId);
 
       if (releaseError) {
-        console.error('Failed to release territory:', releaseError);
+        throw new Error(`Failed to release territory before deleting battle: ${releaseError.message}`);
       }
     }
 
