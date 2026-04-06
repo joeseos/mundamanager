@@ -68,6 +68,7 @@ interface RichTextEditorProps {
   charLimit?: number;
   campaignId?: string; // Optional campaign ID for image uploads
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
+  stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
 }
 
 const colors = [
@@ -86,7 +87,7 @@ const colors = [
 ];
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
-  { content, onChange, placeholder, className, charLimit, campaignId, enableImages }: RichTextEditorProps,
+  { content, onChange, placeholder, className, charLimit, campaignId, enableImages, stickyWithinScrollContainer = false }: RichTextEditorProps,
   ref
 ) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -99,11 +100,14 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const [toolbarTop, setToolbarTop] = useState(90);
   const [scrollY, setScrollY] = useState(0);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [isToolbarFloating, setIsToolbarFloating] = useState(false);
   const [, forceUpdate] = useState({});
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const linkInputRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const useViewportFixedToolbar = isMobile && !stickyWithinScrollContainer;
   
 
   // Ref to hold the image insertion function (set after editor is ready)
@@ -243,7 +247,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
   // Handle mobile keyboard and viewport changes
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || stickyWithinScrollContainer) return;
 
     let initialViewportHeight = window.innerHeight;
 
@@ -297,13 +301,50 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       }
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [isMobile, scrollY, isKeyboardOpen]);
+  }, [isMobile, scrollY, isKeyboardOpen, stickyWithinScrollContainer]);
 
   // Calculate character count from HTML content
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
   };
+
+  useEffect(() => {
+    if (!stickyWithinScrollContainer || isMobile) return;
+    if (!toolbarRef.current) return;
+
+    const getScrollParent = (element: HTMLElement): HTMLElement | null => {
+      let parent = element.parentElement;
+      while (parent) {
+        const styles = window.getComputedStyle(parent);
+        const overflowY = styles.overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+          return parent;
+        }
+        parent = parent.parentElement;
+      }
+      return null;
+    };
+
+    const scrollParent = getScrollParent(toolbarRef.current);
+    if (!scrollParent) return;
+
+    const handleScroll = () => {
+      if (!toolbarRef.current) return;
+      const toolbarTop = toolbarRef.current.getBoundingClientRect().top;
+      const parentTop = scrollParent.getBoundingClientRect().top;
+      setIsToolbarFloating(toolbarTop <= parentTop + 1);
+    };
+
+    handleScroll();
+    scrollParent.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+
+    return () => {
+      scrollParent.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [stickyWithinScrollContainer, isMobile]);
 
   const charCount = getCharCount(content);
   const isOverLimit = charLimit && charCount > charLimit;
@@ -468,11 +509,16 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   return (
     <div className={`border rounded-md ${className}`} ref={editorRef}>
       {/* Toolbar */}
-      <div className={`border-b p-2 flex flex-wrap gap-[3px] items-center bg-card z-[70] shadow-sm ${
-        isMobile 
+      <div
+        ref={toolbarRef}
+        className={`border-b rounded-t-md p-2 flex flex-wrap gap-[3px] items-center bg-card z-[70] ${
+        useViewportFixedToolbar
           ? 'fixed left-0 right-0 border-b-2 border-border' 
-          : 'sticky top-[90px]'
-      }`} style={isMobile ? { 
+          : stickyWithinScrollContainer
+            ? 'sticky top-[-20px]'
+            : 'sticky top-[90px]'
+      } ${isToolbarFloating ? 'shadow-md' : 'shadow-sm'}`}
+      style={useViewportFixedToolbar ? { 
         top: `${toolbarTop}px`,
         position: 'fixed'
       } : {}}>
