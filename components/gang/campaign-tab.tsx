@@ -22,6 +22,7 @@ interface Territory {
   territory_id?: string;
   territory_name: string;
   playing_card?: string | null;
+  description?: string | null;
   ruined?: boolean;
   default_gang_territory?: boolean;
   created_at?: string;
@@ -473,6 +474,10 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                         <tr className="bg-muted border-b">
                           <th className="px-2 py-2 font-medium text-center w-11 min-w-[2.75rem]">Ref.</th>
                           <th className="px-4 py-2 font-medium text-left">Territory</th>
+                          <th className="px-4 py-2 font-medium text-left">
+                            <span className="hidden sm:inline">Description</span>
+                            <span className="sm:hidden">Desc.</span>
+                          </th>
                           <th className="px-4 py-2 font-medium text-right">Status</th>
                         </tr>
                       </thead>
@@ -487,6 +492,17 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                                 </span>
                               </td>
                               <td className="px-4 py-2 text-left">{territory.territory_name}</td>
+                              <td className="px-4 py-2 text-left">
+                                {territory.description?.trim() && (
+                                  <span
+                                    className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+                                    data-tooltip-id="gang-territory-description-tooltip"
+                                    data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(territory.territory_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(territory.description)}</div>`}
+                                  >
+                                    <BiSolidNotepad className="h-4 w-4 inline" aria-label="View territory description" />
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {territory.ruined && (
@@ -829,6 +845,19 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
         style={{
           padding: '6px',
           maxWidth: '24rem'
+        }}
+      />
+      <Tooltip
+        id="gang-territory-description-tooltip"
+        place="top"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh'
         }}
       />
     </div>
