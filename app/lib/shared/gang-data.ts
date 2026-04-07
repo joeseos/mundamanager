@@ -532,6 +532,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
           territory_id,
           territory_name,
           playing_card,
+          description,
           ruined,
           default_gang_territory
         `)
