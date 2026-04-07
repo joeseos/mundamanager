@@ -419,7 +419,15 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
   try {
     const supabase = await createClient();
     const { campaignId, territoryId, ruined, default_gang_territory, playing_card, description } = params;
-    
+
+    // Get the gang holding this territory so we can invalidate their cache
+    const { data: territoryData } = await supabase
+      .from('campaign_territories')
+      .select('gang_id')
+      .eq('id', territoryId)
+      .eq('campaign_id', campaignId)
+      .single();
+
     const { error } = await supabase
       .from('campaign_territories')
       .update({ 
@@ -438,6 +446,11 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
     revalidateTag(`campaign-territories-${campaignId}`);
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+
+    // Invalidate gang cache to update territory display on gang page
+    if (territoryData?.gang_id) {
+      revalidatePath(`/gang/${territoryData.gang_id}`);
+    }
 
     return { success: true };
   } catch (error) {
