@@ -139,12 +139,11 @@ export async function assignGangToTerritory(params: AssignGangToTerritoryParams)
     revalidateTag(`campaign-${campaignId}`);
 
     // Invalidate gang cache to update territory ownership display
-    // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses campaign-territories tag
-    revalidatePath(`/gang/${gangId}`);
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId));
 
     // Also invalidate cache for the gang that lost the territory
     if (currentTerritoryData?.gang_id && currentTerritoryData.gang_id !== gangId) {
-      revalidatePath(`/gang/${currentTerritoryData.gang_id}`);
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(currentTerritoryData.gang_id));
     }
 
     return { success: true };
@@ -231,8 +230,7 @@ export async function removeGangFromTerritory(params: RemoveGangFromTerritoryPar
     
     // Invalidate gang cache to update territory ownership display
     if (territoryData?.gang_id) {
-      // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses campaign-territories tag
-      revalidatePath(`/gang/${territoryData.gang_id}`);
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(territoryData.gang_id));
     }
 
     return { success: true };
@@ -398,8 +396,7 @@ export async function removeTerritoryFromCampaign(params: RemoveTerritoryParams)
     
     // Invalidate gang cache if a gang was affected
     if (territoryData?.gang_id) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(territoryData.gang_id));
-      revalidatePath(`/gang/${territoryData.gang_id}`);
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(territoryData.gang_id));
     }
 
     return { success: true };
@@ -419,7 +416,15 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
   try {
     const supabase = await createClient();
     const { campaignId, territoryId, ruined, default_gang_territory, playing_card, description } = params;
-    
+
+    // Get the gang holding this territory so we can invalidate their cache
+    const { data: territoryData } = await supabase
+      .from('campaign_territories')
+      .select('gang_id')
+      .eq('id', territoryId)
+      .eq('campaign_id', campaignId)
+      .single();
+
     const { error } = await supabase
       .from('campaign_territories')
       .update({ 
@@ -438,6 +443,11 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
     revalidateTag(`campaign-territories-${campaignId}`);
     // Also invalidate the general campaign cache for this specific campaign
     revalidateTag(`campaign-${campaignId}`);
+
+    // Invalidate gang cache to update territory display on gang page
+    if (territoryData?.gang_id) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(territoryData.gang_id));
+    }
 
     return { success: true };
   } catch (error) {
