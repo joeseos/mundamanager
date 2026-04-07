@@ -64,7 +64,7 @@ function normaliseDescription(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1000;
+const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1500;
 
 export default function TerritoryEditModal({
   isOpen,
