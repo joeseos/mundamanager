@@ -1,7 +1,7 @@
 export const characteristicRank: { [key: string]: number } = {
   "movement": 1,
-  "ballistic skill": 2,
-  "weapon skill": 3,
+  "weapon skill": 2,
+  "ballistic skill": 3,
   "strength": 4,
   "toughness": 5,
   "wounds": 6,
