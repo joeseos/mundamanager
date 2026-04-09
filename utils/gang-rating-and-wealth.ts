@@ -88,6 +88,10 @@ export async function updateGangFinancials(
     const currentRating = (gangRow.rating ?? 0) as number;
     const currentWealth = (gangRow.wealth ?? 0) as number;
 
+    if (currentCredits + creditsDelta < 0) {
+      return { success: false, error: 'Insufficient credits' };
+    }
+
     // Calculate new values
     // Wealth = rating change + credits change + stash value change
     const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;

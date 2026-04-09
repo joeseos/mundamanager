@@ -84,8 +84,15 @@ export function Combobox({
   })
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  // Find the selected option
-  const selectedOption = options.find(option => option.value === value)
+  // Find the selected option; when allowCustom is set, values not in the list still need a display label
+  const selectedOption = React.useMemo(() => {
+    const found = options.find(option => option.value === value)
+    if (found) return found
+    if (allowCustom && value != null && value !== '') {
+      return { value, label: value }
+    }
+    return undefined
+  }, [options, value, allowCustom])
 
   // Filter options based on search
   const filteredOptions = React.useMemo(() => {

@@ -320,6 +320,7 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         gang_colour: gangDetails?.gang_colour || '#000000',
         rating: gangDetails?.rating || 0,
         wealth: gangDetails?.wealth || 0,
+        credits: gangDetails?.credits || 0,
         reputation: gangDetails?.reputation || 0,
         territory_count: territoryCounts[cg.gang_id] || 0,
 
@@ -376,7 +377,9 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       gang_id,
       created_at,
       ruined,
-      default_gang_territory
+      default_gang_territory,
+      playing_card,
+      description
     `)
     .eq('campaign_id', campaignId);
 
@@ -412,6 +415,8 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       created_at: territory.created_at,
       ruined: territory.ruined || false,
       default_gang_territory: territory.default_gang_territory || false,
+      playing_card: territory.playing_card ?? null,
+      description: territory.description ?? null,
       is_custom: !!territory.custom_territory_id,
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
@@ -765,7 +770,7 @@ export const getAllTerritories = async () => {
     async () => {
       const { data, error } = await supabase
         .from('territories')
-        .select('id, territory_name, campaign_type_id')
+        .select('id, territory_name, campaign_type_id, playing_card')
         .order('territory_name');
       
       if (error) throw error;
@@ -796,7 +801,7 @@ export const getAllTerritoriesWithCustom = async (userId: string) => {
         // Get regular territories
         const { data: regularTerritories, error: regularError } = await supabase
           .from('territories')
-          .select('id, territory_name, campaign_type_id')
+          .select('id, territory_name, campaign_type_id, playing_card')
           .order('territory_name');
         
         if (regularError) throw regularError;
@@ -818,6 +823,7 @@ export const getAllTerritoriesWithCustom = async (userId: string) => {
           id: territory.id,
           territory_name: territory.territory_name,
           campaign_type_id: territory.campaign_type_id,
+          playing_card: territory.playing_card,
           is_custom: false,
           territory_id: territory.id,
           custom_territory_id: null
@@ -828,6 +834,7 @@ export const getAllTerritoriesWithCustom = async (userId: string) => {
           id: territory.id,
           territory_name: territory.territory_name,
           campaign_type_id: null, // Custom territories don't have campaign types
+          playing_card: null,
           is_custom: true,
           territory_id: null,
           custom_territory_id: territory.id
@@ -839,13 +846,14 @@ export const getAllTerritoriesWithCustom = async (userId: string) => {
         // Fallback to regular territories only
         const { data: regularTerritories } = await supabase
           .from('territories')
-          .select('id, territory_name, campaign_type_id')
+          .select('id, territory_name, campaign_type_id, playing_card')
           .order('territory_name');
         
         return (regularTerritories || []).map(territory => ({
           id: territory.id,
           territory_name: territory.territory_name,
           campaign_type_id: territory.campaign_type_id,
+          playing_card: territory.playing_card,
           is_custom: false,
           territory_id: territory.id,
           custom_territory_id: null

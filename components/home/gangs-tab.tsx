@@ -7,7 +7,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig } from '@/components/home/use-dnd-sensors'
+import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
 interface GangsTabProps {

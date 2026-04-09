@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateVehicleEffects, invalidateGangFinancials, CACHE_TAGS } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { countsTowardRating } from '@/utils/fighter-status';
 import { revalidateTag } from 'next/cache';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -149,6 +150,17 @@ export async function updateVehicleHardpoint(
       .single();
     if (!vehicle) return { success: false, error: 'Vehicle not found' };
 
+    // --- Check if assigned fighter is active (for rating guard) ---
+    let fighterIsActive = false;
+    if (vehicle.fighter_id) {
+      const { data: fighterData } = await supabase
+        .from('fighters')
+        .select('killed, retired, enslaved, captured')
+        .eq('id', vehicle.fighter_id)
+        .single();
+      fighterIsActive = countsTowardRating(fighterData);
+    }
+
     // --- Security: verify vehicle belongs to the specified gang ---
     if (vehicle.gang_id !== params.gangId) {
       return { success: false, error: 'Vehicle does not belong to this gang' };
@@ -212,13 +224,14 @@ export async function updateVehicleHardpoint(
 
     // --- Financial update (only after effect update succeeds) ---
     if (delta !== 0) {
-      // Assigned vehicle → ratingDelta (vehicle cost rolls into fighter rating)
-      // Unassigned       → stashValueDelta (vehicle sits in gang stash)
+      // Assigned to active fighter → ratingDelta (vehicle cost rolls into fighter rating)
+      // Assigned to inactive fighter → no rating/stash change (fighter already excluded)
+      // Unassigned → stashValueDelta (vehicle sits in gang stash)
       const financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         creditsDelta: -delta,
         ...(vehicle.fighter_id
-          ? { ratingDelta: delta }
+          ? { ratingDelta: fighterIsActive ? delta : 0 }
           : { stashValueDelta: delta }),
       });
       if (!financialResult.success) {

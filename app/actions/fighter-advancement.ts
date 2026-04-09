@@ -5,6 +5,7 @@ import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS, invali
 import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import { countsTowardRating } from '@/utils/fighter-status';
 
 import { 
   logCharacteristicAdvancement, 
@@ -103,7 +104,7 @@ export async function addCharacteristicAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name')
+      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
       .eq('id', params.fighter_id)
       .single();
 
@@ -208,8 +209,10 @@ export async function addCharacteristicAdvancement(
       return { success: false, error: 'Failed to update fighter XP' };
     }
 
-    // Update gang rating and wealth (+credits_increase)
-    await updateGangRatingSimple(supabase, fighter.gang_id, params.credits_increase || 0);
+    // Update gang rating and wealth (+credits_increase) — only for active fighters
+    if (countsTowardRating(fighter)) {
+      await updateGangRatingSimple(supabase, fighter.gang_id, params.credits_increase || 0);
+    }
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
@@ -295,7 +298,7 @@ export async function addSkillAdvancement(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name')
+      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
       .eq('id', params.fighter_id)
       .single();
 
@@ -424,7 +427,9 @@ export async function addSkillAdvancement(
     if (creditsIncrease > 0) {
       if (params.is_advance ?? true) {
         // Advancement path (XP purchase): only increase rating, no stash deduction
-        await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+        if (countsTowardRating(fighter)) {
+          await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+        }
       } else {
         // Direct purchase: verify gang has sufficient credits before deducting
         const { data: gang, error: gangError } = await supabase
@@ -444,7 +449,7 @@ export async function addSkillAdvancement(
         // Starting skill path (direct purchase): deduct from stash AND increase rating
         await updateGangFinancials(supabase, {
           gangId: fighter.gang_id,
-          ratingDelta: creditsIncrease,
+          ratingDelta: countsTowardRating(fighter) ? creditsIncrease : 0,
           creditsDelta: -creditsIncrease
         });
         invalidateGangCredits(fighter.gang_id);
@@ -541,7 +546,7 @@ export async function deleteAdvancement(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, xp, free_skill, fighter_name')
+      .select('id, user_id, gang_id, xp, free_skill, fighter_name, killed, retired, enslaved, captured')
       .eq('id', params.fighter_id)
       .single();
 
@@ -768,13 +773,15 @@ export async function deleteAdvancement(
         // Non-advancement skill: refund credits to gang stash AND decrease rating
         await updateGangFinancials(supabase, {
           gangId: fighter.gang_id,
-          ratingDelta: ratingDelta,
+          ratingDelta: countsTowardRating(fighter) ? ratingDelta : 0,
           creditsDelta: -ratingDelta // ratingDelta is negative, so -ratingDelta is positive (refund)
         });
         invalidateGangCredits(fighter.gang_id);
       } else {
         // Advancement skill or effect: only decrease rating (XP was the currency)
-        await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
+        if (countsTowardRating(fighter)) {
+          await updateGangRatingSimple(supabase, fighter.gang_id, ratingDelta);
+        }
       }
 
       // Home page gangs list cache (server-side, user-scoped)
@@ -847,7 +854,7 @@ export async function addPowerBoost(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError} = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, kill_count, fighter_name')
+      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1025,8 +1032,8 @@ export async function addPowerBoost(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Update gang rating and wealth (+credits_increase)
-    if (creditsIncrease > 0) {
+    // Update gang rating and wealth (+credits_increase) — only for active fighters
+    if (creditsIncrease > 0 && countsTowardRating(fighter)) {
       const result = await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
       if (!result.success) {
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
@@ -1102,7 +1109,7 @@ export async function deletePowerBoost(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, kill_count, fighter_name')
+      .select('id, user_id, gang_id, kill_count, fighter_name, killed, retired, enslaved, captured')
       .eq('id', params.fighter_id)
       .single();
 
@@ -1161,8 +1168,8 @@ export async function deletePowerBoost(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Update gang rating and wealth (-credits_increase)
-    if (creditsToDeduct > 0) {
+    // Update gang rating and wealth (-credits_increase) — only for active fighters
+    if (creditsToDeduct > 0 && countsTowardRating(fighter)) {
       const result = await updateGangRatingSimple(supabase, fighter.gang_id, -creditsToDeduct);
       if (!result.success) {
         return { success: false, error: 'Failed to update gang rating/wealth: ' + result.error };
