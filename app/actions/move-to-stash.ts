@@ -107,7 +107,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_class')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -117,6 +117,22 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       gangId = fighter.gang_id;
       gangOwnerUserId = fighter.user_id ?? null;
       fighterIsActive = countsTowardRating(fighter);
+
+      // Exotic beasts derive their rating contribution from the owner, not themselves.
+      // Check the owner's active status instead.
+      if (fighterIsActive && fighter.fighter_class?.toLowerCase().startsWith('exotic beast')) {
+        const { data: beastOwnership } = await supabase
+          .from('fighter_exotic_beasts')
+          .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
+          .eq('fighter_pet_id', equipmentData.fighter_id)
+          .maybeSingle();
+
+        if (beastOwnership?.fighters) {
+          fighterIsActive = countsTowardRating(beastOwnership.fighters as any);
+        } else if (beastOwnership && !beastOwnership.fighter_owner_id) {
+          fighterIsActive = false;
+        }
+      }
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle
       const { data: vehicle, error: vehicleError } = await supabase

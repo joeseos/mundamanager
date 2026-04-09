@@ -396,10 +396,26 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     if (params.fighter_id) {
       const { data: fighter } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured')
+        .select('killed, retired, enslaved, captured, fighter_class')
         .eq('id', params.fighter_id)
         .single();
       fighterIsActive = countsTowardRating(fighter);
+
+      // Exotic beasts derive their rating contribution from the owner, not themselves.
+      // Check the owner's active status instead.
+      if (fighterIsActive && fighter?.fighter_class?.toLowerCase().startsWith('exotic beast')) {
+        const { data: beastOwnership } = await supabase
+          .from('fighter_exotic_beasts')
+          .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
+          .eq('fighter_pet_id', params.fighter_id)
+          .maybeSingle();
+
+        if (beastOwnership?.fighters) {
+          fighterIsActive = countsTowardRating(beastOwnership.fighters as any);
+        } else if (beastOwnership && !beastOwnership.fighter_owner_id) {
+          fighterIsActive = false;
+        }
+      }
     } else if (params.vehicle_id) {
       const { data: veh } = await supabase
         .from('vehicles')
