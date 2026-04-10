@@ -125,7 +125,7 @@ export default function HomeTabs({
             <div>
               <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
               <p className="text-muted-foreground">
-                Create your own Equipment, Fighters, Skills, and Territories for your gangs and campaigns.
+                Create your own Equipment, Fighters, and Skills for your gangs and share them to campaigns you're an Arbitrator of.
               </p>
             </div>
 
@@ -147,7 +147,7 @@ export default function HomeTabs({
               userCampaigns={userCampaigns}
             />
 
-            <CustomiseTerritories initialTerritories={customTerritories} />
+            <CustomiseTerritories initialTerritories={customTerritories} readOnly />
           </div>
         )}
       </div>

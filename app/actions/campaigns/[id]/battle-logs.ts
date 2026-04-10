@@ -106,15 +106,14 @@ async function logBattleParticipantResults(
     // Log territory claims if any
     if (claimed_territories.length > 0 && winner_id && winner) {
       for (const territory of claimed_territories) {
-        // Get territory data directly from campaign_territories table
         const { data: territoryData } = await supabase
           .from('campaign_territories')
-          .select('territory_name, custom_territory_id')
+          .select('territory_name, territory_id')
           .eq('id', territory.campaign_territory_id)
           .single();
 
         const territoryName = territoryData?.territory_name;
-        const isCustom = !!territoryData?.custom_territory_id;
+        const isCustom = !territoryData?.territory_id;
 
         if (territoryName) {
           await logTerritoryClaimed({

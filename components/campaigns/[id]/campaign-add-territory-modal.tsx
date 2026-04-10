@@ -10,9 +10,7 @@ interface Territory {
   id: string;
   territory_name: string;
   campaign_type_id: string | null;
-  is_custom?: boolean;
   territory_id?: string | null;
-  custom_territory_id?: string | null;
 }
 
 interface CampaignType {
@@ -68,17 +66,15 @@ export default function CampaignAddTerritoryModal({
     <Modal
       title="Add Territories"
       content={
-        <div className="max-h-[70vh] overflow-y-auto">
-          <TerritoryList
-            isAdmin={isAdmin}
-            campaignId={campaignId}
-            campaignTypeId={campaignTypeId}
-            campaignTypes={campaignTypes}
-            allTerritories={allTerritories}
-            existingCampaignTerritories={existingCampaignTerritories}
-            onTerritoryAdd={handleTerritoryAdd}
-          />
-        </div>
+        <TerritoryList
+          isAdmin={isAdmin}
+          campaignId={campaignId}
+          campaignTypeId={campaignTypeId}
+          campaignTypes={campaignTypes}
+          allTerritories={allTerritories}
+          existingCampaignTerritories={existingCampaignTerritories}
+          onTerritoryAdd={handleTerritoryAdd}
+        />
       }
       onClose={onClose}
       onConfirm={onClose}

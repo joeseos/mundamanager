@@ -46,7 +46,6 @@ interface Member {
 interface Territory {
   id: string;
   territory_id: string | null;
-  custom_territory_id?: string | null;
   territory_name: string;
   playing_card?: string | null;
   description?: string | null;

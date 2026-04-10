@@ -264,7 +264,7 @@ function transformGangForData(gang: any): DataGang {
 function transformTerritoryForData(territory: any, isNested: boolean = false): DataTerritory {
   const result: DataTerritory = {
     id: territory.id, // Unique campaign_territory ID
-    template_id: territory.territory_id || territory.custom_territory_id,
+    template_id: territory.territory_id || null,
     name: territory.territory_name,
     created_at: territory.created_at,
     ruined: territory.ruined ?? false,
