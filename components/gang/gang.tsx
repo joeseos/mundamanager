@@ -914,7 +914,8 @@ export default function Gang({
     >
       <div className="print:flex space-y-4 justify-center gap-x-2 print:justify-start print:space-y-0">
         <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
-          {/* Left Section: Gang Image */}
+          
+          {/* Gang Image */}
           <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
             {getDefaultImageUrl() ? (
               <Image
@@ -947,11 +948,46 @@ export default function Gang({
 			      </div>
           </div>
 
-          {/* Right Section: Content */}
           <div className="flex-grow w-full">
-            <div className="flex justify-between items-start mb-1">
-              <h2 className="text-xl md:text-2xl font-bold">{name}</h2>
-              <div className="flex gap-2 print:hidden">
+            <div className="flex justify-between items-center sm:items-start mb-1 gap-2">
+              <div className="sm:hidden relative size-[72px] shrink-0 items-center justify-center print:hidden flex">
+                {getDefaultImageUrl() ? (
+                  <Image
+                    src={getDefaultImageUrl()!}
+                    alt={name}
+                    width={72}
+                    height={72}
+                    className="size-[58px] absolute rounded-full object-cover z-10"
+                    priority={false}
+                    quality={100}
+                    onError={handleImageError}
+                  />
+                ) : (
+                  <div className="absolute size-[58px] rounded-full bg-secondary z-10 flex items-center justify-center">
+                    {name.charAt(0)}
+                  </div>
+                )}
+                <div
+                  className={`absolute z-20 size-[72px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                  onClick={handleGangImageClick}
+                >
+                  <Image
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
+                    alt="Cogwheel"
+                    width={72}
+                    height={72}
+                    className="absolute z-20"
+                    priority
+                    quality={100}
+                  />
+                </div>
+              </div>
+
+              {/* Gang Name */}
+              <h2 className="text-xl md:text-2xl font-bold flex-1">{name}</h2>
+
+
+              <div className="hidden sm:flex gap-2 print:hidden">
 
                 {/* View Mode Dropdown - only show on desktop */}
                 <ViewModeDropdown
@@ -973,81 +1009,96 @@ export default function Gang({
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
-              {/* View Mode Dropdown - show on mobile */}
-              <div className="sm:hidden w-auto print:hidden mr-auto">
+            {/* Mobile controls row */}
+            <div className="sm:hidden flex items-end justify-end gap-2 mb-1 print:hidden">
+              <div className="w-auto">
                 <ViewModeDropdown
                   viewMode={viewMode}
                   setViewMode={setViewMode}
                   className="sm:hidden w-auto mr-auto"
                 />
               </div>
+              <div className="flex gap-2">
+                {additionalButtons}
+                <Button
+                  onClick={handleEditModalOpen}
+                  disabled={!userPermissions?.canEdit}
+                  className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Edit
+                </Button>
+              </div>
+            </div>
 
-              {/* Copy button */}
-              <Button
-                onClick={() => setShowCopyModal(true)}
-                variant="ghost"
-                size="icon"
-                className="print:hidden"
-                title="Copy Gang"
-              >
-                <FaRegCopy className="w-5 h-5" />
-              </Button>
-
-              {/* Gang Logs button */}
-              <Button
-                onClick={() => setShowLogsModal(true)}
-                variant="ghost"
-                size="icon"
-                className="print:hidden"
-                title="View Gang Logs"
-                disabled={!userPermissions?.canEdit}
-              >
-                <LuLogs className="w-[23px] h-[23px]" />
-              </Button>
-
-              {/* Screenshot button */}
-              <Button
-                onClick={handleScreenshot}
-                variant="ghost"
-                size="icon"
-                className="print:hidden"
-                title="Take Screenshot"
-              >
-                <FiCamera className="w-5 h-5" />
-              </Button>
-
-              {/* Share button */}
-              <Button
-                onClick={() => shareUrl(name)}
-                variant="ghost"
-                size="icon"
-                className="print:hidden"
-                title={hidden ? undefined : "Share Gang"}
-                data-tooltip-id={hidden ? `share-hidden-tooltip-${id}` : undefined}
-                data-tooltip-content={hidden ? "This gang is currently hidden. Only Arbitrators can view it. You can adjust the gang visibility in Edit Gang." : undefined}
-                onMouseEnter={() => hidden && setShareHovered(true)}
-                onMouseLeave={() => setShareHovered(false)}
-              >
-                {hidden ? (
-                  shareHovered ? <FiShare2 className="w-5 h-5" /> : <AiFillEyeInvisible className="w-6 h-6" />
-                ) : (
-                  <FiShare2 className="w-5 h-5" />
-                )}
-              </Button>
-
-              {/* Print button */}
-              <Button
-                asChild
-                variant="ghost"
-                size="icon"
-                className="print:hidden"
-                title="Print Options"
-              >
-                <Link href={`/gang/${id}/print`}>
-                  <FiPrinter className="w-5 h-5" />
-                </Link>
-              </Button>
+            <div className="flex justify-end -mr-[10px] mb-1">
+              {/* Action Icons Buttons */}
+              <div className="flex items-center">
+                {/* Copy button */}
+                <Button
+                  onClick={() => setShowCopyModal(true)}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Copy Gang"
+                >
+                  <FaRegCopy className="w-5 h-5" />
+                </Button>
+  
+                {/* Gang Logs button */}
+                <Button
+                  onClick={() => setShowLogsModal(true)}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="View Gang Logs"
+                  disabled={!userPermissions?.canEdit}
+                >
+                  <LuLogs className="w-[23px] h-[23px]" />
+                </Button>
+  
+                {/* Screenshot button */}
+                <Button
+                  onClick={handleScreenshot}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Take Screenshot"
+                >
+                  <FiCamera className="w-5 h-5" />
+                </Button>
+  
+                {/* Share button */}
+                <Button
+                  onClick={() => shareUrl(name)}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title={hidden ? undefined : "Share Gang"}
+                  data-tooltip-id={hidden ? `share-hidden-tooltip-${id}` : undefined}
+                  data-tooltip-content={hidden ? "This gang is currently hidden. Only Arbitrators can view it. You can adjust the gang visibility in Edit Gang." : undefined}
+                  onMouseEnter={() => hidden && setShareHovered(true)}
+                  onMouseLeave={() => setShareHovered(false)}
+                >
+                  {hidden ? (
+                    shareHovered ? <FiShare2 className="w-5 h-5" /> : <AiFillEyeInvisible className="w-6 h-6" />
+                  ) : (
+                    <FiShare2 className="w-5 h-5" />
+                  )}
+                </Button>
+  
+                {/* Print button */}
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Print Options"
+                >
+                  <Link href={`/gang/${id}/print`}>
+                    <FiPrinter className="w-5 h-5" />
+                  </Link>
+                </Button>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 mb-4">
