@@ -533,7 +533,7 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                     </div>
                   </div>
                 ) : (
-                  <div className="text-muted-foreground italic text-center py-4">No territories controlled.</div>
+                  <div className="text-muted-foreground italic text-center py-4">No Territories controlled.</div>
                 )}
               </div>
               );

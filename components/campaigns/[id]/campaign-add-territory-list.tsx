@@ -217,7 +217,7 @@ export default function TerritoryList({
         </div>
       </div>
 
-      {/* Custom territory creation */}
+      {/* Custom Territory creation */}
       {isAdmin && (
         <div>
           <div className="flex space-x-2">
@@ -225,7 +225,7 @@ export default function TerritoryList({
               type="text"
               value={newTerritoryName}
               onChange={(e) => setNewTerritoryName(e.target.value)}
-              placeholder="Add a custom territory (max 70 characters)"
+              placeholder="Add a custom Territory (max 70 characters)"
               maxLength={70}
               className="flex-grow text-sm"
               onKeyDown={(e) => {
@@ -300,7 +300,7 @@ export default function TerritoryList({
         </div>
       ) : (
         <div className="text-center py-8 text-muted-foreground italic">
-          No territories found for the selected options.
+          No Territories found for the selected options.
         </div>
       )}
       

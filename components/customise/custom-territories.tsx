@@ -41,7 +41,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
 
   const deprecationNotice = (
     <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-      <strong>Custom territories have moved.</strong> To create custom territories,
+      <strong>Custom Territories have moved.</strong> To create custom Territories,
       open a campaign you own or arbitrate and use the <em>Add</em> button in the Territories tab.
     </div>
   );
@@ -54,7 +54,7 @@ export function CustomiseTerritories({ className, initialTerritories = [] }: Cus
         items={territories}
         columns={columns}
         actions={actions}
-        emptyMessage="No custom territories."
+        emptyMessage="No custom Territories."
         sortBy={sortTerritories}
       />
 
