@@ -44,6 +44,54 @@ Deno.serve(async (req) => {
 
     const winnerGang = battle.winner_id ? gangMap.get(battle.winner_id) : null;
 
+    type BattleParticipantRow = { gang_id: string; role?: string };
+    const participantRows: BattleParticipantRow[] = Array.isArray(participants)
+      ? participants
+      : [];
+
+    const normaliseRole = (role: string | undefined) =>
+      (role ?? "none").toLowerCase();
+
+    let attackerGangIds: string[] = [];
+    let defenderGangIds: string[] = [];
+    let opponentGangIds: string[] = [];
+
+    if (participantRows.length > 0) {
+      const seenAtt = new Set<string>();
+      const seenDef = new Set<string>();
+      const seenOpp = new Set<string>();
+      for (const p of participantRows) {
+        const id = p.gang_id;
+        if (!id) continue;
+        const r = normaliseRole(p.role);
+        if (r === "attacker") {
+          if (!seenAtt.has(id)) {
+            seenAtt.add(id);
+            attackerGangIds.push(id);
+          }
+        } else if (r === "defender") {
+          if (!seenDef.has(id)) {
+            seenDef.add(id);
+            defenderGangIds.push(id);
+          }
+        } else {
+          if (!seenOpp.has(id)) {
+            seenOpp.add(id);
+            opponentGangIds.push(id);
+          }
+        }
+      }
+    } else {
+      if (battle.attacker_id) attackerGangIds = [battle.attacker_id];
+      if (battle.defender_id) defenderGangIds = [battle.defender_id];
+    }
+
+    const gangNamesLines = (ids: string[]) =>
+      ids
+        .map((id) => gangMap.get(id)?.name)
+        .filter(Boolean)
+        .join("\n");
+
     // Resolve territory name via campaign_territory_id
     let territoryName: string | null = null;
     if (battle.campaign_territory_id) {
@@ -57,35 +105,39 @@ Deno.serve(async (req) => {
 
     const fields: { name: string; value: string; inline: boolean }[] = [];
 
-    if (battle.attacker_id) {
-      const attackerName = gangMap.get(battle.attacker_id)?.name ?? "Unknown";
-      fields.push({ name: "⚔️ Attacker", value: attackerName, inline: true });
+    const attackerValue = gangNamesLines(attackerGangIds);
+    if (attackerValue) {
+      fields.push({
+        name:
+          attackerGangIds.length > 1 ? "⚔️ Attackers" : "⚔️ Attacker",
+        value: attackerValue,
+        inline: false,
+      });
     }
 
-    if (battle.defender_id) {
-      const defenderName = gangMap.get(battle.defender_id)?.name ?? "Unknown";
-      fields.push({ name: "🛡️ Defender", value: defenderName, inline: true });
+    const defenderValue = gangNamesLines(defenderGangIds);
+    if (defenderValue) {
+      fields.push({
+        name:
+          defenderGangIds.length > 1 ? "🛡️ Defenders" : "🛡️ Defender",
+        value: defenderValue,
+        inline: false,
+      });
     }
 
-    if (winnerGang) {
-      fields.push({ name: "🏆 Winner", value: winnerGang.name, inline: false });
+    const opponentValue = gangNamesLines(opponentGangIds);
+    if (opponentValue) {
+      fields.push({
+        name:
+          opponentGangIds.length > 1 ? "🗡️ Opponents" : "🗡️ Opponent",
+        value: opponentValue,
+        inline: false,
+      });
     }
 
-    if (battle.scenario) {
-      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
-    }
-
-    if (battle.cycle) {
-      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: true });
-    }
-
-    if (territoryName) {
-      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: true });
-    }
-
-    if (participants.length > 0) {
-      const participantLines = participants
-        .map((p: { gang_id: string; role: string }) => {
+    if (participantRows.length > 0) {
+      const participantLines = participantRows
+        .map((p) => {
           const gang = gangMap.get(p.gang_id);
           if (!gang) return null;
           return `**${gang.name}** (${gang.gang_type ?? "Unknown"}) — Rating: ${gang.rating ?? "?"}`;
@@ -94,15 +146,40 @@ Deno.serve(async (req) => {
 
       if (participantLines.length > 0) {
         fields.push({
-          name: "👥 Participants",
+          name:
+            participantLines.length > 1
+              ? "👥 Participants"
+              : "👥 Participant",
           value: participantLines.join("\n"),
           inline: false,
         });
       }
     }
 
+    if (winnerGang) {
+      fields.push({ name: "🏆 Winner", value: winnerGang.name, inline: false });
+    } else if (battle.winner_id == null || battle.winner_id === "") {
+      fields.push({
+        name: "🏆 Winner",
+        value: "This battle ended in a draw.",
+        inline: false,
+      });
+    }
+
+    if (territoryName) {
+      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: true });
+    }
+
+    if (battle.cycle) {
+      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: true });
+    }
+
+    if (battle.scenario) {
+      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
+    }
+
     if (battle.note) {
-      fields.push({ name: "📝 Notes", value: battle.note, inline: false });
+      fields.push({ name: "📝 Report", value: battle.note, inline: false });
     }
 
     const embed = {
