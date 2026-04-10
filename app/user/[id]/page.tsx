@@ -307,7 +307,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               {customAssetsData.territories.length > 0 && (
                 <CustomiseTerritories
                   initialTerritories={customAssetsData.territories}
-                  readOnly={currentUserId !== profile.id}
+                  readOnly
                 />
               )}
 

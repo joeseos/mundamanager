@@ -15,7 +15,6 @@ import {
   getCampaignTriumphs,
   getCampaignTypes,
   getAllTerritories,
-  getAllTerritoriesWithCustom,
   getCampaignGangsForModal,
   getCampaignAllegiances,
   getCampaignResources,
@@ -96,7 +95,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     ] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
-      userId ? getAllTerritoriesWithCustom(userId) : getAllTerritories(),
+      getAllTerritories(),
       supabase
         .from('trading_post_types')
         .select('id, trading_post_name')

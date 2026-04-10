@@ -372,7 +372,6 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
     .select(`
       id,
       territory_id,
-      custom_territory_id,
       territory_name,
       gang_id,
       created_at,
@@ -409,7 +408,6 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
     return {
       id: territory.id,
       territory_id: territory.territory_id,
-      custom_territory_id: territory.custom_territory_id,
       territory_name: territory.territory_name,
       gang_id: territory.gang_id,
       created_at: territory.created_at,
@@ -417,7 +415,7 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       default_gang_territory: territory.default_gang_territory || false,
       playing_card: territory.playing_card ?? null,
       description: territory.description ?? null,
-      is_custom: !!territory.custom_territory_id,
+      is_custom: !territory.territory_id,
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
         name: gangDetails.name,
@@ -776,9 +774,7 @@ export const getAllTerritories = async () => {
       if (error) throw error;
       return (data || []).map(territory => ({
         ...territory,
-        is_custom: false,
-        territory_id: territory.id,
-        custom_territory_id: null
+        territory_id: territory.id
       }));
     },
     ['territories-list'],

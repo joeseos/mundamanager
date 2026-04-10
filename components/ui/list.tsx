@@ -26,6 +26,7 @@ export interface ListAction {
 
 export interface ListProps<T = any> {
   title: React.ReactNode;
+  description?: React.ReactNode;
   items: T[];
   columns: ListColumn[];
   actions?: ListAction[];
@@ -41,6 +42,7 @@ export interface ListProps<T = any> {
 
 export function List<T = any>({
   title,
+  description,
   items,
   columns,
   actions = [],
@@ -98,6 +100,8 @@ export function List<T = any>({
           </div>
         )}
       </div>
+
+      {description && <div className="mb-2">{description}</div>}
 
       <div>
         <div className="overflow-x-auto">
