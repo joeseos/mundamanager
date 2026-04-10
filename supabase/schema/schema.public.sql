@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict JRg88rcMVIz27Q6VGQYfXZM92dD21vWlIlcGik91OkmqFkkezB5Bwjsz9e7TwjZ
+\restrict OxTawk7hhG8tZIIv0AXLcwoVggreNaX3HDEPeWao2IudkjzbhjloEdbmev32Bfp
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -6706,14 +6706,6 @@ ALTER TABLE ONLY public.campaign_battles
 
 
 --
--- Name: campaign_battles campaign_battles_custom_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_custom_territory_id_fkey FOREIGN KEY (custom_territory_id) REFERENCES public.custom_territories(id) ON DELETE SET NULL;
-
-
---
 -- Name: campaign_battles campaign_battles_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6802,14 +6794,6 @@ ALTER TABLE ONLY public.campaign_territories
 
 
 --
--- Name: campaign_territories campaign_territories_custom_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_territories
-    ADD CONSTRAINT campaign_territories_custom_territory_id_fkey FOREIGN KEY (custom_territory_id) REFERENCES public.custom_territories(id) ON DELETE CASCADE;
-
-
---
 -- Name: campaign_territories campaign_territories_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6887,14 +6871,6 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_custom_skill_id_fkey FOREIGN KEY (custom_skill_id) REFERENCES public.custom_skills(id) ON DELETE CASCADE;
-
-
---
--- Name: custom_shared custom_shared_custom_territory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.custom_shared
-    ADD CONSTRAINT custom_shared_custom_territory_id_fkey FOREIGN KEY (custom_territory_id) REFERENCES public.custom_territories(id) ON DELETE CASCADE;
 
 
 --
@@ -10483,5 +10459,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JRg88rcMVIz27Q6VGQYfXZM92dD21vWlIlcGik91OkmqFkkezB5Bwjsz9e7TwjZ
+\unrestrict OxTawk7hhG8tZIIv0AXLcwoVggreNaX3HDEPeWao2IudkjzbhjloEdbmev32Bfp
 
