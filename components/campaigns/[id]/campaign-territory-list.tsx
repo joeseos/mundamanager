@@ -8,6 +8,7 @@ import { LuSquarePen } from "react-icons/lu";
 import { LuTrash2 } from "react-icons/lu";
 import { BiSolidNotepad } from "react-icons/bi";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GiAncientRuins } from "react-icons/gi";
 import { IoHome } from "react-icons/io5";
 import { Tooltip } from "react-tooltip";
@@ -577,11 +578,9 @@ export default function CampaignTerritoryList({
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 sm:gap-3">
           
           <label className="inline-flex items-center sm:items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={listDefaultTerritoriesEnabled}
-              onChange={(event) => setListDefaultTerritories(event.target.checked)}
-              className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+              onCheckedChange={(checked) => setListDefaultTerritories(checked === true)}
               disabled={listDefaultTerritories === null}
             />
             <span className="min-w-0 max-w-[5rem] leading-none sm:max-w-none sm:whitespace-nowrap sm:leading-normal">

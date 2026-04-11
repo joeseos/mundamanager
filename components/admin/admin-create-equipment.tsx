@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
@@ -337,11 +338,10 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             {equipmentType && equipmentType !== 'vehicle_upgrade' ? (
               <div className="col-span-1">
                 <label className="flex items-start space-x-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={coreEquipment}
-                    onChange={(e) => setCoreEquipment(e.target.checked)}
-                    className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                    onCheckedChange={(checked) => setCoreEquipment(checked === true)}
+                    className="mt-1"
                   />
                   <div>
                     <span className="text-sm font-medium text-muted-foreground">

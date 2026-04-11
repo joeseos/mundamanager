@@ -7,6 +7,7 @@ import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } f
 import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/customise/custom-weapon-profiles';
 import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
 import Modal from '@/components/ui/modal';
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
@@ -694,11 +695,10 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
                 <div className="col-span-1 md:col-span-2">
                   <label className="flex items-start space-x-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={editForm.is_consumable}
-                      onChange={(e) => handleFormChange('is_consumable', e.target.checked)}
-                      className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                      onCheckedChange={(checked) => handleFormChange('is_consumable', checked === true)}
+                      className="mt-1"
                     />
                     <div>
                       <span className="text-sm font-medium text-muted-foreground">Consumable</span>
@@ -968,11 +968,10 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
                 <div className="col-span-1 md:col-span-2">
                   <label className="flex items-start space-x-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={createForm.is_consumable}
-                      onChange={(e) => handleCreateFormChange('is_consumable', e.target.checked)}
-                      className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                      onCheckedChange={(checked) => handleCreateFormChange('is_consumable', checked === true)}
+                      className="mt-1"
                     />
                     <div>
                       <span className="text-sm font-medium text-muted-foreground">Consumable</span>

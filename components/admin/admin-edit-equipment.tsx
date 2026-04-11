@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
 import { WeaponProfileInput, EquipmentGrants } from "@/types/equipment";
@@ -742,11 +743,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
                   <label className="flex items-start space-x-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={coreEquipment}
-                      onChange={(e) => setCoreEquipment(e.target.checked)}
-                      className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                      onCheckedChange={(checked) => setCoreEquipment(checked === true)}
+                      className="mt-1"
                     />
                     <div>
                       <span className="text-sm font-medium text-muted-foreground">Exclusive to a single Fighter</span>
@@ -760,11 +760,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
               <div className="col-span-1">
                 <label className="flex items-start space-x-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isEditable}
-                    onChange={(e) => setIsEditable(e.target.checked)}
-                    className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                    onCheckedChange={(checked) => setIsEditable(checked === true)}
+                    className="mt-1"
                   />
                   <div>
                     <span className="text-sm font-medium text-muted-foreground">Editable After Purchase</span>
@@ -777,11 +776,10 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
               <div className="col-span-1">
                 <label className="flex items-start space-x-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isConsumable}
-                    onChange={(e) => setIsConsumable(e.target.checked)}
-                    className="h-4 w-4 mt-1 rounded border-border text-primary focus:ring-primary"
+                    onCheckedChange={(checked) => setIsConsumable(checked === true)}
+                    className="mt-1"
                   />
                   <div>
                     <span className="text-sm font-medium text-muted-foreground">Consumable</span>
