@@ -1179,27 +1179,25 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                                   )}
                                 >
                                   <div className="flex items-center">
-                                    <input
-                                      type="checkbox"
+                                    <Checkbox
                                       id={`category-${category}`}
                                       checked={allSelected}
-                                      className="h-4 w-4 text-foreground border-border rounded focus:ring-black"
-                                      onChange={(e) => {
-                                        e.stopPropagation();
+                                      onCheckedChange={(checked) => {
                                         const itemIds = items.map(item => item.id);
-                                        
-                                        if (e.target.checked) {
+
+                                        if (checked === true) {
                                           // Add all items in category
-                                          setTradingPostEquipment(prev => 
+                                          setTradingPostEquipment(prev =>
                                             Array.from(new Set([...prev, ...itemIds]))
                                           );
                                         } else {
                                           // Remove all items in category
-                                          setTradingPostEquipment(prev => 
+                                          setTradingPostEquipment(prev =>
                                             prev.filter(id => !itemIds.includes(id))
                                           );
                                         }
                                       }}
+                                      onClick={(e) => e.stopPropagation()}
                                     />
                                     <label 
                                       htmlFor={`category-${category}`} 
@@ -1235,13 +1233,11 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                                         className="border-t px-4 py-2 flex items-center justify-between"
                                       >
                                         <div className="flex items-center flex-1">
-                                          <input
-                                            type="checkbox"
+                                          <Checkbox
                                             id={`trading-post-${item.id}`}
-                                            className="h-4 w-4 text-foreground border-border rounded focus:ring-black"
                                             checked={tradingPostEquipment.includes(item.id)}
-                                            onChange={(e) => {
-                                              if (e.target.checked) {
+                                            onCheckedChange={(checked) => {
+                                              if (checked === true) {
                                                 setTradingPostEquipment([...tradingPostEquipment, item.id]);
                                               } else {
                                                 setTradingPostEquipment(tradingPostEquipment.filter(id => id !== item.id));
