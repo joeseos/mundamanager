@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
@@ -48,16 +49,10 @@ interface AdminGangLineageModalProps {
 export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageModalProps) {
   
   
-  // Split state for gang lineages by type and fighter types
-  const [legacies, setLegacies] = useState<GangLineage[]>([]);
-  const [affiliations, setAffiliations] = useState<GangLineage[]>([]);
-  const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
-  const [gangTypes, setGangTypes] = useState<GangType[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // State for type selection and filtered gang lineages
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // State for type selection
   const [selectedType, setSelectedType] = useState<LineageType | ''>('');
-  const [filteredGangLineages, setFilteredGangLineages] = useState<GangLineage[]>([]);
   
   // State for selected gang lineage
   const [selectedGangLineageId, setSelectedGangLineageId] = useState<string>('');
@@ -70,8 +65,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   const [lineageType, setLineageType] = useState<LineageType | ''>('');
   const [fighterTypeAccess, setFighterTypeAccess] = useState<string[]>([]);
   
-  // Filtered fighter types based on selected gang type
-  const [filteredFighterTypes, setFilteredFighterTypes] = useState<FighterType[]>([]);
   
   // State for fighter type access filtering
   const [accessRuleGangTypeId, setAccessRuleGangTypeId] = useState<string>('');
@@ -96,140 +89,103 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     return 'gang legacy or affiliation';
   };
 
-  // Do not fetch fighter/gang types on mount; fetch lazily when editing/creating
-  useEffect(() => {
-    if (showCreateModal || selectedGangLineage) {
-      if (gangTypes.length === 0) fetchGangTypes();
-      if (fighterTypes.length === 0) fetchFighterTypes();
-    }
-  }, [showCreateModal, selectedGangLineage]);
+  const queryClient = useQueryClient();
 
-  // Fetch when type changes, and reset selection
+  const { data: gangTypes = [] } = useQuery<GangType[]>({
+    queryKey: ['admin-gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    enabled: showCreateModal || !!selectedGangLineage,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: fighterTypes = [] } = useQuery<FighterType[]>({
+    queryKey: ['admin-fighter-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-types');
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      return response.json();
+    },
+    enabled: showCreateModal || !!selectedGangLineage,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: filteredGangLineages = [], isLoading: isLineagesLoading } = useQuery<GangLineage[]>({
+    queryKey: ['admin-lineages', selectedType],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/gang-lineages?type=${selectedType}`);
+      if (!res.ok) throw new Error('Failed to fetch gang lineages');
+      return res.json();
+    },
+    enabled: !!selectedType,
+  });
+
+  // Reset selection when type changes
   useEffect(() => {
-    if (selectedType) {
-      fetchLineagesByType(selectedType);
-    } else {
-      setFilteredGangLineages([]);
-    }
     setSelectedGangLineageId('');
     clearForm();
   }, [selectedType]);
 
-  // Update filtered list when data or type changes (no fetching here)
-  useEffect(() => {
-    if (!selectedType) return;
-    setFilteredGangLineages(selectedType === 'legacy' ? legacies : affiliations);
-  }, [selectedType, legacies, affiliations]);
-
-  // Update form when selected gang lineage changes
-  useEffect(() => {
-    if (selectedGangLineageId) {
-      const typeForFetch = selectedType || lineageType;
-      if (!typeForFetch) {
-        toast.error('Please select a type first');
-      } else {
-        fetchGangLineageDetails(selectedGangLineageId, typeForFetch as LineageType);
-      }
-    } else {
-      clearForm();
-    }
-  }, [selectedGangLineageId]);
-
-  // Filter fighter types when gang type changes
-  useEffect(() => {
-    if (selectedGangTypeId) {
-      const filtered = fighterTypes.filter(ft => ft.gang_type_id === selectedGangTypeId);
-      setFilteredFighterTypes(filtered);
-      
-      // Only reset fighter type if we're not loading existing data AND the current selection isn't valid for this gang type
-      if (!isLoadingExistingData && associatedFighterTypeId && !filtered.some(ft => ft.id === associatedFighterTypeId)) {
-        setAssociatedFighterTypeId('');
-      }
-    } else {
-      setFilteredFighterTypes([]);
-      if (!isLoadingExistingData) {
-        setAssociatedFighterTypeId('');
-      }
-    }
-  }, [selectedGangTypeId, fighterTypes]);
-
-  const fetchLineagesByType = async (type: LineageType) => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`/api/admin/gang-lineages?type=${type}`);
-      if (!res.ok) throw new Error('Failed to fetch gang lineages');
-      const data = await res.json();
-      if (type === 'legacy') {
-        setLegacies(data || []);
-      } else {
-        setAffiliations(data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching gang lineages:', error);
-      toast.error('Failed to load gang lineages');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchFighterTypes = async () => {
-    try {
-      const response = await fetch('/api/admin/fighter-types');
-      if (!response.ok) throw new Error('Failed to fetch fighter types');
-      const data = await response.json();
-      setFighterTypes(data);
-    } catch (error) {
-      console.error('Error fetching fighter types:', error);
-      toast.error('Failed to load fighter types');
-    }
-  };
-
-  const fetchGangTypes = async () => {
-    try {
-      const response = await fetch('/api/admin/gang-types');
-      if (!response.ok) throw new Error('Failed to fetch gang types');
-      const data = await response.json();
-      setGangTypes(data);
-    } catch (error) {
-      console.error('Error fetching gang types:', error);
-      toast.error('Failed to load gang types');
-    }
-  };
-
-  const fetchGangLineageDetails = async (gangLineageId: string, type: LineageType) => {
-    try {
-      setIsLoading(true);
-      setIsLoadingExistingData(true);
-      
-      const response = await fetch(`/api/admin/gang-lineages?id=${gangLineageId}&type=${type}`);
+  // Query for selected gang lineage details
+  const { data: gangLineageDetailsData, isLoading: isDetailsLoading } = useQuery<any>({
+    queryKey: ['admin-lineage-details', selectedGangLineageId, selectedType],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/gang-lineages?id=${selectedGangLineageId}&type=${selectedType}`);
       if (!response.ok) throw new Error('Failed to fetch gang lineage details');
-      const data = await response.json();
-      
-      setSelectedGangLineage(data);
-      setGangLineageName(data.name);
-      setLineageType(data.type);
-      setFighterTypeAccess(data.fighter_type_access || []);
-      
-      // Set gang type and fighter type together
-      if (data.associated_fighter_type) {
-        setSelectedGangTypeId(data.associated_fighter_type.gang_type_id || '');
-        setAssociatedFighterTypeId(data.fighter_type_id);
-        
-        // Clear the loading flag after a delay
-        setTimeout(() => {
-          setIsLoadingExistingData(false);
-        }, 100);
-      } else {
-        setAssociatedFighterTypeId(data.fighter_type_id);
-        setIsLoadingExistingData(false);
-      }
-    } catch (error) {
-      console.error('Error fetching gang lineage details:', error);
-      toast.error('Failed to load gang lineage details');
-    } finally {
-      setIsLoading(false);
+      return response.json();
+    },
+    enabled: !!selectedGangLineageId && !!selectedType,
+  });
+
+  // Sync lineage details to form state
+  useEffect(() => {
+    if (!selectedGangLineageId) {
+      clearForm();
+      return;
     }
-  };
+
+    if (!gangLineageDetailsData) return;
+
+    setIsLoadingExistingData(true);
+    setSelectedGangLineage(gangLineageDetailsData);
+    setGangLineageName(gangLineageDetailsData.name);
+    setLineageType(gangLineageDetailsData.type);
+    setFighterTypeAccess(gangLineageDetailsData.fighter_type_access || []);
+
+    if (gangLineageDetailsData.associated_fighter_type) {
+      setSelectedGangTypeId(gangLineageDetailsData.associated_fighter_type.gang_type_id || '');
+      setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
+      setTimeout(() => setIsLoadingExistingData(false), 100);
+    } else {
+      setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
+      setIsLoadingExistingData(false);
+    }
+  }, [selectedGangLineageId, gangLineageDetailsData]);
+
+  // Derived: filter fighter types by selected gang type
+  const filteredFighterTypes = useMemo(
+    () => selectedGangTypeId
+      ? fighterTypes.filter(ft => ft.gang_type_id === selectedGangTypeId)
+      : [],
+    [selectedGangTypeId, fighterTypes]
+  );
+
+  // Reset associated fighter type when gang type changes (unless loading existing data)
+  useEffect(() => {
+    if (isLoadingExistingData) return;
+    if (selectedGangTypeId && associatedFighterTypeId) {
+      if (!filteredFighterTypes.some(ft => ft.id === associatedFighterTypeId)) {
+        setAssociatedFighterTypeId('');
+      }
+    } else if (!selectedGangTypeId) {
+      setAssociatedFighterTypeId('');
+    }
+  }, [selectedGangTypeId, filteredFighterTypes, isLoadingExistingData]);
+
+  const isLoading = isLineagesLoading || isDetailsLoading || isSubmitting;
 
   const clearForm = () => {
     setSelectedGangLineage(null);
@@ -249,7 +205,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     }
 
     try {
-      setIsLoading(true);
+      setIsSubmitting(true);
       const response = await fetch('/api/admin/gang-lineages', {
         method: 'POST',
         headers: {
@@ -270,10 +226,8 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
       toast.success("Gang lineage created successfully");
 
-      // Refresh the current type list if matching
-      if (lineageType && selectedType && lineageType === selectedType) {
-        await fetchLineagesByType(selectedType);
-      }
+      // Refresh the lineages list
+      queryClient.invalidateQueries({ queryKey: ['admin-lineages'] });
       clearForm();
       return true;
     } catch (error) {
@@ -281,7 +235,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       toast.error(error instanceof Error ? error.message : 'Failed to create gang lineage');
       return false;
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -292,7 +246,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     }
 
     try {
-      setIsLoading(true);
+      setIsSubmitting(true);
       const response = await fetch(`/api/admin/gang-lineages?id=${selectedGangLineage.id}&type=${selectedGangLineage.type}`, {
         method: 'PUT',
         headers: {
@@ -313,10 +267,8 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
       toast.success("Gang lineage updated successfully");
 
-      // Refresh current type list
-      if (selectedType) {
-        await fetchLineagesByType(selectedType);
-      }
+      // Refresh the lineages list
+      queryClient.invalidateQueries({ queryKey: ['admin-lineages'] });
       
       // Close the modal after successful update
       if (onSubmit) {
@@ -327,7 +279,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       console.error('Error updating gang lineage:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update gang lineage');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -335,7 +287,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     if (!gangLineageToDelete || !selectedType) return false;
 
     try {
-      setIsLoading(true);
+      setIsSubmitting(true);
       const response = await fetch(`/api/admin/gang-lineages?id=${gangLineageToDelete}&type=${selectedType}`, {
         method: 'DELETE',
       });
@@ -347,10 +299,8 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
       toast.success("Gang lineage deleted successfully");
 
-      // Refresh current type list and clear selection if deleted item was selected
-      if (selectedType) {
-        await fetchLineagesByType(selectedType);
-      }
+      // Refresh the lineages list
+      queryClient.invalidateQueries({ queryKey: ['admin-lineages'] });
       if (selectedGangLineageId === gangLineageToDelete) {
         setSelectedGangLineageId('');
         clearForm();
@@ -363,7 +313,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       toast.error(error instanceof Error ? error.message : 'Failed to delete gang lineage');
       return false;
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 

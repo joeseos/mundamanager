@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
@@ -27,39 +28,19 @@ export function AdminTradingPost({
   disabled = false
 }: AdminTradingPostProps) {
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
-  const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(propTradingPostTypes);
-  const [isLoading, setIsLoading] = useState(false);
-  
 
-  // Update trading post types when prop changes
-  useEffect(() => {
-    if (propTradingPostTypes.length > 0) {
-      setTradingPostTypes(propTradingPostTypes);
-    }
-  }, [propTradingPostTypes]);
+  const { data: fetchedTradingPostTypes = [], isLoading } = useQuery<TradingPostType[]>({
+    queryKey: ['admin-trading-post-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment/trading-post-types');
+      if (!response.ok) throw new Error('Failed to fetch trading post types');
+      return response.json();
+    },
+    enabled: showTradingPostDialog && propTradingPostTypes.length === 0,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // Fetch trading post types only if not provided as prop and dialog is opened
-  useEffect(() => {
-    const fetchTradingPostTypes = async () => {
-      // Only fetch if dialog is open AND we don't have types from props
-      if (!showTradingPostDialog || propTradingPostTypes.length > 0) return;
-      
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/admin/equipment/trading-post-types');
-        if (!response.ok) throw new Error('Failed to fetch trading post types');
-        const data = await response.json();
-        setTradingPostTypes(data);
-      } catch (error) {
-        console.error('Error fetching trading post types:', error);
-        toast.error('Failed to load trading post types');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTradingPostTypes();
-  }, [showTradingPostDialog, propTradingPostTypes.length]);
+  const tradingPostTypes = propTradingPostTypes.length > 0 ? propTradingPostTypes : fetchedTradingPostTypes;
 
   const handleSave = () => {
     toast.success("Trading Post selections saved. Remember to update the equipment to apply changes.");

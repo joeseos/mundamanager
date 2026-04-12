@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
@@ -14,45 +15,30 @@ interface AdminCreateSkillModalProps {
 
 export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProps) {
   const [skillName, setSkillName] = useState('');
-  const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
-  const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
   const [gangOrigin, setGangOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-  
 
-  useEffect(() => {
-    const fetchSkillTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch Skill Sets');
-        const data = await response.json();
-        console.log('Fetched Skill Sets:', data);
-        setSkillTypes(data);
-      } catch (error) {
-        console.error('Error fetching Skill Sets:', error);
-        toast.error('Failed to load Skill Sets');
-      }
-    };
+  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string}>>({
+    queryKey: ['admin-skill-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/skill-types');
+      if (!response.ok) throw new Error('Failed to fetch Skill Sets');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    const fetchGangOrigins = async () => {
-      try {
-        const response = await fetch('/api/admin/gang-origins');
-        if (!response.ok) throw new Error('Failed to fetch Gang Origins');
-        const data = await response.json();
-        console.log('Fetched Gang Origins:', data);
-        setGangOriginList(data);
-      } catch (error) {
-        console.error('Error fetching Gang Origins:', error);
-        toast.error('Failed to load Gang Origins');
-      }
-    };
-
-    fetchSkillTypes();
-    fetchGangOrigins();
-  }, [toast]);
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+    queryKey: ['admin-gang-origins'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-origins');
+      if (!response.ok) throw new Error('Failed to fetch Gang Origins');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleSubmit = async () => {
     if (!skillName || !skillType) {

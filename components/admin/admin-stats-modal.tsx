@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LuChartColumn } from "react-icons/lu";
 
 interface Stats {
@@ -15,26 +15,14 @@ interface AdminStatsModalProps {
 }
 
 export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/admin/stats');
-        if (!response.ok) throw new Error('Failed to fetch stats');
-        const data = await response.json();
-        setStats(data);
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
+  const { data: stats, isLoading } = useQuery<Stats>({
+    queryKey: ['admin-stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/stats');
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      return response.json();
+    },
+  });
 
   return (
     <div 

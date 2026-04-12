@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,14 +19,41 @@ const regularInputClass = "mt-1 block w-full rounded-md border border-border px-
 
 export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVehicleTypeModalProps) {
   
-  const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
-  const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
-  const [gangOrigins, setGangOrigins] = useState<Array<{ id: string; origin_name: string; category_name: string }>>([]);
   const [gangOriginEquipment, setGangOriginEquipment] = useState<Array<{ id?: string; gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangOriginModal, setShowGangOriginModal] = useState(false);
   const [gangTypeEquipment, setGangTypeEquipment] = useState<Array<{ id?: string; gang_type_id: string; gang_type_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangTypeModal, setShowGangTypeModal] = useState(false);
+
+  const { data: gangTypes = [] } = useQuery<{ gang_type_id: number; gang_type: string }[]>({
+    queryKey: ['admin-vehicle-gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/vehicles');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: equipment = [] } = useQuery<Array<{ id: string; equipment_name: string }>>({
+    queryKey: ['admin-equipment-list'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: gangOrigins = [] } = useQuery<Array<{ id: string; origin_name: string; category_name: string }>>({
+    queryKey: ['admin-gang-origins'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-origins');
+      if (!response.ok) throw new Error('Failed to fetch gang origins');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const [vehicleForm, setVehicleForm] = useState({
     cost: '',
@@ -51,41 +79,6 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
     }));
   };
 
-  const fetchGangTypes = async () => {
-    try {
-      const response = await fetch('/api/admin/vehicles');
-      if (!response.ok) throw new Error('Failed to fetch gang types');
-      const data = await response.json();
-      setGangTypes(data);
-    } catch (error) {
-      console.error('Error fetching gang types:', error);
-    }
-  };
-
-  const fetchEquipment = async () => {
-    try {
-      const response = await fetch('/api/admin/equipment');
-      if (!response.ok) throw new Error('Failed to fetch equipment');
-      const data = await response.json();
-      setEquipment(data);
-    } catch (error) {
-      console.error('Error fetching equipment:', error);
-      toast.error('Failed to load equipment');
-    }
-  };
-
-  const fetchGangOrigins = async () => {
-    try {
-      const response = await fetch('/api/admin/gang-origins');
-      if (!response.ok) throw new Error('Failed to fetch gang origins');
-      const data = await response.json();
-      setGangOrigins(data);
-    } catch (error) {
-      console.error('Error fetching gang origins:', error);
-      toast.error('Failed to load gang origins');
-    }
-  };
-
   const resetVehicleForm = () => {
     setVehicleForm({
       cost: '',
@@ -107,12 +100,6 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
     setGangOriginEquipment([]);
     setGangTypeEquipment([]);
   };
-
-  useEffect(() => {
-    fetchGangTypes();
-    fetchEquipment();
-    fetchGangOrigins();
-  }, []);
 
   const handleSubmit = async () => {
     try {

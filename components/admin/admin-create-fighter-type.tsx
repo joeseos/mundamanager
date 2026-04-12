@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -60,7 +61,6 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [delegationCost, setDelegationCost] = useState('');
   const [selectedGangType, setSelectedGangType] = useState('');
   const [selectedFighterClass, setSelectedFighterClass] = useState<FighterClass | ''>('');
-  const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const [movement, setMovement] = useState('');
@@ -80,11 +80,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [isGangAddition, setIsGangAddition] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
-  const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
-  const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
-  const [skillTypes, setSkillTypes] = useState<SkillType[]>([]);
-  const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
@@ -151,100 +147,62 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
   const isCrew = selectedFighterClass && selectedFighterClass.class_name === 'Crew';
 
-  useEffect(() => {
-    const fetchGangTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/gang-types');
-        if (!response.ok) throw new Error('Failed to fetch gang types');
-        const data = await response.json();
-        setGangTypes(data);
-      } catch (error) {
-        console.error('Error fetching gang types:', error);
-        toast.error('Failed to load gang types');
-      }
-    };
+  const { data: gangTypes = [] } = useQuery<GangType[]>({
+    queryKey: ['admin-gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    fetchGangTypes();
-  }, [toast]);
+  const { data: equipment = [] } = useQuery<EquipmentWithId[]>({
+    queryKey: ['admin-equipment-all'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      const data = await response.json();
+      return data.map((item: any) => ({
+        ...item,
+        id: item.id,
+        equipment_id: item.id,
+      })) as EquipmentWithId[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    const fetchEquipment = async () => {
-      try {
-        const response = await fetch('/api/admin/equipment');
-        if (!response.ok) throw new Error('Failed to fetch equipment');
-        const data = await response.json();
-        
-        // Cast the data to include the id property
-        const equipmentWithIds = data.map((item: any) => ({
-          ...item,
-          id: item.id,
-          equipment_id: item.id  // Make sure both properties exist
-        })) as EquipmentWithId[];
-        
-        setEquipment(equipmentWithIds);
-      } catch (error) {
-        console.error('Error fetching equipment:', error);
-        toast.error('Failed to load equipment');
-      }
-    };
+  const { data: fighterClasses = [] } = useQuery<FighterClass[]>({
+    queryKey: ['admin-fighter-classes'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-classes');
+      if (!response.ok) throw new Error('Failed to fetch fighter classes');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    fetchEquipment();
-  }, [toast]);
+  const { data: skillTypes = [] } = useQuery<SkillType[]>({
+    queryKey: ['admin-skill-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/skill-types');
+      if (!response.ok) throw new Error('Failed to fetch skill sets');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    const fetchFighterClasses = async () => {
-      try {
-        const response = await fetch('/api/admin/fighter-classes');
-        if (!response.ok) throw new Error('Failed to fetch fighter classes');
-        const data = await response.json();
-        setFighterClasses(data);
-      } catch (error) {
-        console.error('Error fetching fighter classes:', error);
-        toast.error('Failed to load fighter classes');
-      }
-    };
-
-    fetchFighterClasses();
-  }, [toast]);
-
-  useEffect(() => {
-    const fetchSkillTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
-        const data = await response.json();
-        setSkillTypes(data);
-      } catch (error) {
-        console.error('Error fetching skill sets:', error);
-        toast.error('Failed to load skill sets');
-      }
-    };
-
-    fetchSkillTypes();
-  }, [toast]);
-
-  useEffect(() => {
-    const fetchSkills = async () => {
-      if (!selectedSkillType) {
-        setSkills([]);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
-        if (!response.ok) throw new Error('Failed to fetch skills');
-        const data = await response.json();
-        // API returns {skills: [], effect_categories: []} when filtered by skill_type_id
-        const skillsArray = Array.isArray(data) ? data : data.skills || [];
-        setSkills(skillsArray);
-      } catch (error) {
-        console.error('Error fetching skills:', error);
-        toast.error('Failed to load skills');
-      }
-    };
-
-    fetchSkills();
-  }, [selectedSkillType, toast]);
+  const { data: skills = [] } = useQuery<Skill[]>({
+    queryKey: ['admin-skills', selectedSkillType],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/skills?skill_type_id=${selectedSkillType}`);
+      if (!response.ok) throw new Error('Failed to fetch skills');
+      const data = await response.json();
+      return Array.isArray(data) ? data : data.skills || [];
+    },
+    enabled: !!selectedSkillType,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleSubmit = async () => {
     // Check if selected fighter class is Crew
@@ -345,7 +303,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         equipment_discounts: equipmentDiscounts,
         trading_post_equipment: tradingPostEquipment
       };
-      console.log('Sending fighter type data:', requestData);
+
 
       const response = await fetch('/api/admin/fighter-types', {
         method: 'POST',

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,14 +54,11 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     weapon_group_id: null,
     sort_order: 1
   }]);
-  const [categories, setCategories] = useState<Array<{id: string, category_name: string}>>([]);
-  const [weapons, setWeapons] = useState<Array<{id: string, equipment_name: string}>>([]);
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [selectedGangType, setSelectedGangType] = useState("");
   const [adjustedCostValue, setAdjustedCostValue] = useState("");
   const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
 
-  const [gangTypeOptions, setGangTypeOptions] = useState<Array<{gang_type_id: string, gang_type: string}>>([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
   const [availabilityValue, setAvailabilityValue] = useState("");
@@ -68,63 +66,37 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   
   
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch('/api/admin/equipment/categories');
-        if (!response.ok) throw new Error('Failed to fetch categories');
-        const data = await response.json();
-        console.log('Fetched categories:', data);
-        setCategories(data);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        toast.error('Failed to load categories');
-      }
-    };
+  const { data: categories = [] } = useQuery<Array<{id: string, category_name: string}>>({
+    queryKey: ['admin-equipment-categories'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment/categories');
+      if (!response.ok) throw new Error('Failed to fetch categories');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    fetchCategories();
-  }, []);
+  const { data: weapons = [] } = useQuery<Array<{id: string, equipment_name: string}>>({
+    queryKey: ['admin-weapons'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment?equipment_type=weapon');
+      if (!response.ok) throw new Error('Failed to fetch weapons');
+      return response.json();
+    },
+    enabled: equipmentType === 'weapon',
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    const fetchWeapons = async () => {
-      // Only fetch weapons if the equipment type is set to weapon
-      if (equipmentType !== 'weapon') {
-        setWeapons([]);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/admin/equipment?equipment_type=weapon');
-        if (!response.ok) throw new Error('Failed to fetch weapons');
-        const data = await response.json();
-        setWeapons(data);
-      } catch (error) {
-        console.error('Error fetching weapons:', error);
-        toast.error('Failed to load weapons');
-      }
-    };
-
-    fetchWeapons();
-  }, [equipmentType]);
-
-  // Add this useEffect to fetch gang types
-  useEffect(() => {
-    const fetchGangTypes = async () => {
-      if (showAdjustedCostDialog || showAvailabilityDialog) {
-        try {
-          const response = await fetch('/api/admin/gang-types');
-          if (!response.ok) throw new Error('Failed to fetch gang types');
-          const data = await response.json();
-          setGangTypeOptions(data);
-        } catch (error) {
-          console.error('Error fetching gang types:', error);
-          toast.error('Failed to load gang types');
-        }
-      }
-    };
-
-    fetchGangTypes();
-  }, [showAdjustedCostDialog, showAvailabilityDialog]);
+  const { data: gangTypeOptions = [] } = useQuery<Array<{gang_type_id: string, gang_type: string}>>({
+    queryKey: ['admin-gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    enabled: showAdjustedCostDialog || showAvailabilityDialog,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
     const newProfiles = [...weaponProfiles];

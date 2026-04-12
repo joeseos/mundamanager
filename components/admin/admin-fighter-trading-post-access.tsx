@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { Equipment } from '@/types/equipment';
@@ -24,14 +24,12 @@ export function AdminFighterTradingPostAccess({
 }: AdminFighterTradingPostAccessProps) {
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [equipmentByCategory, setEquipmentByCategory] = useState<Record<string, EquipmentWithId[]>>({});
   const [excludeExclusive, setExcludeExclusive] = useState(true);
-  
 
   // Group equipment by category
-  React.useEffect(() => {
+  const equipmentByCategory = useMemo(() => {
     const groupedByCategory: Record<string, EquipmentWithId[]> = {};
-    
+
     equipment.forEach((item) => {
       const category = item.equipment_category || item.equipment_type || 'Uncategorized';
       if (!groupedByCategory[category]) {
@@ -39,15 +37,15 @@ export function AdminFighterTradingPostAccess({
       }
       groupedByCategory[category].push(item);
     });
-    
+
     // Sort equipment within each category by name
     Object.keys(groupedByCategory).forEach(category => {
-      groupedByCategory[category].sort((a, b) => 
+      groupedByCategory[category].sort((a, b) =>
         a.equipment_name.localeCompare(b.equipment_name)
       );
     });
-    
-    setEquipmentByCategory(groupedByCategory);
+
+    return groupedByCategory;
   }, [equipment]);
 
   const handleSave = () => {

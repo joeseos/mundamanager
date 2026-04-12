@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,16 +63,45 @@ export function AdminCampaignManagementModal({
 }: AdminCampaignManagementModalProps) {
   
   
+  const queryClient = useQueryClient();
+
   // Category selection
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('campaign-types');
-  
-  // Data state
-  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>([]);
-  const [territories, setTerritories] = useState<Territory[]>([]);
-  const [triumphs, setTriumphs] = useState<CampaignTriumph[]>([]);
-  
-  // Loading states
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Submission loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: campaignTypes = [], isLoading: isLoadingCampaignTypes } = useQuery<CampaignType[]>({
+    queryKey: ['admin-campaign-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/campaign-types');
+      if (!response.ok) throw new Error('Failed to fetch campaign types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: territories = [], isLoading: isLoadingTerritories } = useQuery<Territory[]>({
+    queryKey: ['admin-territories'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/territories');
+      if (!response.ok) throw new Error('Failed to fetch territories');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: triumphs = [], isLoading: isLoadingTriumphs } = useQuery<CampaignTriumph[]>({
+    queryKey: ['admin-campaign-triumphs'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/campaign-triumphs');
+      if (!response.ok) throw new Error('Failed to fetch triumphs');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isLoading = isLoadingCampaignTypes || isLoadingTerritories || isLoadingTriumphs || isSubmitting;
   
   // Campaign Types form state
   const [selectedCampaignTypeId, setSelectedCampaignTypeId] = useState('');
@@ -101,12 +131,7 @@ export function AdminCampaignManagementModal({
   const [triumphCampaignTypeId, setTriumphCampaignTypeId] = useState('');
   const [isCreateModeTriumph, setIsCreateModeTriumph] = useState(false);
 
-  // Fetch data on mount
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  const handleCategoryChange = useCallback((category: CategoryType) => {
+  const handleCategoryChange = (category: CategoryType) => {
     setSelectedCategory(category);
     // Reset all form states
     setSelectedCampaignTypeId('');
@@ -115,24 +140,19 @@ export function AdminCampaignManagementModal({
     setIsCreateModeCampaignType(false);
     setRelatedTerritories([]);
     setRelatedTriumphs([]);
-    
+
     setSelectedTerritoryId('');
     setTerritoryName('');
     setTerritoryCampaignTypeId('');
     setTerritoryCardValue('');
     setIsCreateModeTerritory(false);
-    
+
     setSelectedTriumphId('');
     setTriumphName('');
     setTriumphCriteria('');
     setTriumphCampaignTypeId('');
     setIsCreateModeTriumph(false);
-  }, []);
-
-  // Reset form when category changes
-  useEffect(() => {
-    handleCategoryChange(selectedCategory);
-  }, [selectedCategory, handleCategoryChange]);
+  };
 
   // Load related territories and triumphs when campaign type is selected
   useEffect(() => {
@@ -147,54 +167,11 @@ export function AdminCampaignManagementModal({
     }
   }, [selectedCampaignTypeId, territories, triumphs, isCreateModeCampaignType]);
 
-  const fetchAllData = async () => {
-    setIsLoading(true);
-    try {
-      await Promise.all([
-        fetchCampaignTypes(),
-        fetchTerritories(),
-        fetchTriumphs()
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchCampaignTypes = async () => {
-    try {
-      const response = await fetch('/api/admin/campaign-types');
-      if (!response.ok) throw new Error('Failed to fetch campaign types');
-      const data = await response.json();
-      setCampaignTypes(data);
-    } catch (error) {
-      console.error('Error fetching campaign types:', error);
-      toast.error('Failed to load campaign types');
-    }
-  };
-
-  const fetchTerritories = async () => {
-    try {
-      const response = await fetch('/api/admin/territories');
-      if (!response.ok) throw new Error('Failed to fetch territories');
-      const data = await response.json();
-      setTerritories(data);
-    } catch (error) {
-      console.error('Error fetching territories:', error);
-      toast.error('Failed to load territories');
-    }
-  };
-
-  const fetchTriumphs = async () => {
-    try {
-      const response = await fetch('/api/admin/campaign-triumphs');
-      if (!response.ok) throw new Error('Failed to fetch triumphs');
-      const data = await response.json();
-      setTriumphs(data);
-    } catch (error) {
-      console.error('Error fetching triumphs:', error);
-      toast.error('Failed to load triumphs');
-    }
-  };
+  const invalidateAllData = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['admin-campaign-types'] }),
+    queryClient.invalidateQueries({ queryKey: ['admin-territories'] }),
+    queryClient.invalidateQueries({ queryKey: ['admin-campaign-triumphs'] }),
+  ]);
 
   // Campaign Types handlers
   const handleCampaignTypeSelect = (id: string) => {
@@ -222,7 +199,7 @@ export function AdminCampaignManagementModal({
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       let url = '/api/admin/campaign-types';
       let method: string;
@@ -337,7 +314,7 @@ export function AdminCampaignManagementModal({
 
       toast.success(`Campaign type ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
-      await fetchAllData();
+      await invalidateAllData();
       
       // Reset form
       setSelectedCampaignTypeId('');
@@ -354,7 +331,7 @@ export function AdminCampaignManagementModal({
       console.error(`Error executing ${operation} operation:`, error);
       toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} campaign type`);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -384,7 +361,7 @@ export function AdminCampaignManagementModal({
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       let url = '/api/admin/territories';
       let method: string;
@@ -426,7 +403,7 @@ export function AdminCampaignManagementModal({
 
       toast.success(`Territory ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
-      await fetchAllData();
+      await invalidateAllData();
       
       // Reset form
       setSelectedTerritoryId('');
@@ -442,7 +419,7 @@ export function AdminCampaignManagementModal({
       console.error(`Error executing ${operation} operation:`, error);
       toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -473,7 +450,7 @@ export function AdminCampaignManagementModal({
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       let url = '/api/admin/campaign-triumphs';
       let method: string;
@@ -515,7 +492,7 @@ export function AdminCampaignManagementModal({
 
       toast.success(`Triumph ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
-      await fetchAllData();
+      await invalidateAllData();
       
       // Reset form
       setSelectedTriumphId('');
@@ -531,7 +508,7 @@ export function AdminCampaignManagementModal({
       console.error(`Error executing ${operation} operation:`, error);
       toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
