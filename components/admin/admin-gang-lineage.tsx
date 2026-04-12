@@ -69,9 +69,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   // State for fighter type access filtering
   const [accessRuleGangTypeId, setAccessRuleGangTypeId] = useState<string>('');
   
-  // Flag to prevent resetting fighter type when loading existing data
-  const [isLoadingExistingData, setIsLoadingExistingData] = useState(false);
-  
   // State for modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -149,7 +146,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
     if (!gangLineageDetailsData) return;
 
-    setIsLoadingExistingData(true);
     setSelectedGangLineage(gangLineageDetailsData);
     setGangLineageName(gangLineageDetailsData.name);
     setLineageType(gangLineageDetailsData.type);
@@ -157,12 +153,8 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
     if (gangLineageDetailsData.associated_fighter_type) {
       setSelectedGangTypeId(gangLineageDetailsData.associated_fighter_type.gang_type_id || '');
-      setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
-      setTimeout(() => setIsLoadingExistingData(false), 100);
-    } else {
-      setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
-      setIsLoadingExistingData(false);
     }
+    setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
   }, [selectedGangLineageId, gangLineageDetailsData]);
 
   // Derived: filter fighter types by selected gang type
@@ -173,17 +165,17 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     [selectedGangTypeId, fighterTypes]
   );
 
-  // Reset associated fighter type when gang type changes (unless loading existing data)
-  useEffect(() => {
-    if (isLoadingExistingData) return;
-    if (selectedGangTypeId && associatedFighterTypeId) {
-      if (!filteredFighterTypes.some(ft => ft.id === associatedFighterTypeId)) {
+  // Handle user changing the gang type dropdown — clear fighter type if no longer valid
+  const handleGangTypeChange = (newGangTypeId: string) => {
+    setSelectedGangTypeId(newGangTypeId);
+    if (newGangTypeId) {
+      if (associatedFighterTypeId && !fighterTypes.some(ft => ft.gang_type_id === newGangTypeId && ft.id === associatedFighterTypeId)) {
         setAssociatedFighterTypeId('');
       }
-    } else if (!selectedGangTypeId) {
+    } else {
       setAssociatedFighterTypeId('');
     }
-  }, [selectedGangTypeId, filteredFighterTypes, isLoadingExistingData]);
+  };
 
   const isLoading = isLineagesLoading || isDetailsLoading || isSubmitting;
 
@@ -195,7 +187,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     setLineageType('');
     setFighterTypeAccess([]);
     setAccessRuleGangTypeId('');
-    setIsLoadingExistingData(false);
   };
 
   const handleCreateGangLineage = async () => {
@@ -381,7 +372,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         </label>
         <select
           value={selectedGangTypeId}
-          onChange={(e) => setSelectedGangTypeId(e.target.value)}
+          onChange={(e) => handleGangTypeChange(e.target.value)}
           className="w-full p-2 border rounded-md"
         >
           <option value="">Select a gang type</option>
@@ -621,7 +612,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     </label>
                     <select
                       value={selectedGangTypeId}
-                      onChange={(e) => setSelectedGangTypeId(e.target.value)}
+                      onChange={(e) => handleGangTypeChange(e.target.value)}
                       className="w-full p-2 border rounded-md"
                       disabled={isLoading}
                     >
