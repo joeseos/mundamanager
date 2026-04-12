@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -72,6 +72,7 @@ interface Equipment {
 }
 
 export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmentModalProps) {
+  const queryClient = useQueryClient();
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
   const [equipmentName, setEquipmentName] = useState('');
   const [availability, setAvailability] = useState('');
@@ -477,7 +478,17 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       }
 
       toast.success("Equipment updated successfully");
-      
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-list'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-details'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-categories'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-weapons'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-variants'] }),
+      ]);
+
       if (onSubmit) {
         onSubmit();
       }

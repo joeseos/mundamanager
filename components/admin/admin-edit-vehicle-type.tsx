@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -415,6 +415,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
 };
 
 export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicleTypeModalProps) {
+  const queryClient = useQueryClient();
   
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
@@ -604,10 +605,12 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
 
       toast.success("Success", { description: "Vehicle type has been updated successfully" });
 
-      // Refresh the vehicle details to get updated data with real database IDs
-      if (selectedVehicle) {
-        await fetchVehicleDetails(selectedVehicle);
-      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-vehicle-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-vehicle-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-list'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+      ]);
 
       resetVehicleForm();
       if (onSubmit) {

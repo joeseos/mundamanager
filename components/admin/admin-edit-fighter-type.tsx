@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useTransition } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -83,6 +83,7 @@ interface GangAffiliation {
 }
 
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
+  const queryClient = useQueryClient();
   // Update state to track fighter type+class combinations
   const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] = useState<string>('');
 
@@ -1085,7 +1086,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       console.log('Update successful:', data);
 
       toast.success("Fighter type updated successfully");
-      
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-affiliations'] }),
+      ]);
+
       if (onSubmit) {
         onSubmit();
       }

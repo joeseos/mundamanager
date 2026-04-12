@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ const numericInputClass = "mt-1 block w-full rounded-md border border-border px-
 const regularInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2";
 
 export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVehicleTypeModalProps) {
+  const queryClient = useQueryClient();
   
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
   const [gangOriginEquipment, setGangOriginEquipment] = useState<Array<{ id?: string; gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }>>([]);
@@ -135,6 +136,13 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       }
 
       toast.success("Success", { description: "Vehicle type has been created successfully" });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-vehicle-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-list'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-vehicle-types'] }),
+      ]);
 
       resetVehicleForm();
       if (onSubmit) {

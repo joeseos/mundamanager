@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
@@ -143,6 +143,7 @@ interface AdminEditSkillModalProps {
 }
 
 export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
+  const queryClient = useQueryClient();
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
   const [skillNameList, setSkillList] = useState<Skill[]>([]);
@@ -287,6 +288,8 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
 
     toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
+    await queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] });
+
     if (onSubmit) {
       onSubmit();
     }
@@ -356,6 +359,11 @@ const handleSubmitSkill = async (operation: OperationType) => {
     }
 
     toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
+
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
+      queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+    ]);
 
     if (onSubmit) {
       onSubmit();

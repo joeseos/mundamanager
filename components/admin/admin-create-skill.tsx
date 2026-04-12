@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ interface AdminCreateSkillModalProps {
 }
 
 export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillModalProps) {
+  const queryClient = useQueryClient();
   const [skillName, setSkillName] = useState('');
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
@@ -66,6 +67,11 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
 
       toast.success("Skill created successfully");
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+      ]);
+
       if (onSubmit) {
         onSubmit();
       }
@@ -101,6 +107,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       }
 
       toast.success("Skill Set created successfully");
+
+      await queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] });
 
       if (onSubmit) {
         onSubmit();

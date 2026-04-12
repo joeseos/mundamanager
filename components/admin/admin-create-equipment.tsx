@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,6 +31,7 @@ interface EquipmentAvailability {
 }
 
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
+  const queryClient = useQueryClient();
   const [equipmentName, setEquipmentName] = useState('');
   const [availability, setAvailability] = useState('');
   const [cost, setCost] = useState('');
@@ -188,7 +189,14 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       }
 
       toast.success("Equipment created successfully");
-      
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-categories'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-weapons'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-list'] }),
+      ]);
+
       if (onSubmit) {
         onSubmit();
       }

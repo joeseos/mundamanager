@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,6 +56,7 @@ interface EquipmentWithId extends Equipment {
 }
 
 export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFighterTypeModalProps) {
+  const queryClient = useQueryClient();
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
@@ -318,7 +319,16 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       }
 
       toast.success("Fighter type created successfully");
-      
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-skills'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-types'] }),
+      ]);
+
       if (onSubmit) {
         onSubmit();
       }
