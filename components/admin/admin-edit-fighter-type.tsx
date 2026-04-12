@@ -193,8 +193,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   }, [specialSkills]);
 
-  
-
   const { data: skillTypes = [] } = useQuery<SkillType[]>({
     queryKey: ['admin-skill-types'],
     queryFn: async () => {
@@ -319,7 +317,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     });
     return uniqueCombinations;
   }, [fighterTypes]);
-
 
   useEffect(() => {
     const fetchSkills = async () => {
