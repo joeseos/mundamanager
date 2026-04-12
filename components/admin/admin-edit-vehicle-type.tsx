@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -414,20 +415,56 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
 };
 
 export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicleTypeModalProps) {
+  const queryClient = useQueryClient();
   
-  const [gangTypes, setGangTypes] = useState<{ gang_type_id: number; gang_type: string }[]>([]);
-  const [gangTypesFetched, setGangTypesFetched] = useState(false);
-  const [vehicleTypes, setVehicleTypes] = useState<{ id: number; vehicle_type: string }[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
-  const [equipment, setEquipment] = useState<Array<{ id: string; equipment_name: string }>>([]);
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
   const [equipmentSelectValue, setEquipmentSelectValue] = useState("");
-  const [gangOrigins, setGangOrigins] = useState<Array<{ id: string; origin_name: string; category_name: string }>>([]);
   const [gangOriginEquipment, setGangOriginEquipment] = useState<Array<{ id?: string; gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangOriginModal, setShowGangOriginModal] = useState(false);
   const [gangTypeEquipment, setGangTypeEquipment] = useState<Array<{ id?: string; gang_type_id: string; gang_type_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangTypeModal, setShowGangTypeModal] = useState(false);
   const [hardpoints, setHardpoints] = useState<HardpointTemplate[]>([]);
+
+  const { data: gangTypes = [] } = useQuery<{ gang_type_id: number; gang_type: string }[]>({
+    queryKey: ['admin-vehicle-gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/vehicles');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: vehicleTypes = [] } = useQuery<{ id: number; vehicle_type: string }[]>({
+    queryKey: ['admin-vehicle-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/vehicles?fetch_type=vehicle_types');
+      if (!response.ok) throw new Error('Failed to fetch vehicle types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: equipment = [] } = useQuery<Array<{ id: string; equipment_name: string }>>({
+    queryKey: ['admin-equipment-list'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: gangOrigins = [] } = useQuery<Array<{ id: string; origin_name: string; category_name: string }>>({
+    queryKey: ['admin-gang-origins'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-origins');
+      if (!response.ok) throw new Error('Failed to fetch gang origins');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const [vehicleForm, setVehicleForm] = useState({
     cost: '',
@@ -453,68 +490,8 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     }));
   };
 
-  const fetchGangTypes = async () => {
-    try {
-      const response = await fetch('/api/admin/vehicles');
-      if (!response.ok) throw new Error('Failed to fetch gang types');
-      const data = await response.json();
-      setGangTypes(data);
-      setGangTypesFetched(true);
-    } catch (error) {
-      console.error('Error fetching gang types:', error);
-      setGangTypesFetched(true);
-      toast.error('Failed to load gang types');
-    }
-  };
-
-  const fetchVehicleTypes = async () => {
-    try {
-      const response = await fetch('/api/admin/vehicles?fetch_type=vehicle_types');
-      if (!response.ok) throw new Error('Failed to fetch vehicle types');
-      const data = await response.json();
-      setVehicleTypes(data);
-    } catch (error) {
-      console.error('Error fetching vehicle types:', error);
-      toast.error('Failed to load vehicle types');
-    }
-  };
-
-  const fetchEquipment = async () => {
-    try {
-      const response = await fetch('/api/admin/equipment');
-      if (!response.ok) throw new Error('Failed to fetch equipment');
-      const data = await response.json();
-      setEquipment(data);
-    } catch (error) {
-      console.error('Error fetching equipment:', error);
-      toast.error('Failed to load equipment');
-    }
-  };
-
-  const fetchGangOrigins = async () => {
-    try {
-      const response = await fetch('/api/admin/gang-origins');
-      if (!response.ok) throw new Error('Failed to fetch gang origins');
-      const data = await response.json();
-      setGangOrigins(data);
-    } catch (error) {
-      console.error('Error fetching gang origins:', error);
-      toast.error('Failed to load gang origins');
-    }
-  };
-
   const fetchVehicleDetails = async (vehicleId: string) => {
     try {
-      // First fetch gang types if not already loaded
-      if (!gangTypesFetched) {
-        const gangResponse = await fetch('/api/admin/vehicles');
-        if (!gangResponse.ok) throw new Error('Failed to fetch gang types');
-        const gangData = await gangResponse.json();
-        setGangTypes(gangData);
-        setGangTypesFetched(true);
-      }
-
-      // Then fetch vehicle details
       const vehicleResponse = await fetch(`/api/admin/vehicles?vehicle_id=${vehicleId}`);
       if (!vehicleResponse.ok) throw new Error('Failed to fetch vehicle details');
       const vehicleData = await vehicleResponse.json();
@@ -590,13 +567,6 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
     setHardpoints([]);
   };
 
-  useEffect(() => {
-    fetchVehicleTypes();
-    fetchGangTypes();
-    fetchEquipment();
-    fetchGangOrigins();
-  }, []);
-
   const handleAddGangOriginEquipment = (item: { gang_origin_id: string; origin_name: string; equipment_id: string; equipment_name: string }) => {
     setGangOriginEquipment((prev) => [...prev, item]);
   };
@@ -635,10 +605,12 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
 
       toast.success("Success", { description: "Vehicle type has been updated successfully" });
 
-      // Refresh the vehicle details to get updated data with real database IDs
-      if (selectedVehicle) {
-        await fetchVehicleDetails(selectedVehicle);
-      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-vehicle-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-vehicle-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-equipment-list'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+      ]);
 
       resetVehicleForm();
       if (onSubmit) {

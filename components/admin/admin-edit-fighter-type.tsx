@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useTransition } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -82,20 +83,17 @@ interface GangAffiliation {
 }
 
 export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
+  const queryClient = useQueryClient();
   // Update state to track fighter type+class combinations
   const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] = useState<string>('');
-  const [fighterTypeCombos, setFighterTypeCombos] = useState<FighterTypeCombo[]>([]);
-  
+
   // Keep existing state variables
   const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
-  const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [fighterType, setFighterType] = useState('');
   const [baseCost, setBaseCost] = useState('');
   const [delegationCost, setDelegationCost] = useState('');
   const [selectedFighterClass, setSelectedFighterClass] = useState<string>('');
-  const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [fighterSubTypes, setFighterSubTypes] = useState<FighterSubType[]>([]);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
   const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -120,8 +118,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
-  const [fighterClasses, setFighterClasses] = useState<FighterClass[]>([]);
-  const [skillTypes, setSkillTypes] = useState<SkillType[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
@@ -145,7 +141,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [showGangCostDialog, setShowGangCostDialog] = useState(false);
   const [selectedGangTypeForCost, setSelectedGangTypeForCost] = useState('');
   const [gangTypeCosts, setGangTypeCosts] = useState<FighterTypeGangCost[]>([]);
-  const [gangAffiliations, setGangAffiliations] = useState<GangAffiliation[]>([]);
   const [selectedGangAffiliationForCost, setSelectedGangAffiliationForCost] = useState<string>('');
   
   // Add at the top of the AdminEditFighterTypeModal component, after other state declarations
@@ -170,13 +165,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const hasLoadedEquipmentCategoriesRef = useRef(false);
   
   // Add a flag ref to prevent duplicate fetches
-  const isFetchingFighterClassesRef = useRef(false);
-  
-  // Add a flag ref to prevent duplicate fetches
   const isFetchingFighterTypeDetailsRef = useRef(false);
 
-  // Only fetch skill sets when needed
-  const [hasLoadedSkillTypesRef] = useState<{ current: boolean }>({ current: false });
 
   // Add a ref to track if a category was manually removed
   const userRemovedCategoryRef = useRef(false);
@@ -203,7 +193,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   }, [specialSkills]);
 
-  
+  const { data: skillTypes = [] } = useQuery<SkillType[]>({
+    queryKey: ['admin-skill-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/skill-types');
+      if (!response.ok) throw new Error('Failed to fetch skill sets');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Memoize filtered skills to avoid recalculating on every render
   const availableSkills = useMemo(() => {
@@ -241,165 +239,84 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   // Preload equipment data when the component mounts
   useEffect(() => {
-    // Fetch equipment data right away
     const preloadEquipment = async () => {
       try {
         if (!hasLoadedEquipmentCategoriesRef.current) {
-          console.log('Preloading equipment data on mount');
           await fetchEquipmentByCategory();
           setIsEquipmentLoaded(true);
         }
       } catch (error) {
-        console.error('Error preloading equipment:', error);
+        // Equipment loading failed silently, will retry when needed
       }
     };
-    
     preloadEquipment();
   }, []);
 
-  // Only fetch gang types when the modal opens
-  useEffect(() => {
-    const fetchGangTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/gang-types');
-        if (!response.ok) throw new Error('Failed to fetch gang types');
-        const data = await response.json();
-        setGangTypes(data);
-      } catch (error) {
-        console.error('Error fetching gang types:', error);
-        toast.error('Failed to load gang types');
-      }
-    };
+  const { data: gangTypes = [] } = useQuery<GangType[]>({
+    queryKey: ['admin-gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    fetchGangTypes();
-  }, [toast]);
+  const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
+    queryKey: ['admin-lineages', 'affiliation'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-lineages?type=affiliation');
+      if (!response.ok) throw new Error('Failed to fetch gang affiliations');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // Fetch gang affiliations when the modal opens
-  useEffect(() => {
-    const fetchGangAffiliations = async () => {
-      try {
-        const response = await fetch('/api/admin/gang-lineages?type=affiliation');
-        if (!response.ok) throw new Error('Failed to fetch gang affiliations');
-        const data = await response.json();
-        setGangAffiliations(data);
-      } catch (error) {
-        console.error('Error fetching gang affiliations:', error);
-        toast.error('Failed to load gang affiliations');
-      }
-    };
+  const { data: fighterClasses = [] } = useQuery<FighterClass[]>({
+    queryKey: ['admin-fighter-classes'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-classes');
+      if (!response.ok) throw new Error('Failed to fetch fighter classes');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-    fetchGangAffiliations();
-  }, [toast]);
+  const { data: fighterTypes = [] } = useQuery<FighterType[]>({
+    queryKey: ['admin-fighter-types', gangTypeFilter],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/fighter-types?gang_type_id=${gangTypeFilter}&filter_by_gang=true`);
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!gangTypeFilter,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // New useEffect to fetch fighter classes
-  useEffect(() => {
-    const fetchFighterClasses = async () => {
-      try {
-        console.log('Fetching all fighter classes');
-        const response = await fetch('/api/admin/fighter-classes');
-        if (!response.ok) throw new Error('Failed to fetch fighter classes');
-        const data = await response.json();
-        console.log('Loaded fighter classes:', data);
-        setFighterClasses(data);
-      } catch (error) {
-        console.error('Error fetching fighter classes:', error);
-        toast.error('Failed to load fighter classes');
-      }
-    };
-
-    fetchFighterClasses();
-  }, [toast]);
-
-  // Modify fighter types fetch to extract unique combinations
-  useEffect(() => {
-    if (!gangTypeFilter) return; // Only fetch if gang type is selected
-    
-    const fetchFighterTypes = async () => {
-      try {
-        console.log('Fetching fighter types for gang type:', gangTypeFilter);
-        // Add explicit filter parameter in the URL
-        const response = await fetch(`/api/admin/fighter-types?gang_type_id=${gangTypeFilter}&filter_by_gang=true`);
-        if (!response.ok) throw new Error('Failed to fetch fighter types');
-        const data = await response.json();
-        
-        // Log the count of retrieved fighter types
-        console.log(`Retrieved ${Array.isArray(data) ? data.length : 0} fighter types for this gang`);
-        
-        // Store the full fighter type data
-        setFighterTypes(Array.isArray(data) ? data : []);
-        
-        // Extract unique fighter type + class combinations
-        const uniqueCombinations: FighterTypeCombo[] = [];
-        
-        if (Array.isArray(data)) {
-          data.forEach(fighter => {
-            // Check if this combination already exists in our array
-            const existingCombo = uniqueCombinations.find(
-              combo => combo.type === fighter.fighter_type && 
-                      combo.class === fighter.fighter_class &&
-                      combo.gang_type_id === fighter.gang_type_id
-            );
-            
-            // If not, add it
-            if (!existingCombo) {
-              uniqueCombinations.push({
-                type: fighter.fighter_type,
-                class: fighter.fighter_class,
-                gang_type_id: fighter.gang_type_id
-              });
-            }
-          });
-        }
-        
-        // Sort combinations by type and then class
-        uniqueCombinations.sort((a, b) => {
-          // First sort by type
-          const typeCompare = a.type.localeCompare(b.type);
-          if (typeCompare !== 0) return typeCompare;
-          
-          // If types are the same, sort by class
-          return a.class.localeCompare(b.class);
+  const fighterTypeCombos = useMemo(() => {
+    const uniqueCombinations: FighterTypeCombo[] = [];
+    fighterTypes.forEach(fighter => {
+      const existingCombo = uniqueCombinations.find(
+        combo => combo.type === fighter.fighter_type &&
+                combo.class === fighter.fighter_class &&
+                combo.gang_type_id === fighter.gang_type_id
+      );
+      if (!existingCombo) {
+        uniqueCombinations.push({
+          type: fighter.fighter_type,
+          class: fighter.fighter_class,
+          gang_type_id: fighter.gang_type_id
         });
-        
-        setFighterTypeCombos(uniqueCombinations);
-      } catch (error) {
-        console.error('Error fetching fighter types:', error);
-        toast.error('Failed to load fighter types');
       }
-    };
-
-    fetchFighterTypes();
-  }, [toast, gangTypeFilter]);
-
-  // NOTE: We've removed the automatic equipment fetching, it will be loaded on-demand 
-  // when needed (e.g., when opening dialogs that need equipment data)
-
-  const fetchSkillTypes = async () => {
-    // Only fetch if we haven't already loaded the data
-    if (hasLoadedSkillTypesRef.current) {
-      console.log('Using cached skill sets');
-        return;
-      }
-      
-    console.log('Fetching skill sets...');
-    try {
-        const response = await fetch('/api/admin/skill-types');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch skill sets: ${response.status} ${response.statusText}`);
-      }
-      
-        const data = await response.json();
-      console.log(`Loaded ${data.length} skill sets`);
-        setSkillTypes(data);
-      hasLoadedSkillTypesRef.current = true;
-      return data;
-      } catch (error) {
-        console.error('Error fetching skill sets:', error);
-        toast.error('Failed to load skill sets. Some features may be limited.');
-      // Don't throw, just report the error and continue
-      return null;
-      }
-    };
+    });
+    uniqueCombinations.sort((a, b) => {
+      const typeCompare = a.type.localeCompare(b.type);
+      if (typeCompare !== 0) return typeCompare;
+      return a.class.localeCompare(b.class);
+    });
+    return uniqueCombinations;
+  }, [fighterTypes]);
 
   useEffect(() => {
     const fetchSkills = async () => {
@@ -460,24 +377,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     fetchSelectedSkillDetails();
   }, [selectedSkills, selectedFighterTypeId]);
 
-  // Only fetch fighter sub-types when needed
-  useEffect(() => {
-    if (!selectedFighterTypeId) return; // Only fetch if fighter type is selected
-    
-    const fetchFighterSubTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/fighter-sub-types');
-        if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
-        const data = await response.json();
-        setFighterSubTypes(data);
-      } catch (error) {
-        console.error('Error fetching fighter sub-types:', error);
-        toast.error('Failed to load fighter sub-types');
-      }
-    };
-
-    fetchFighterSubTypes();
-  }, [toast, selectedFighterTypeId]);
+  const { data: fighterSubTypes = [] } = useQuery<FighterSubType[]>({
+    queryKey: ['admin-fighter-sub-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-sub-types');
+      if (!response.ok) throw new Error('Failed to fetch fighter sub-types');
+      return response.json();
+    },
+    enabled: !!selectedFighterTypeId,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const fetchFighterTypeDetails = async (fighterId: string) => {
     if (!fighterId) return;
@@ -820,12 +729,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         await fetchEquipmentByCategory();
       }
       
-      // If we need to load skill sets, do it now
-      if (!hasLoadedSkillTypesRef.current) {
-        console.log('Skill types not yet loaded, loading now...');
-        await fetchSkillTypes();
-      }
-      
       // Find the option in available sub-types
       const selectedOption = availableSubTypes.find(st => st.id === subTypeId);
       
@@ -860,14 +763,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
-  // Add a useEffect to validate equipment selection
+  // Validate equipment selection structure
   useEffect(() => {
     if (Object.keys(equipmentSelection).length > 0) {
-      console.log('Current equipment selection:', equipmentSelection);
-      // Validate structure of each category
       Object.entries(equipmentSelection).forEach(([key, category]) => {
         if (!category.select_type) {
-          console.warn(`Category ${key} missing select_type, fixing...`);
           setEquipmentSelection(prev => ({
             ...prev,
             [key]: {
@@ -876,9 +776,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             }
           }));
         }
-        
+
         if (!category.options) {
-          console.warn(`Category ${key} missing options array, fixing...`);
           setEquipmentSelection(prev => ({
             ...prev,
             [key]: {
@@ -1184,7 +1083,15 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       console.log('Update successful:', data);
 
       toast.success("Fighter type updated successfully");
-      
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
+      ]);
+
       if (onSubmit) {
         onSubmit();
       }
@@ -1255,12 +1162,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setEquipment(equipmentWithIds);
       hasLoadedEquipmentCategoriesRef.current = true;
       console.log('Equipment data successfully loaded');
-      
-      // Also pre-load skill types
-      if (!hasLoadedSkillTypesRef.current) {
-        console.log('Loading skill types alongside equipment');
-        await fetchSkillTypes();
-      }
       
       return equipmentWithIds;
     } catch (error) {
@@ -1835,12 +1736,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       startTransition(() => {
                         setSelectedSkillType(value);
                       });
-                    }}
-                    onFocus={() => {
-                      // Load skill sets when the dropdown gets focus
-                      if (!hasLoadedSkillTypesRef.current) {
-                        fetchSkillTypes();
-                      }
                     }}
                     className="w-full p-2 border rounded-md"
                   >

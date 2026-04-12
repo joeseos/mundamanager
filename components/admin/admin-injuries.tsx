@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,15 +25,41 @@ interface AdminInjuriesGlitchesModalProps {
 }
 
 export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesGlitchesModalProps) {
+  const queryClient = useQueryClient();
+
   const [selectedCategory, setSelectedCategory] = useState<'injuries' | 'rig-glitches'>('injuries');
-  const [categories, setCategories] = useState<FighterEffectCategory[]>([]);
-  const [effects, setEffects] = useState<FighterEffectType[]>([]);
   const [selectedEffectId, setSelectedEffectId] = useState('');
   const [effectName, setEffectName] = useState('');
   const [isCreateMode, setIsCreateMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [fighterEffects, setFighterEffects] = useState<FighterEffectType[]>([]);
-  const [fighterEffectCategories, setFighterEffectCategories] = useState<FighterEffectCategory[]>([]);
+
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<FighterEffectCategory[]>({
+    queryKey: ['admin-injury-categories'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-effects?categories=true');
+      if (!response.ok) throw new Error('Failed to fetch categories');
+      const data = await response.json();
+      return data.filter(
+        (cat: FighterEffectCategory) => cat.category_name === 'injuries' || cat.category_name === 'rig-glitches'
+      );
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedCategoryId = categories.find(cat => cat.category_name === selectedCategory)?.id;
+
+  const { data: effects = [], isLoading: isLoadingEffects } = useQuery<FighterEffectType[]>({
+    queryKey: ['admin-fighter-effects', selectedCategoryId],
+    queryFn: async () => {
+      const response = await fetch(`/api/admin/fighter-effects?categoryId=${selectedCategoryId}`);
+      if (!response.ok) throw new Error('Failed to fetch effects');
+      return response.json();
+    },
+    enabled: !!selectedCategoryId,
+  });
+
+  const isLoading = isLoadingCategories || isLoadingEffects || isSubmitting;
 
   // Type-specific data fields
   const [recovery, setRecovery] = useState<boolean>(false);
@@ -45,52 +72,6 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
 
   // Computed disabled state for form fields
   const isFormDisabled = (!isCreateMode && !selectedEffectId) || isLoading;
-
-  // Fetch categories on mount
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  // Fetch effects when category changes
-  useEffect(() => {
-    if (categories.length > 0) {
-      fetchEffects();
-    }
-  }, [selectedCategory, categories]);
-
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch('/api/admin/fighter-effects?categories=true');
-      if (!response.ok) throw new Error('Failed to fetch categories');
-      const data = await response.json();
-
-      // Filter to only injuries and rig-glitches
-      const relevantCategories = data.filter(
-        (cat: FighterEffectCategory) => cat.category_name === 'injuries' || cat.category_name === 'rig-glitches'
-      );
-
-      setCategories(relevantCategories);
-      setFighterEffectCategories(relevantCategories);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      toast.error('Failed to load categories');
-    }
-  };
-
-  const fetchEffects = async () => {
-    const category = categories.find(cat => cat.category_name === selectedCategory);
-    if (!category) return;
-
-    try {
-      const response = await fetch(`/api/admin/fighter-effects?categoryId=${category.id}`);
-      if (!response.ok) throw new Error('Failed to fetch effects');
-      const data = await response.json();
-      setEffects(data);
-    } catch (error) {
-      console.error('Error fetching effects:', error);
-      toast.error('Failed to load effects');
-    }
-  };
 
   const handleCategoryChange = (newCategory: 'injuries' | 'rig-glitches') => {
     setSelectedCategory(newCategory);
@@ -159,7 +140,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       let url = '/api/admin/fighter-effects';
       let method: string;
@@ -218,7 +199,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       toast.success(`Effect ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
       // Refresh the effects list
-      await fetchEffects();
+      await queryClient.invalidateQueries({ queryKey: ['admin-fighter-effects', selectedCategoryId] });
 
       // If created, select the new effect to allow adding modifiers
       if (operation === OperationType.POST && resultData.id) {
@@ -245,7 +226,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       console.error(`Error executing ${operation} operation:`, error);
       toast.error(error instanceof Error ? error.message : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} effect`);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -309,7 +290,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
       }
 
       // Refresh the effects list to get the real IDs from the database
-      await fetchEffects();
+      await queryClient.invalidateQueries({ queryKey: ['admin-fighter-effects', selectedCategoryId] });
 
       // Re-fetch the selected effect to update the local state with real IDs
       const effectResponse = await fetch(`/api/admin/fighter-effects?id=${selectedEffectId}`);
@@ -500,8 +481,8 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
                   equipmentId={selectedEffectId}
                   isSkill={false}
                   fighterEffects={fighterEffects}
-                  fighterEffectCategories={fighterEffectCategories}
-                  onUpdate={() => fetchEffects()}
+                  fighterEffectCategories={categories}
+                  onUpdate={() => queryClient.invalidateQueries({ queryKey: ['admin-fighter-effects', selectedCategoryId] })}
                   onChange={handleEffectsChange}
                   hideEquipmentOption={true}
                 />

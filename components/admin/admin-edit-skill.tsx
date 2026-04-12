@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
@@ -142,49 +143,37 @@ interface AdminEditSkillModalProps {
 }
 
 export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
+  const queryClient = useQueryClient();
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
   const [skillNameList, setSkillList] = useState<Skill[]>([]);
-  const [skillTypeList, setSkillTypes] = useState<Array<{id: string, skill_type: string}>>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
-  const [gangOriginList, setGangOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
   const [gangOrigin, setGangOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [skillEffects, setSkillEffects] = useState<any[]>([]);
   const [skillsCategoryId, setSkillsCategoryId] = useState('');
   const [effectCategories, setEffectCategories] = useState<any[]>([]);
 
-  
+  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string}>>({
+    queryKey: ['admin-skill-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/skill-types');
+      if (!response.ok) throw new Error('Failed to fetch skill sets');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    const fetchSkillTypes = async () => {
-      try {
-        const response = await fetch('/api/admin/skill-types');
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
-        const data = await response.json();
-        setSkillTypes(data);
-      } catch (error) {
-        console.error('Error fetching skill sets:', error);
-        toast.error('Failed to load skill sets');
-      }
-    };
-
-    const fetchGangOrigins = async () => {
-      try {
-        const response = await fetch('/api/admin/gang-origins');
-        if (!response.ok) throw new Error('Failed to fetch Gang Origins');
-        const data = await response.json();
-        setGangOriginList(data);
-      } catch (error) {
-        console.error('Error fetching Gang Origins:', error);
-        toast.error('Failed to load Gang Origins');
-      }
-    };
-
-    fetchSkillTypes();
-    fetchGangOrigins();
-  }, [toast]);
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+    queryKey: ['admin-gang-origins'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-origins');
+      if (!response.ok) throw new Error('Failed to fetch Gang Origins');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
 
   // Set skill effects when skill selected from dropdown
@@ -299,6 +288,8 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
 
     toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
+    await queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] });
+
     if (onSubmit) {
       onSubmit();
     }
@@ -368,6 +359,11 @@ const handleSubmitSkill = async (operation: OperationType) => {
     }
 
     toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
+
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
+      queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
+    ]);
 
     if (onSubmit) {
       onSubmit();

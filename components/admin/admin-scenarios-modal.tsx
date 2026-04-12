@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
@@ -23,30 +24,25 @@ interface AdminScenariosModalProps {
 }
 
 export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalProps) {
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const queryClient = useQueryClient();
+
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
   const [scenarioName, setScenarioName] = useState('');
   const [scenarioNumber, setScenarioNumber] = useState<number | ''>('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
 
-  
-
-  useEffect(() => {
-    fetchScenarios();
-  }, []);
-
-  const fetchScenarios = async () => {
-    try {
+  const { data: scenarios = [], isLoading: isLoadingScenarios } = useQuery<Scenario[]>({
+    queryKey: ['admin-scenarios'],
+    queryFn: async () => {
       const response = await fetch('/api/admin/scenarios');
       if (!response.ok) throw new Error('Failed to fetch scenarios');
-      const data = await response.json();
-      setScenarios(data);
-    } catch (error) {
-      console.error('Error fetching scenarios:', error);
-      toast.error('Failed to load scenarios');
-    }
-  };
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isLoading = isLoadingScenarios || isSubmitting;
 
   const handleScenarioSelect = (scenarioId: string) => {
     setSelectedScenarioId(scenarioId);
@@ -78,7 +74,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       let url = '/api/admin/scenarios';
       let method: string;
@@ -125,7 +121,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
       toast.success(`Scenario ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
       // Refresh the scenarios list
-      await fetchScenarios();
+      await queryClient.invalidateQueries({ queryKey: ['admin-scenarios'] });
       
       // Reset form
       setSelectedScenarioId('');
@@ -140,7 +136,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
       console.error(`Error executing ${operation} operation:`, error);
       toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} scenario`);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
