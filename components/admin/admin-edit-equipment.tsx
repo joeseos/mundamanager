@@ -160,6 +160,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       return response.json();
     },
     enabled: !!selectedEquipmentId,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Sync equipment details to form state

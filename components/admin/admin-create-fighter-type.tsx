@@ -159,7 +159,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   });
 
   const { data: equipment = [] } = useQuery<EquipmentWithId[]>({
-    queryKey: ['admin-equipment-all'],
+    queryKey: ['admin-equipment-list'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment');
       if (!response.ok) throw new Error('Failed to fetch equipment');

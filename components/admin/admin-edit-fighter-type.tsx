@@ -263,7 +263,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   });
 
   const { data: gangAffiliations = [] } = useQuery<GangAffiliation[]>({
-    queryKey: ['admin-gang-affiliations'],
+    queryKey: ['admin-lineages', 'affiliation'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-lineages?type=affiliation');
       if (!response.ok) throw new Error('Failed to fetch gang affiliations');
@@ -1089,7 +1089,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-fighter-classes'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-gang-affiliations'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
       ]);
 
       if (onSubmit) {

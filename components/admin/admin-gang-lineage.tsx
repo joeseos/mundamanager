@@ -135,6 +135,8 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
       return response.json();
     },
     enabled: !!selectedGangLineageId && !!selectedType,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Sync lineage details to form state
