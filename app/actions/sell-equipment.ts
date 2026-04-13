@@ -78,7 +78,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         vehicle_id,
         equipment_id,
         custom_equipment_id,
-        purchase_cost
+        purchase_cost,
+        equipment:equipment_id (equipment_category)
       `)
       .eq('id', params.fighter_equipment_id)
       .single();
@@ -97,7 +98,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Get gang_id and status from fighter
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, killed, retired, enslaved, captured')
+        .select('gang_id, user_id, killed, retired, enslaved, captured, fighter_class')
         .eq('id', equipmentData.fighter_id)
         .single();
 
@@ -107,6 +108,22 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       gangId = fighter.gang_id;
       gangOwnerUserId = fighter.user_id ?? null;
       fighterIsActive = countsTowardRating(fighter);
+
+      // Exotic beasts derive their rating contribution from the owner, not themselves.
+      // Check the owner's active status instead.
+      if (fighterIsActive && fighter.fighter_class?.toLowerCase().startsWith('exotic beast')) {
+        const { data: beastOwnership } = await supabase
+          .from('fighter_exotic_beasts')
+          .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
+          .eq('fighter_pet_id', equipmentData.fighter_id)
+          .maybeSingle();
+
+        if (beastOwnership?.fighters) {
+          fighterIsActive = countsTowardRating(beastOwnership.fighters as any);
+        } else if (beastOwnership && !beastOwnership.fighter_owner_id) {
+          fighterIsActive = false;
+        }
+      }
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle and whether vehicle is assigned
       const { data: vehicle, error: vehicleError } = await supabase
@@ -181,6 +198,33 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       .select('id, type_specific_data')
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
+    // Query beast equipment cost before deletion (cascade may delete beast data)
+    let beastEquipmentCost = 0;
+    if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts' && equipmentData.fighter_id) {
+      const { data: beastData } = await supabase
+        .from('fighter_exotic_beasts')
+        .select(`
+          fighter_pet_id,
+          fighters!fighter_pet_id!inner (
+            fighter_equipment!fighter_id (purchase_cost)
+          )
+        `)
+        .eq('fighter_equipment_id', params.fighter_equipment_id)
+        .eq('fighters.killed', false)
+        .eq('fighters.retired', false)
+        .eq('fighters.enslaved', false)
+        .eq('fighters.captured', false);
+
+      if (beastData && beastData.length > 0) {
+        beastEquipmentCost = beastData.reduce((sum: number, beast: any) => {
+          const equipCost = (beast.fighters?.fighter_equipment as any[])?.reduce(
+            (s: number, eq: any) => s + (eq.purchase_cost || 0), 0
+          ) || 0;
+          return sum + equipCost;
+        }, 0);
+      }
+    }
+
     // Start transaction-like sequence: Delete equipment and update gang credits
     const { error: deleteError } = await supabase
       .from('fighter_equipment')
@@ -199,6 +243,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       ratingDelta -= (equipmentData.purchase_cost || 0);
       const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
       ratingDelta -= effectsCredits;
+      ratingDelta -= beastEquipmentCost;
     }
 
     // Update credits, rating and wealth using centralized helper
@@ -249,6 +294,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
           gangId,
           advancementType: 'effect'
         });
+      }
+      // If selling exotic beast equipment, invalidate beast costs cache
+      if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id));
       }
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase);
@@ -324,7 +373,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash, purchase_cost')
+      .select('id, gang_id, gang_stash, purchase_cost, equipment:equipment_id (equipment_category)')
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
@@ -333,14 +382,41 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     const sellValue = Math.floor(params.manual_cost || 0);
     const purchaseCost = row.purchase_cost || 0;
 
+    // Query beast equipment cost before deletion (only for exotic beast equipment)
+    let beastEquipmentCost = 0;
+    if ((row as any).equipment?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+      const { data: beastData } = await supabase
+        .from('fighter_exotic_beasts')
+        .select(`
+          fighter_pet_id,
+          fighters!fighter_pet_id!inner (
+            fighter_equipment!fighter_id (purchase_cost)
+          )
+        `)
+        .eq('fighter_equipment_id', params.stash_id)
+        .eq('fighters.killed', false)
+        .eq('fighters.retired', false)
+        .eq('fighters.enslaved', false)
+        .eq('fighters.captured', false);
+
+      if (beastData && beastData.length > 0) {
+        beastEquipmentCost = beastData.reduce((sum: number, beast: any) => {
+          const equipCost = (beast.fighters?.fighter_equipment as any[])?.reduce(
+            (s: number, eq: any) => s + (eq.purchase_cost || 0), 0
+          ) || 0;
+          return sum + equipCost;
+        }, 0);
+      }
+    }
+
     // Update credits, rating and wealth using centralized helper
     // When selling from stash:
     // - Credits increase by sellValue
-    // - Stash value decreases by purchaseCost (what was originally paid)
+    // - Stash value decreases by purchaseCost + beastEquipmentCost
     const financialResult = await updateGangFinancials(supabase, {
       gangId: row.gang_id,
       creditsDelta: sellValue,
-      stashValueDelta: -purchaseCost
+      stashValueDelta: -(purchaseCost + beastEquipmentCost)
     });
 
     if (!financialResult.success) {
