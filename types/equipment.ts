@@ -128,7 +128,6 @@ export interface CustomEquipment {
   equipment_name: string;
   availability: string;
   cost: number;
-  faction?: string;
   variant?: string;
   equipment_category?: string;
   equipment_category_id?: string;

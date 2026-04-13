@@ -71,7 +71,6 @@ BEGIN
                         'equipment_category', e.equipment_category,
                         'cost', 0,  -- Always show 0 for default equipment
                         'availability', e.availability,
-                        'faction', e.faction,
                         'is_editable', COALESCE(e.is_editable, false)
                     )
                 )

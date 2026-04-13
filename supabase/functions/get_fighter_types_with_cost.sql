@@ -78,8 +78,7 @@ BEGIN
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
                     'cost', 0,
-                    'availability', e.availability,
-                    'faction', e.faction
+                    'availability', e.availability
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd

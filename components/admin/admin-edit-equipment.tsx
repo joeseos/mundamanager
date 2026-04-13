@@ -60,7 +60,6 @@ interface Equipment {
   equipment_name: string;
   availability: string;
   cost: number;
-  faction: string;
   variants: string;
   equipment_category: string;
   equipment_type: EquipmentType;
@@ -77,7 +76,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [equipmentName, setEquipmentName] = useState('');
   const [availability, setAvailability] = useState('');
   const [cost, setCost] = useState('');
-  const [faction, setFaction] = useState('');
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
@@ -170,7 +168,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setEquipmentName('');
       setAvailability('');
       setCost('');
-      setFaction('');
       setVariants('');
       setEquipmentType('');
       setCoreEquipment(false);
@@ -205,7 +202,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     setEquipmentName(equipmentDetails.equipment_name);
     setAvailability(equipmentDetails.availability || '');
     setCost(equipmentDetails.cost?.toString() || '');
-    setFaction(equipmentDetails.faction || '');
     setVariants(equipmentDetails.variants || '');
     setEquipmentCategory(equipmentDetails.equipment_category_id);
     setEquipmentType(equipmentDetails.equipment_type);
@@ -409,7 +405,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         equipment_name: equipmentName,
         availability,
         cost: parseInt(cost),
-        faction,
         variants,
         equipment_category: selectedCategory.category_name,
         equipment_category_id: equipmentCategory,

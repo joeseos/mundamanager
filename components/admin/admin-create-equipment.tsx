@@ -35,7 +35,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [equipmentName, setEquipmentName] = useState('');
   const [availability, setAvailability] = useState('');
   const [cost, setCost] = useState('');
-  const [faction, setFaction] = useState('');
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
@@ -167,7 +166,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           equipment_name: equipmentName,
           availability: availability || null,
           cost: parseInt(cost),
-          faction: faction || null,
           variants: variants || null,
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
