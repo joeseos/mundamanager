@@ -353,6 +353,12 @@ export function AdvancementModal({
         variables.ganger_characteristic_code ??
         (selectedAdvancement?.characteristic_code ||
           statChangeName.toLowerCase().replace(/\s+/g, '_'));
+      // "+" stats (lower is better) use -1; normal stats use 1
+      const plusStats = new Set([
+        'weapon_skill', 'ballistic_skill', 'initiative',
+        'leadership', 'cool', 'willpower', 'intelligence'
+      ]);
+      const numericValue = plusStats.has(characteristicCode) ? -1 : 1;
       const optimisticAdvancement = {
         id: optimisticId,
         effect_name: advancementName,
@@ -360,7 +366,7 @@ export function AdvancementModal({
           id: `${optimisticId}-modifier`,
           fighter_effect_id: optimisticId,
           stat_name: characteristicCode,
-          numeric_value: 1
+          numeric_value: numericValue
         }],
         created_at: new Date().toISOString(),
         type_specific_data: {
