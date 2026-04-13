@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict oVDl21TPNgGNgCcD0mxLBsPvaKU6pXeh6f7BImOK9NN9Iobee4iTTl8wj86xgA5
+\restrict aZlrr4PPJ30z7WfCZPAhIMra1MuNILdLTnyUEceGIj8zSfDs67I9DtXXKvqaHhC
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -496,7 +496,6 @@ BEGIN
                         'equipment_category', e.equipment_category,
                         'cost', 0,  -- Always show 0 for default equipment
                         'availability', e.availability,
-                        'faction', e.faction,
                         'is_editable', COALESCE(e.is_editable, false)
                     )
                 )
@@ -1944,8 +1943,7 @@ BEGIN
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
                     'cost', 0,
-                    'availability', e.availability,
-                    'faction', e.faction
+                    'availability', e.availability
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd
@@ -3923,6 +3921,36 @@ COMMENT ON COLUMN public.campaign_gangs.campaign_allegiance_id IS 'Gang''s alleg
 
 
 --
+-- Name: campaign_map_objects; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_map_objects (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    campaign_map_id uuid NOT NULL,
+    object_type text NOT NULL,
+    geometry jsonb NOT NULL,
+    properties jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: campaign_maps; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_maps (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    campaign_id uuid NOT NULL,
+    background_image_url text NOT NULL,
+    hex_grid_enabled boolean DEFAULT false NOT NULL,
+    hex_size numeric DEFAULT 50 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+--
 -- Name: campaign_members; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3987,7 +4015,10 @@ CREATE TABLE public.campaign_territories (
     default_gang_territory boolean DEFAULT false,
     custom_territory_id uuid,
     playing_card text,
-    description text
+    description text,
+    map_object_id uuid,
+    map_hex_coords jsonb,
+    show_name_on_map boolean DEFAULT true
 );
 
 
@@ -4107,10 +4138,10 @@ CREATE TABLE public.custom_equipment (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone,
     equipment_name text,
-    trading_post_category text,
+    "OLDtrading_post_category" text,
     availability text,
     cost numeric,
-    faction text,
+    "OLDfaction" text,
     variant text,
     equipment_category text,
     equipment_category_id uuid,
@@ -4244,10 +4275,10 @@ CREATE TABLE public.custom_weapon_profiles (
 CREATE TABLE public.equipment (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     equipment_name text,
-    trading_post_category text,
+    "OLDtrading_post_category" text,
     availability text,
     cost numeric,
-    faction text,
+    "OLDfaction" text,
     variants text,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_category text NOT NULL,
@@ -5300,6 +5331,30 @@ ALTER TABLE ONLY public.campaign_gang_resources
 
 
 --
+-- Name: campaign_map_objects campaign_map_objects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_map_objects
+    ADD CONSTRAINT campaign_map_objects_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_maps campaign_maps_campaign_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_maps
+    ADD CONSTRAINT campaign_maps_campaign_id_key UNIQUE (campaign_id);
+
+
+--
+-- Name: campaign_maps campaign_maps_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_maps
+    ADD CONSTRAINT campaign_maps_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: campaign_gangs campaign_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6057,6 +6112,20 @@ CREATE INDEX equipment_discounts_gang_origin_id_idx ON public.equipment_discount
 
 
 --
+-- Name: equipment_equipment_category_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_equipment_category_id_idx ON public.equipment USING btree (equipment_category_id);
+
+
+--
+-- Name: equipment_equipment_category_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX equipment_equipment_category_idx ON public.equipment USING btree (equipment_category);
+
+
+--
 -- Name: equipment_equipment_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6778,6 +6847,22 @@ ALTER TABLE ONLY public.campaign_gangs
 
 
 --
+-- Name: campaign_map_objects campaign_map_objects_campaign_map_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_map_objects
+    ADD CONSTRAINT campaign_map_objects_campaign_map_id_fkey FOREIGN KEY (campaign_map_id) REFERENCES public.campaign_maps(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_maps campaign_maps_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_maps
+    ADD CONSTRAINT campaign_maps_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6791,6 +6876,14 @@ ALTER TABLE ONLY public.campaign_resources
 
 ALTER TABLE ONLY public.campaign_territories
     ADD CONSTRAINT campaign_territories_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_territories campaign_territories_map_object_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_territories
+    ADD CONSTRAINT campaign_territories_map_object_id_fkey FOREIGN KEY (map_object_id) REFERENCES public.campaign_map_objects(id) ON DELETE SET NULL;
 
 
 --
@@ -8283,6 +8376,62 @@ CREATE POLICY "Campaign OWNER/ARBITRATOR or system admin can delete members, m" 
 
 
 --
+-- Name: campaign_map_objects Campaign map objects are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign map objects are viewable by everyone" ON public.campaign_map_objects FOR SELECT USING (true);
+
+
+--
+-- Name: campaign_map_objects Campaign map objects can be deleted by authenticated users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign map objects can be deleted by authenticated users" ON public.campaign_map_objects FOR DELETE TO authenticated USING (true);
+
+
+--
+-- Name: campaign_map_objects Campaign map objects can be inserted by authenticated users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign map objects can be inserted by authenticated users" ON public.campaign_map_objects FOR INSERT TO authenticated WITH CHECK (true);
+
+
+--
+-- Name: campaign_map_objects Campaign map objects can be updated by authenticated users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign map objects can be updated by authenticated users" ON public.campaign_map_objects FOR UPDATE TO authenticated USING (true);
+
+
+--
+-- Name: campaign_maps Campaign maps are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign maps are viewable by everyone" ON public.campaign_maps FOR SELECT USING (true);
+
+
+--
+-- Name: campaign_maps Campaign maps can be deleted by authenticated users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign maps can be deleted by authenticated users" ON public.campaign_maps FOR DELETE TO authenticated USING (true);
+
+
+--
+-- Name: campaign_maps Campaign maps can be inserted by authenticated users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign maps can be inserted by authenticated users" ON public.campaign_maps FOR INSERT TO authenticated WITH CHECK (true);
+
+
+--
+-- Name: campaign_maps Campaign maps can be updated by authenticated users; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Campaign maps can be updated by authenticated users" ON public.campaign_maps FOR UPDATE TO authenticated USING (true);
+
+
+--
 -- Name: battle_sessions Campaign members can create battle sessions; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9582,6 +9731,18 @@ ALTER TABLE public.campaign_gang_resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.campaign_gangs ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: campaign_map_objects; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_map_objects ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_maps; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_maps ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: campaign_members; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10459,5 +10620,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict oVDl21TPNgGNgCcD0mxLBsPvaKU6pXeh6f7BImOK9NN9Iobee4iTTl8wj86xgA5
+\unrestrict aZlrr4PPJ30z7WfCZPAhIMra1MuNILdLTnyUEceGIj8zSfDs67I9DtXXKvqaHhC
 
