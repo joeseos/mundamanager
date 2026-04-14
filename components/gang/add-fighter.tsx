@@ -487,7 +487,9 @@ export default function AddFighter({
         gang_type: type.gang_type,
         cost: type.cost,
         gang_type_id: type.gang_type_id,
-        special_rules: type.special_rules || [],
+        special_rules: (type.special_rules || [])
+          .map((r: string) => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r)
+          .filter(Boolean),
         total_cost: type.total_cost,
         movement: type.movement,
         weapon_skill: type.weapon_skill,
