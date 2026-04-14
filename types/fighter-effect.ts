@@ -99,6 +99,7 @@ export interface FighterEffectModifier {
   fighter_effect_id: string;
   stat_name: string;
   numeric_value: number;
+  operation?: 'add' | 'set';
 }
 
 /** Applied effect instance on a fighter */

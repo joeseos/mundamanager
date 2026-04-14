@@ -102,6 +102,19 @@ export interface AddFighterServerData {
     skill_name: string;
   }>;
   special_rules?: string[];
+  applied_effects?: Array<{
+    id: string;
+    effect_name: string;
+    type_specific_data?: any;
+    created_at: string;
+    category_name?: string;
+    fighter_effect_modifiers: Array<{
+      fighter_effect_id: string;
+      stat_name: string;
+      numeric_value: number;
+      operation?: 'add' | 'set';
+    }>;
+  }>;
 }
 
 /**
@@ -193,7 +206,41 @@ export function buildSkillsFromServerData(skills: AddFighterServerData['skills']
 }
 
 /**
- * Builds a FighterProps object from server response data
+ * Builds effects object from server-returned applied_effects, grouped by category.
+ * Matches the shape produced by the DB-load path in gang-data.ts.
+ */
+function buildEffectsFromAppliedEffects(
+  appliedEffects: AddFighterServerData['applied_effects']
+): FighterProps['effects'] {
+  const effects = createEmptyEffects();
+  if (!appliedEffects) return effects;
+
+  for (const effect of appliedEffects) {
+    const category = effect.category_name;
+    if (category && category in effects) {
+      (effects as Record<string, any[]>)[category].push({
+        id: effect.id,
+        effect_name: effect.effect_name,
+        type_specific_data: effect.type_specific_data,
+        created_at: effect.created_at,
+        fighter_effect_modifiers: effect.fighter_effect_modifiers.map(mod => ({
+          id: mod.fighter_effect_id,
+          fighter_effect_id: mod.fighter_effect_id,
+          stat_name: mod.stat_name,
+          numeric_value: mod.numeric_value,
+          operation: mod.operation,
+        }))
+      });
+    }
+  }
+
+  return effects;
+}
+
+/**
+ * Builds a FighterProps object from server response data.
+ * Uses base_stats for top-level stats and populates effects from applied_effects,
+ * matching the structure produced by the DB-load path (gang-data.ts).
  */
 export function buildFighterFromServerData(
   data: AddFighterServerData,
@@ -213,18 +260,18 @@ export function buildFighterFromServerData(
       fighter_sub_type: subTypeName || ''
     } : undefined,
     credits: displayCost,
-    movement: data.stats.movement,
-    weapon_skill: data.stats.weapon_skill,
-    ballistic_skill: data.stats.ballistic_skill,
-    strength: data.stats.strength,
-    toughness: data.stats.toughness,
-    wounds: data.stats.wounds,
-    initiative: data.stats.initiative,
-    attacks: data.stats.attacks,
-    leadership: data.stats.leadership,
-    cool: data.stats.cool,
-    willpower: data.stats.willpower,
-    intelligence: data.stats.intelligence,
+    movement: data.base_stats.movement,
+    weapon_skill: data.base_stats.weapon_skill,
+    ballistic_skill: data.base_stats.ballistic_skill,
+    strength: data.base_stats.strength,
+    toughness: data.base_stats.toughness,
+    wounds: data.base_stats.wounds,
+    initiative: data.base_stats.initiative,
+    attacks: data.base_stats.attacks,
+    leadership: data.base_stats.leadership,
+    cool: data.base_stats.cool,
+    willpower: data.base_stats.willpower,
+    intelligence: data.base_stats.intelligence,
     xp: data.stats.xp,
     kills: 0,
     weapons: buildWeaponsFromEquipment(data.equipment),
@@ -236,7 +283,7 @@ export function buildFighterFromServerData(
       skills: {}
     },
     free_skill: data.free_skill || false,
-    effects: createEmptyEffects(),
+    effects: buildEffectsFromAppliedEffects(data.applied_effects),
     base_stats: createStats(data.base_stats),
     current_stats: createStats(data.current_stats)
   };
