@@ -277,7 +277,12 @@ function calculateStatsWithEffects(baseStats: any, appliedEffects: any[]) {
 
         const statKey = statMapping[statName];
         if (statKey && modifiedStats[statKey] !== undefined) {
-          modifiedStats[statKey] += value;
+          const operation = modifier.operation || 'add';
+          if (operation === 'set') {
+            modifiedStats[statKey] = value;
+          } else {
+            modifiedStats[statKey] += value;
+          }
         }
       });
     }
