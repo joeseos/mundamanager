@@ -39,6 +39,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         name: params.newName.trimEnd(),
         user_id: user.id,
         gang_type_id: sourceGang.gang_type_id,
+        custom_gang_type_id: sourceGang.custom_gang_type_id,
         gang_type: sourceGang.gang_type,
         gang_colour: sourceGang.gang_colour,
         alignment: sourceGang.alignment,

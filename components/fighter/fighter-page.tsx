@@ -130,7 +130,8 @@ interface Gang {
   id: string;
   credits: number;
   positioning?: Record<number, string>;
-  gang_type_id: string;
+  gang_type_id?: string | null;
+  custom_gang_type_id?: string | null;
   gang_affiliation_id?: string | null;
   gang_affiliation_name?: string;
   rating?: number;
@@ -320,6 +321,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       id: fighterData.gang.id,
       credits: fighterData.gang.credits,
       gang_type_id: fighterData.gang.gang_type_id,
+      custom_gang_type_id: fighterData.gang.custom_gang_type_id,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
       gang_affiliation_name: fighterData.gang.gang_affiliation_name,
       positioning: fighterData.gang.positioning
@@ -360,13 +362,13 @@ export default function FighterPage({
   const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
 
   // Fetch fighter types for edit modal
-  const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId: string) => {
+  const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId?: string | null) => {
     try {
       const params = new URLSearchParams({
         gang_id: gangId,
-        gang_type_id: gangTypeId,
         is_gang_addition: 'false'
       });
+      if (gangTypeId) params.set('gang_type_id', gangTypeId);
       
       const response = await fetch(`/api/fighter-types?${params}`);
       
@@ -546,8 +548,8 @@ export default function FighterPage({
   // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
     // If opening the Edit Fighter modal, fetch fighter types first
-    if (modalName === 'editFighter' && value && fighterData.gang?.id && fighterData.gang?.gang_type_id) {
-      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id).then(() => {
+    if (modalName === 'editFighter' && value && fighterData.gang?.id && (fighterData.gang?.gang_type_id || fighterData.gang?.custom_gang_type_id)) {
+      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id || '').then(() => {
         setUiState(prev => ({
           ...prev,
           modals: {
@@ -822,8 +824,8 @@ export default function FighterPage({
             userPermissions={userPermissions}
             preFetchedFighterTypes={preFetchedFighterTypes}
             onEnsureFighterTypes={async () => {
-              if (fighterData.gang?.id && fighterData.gang?.gang_type_id) {
-                await fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id);
+              if (fighterData.gang?.id && (fighterData.gang?.gang_type_id || fighterData.gang?.custom_gang_type_id)) {
+                await fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id || '');
               }
             }}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}

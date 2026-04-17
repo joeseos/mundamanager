@@ -18,10 +18,13 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     if (gangError) throw gangError;
 
     // Then get vehicle types that match the gang type or are universal (null gang_type_id)
+    const gangTypeFilter = gang.gang_type_id
+      ? `gang_type_id.eq.${gang.gang_type_id},gang_type_id.is.null`
+      : `gang_type_id.is.null`;
     const { data: vehicleTypes, error } = await supabase
       .from('vehicle_types')
       .select('*')
-      .or(`gang_type_id.eq.${gang.gang_type_id},gang_type_id.is.null`)
+      .or(gangTypeFilter)
       .order('vehicle_type');
 
     if (error) throw error;

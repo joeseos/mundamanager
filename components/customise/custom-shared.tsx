@@ -6,7 +6,8 @@ import { CustomEquipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
-import { shareCustomFighter, shareCustomEquipment } from '@/app/actions/customise/custom-share';
+import { shareCustomFighter, shareCustomEquipment, shareCustomGangType } from '@/app/actions/customise/custom-share';
+import { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 
@@ -280,6 +281,140 @@ export function ShareCustomEquipmentModal({
                 />
                 <label
                   htmlFor={`equip-campaign-${campaign.id}`}
+                  className="flex-1 cursor-pointer"
+                >
+                  <div className="font-medium">{campaign.campaign_name}</div>
+                  {campaign.status && (
+                    <div className="text-sm text-muted-foreground">
+                      Status: {campaign.status}
+                    </div>
+                  )}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+interface ShareCustomGangTypeModalProps {
+  gangType: CustomGangType;
+  userCampaigns: UserCampaign[];
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export function ShareCustomGangTypeModal({
+  gangType,
+  userCampaigns,
+  onClose,
+  onSuccess
+}: ShareCustomGangTypeModalProps) {
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+
+  const queryClient = useQueryClient();
+
+  const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
+    queryKey: ['customSharedCampaigns', 'gangType', gangType.id],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('custom_shared')
+        .select('campaign_id')
+        .eq('custom_gang_type_id', gangType.id);
+
+      if (error) throw error;
+      return data?.map(share => share.campaign_id) || [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (isSuccess) {
+      setSelectedCampaigns(sharedCampaignIds);
+    }
+  }, [isSuccess, sharedCampaignIds]);
+
+  useEffect(() => {
+    if (fetchError) {
+      toast.error('Failed to load shared campaigns');
+    }
+  }, [fetchError]);
+
+  const shareGangTypeMutation = useMutation({
+    mutationFn: (campaignIds: string[]) => shareCustomGangType(gangType.id, campaignIds),
+    onSuccess: (result, campaignIds) => {
+      if (result.success) {
+        toast.success(campaignIds.length > 0
+            ? `Custom gang type shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
+            : 'Custom gang type unshared from all campaigns');
+        queryClient.invalidateQueries({ queryKey: ['customGangTypes'] });
+        queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'gangType', gangType.id] });
+        onSuccess?.();
+        onClose();
+      } else {
+        toast.error(result.error || 'Failed to share custom gang type');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to share custom gang type');
+    }
+  });
+
+  const handleToggleCampaign = (campaignId: string) => {
+    setSelectedCampaigns(prev =>
+      prev.includes(campaignId)
+        ? prev.filter(id => id !== campaignId)
+        : [...prev, campaignId]
+    );
+  };
+
+  const handleSubmit = () => {
+    shareGangTypeMutation.mutate(selectedCampaigns);
+    return true;
+  };
+
+  return (
+    <Modal
+      title="Share Custom Gang Type"
+      helper="Select campaigns to share this custom gang type with. Custom fighters and skills belonging to this gang type will also be shared."
+      onClose={onClose}
+      onConfirm={handleSubmit}
+      confirmText={shareGangTypeMutation.isPending ? 'Sharing...' : 'Share Gang Type'}
+      confirmDisabled={shareGangTypeMutation.isPending || isLoading}
+      width="md"
+    >
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Loading...
+          </div>
+        ) : userCampaigns.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>You're not part of any campaigns yet.</p>
+            <p className="text-sm mt-2">You need to be an arbitrator of a campaign to share custom gang types to it.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground mb-4">
+              Sharing <strong>{gangType.gang_type}</strong> to campaigns:
+            </p>
+            {userCampaigns.map((campaign) => (
+              <div
+                key={campaign.id}
+                className="flex items-start space-x-3 p-3 border rounded-md hover:bg-muted/50 transition-colors"
+              >
+                <Checkbox
+                  id={`gangtype-campaign-${campaign.id}`}
+                  checked={selectedCampaigns.includes(campaign.id)}
+                  onCheckedChange={() => handleToggleCampaign(campaign.id)}
+                  className="mt-0.5"
+                />
+                <label
+                  htmlFor={`gangtype-campaign-${campaign.id}`}
                   className="flex-1 cursor-pointer"
                 >
                   <div className="font-medium">{campaign.campaign_name}</div>

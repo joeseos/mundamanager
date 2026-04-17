@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 interface CreateGangParams {
   name: string;
   gangTypeId: string;
+  customGangTypeId?: string;
   gangType: string;
   alignment: string;
   gangAffiliationId?: string | null;
@@ -19,6 +20,7 @@ interface CreateGangParams {
 export async function createGang({
   name,
   gangTypeId,
+  customGangTypeId,
   gangType,
   alignment,
   gangAffiliationId,
@@ -34,7 +36,7 @@ export async function createGang({
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
     
-    // Insert the new gang
+    // Insert the new gang (exclusive arc: gang_type_id or custom_gang_type_id, never both)
     const { data, error } = await supabase
       .from('gangs')
       .insert([{
@@ -44,7 +46,8 @@ export async function createGang({
         rating: 0,
         wealth: credits,
         user_id: user.id,
-        gang_type_id: gangTypeId,
+        gang_type_id: customGangTypeId ? null : gangTypeId,
+        custom_gang_type_id: customGangTypeId || null,
         gang_type: gangType,
         alignment,
         gang_affiliation_id: gangAffiliationId || null,

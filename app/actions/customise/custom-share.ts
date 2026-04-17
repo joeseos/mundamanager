@@ -123,6 +123,168 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
 }
 
 /**
+ * Share a custom gang type to selected campaigns.
+ * Cascades: also shares all custom_fighter_types belonging to this gang type,
+ * and their custom skills.
+ */
+export async function shareCustomGangType(customGangTypeId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    // Verify the custom gang type belongs to the user
+    const { data: customGangType, error: gangTypeError } = await supabase
+      .from('custom_gang_types')
+      .select('id, user_id')
+      .eq('id', customGangTypeId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (gangTypeError || !customGangType) {
+      return { success: false, error: 'Custom gang type not found or not owned by user' };
+    }
+
+    // Delete existing shares for this gang type
+    const { error: deleteError } = await supabase
+      .from('custom_shared')
+      .delete()
+      .eq('custom_gang_type_id', customGangTypeId)
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      console.error('Error deleting existing gang type shares:', deleteError);
+      return { success: false, error: `Failed to update shares: ${deleteError.message}` };
+    }
+
+    // Insert new shares if any campaigns selected
+    if (campaignIds.length > 0) {
+      const shareRows = campaignIds.map(campaignId => ({
+        custom_gang_type_id: customGangTypeId,
+        campaign_id: campaignId,
+        user_id: user.id
+      }));
+
+      const { error: insertError } = await supabase
+        .from('custom_shared')
+        .insert(shareRows);
+
+      if (insertError) {
+        console.error('Error inserting gang type shares:', insertError);
+        return { success: false, error: `Failed to share gang type: ${insertError.message}` };
+      }
+
+      // --- Cascade: share all custom fighters belonging to this gang type ---
+      const { data: relatedFighters } = await supabase
+        .from('custom_fighter_types')
+        .select('id')
+        .eq('custom_gang_type_id', customGangTypeId)
+        .eq('user_id', user.id);
+
+      const fighterIds = (relatedFighters ?? []).map(f => f.id);
+
+      if (fighterIds.length > 0) {
+        // Check which fighter shares already exist
+        const { data: existingFighterShares } = await supabase
+          .from('custom_shared')
+          .select('custom_fighter_type_id, campaign_id')
+          .in('campaign_id', campaignIds)
+          .eq('user_id', user.id)
+          .in('custom_fighter_type_id', fighterIds);
+
+        const alreadySharedFighters = new Set(
+          (existingFighterShares ?? []).map(s => `${s.campaign_id}:${s.custom_fighter_type_id}`)
+        );
+
+        const newFighterShares = campaignIds.flatMap(campaignId =>
+          fighterIds
+            .filter(fId => !alreadySharedFighters.has(`${campaignId}:${fId}`))
+            .map(fId => ({
+              custom_fighter_type_id: fId,
+              campaign_id: campaignId,
+              user_id: user.id
+            }))
+        );
+
+        if (newFighterShares.length > 0) {
+          const { error: shareFightersError } = await supabase
+            .from('custom_shared')
+            .insert(newFighterShares);
+
+          if (shareFightersError) {
+            console.error('Error auto-sharing custom fighters for gang type:', shareFightersError);
+          }
+        }
+
+        // --- Cascade: share custom skills referenced by these fighters ---
+        const { data: fighterSkillAccess } = await supabase
+          .from('fighter_type_skill_access')
+          .select('custom_skill_type_id')
+          .in('custom_fighter_type_id', fighterIds)
+          .not('custom_skill_type_id', 'is', null);
+
+        const customSkillTypeIds = Array.from(new Set(
+          (fighterSkillAccess ?? [])
+            .map(a => a.custom_skill_type_id)
+            .filter(Boolean) as string[]
+        ));
+
+        if (customSkillTypeIds.length > 0) {
+          const { data: customSkills } = await supabase
+            .from('custom_skills')
+            .select('id')
+            .in('custom_skill_type_id', customSkillTypeIds)
+            .eq('user_id', user.id);
+
+          const customSkillIds = (customSkills ?? []).map(s => s.id);
+
+          if (customSkillIds.length > 0) {
+            const { data: existingSkillShares } = await supabase
+              .from('custom_shared')
+              .select('custom_skill_id, campaign_id')
+              .in('campaign_id', campaignIds)
+              .eq('user_id', user.id)
+              .in('custom_skill_id', customSkillIds);
+
+            const alreadySharedSkills = new Set(
+              (existingSkillShares ?? []).map(s => `${s.campaign_id}:${s.custom_skill_id}`)
+            );
+
+            const newSkillShares = campaignIds.flatMap(campaignId =>
+              customSkillIds
+                .filter(skillId => !alreadySharedSkills.has(`${campaignId}:${skillId}`))
+                .map(skillId => ({
+                  custom_skill_id: skillId,
+                  campaign_id: campaignId,
+                  user_id: user.id
+                }))
+            );
+
+            if (newSkillShares.length > 0) {
+              const { error: shareSkillsError } = await supabase
+                .from('custom_shared')
+                .insert(newSkillShares);
+
+              if (shareSkillsError) {
+                console.error('Error auto-sharing custom skills for gang type:', shareSkillsError);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Error in shareCustomGangType:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
  * Share custom equipment to selected campaigns
  */
 export async function shareCustomEquipment(customEquipmentId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {

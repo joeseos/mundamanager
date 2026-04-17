@@ -52,7 +52,6 @@ export interface GangBasic {
   } | null;
   custom_gang_type_id?: string | null;
   custom_gang_types?: {
-    affiliation: boolean;
     gang_origin_category_id?: string;
     gang_origin_categories?: {
       category_name: string;
@@ -395,16 +394,41 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
 };
 
 /**
- * Get gang type information
- * Cache: GLOBAL_GANG_TYPES (shared since gang types rarely change)
+ * Get gang type information, resolving between system and custom gang types
+ * Cache: GLOBAL_GANG_TYPES (shared, 1 hour revalidation)
  */
-export const getGangType = async (gangTypeId: string, supabase: any): Promise<GangType> => {
+export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<GangType> => {
+  if (gangBasic.custom_gang_type_id) {
+    return unstable_cache(
+      async () => {
+        const { data, error } = await supabase
+          .from('custom_gang_types')
+          .select('id, gang_type, image_url, default_image_urls')
+          .eq('id', gangBasic.custom_gang_type_id)
+          .single();
+
+        if (error) throw error;
+        return {
+          id: data.id,
+          gang_type: data.gang_type,
+          image_url: data.image_url,
+          default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
+        };
+      },
+      [`custom-gang-type-${gangBasic.custom_gang_type_id}`],
+      {
+        tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
+        revalidate: 3600
+      }
+    )();
+  }
+
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
         .from('gang_types')
         .select('gang_type_id, gang_type, image_url, default_image_urls')
-        .eq('gang_type_id', gangTypeId)
+        .eq('gang_type_id', gangBasic.gang_type_id)
         .single();
 
       if (error) throw error;
@@ -415,54 +439,12 @@ export const getGangType = async (gangTypeId: string, supabase: any): Promise<Ga
         default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
       };
     },
-    [`gang-type-${gangTypeId}`],
-    {
-      tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
-      revalidate: 3600 // 1 hour - gang types rarely change
-    }
-  )();
-};
-
-/**
- * Get custom gang type information
- * Cache: GLOBAL_GANG_TYPES (shared with system gang types)
- */
-export const getCustomGangType = async (customGangTypeId: string, supabase: any): Promise<GangType> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('custom_gang_types')
-        .select('id, gang_type, image_url, default_image_urls')
-        .eq('id', customGangTypeId)
-        .single();
-
-      if (error) throw error;
-      return {
-        id: data.id,
-        gang_type: data.gang_type,
-        image_url: data.image_url,
-        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
-      };
-    },
-    [`custom-gang-type-${customGangTypeId}`],
+    [`gang-type-${gangBasic.gang_type_id}`],
     {
       tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
       revalidate: 3600
     }
   )();
-};
-
-/**
- * Fetches gang type info, resolving between system and custom
- */
-export const getResolvedGangType = async (
-  gangBasic: GangBasic,
-  supabase: any
-): Promise<GangType> => {
-  if (gangBasic.custom_gang_type_id) {
-    return getCustomGangType(gangBasic.custom_gang_type_id, supabase);
-  }
-  return getGangType(gangBasic.gang_type_id, supabase);
 };
 
 /**

@@ -12,10 +12,12 @@ import { CustomiseEquipment } from "@/components/customise/custom-equipment";
 import { CustomiseTerritories } from "@/components/customise/custom-territories";
 import { CustomiseFighters } from "@/components/customise/custom-fighters";
 import { CustomiseSkills } from "@/components/customise/custom-skills";
+import { CustomiseGangTypes } from "@/components/customise/custom-gang-types";
 import { CustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { CustomTerritory } from "@/app/lib/customise/custom-territories";
 import { CustomSkill } from "@/app/lib/customise/custom-skills";
 import { CustomFighterType } from "@/types/fighter";
+import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { useSession } from "@/hooks/use-session";
 import { toast } from 'sonner';
 
@@ -58,12 +60,14 @@ interface UserData {
     fighters: number;
     territories: number;
     skills: number;
+    gangTypes: number;
   };
   customAssetsData: {
     equipment: CustomEquipment[];
     fighters: CustomFighterType[];
     territories: CustomTerritory[];
     skills: CustomSkill[];
+    gangTypes: CustomGangType[];
   };
 }
 
@@ -185,7 +189,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               <MdOutlineColorLens className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">
-                  {customAssets.equipment + customAssets.fighters + customAssets.territories}
+                  {customAssets.equipment + customAssets.fighters + customAssets.territories + customAssets.gangTypes}
                 </p>
                 <p className="text-sm text-muted-foreground">Custom Assets</p>
               </div>
@@ -272,7 +276,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Custom Assets Section */}
-        {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.territories > 0 || customAssets.skills > 0) && (
+        {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.territories > 0 || customAssets.skills > 0 || customAssets.gangTypes > 0) && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -285,6 +289,16 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             </div>
             
             <div className="space-y-6">
+              {/* Custom Gang Types */}
+              {customAssetsData.gangTypes.length > 0 && (
+                <CustomiseGangTypes
+                  initialGangTypes={customAssetsData.gangTypes}
+                  readOnly={currentUserId !== profile.id}
+                  userId={currentUserId || undefined}
+                  userCampaigns={userCampaigns}
+                />
+              )}
+
               {/* Custom Equipment */}
               {customAssetsData.equipment.length > 0 && (
                 <CustomiseEquipment
@@ -325,7 +339,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Empty State */}
-        {gangs.length === 0 && campaigns.length === 0 && customAssets.equipment === 0 && customAssets.fighters === 0 && customAssets.territories === 0 && customAssets.skills === 0 && (
+        {gangs.length === 0 && campaigns.length === 0 && customAssets.equipment === 0 && customAssets.fighters === 0 && customAssets.territories === 0 && customAssets.skills === 0 && customAssets.gangTypes === 0 && (
           <div className="bg-card shadow-md rounded-lg p-8 text-center">
             <FaUser className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Public Activity</h3>

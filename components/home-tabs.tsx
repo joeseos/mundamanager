@@ -8,6 +8,8 @@ import type { CustomEquipment } from '@/app/lib/customise/custom-equipment'
 import type { CustomTerritory } from '@/app/lib/customise/custom-territories'
 import type { CustomSkill } from '@/app/lib/customise/custom-skills'
 import type { CustomFighterType } from '@/types/fighter'
+import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
+import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
 import { CustomiseEquipment } from '@/components/customise/custom-equipment'
 import { CustomiseTerritories } from '@/components/customise/custom-territories'
 import { CustomiseFighters } from '@/components/customise/custom-fighters'
@@ -32,6 +34,7 @@ interface HomeTabsProps {
   customTerritories: CustomTerritory[];
   customFighterTypes: CustomFighterType[];
   customSkills: CustomSkill[];
+  customGangTypes: CustomGangType[];
   userCampaigns: UserCampaign[];
 }
 
@@ -43,6 +46,7 @@ export default function HomeTabs({
   customTerritories,
   customFighterTypes,
   customSkills,
+  customGangTypes,
   userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
@@ -143,6 +147,12 @@ export default function HomeTabs({
 
             <CustomiseSkills
               initialSkills={customSkills}
+              userId={userId}
+              userCampaigns={userCampaigns}
+            />
+
+            <CustomiseGangTypes
+              initialGangTypes={customGangTypes}
               userId={userId}
               userCampaigns={userCampaigns}
             />

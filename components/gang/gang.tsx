@@ -37,7 +37,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 interface GangProps {
   id: string;
   name: string;
-  gang_type_id: string;
+  gang_type_id?: string | null;
+  custom_gang_type_id?: string | null;
   gang_type?: string;
   gang_type_image_url: string;
   image_url?: string;
