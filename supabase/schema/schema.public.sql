@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict OZxCto9bfuUxS3mfS8SSqa7r74PLVcaXbMZF5ydDjgOopVceV6Cl8mhKCKmwjqd
+\restrict X1L2fGCI5qXN73Udn5yBxlm3IcHZp9hLuMKMDcrOYAUwEhK0rSzx7zCAkXZf8N3
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -4180,8 +4180,32 @@ CREATE TABLE public.custom_fighter_types (
     free_skill boolean,
     fighter_class text,
     fighter_class_id uuid,
-    user_id uuid
+    user_id uuid,
+    custom_gang_type_id uuid
 );
+
+
+--
+-- Name: custom_gang_types; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_gang_types (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    user_id uuid NOT NULL,
+    gang_type text NOT NULL,
+    alignment public.alignment,
+    trading_post_type_id uuid,
+    default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb
+);
+
+
+--
+-- Name: TABLE custom_gang_types; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.custom_gang_types IS 'Table for custom gang types';
 
 
 --
@@ -4197,7 +4221,8 @@ CREATE TABLE public.custom_shared (
     campaign_id uuid,
     custom_territory_id uuid,
     user_id uuid,
-    custom_skill_id uuid
+    custom_skill_id uuid,
+    custom_gang_type_id uuid
 );
 
 
@@ -5006,7 +5031,9 @@ CREATE TABLE public.gangs (
     hidden boolean DEFAULT false,
     default_gang_image numeric,
     is_favourite boolean DEFAULT false NOT NULL,
-    favourite_order integer
+    favourite_order integer,
+    custom_gang_type_id uuid,
+    CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
 
 
@@ -5472,6 +5499,14 @@ ALTER TABLE ONLY public.custom_equipment
 
 ALTER TABLE ONLY public.custom_fighter_types
     ADD CONSTRAINT custom_fighters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_gang_types custom_gang_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_gang_types
+    ADD CONSTRAINT custom_gang_types_pkey PRIMARY KEY (id);
 
 
 --
@@ -6042,6 +6077,13 @@ CREATE INDEX campaign_battles_campaign_territory_id_idx ON public.campaign_battl
 
 
 --
+-- Name: campaign_map_objects_campaign_map_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_map_objects_campaign_map_id_idx ON public.campaign_map_objects USING btree (campaign_map_id);
+
+
+--
 -- Name: campaign_territories_custom_territory_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6368,6 +6410,20 @@ CREATE INDEX idx_campaign_type_allegiances_campaign_type_id ON public.campaign_t
 --
 
 CREATE INDEX idx_campaign_type_resources_campaign_type_id ON public.campaign_type_resources USING btree (campaign_type_id);
+
+
+--
+-- Name: idx_custom_gang_types_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_gang_types_user_id ON public.custom_gang_types USING btree (user_id);
+
+
+--
+-- Name: idx_custom_shared_custom_gang_type_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_shared_custom_gang_type_id ON public.custom_shared USING btree (custom_gang_type_id);
 
 
 --
@@ -6935,6 +6991,30 @@ ALTER TABLE ONLY public.custom_equipment
 
 
 --
+-- Name: custom_fighter_types custom_fighter_types_custom_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_types
+    ADD CONSTRAINT custom_fighter_types_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE SET NULL;
+
+
+--
+-- Name: custom_gang_types custom_gang_types_trading_post_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_gang_types
+    ADD CONSTRAINT custom_gang_types_trading_post_type_id_fkey FOREIGN KEY (trading_post_type_id) REFERENCES public.trading_post_types(id) ON DELETE SET NULL;
+
+
+--
+-- Name: custom_gang_types custom_gang_types_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_gang_types
+    ADD CONSTRAINT custom_gang_types_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: custom_shared custom_shared_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6956,6 +7036,14 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_shared custom_shared_custom_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_shared
+    ADD CONSTRAINT custom_shared_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -7639,6 +7727,14 @@ ALTER TABLE ONLY public.gang_types
 
 
 --
+-- Name: gangs gangs_custom_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gangs
+    ADD CONSTRAINT gangs_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE CASCADE;
+
+
+--
 -- Name: gangs gangs_gang_affiliation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7857,6 +7953,13 @@ CREATE POLICY "Allow authenticated users to create custom fighter types" ON publ
 
 
 --
+-- Name: custom_gang_types Allow authenticated users to create custom gang types; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom gang types" ON public.custom_gang_types FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_shared Allow authenticated users to create custom shares; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7973,6 +8076,13 @@ CREATE POLICY "Allow authenticated users to view custom equipment" ON public.cus
 --
 
 CREATE POLICY "Allow authenticated users to view custom fighter types" ON public.custom_fighter_types FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_gang_types Allow authenticated users to view custom gang types; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom gang types" ON public.custom_gang_types FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -8383,52 +8493,10 @@ CREATE POLICY "Campaign map objects are viewable by everyone" ON public.campaign
 
 
 --
--- Name: campaign_map_objects Campaign map objects can be deleted by authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign map objects can be deleted by authenticated users" ON public.campaign_map_objects FOR DELETE TO authenticated USING (true);
-
-
---
--- Name: campaign_map_objects Campaign map objects can be inserted by authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign map objects can be inserted by authenticated users" ON public.campaign_map_objects FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: campaign_map_objects Campaign map objects can be updated by authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign map objects can be updated by authenticated users" ON public.campaign_map_objects FOR UPDATE TO authenticated USING (true);
-
-
---
 -- Name: campaign_maps Campaign maps are viewable by everyone; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Campaign maps are viewable by everyone" ON public.campaign_maps FOR SELECT USING (true);
-
-
---
--- Name: campaign_maps Campaign maps can be deleted by authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign maps can be deleted by authenticated users" ON public.campaign_maps FOR DELETE TO authenticated USING (true);
-
-
---
--- Name: campaign_maps Campaign maps can be inserted by authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign maps can be inserted by authenticated users" ON public.campaign_maps FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: campaign_maps Campaign maps can be updated by authenticated users; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign maps can be updated by authenticated users" ON public.campaign_maps FOR UPDATE TO authenticated USING (true);
 
 
 --
@@ -9048,6 +9116,56 @@ CREATE POLICY "Only admins can update campaign type resources" ON public.campaig
 
 
 --
+-- Name: campaign_map_objects Only admins or campaign arbs can delete campaign map objects; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins or campaign arbs can delete campaign map objects" ON public.campaign_map_objects FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.campaign_maps m
+  WHERE ((m.id = campaign_map_objects.campaign_map_id) AND ( SELECT private.is_arb(m.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: campaign_maps Only admins or campaign arbs can delete campaign maps; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins or campaign arbs can delete campaign maps" ON public.campaign_maps FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(campaign_maps.campaign_id) AS is_arb)));
+
+
+--
+-- Name: campaign_map_objects Only admins or campaign arbs can insert campaign map objects; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins or campaign arbs can insert campaign map objects" ON public.campaign_map_objects FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.campaign_maps m
+  WHERE ((m.id = campaign_map_objects.campaign_map_id) AND ( SELECT private.is_arb(m.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: campaign_maps Only admins or campaign arbs can insert campaign maps; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins or campaign arbs can insert campaign maps" ON public.campaign_maps FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(campaign_maps.campaign_id) AS is_arb)));
+
+
+--
+-- Name: campaign_map_objects Only admins or campaign arbs can update campaign map objects; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins or campaign arbs can update campaign map objects" ON public.campaign_map_objects FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.campaign_maps m
+  WHERE ((m.id = campaign_map_objects.campaign_map_id) AND ( SELECT private.is_arb(m.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.campaign_maps m
+  WHERE ((m.id = campaign_map_objects.campaign_map_id) AND ( SELECT private.is_arb(m.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: campaign_maps Only admins or campaign arbs can update campaign maps; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admins or campaign arbs can update campaign maps" ON public.campaign_maps FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(campaign_maps.campaign_id) AS is_arb))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(campaign_maps.campaign_id) AS is_arb)));
+
+
+--
 -- Name: campaigns Only authenticated users can create campaigns; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9138,6 +9256,20 @@ CREATE POLICY "Only custom fighter type owner or admin can delete" ON public.cus
 --
 
 CREATE POLICY "Only custom fighter type owner or admin can update" ON public.custom_fighter_types FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_gang_types Only custom gang type owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom gang type owner or admin can delete" ON public.custom_gang_types FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_gang_types Only custom gang type owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom gang type owner or admin can update" ON public.custom_gang_types FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
 
 
 --
@@ -9801,6 +9933,12 @@ ALTER TABLE public.custom_equipment ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_fighter_types ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_gang_types; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_gang_types ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: custom_shared; Type: ROW SECURITY; Schema: public; Owner: -
@@ -10620,5 +10758,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict OZxCto9bfuUxS3mfS8SSqa7r74PLVcaXbMZF5ydDjgOopVceV6Cl8mhKCKmwjqd
+\unrestrict X1L2fGCI5qXN73Udn5yBxlm3IcHZp9hLuMKMDcrOYAUwEhK0rSzx7zCAkXZf8N3
 
