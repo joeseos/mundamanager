@@ -378,7 +378,10 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       ruined,
       default_gang_territory,
       playing_card,
-      description
+      description,
+      map_object_id,
+      map_hex_coords,
+      show_name_on_map
     `)
     .eq('campaign_id', campaignId);
 
@@ -416,6 +419,9 @@ async function _getCampaignTerritories(campaignId: string, supabase: SupabaseCli
       playing_card: territory.playing_card ?? null,
       description: territory.description ?? null,
       is_custom: !territory.territory_id,
+      map_object_id: territory.map_object_id ?? null,
+      map_hex_coords: territory.map_hex_coords ?? null,
+      show_name_on_map: territory.show_name_on_map ?? true,
       owning_gangs: gangDetails ? [{
         id: gangDetails.id,
         name: gangDetails.name,
@@ -959,3 +965,91 @@ export async function getCampaignResources(campaignId: string, supabase: Supabas
     }
   )();
 }
+
+// ---------------------------------------------------------------------------
+// Campaign Map
+// ---------------------------------------------------------------------------
+
+export interface CampaignMapRow {
+  id: string;
+  campaign_id: string;
+  background_image_url: string;
+  hex_grid_enabled: boolean;
+  hex_size: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CampaignMapObjectRow {
+  id: string;
+  campaign_map_id: string;
+  object_type: string;
+  geometry: Record<string, unknown>;
+  properties: Record<string, unknown>;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CampaignMapBundle {
+  map: CampaignMapRow | null;
+  objects: CampaignMapObjectRow[];
+}
+
+async function _getCampaignMapWithObjects(
+  campaignId: string,
+  supabase: SupabaseClient
+): Promise<CampaignMapBundle> {
+  // Single round trip: pull the map row plus its child objects via the
+  // FK relationship campaign_map_objects.campaign_map_id -> campaign_maps.id.
+  const { data, error } = await supabase
+    .from('campaign_maps')
+    .select(`
+      id,
+      campaign_id,
+      background_image_url,
+      hex_grid_enabled,
+      hex_size,
+      created_at,
+      updated_at,
+      campaign_map_objects (
+        id,
+        campaign_map_id,
+        object_type,
+        geometry,
+        properties,
+        created_at,
+        updated_at
+      )
+    `)
+    .eq('campaign_id', campaignId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return { map: null, objects: [] };
+
+  const { campaign_map_objects: embeddedObjects, ...mapRow } = data as CampaignMapRow & {
+    campaign_map_objects: CampaignMapObjectRow[] | null;
+  };
+
+  return {
+    map: mapRow,
+    objects: embeddedObjects ?? [],
+  };
+}
+
+export const getCampaignMapWithObjects = async (
+  campaignId: string,
+  supabaseClient?: SupabaseClient
+): Promise<CampaignMapBundle> => {
+  const supabase = supabaseClient ?? await createClient();
+  return unstable_cache(
+    async () => {
+      return _getCampaignMapWithObjects(campaignId, supabase);
+    },
+    [`campaign-map-${campaignId}`],
+    {
+      tags: [`campaign-map-${campaignId}`, CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId)],
+      revalidate: false
+    }
+  )();
+};
