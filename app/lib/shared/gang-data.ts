@@ -50,6 +50,14 @@ export interface GangBasic {
       category_name: string;
     } | null;
   } | null;
+  custom_gang_type_id?: string | null;
+  custom_gang_types?: {
+    affiliation: boolean;
+    gang_origin_category_id?: string;
+    gang_origin_categories?: {
+      category_name: string;
+    } | null;
+  } | null;
   image_url?: string;
   default_gang_image?: number | null;
   hidden: boolean;
@@ -218,6 +226,14 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
             )
           ),
           gang_types!gang_type_id(
+            affiliation,
+            gang_origin_category_id,
+            gang_origin_categories!gang_origin_category_id (
+              category_name
+            )
+          ),
+          custom_gang_type_id,
+          custom_gang_types!custom_gang_type_id(
             affiliation,
             gang_origin_category_id,
             gang_origin_categories!gang_origin_category_id (
@@ -406,6 +422,54 @@ export const getGangType = async (gangTypeId: string, supabase: any): Promise<Ga
     }
   )();
 };
+
+/**
+ * Get custom gang type information
+ * Cache: GLOBAL_GANG_TYPES (shared with system gang types)
+ */
+export const getCustomGangType = async (customGangTypeId: string, supabase: any): Promise<GangType> => {
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('custom_gang_types')
+        .select('id, gang_type, image_url, default_image_urls')
+        .eq('id', customGangTypeId)
+        .single();
+
+      if (error) throw error;
+      return {
+        id: data.id,
+        gang_type: data.gang_type,
+        image_url: data.image_url,
+        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
+      };
+    },
+    [`custom-gang-type-${customGangTypeId}`],
+    {
+      tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
+      revalidate: 3600
+    }
+  )();
+};
+
+/**
+ * Fetches gang type info, resolving between system and custom
+ */
+export const getResolvedGangType = async (
+  gangBasic: GangBasic,
+  supabase: any
+): Promise<GangType> => {
+  if (gangBasic.custom_gang_type_id) {
+    return getCustomGangType(gangBasic.custom_gang_type_id, supabase);
+  }
+  return getGangType(gangBasic.gang_type_id, supabase);
+};
+
+/**
+ * Resolves gang type config (affiliation, origin category) from whichever type applies
+ */
+export const getGangTypeConfig = (gangBasic: GangBasic) =>
+  gangBasic.gang_types ?? gangBasic.custom_gang_types ?? null;
 
 /**
  * Get alliance information

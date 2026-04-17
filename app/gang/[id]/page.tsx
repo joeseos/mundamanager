@@ -7,7 +7,8 @@ import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
   getGangBasic,
   getGangPositioning,
-  getGangType,
+  getResolvedGangType,
+  getGangTypeConfig,
   getAlliance,
   getGangFightersList,
   getGangVehicles,
@@ -67,7 +68,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       userPermissions
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
-      getGangType(gangBasic.gang_type_id, supabase),
+      getResolvedGangType(gangBasic, supabase),
       getAlliance(gangBasic.alliance_id, supabase),
       getGangFightersList(params.id, supabase),
       getGangVehicles(params.id, supabase),
@@ -90,11 +91,13 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
 
     // Assemble the gang data structure for client
     // NOTE: fighters are already fully processed from getGangFightersList with shared cache tags
+    const gangTypeConfig = getGangTypeConfig(gangBasic);
     const gangDataForClient = {
       id: gangBasic.id,
       name: gangBasic.name,
       gang_type: gangBasic.gang_type,
       gang_type_id: gangBasic.gang_type_id,
+      custom_gang_type_id: gangBasic.custom_gang_type_id || null,
       gang_type_image_url: gangType.image_url,
       image_url: gangBasic.image_url,
       default_gang_image: gangBasic.default_gang_image ?? null,
@@ -114,11 +117,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       alliance_name: alliance?.alliance_name || "",
       gang_affiliation_id: gangBasic.gang_affiliation_id || null,
       gang_affiliation_name: gangBasic.gang_affiliation?.name || "",
-      gang_type_has_affiliation: gangBasic.gang_types?.affiliation || false,
+      gang_type_has_affiliation: gangTypeConfig?.affiliation || false,
       gang_origin_id: gangBasic.gang_origin_id || null,
       gang_origin_name: gangBasic.gang_origin?.origin_name || "",
-      gang_origin_category_name: gangBasic.gang_types?.gang_origin_categories?.category_name || "",
-      gang_type_has_origin: !!gangBasic.gang_types?.gang_origin_category_id,
+      gang_origin_category_name: gangTypeConfig?.gang_origin_categories?.category_name || "",
+      gang_type_has_origin: !!gangTypeConfig?.gang_origin_category_id,
       positioning: processedPositioning,
       note: gangBasic.note,
       note_backstory: gangBasic.note_backstory,
