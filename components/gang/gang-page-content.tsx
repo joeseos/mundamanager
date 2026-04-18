@@ -13,7 +13,7 @@ import { StashItem, DefaultImageEntry } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
-import { FiMap } from 'react-icons/fi';
+import { PiFlagBannerFoldBold } from 'react-icons/pi';
 import { LuClipboard } from 'react-icons/lu';
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
@@ -632,7 +632,7 @@ export default function GangPageContent({
            <FaUsers key="users" />,
            <FaBox key="box" />,
            <FaTruckMoving key="car" />,
-           <FiMap key="map" />,
+           <PiFlagBannerFoldBold key="map" />,
            <LuClipboard key="note" />
          ]}
         >
