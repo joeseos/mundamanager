@@ -27,6 +27,9 @@ import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle } from '@/types/campaign';
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
+import CampaignMap from "./campaign-map"
+import { TbMapSearch } from "react-icons/tb";
+import { PiFlagBannerFoldBold } from "react-icons/pi";
 
 interface Gang {
   id: string;
@@ -144,6 +147,24 @@ interface CampaignPageContentProps {
   tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
+  mapData?: {
+    id: string;
+    campaign_id: string;
+    background_image_url: string;
+    hex_grid_enabled: boolean;
+    hex_size: number;
+    created_at: string;
+    updated_at: string | null;
+  } | null;
+  mapObjects?: Array<{
+    id: string;
+    campaign_map_id: string;
+    object_type: string;
+    geometry: Record<string, unknown>;
+    properties: Record<string, unknown>;
+    created_at: string;
+    updated_at: string | null;
+  }>;
 }
 
 const formatDate = (dateString: string | null) => {
@@ -160,7 +181,9 @@ export default function CampaignPageContent({
   allTerritories,
   tradingPostTypes,
   campaignAllegiances = [],
-  campaignResources = []
+  campaignResources = [],
+  mapData: initialMapData,
+  mapObjects: initialMapObjects = []
 }: CampaignPageContentProps) {
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -407,7 +430,7 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
-            <FiMap className="size-4" />
+            <PiFlagBannerFoldBold className="size-4" />
             <span className="ml-2 hidden sm:inline">Campaign</span>
           </button>
           <button
@@ -451,6 +474,17 @@ export default function CampaignPageContent({
                 : 'text-muted-foreground hover:text-muted-foreground'
             } flex items-center justify-center`}
           >
+            <TbMapSearch className="size-4" />
+            <span className="ml-2 hidden sm:inline">Map</span>
+          </button>
+          <button
+            onClick={() => setActiveTab(5)}
+            className={`flex-1 py-4 text-center transition-colors ${
+              activeTab === 5
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground hover:text-muted-foreground'
+            } flex items-center justify-center`}
+          >
             <LuTrophy className="size-4" />
             <span className="ml-2 hidden sm:inline">Triumphs</span>
           </button>
@@ -478,7 +512,7 @@ export default function CampaignPageContent({
                 />
               ) : (
                 <div className="absolute w-[180px] h-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                  <FiMap className="size-[80px] text-muted-foreground" />
+                  <PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />
                 </div>
               )}
               <div
@@ -883,8 +917,22 @@ export default function CampaignPageContent({
             </div>
           )}
 
-          {/* Triumphs tab content */}
+          {/* Map tab content */}
           {activeTab === 4 && (
+            <CampaignMap
+              campaignId={campaignData.id}
+              mapData={initialMapData ?? null}
+              mapObjects={initialMapObjects}
+              territories={campaignData.territories || []}
+              members={campaignData.members || []}
+              canEdit={!!safePermissions.canEditCampaign}
+              canClaimTerritories={!!safePermissions.canClaimTerritories}
+              onRefresh={refreshData}
+            />
+          )}
+
+          {/* Triumphs tab content */}
+          {activeTab === 5 && (
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
@@ -899,7 +947,6 @@ export default function CampaignPageContent({
               </div>
             </div>
           )}
-
 
         {/* Replace the inline modal with our new component */}
         <CampaignEditModal

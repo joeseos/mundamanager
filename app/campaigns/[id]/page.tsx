@@ -18,7 +18,8 @@ import {
   getCampaignGangsForModal,
   getCampaignAllegiances,
   getCampaignResources,
-  getCampaignCaptives
+  getCampaignCaptives,
+  getCampaignMapWithObjects
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
@@ -70,18 +71,23 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignBasic,
       campaignMembers,
       campaignTerritories,
-      campaignBattles
+      campaignBattles,
+      campaignMapBundle
     ] = await Promise.all([
       getCampaignBasic(params.id, supabase),
       getCampaignMembers(params.id, supabase),
       getCampaignTerritories(params.id, supabase),
-      getCampaignBattles(params.id, 100, supabase)
+      getCampaignBattles(params.id, 100, supabase),
+      getCampaignMapWithObjects(params.id, supabase)
     ]);
 
     // Check if campaign exists
     if (!campaignBasic) {
       notFound();
     }
+
+    const campaignMap = campaignMapBundle.map;
+    const campaignMapObjects = campaignMapBundle.objects;
 
     // 🚀 PARALLEL DATA FETCHING - Reference data for territory components
     const [
@@ -151,6 +157,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
           tradingPostTypes={tradingPostTypes}
           campaignAllegiances={campaignAllegiances}
           campaignResources={campaignResources}
+          mapData={campaignMap}
+          mapObjects={campaignMapObjects}
         />
       </CampaignErrorBoundary>
     );
