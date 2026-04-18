@@ -8,5 +8,6 @@
   },
   "editor.quickSuggestions": {
     "strings": true
-  }
-} 
+  },
+  "files.eol": "\n"
+}

@@ -125,24 +125,43 @@ export async function deleteCampaign(campaignId: string) {
 
     // Clean up all images for this campaign
     try {
+      // List subfolders and files directly under campaigns/{campaignId}/
+      const { data: topLevelItems } = await supabase.storage
+        .from('users-images')
+        .list(`campaigns/${campaignId}/`);
+
       const filesToRemove: string[] = [];
 
-      // Remove any files directly under campaigns/{campaignId}/ (campaign images)
-      try {
-        const { data: campaignFiles } = await supabase.storage
-          .from('users-images')
-          .list(`campaigns/${campaignId}/`);
-        if (campaignFiles && campaignFiles.length > 0) {
-          campaignFiles.forEach(file => {
-            // Skip directory markers; list returns only files at this level
-            if (file.name) filesToRemove.push(`campaigns/${campaignId}/${file.name}`);
-          });
+      if (topLevelItems && topLevelItems.length > 0) {
+        // Files at the top level can go straight into the removal list.
+        // For each subfolder (item.id === null marks virtual folder entries),
+        // list its contents in parallel rather than sequentially.
+        const subfolderListings = await Promise.all(
+          topLevelItems.map(async item => {
+            if (!item.name) return null;
+            if (item.id !== null) {
+              return { type: 'file' as const, path: `campaigns/${campaignId}/${item.name}` };
+            }
+            const { data: subFiles } = await supabase.storage
+              .from('users-images')
+              .list(`campaigns/${campaignId}/${item.name}/`);
+            const paths = (subFiles ?? [])
+              .filter(f => f.name)
+              .map(f => `campaigns/${campaignId}/${item.name}/${f.name}`);
+            return { type: 'folder' as const, paths };
+          })
+        );
+
+        for (const result of subfolderListings) {
+          if (!result) continue;
+          if (result.type === 'file') {
+            filesToRemove.push(result.path);
+          } else {
+            filesToRemove.push(...result.paths);
+          }
         }
-      } catch (e) {
-        console.log('Note: failed listing campaign files for deletion', e);
       }
 
-      // Remove accumulated files (if any)
       if (filesToRemove.length > 0) {
         await supabase.storage
           .from('users-images')
