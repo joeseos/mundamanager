@@ -110,69 +110,25 @@ export async function GET(request: Request) {
       };
     });
 
-    // Fetch user's custom gang types (with affiliation & origin enrichment)
+    // Fetch user's custom gang types
     const { data: customGangTypes } = await supabase
       .from('custom_gang_types')
-      .select('id, gang_type, alignment, image_url, default_image_urls, gang_origin_category_id')
+      .select('id, gang_type, alignment, default_image_urls')
       .eq('user_id', userId)
       .order('gang_type');
 
-    let customGangTypesEnriched: any[] = [];
-    if (customGangTypes && customGangTypes.length > 0) {
-      // Collect any additional origin category IDs from custom types
-      const customOriginCategoryIds = Array.from(new Set(
-        customGangTypes
-          .filter(t => t.gang_origin_category_id && !originCategoryIds.includes(t.gang_origin_category_id))
-          .map(t => t.gang_origin_category_id)
-      ));
-
-      if (customOriginCategoryIds.length > 0) {
-        const { data: customOrigins } = await supabase
-          .from('gang_origins')
-          .select(`
-            id,
-            origin_name,
-            gang_origin_category_id,
-            gang_origin_categories!gang_origin_category_id (
-              category_name
-            )
-          `)
-          .in('gang_origin_category_id', customOriginCategoryIds);
-
-        if (customOrigins) {
-          for (const origin of customOrigins) {
-            const categoryId = origin.gang_origin_category_id;
-            if (!originsByCategory[categoryId]) {
-              originsByCategory[categoryId] = [];
-            }
-            originsByCategory[categoryId].push({
-              id: origin.id,
-              origin_name: origin.origin_name,
-              category_name: (origin.gang_origin_categories as any)?.category_name || 'Unknown'
-            });
-          }
-        }
-      }
-
-      customGangTypesEnriched = customGangTypes.map((cgt) => {
-        const availableOrigins = cgt.gang_origin_category_id
-          ? (originsByCategory[cgt.gang_origin_category_id] || [])
-          : [];
-
-        return {
-          gang_type_id: cgt.id,
-          gang_type: cgt.gang_type,
-          alignment: cgt.alignment,
-          image_url: cgt.image_url,
-          default_image_urls: cgt.default_image_urls,
-          affiliation: false,
-          gang_origin_category_id: cgt.gang_origin_category_id,
-          is_custom: true,
-          available_affiliations: [],
-          available_origins: availableOrigins
-        };
-      });
-    }
+    const customGangTypesEnriched = (customGangTypes ?? []).map((cgt) => ({
+      gang_type_id: cgt.id,
+      gang_type: cgt.gang_type,
+      alignment: cgt.alignment,
+      image_url: null,
+      default_image_urls: cgt.default_image_urls,
+      affiliation: false,
+      gang_origin_category_id: null,
+      is_custom: true,
+      available_affiliations: [],
+      available_origins: []
+    }));
 
     // Return flat array: system types + custom types (backward compatible)
     return NextResponse.json([...gangTypesWithAffiliationsAndOrigins, ...customGangTypesEnriched])

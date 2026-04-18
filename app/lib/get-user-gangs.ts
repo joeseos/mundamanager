@@ -89,7 +89,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             is_favourite,
             favourite_order,
             gang_types!gang_type_id(image_url, default_image_urls),
-            custom_gang_types!custom_gang_type_id(image_url, default_image_urls)
+            custom_gang_types!custom_gang_type_id(default_image_urls)
           `)
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
@@ -167,7 +167,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           gang_type: gang.gang_type,
           gang_type_id: gang.gang_type_id,
           image_url: gang.image_url || '',
-          gang_type_image_url: gang.gang_types?.image_url || gang.custom_gang_types?.image_url || '',
+          gang_type_image_url: gang.gang_types?.image_url || '',
           default_gang_image: gang.default_gang_image ?? null,
           gang_type_default_image_urls: normaliseDefaultImageUrls(gang.gang_types?.default_image_urls ?? gang.custom_gang_types?.default_image_urls),
           credits: gang.credits,

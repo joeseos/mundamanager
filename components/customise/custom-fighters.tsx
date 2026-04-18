@@ -99,6 +99,7 @@ function SkillSetOptions({ skillTypes, excludeIds }: {
 interface GangType {
   gang_type_id: string;
   gang_type: string;
+  is_custom?: boolean;
 }
 
 interface FighterClass {
@@ -134,6 +135,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         fighter_type: newFighterData.fighter_type,
         gang_type: newFighterData.gang_type,
         gang_type_id: newFighterData.gang_type_id,
+        custom_gang_type_id: newFighterData.custom_gang_type_id,
         cost: newFighterData.cost,
         movement: newFighterData.movement,
         weapon_skill: newFighterData.weapon_skill,
@@ -246,6 +248,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         fighter_type: data.fighter_type,
         gang_type: data.gang_type,
         gang_type_id: data.gang_type_id,
+        custom_gang_type_id: data.custom_gang_type_id,
         cost: data.cost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
@@ -407,7 +410,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     {
       key: 'gang_type',
-      label: 'Gang',
+      label: 'Gang Type',
       align: 'left',
       width: '15%',
       cellClassName: 'text-sm text-muted-foreground'
@@ -466,6 +469,44 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       className: 'text-xs px-1.5 h-6'
     }
   ];
+
+  const renderGangTypeOptions = () => {
+    const availableToAll = gangTypes.filter(t => !t.is_custom && t.gang_type === 'Available to All');
+    const customTypes = gangTypes.filter(t => t.is_custom);
+    const systemTypes = gangTypes.filter(t => !t.is_custom && t.gang_type !== 'Available to All');
+
+    return (
+      <>
+        {availableToAll.map((type) => (
+          <option key={type.gang_type_id} value={type.gang_type_id}>
+            {type.gang_type}
+          </option>
+        ))}
+        {customTypes.length > 0 && (
+          <optgroup label="Custom">
+            {customTypes
+              .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
+              .map((type) => (
+                <option key={type.gang_type_id} value={type.gang_type_id}>
+                  {type.gang_type}
+                </option>
+              ))}
+          </optgroup>
+        )}
+        {systemTypes.length > 0 && (
+          <optgroup label="System">
+            {systemTypes
+              .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
+              .map((type) => (
+                <option key={type.gang_type_id} value={type.gang_type_id}>
+                  {type.gang_type}
+                </option>
+              ))}
+          </optgroup>
+        )}
+      </>
+    );
+  };
 
   useEffect(() => {
     if ((isAddModalOpen || editModalData) && gangTypes.length === 0) {
@@ -636,7 +677,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     // Pre-populate the form with existing data
     setFighterType(fighter.fighter_type);
     setCost(fighter.cost?.toString() || '');
-    setSelectedGangType(fighter.gang_type_id || '');
+    setSelectedGangType(fighter.custom_gang_type_id || fighter.gang_type_id || '');
 
     // Load all values from database (Crew fighters will have 0s, which is fine to display)
     setMovement(fighter.movement?.toString() || '');
@@ -794,7 +835,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         special_rules: copyModalData.special_rules || [],
         free_skill: copyModalData.free_skill || false,
         gang_type: copyModalData.gang_type || '',
-        gang_type_id: copyModalData.gang_type_id || '',
+        gang_type_id: copyModalData.custom_gang_type_id ? undefined : (copyModalData.gang_type_id || ''),
+        custom_gang_type_id: copyModalData.custom_gang_type_id || undefined,
         fighter_class: copyModalData.fighter_class || '',
         fighter_class_id: copyModalData.fighter_class_id || '',
         skill_access: copyModalData.skill_access || [],
@@ -853,11 +895,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     }
 
     const selectedGang = gangTypes.find(g => g.gang_type_id === selectedGangType);
+    const isCustomGangType = selectedGang?.is_custom === true;
 
     const requestData = {
       fighter_type: fighterType,
       cost: parseInt(cost),
-      gang_type_id: selectedGangType,
+      gang_type_id: isCustomGangType ? undefined : selectedGangType,
+      custom_gang_type_id: isCustomGangType ? selectedGangType : undefined,
       gang_type: selectedGang?.gang_type || '',
       fighter_class: selectedFighterClass.class_name,
       fighter_class_id: selectedFighterClass.id,
@@ -1012,19 +1056,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select gang type</option>
-                  {gangTypes
-                    .sort((a, b) => {
-                      // Put "Available to All" first
-                      if (a.gang_type === 'Available to All') return -1;
-                      if (b.gang_type === 'Available to All') return 1;
-                      // Sort the rest alphabetically
-                      return a.gang_type.localeCompare(b.gang_type);
-                    })
-                    .map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
+                  {renderGangTypeOptions()}
                 </select>
               </div>
 
@@ -1405,19 +1437,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select gang type</option>
-                  {gangTypes
-                    .sort((a, b) => {
-                      // Put "Available to All" first
-                      if (a.gang_type === 'Available to All') return -1;
-                      if (b.gang_type === 'Available to All') return 1;
-                      // Sort the rest alphabetically
-                      return a.gang_type.localeCompare(b.gang_type);
-                    })
-                    .map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
+                  {renderGangTypeOptions()}
                 </select>
               </div>
 

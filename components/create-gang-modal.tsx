@@ -202,7 +202,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     if (gangType) {
       const imageUrls = gangTypeImageArrays[gangType] || [];
       if (imageUrls.length > 0 && currentImageIndex >= imageUrls.length) {
-        setCurrentImageIndex(DEFAULT_IMAGE_INDEX);
+        setCurrentImageIndex(Math.min(DEFAULT_IMAGE_INDEX, imageUrls.length - 1));
       }
     }
   }, [gangType, gangTypeImageArrays, currentImageIndex]);

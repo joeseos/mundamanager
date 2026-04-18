@@ -7,10 +7,7 @@ import { revalidatePath } from 'next/cache';
 export interface CustomGangTypeData {
   gang_type: string;
   alignment?: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
-  image_url?: string | null;
   trading_post_type_id?: string | null;
-  gang_origin_category_id?: string | null;
-  default_image_urls?: any | null;
 }
 
 export interface CustomGangType {
@@ -18,15 +15,12 @@ export interface CustomGangType {
   user_id: string;
   gang_type: string;
   alignment?: string | null;
-  image_url?: string | null;
   trading_post_type_id?: string | null;
-  gang_origin_category_id?: string | null;
   default_image_urls?: any | null;
   created_at: string;
   updated_at?: string | null;
   // Joined data
   trading_post_type_name?: string | null;
-  gang_origin_category_name?: string | null;
 }
 
 export async function createCustomGangType(
@@ -42,10 +36,7 @@ export async function createCustomGangType(
         user_id: user.id,
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
-        image_url: data.image_url || null,
         trading_post_type_id: data.trading_post_type_id || null,
-        gang_origin_category_id: data.gang_origin_category_id || null,
-        default_image_urls: data.default_image_urls || null,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -92,10 +83,7 @@ export async function updateCustomGangType(
       .update({
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
-        image_url: data.image_url || null,
         trading_post_type_id: data.trading_post_type_id || null,
-        gang_origin_category_id: data.gang_origin_category_id || null,
-        default_image_urls: data.default_image_urls || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

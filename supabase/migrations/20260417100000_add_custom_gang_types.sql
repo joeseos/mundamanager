@@ -14,9 +14,7 @@ CREATE TABLE public.custom_gang_types (
   user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   gang_type text NOT NULL,
   alignment public.alignment,
-  image_url text,
   trading_post_type_id uuid REFERENCES public.trading_post_types(id),
-  gang_origin_category_id uuid REFERENCES public.gang_origin_categories(id),
   default_image_urls jsonb
 );
 

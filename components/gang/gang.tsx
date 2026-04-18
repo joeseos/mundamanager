@@ -125,6 +125,7 @@ export default function Gang({
   id,
   name: initialName,
   gang_type_id,
+  custom_gang_type_id,
   gang_type,
   gang_type_image_url,
   image_url,
@@ -1333,6 +1334,7 @@ export default function Gang({
               setShowModal={setShowAddFighterModal}
               gangId={id}
               gangTypeId={gang_type_id}
+              customGangTypeId={custom_gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}

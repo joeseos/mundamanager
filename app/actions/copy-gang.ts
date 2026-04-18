@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateGangCreation } from '@/utils/cache-tags';
+import { revalidatePath } from 'next/cache';
 
 interface CopyGangInput {
   sourceGangId: string;
@@ -32,6 +33,265 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       throw new Error('Source gang not found');
     }
 
+    // 1.5) Duplicate custom assets if gang uses a custom gang type
+    let newCustomGangTypeId: string | null = null;
+    const customFighterTypeIdMap = new Map<string, string>();
+    const customSkillIdMap = new Map<string, string>();
+
+    if (sourceGang.custom_gang_type_id) {
+      // Step A: Duplicate the custom gang type
+      const { data: sourceCustomGangType, error: cgtError } = await supabase
+        .from('custom_gang_types')
+        .select('*')
+        .eq('id', sourceGang.custom_gang_type_id)
+        .single();
+
+      if (cgtError || !sourceCustomGangType) {
+        throw new Error('Source custom gang type not found');
+      }
+
+      const { data: newCgt, error: newCgtError } = await supabase
+        .from('custom_gang_types')
+        .insert({
+          user_id: user.id,
+          gang_type: sourceCustomGangType.gang_type,
+          alignment: sourceCustomGangType.alignment,
+          default_image_urls: sourceCustomGangType.default_image_urls,
+        })
+        .select('id')
+        .single();
+
+      if (newCgtError || !newCgt) {
+        throw new Error(`Failed to duplicate custom gang type: ${newCgtError?.message}`);
+      }
+
+      newCustomGangTypeId = newCgt.id;
+
+      // Step B: Duplicate custom fighter types for this gang type
+      const { data: sourceCustomFighters, error: cfError } = await supabase
+        .from('custom_fighter_types')
+        .select('*')
+        .eq('custom_gang_type_id', sourceGang.custom_gang_type_id);
+
+      if (cfError) {
+        throw new Error(`Failed to load custom fighter types: ${cfError.message}`);
+      }
+
+      const oldCustomFighterTypeIds: string[] = [];
+
+      if (sourceCustomFighters && sourceCustomFighters.length > 0) {
+        for (const cf of sourceCustomFighters) {
+          const { id: _id, created_at: _ca, updated_at: _ua, user_id: _uid, custom_gang_type_id: _cgtid, ...cfData } = cf;
+          oldCustomFighterTypeIds.push(cf.id);
+
+          const { data: newCf, error: newCfError } = await supabase
+            .from('custom_fighter_types')
+            .insert({
+              ...cfData,
+              user_id: user.id,
+              custom_gang_type_id: newCustomGangTypeId,
+            })
+            .select('id')
+            .single();
+
+          if (newCfError || !newCf) {
+            throw new Error(`Failed to duplicate custom fighter type: ${newCfError?.message}`);
+          }
+
+          customFighterTypeIdMap.set(cf.id, newCf.id);
+        }
+      }
+
+      // Step C: Duplicate custom skill types + custom skills
+      if (oldCustomFighterTypeIds.length > 0) {
+        const { data: skillAccessRows } = await supabase
+          .from('fighter_type_skill_access')
+          .select('custom_skill_type_id')
+          .in('custom_fighter_type_id', oldCustomFighterTypeIds)
+          .not('custom_skill_type_id', 'is', null);
+
+        const uniqueCustomSkillTypeIds = Array.from(new Set(
+          (skillAccessRows ?? []).map(r => r.custom_skill_type_id).filter(Boolean) as string[]
+        ));
+
+        const customSkillTypeIdMap = new Map<string, string>();
+
+        if (uniqueCustomSkillTypeIds.length > 0) {
+          // Duplicate custom skill types
+          const { data: sourceSkillTypes } = await supabase
+            .from('custom_skill_types')
+            .select('*')
+            .in('id', uniqueCustomSkillTypeIds);
+
+          if (sourceSkillTypes) {
+            for (const st of sourceSkillTypes) {
+              const { data: newSt, error: newStError } = await supabase
+                .from('custom_skill_types')
+                .insert({
+                  name: st.name,
+                  user_id: user.id,
+                })
+                .select('id')
+                .single();
+
+              if (newStError || !newSt) {
+                throw new Error(`Failed to duplicate custom skill type: ${newStError?.message}`);
+              }
+
+              customSkillTypeIdMap.set(st.id, newSt.id);
+            }
+          }
+
+          // Duplicate custom skills belonging to these skill types
+          const { data: sourceCustomSkills } = await supabase
+            .from('custom_skills')
+            .select('*')
+            .in('custom_skill_type_id', uniqueCustomSkillTypeIds);
+
+          if (sourceCustomSkills) {
+            for (const cs of sourceCustomSkills) {
+              const newSkillTypeId = customSkillTypeIdMap.get(cs.custom_skill_type_id);
+              if (!newSkillTypeId) continue;
+
+              const { data: newCs, error: newCsError } = await supabase
+                .from('custom_skills')
+                .insert({
+                  skill_name: cs.skill_name,
+                  user_id: user.id,
+                  skill_type_id: cs.skill_type_id,
+                  custom_skill_type_id: newSkillTypeId,
+                })
+                .select('id')
+                .single();
+
+              if (newCsError || !newCs) {
+                throw new Error(`Failed to duplicate custom skill: ${newCsError?.message}`);
+              }
+
+              customSkillIdMap.set(cs.id, newCs.id);
+            }
+          }
+        }
+
+        // Step D: Duplicate custom equipment referenced in fighter defaults
+        const { data: defaultsWithCustomEquip } = await supabase
+          .from('fighter_defaults')
+          .select('custom_equipment_id')
+          .in('custom_fighter_type_id', oldCustomFighterTypeIds)
+          .not('custom_equipment_id', 'is', null);
+
+        const uniqueCustomEquipmentIds = Array.from(new Set(
+          (defaultsWithCustomEquip ?? []).map(r => r.custom_equipment_id).filter(Boolean) as string[]
+        ));
+
+        const customEquipmentIdMap = new Map<string, string>();
+
+        if (uniqueCustomEquipmentIds.length > 0) {
+          const { data: sourceCustomEquipment } = await supabase
+            .from('custom_equipment')
+            .select('*')
+            .in('id', uniqueCustomEquipmentIds);
+
+          if (sourceCustomEquipment) {
+            for (const ce of sourceCustomEquipment) {
+              const { id: _id, created_at: _ca, updated_at: _ua, user_id: _uid, ...ceData } = ce;
+
+              const { data: newCe, error: newCeError } = await supabase
+                .from('custom_equipment')
+                .insert({
+                  ...ceData,
+                  user_id: user.id,
+                })
+                .select('id')
+                .single();
+
+              if (newCeError || !newCe) {
+                throw new Error(`Failed to duplicate custom equipment: ${newCeError?.message}`);
+              }
+
+              customEquipmentIdMap.set(ce.id, newCe.id);
+            }
+          }
+
+          // Duplicate custom weapon profiles for copied equipment
+          const { data: sourceProfiles } = await supabase
+            .from('custom_weapon_profiles')
+            .select('*')
+            .in('custom_equipment_id', uniqueCustomEquipmentIds);
+
+          if (sourceProfiles && sourceProfiles.length > 0) {
+            for (const profile of sourceProfiles) {
+              const newEquipId = customEquipmentIdMap.get(profile.custom_equipment_id);
+              if (!newEquipId) continue;
+
+              const { id: _id, created_at: _ca, updated_at: _ua, custom_equipment_id: _ceid, weapon_group_id: _wgid, ...profileData } = profile;
+
+              await supabase
+                .from('custom_weapon_profiles')
+                .insert({
+                  ...profileData,
+                  custom_equipment_id: newEquipId,
+                  weapon_group_id: customEquipmentIdMap.get(profile.weapon_group_id) || null,
+                  user_id: user.id,
+                });
+            }
+          }
+        }
+
+        // Step E: Duplicate fighter_type_skill_access
+        const { data: allSkillAccess } = await supabase
+          .from('fighter_type_skill_access')
+          .select('*')
+          .in('custom_fighter_type_id', oldCustomFighterTypeIds);
+
+        if (allSkillAccess && allSkillAccess.length > 0) {
+          const skillAccessInserts = allSkillAccess.map(sa => ({
+            custom_fighter_type_id: customFighterTypeIdMap.get(sa.custom_fighter_type_id) || null,
+            fighter_type_id: sa.fighter_type_id,
+            skill_type_id: sa.skill_type_id,
+            custom_skill_type_id: sa.custom_skill_type_id
+              ? (customSkillTypeIdMap.get(sa.custom_skill_type_id) || sa.custom_skill_type_id)
+              : null,
+            access_level: sa.access_level,
+          }));
+
+          const { error: saInsertError } = await supabase
+            .from('fighter_type_skill_access')
+            .insert(skillAccessInserts);
+
+          if (saInsertError) {
+            throw new Error(`Failed to duplicate skill access: ${saInsertError.message}`);
+          }
+        }
+
+        // Step F: Duplicate fighter_defaults
+        const { data: allDefaults } = await supabase
+          .from('fighter_defaults')
+          .select('*')
+          .in('custom_fighter_type_id', oldCustomFighterTypeIds);
+
+        if (allDefaults && allDefaults.length > 0) {
+          const defaultInserts = allDefaults.map(fd => ({
+            custom_fighter_type_id: customFighterTypeIdMap.get(fd.custom_fighter_type_id) || null,
+            fighter_type_id: fd.fighter_type_id,
+            skill_id: fd.skill_id,
+            equipment_id: fd.equipment_id,
+            custom_equipment_id: fd.custom_equipment_id
+              ? (customEquipmentIdMap.get(fd.custom_equipment_id) || fd.custom_equipment_id)
+              : null,
+          }));
+
+          const { error: fdInsertError } = await supabase
+            .from('fighter_defaults')
+            .insert(defaultInserts);
+
+          if (fdInsertError) {
+            throw new Error(`Failed to duplicate fighter defaults: ${fdInsertError.message}`);
+          }
+        }
+      }
+    }
+
     // 2) Create new gang owned by current user
     const { data: createdGangRows, error: createGangError } = await supabase
       .from('gangs')
@@ -39,7 +299,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         name: params.newName.trimEnd(),
         user_id: user.id,
         gang_type_id: sourceGang.gang_type_id,
-        custom_gang_type_id: sourceGang.custom_gang_type_id,
+        custom_gang_type_id: newCustomGangTypeId || sourceGang.custom_gang_type_id,
         gang_type: sourceGang.gang_type,
         gang_colour: sourceGang.gang_colour,
         alignment: sourceGang.alignment,
@@ -137,6 +397,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         insertObj.user_id = user.id;
         insertObj.fighter_pet_id = null; // Will be set after copying fighter_exotic_beasts
         // Do not set last_updated; let DB defaults handle timestamps
+        // Remap custom_fighter_type_id to the duplicated custom fighter type
+        if (insertObj.custom_fighter_type_id && customFighterTypeIdMap.has(insertObj.custom_fighter_type_id)) {
+          insertObj.custom_fighter_type_id = customFighterTypeIdMap.get(insertObj.custom_fighter_type_id);
+        }
 
         const { data: newFighter, error: insertFighterError } = await supabase
           .from('fighters')
@@ -356,6 +620,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           // no gang_id column on fighter_skills
           o.user_id = user.id;
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
+          // Remap custom_skill_id to the duplicated custom skill
+          if (o.custom_skill_id && customSkillIdMap.has(o.custom_skill_id)) {
+            o.custom_skill_id = customSkillIdMap.get(o.custom_skill_id);
+          }
           return o;
         });
         const { data: insertedSkills, error: insertSkillsError } = await supabase
@@ -574,6 +842,11 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
 
     // 12) Invalidate caches for the new gang
     invalidateGangCreation({ gangId: newGangId, userId: user.id });
+
+    // Invalidate home page so custom assets tab shows duplicated assets
+    if (newCustomGangTypeId) {
+      revalidatePath('/');
+    }
 
     return { success: true, newGangId };
   } catch (error) {

@@ -23,11 +23,6 @@ interface TradingPostType {
   name: string;
 }
 
-interface GangOriginCategory {
-  id: string;
-  category_name: string;
-}
-
 interface UserCampaign {
   id: string;
   campaign_name: string;
@@ -60,16 +55,13 @@ export function CustomiseGangTypes({
 
   // Reference data
   const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>([]);
-  const [gangOriginCategories, setGangOriginCategories] = useState<GangOriginCategory[]>([]);
   const [isLoadingRefData, setIsLoadingRefData] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<CustomGangTypeData>({
     gang_type: '',
     alignment: null,
-    image_url: null,
     trading_post_type_id: null,
-    gang_origin_category_id: null,
   });
 
   const queryClient = useQueryClient();
@@ -81,24 +73,15 @@ export function CustomiseGangTypes({
         setIsLoadingRefData(true);
         try {
           const supabase = createClient();
-          const [tptRes, gocRes] = await Promise.all([
-            supabase
-              .from('trading_post_types')
-              .select('id, trading_post_name')
-              .order('trading_post_name'),
-            supabase
-              .from('gang_origin_categories')
-              .select('id, category_name')
-              .order('category_name'),
-          ]);
+          const { data } = await supabase
+            .from('trading_post_types')
+            .select('id, trading_post_name')
+            .order('trading_post_name');
 
-          if (tptRes.data) {
+          if (data) {
             setTradingPostTypes(
-              tptRes.data.map((t) => ({ id: t.id, name: t.trading_post_name }))
+              data.map((t) => ({ id: t.id, name: t.trading_post_name }))
             );
-          }
-          if (gocRes.data) {
-            setGangOriginCategories(gocRes.data);
           }
         } catch (error) {
           console.error('Error fetching reference data:', error);
@@ -121,10 +104,7 @@ export function CustomiseGangTypes({
         user_id: userId || '',
         gang_type: newData.gang_type,
         alignment: newData.alignment,
-        image_url: newData.image_url,
         trading_post_type_id: newData.trading_post_type_id,
-        gang_origin_category_id: newData.gang_origin_category_id,
-        default_image_urls: newData.default_image_urls,
         created_at: new Date().toISOString(),
       };
       setGangTypes(prev => [...prev, optimistic]);
@@ -216,9 +196,7 @@ export function CustomiseGangTypes({
     setFormData({
       gang_type: '',
       alignment: null,
-      image_url: null,
       trading_post_type_id: null,
-      gang_origin_category_id: null,
     });
   };
 
@@ -227,9 +205,7 @@ export function CustomiseGangTypes({
     setFormData({
       gang_type: gangType.gang_type,
       alignment: (gangType.alignment as CustomGangTypeData['alignment']) || null,
-      image_url: gangType.image_url || null,
       trading_post_type_id: gangType.trading_post_type_id || null,
-      gang_origin_category_id: gangType.gang_origin_category_id || null,
     });
   };
 
@@ -275,21 +251,15 @@ export function CustomiseGangTypes({
       key: 'gang_type',
       label: 'Gang Type',
       align: 'left',
-      width: '40%',
+      width: '50%',
     },
     {
       key: 'alignment',
       label: 'Alignment',
       align: 'left',
-      width: '25%',
+      width: '40%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value || '-',
-    },
-    {
-      key: '',
-      label: '',
-      align: 'right',
-      width: '20%',
     },
   ];
 
@@ -380,37 +350,6 @@ export function CustomiseGangTypes({
             </option>
           ))}
         </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Gang Origin Category</label>
-        <select
-          className="w-full border rounded-md p-2 bg-background"
-          value={formData.gang_origin_category_id || ''}
-          onChange={(e) =>
-            setFormData({ ...formData, gang_origin_category_id: e.target.value || null })
-          }
-          disabled={isReadOnly}
-        >
-          <option value="">None</option>
-          {gangOriginCategories.map((goc) => (
-            <option key={goc.id} value={goc.id}>
-              {goc.category_name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">Image URL</label>
-        <Input
-          value={formData.image_url || ''}
-          onChange={(e) =>
-            setFormData({ ...formData, image_url: e.target.value || null })
-          }
-          placeholder="Optional image URL"
-          disabled={isReadOnly}
-        />
       </div>
     </div>
   );

@@ -51,12 +51,7 @@ export interface GangBasic {
     } | null;
   } | null;
   custom_gang_type_id?: string | null;
-  custom_gang_types?: {
-    gang_origin_category_id?: string;
-    gang_origin_categories?: {
-      category_name: string;
-    } | null;
-  } | null;
+  custom_gang_types?: null;
   image_url?: string;
   default_gang_image?: number | null;
   hidden: boolean;
@@ -232,13 +227,6 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
             )
           ),
           custom_gang_type_id,
-          custom_gang_types!custom_gang_type_id(
-            affiliation,
-            gang_origin_category_id,
-            gang_origin_categories!gang_origin_category_id (
-              category_name
-            )
-          ),
           image_url,
           default_gang_image,
           hidden
@@ -403,7 +391,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
       async () => {
         const { data, error } = await supabase
           .from('custom_gang_types')
-          .select('id, gang_type, image_url, default_image_urls')
+          .select('id, gang_type, default_image_urls')
           .eq('id', gangBasic.custom_gang_type_id)
           .single();
 
@@ -411,7 +399,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
         return {
           id: data.id,
           gang_type: data.gang_type,
-          image_url: data.image_url,
+          image_url: '',
           default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
         };
       },

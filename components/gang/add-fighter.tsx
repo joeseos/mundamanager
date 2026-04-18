@@ -30,6 +30,7 @@ interface AddFighterProps {
   setShowModal: (show: boolean) => void;
   gangId: string;
   gangTypeId?: string | null;
+  customGangTypeId?: string | null;
   initialCredits: number;
   onFighterAdded: (newFighter: any, cost: number) => void;
   onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
@@ -253,6 +254,7 @@ export default function AddFighter({
   setShowModal,
   gangId,
   gangTypeId,
+  customGangTypeId,
   initialCredits,
   onFighterAdded,
   onFighterRollback,
@@ -471,7 +473,8 @@ export default function AddFighter({
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
       const includeAllTypesParam = includeAllFighterTypes ? '&include_all_types=true' : '';
       const gangTypeParam = gangTypeId ? `&gang_type_id=${gangTypeId}` : '';
-      const response = await fetch(`/api/fighter-types?gang_id=${gangId}${gangTypeParam}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}${affiliationParam}${includeAllTypesParam}`);
+      const customGangTypeParam = customGangTypeId ? `&custom_gang_type_id=${customGangTypeId}` : '';
+      const response = await fetch(`/api/fighter-types?gang_id=${gangId}${gangTypeParam}${customGangTypeParam}&is_gang_addition=false${gangVariantsParam}${customFightersParam}${includeAllParam}${affiliationParam}${includeAllTypesParam}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
