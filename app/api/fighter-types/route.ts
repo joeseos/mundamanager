@@ -73,7 +73,7 @@ export async function GET(request: Request) {
       data = allCustomFighters
         .filter(cf => {
           if (cf.custom_gang_type_id === customGangTypeId) return true;
-          if (cf.gang_type?.toLowerCase().includes('available to all')) return true;
+          if (includeAllGangType && cf.gang_type?.toLowerCase().includes('available to all')) return true;
           return false;
         })
         .map(cf => ({
