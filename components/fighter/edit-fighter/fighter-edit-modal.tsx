@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
-import { FighterPromotionModal, EXOTIC_BEAST_SPECIALIST_CLASS_ID, EXOTIC_BEAST_SPECIALIST_CLASS_NAME } from './fighter-promotion-modal';
+import { FighterPromotionModal } from './fighter-promotion-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
 
@@ -379,9 +379,7 @@ export function EditFighterModal({
           fighter_type: type.fighter_type,
           fighter_class: type.fighter_class,
           fighter_class_id: type.fighter_class_id,
-          special_rules: (type.special_rules || [])
-            .map((r: string) => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r)
-            .filter(Boolean),
+          special_rules: type.special_rules || [],
           gang_type_id: type.gang_type_id,
           total_cost: type.total_cost,
           typeClassKey: type.typeClassKey,
@@ -588,10 +586,7 @@ export function EditFighterModal({
   };
 
   // Update the handleFighterTypeChange function
-  const handleFighterTypeChange = (fighterTypeId: string, overrides?: { 
-    special_rules?: string[];
-    isPromotion?: boolean;
-  }) => {
+  const handleFighterTypeChange = (fighterTypeId: string) => {
     setSelectedFighterTypeId(fighterTypeId);
     
     // Set flag to indicate user has explicitly selected a fighter type
@@ -601,20 +596,13 @@ export function EditFighterModal({
     const selectedType = fighterTypes.find((ft: any) => ft.id === fighterTypeId);
     
     if (selectedType) {
-      // Promoting an exotic beast and demoting an exotic beast uses the same fighter type id, therefore the isPromotion flag is needed to differentiate between the two cases
-      const isExoticBeastPromotion = overrides?.isPromotion && selectedType?.fighter_class === 'Exotic Beast';
-      const fighterClass = isExoticBeastPromotion ? EXOTIC_BEAST_SPECIALIST_CLASS_NAME : selectedType?.fighter_class;
-      const fighterClassId = isExoticBeastPromotion ? EXOTIC_BEAST_SPECIALIST_CLASS_ID : selectedType?.fighter_class_id;
-      setSelectedFighterClassId(fighterClassId ?? '');
-
       // Update form values with selected type
       setFormValues(prev => ({
         ...prev,
         fighter_type: selectedType.fighter_type,
-        fighter_class: fighterClass,
-        fighter_class_id: fighterClassId,
-        ...(overrides?.special_rules !== undefined && { special_rules: overrides?.special_rules }),
-    }));
+        fighter_class: selectedType.fighter_class,
+        fighter_class_id: selectedType.fighter_class_id
+      }));
 
       // Update available legacies for the selected fighter type
       setAvailableLegacies(selectedType.available_legacies || []);
@@ -1295,15 +1283,23 @@ export function EditFighterModal({
       <FighterPromotionModal
         currentClass={effectiveFighterClass || ''}
         currentSpecialRules={formValues.special_rules}
+        currentFighterType={formValues.fighter_type}
         currentFighterTypeId={selectedFighterTypeId}
         fighterTypes={fighterTypes}
         isOpen={showPromotionModal}
         onClose={() => setShowPromotionModal(false)}
         onPromoted={(data) => {
-          handleFighterTypeChange(data.fighter_type_id, {
+          setSelectedFighterTypeId(data.fighter_type_id);
+          setHasExplicitlySelectedType(true);
+          setSelectedFighterClassId(data.fighter_class_id);
+          setFormValues(prev => ({
+            ...prev,
+            fighter_type: data.fighter_type,
+            fighter_type_id: data.fighter_type_id,
+            fighter_class: data.fighter_class,
+            fighter_class_id: data.fighter_class_id,
             special_rules: data.special_rules,
-            isPromotion: true,
-          });
+          }));
           setShowPromotionModal(false);
         }}
       />

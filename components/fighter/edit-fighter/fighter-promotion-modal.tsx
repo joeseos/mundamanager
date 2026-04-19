@@ -13,8 +13,8 @@ const PROMOTION_MAP: Record<string, string> = {
   'Exotic Beast': 'Exotic Beast Specialist',
 };
 
-export const EXOTIC_BEAST_SPECIALIST_CLASS_ID = '38598144-0f38-43c5-9a07-512106b9fc9e';
-export const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
+const EXOTIC_BEAST_SPECIALIST_CLASS_ID = '38598144-0f38-43c5-9a07-512106b9fc9e';
+const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
 
 interface FighterPromotionModalProps {
   currentClass: string;
@@ -25,13 +25,17 @@ interface FighterPromotionModalProps {
     id: string;
     fighter_type: string;
     fighter_class: string;
+    fighter_class_id?: string;
     special_rules?: string[];
     total_cost: number;
   }>;
   isOpen: boolean;
   onClose: () => void;
   onPromoted: (data: {
+    fighter_type: string;
     fighter_type_id: string;
+    fighter_class: string;
+    fighter_class_id: string;
     special_rules: string[];
   }) => void;
 }
@@ -39,6 +43,7 @@ interface FighterPromotionModalProps {
 export function FighterPromotionModal({
   currentClass,
   currentSpecialRules,
+  currentFighterType,
   currentFighterTypeId,
   fighterTypes,
   isOpen,
@@ -102,10 +107,22 @@ export function FighterPromotionModal({
   };
 
   const handleConfirm = () => {
-    if (!isExoticBeast && !selectedType) return;
+    if (isExoticBeast) {
+      onPromoted({
+        fighter_type: currentFighterType || '',
+        fighter_type_id: currentFighterTypeId || '',
+        fighter_class: EXOTIC_BEAST_SPECIALIST_CLASS_NAME,
+        fighter_class_id: EXOTIC_BEAST_SPECIALIST_CLASS_ID,
+        special_rules: newSpecialRules,
+      });
+      return;
+    }
+    if (!selectedType) return;
     onPromoted({
-      // Safe since if we past the early return, then it is either an exotic beast, or if not we actually have the new state
-      fighter_type_id: isExoticBeast ? (currentFighterTypeId || '') : selectedType!.id,
+      fighter_type: selectedType.fighter_type,
+      fighter_type_id: selectedType.id,
+      fighter_class: selectedType.fighter_class,
+      fighter_class_id: selectedType.fighter_class_id || '',
       special_rules: newSpecialRules,
     });
   };
