@@ -22,7 +22,7 @@ import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { Combobox } from '@/components/ui/combobox';
-import { FighterPromotionModal } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
+import { FighterPromotionModal, EXOTIC_BEAST_SPECIALIST_CLASS_ID, EXOTIC_BEAST_SPECIALIST_CLASS_NAME } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
 import {
   roll,
   formatRollOutcomeLine,
@@ -1635,13 +1635,20 @@ export function AdvancementModal({
                 <FighterPromotionModal
                   currentClass={fighterClass}
                   currentSpecialRules={fighterSpecialRules}
-                  currentFighterType={fighterTypeName}
                   currentFighterTypeId={fighterTypeId}
                   fighterTypes={preFetchedFighterTypes}
                   isOpen={gangerPromotionOpen}
                   onClose={() => setGangerPromotionOpen(false)}
                   onPromoted={(data) => {
-                    setGangerPendingPromotion(data);
+                    const matchedType = preFetchedFighterTypes.find(ft => ft.id === data.fighter_type_id);
+                    const isExoticBeastPromotion = matchedType?.fighter_class === 'Exotic Beast';
+                    setGangerPendingPromotion({
+                      fighter_type: matchedType?.fighter_type || '',
+                      fighter_type_id: data.fighter_type_id,
+                      fighter_class: isExoticBeastPromotion ? EXOTIC_BEAST_SPECIALIST_CLASS_NAME : (matchedType?.fighter_class || ''),
+                      fighter_class_id: isExoticBeastPromotion ? EXOTIC_BEAST_SPECIALIST_CLASS_ID : (matchedType?.fighter_class_id || ''),
+                      special_rules: data.special_rules,
+                    });
                     setGangerPromotionOpen(false);
                   }}
                 />
