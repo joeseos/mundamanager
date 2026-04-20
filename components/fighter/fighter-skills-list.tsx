@@ -523,6 +523,8 @@ export function SkillsList({
     };
   });
 
+  const hasAnyCost = skillsArray.some(s => s.credits_increase > 0);
+
   // Custom empty message based on free_skill status
   const getEmptyMessage = () => {
     if (free_skill) {
@@ -540,12 +542,13 @@ export function SkillsList({
           {
             key: 'name',
             label: 'Name',
-            width: '75%'
+            width: hasAnyCost ? '50%' : '70%'
           },
           {
             key: 'action_info',
             label: 'Source',
             align: 'right',
+            ...(hasAnyCost ? { width: '25%' } : {}),
             render: (value, item) => {
               if (item.fighter_injury_id) {
                 return (
@@ -563,7 +566,12 @@ export function SkillsList({
               }
               return null;
             }
-          }
+          },
+          ...(hasAnyCost ? [{
+            key: 'credits_increase',
+            label: 'Cost',
+            align: 'right' as const
+          }] : [])
         ]}
         actions={[
           {

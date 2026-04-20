@@ -89,19 +89,20 @@ export default async function ContributorsPage() {
   const ongoingContributors: Contributor[] = [
     { name: "YukiTheSnowFox", link: "https://www.instagram.com/inquisitorsnowfox" },
     { name: "Levariel" },
+    { name: "Zaoshu" },
+    { name: "Steady" },
     { name: "T_H_E_S_E_U_S" },
-    { name: "HiveScum Wonka" },
-    { name: "Clicky" },
   ];
 
   const pastContributors: Contributor[] = [
     { name: "LeperColony" },
-    { name: "Steady" },
     { name: "GenFailure" },
     { name: "Pyriand" },
     { name: "HochuChaya" },
+    { name: "Clicky" },
     { name: "TheJosh" },
     { name: "Professor Bleep Bloop" },
+    { name: "HiveScum Wonka" },
   ];
 
   const graphicArtists: Contributor[] = [

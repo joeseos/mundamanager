@@ -73,7 +73,7 @@ export async function GET(request: Request) {
       data = allCustomFighters
         .filter(cf => {
           if (cf.custom_gang_type_id === customGangTypeId) return true;
-          if (cf.gang_type?.toLowerCase().includes('available to all')) return true;
+          if (includeAllGangType && cf.gang_type?.toLowerCase().includes('available to all')) return true;
           return false;
         })
         .map(cf => ({
@@ -259,7 +259,7 @@ export async function GET(request: Request) {
             .select('custom_fighter_type_id')
             .in('campaign_id', campaignIds);
 
-          const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id) || [];
+          const fighterIds = (sharedFighterIds?.map(sf => sf.custom_fighter_type_id) || []).filter(Boolean);
 
           if (fighterIds.length > 0) {
             // Fetch the actual custom fighter data
@@ -286,8 +286,8 @@ export async function GET(request: Request) {
             // Include custom fighters for the current gang type
             if (cf.gang_type_id === gangTypeId) return true;
 
-            // If includeAllGangType is true, also include "Available to All" gang type fighters
-            if (includeAllGangType && cf.gang_type?.toLowerCase().includes('available to all')) return true;
+            // Also include "Available to All" gang type fighters
+            if (cf.gang_type?.toLowerCase().includes('available to all')) return true;
 
             return false;
           })

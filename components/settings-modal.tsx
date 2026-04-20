@@ -18,7 +18,7 @@ import dynamic from 'next/dynamic';
 // Icons
 import { LuSettings, LuLogOut, LuUser, LuMenu } from "react-icons/lu";
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
-import { FiMap } from "react-icons/fi";
+import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { MdOutlineColorLens } from "react-icons/md";
 import { TbDiamondFilled } from "react-icons/tb";
 import { getPatreonTierColor } from "@/utils/patreon";
@@ -163,7 +163,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
           <DropdownMenuItem asChild onClick={handleLinkClick}>
             <Link href="/?tab=campaigns" onClick={createHomeTabHandler('campaigns')} className="w-full cursor-pointer">
-              <FiMap className="mr-2 h-4 w-4" />
+              <PiFlagBannerFoldBold className="mr-2 h-4 w-4" />
               Campaigns
             </Link>
           </DropdownMenuItem>

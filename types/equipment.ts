@@ -107,6 +107,13 @@ export interface Equipment {
   trading_post_names?: string[];
   from_fighters_list?: boolean;
   is_consumable?: boolean;
+  // Cost breakdown for Exotic Beast equipment (base + advancements + equipment)
+  beast_cost_breakdown?: {
+    base: number;
+    advancements: number;
+    equipment: number;
+    total: number;
+  } | null;
 }
 
 /**

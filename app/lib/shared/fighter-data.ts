@@ -1049,7 +1049,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
  * Returns total cost (for rating) and per-equipment beast equipment costs (for sell value)
  * Cache: COMPUTED_FIGHTER_BEAST_COSTS
  */
-export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any): Promise<{ total: number; byEquipmentId: Record<string, number> }> => {
+export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any): Promise<{ total: number; byEquipmentId: Record<string, { equipment: number; advancements: number }> }> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -1089,7 +1089,7 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
         return { total: 0, byEquipmentId: {} };
       }
 
-      const byEquipmentId: Record<string, number> = {};
+      const byEquipmentId: Record<string, { equipment: number; advancements: number }> = {};
       const total = beastData.reduce((sum: number, beast: any) => {
         const equipmentCost = (beast.fighter_equipment as any[])?.reduce((s, eq) => s + (eq.purchase_cost || 0), 0) || 0;
         const skillsCost = (beast.fighter_skills as any[])?.reduce((s, skill) => s + (skill.credits_increase || 0), 0) || 0;
@@ -1100,10 +1100,14 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
         // Use the original fighter type cost instead of beast.credits (which is 0)
         const baseBeastCost = (beast.fighter_types as any)?.cost || 0;
 
-        // Map beast's equipment cost to the granting equipment for sell value
+        // Map beast's costs (equipment + advancements) to the granting equipment for sell value and display breakdown
+        const advancementsCost = skillsCost + effectsCost + (beast.cost_adjustment || 0);
         const ownership = data.find((o: any) => o.fighter_pet_id === beast.id);
         if (ownership?.fighter_equipment_id) {
-          byEquipmentId[ownership.fighter_equipment_id] = equipmentCost;
+          byEquipmentId[ownership.fighter_equipment_id] = {
+            equipment: equipmentCost,
+            advancements: advancementsCost
+          };
         }
 
         return sum + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beast.cost_adjustment || 0);

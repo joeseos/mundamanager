@@ -55,7 +55,8 @@ function calculateTotalCopyCost(
   const copiedEffectsCost = (sourceFighter.fighter_effects || [])
     .filter((e: any) => {
       const cat = e.fighter_effect_type?.fighter_effect_category?.category_name;
-      return cat !== 'injuries' && cat !== 'advancements' && cat !== 'power-boosts';
+      return cat !== 'injuries' && cat !== 'advancements' && cat !== 'power-boosts'
+        && cat !== 'skills' && !e.fighter_skill_id;
     })
     .reduce((sum: number, e: any) => sum + (e.type_specific_data?.credits_increase || 0), 0);
 
@@ -478,7 +479,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         ? sourceFighter.fighter_effects
         : sourceFighter.fighter_effects.filter((effect: any) => {
             const categoryName = effect.fighter_effect_type?.fighter_effect_category?.category_name;
-            return categoryName !== 'injuries' && categoryName !== 'advancements' && categoryName !== 'power-boosts';
+            return categoryName !== 'injuries' && categoryName !== 'advancements' && categoryName !== 'power-boosts'
+              && categoryName !== 'skills' && !effect.fighter_skill_id;
           });
 
       if (effectsToCopyList.length > 0) {
@@ -781,7 +783,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             ? beastFighter.fighter_effects
             : beastFighter.fighter_effects.filter((effect: any) => {
                 const categoryName = effect.fighter_effect_type?.fighter_effect_category?.category_name;
-                return categoryName !== 'injuries' && categoryName !== 'advancements' && categoryName !== 'power-boosts';
+                return categoryName !== 'injuries' && categoryName !== 'advancements' && categoryName !== 'power-boosts'
+                  && categoryName !== 'skills' && !effect.fighter_skill_id;
               });
 
           if (beastEffectsToCopyList.length > 0) {

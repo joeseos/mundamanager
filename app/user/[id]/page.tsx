@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { notFound } from "next/navigation";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
-import { FiMap } from "react-icons/fi";
+import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { FaUser, FaUsers } from "react-icons/fa6";
 import { MdOutlineColorLens } from "react-icons/md";
 import { CustomiseEquipment } from "@/components/customise/custom-equipment";
@@ -176,7 +176,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
           
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <FiMap className="h-8 w-8 text-muted-foreground" />
+              <PiFlagBannerFoldBold className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">{campaigns.length}</p>
                 <p className="text-sm text-muted-foreground">Campaigns</p>
@@ -239,7 +239,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                <FiMap className="h-5 w-5" />
+                <PiFlagBannerFoldBold className="h-5 w-5" />
                 Campaigns
               </h2>
               <p className="text-muted-foreground">
