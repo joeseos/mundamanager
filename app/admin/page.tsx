@@ -1,7 +1,8 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuFlag, LuSearch } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuScrollText, LuBookUser, LuHeartCrack, LuSearch } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
+import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
@@ -106,7 +107,7 @@ export default function AdminPage() {
       title: "Campaign Management",
       description: "Manage campaign types, territories, and triumphs",
       action: () => setShowCampaignManagement(true),
-      icon: LuFlag
+      icon: PiFlagBannerFoldBold
     }
   ];
 

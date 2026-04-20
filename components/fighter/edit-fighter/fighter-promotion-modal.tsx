@@ -28,6 +28,7 @@ interface FighterPromotionModalProps {
     fighter_class_id?: string;
     special_rules?: string[];
     total_cost: number;
+    sub_type?: { id: string; sub_type_name: string } | null;
   }>;
   isOpen: boolean;
   onClose: () => void;
@@ -70,7 +71,7 @@ export function FighterPromotionModal({
     if (isOpen) {
       if (isExoticBeast) {
         setSelectedTypeId('');
-        setNewSpecialRules([...currentSpecialRules]);
+        setNewSpecialRules(currentSpecialRules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean));
         setNewRuleInput('');
       } else {
         const eligible = targetClass
@@ -78,7 +79,9 @@ export function FighterPromotionModal({
           : [];
         const firstType = eligible.length > 0 ? eligible[0] : null;
         setSelectedTypeId(firstType?.id || '');
-        setNewSpecialRules(firstType?.special_rules ? [...firstType.special_rules] : []);
+        setNewSpecialRules(firstType?.special_rules
+          ? firstType.special_rules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean)
+          : []);
         setNewRuleInput('');
       }
     }
@@ -88,7 +91,9 @@ export function FighterPromotionModal({
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
     const type = eligibleTypes.find(ft => ft.id === typeId);
-    setNewSpecialRules(type?.special_rules ? [...type.special_rules] : []);
+    setNewSpecialRules(type?.special_rules
+      ? type.special_rules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean)
+      : []);
   };
 
   const handleAddRule = () => {
@@ -165,7 +170,7 @@ export function FighterPromotionModal({
                   >
                     {eligibleTypes.map(ft => (
                       <option key={ft.id} value={ft.id}>
-                        {ft.fighter_type} ({ft.fighter_class})
+                        {ft.fighter_type}{ft.sub_type?.sub_type_name ? `, ${ft.sub_type.sub_type_name}` : ''} ({ft.fighter_class})
                       </option>
                     ))}
                   </select>

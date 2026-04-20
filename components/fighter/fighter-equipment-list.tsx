@@ -24,6 +24,44 @@ import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
+import { Tooltip } from 'react-tooltip';
+
+// Escape untrusted strings before inlining into tooltip HTML
+const escapeHtml = (unsafe: string): string =>
+  unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+// Build the Exotic Beast Cost Breakdown tooltip HTML, omitting zero-valued lines
+const buildBeastCostTooltipHtml = (breakdown: { base: number; advancements: number; equipment: number; total: number }): string => {
+  const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Cost Breakdown</div>';
+  const rows: Array<{ label: string; value: string }> = [
+    { label: 'Base cost', value: String(breakdown.base) },
+  ];
+  if (breakdown.advancements > 0) {
+    rows.push({ label: 'Advancements', value: `+${breakdown.advancements}` });
+  }
+  if (breakdown.equipment > 0) {
+    rows.push({ label: 'Equipment', value: `+${breakdown.equipment}` });
+  }
+  const rowsHtml = rows
+    .map(({ label, value }) =>
+      `<div style="display:flex;justify-content:space-between;gap:12px;">` +
+        `<span>${escapeHtml(label)}</span>` +
+        `<span>${escapeHtml(value)}</span>` +
+      `</div>`
+    )
+    .join('');
+  const footer =
+    `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
+      `<span>Total:</span>` +
+      `<span>${breakdown.total}</span>` +
+    `</div>`;
+  return `${title}${rowsHtml}${footer}`;
+};
 
 interface WeaponListProps {
   fighterId: string;
@@ -49,7 +87,10 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const originalCost = item.cost ?? 0;
+  // Exotic Beasts' sale value excludes advancements (only base cost + beast equipment counts)
+  const originalCost = item.beast_cost_breakdown
+    ? item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment
+    : item.cost ?? 0;
   const [manualCost, setManualCost] = useState(originalCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
   
@@ -684,7 +725,17 @@ export function WeaponList({
           </EquipmentTooltipTrigger>
         </td>
         <td className="px-1 py-1 text-right">
-          <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.cost ?? '-'}</span>
+          {item.beast_cost_breakdown ? (
+            <span
+              className={`${isChild ? "text-sm" : ""} ${mutedClass} cursor-help`}
+              data-tooltip-id="exotic-beast-cost-tooltip"
+              data-tooltip-html={buildBeastCostTooltipHtml(item.beast_cost_breakdown)}
+            >
+              {item.cost}*
+            </span>
+          ) : (
+            <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.cost ?? '-'}</span>
+          )}
         </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
@@ -1036,6 +1087,17 @@ export function WeaponList({
       )}
 
       <EquipmentTooltip />
+      <Tooltip
+        id="exotic-beast-cost-tooltip"
+        place="top"
+        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '24rem'
+        }}
+      />
     </>
   );
 }

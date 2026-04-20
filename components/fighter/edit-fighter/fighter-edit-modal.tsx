@@ -379,7 +379,9 @@ export function EditFighterModal({
           fighter_type: type.fighter_type,
           fighter_class: type.fighter_class,
           fighter_class_id: type.fighter_class_id,
-          special_rules: type.special_rules || [],
+          special_rules: (type.special_rules || [])
+            .map((r: string) => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r)
+            .filter(Boolean),
           gang_type_id: type.gang_type_id,
           total_cost: type.total_cost,
           typeClassKey: type.typeClassKey,
@@ -588,13 +590,13 @@ export function EditFighterModal({
   // Update the handleFighterTypeChange function
   const handleFighterTypeChange = (fighterTypeId: string) => {
     setSelectedFighterTypeId(fighterTypeId);
-    
+
     // Set flag to indicate user has explicitly selected a fighter type
     setHasExplicitlySelectedType(true);
-    
+
     // Find the selected fighter type
     const selectedType = fighterTypes.find((ft: any) => ft.id === fighterTypeId);
-    
+
     if (selectedType) {
       // Update form values with selected type
       setFormValues(prev => ({
@@ -1300,6 +1302,7 @@ export function EditFighterModal({
             fighter_class_id: data.fighter_class_id,
             special_rules: data.special_rules,
           }));
+          handleFighterTypeChange(data.fighter_type_id);
           setShowPromotionModal(false);
         }}
       />

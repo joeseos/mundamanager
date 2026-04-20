@@ -1,6 +1,6 @@
 import { FaUsers, FaCogs, FaCoins, FaDice, FaCog, FaUsersCog } from "react-icons/fa";
 import { LuSwords } from "react-icons/lu";
-import { FiMap } from "react-icons/fi";
+import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { MdOutlineCurrencyExchange } from "react-icons/md";
 import Link from "next/link";
 
@@ -23,7 +23,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
       description: "Track each fighter’s stats, skills, equipment, advancements, and injuries, and personalise them with custom portraits and backstories."
     },
     {
-      icon: <FiMap className="h-6 w-6" />,
+      icon: <PiFlagBannerFoldBold className="h-6 w-6" />,
       title: "Campaign Management",
       description: "Manage campaign territories, record detailed battle reports, have multiple Arbitrators, and write down your campaign story and house rules."
     },
