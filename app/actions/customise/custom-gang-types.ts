@@ -7,8 +7,9 @@ import { revalidatePath } from 'next/cache';
 export interface CustomGangTypeData {
   gang_type: string;
   alignment?: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
-  trading_post_type_id?: string | null;
 }
+
+const DEFAULT_TRADING_POST_TYPE_ID = 'cada4005-66e3-4e3c-8a77-146329bd1eda';
 
 export interface CustomGangType {
   id: string;
@@ -36,7 +37,7 @@ export async function createCustomGangType(
         user_id: user.id,
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
-        trading_post_type_id: data.trading_post_type_id || null,
+        trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -83,7 +84,7 @@ export async function updateCustomGangType(
       .update({
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
-        trading_post_type_id: data.trading_post_type_id || null,
+        trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

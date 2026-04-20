@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -16,12 +16,6 @@ import {
   type CustomGangType,
   type CustomGangTypeData,
 } from '@/app/actions/customise/custom-gang-types';
-import { createClient } from '@/utils/supabase/client';
-
-interface TradingPostType {
-  id: string;
-  name: string;
-}
 
 interface UserCampaign {
   id: string;
@@ -53,45 +47,13 @@ export function CustomiseGangTypes({
   const [viewModalData, setViewModalData] = useState<CustomGangType | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomGangType | null>(null);
 
-  // Reference data
-  const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>([]);
-  const [isLoadingRefData, setIsLoadingRefData] = useState(false);
-
   // Form state
   const [formData, setFormData] = useState<CustomGangTypeData>({
     gang_type: '',
     alignment: null,
-    trading_post_type_id: null,
   });
 
   const queryClient = useQueryClient();
-
-  // Fetch reference data when a modal opens
-  useEffect(() => {
-    if ((isAddModalOpen || editModalData) && !isLoadingRefData && tradingPostTypes.length === 0) {
-      const fetchRefData = async () => {
-        setIsLoadingRefData(true);
-        try {
-          const supabase = createClient();
-          const { data } = await supabase
-            .from('trading_post_types')
-            .select('id, trading_post_name')
-            .order('trading_post_name');
-
-          if (data) {
-            setTradingPostTypes(
-              data.map((t) => ({ id: t.id, name: t.trading_post_name }))
-            );
-          }
-        } catch (error) {
-          console.error('Error fetching reference data:', error);
-        } finally {
-          setIsLoadingRefData(false);
-        }
-      };
-      fetchRefData();
-    }
-  }, [isAddModalOpen, editModalData, isLoadingRefData, tradingPostTypes.length]);
 
   // Create mutation
   const createMutation = useMutation({
@@ -104,7 +66,6 @@ export function CustomiseGangTypes({
         user_id: userId || '',
         gang_type: newData.gang_type,
         alignment: newData.alignment,
-        trading_post_type_id: newData.trading_post_type_id,
         created_at: new Date().toISOString(),
       };
       setGangTypes(prev => [...prev, optimistic]);
@@ -196,7 +157,6 @@ export function CustomiseGangTypes({
     setFormData({
       gang_type: '',
       alignment: null,
-      trading_post_type_id: null,
     });
   };
 
@@ -205,7 +165,6 @@ export function CustomiseGangTypes({
     setFormData({
       gang_type: gangType.gang_type,
       alignment: (gangType.alignment as CustomGangTypeData['alignment']) || null,
-      trading_post_type_id: gangType.trading_post_type_id || null,
     });
   };
 
@@ -333,24 +292,6 @@ export function CustomiseGangTypes({
         </select>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">Trading Post Type</label>
-        <select
-          className="w-full border rounded-md p-2 bg-background"
-          value={formData.trading_post_type_id || ''}
-          onChange={(e) =>
-            setFormData({ ...formData, trading_post_type_id: e.target.value || null })
-          }
-          disabled={isReadOnly}
-        >
-          <option value="">Default</option>
-          {tradingPostTypes.map((tpt) => (
-            <option key={tpt.id} value={tpt.id}>
-              {tpt.name}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   );
 
