@@ -71,7 +71,7 @@ export function FighterPromotionModal({
     if (isOpen) {
       if (isExoticBeast) {
         setSelectedTypeId('');
-        setNewSpecialRules([...currentSpecialRules]);
+        setNewSpecialRules(currentSpecialRules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean));
         setNewRuleInput('');
       } else {
         const eligible = targetClass
@@ -79,7 +79,9 @@ export function FighterPromotionModal({
           : [];
         const firstType = eligible.length > 0 ? eligible[0] : null;
         setSelectedTypeId(firstType?.id || '');
-        setNewSpecialRules(firstType?.special_rules ? [...firstType.special_rules] : []);
+        setNewSpecialRules(firstType?.special_rules
+          ? firstType.special_rules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean)
+          : []);
         setNewRuleInput('');
       }
     }
@@ -89,7 +91,9 @@ export function FighterPromotionModal({
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
     const type = eligibleTypes.find(ft => ft.id === typeId);
-    setNewSpecialRules(type?.special_rules ? [...type.special_rules] : []);
+    setNewSpecialRules(type?.special_rules
+      ? type.special_rules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean)
+      : []);
   };
 
   const handleAddRule = () => {
