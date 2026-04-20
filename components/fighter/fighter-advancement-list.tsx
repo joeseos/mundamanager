@@ -53,6 +53,7 @@ interface AdvancementModalProps {
     fighter_class_id?: string;
     special_rules?: string[];
     total_cost: number;
+    sub_type?: { id: string; sub_type_name: string } | null;
   }>;
   onEnsureFighterTypes?: () => Promise<void>;
   fighterSpecialRules?: string[];
@@ -184,6 +185,7 @@ interface AdvancementsListProps {
     fighter_class_id?: string;
     special_rules?: string[];
     total_cost: number;
+    sub_type?: { id: string; sub_type_name: string } | null;
   }>;
   onEnsureFighterTypes?: () => Promise<void>;
   fighterSpecialRules?: string[];
