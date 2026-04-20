@@ -28,6 +28,7 @@ interface FighterPromotionModalProps {
     fighter_class_id?: string;
     special_rules?: string[];
     total_cost: number;
+    sub_type?: { id: string; sub_type_name: string } | null;
   }>;
   isOpen: boolean;
   onClose: () => void;
@@ -165,7 +166,7 @@ export function FighterPromotionModal({
                   >
                     {eligibleTypes.map(ft => (
                       <option key={ft.id} value={ft.id}>
-                        {ft.fighter_type} ({ft.fighter_class})
+                        {ft.fighter_type}{ft.sub_type?.sub_type_name ? `, ${ft.sub_type.sub_type_name}` : ''} ({ft.fighter_class})
                       </option>
                     ))}
                   </select>
