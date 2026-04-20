@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 14XHgOTgBRSVq03itOL2ZmGv5utsurGCaDwwmsWnF9wcv7aeKU8bgtpHsBobJY6
+\restrict urGv0vfM0ii2774Uc6S4sqOkGYEVPT8acBr2ovy5neQHdxkHpVpJ82A0LArxGCr
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -6126,6 +6126,13 @@ CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree
 
 
 --
+-- Name: custom_shared_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_shared_campaign_id_idx ON public.custom_shared USING btree (campaign_id);
+
+
+--
 -- Name: custom_shared_custom_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10758,5 +10765,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 14XHgOTgBRSVq03itOL2ZmGv5utsurGCaDwwmsWnF9wcv7aeKU8bgtpHsBobJY6
+\unrestrict urGv0vfM0ii2774Uc6S4sqOkGYEVPT8acBr2ovy5neQHdxkHpVpJ82A0LArxGCr
 
