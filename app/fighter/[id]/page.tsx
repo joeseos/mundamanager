@@ -226,11 +226,14 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
                   (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     }
 
-    // Enrich exotic beast equipment with beast's purchased equipment costs
+    // Enrich exotic beast equipment with beast's purchased equipment costs and advancements costs
     equipment.forEach((eq: any) => {
-      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts'
-          && beastCosts.byEquipmentId[eq.fighter_equipment_id]) {
-        eq.beast_equipment_cost = beastCosts.byEquipmentId[eq.fighter_equipment_id];
+      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+        const breakdown = beastCosts.byEquipmentId[eq.fighter_equipment_id];
+        if (breakdown) {
+          eq.beast_equipment_cost = breakdown.equipment;
+          eq.beast_advancements_cost = breakdown.advancements;
+        }
       }
     });
 
