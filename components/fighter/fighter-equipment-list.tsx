@@ -87,7 +87,10 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const originalCost = item.cost ?? 0;
+  // Exotic Beasts' sale value excludes advancements (only base cost + beast equipment counts)
+  const originalCost = item.beast_cost_breakdown
+    ? item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment
+    : item.cost ?? 0;
   const [manualCost, setManualCost] = useState(originalCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
   
