@@ -1144,7 +1144,17 @@ export default function FighterPage({
               recovery: fighterData.fighter.recovery,
               captured: fighterData.fighter.captured,
               credits: fighterData.fighter.credits || 0,
-              refund_credits: (fighterData.fighter.base_credits || 0) + (fighterData.equipment || []).reduce((sum: number, item: Equipment) => sum + (item.cost || 0), 0),
+              // Refund is computed server-side in app/fighter/[id]/page.tsx so that Exotic Beast
+              // Advancements are excluded (only the beast's base cost + beast equipment count).
+              // Falls back to a client-side computation if the server value isn't available.
+              refund_credits: typeof (fighterData.fighter as any).refund_credits === 'number'
+                ? (fighterData.fighter as any).refund_credits
+                : (fighterData.fighter.base_credits || 0) + (fighterData.equipment || []).reduce((sum: number, item: Equipment) => {
+                    if (item.beast_cost_breakdown) {
+                      return sum + item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment;
+                    }
+                    return sum + (item.cost || 0);
+                  }, 0),
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: fighterData.fighter.base_credits || 0,
               base_copy_cost: fighterData.fighter.base_copy_cost || 0,

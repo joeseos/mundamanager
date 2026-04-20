@@ -237,6 +237,19 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       }
     });
 
+    // Compute refund credits for deletion: owner base cost + all owner equipment purchase_cost
+    // + each owned beast's own equipment purchase_cost (beast base is already in the owner's
+    // beast-granting equipment purchase_cost). Exotic Beast Advancements are excluded.
+    // Mirrors the server-side refund calculation in edit-fighter.ts case 'delete'.
+    const refundCredits = isOwnedBeast
+      ? 0
+      : (fighterBasic.credits || 0)
+          + equipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0)
+          + Object.values(beastCosts.byEquipmentId).reduce(
+              (sum: number, b: { equipment: number; advancements: number }) => sum + b.equipment,
+              0
+            );
+
     // Filter effects by active loadout (for stats/display)
     // Total cost above uses ALL effects (correct for gang rating)
     if (fighterBasic.active_loadout_id) {
@@ -280,6 +293,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         owned_beasts: ownedBeasts,
         owner_name: ownerName,
         captured_by_gang_name: capturedByGangResult ?? undefined,
+        refund_credits: refundCredits,
       },
       gang: {
         id: gangBasic.id,
