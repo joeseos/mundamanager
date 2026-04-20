@@ -226,13 +226,29 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
                   (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     }
 
-    // Enrich exotic beast equipment with beast's purchased equipment costs
+    // Enrich exotic beast equipment with beast's purchased equipment costs and advancements costs
     equipment.forEach((eq: any) => {
-      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts'
-          && beastCosts.byEquipmentId[eq.fighter_equipment_id]) {
-        eq.beast_equipment_cost = beastCosts.byEquipmentId[eq.fighter_equipment_id];
+      if (eq.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
+        const breakdown = beastCosts.byEquipmentId[eq.fighter_equipment_id];
+        if (breakdown) {
+          eq.beast_equipment_cost = breakdown.equipment;
+          eq.beast_advancements_cost = breakdown.advancements;
+        }
       }
     });
+
+    // Compute refund credits for deletion: owner base cost + all owner equipment purchase_cost
+    // + each owned beast's own equipment purchase_cost (beast base is already in the owner's
+    // beast-granting equipment purchase_cost). Exotic Beast Advancements are excluded.
+    // Mirrors the server-side refund calculation in edit-fighter.ts case 'delete'.
+    const refundCredits = isOwnedBeast
+      ? 0
+      : (fighterBasic.credits || 0)
+          + equipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0)
+          + Object.values(beastCosts.byEquipmentId).reduce(
+              (sum: number, b: { equipment: number; advancements: number }) => sum + b.equipment,
+              0
+            );
 
     // Filter effects by active loadout (for stats/display)
     // Total cost above uses ALL effects (correct for gang rating)
@@ -277,6 +293,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         owned_beasts: ownedBeasts,
         owner_name: ownerName,
         captured_by_gang_name: capturedByGangResult ?? undefined,
+        refund_credits: refundCredits,
       },
       gang: {
         id: gangBasic.id,

@@ -720,6 +720,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         // Compute refund amount server-side: base cost + equipment cost
+        // For Exotic Beasts owned by this fighter, we also refund the beast's own equipment
+        // (beast's base cost is already covered by the owner's beast-granting equipment row).
+        // Exotic Beast Advancements (skills/effects credits_increase + cost_adjustment) are
+        // intentionally NOT refunded.
         // Must be calculated BEFORE deleting the fighter (cascade deletes fighter_equipment)
         let refundAmount = 0;
         if (params.refund) {
@@ -731,7 +735,26 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           const equipmentCost = (equipmentRows || []).reduce(
             (sum: number, row: { purchase_cost: number }) => sum + (row.purchase_cost || 0), 0
           );
-          refundAmount = (fighter.credits || 0) + equipmentCost;
+
+          // Add owned beasts' own equipment cost (but NOT advancements)
+          const { data: ownedBeasts } = await supabase
+            .from('fighter_exotic_beasts')
+            .select('fighter_pet_id')
+            .eq('fighter_owner_id', params.fighter_id);
+
+          const beastIds = (ownedBeasts || []).map((b: { fighter_pet_id: string }) => b.fighter_pet_id).filter(Boolean);
+          let beastEquipmentCost = 0;
+          if (beastIds.length > 0) {
+            const { data: beastEquipmentRows } = await supabase
+              .from('fighter_equipment')
+              .select('purchase_cost')
+              .in('fighter_id', beastIds);
+            beastEquipmentCost = (beastEquipmentRows || []).reduce(
+              (sum: number, row: { purchase_cost: number }) => sum + (row.purchase_cost || 0), 0
+            );
+          }
+
+          refundAmount = (fighter.credits || 0) + equipmentCost + beastEquipmentCost;
         }
 
         // Delete the fighter

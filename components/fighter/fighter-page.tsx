@@ -192,6 +192,10 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
 
   // Transform equipment
   const transformedEquipment = (fighterData.equipment || []).map((item: any) => {
+    const equipmentBeastCost = item.beast_equipment_cost || 0;
+    const advancementsBeastCost = item.beast_advancements_cost || 0;
+    const isBeastEquipment = item.equipment_category?.toLowerCase() === 'status items: exotic beasts';
+    const totalCost = item.purchase_cost + equipmentBeastCost + advancementsBeastCost;
     return {
       fighter_equipment_id: item.fighter_equipment_id,
       equipment_id: item.equipment_id,
@@ -200,7 +204,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
         : item.equipment_name,
       equipment_type: item.equipment_type,
       equipment_category: item.equipment_category,
-      cost: item.purchase_cost + (item.beast_equipment_cost || 0),
+      cost: totalCost,
       base_cost: item.original_cost,
       weapon_profiles: item.weapon_profiles,
       core_equipment: item.core_equipment,
@@ -209,7 +213,14 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       target_equipment_id: item.target_equipment_id,
       effect_names: item.effect_names,
       loadout_ids: item.loadout_ids,
-      is_consumable: item.is_consumable
+      is_consumable: item.is_consumable,
+      // Attach a per-row breakdown for Exotic Beast equipment so the UI can render a tooltip
+      beast_cost_breakdown: isBeastEquipment ? {
+        base: item.purchase_cost,
+        advancements: advancementsBeastCost,
+        equipment: equipmentBeastCost,
+        total: totalCost,
+      } : undefined
     };
   });
 
@@ -1133,7 +1144,17 @@ export default function FighterPage({
               recovery: fighterData.fighter.recovery,
               captured: fighterData.fighter.captured,
               credits: fighterData.fighter.credits || 0,
-              refund_credits: (fighterData.fighter.base_credits || 0) + (fighterData.equipment || []).reduce((sum: number, item: Equipment) => sum + (item.cost || 0), 0),
+              // Refund is computed server-side in app/fighter/[id]/page.tsx so that Exotic Beast
+              // Advancements are excluded (only the beast's base cost + beast equipment count).
+              // Falls back to a client-side computation if the server value isn't available.
+              refund_credits: typeof (fighterData.fighter as any).refund_credits === 'number'
+                ? (fighterData.fighter as any).refund_credits
+                : (fighterData.fighter.base_credits || 0) + (fighterData.equipment || []).reduce((sum: number, item: Equipment) => {
+                    if (item.beast_cost_breakdown) {
+                      return sum + item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment;
+                    }
+                    return sum + (item.cost || 0);
+                  }, 0),
               cost_adjustment: fighterData.fighter.cost_adjustment || 0,
               base_credits: fighterData.fighter.base_credits || 0,
               base_copy_cost: fighterData.fighter.base_copy_cost || 0,
