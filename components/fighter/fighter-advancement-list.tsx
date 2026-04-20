@@ -1771,7 +1771,7 @@ export function AdvancementModal({
                                   accessLabel = '(Secondary)';
                                   style = {};
                                 } else if (effectiveLevel === 'allowed') {
-                                  accessLabel = '(-)';
+                                  accessLabel = '(Allowed)';
                                   style = {};
                                 }
                               }
