@@ -4,6 +4,11 @@ SET search_path = public AS $$
 DECLARE
    campaign_name_var TEXT;
 BEGIN
+   -- Skip self-invite notifications (e.g. campaign creator auto-membership)
+   IF NEW.user_id = NEW.invited_by THEN
+      RETURN NEW;
+   END IF;
+
    -- Get the campaign name
    SELECT campaign_name INTO campaign_name_var
    FROM campaigns 
