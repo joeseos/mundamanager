@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict urGv0vfM0ii2774Uc6S4sqOkGYEVPT8acBr2ovy5neQHdxkHpVpJ82A0LArxGCr
+\restrict KM0aSA8lP9LwTOBPBK5VOMkWTK1bcvgM0QyzHA1mxekdzOIedGJwwtFUuEvgh6y
 
 -- Dumped from database version 15.6
 -- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
@@ -3599,6 +3599,11 @@ CREATE FUNCTION public.notify_campaign_member_added() RETURNS trigger
 DECLARE
    campaign_name_var TEXT;
 BEGIN
+   -- Skip self-invite notifications (e.g. campaign creator auto-membership)
+   IF NEW.user_id = NEW.invited_by THEN
+      RETURN NEW;
+   END IF;
+
    -- Get the campaign name
    SELECT campaign_name INTO campaign_name_var
    FROM campaigns 
@@ -10765,5 +10770,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict urGv0vfM0ii2774Uc6S4sqOkGYEVPT8acBr2ovy5neQHdxkHpVpJ82A0LArxGCr
+\unrestrict KM0aSA8lP9LwTOBPBK5VOMkWTK1bcvgM0QyzHA1mxekdzOIedGJwwtFUuEvgh6y
 
