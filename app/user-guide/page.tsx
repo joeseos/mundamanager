@@ -239,8 +239,16 @@ export default function UserGuidePage() {
 
               <h3 id="outcast-elevating-a-fighter-to-leader" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Outcast: Elevating a fighter to Leader</h3>
                 <p className="text-muted-foreground mb-2">
-                  This feature is not yet available. For now, you can create an Outcast gang and then, use the Add Gang Addition button on the Gang page, to add the profile of a fighter you want. Later on, we plan on making a dedicated feature for it.
+                To promote a fighter to leader, first add the fighter using either the Add Fighter or Gang Addition buttons on the gang page. Once created, navigate to the fighters page and click the Edit Fighter button. There, you can change the fighter’s class to Leader.
                 </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/elevate-to-leader.webp"
+                    alt="Edit Fighter menu showing fighter class selection used to promote a fighter to Leader"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
 
               <h3 id="palanite-enforcers-selecting-a-prefecture" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Palanite Enforcers: Selecting a Prefecture</h3>
                 <p className="text-muted-foreground mb-2">
@@ -368,7 +376,7 @@ export default function UserGuidePage() {
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-asset-share.webp"
                     alt="Campaign selection modal with checkboxes for choosing which campaigns to share custom assets with"
                     className="rounded-lg"
-                    style={{ maxWidth: '100%', height: 'auto' }}
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
                 </div>
                 <p className="text-muted-foreground mb-2">
