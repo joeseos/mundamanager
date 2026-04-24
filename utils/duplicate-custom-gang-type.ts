@@ -38,6 +38,7 @@ export async function duplicateCustomGangType(
       user_id: targetUserId,
       gang_type: sourceCustomGangType.gang_type,
       alignment: sourceCustomGangType.alignment,
+      trading_post_type_id: sourceCustomGangType.trading_post_type_id,
       default_image_urls: sourceCustomGangType.default_image_urls,
     })
     .select('id')

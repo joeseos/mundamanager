@@ -373,13 +373,14 @@ export default function FighterPage({
   const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
 
   // Fetch fighter types for edit modal
-  const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId?: string | null) => {
+  const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId?: string | null, customGangTypeId?: string | null) => {
     try {
       const params = new URLSearchParams({
         gang_id: gangId,
         is_gang_addition: 'false'
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
+      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
       
       const response = await fetch(`/api/fighter-types?${params}`);
       
@@ -560,7 +561,7 @@ export default function FighterPage({
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
     // If opening the Edit Fighter modal, fetch fighter types first
     if (modalName === 'editFighter' && value && fighterData.gang?.id && (fighterData.gang?.gang_type_id || fighterData.gang?.custom_gang_type_id)) {
-      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id || '').then(() => {
+      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id, fighterData.gang.custom_gang_type_id).then(() => {
         setUiState(prev => ({
           ...prev,
           modals: {
@@ -836,7 +837,7 @@ export default function FighterPage({
             preFetchedFighterTypes={preFetchedFighterTypes}
             onEnsureFighterTypes={async () => {
               if (fighterData.gang?.id && (fighterData.gang?.gang_type_id || fighterData.gang?.custom_gang_type_id)) {
-                await fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id || '');
+                await fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id, fighterData.gang.custom_gang_type_id);
               }
             }}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
@@ -1223,7 +1224,8 @@ export default function FighterPage({
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
               gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.gang?.gang_type_id || ''}
+              gangTypeId={fighterData.gang?.gang_type_id}
+              customGangTypeId={fighterData.gang?.custom_gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}

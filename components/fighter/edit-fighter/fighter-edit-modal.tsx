@@ -55,7 +55,8 @@ interface EditFighterModalProps {
     costAdjustment: string;
   };
   gangId: string;
-  gangTypeId: string;
+  gangTypeId?: string | null;
+  customGangTypeId?: string | null;
   is_spyrer?: boolean;
   preFetchedFighterTypes?: Array<{
     id: string;
@@ -101,6 +102,7 @@ export function EditFighterModal({
   initialValues,
   gangId,
   gangTypeId,
+  customGangTypeId,
   preFetchedFighterTypes,
   onClose,
   onSubmit,
@@ -416,9 +418,10 @@ export function EditFighterModal({
       // Build query parameters
       const params = new URLSearchParams({
         gang_id: gangId,
-        gang_type_id: gangTypeId,
         is_gang_addition: 'false'
       });
+      if (gangTypeId) params.set('gang_type_id', gangTypeId);
+      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
       
       const response = await fetch(`/api/fighter-types?${params}`);
       
