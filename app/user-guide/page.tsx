@@ -278,17 +278,28 @@ export default function UserGuidePage() {
               <h2 className="text-2xl font-semibold text-foreground mb-1">Fighters</h2>
 
               <h3 id="promotion-to-specialist" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Promotion to Specialist</h3>
+                <p className="text-muted-foreground mb-2">
+                  To promote a fighter to Specialist, first pick the specialist result in the fighter&apos;s Advancements section and select Promote to Specialist.
+                </p>
                 <div className="my-4 flex justify-center">
                   <img
-                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/promotion-to-specialist.webp"
-                    alt="Fighter edit interface in Munda Manager showing how to change fighter class to Specialist"
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/promote-to-specialist-step-1.webp"
+                    alt="Advancements screen showing step one of promotion to Specialist"
                     className="rounded-lg"
-                    style={{ maxWidth: '100%', height: 'auto' }}
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
                 </div>
                 <p className="text-muted-foreground mb-2">
-                  You can promote fighters to a Specialist on the Fighter detailed view, then, click Edit at the top of the page and change their class to Specialist.
+                  Then, in the promotion dialog, choose the Specialist fighter type, review any added or removed special rules, and click on Confirm Promotion.
                 </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/promote-to-specialist-step-2.webp"
+                    alt="Promotion dialog showing step two of promotion to Specialist"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
             </section>
 
             <section id="campaigns" className="scroll-mt-24">
