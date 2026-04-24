@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout (SSH via deploy key)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.SUPABASE_DEPLOY_KEY }}
