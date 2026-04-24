@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
+import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
 import {
   invalidateFighterData,
@@ -79,7 +79,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
     
     // Get the stash item data first to check permissions
     const { data: stashData, error: stashError } = await supabase

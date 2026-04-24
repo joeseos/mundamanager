@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
+import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cache-tags';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -302,7 +302,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const effectiveUserId = user.id;
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Check if this is a custom fighter type first (owned by user OR shared to their campaigns)
     let customFighterData = null;
