@@ -2,14 +2,15 @@
 -- PostgreSQL database dump
 --
 
-\restrict TLzPABNmD5fkCQt234gAkCBGO7XIhrXgaHrMfZzkuD6KZNFqPYZFmdw0dvJjSw1
+\restrict omxcyYI3RenQujFXP9A7oRgRD2ptQ4eoFo5FLlVpAibdgCdBpZdwTKAiJheV0q6
 
--- Dumped from database version 15.6
--- Dumped by pg_dump version 16.13 (Ubuntu 16.13-1.pgdg24.04+1)
+-- Dumped from database version 17.6
+-- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -4876,7 +4877,7 @@ CREATE TABLE public.friends (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT friends_check CHECK ((requester_id <> addressee_id)),
-    CONSTRAINT friends_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'blocked'::character varying])::text[])))
+    CONSTRAINT friends_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('blocked'::character varying)::text])))
 );
 
 
@@ -10770,5 +10771,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict TLzPABNmD5fkCQt234gAkCBGO7XIhrXgaHrMfZzkuD6KZNFqPYZFmdw0dvJjSw1
+\unrestrict omxcyYI3RenQujFXP9A7oRgRD2ptQ4eoFo5FLlVpAibdgCdBpZdwTKAiJheV0q6
 
