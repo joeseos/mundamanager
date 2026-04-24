@@ -135,7 +135,11 @@ export default function UserGuidePage() {
           {/* Main content */}
           <div className="space-y-6">
             <section id="installing-as-an-app" className="scroll-mt-24">
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Installing the Mobile App</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                <a href="#installing-as-an-app" className="hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Installing the Mobile App
+                </a>
+              </h2>
               <p className="text-muted-foreground mb-2">
               On many types of phones you have this option in the website's hamburger menu <FiMenu className="inline h-4 w-4 mx-1 text-foreground" /> located at the top right of the page. Using it will set up a website with embedded access which behaves just like an App on your phone.
               </p>
@@ -150,9 +154,17 @@ export default function UserGuidePage() {
             </section>
 
             <section id="gangs" className="scroll-mt-24">
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Gangs</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                <a href="#gangs" className="hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Gangs
+                </a>
+              </h2>
 
-              <h3 id="gang-card-presentation" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Gang Card Presentation</h3>
+              <h3 id="gang-card-presentation" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#gang-card-presentation" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Gang Card Presentation
+                </a>
+              </h3>
                 <div className="my-4 flex justify-center">
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/gang-card-presentation.webp"
@@ -169,7 +181,11 @@ export default function UserGuidePage() {
                   <li className="text-muted-foreground"><strong className="text-foreground">Gang Additions:</strong> This is where you can add Hangers-on, Brutes and Hired Guns.</li>
                 </ol>
 
-              <h3 id="reorder-fighter-cards" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Reorder Fighter Cards</h3>
+              <h3 id="reorder-fighter-cards" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#reorder-fighter-cards" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Reorder Fighter Cards
+                </a>
+              </h3>
                 <div className="my-4 flex justify-center">
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/reorder-fighter-cards.webp"
@@ -182,7 +198,11 @@ export default function UserGuidePage() {
                   In the gang view, you can drag and drop fighter cards to reorder them by long click or long touch. If it doesn't drag, you haven't pressed long enough!
                 </p>
 
-              <h3 id="gang-notes" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Gang Notes</h3>
+              <h3 id="gang-notes" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#gang-notes" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Gang Notes
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   You've got access to a rich text editor to manage your gang notes on the Notes tab.
                 </p>
@@ -198,7 +218,11 @@ export default function UserGuidePage() {
                   This also provides a space to write down your elaborate gang background story!
                 </p>
 
-              <h3 id="house-escher-chem-alchemy" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">House Escher: Chem-Alchemy</h3>
+              <h3 id="house-escher-chem-alchemy" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#house-escher-chem-alchemy" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  House Escher: Chem-Alchemy
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   For Escher gangs, Munda Manager supports Chem-Alchemy. You can create custom chems in the Stash and click on the Chem-Alchemy button.
                 </p>
@@ -211,17 +235,29 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="house-goliath-gene-smithing" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">House Goliath: Gene-Smithing</h3>
+              <h3 id="house-goliath-gene-smithing" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#house-goliath-gene-smithing" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  House Goliath: Gene-Smithing
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   For Goliath gangs, Gene-Smithing is available as Equipment in the Fighter's equipment list. Beware that Munda Manager does not limit your selections and you are expected to familiarize yourself with their selection rules.
                 </p>
 
-              <h3 id="spyre-hunting-party-spyres-rig-upgrades" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Spyre Hunting Party: Spyres Rig Upgrades</h3>
+              <h3 id="spyre-hunting-party-spyres-rig-upgrades" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#spyre-hunting-party-spyres-rig-upgrades" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Spyre Hunting Party: Spyres Rig Upgrades
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   For Spyrer gangs, Rig upgrades are treated as equipment as well. Their rig prices reflect the <strong className="text-foreground">+20</strong> Cost increase incorrect when rolling on the power-table. You can simply discard the previous Tier and add the higher tier for 0 cost, but leave the base rating enabled.
                 </p>
 
-              <h3 id="venator-gang-legacy-outcast-gang-affiliation" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Venator: Gang Legacy & Outcast Gang Affiliation</h3>
+              <h3 id="venator-gang-legacy-outcast-gang-affiliation" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#venator-gang-legacy-outcast-gang-affiliation" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Venator: Gang Legacy & Outcast Gang Affiliation
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   Venators fighters can have their Gang Legacy set up in the <strong className="text-foreground">Edit Fighter</strong> window.
                 </p>
@@ -240,7 +276,11 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="outcast-elevating-a-fighter-to-leader" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Outcast: Elevating a fighter to Leader &amp; setting Archetypes</h3>
+              <h3 id="outcast-elevating-a-fighter-to-leader" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#outcast-elevating-a-fighter-to-leader" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Outcast: Elevating a fighter to Leader &amp; setting Archetypes
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                 To promote a fighter to leader, first add the fighter using either the Add Fighter or Gang Addition buttons on the gang page. Once created, navigate to the fighters page and click the Edit Fighter button. There, you can change the fighter’s class to Leader.
                 </p>
@@ -264,12 +304,20 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="palanite-enforcers-selecting-a-prefecture" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Palanite Enforcers: Selecting a Prefecture</h3>
+              <h3 id="palanite-enforcers-selecting-a-prefecture" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#palanite-enforcers-selecting-a-prefecture" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Palanite Enforcers: Selecting a Prefecture
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   The Prefecture can be selected either during Gang Creation or after Creation via the Edit Gang option. Selecting any of them will extend the options as they're detailed in the books.
                 </p>
 
-              <h3 id="wasteland-crusading-corrupted-or-infested-gangs" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Wasteland, Crusading, Corrupted or Infested gangs</h3>
+              <h3 id="wasteland-crusading-corrupted-or-infested-gangs" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#wasteland-crusading-corrupted-or-infested-gangs" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Wasteland, Crusading, Corrupted or Infested gangs
+                </a>
+              </h3>
                 <div className="my-4 flex justify-center">
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/gang-variants.webp"
@@ -287,9 +335,17 @@ export default function UserGuidePage() {
             </section>
 
             <section id="fighters" className="scroll-mt-24">
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Fighters</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                <a href="#fighters" className="hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Fighters
+                </a>
+              </h2>
 
-              <h3 id="promotion-to-specialist" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Promotion to Specialist</h3>
+              <h3 id="promotion-to-specialist" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#promotion-to-specialist" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Promotion to Specialist
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   To promote a fighter to Specialist, first pick the specialist result in the fighter&apos;s Advancements section and select Promote to Specialist.
                 </p>
@@ -315,9 +371,17 @@ export default function UserGuidePage() {
             </section>
 
             <section id="campaigns" className="scroll-mt-24">
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Campaigns</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                <a href="#campaigns" className="hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Campaigns
+                </a>
+              </h2>
 
-              <h3 id="add-a-new-gang-player-to-a-campaign" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Add a new Gang/Player to a campaign</h3>
+              <h3 id="add-a-new-gang-player-to-a-campaign" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#add-a-new-gang-player-to-a-campaign" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Add a new Gang/Player to a campaign
+                </a>
+              </h3>
                 <div className="my-4 flex justify-center">
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/add-new-gang-player-to-a-campaign.webp"
@@ -330,7 +394,11 @@ export default function UserGuidePage() {
                   To add a gang to a campaign, first add the gang owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
                 </p>
 
-              <h3 id="add-a-custom-territory" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Add a custom territory to a campaign</h3>
+              <h3 id="add-a-custom-territory" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#add-a-custom-territory" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Add a custom territory to a campaign
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   Open your campaign, go to the Territories tab, and click Add. Then, enter the territory name and click on Add again.
                 </p>
@@ -345,7 +413,11 @@ export default function UserGuidePage() {
             </section>
 
             <section id="custom-assets" className="scroll-mt-24">
-              <h2 className="text-2xl font-semibold text-foreground mb-1">Custom Assets</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                <a href="#custom-assets" className="hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Custom Assets
+                </a>
+              </h2>
               <p className="text-muted-foreground mb-2">
                 You can create your own Gang Types, Fighters, Equipment, Skills and Skill sets in the Custom Assets tab available on the home page. More will be added in the future, like Trading Posts. Custom Scenarios and Territories are created in the campaign pages. 
               </p>
@@ -358,7 +430,11 @@ export default function UserGuidePage() {
                 />
               </div>
 
-              <h3 id="custom-equipment" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Custom Equipment</h3>
+              <h3 id="custom-equipment" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#custom-equipment" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Custom Equipment
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   A specific mention is made for the more special weapons where the profiles only contain stats. In this case, leave your first profile blank apart from the Weapon name and create a Second, Third profile to contain the stats. (Also note the option to re-order them)
                 </p>
@@ -381,7 +457,11 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="custom-fighters" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Custom Fighters</h3>
+              <h3 id="custom-fighters" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#custom-fighters" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Custom Fighters
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   Your other option is to make Custom Fighters. When completing their profile they can be shared to a Campaign by the Campaign Arbitrator or owner. Depending on your specific Gang Type selection your players will then be able to see these Custom Fighters by ticking this checkbox:
                 </p>
@@ -394,7 +474,11 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="custom-skills" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Custom Skills and Skill Sets</h3>
+              <h3 id="custom-skills" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#custom-skills" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Custom Skills and Skill Sets
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   You can also create Custom Skills and assign them to Skill Sets. You can also create custom Skill Sets by clicking on the New button to the right of the Skill Set dropdown. Like other custom assets, these can be shared to a Campaign by the Campaign Arbitrator or owner so players can use them in that campaign.
                 </p>
@@ -407,7 +491,11 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="custom-gang-types" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Custom Gang Types</h3>
+              <h3 id="custom-gang-types" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#custom-gang-types" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Custom Gang Types
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   You can also create Custom Gang Types. Once created, they can be shared to a Campaign by the Campaign Arbitrator or owner, giving players additional gang type options.
                 </p>
@@ -420,7 +508,11 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="sharing-custom-assets" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Sharing Custom Assets</h3>
+              <h3 id="sharing-custom-assets" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#sharing-custom-assets" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Sharing Custom Assets
+                </a>
+              </h3>
                 <p className="text-muted-foreground mb-2">
                   You can share your custom equipment and fighters with campaigns you're an arbitrator or owner of. Click the share icon to open the share menu.
                 </p>
