@@ -123,6 +123,8 @@ export default function UserGuidePage() {
                 <ul className="list-disc marker:text-red-800 pl-6 mt-2 space-y-1">
                   <li><a href="#custom-equipment" className="underline hover:text-red-800">Custom Equipment</a></li>
                   <li><a href="#custom-fighters" className="underline hover:text-red-800">Custom Fighters</a></li>
+                  <li><a href="#custom-skills" className="underline hover:text-red-800">Custom Skills and Skill Sets</a></li>
+                  <li><a href="#custom-gang-types" className="underline hover:text-red-800">Custom Gang Types</a></li>
                   <li><a href="#sharing-custom-assets" className="underline hover:text-red-800">Sharing Custom Assets</a></li>
                 </ul>
               </li>
@@ -309,11 +311,11 @@ export default function UserGuidePage() {
             <section id="custom-assets" className="scroll-mt-24">
               <h2 className="text-2xl font-semibold text-foreground mb-1">Custom Assets</h2>
               <p className="text-muted-foreground mb-2">
-                You can create your own Equipment, Fighters and Territories in the Custom Assets tab available on the home page. More will be added in the future, like Skills, Skill sets and Trading Posts.
+                You can create your own Gang Types, Fighters, Equipment, Skills and Skill sets in the Custom Assets tab available on the home page. More will be added in the future, like Trading Posts. Custom Scenarios and Territories are created in the campaign pages. 
               </p>
               <div className="my-4 flex justify-center">
                 <img
-                  src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-assets.webp"
+                  src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-assets-new.webp"
                   alt="Custom Assets tab interface in Munda Manager showing options to create custom equipment, fighters, and territories"
                   className="rounded-lg"
                   style={{ maxWidth: '100%', height: 'auto' }}
@@ -353,6 +355,32 @@ export default function UserGuidePage() {
                     alt="Custom fighters checkbox option in campaign settings allowing players to use custom fighter types created by the arbitrator"
                     className="rounded-lg"
                     style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+
+              <h3 id="custom-skills" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Custom Skills and Skill Sets</h3>
+                <p className="text-muted-foreground mb-2">
+                  You can also create Custom Skills and assign them to Skill Sets. You can also create custom Skill Sets by clicking on the New button to the right of the Skill Set dropdown. Like other custom assets, these can be shared to a Campaign by the Campaign Arbitrator or owner so players can use them in that campaign.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-skill.webp"
+                    alt="Create Custom Skill modal in Munda Manager showing skill name and skill set selection fields"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
+
+              <h3 id="custom-gang-types" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Custom Gang Types</h3>
+                <p className="text-muted-foreground mb-2">
+                  You can also create Custom Gang Types. Once created, they can be shared to a Campaign by the Campaign Arbitrator or owner, giving players additional gang type options.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/custom-gang-type.webp"
+                    alt="Custom gang type creation interface in Munda Manager showing how to define and manage custom gang types"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
                 </div>
 
