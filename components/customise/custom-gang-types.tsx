@@ -29,6 +29,8 @@ interface CustomiseGangTypesProps {
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
+  onGangTypeUpdated?: (gangTypeId: string, newName: string) => any[] | undefined;
+  onGangTypeUpdateRollback?: (previousFighters: any[]) => void;
 }
 
 const ALIGNMENT_OPTIONS = ['Outlaw', 'Law Abiding', 'Unaligned'] as const;
@@ -39,6 +41,8 @@ export function CustomiseGangTypes({
   userId,
   userCampaigns = [],
   readOnly = false,
+  onGangTypeUpdated,
+  onGangTypeUpdateRollback,
 }: CustomiseGangTypesProps) {
   const [gangTypes, setGangTypes] = useState<CustomGangType[]>(initialGangTypes);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -105,7 +109,8 @@ export function CustomiseGangTypes({
             : g
         )
       );
-      return { previous };
+      const previousFighters = onGangTypeUpdated?.(id, data.gang_type.trimEnd());
+      return { previous, previousFighters };
     },
     onSuccess: (result, { id }, context) => {
       if (result.success && result.data) {
@@ -115,11 +120,13 @@ export function CustomiseGangTypes({
         toast.success('Custom gang type updated successfully');
       } else {
         if (context?.previous) setGangTypes(context.previous);
+        if (context?.previousFighters) onGangTypeUpdateRollback?.(context.previousFighters);
         toast.error(result.error || 'Failed to update custom gang type');
       }
     },
     onError: (error: Error, _, context) => {
       if (context?.previous) setGangTypes(context.previous);
+      if (context?.previousFighters) onGangTypeUpdateRollback?.(context.previousFighters);
       toast.error(error.message || 'Failed to update custom gang type');
     },
     onSettled: () => {

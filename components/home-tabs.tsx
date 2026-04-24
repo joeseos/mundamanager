@@ -51,6 +51,21 @@ export default function HomeTabs({
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(0);
+  const [fighterTypes, setFighterTypes] = useState<CustomFighterType[]>(customFighterTypes);
+
+  const handleGangTypeUpdated = useCallback((gangTypeId: string, newName: string): CustomFighterType[] => {
+    const previous = fighterTypes;
+    setFighterTypes(prev =>
+      prev.map(f =>
+        f.custom_gang_type_id === gangTypeId ? { ...f, gang_type: newName } : f
+      )
+    );
+    return previous;
+  }, [fighterTypes]);
+
+  const handleGangTypeUpdateRollback = useCallback((previousFighters: CustomFighterType[]) => {
+    setFighterTypes(previousFighters);
+  }, []);
 
   const updateUrlParam = useCallback((tab: TabKey) => {
     if (typeof window === 'undefined') return;
@@ -140,7 +155,7 @@ export default function HomeTabs({
             />
 
             <CustomiseFighters
-              initialFighters={customFighterTypes}
+              initialFighters={fighterTypes}
               userId={userId}
               userCampaigns={userCampaigns}
             />
@@ -155,6 +170,8 @@ export default function HomeTabs({
               initialGangTypes={customGangTypes}
               userId={userId}
               userCampaigns={userCampaigns}
+              onGangTypeUpdated={handleGangTypeUpdated}
+              onGangTypeUpdateRollback={handleGangTypeUpdateRollback}
             />
 
             <CustomiseTerritories initialTerritories={customTerritories} readOnly />

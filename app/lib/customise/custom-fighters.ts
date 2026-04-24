@@ -6,7 +6,7 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
 
   const { data: customFighterTypes, error } = await supabase
     .from('custom_fighter_types')
-    .select('*')
+    .select('*, custom_gang_types!custom_gang_type_id(gang_type)')
     .eq('user_id', userId)
     .order('fighter_type', { ascending: true });
 
@@ -156,6 +156,8 @@ export async function getUserCustomFighterTypes(userId: string): Promise<CustomF
   // Combine fighter data with skill access, default skills, and default equipment
   const fightersWithExtendedData = customFighterTypes.map(fighter => ({
     ...fighter,
+    gang_type: (fighter.custom_gang_types as any)?.gang_type ?? fighter.gang_type,
+    custom_gang_types: undefined,
     skill_access: skillAccessByFighter[fighter.id] || [],
     default_skills: defaultSkillsByFighter[fighter.id] || [],
     default_equipment: defaultEquipmentByFighter[fighter.id] || []
