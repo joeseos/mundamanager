@@ -8,7 +8,8 @@ import { CustomFighterType } from '@/types/fighter';
 export interface CreateCustomFighterData {
   fighter_type: string;
   gang_type: string;
-  gang_type_id: string;
+  gang_type_id?: string;
+  custom_gang_type_id?: string;
   cost: number;
   movement?: number;
   weapon_skill?: number;
@@ -46,7 +47,8 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         user_id: user.id,
         fighter_type: data.fighter_type,
         gang_type: data.gang_type,
-        gang_type_id: data.gang_type_id,
+        gang_type_id: data.custom_gang_type_id ? null : data.gang_type_id,
+        custom_gang_type_id: data.custom_gang_type_id || null,
         cost: data.cost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
@@ -295,7 +297,8 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
       .update({
         fighter_type: data.fighter_type,
         gang_type: data.gang_type,
-        gang_type_id: data.gang_type_id,
+        gang_type_id: data.custom_gang_type_id ? null : data.gang_type_id,
+        custom_gang_type_id: data.custom_gang_type_id || null,
         cost: data.cost,
         movement: data.movement,
         weapon_skill: data.weapon_skill,

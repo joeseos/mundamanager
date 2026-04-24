@@ -22,7 +22,7 @@ interface ItemModalProps {
   onClose: () => void;
   gangCredits: number;
   gangId: string;
-  gangTypeId: string;
+  gangTypeId?: string | null;
   fighterId: string;
   fighterTypeId?: string;
   gangAffiliationId?: string | null;
@@ -229,20 +229,18 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
     }
 
-    if (!gangTypeId || (!resolvedTypeId && !skipFighterTypeValidation)) {
-      const errorMessage = isVehicleEquipment && !resolvedTypeId
+    if (!resolvedTypeId && !skipFighterTypeValidation) {
+      const errorMessage = isVehicleEquipment
         ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : !resolvedTypeId && !skipFighterTypeValidation
-        ? 'Fighter type information is missing'
-        : 'Required information is missing';
+        : 'Fighter type information is missing';
       setError(errorMessage);
       return;
     }
 
     try {
       const requestBody: Record<string, any> = {
-        gang_type_id: gangTypeId,
         gang_id: gangId,  // ✅ Always pass - it's always available
+        ...(gangTypeId && { gang_type_id: gangTypeId }),
         // Don't specify equipment_category to get ALL equipment
       };
 

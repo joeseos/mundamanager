@@ -110,7 +110,66 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json(gangTypesWithAffiliationsAndOrigins)
+    // Fetch user's own custom gang types
+    const { data: ownCustomGangTypes } = await supabase
+      .from('custom_gang_types')
+      .select('id, gang_type, alignment, default_image_urls')
+      .eq('user_id', userId)
+      .order('gang_type');
+
+    // Fetch shared custom gang types from campaigns user belongs to
+    const { data: campaignMembers } = await supabase
+      .from('campaign_members')
+      .select('campaign_id')
+      .eq('user_id', userId);
+
+    const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
+
+    let sharedCustomGangTypes: typeof ownCustomGangTypes = [];
+    if (campaignIds.length > 0) {
+      const { data: sharedIds } = await supabase
+        .from('custom_shared')
+        .select('custom_gang_type_id')
+        .in('campaign_id', campaignIds)
+        .not('custom_gang_type_id', 'is', null);
+
+      const gangTypeIds = Array.from(new Set(
+        (sharedIds ?? []).map(s => s.custom_gang_type_id).filter(Boolean) as string[]
+      ));
+
+      if (gangTypeIds.length > 0) {
+        const { data: shared } = await supabase
+          .from('custom_gang_types')
+          .select('id, gang_type, alignment, default_image_urls')
+          .in('id', gangTypeIds);
+
+        sharedCustomGangTypes = shared || [];
+      }
+    }
+
+    // Combine own + shared, deduplicate
+    const allCustomGangTypes = [...(ownCustomGangTypes ?? [])];
+    (sharedCustomGangTypes ?? []).forEach(shared => {
+      if (!allCustomGangTypes.some(cgt => cgt.id === shared.id)) {
+        allCustomGangTypes.push(shared);
+      }
+    });
+
+    const customGangTypesEnriched = allCustomGangTypes.map((cgt) => ({
+      gang_type_id: cgt.id,
+      gang_type: cgt.gang_type,
+      alignment: cgt.alignment,
+      image_url: null,
+      default_image_urls: cgt.default_image_urls,
+      affiliation: false,
+      gang_origin_category_id: null,
+      is_custom: true,
+      available_affiliations: [],
+      available_origins: []
+    }));
+
+    // Return flat array: system types + custom types (backward compatible)
+    return NextResponse.json([...gangTypesWithAffiliationsAndOrigins, ...customGangTypesEnriched])
   } catch (error) {
     console.error('Error fetching gang types:', error)
     return NextResponse.json({ error: 'Error fetching gang types' }, { status: 500 })

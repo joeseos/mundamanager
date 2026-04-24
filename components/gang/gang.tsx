@@ -37,7 +37,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 interface GangProps {
   id: string;
   name: string;
-  gang_type_id: string;
+  gang_type_id?: string | null;
+  custom_gang_type_id?: string | null;
   gang_type?: string;
   gang_type_image_url: string;
   image_url?: string;
@@ -124,6 +125,7 @@ export default function Gang({
   id,
   name: initialName,
   gang_type_id,
+  custom_gang_type_id,
   gang_type,
   gang_type_image_url,
   image_url,
@@ -1332,6 +1334,7 @@ export default function Gang({
               setShowModal={setShowAddFighterModal}
               gangId={id}
               gangTypeId={gang_type_id}
+              customGangTypeId={custom_gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}

@@ -65,7 +65,7 @@ interface GangAdditionsProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
   gangId: string;
-  gangTypeId: string;
+  gangTypeId?: string | null;
   initialCredits: number;
   onFighterAdded: (newFighter: FighterProps, cost: number) => void;
   gangAffiliationId?: string | null;
@@ -306,7 +306,8 @@ export default function GangAdditions({
     try {
       // Use the API route
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
-      const response = await fetch(`/api/fighter-types?gang_type_id=${gangTypeId}&is_gang_addition=true${affiliationParam}`);
+      const gangTypeParam = gangTypeId ? `gang_type_id=${gangTypeId}&` : '';
+      const response = await fetch(`/api/fighter-types?${gangTypeParam}is_gang_addition=true${affiliationParam}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

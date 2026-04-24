@@ -299,6 +299,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         id: gangBasic.id,
         credits: gangCredits,
         gang_type_id: gangBasic.gang_type_id,
+        custom_gang_type_id: gangBasic.custom_gang_type_id,
         gang_affiliation_id: gangBasic.gang_affiliation_id,
         gang_affiliation_name: gangBasic.gang_affiliation?.name,
         positioning: gangPositioning,

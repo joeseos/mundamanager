@@ -28,6 +28,7 @@ export default async function PrintGangPage(props: {
       getGangBasic,
       getGangPositioning,
       getGangType,
+      getGangTypeConfig,
       getAlliance,
       getGangFightersList,
       getGangCampaigns,
@@ -71,7 +72,7 @@ export default async function PrintGangPage(props: {
       ownerProfile,
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
-      getGangType(gangBasic.gang_type_id, supabase),
+      getGangType(gangBasic, supabase),
       getAlliance(gangBasic.alliance_id, supabase),
       getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
       getGangCampaigns(params.id, supabase),

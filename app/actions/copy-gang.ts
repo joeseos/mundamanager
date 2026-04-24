@@ -3,6 +3,8 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateGangCreation } from '@/utils/cache-tags';
+import { revalidatePath } from 'next/cache';
+import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 
 interface CopyGangInput {
   sourceGangId: string;
@@ -32,6 +34,27 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       throw new Error('Source gang not found');
     }
 
+    // 1.5) Duplicate custom assets if gang uses a custom gang type owned by another user
+    let newCustomGangTypeId: string | null = null;
+    let customFighterTypeIdMap = new Map<string, string>();
+    let customSkillIdMap = new Map<string, string>();
+
+    if (sourceGang.custom_gang_type_id) {
+      // Check if the custom gang type belongs to a different user
+      const { data: cgt } = await supabase
+        .from('custom_gang_types')
+        .select('user_id')
+        .eq('id', sourceGang.custom_gang_type_id)
+        .single();
+
+      if (cgt && cgt.user_id !== user.id) {
+        const result = await duplicateCustomGangType(supabase, sourceGang.custom_gang_type_id, user.id);
+        newCustomGangTypeId = result.newCustomGangTypeId;
+        customFighterTypeIdMap = result.customFighterTypeIdMap;
+        customSkillIdMap = result.customSkillIdMap;
+      }
+    }
+
     // 2) Create new gang owned by current user
     const { data: createdGangRows, error: createGangError } = await supabase
       .from('gangs')
@@ -39,6 +62,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         name: params.newName.trimEnd(),
         user_id: user.id,
         gang_type_id: sourceGang.gang_type_id,
+        custom_gang_type_id: newCustomGangTypeId || sourceGang.custom_gang_type_id,
         gang_type: sourceGang.gang_type,
         gang_colour: sourceGang.gang_colour,
         alignment: sourceGang.alignment,
@@ -136,6 +160,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         insertObj.user_id = user.id;
         insertObj.fighter_pet_id = null; // Will be set after copying fighter_exotic_beasts
         // Do not set last_updated; let DB defaults handle timestamps
+        // Remap custom_fighter_type_id to the duplicated custom fighter type
+        if (insertObj.custom_fighter_type_id && customFighterTypeIdMap.has(insertObj.custom_fighter_type_id)) {
+          insertObj.custom_fighter_type_id = customFighterTypeIdMap.get(insertObj.custom_fighter_type_id);
+        }
 
         const { data: newFighter, error: insertFighterError } = await supabase
           .from('fighters')
@@ -355,6 +383,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           // no gang_id column on fighter_skills
           o.user_id = user.id;
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
+          // Remap custom_skill_id to the duplicated custom skill
+          if (o.custom_skill_id && customSkillIdMap.has(o.custom_skill_id)) {
+            o.custom_skill_id = customSkillIdMap.get(o.custom_skill_id);
+          }
           return o;
         });
         const { data: insertedSkills, error: insertSkillsError } = await supabase
@@ -573,6 +605,11 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
 
     // 12) Invalidate caches for the new gang
     invalidateGangCreation({ gangId: newGangId, userId: user.id });
+
+    // Invalidate home page so custom assets tab shows duplicated assets
+    if (newCustomGangTypeId) {
+      revalidatePath('/');
+    }
 
     return { success: true, newGangId };
   } catch (error) {

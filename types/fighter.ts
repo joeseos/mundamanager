@@ -280,6 +280,7 @@ export interface CustomFighterType {
   willpower?: number;
   intelligence?: number;
   gang_type_id?: string;
+  custom_gang_type_id?: string | null;
   special_rules?: string[];
   free_skill?: boolean;
   delegation_cost?: number | null;

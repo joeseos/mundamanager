@@ -389,7 +389,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Check for adjusted cost based on gang type (only for regular fighters)
     let adjustedBaseCost = effectiveFighterData.cost;
 
-    if (!isCustomFighter) {
+    if (!isCustomFighter && gangData.gang_type_id) {
       const { data: adjustedCostData } = await supabase
         .from('fighter_type_gang_cost')
         .select('adjusted_cost')

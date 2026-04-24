@@ -50,6 +50,7 @@ type GangType = {
     origin_name: string;
     category_name: string;
   }>;
+  is_custom?: boolean;
 };
 
 type GangVariant = {
@@ -201,7 +202,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     if (gangType) {
       const imageUrls = gangTypeImageArrays[gangType] || [];
       if (imageUrls.length > 0 && currentImageIndex >= imageUrls.length) {
-        setCurrentImageIndex(DEFAULT_IMAGE_INDEX);
+        setCurrentImageIndex(Math.min(DEFAULT_IMAGE_INDEX, imageUrls.length - 1));
       }
     }
   }, [gangType, gangTypeImageArrays, currentImageIndex]);
@@ -280,7 +281,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         // Use the server action to create the gang
         const result = await createGang({
           name: gangName,
-          gangTypeId: gangType,
+          gangTypeId: selectedGangType.is_custom ? '' : gangType,
+          customGangTypeId: selectedGangType.is_custom ? gangType : undefined,
           gangType: selectedGangType.gang_type,
           alignment: selectedGangType.alignment,
           gangAffiliationId: selectedAffiliation || null,
@@ -367,8 +369,10 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select gang type</option>
+              {/* System gang types */}
               {Object.entries(
                 gangTypes
+                  .filter(t => !t.is_custom)
                   .sort((a, b) => {
                     const rankA = gangListRank[a.gang_type.toLowerCase()] ?? Infinity;
                     const rankB = gangListRank[b.gang_type.toLowerCase()] ?? Infinity;
@@ -399,6 +403,19 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   </optgroup>
                 ) : null
               ))}
+              {/* Custom gang types */}
+              {gangTypes.filter(t => t.is_custom).length > 0 && (
+                <optgroup label="Custom">
+                  {gangTypes
+                    .filter(t => t.is_custom)
+                    .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
+                    .map((type) => (
+                      <option key={type.gang_type_id} value={type.gang_type_id}>
+                        {type.gang_type}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
           </div>
           

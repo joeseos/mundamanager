@@ -32,7 +32,8 @@ interface GangDataState {
   processedData: {
     id: string;
     name: string;
-    gang_type_id: string;
+    gang_type_id?: string | null;
+    custom_gang_type_id?: string | null;
     gang_type: string;
     gang_type_image_url: string;
     image_url?: string;
@@ -659,7 +660,7 @@ export default function GangPageContent({
           onStashUpdate={handleStashUpdate}
           onFighterUpdate={handleFighterUpdate}
           vehicles={gangData.processedData.vehicles || []}
-          gangTypeId={gangData.processedData.gang_type_id}
+          gangTypeId={gangData.processedData.gang_type_id ?? undefined}
           gangId={gangId}
           gangCredits={gangData.processedData.credits}
           onGangCreditsUpdate={handleGangCreditsUpdate}
