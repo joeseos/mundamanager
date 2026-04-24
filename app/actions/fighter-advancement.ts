@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData, invalidateFighterAdvancement, CACHE_TAGS, invalidateGangCredits, invalidateUserGangsList } from '@/utils/cache-tags';
-import { checkAdminOptimized, getAuthenticatedUser } from '@/utils/auth';
+import { checkAdmin, getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -99,7 +99,7 @@ export async function addCharacteristicAdvancement(
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
@@ -293,7 +293,7 @@ export async function addSkillAdvancement(
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
@@ -541,7 +541,7 @@ export async function deleteAdvancement(
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
@@ -849,7 +849,7 @@ export async function addPowerBoost(
     const supabase = await createClient();
 
     const user = await getAuthenticatedUser(supabase);
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError} = await supabase
@@ -1104,7 +1104,7 @@ export async function deletePowerBoost(
     const supabase = await createClient();
 
     const user = await getAuthenticatedUser(supabase);
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase

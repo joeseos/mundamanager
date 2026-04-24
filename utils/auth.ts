@@ -26,14 +26,14 @@ export async function getUserIdFromClaims(supabase: SupabaseClient): Promise<str
   return claimsData?.claims?.sub || null;
 }
 
-export async function checkAdmin(supabase: SupabaseClient) {
+export async function checkAdmin(supabase: SupabaseClient, user?: AuthUser) {
   try {
-    const user = await getAuthenticatedUser(supabase);
+    const authUser = user || await getAuthenticatedUser(supabase);
 
     const { data: profile } = await supabase
       .from('profiles')
       .select('user_role')
-      .eq('id', user.id)
+      .eq('id', authUser.id)
       .single();
 
     return profile?.user_role === 'admin';
@@ -41,16 +41,3 @@ export async function checkAdmin(supabase: SupabaseClient) {
     return false;
   }
 }
-
-export async function checkAdminOptimized(supabase: SupabaseClient, user?: AuthUser) {
-  // Use provided user or get optimized user
-  const authUser = user || await getAuthenticatedUser(supabase);
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_role')
-    .eq('id', authUser.id)
-    .single();
-
-  return profile?.user_role === 'admin';
-} 

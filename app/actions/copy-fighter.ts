@@ -1,7 +1,7 @@
 'use server'
 
 import {createClient} from "@/utils/supabase/server";
-import {checkAdminOptimized, getAuthenticatedUser} from "@/utils/auth";
+import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
 import {invalidateFighterAddition, CACHE_TAGS} from '@/utils/cache-tags';
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
@@ -83,7 +83,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
-    const isAdmin = await checkAdminOptimized(supabase);
+    const isAdmin = await checkAdmin(supabase);
 
     const { data: sourceFighter, error: fetchError } = await supabase
       .from('fighters')

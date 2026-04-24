@@ -4,24 +4,10 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData } from '@/utils/cache-tags';
 import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
-
-// Helper function to check if user is admin
-async function checkAdmin(supabase: any, userId: string): Promise<boolean> {
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', userId)
-      .single();
-    return profile?.user_role === 'admin';
-  } catch {
-    return false;
-  }
-}
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
@@ -116,7 +102,7 @@ export async function addFighterInjury(
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase, user.id);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
@@ -227,7 +213,7 @@ export async function deleteFighterInjury(
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase, user.id);
+    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase

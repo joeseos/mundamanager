@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
+import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -57,7 +57,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
     
     // Get the equipment data first
     const { data: equipmentData, error: equipmentError } = await supabase

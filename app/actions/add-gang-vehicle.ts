@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
+import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
@@ -33,7 +33,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
     
     // Get gang information to verify ownership and get credits
     const { data: gang, error: gangError } = await supabase

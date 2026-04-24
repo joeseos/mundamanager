@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdminOptimized, getAuthenticatedUser } from "@/utils/auth";
+import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 
@@ -23,7 +23,7 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
     const user = await getAuthenticatedUser(supabase);
 
     // Check if user is an admin (optimized)
-    const isAdmin = await checkAdminOptimized(supabase, user);
+    const isAdmin = await checkAdmin(supabase, user);
     
     // Get gang information to verify ownership
     const { data: gang, error: gangError } = await supabase
