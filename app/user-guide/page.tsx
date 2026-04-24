@@ -116,6 +116,7 @@ export default function UserGuidePage() {
                 <a href="#campaigns" className="underline hover:text-red-800">Campaigns</a>
                 <ul className="list-disc marker:text-red-800 pl-6 mt-2 space-y-1">
                   <li><a href="#add-a-new-gang-player-to-a-campaign" className="underline hover:text-red-800">Add a new Gang/Player to a campaign</a></li>
+                  <li><a href="#add-a-custom-territory" className="underline hover:text-red-800">Add a custom territory to a campaign</a></li>
                 </ul>
               </li>
               <li>
@@ -328,6 +329,19 @@ export default function UserGuidePage() {
                 <p className="text-muted-foreground mb-2">
                   To add a gang to a campaign, first add the gang owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
                 </p>
+
+              <h3 id="add-a-custom-territory" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Add a custom territory to a campaign</h3>
+                <p className="text-muted-foreground mb-2">
+                  Open your campaign, go to the Territories tab, and click Add. Then, enter the territory name and click on Add again.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/add-custom-territory-to-campaign.webp"
+                    alt="Campaign custom territories screen showing how to add a custom territory in Munda Manager"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
             </section>
 
             <section id="custom-assets" className="scroll-mt-24">
