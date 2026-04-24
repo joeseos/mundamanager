@@ -369,19 +369,6 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select gang type</option>
-              {/* Custom gang types */}
-              {gangTypes.filter(t => t.is_custom).length > 0 && (
-                <optgroup label="Custom">
-                  {gangTypes
-                    .filter(t => t.is_custom)
-                    .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-                    .map((type) => (
-                      <option key={type.gang_type_id} value={type.gang_type_id}>
-                        {type.gang_type}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
               {/* System gang types */}
               {Object.entries(
                 gangTypes
@@ -416,6 +403,19 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   </optgroup>
                 ) : null
               ))}
+              {/* Custom gang types */}
+              {gangTypes.filter(t => t.is_custom).length > 0 && (
+                <optgroup label="Custom">
+                  {gangTypes
+                    .filter(t => t.is_custom)
+                    .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
+                    .map((type) => (
+                      <option key={type.gang_type_id} value={type.gang_type_id}>
+                        {type.gang_type}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
           </div>
           
