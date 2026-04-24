@@ -109,6 +109,11 @@ interface FighterClass {
 
 export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
+
+  useEffect(() => {
+    setFighters(initialFighters);
+  }, [initialFighters]);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomFighterType | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomFighterType | null>(null);
