@@ -247,22 +247,6 @@ export const forgotPasswordAction = async (formData: FormData) => {
   return { success: "Check your email for the password reset link." };
 };
 
-export const resetPasswordAction = async (formData: FormData) => {
-  const email = formData.get("email") as string;
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password/update`,
-  });
-
-  if (error) {
-    console.error('Error sending password reset email:', error);
-    return { error: error.message };
-  }
-
-  return { success: "Check your email for the password reset link." };
-};
-
 export const signOutAction = async () => {
   const cookieStore = await cookies();
 
