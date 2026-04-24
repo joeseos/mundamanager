@@ -101,7 +101,7 @@ export default function UserGuidePage() {
                   <li><a href="#house-goliath-gene-smithing" className="underline hover:text-red-800">House Goliath: Gene-Smithing</a></li>
                   <li><a href="#spyre-hunting-party-spyres-rig-upgrades" className="underline hover:text-red-800">Spyre Hunting Party: Spyres Rig Upgrades</a></li>
                   <li><a href="#venator-gang-legacy-outcast-gang-affiliation" className="underline hover:text-red-800">Venator: Gang Legacy & Outcast Gang Affiliation</a></li>
-                  <li><a href="#outcast-elevating-a-fighter-to-leader" className="underline hover:text-red-800">Outcast: Elevating a fighter to Leader</a></li>
+                  <li><a href="#outcast-elevating-a-fighter-to-leader" className="underline hover:text-red-800">Outcast: Elevating a fighter to Leader &amp; setting Archetypes</a></li>
                   <li><a href="#palanite-enforcers-selecting-a-prefecture" className="underline hover:text-red-800">Palanite Enforcers: Selecting a Prefecture</a></li>
                   <li><a href="#wasteland-crusading-corrupted-or-infested-gangs" className="underline hover:text-red-800">Wasteland, Crusading, Corrupted or Infested gangs</a></li>
                 </ul>
@@ -239,7 +239,7 @@ export default function UserGuidePage() {
                   />
                 </div>
 
-              <h3 id="outcast-elevating-a-fighter-to-leader" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Outcast: Elevating a fighter to Leader</h3>
+              <h3 id="outcast-elevating-a-fighter-to-leader" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">Outcast: Elevating a fighter to Leader &amp; setting Archetypes</h3>
                 <p className="text-muted-foreground mb-2">
                 To promote a fighter to leader, first add the fighter using either the Add Fighter or Gang Addition buttons on the gang page. Once created, navigate to the fighters page and click the Edit Fighter button. There, you can change the fighter’s class to Leader.
                 </p>
@@ -247,6 +247,17 @@ export default function UserGuidePage() {
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/elevate-to-leader.webp"
                     alt="Edit Fighter menu showing fighter class selection used to promote a fighter to Leader"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  You can also set a Leader or Champion archetype in the Edit Fighter menu.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/set-fighter-archetype.webp"
+                    alt="Edit Fighter menu showing archetype selection for an Outcast Leader or Champion"
                     className="rounded-lg"
                     style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
