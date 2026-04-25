@@ -15,7 +15,7 @@ import { createClient } from '@/utils/supabase/client';
 import { skillSetRank } from '@/utils/skillSetRank';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserCampaign } from './custom-shared';
+import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseSkillsProps {
   className?: string;

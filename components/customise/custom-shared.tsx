@@ -10,9 +10,7 @@ import { shareCustomFighter, shareCustomEquipment, shareCustomGangType } from '@
 import { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
-import { UserCampaign } from '@/types/campaign';
-
-export type { UserCampaign };
+import type { UserCampaign } from '@/types/campaign';
 
 interface ShareCustomFighterModalProps {
   fighter: CustomFighterType;
