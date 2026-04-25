@@ -9,17 +9,13 @@ import { campaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign, createCustomCampaignTerritory } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
+import type { CampaignType } from '@/types/campaign';
 
 interface Territory {
   id: string;
   territory_name: string;
   campaign_type_id: string | null;
   territory_id?: string | null;
-}
-
-interface CampaignType {
-  id: string;
-  campaign_type_name: string;
 }
 
 interface CampaignTerritory {

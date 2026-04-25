@@ -3,23 +3,50 @@ export interface EquipmentOption {
   cost: number;
   max_quantity: number;
   equipment_name?: string;
+  equipment_type?: string;
+  equipment_category?: string;
+  displayCategory?: string;
   is_editable?: boolean;
 }
 
 export interface DefaultEquipment {
   id: string;
   quantity: number;
+  equipment_name?: string;
+  equipment_type?: string;
+  equipment_category?: string;
+  cost?: number;
   is_editable?: boolean;
 }
 
 export interface WeaponsSelection {
   default?: DefaultEquipment[];
   options?: EquipmentOption[];
-  select_type: 'optional' | 'single' | 'multiple';
+  select_type: 'optional' | 'optional_single' | 'single' | 'multiple';
 }
 
 export interface EquipmentSelection {
   weapons?: WeaponsSelection;
+}
+
+/**
+ * Equipment selection category after normalization for gang UI.
+ * Represents a single group of equipment choices (e.g. "Weapons (optional)").
+ */
+export interface EquipmentSelectionCategory {
+  name?: string;
+  select_type?: 'optional' | 'optional_single' | 'single' | 'multiple';
+  default?: DefaultEquipment[];
+  options?: EquipmentOption[];
+  replacement_mode?: 'flexible' | 'strict';
+}
+
+/**
+ * Normalized equipment selection keyed by category ID.
+ * This is the UI-facing shape produced by normalizeEquipmentSelection().
+ */
+export interface NormalizedEquipmentSelection {
+  [key: string]: EquipmentSelectionCategory;
 }
 
 export interface FighterType {

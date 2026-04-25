@@ -16,12 +16,7 @@ import {
   type CustomGangType,
   type CustomGangTypeData,
 } from '@/app/actions/customise/custom-gang-types';
-
-interface UserCampaign {
-  id: string;
-  campaign_name: string;
-  status: string | null;
-}
+import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseGangTypesProps {
   className?: string;

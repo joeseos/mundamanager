@@ -9,6 +9,7 @@ import type { CustomTerritory } from '@/app/lib/customise/custom-territories'
 import type { CustomSkill } from '@/app/lib/customise/custom-skills'
 import type { CustomFighterType } from '@/types/fighter'
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
+import type { UserCampaign } from '@/types/campaign'
 import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
 import { CustomiseEquipment } from '@/components/customise/custom-equipment'
 import { CustomiseTerritories } from '@/components/customise/custom-territories'
@@ -16,12 +17,6 @@ import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
-
-interface UserCampaign {
-  id: string;
-  campaign_name: string;
-  status: string | null;
-}
 
 type TabKey = 'gangs' | 'campaigns' | 'customassets'
 const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
