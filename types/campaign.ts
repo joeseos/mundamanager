@@ -141,3 +141,22 @@ export interface Member {
     } | null;
   }[];
 }
+
+/**
+ * Minimal campaign reference used in user-facing lists (home, customise pages)
+ */
+export interface UserCampaign {
+  id: string;
+  campaign_name: string;
+  status: string | null;
+}
+
+/**
+ * Campaign type definition (e.g. Dominion, Law & Misrule)
+ */
+export interface CampaignType {
+  id: string;
+  campaign_type_name: string;
+  image_url?: string | null;
+  trading_posts?: string[] | null;
+}

@@ -13,12 +13,7 @@ import { campaignRank } from '@/utils/campaigns/campaignRank'
 import { ImInfo } from "react-icons/im"
 import { Tooltip } from 'react-tooltip'
 import React from "react"
-
-interface CampaignType {
-  id: string;
-  campaign_type_name: string;
-  trading_posts?: string[] | null;
-}
+import type { CampaignType } from '@/types/campaign'
 
 interface TradingPostType {
   id: string;

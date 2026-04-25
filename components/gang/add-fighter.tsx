@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
-import { FighterType } from '@/types/fighter-type';
+import { FighterType, EquipmentOption, DefaultEquipment, EquipmentSelectionCategory, NormalizedEquipmentSelection } from '@/types/fighter-type';
 import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
 import { fighterClassRank } from "@/utils/fighterClassRank";
@@ -39,40 +39,8 @@ interface AddFighterProps {
   gangAffiliationId?: string | null;
 }
 
-interface GangEquipmentOption {
-  id: string;
-  equipment_name?: string;
-  equipment_type?: string;
-  equipment_category?: string;
-  cost: number;
-  max_quantity: number;
-  displayCategory?: string;
-  is_editable?: boolean;
-}
-
-interface EquipmentDefaultItem {
-  id: string;
-  equipment_name?: string;
-  equipment_type?: string;
-  equipment_category?: string;
-  quantity: number;
-  is_editable?: boolean;
-}
-
-interface EquipmentSelectionCategory {
-  name?: string;
-  select_type?: 'optional' | 'optional_single' | 'single' | 'multiple';
-  default?: EquipmentDefaultItem[];
-  options?: GangEquipmentOption[];
-  replacement_mode?: 'flexible' | 'strict';
-}
-
-interface EquipmentSelection {
-  [key: string]: EquipmentSelectionCategory;
-}
-
 // Helper to normalize equipment_selection to the old UI format
-function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelection {
+function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipmentSelection {
   // If already in old format (dynamic keys with select_type), return as is
   if (
     equipmentSelection &&
@@ -80,7 +48,7 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
       (cat: any) => cat && typeof cat === 'object' && 'select_type' in cat
     )
   ) {
-    return equipmentSelection as EquipmentSelection;
+    return equipmentSelection as NormalizedEquipmentSelection;
   }
 
   // If in new nested array format (current SQL output), convert to old format
@@ -89,7 +57,7 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
     typeof equipmentSelection === 'object' &&
     ['optional', 'single', 'multiple'].some(k => k in equipmentSelection)
   ) {
-    const result: EquipmentSelection = {};
+    const result: NormalizedEquipmentSelection = {};
     let idCounter = 0;
     
     (['optional', 'optional_single', 'single', 'multiple'] as const).forEach(selectType => {
@@ -111,7 +79,7 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
                   if (selectType === 'optional' || selectType === 'optional_single') {
                     // For optional/optional_single type, separate defaults and replacements
                     const defaults = group.filter((item: any) => item.is_default);
-                    const allReplacements: GangEquipmentOption[] = [];
+                    const allReplacements: EquipmentOption[] = [];
 
                     // Collect all replacements from all defaults
                     defaults.forEach((defaultItem: any) => {
@@ -179,7 +147,7 @@ function normalizeEquipmentSelection(equipmentSelection: any): EquipmentSelectio
               if (selectType === 'optional' || selectType === 'optional_single') {
                 // For optional/optional_single type, separate defaults and replacements
                 const defaults = categoryData.filter((item: any) => item.is_default);
-                const allReplacements: GangEquipmentOption[] = [];
+                const allReplacements: EquipmentOption[] = [];
 
                 // Collect all replacements from all defaults
                 defaults.forEach((defaultItem: any) => {
@@ -616,11 +584,11 @@ export default function AddFighter({
           const isMultiple = selectType === 'multiple';
           
           // Group equipment options by category
-          const categorizedOptions: Record<string, GangEquipmentOption[]> = {};
+          const categorizedOptions: Record<string, EquipmentOption[]> = {};
           
           // Process options if they exist
           if (categoryData.options && Array.isArray(categoryData.options)) {
-            categoryData.options.forEach((option: GangEquipmentOption) => {
+            categoryData.options.forEach((option: EquipmentOption) => {
               const optionAny = option as any;
               
               // Get category name, ensure it has a value or use a default
@@ -683,7 +651,7 @@ export default function AddFighter({
                     Default {categoryName}
                   </label>
                   <div className="space-y-1">
-                    {categoryData.default.map((item: EquipmentDefaultItem, index: number) => {
+                    {categoryData.default.map((item: DefaultEquipment, index: number) => {
                       const defaultItem = item as any;
                       const equipmentName = defaultItem.equipment_name || "Equipment";
 
@@ -1110,7 +1078,7 @@ export default function AddFighter({
 
     Object.entries(normalizedSelection).forEach(([categoryId, categoryData]) => {
       if (categoryData?.default && Array.isArray(categoryData.default)) {
-        categoryData.default.forEach((item: EquipmentDefaultItem) => {
+        categoryData.default.forEach((item: DefaultEquipment) => {
           const defaultItem = item as any;
           defaults.push({
             equipment_id: defaultItem.id,

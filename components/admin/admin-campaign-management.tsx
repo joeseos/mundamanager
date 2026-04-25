@@ -9,6 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
+import type { CampaignType } from '@/types/campaign';
 
 enum OperationType {
   POST = 'POST',
@@ -16,12 +17,6 @@ enum OperationType {
 }
 
 type CategoryType = 'campaign-types' | 'territories' | 'triumphs';
-
-interface CampaignType {
-  id: string;
-  campaign_type_name: string;
-  image_url?: string | null;
-}
 
 interface Territory {
   id: string;

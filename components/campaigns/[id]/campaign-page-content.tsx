@@ -24,7 +24,7 @@ import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-
 import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
-import type { Battle } from '@/types/campaign';
+import type { Battle, CampaignType } from '@/types/campaign';
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
@@ -87,11 +87,6 @@ interface Territory {
   } | null;
 }
 
-
-interface CampaignType {
-  id: string;
-  campaign_type_name: string;
-}
 
 interface AllTerritory {
   id: string;

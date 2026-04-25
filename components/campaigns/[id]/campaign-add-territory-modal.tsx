@@ -5,17 +5,13 @@ import { createPortal } from 'react-dom'
 import { Button } from "@/components/ui/button"
 import Modal from "@/components/ui/modal"
 import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list"
+import type { CampaignType } from '@/types/campaign';
 
 interface Territory {
   id: string;
   territory_name: string;
   campaign_type_id: string | null;
   territory_id?: string | null;
-}
-
-interface CampaignType {
-  id: string;
-  campaign_type_name: string;
 }
 
 interface CampaignTerritory {

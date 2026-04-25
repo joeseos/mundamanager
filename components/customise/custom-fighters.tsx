@@ -19,12 +19,7 @@ import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@
 import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
-
-interface UserCampaign {
-  id: string;
-  campaign_name: string;
-  status: string | null;
-}
+import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseFightersProps {
   className?: string;
