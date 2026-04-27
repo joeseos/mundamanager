@@ -231,9 +231,13 @@ export function EditFighterModal({
 
   // Fetch archetypes using TanStack Query (only if eligible and modal is open)
   const { data: archetypesData } = useQuery({
-    queryKey: ['skill-archetypes'],
+    queryKey: ['skill-archetypes', selectedFighterClassId],
     queryFn: async () => {
-      const response = await fetch('/api/fighters/skill-archetypes');
+      const params = new URLSearchParams();
+      if (selectedFighterClassId) {
+        params.set('fighter_class_id', selectedFighterClassId);
+      }
+      const response = await fetch(`/api/fighters/skill-archetypes?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch archetypes');
       return response.json();
     },
@@ -1116,7 +1120,10 @@ export function EditFighterModal({
               </label>
               <select
                 value={selectedFighterClassId}
-                onChange={(e) => setSelectedFighterClassId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedFighterClassId(e.target.value);
+                  setSelectedArchetypeId('');
+                }}
                 className="w-full p-2 border rounded-md"
               >
                 {allFighterClasses
