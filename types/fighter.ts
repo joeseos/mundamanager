@@ -254,6 +254,7 @@ export interface Archetype {
   id: string;
   name: string;
   description: string | null;
+  fighter_class_id: string | null;
   skill_access: Array<{
     skill_type_id: string;
     access_level: 'primary' | 'secondary';
