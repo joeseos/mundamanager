@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict GL8cm0pj4nzf1vucFOuZzzGq2OqkZLSzttaCBhsN4HmO7JBuLlDJ82zwq0TYGRg
+\restrict REtF3FnJCFI80oWZARQ2KeDmAdYgjx7xGnqoj7MgVNvyYh2VGjgtTie1Fj4GHtt
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -5112,7 +5112,8 @@ CREATE TABLE public.skill_access_archetypes (
     description text,
     skill_access jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone
+    updated_at timestamp with time zone,
+    fighter_class_id uuid
 );
 
 
@@ -7801,6 +7802,14 @@ ALTER TABLE ONLY public.notifications
 
 ALTER TABLE ONLY public.profiles
     ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: skill_access_archetypes skill_access_archetypes_fighter_class_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.skill_access_archetypes
+    ADD CONSTRAINT skill_access_archetypes_fighter_class_id_fkey FOREIGN KEY (fighter_class_id) REFERENCES public.fighter_classes(id) ON DELETE SET NULL;
 
 
 --
@@ -10771,5 +10780,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GL8cm0pj4nzf1vucFOuZzzGq2OqkZLSzttaCBhsN4HmO7JBuLlDJ82zwq0TYGRg
+\unrestrict REtF3FnJCFI80oWZARQ2KeDmAdYgjx7xGnqoj7MgVNvyYh2VGjgtTie1Fj4GHtt
 
