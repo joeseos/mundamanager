@@ -137,6 +137,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
         // Priority 1: Check for equipment upgrade (applies_to=equipment)
         if (equipmentUpgrade) {
+          // Also collect fixed fighter effects so they're included in the purchase
+          const fixedFighterEffectIds = fighterEffects
+            ?.filter((effect: any) =>
+              effect.type_specific_data?.effect_selection === 'fixed' ||
+              !effect.type_specific_data?.effect_selection
+            )
+            .map((effect: any) => effect.id) || [];
+          setSelectedEffectIds(fixedFighterEffectIds);
+
           setUpgradeEffect({ id: equipmentUpgrade.id, name: equipmentUpgrade.effect_name });
           setShowTargetSelection(true);
           return false;
