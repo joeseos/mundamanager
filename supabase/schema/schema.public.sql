@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict REtF3FnJCFI80oWZARQ2KeDmAdYgjx7xGnqoj7MgVNvyYh2VGjgtTie1Fj4GHtt
+\restrict qn9lCn0qhWwgfaU64frIsWAQFo6UpLXgXZYuDVe3Pi0XsATXc49sYMI2TKaP1RT
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -4159,6 +4159,20 @@ CREATE TABLE public.custom_equipment (
 
 
 --
+-- Name: custom_fighter_type_equipment; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_fighter_type_equipment (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    equipment_id uuid,
+    custom_equipment_id uuid,
+    custom_fighter_type_id uuid
+);
+
+
+--
 -- Name: custom_fighter_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5501,6 +5515,14 @@ ALTER TABLE ONLY public.custom_equipment
 
 
 --
+-- Name: custom_fighter_type_equipment custom_fighter_type_equipment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_type_equipment
+    ADD CONSTRAINT custom_fighter_type_equipment_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: custom_fighter_types custom_fighters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6441,6 +6463,13 @@ CREATE INDEX idx_custom_shared_custom_gang_type_id ON public.custom_shared USING
 
 
 --
+-- Name: idx_ea_equipment_gang_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ea_equipment_gang_type ON public.equipment_availability USING btree (equipment_id, gang_type_id);
+
+
+--
 -- Name: idx_equipment_discounts_composite; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6452,6 +6481,13 @@ CREATE INDEX idx_equipment_discounts_composite ON public.equipment_discounts USI
 --
 
 CREATE INDEX idx_equipment_discounts_equipment_id ON public.equipment_discounts USING btree (equipment_id);
+
+
+--
+-- Name: idx_fet_equipment_id_jsonb; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fet_equipment_id_jsonb ON public.fighter_effect_types USING btree (((type_specific_data ->> 'equipment_id'::text))) WHERE ((type_specific_data ->> 'equipment_id'::text) IS NOT NULL);
 
 
 --
@@ -6574,6 +6610,13 @@ CREATE INDEX idx_fighters_user_id ON public.fighters USING btree (user_id);
 
 
 --
+-- Name: idx_fte_fighter_type_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fte_fighter_type_id ON public.fighter_type_equipment USING btree (fighter_type_id);
+
+
+--
 -- Name: idx_gang_logs_action_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6641,6 +6684,13 @@ CREATE INDEX idx_profiles_created_at ON public.profiles USING btree (created_at)
 --
 
 CREATE INDEX idx_skill_type_id ON public.fighter_type_skill_access USING btree (skill_type_id);
+
+
+--
+-- Name: idx_tpe_tp_type_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tpe_tp_type_equipment ON public.trading_post_equipment USING btree (trading_post_type_id, equipment_id);
 
 
 --
@@ -7002,6 +7052,30 @@ ALTER TABLE ONLY public.custom_equipment
 
 ALTER TABLE ONLY public.custom_equipment
     ADD CONSTRAINT custom_equipment_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_fighter_type_equipment custom_fighter_type_equipment_custom_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_type_equipment
+    ADD CONSTRAINT custom_fighter_type_equipment_custom_equipment_id_fkey FOREIGN KEY (custom_equipment_id) REFERENCES public.custom_equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_fighter_type_equipment custom_fighter_type_equipment_custom_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_type_equipment
+    ADD CONSTRAINT custom_fighter_type_equipment_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id);
+
+
+--
+-- Name: custom_fighter_type_equipment custom_fighter_type_equipment_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_type_equipment
+    ADD CONSTRAINT custom_fighter_type_equipment_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
 
 
 --
@@ -9951,6 +10025,12 @@ ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.custom_equipment ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: custom_fighter_type_equipment; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_fighter_type_equipment ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: custom_fighter_types; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -10780,5 +10860,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict REtF3FnJCFI80oWZARQ2KeDmAdYgjx7xGnqoj7MgVNvyYh2VGjgtTie1Fj4GHtt
+\unrestrict qn9lCn0qhWwgfaU64frIsWAQFo6UpLXgXZYuDVe3Pi0XsATXc49sYMI2TKaP1RT
 
