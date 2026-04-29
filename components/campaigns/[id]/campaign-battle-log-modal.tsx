@@ -657,7 +657,7 @@ const CampaignBattleLogModal = ({
       helper="Fields marked with * are required."
       content={
         <div className="space-y-4">
-          <div>
+          <div className="overflow-hidden">
             <label className="block text-sm font-medium text-muted-foreground mb-1">
               Date *
             </label>
