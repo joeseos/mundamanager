@@ -20,6 +20,32 @@ export default function TurnstileWidget() {
   
   // Get sitekey once at component initialization
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
+  
+  // Check if we're in a preview/development environment where turnstile should be bypassed
+  const isPreviewEnv = process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' || 
+                       process.env.NODE_ENV === 'development';
+  
+  // If in preview environment, inject a bypass token and skip widget rendering
+  useEffect(() => {
+    if (isPreviewEnv) {
+      const form = document.querySelector('form');
+      if (form) {
+        let tokenInput = form.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement | null;
+        if (!tokenInput) {
+          tokenInput = document.createElement('input') as HTMLInputElement;
+          tokenInput.type = 'hidden';
+          tokenInput.name = 'cf-turnstile-response';
+          form.appendChild(tokenInput);
+        }
+        tokenInput.value = 'preview-bypass-token';
+      }
+    }
+  }, [isPreviewEnv]);
+  
+  // In preview mode, don't render the widget at all
+  if (isPreviewEnv) {
+    return null;
+  }
 
   // Simple function to render the widget
   const renderWidget = () => {
