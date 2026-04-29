@@ -147,9 +147,14 @@ export const signInAction = async (formData: FormData) => {
 
   // Check if Turnstile is configured
   const hasTurnstileConfig = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY;
+  
+  // Skip Turnstile in development mode or v0 preview environments
+  const isDevOrPreview = process.env.NODE_ENV === "development" || 
+                          process.env.VERCEL_ENV === "preview" ||
+                          process.env.NEXT_PUBLIC_VERCEL_ENV === "preview";
 
-  if (process.env.NODE_ENV === "development") {
-    console.log("Skipping Turnstile verification in development mode.");
+  if (isDevOrPreview) {
+    console.log("Skipping Turnstile verification in development/preview mode.");
   }
   else if (hasTurnstileConfig) {
     if (!turnstileToken) {
