@@ -663,7 +663,7 @@ const CampaignBattleLogModal = ({
             </label>
             <input
               type="date"
-              className="w-full min-w-0 px-3 py-2 rounded-md border border-border bg-muted"
+              className="w-full px-3 py-2 rounded-md border border-border bg-muted"
               value={battleDate}
               onChange={(e) => setBattleDate(e.target.value)}
               disabled={isLoadingBattleData}
