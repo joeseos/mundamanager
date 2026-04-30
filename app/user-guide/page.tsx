@@ -117,6 +117,7 @@ export default function UserGuidePage() {
                 <ul className="list-disc marker:text-red-800 pl-6 mt-2 space-y-1">
                   <li><a href="#add-a-new-gang-player-to-a-campaign" className="underline hover:text-red-800">Add a new Gang/Player to a campaign</a></li>
                   <li><a href="#add-a-custom-territory" className="underline hover:text-red-800">Add a custom territory to a campaign</a></li>
+                  <li><a href="#connect-discord-bot" className="underline hover:text-red-800">Connect Discord Bot</a></li>
                 </ul>
               </li>
               <li>
@@ -406,6 +407,23 @@ export default function UserGuidePage() {
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/add-custom-territory-to-campaign.webp"
                     alt="Campaign custom territories screen showing how to add a custom territory in Munda Manager"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
+
+              <h3 id="connect-discord-bot" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#connect-discord-bot" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Connect Discord Bot
+                </a>
+              </h3>
+                <p className="text-muted-foreground mb-2">
+                  On the campaign main page, click the Edit button. In the Edit Campaign menu, scroll down and click Connect Discord Bot, then follow the instructions shown in the pop up window.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/connect-discord-bot.webp"
+                    alt="Edit Campaign menu showing the Connect Discord Bot button in Munda Manager"
                     className="rounded-lg"
                     style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
