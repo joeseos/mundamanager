@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict amhLpE5OqAnh07sSAJd2CXw6wSsAM7yusJQoFkaaZEmmYAj9mvHyL9hQ3e6gxgR
+\restrict w7BlfmRb3VZ9qvLOdPk1RvKgGEWrxEahf89HmGJdhFOMLvUWIKjfnbW54soYyT7
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -3736,8 +3736,7 @@ CREATE TABLE public.battle_session_fighters (
     battle_session_id uuid NOT NULL,
     participant_id uuid NOT NULL,
     fighter_id uuid NOT NULL,
-    xp_earned integer DEFAULT 0 NOT NULL,
-    pending_injuries jsonb DEFAULT '[]'::jsonb NOT NULL,
+    session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0}'::jsonb NOT NULL,
     out_of_action boolean DEFAULT false NOT NULL,
     note text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -3745,6 +3744,13 @@ CREATE TABLE public.battle_session_fighters (
     flesh_wounds integer DEFAULT 0,
     conditions jsonb
 );
+
+
+--
+-- Name: COLUMN battle_session_fighters.session_record; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_session_fighters.session_record IS 'Tracks xp gained and injuries added in this battle session';
 
 
 --
@@ -10844,5 +10850,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict amhLpE5OqAnh07sSAJd2CXw6wSsAM7yusJQoFkaaZEmmYAj9mvHyL9hQ3e6gxgR
+\unrestrict w7BlfmRb3VZ9qvLOdPk1RvKgGEWrxEahf89HmGJdhFOMLvUWIKjfnbW54soYyT7
 
