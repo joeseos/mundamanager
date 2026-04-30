@@ -88,7 +88,7 @@ function FighterActionModal({
   return (
     <>
       <Modal
-        title={fighter.fighter?.fighter_name || 'Fighter Actions'}
+        title="Fighter Actions"
         onClose={onClose}
         hideCancel
         onDelete={() => { onRemove(); onClose(); }}
