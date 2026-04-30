@@ -118,6 +118,7 @@ export default function UserGuidePage() {
                   <li><a href="#add-a-new-gang-player-to-a-campaign" className="underline hover:text-red-800">Add a new Gang/Player to a campaign</a></li>
                   <li><a href="#add-a-custom-territory" className="underline hover:text-red-800">Add a custom territory to a campaign</a></li>
                   <li><a href="#connect-discord-bot" className="underline hover:text-red-800">Connect Discord Bot</a></li>
+                  <li><a href="#change-a-users-role-in-a-campaign" className="underline hover:text-red-800">Change a user's role in a campaign</a></li>
                 </ul>
               </li>
               <li>
@@ -424,6 +425,34 @@ export default function UserGuidePage() {
                   <img
                     src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/connect-discord-bot.webp"
                     alt="Edit Campaign menu showing the Connect Discord Bot button in Munda Manager"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
+
+              <h3 id="change-a-users-role-in-a-campaign" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#change-a-users-role-in-a-campaign" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Change a user&apos;s role in a campaign
+                </a>
+              </h3>
+                <p className="text-muted-foreground mb-2">
+                  On the campaign main page, click the user&apos;s avatar in the Gangs &amp; Players table to open the Change Player Role menu.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/change-user-role-in-campaign-step-1.webp"
+                    alt="Campaign players table showing where to click a user's avatar to open the change role menu"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  Then confirm the change by clicking the Change Role button.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/change-user-role-in-campaign-step-2.webp"
+                    alt="Change Player Role confirmation dialog with the Change Role button"
                     className="rounded-lg"
                     style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
                   />
