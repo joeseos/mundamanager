@@ -462,73 +462,92 @@ export default function ParticipantCard({
     },
   });
 
+  const buildOptimisticFighter = (fighterId: string): BattleSessionFighter => {
+    const gf = gangFighters.find((f) => f.id === fighterId);
+    return {
+      id: `temp-${Date.now()}-${fighterId}`,
+      battle_session_id: session.id,
+      participant_id: participant.id,
+      fighter_id: fighterId,
+      session_record: { xp_earned: 0, injuries: [] },
+      created_at: new Date().toISOString(),
+      fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, total_cost: gf.credits } : undefined,
+    };
+  };
+
   const addFighterMutation = useMutation({
-    mutationFn: (fighterId: string) =>
-      bulkAddFightersToSession({
+    mutationFn: async (fighterId: string) => {
+      const result = await bulkAddFightersToSession({
         session_id: session.id,
         participant_id: participant.id,
         fighter_ids: [fighterId],
-      }),
-    onSuccess: (result, fighterId) => {
-      if (!result.success) {
-        toast.error(result.error || 'Failed to add fighter');
-        return;
-      }
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to add fighter');
+      return result;
+    },
+    onMutate: (fighterId) => {
+      const prev = localFighters;
+      setLocalFighters((cur) => [...cur, buildOptimisticFighter(fighterId)]);
+      return { prev };
+    },
+    onSuccess: (_result, fighterId) => {
       const name = gangFighters.find((gf) => gf.id === fighterId)?.fighter_name;
       toast.success(`${name ?? 'Fighter'} added`);
-      router.refresh();
     },
-    onError: () => {
+    onError: (_err, _id, context) => {
       toast.error('Failed to add fighter');
+      if (context?.prev) setLocalFighters(context.prev);
     },
   });
 
   const addAllFightersMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const fighterIds = Array.from(new Set(availableFighters.map((f) => f.id)));
-      return bulkAddFightersToSession({
+      const result = await bulkAddFightersToSession({
         session_id: session.id,
         participant_id: participant.id,
         fighter_ids: fighterIds,
-      }).then((result) => ({ ...result, count: fighterIds.length }));
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to add fighters');
+      return { ...result, count: fighterIds.length };
     },
-    onSuccess: (result) => {
-      if (!result.success) {
-        toast.error(result.error || 'Failed to add fighters');
-        return;
-      }
-      toast.success(`${result.count} fighter${result.count !== 1 ? 's' : ''} added`);
-      router.refresh();
+    onMutate: () => {
+      const prev = localFighters;
+      const fighterIds = Array.from(new Set(availableFighters.map((f) => f.id)));
+      const newFighters = fighterIds.map(buildOptimisticFighter);
+      setLocalFighters((cur) => [...cur, ...newFighters]);
+      return { prev, count: fighterIds.length };
     },
-    onError: () => {
+    onSuccess: (_result, _vars, context) => {
+      const count = context?.count ?? 0;
+      toast.success(`${count} fighter${count !== 1 ? 's' : ''} added`);
+    },
+    onError: (_err, _vars, context) => {
       toast.error('Failed to add fighters');
+      if (context?.prev) setLocalFighters(context.prev);
     },
   });
 
   const removeFighterMutation = useMutation({
-    mutationFn: (fighterId: string) => removeFighterFromSession(session.id, fighterId),
+    mutationFn: async (fighterId: string) => {
+      const result = await removeFighterFromSession(session.id, fighterId);
+      if (!result.success) throw new Error(result.error || 'Failed to remove fighter');
+      return result;
+    },
     onMutate: (fighterId) => {
       const prev = localFighters;
       setLocalFighters((cur) => cur.filter((f) => f.fighter_id !== fighterId));
       return { prev };
     },
-    onSuccess: () => router.refresh(),
     onError: (_err, _id, context) => {
       toast.error('Failed to remove fighter');
-      setLocalFighters(context!.prev);
+      if (context?.prev) setLocalFighters(context.prev);
     },
   });
 
-  const isMutating =
-    addFighterMutation.isPending ||
-    addAllFightersMutation.isPending ||
-    removeFighterMutation.isPending;
-
   useEffect(() => {
-    if (!isMutating) {
-      setLocalFighters(participant.fighters);
-    }
-  }, [participant.fighters, isMutating]);
+    setLocalFighters(participant.fighters);
+  }, [participant.fighters]);
 
 
   return (
