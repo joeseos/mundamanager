@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { MdOutlinePersonalInjury } from 'react-icons/md';
-import { LuTrash2 } from 'react-icons/lu';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
@@ -13,6 +11,7 @@ import DiceRoller from '@/components/dice-roller';
 import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
+import { CgMoreVerticalO } from 'react-icons/cg';
 import {
   removeParticipant,
   updateGangOutcome,
@@ -27,16 +26,31 @@ import { deleteFighterInjury } from '@/app/actions/fighter-injury';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionInjuryRecord } from '@/types/battle-session';
 
 // ---------------------------------------------------------------------------
-// Sub-components for List cell rendering
+// FighterActionModal — XP, Injuries, Remove in one modal
 // ---------------------------------------------------------------------------
 
-function XpCell({ fighter, onXpChanged }: { fighter: BattleSessionFighter; onXpChanged: (delta: number) => void }) {
-  const [showModal, setShowModal] = useState(false);
+function FighterActionModal({
+  fighter,
+  onXpChanged,
+  onInjuryAdded,
+  onInjuryRemoved,
+  onRemove,
+  onClose,
+}: {
+  fighter: BattleSessionFighter;
+  onXpChanged: (delta: number) => void;
+  onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onInjuryRemoved: (index: number) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const [showXpModal, setShowXpModal] = useState(false);
+  const [showInjuryModal, setShowInjuryModal] = useState(false);
   const [fighterData, setFighterData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingXp, setLoadingXp] = useState(false);
 
-  const openModal = async () => {
-    setLoading(true);
+  const openXpModal = async () => {
+    setLoadingXp(true);
     try {
       const { createClient } = await import('@/utils/supabase/client');
       const supabase = createClient();
@@ -45,25 +59,87 @@ function XpCell({ fighter, onXpChanged }: { fighter: BattleSessionFighter; onXpC
         .select('xp, kills, kill_count')
         .eq('id', fighter.fighter_id)
         .single();
-      if (data) { setFighterData(data); setShowModal(true); }
+      if (data) { setFighterData(data); setShowXpModal(true); }
     } catch {
       toast.error('Failed to load fighter data');
     } finally {
-      setLoading(false);
+      setLoadingXp(false);
     }
   };
 
+  const removeInjuryMut = useMutation({
+    mutationFn: async (index: number) => {
+      const injury = fighter.session_record.injuries[index];
+      await deleteFighterInjury({
+        fighter_id: fighter.fighter_id,
+        injury_id: injury.fighter_effect_id,
+      });
+      await removeSessionInjury({ session_fighter_id: fighter.id, injury_index: index });
+    },
+    onMutate: (index) => {
+      onInjuryRemoved(index);
+    },
+    onError: () => toast.error('Failed to remove injury'),
+  });
+
+  const injuries = fighter.session_record?.injuries ?? [];
+  const xpEarned = fighter.session_record?.xp_earned ?? 0;
+
   return (
     <>
-      <button
-        onClick={openModal}
-        disabled={loading}
-        title="Add XP"
-        className="rounded-lg bg-neutral-900 px-1.5 h-6 text-xs text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+      <Modal
+        title={fighter.fighter?.fighter_name || 'Fighter Actions'}
+        onClose={onClose}
+        hideCancel
+        onDelete={() => { onRemove(); onClose(); }}
+        deleteLabel="Remove Fighter"
       >
-        +XP
-      </button>
-      {showModal && fighterData && (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Button
+              onClick={openXpModal}
+              disabled={loadingXp}
+              variant="outline"
+              className="flex-1"
+            >
+              {loadingXp ? 'Loading...' : 'Add XP'}
+            </Button>
+            <Button
+              onClick={() => setShowInjuryModal(true)}
+              variant="outline"
+              className="flex-1"
+            >
+              Add Injury
+            </Button>
+          </div>
+
+          {(xpEarned > 0 || injuries.length > 0) && (
+            <div className="space-y-2 border-t pt-3 text-left">
+              <h4 className="text-sm font-medium text-neutral-500">Session Record</h4>
+              <div className="flex flex-wrap items-center gap-1 justify-start">
+                {xpEarned > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    +{xpEarned} XP
+                  </span>
+                )}
+                {injuries.map((injury, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                  >
+                    {injury.effect_name}
+                    <button onClick={() => removeInjuryMut.mutate(idx)} className="ml-0.5 hover:text-red-900">
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {showXpModal && fighterData && (
         <FighterXpModal
           isOpen
           fighterId={fighter.fighter_id}
@@ -71,12 +147,23 @@ function XpCell({ fighter, onXpChanged }: { fighter: BattleSessionFighter; onXpC
           currentTotalXp={fighterData.xp}
           currentKills={fighterData.kills}
           currentKillCount={fighterData.kill_count}
-          helperFighterName={fighter.fighter?.fighter_name}
-          onClose={() => setShowModal(false)}
+          onClose={() => setShowXpModal(false)}
           onXpUpdated={(newXp) => {
             const delta = newXp - (fighterData?.xp ?? 0);
             onXpChanged(delta);
-            setShowModal(false);
+            setShowXpModal(false);
+            onClose();
+          }}
+        />
+      )}
+
+      {showInjuryModal && (
+        <InjuryPickerModal
+          fighter={fighter}
+          onClose={() => setShowInjuryModal(false)}
+          onInjuryAdded={(injury) => {
+            onInjuryAdded(injury);
+            onClose();
           }}
         />
       )}
@@ -222,7 +309,6 @@ function InjuryPickerModal({
       {mode === 'main' && (
         <Modal
           title="Add Lasting Injury"
-          helper={fighter.fighter?.fighter_name}
           onClose={onClose}
           onConfirm={handleAdd}
           confirmText="Add Lasting Injury"
@@ -244,6 +330,12 @@ function InjuryPickerModal({
                 if (!rolled.length) return;
                 const name = resolveInjuryFromUtil(rolled[0].roll)?.name;
                 const match = injuryTypes.find((i) => i.effect_name === name) ?? (rolled[0].item as InjuryType);
+                if (match) { setSelectedId(match.id); setSelectedInjury(match); }
+              }}
+              onRoll={(roll) => {
+                const util = resolveInjuryFromUtil(roll);
+                if (!util) return;
+                const match = injuryTypes.find((i) => i.effect_name === util.name);
                 if (match) { setSelectedId(match.id); setSelectedInjury(match); }
               }}
               buttonText="Roll D66"
@@ -290,72 +382,86 @@ function InjuryPickerModal({
   );
 }
 
-function InjuriesCell({
+// ---------------------------------------------------------------------------
+// FighterRow — table row with optional action modal
+// ---------------------------------------------------------------------------
+
+function FighterRow({
   fighter,
-  editable,
+  name,
+  cost,
+  xp,
+  injuryCount,
+  canEdit,
+  onXpChanged,
   onInjuryAdded,
   onInjuryRemoved,
+  onRemove,
 }: {
   fighter: BattleSessionFighter;
-  editable: boolean;
+  name: string;
+  cost: number | undefined;
+  xp: number;
+  injuryCount: number;
+  canEdit: boolean;
+  onXpChanged: (delta: number) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
+  onRemove: () => void;
 }) {
-  const [showModal, setShowModal] = useState(false);
-
-  const removeMut = useMutation({
-    mutationFn: async (index: number) => {
-      const injury = fighter.session_record.injuries[index];
-      await deleteFighterInjury({
-        fighter_id: fighter.fighter_id,
-        injury_id: injury.fighter_effect_id,
-      });
-      await removeSessionInjury({ session_fighter_id: fighter.id, injury_index: index });
-    },
-    onMutate: (index) => {
-      onInjuryRemoved(index);
-    },
-    onError: () => toast.error('Failed to remove injury'),
-  });
-
+  const [showActionModal, setShowActionModal] = useState(false);
   const injuries = fighter.session_record?.injuries ?? [];
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-end gap-1">
-        {injuries.map((injury, idx) => (
-          <span
-            key={idx}
-            className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
-          >
-            {injury.effect_name}
-            {editable && (
-              <button onClick={() => removeMut.mutate(idx)} className="ml-0.5 hover:text-red-900">
-                ✕
-              </button>
+    <tr className="border-b last:border-b-0">
+      <td className="p-1 md:p-2 w-full">
+        <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
+        {(xp > 0 || injuryCount > 0 || (!canEdit && injuries.length > 0)) && (
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {xp > 0 && (
+              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                +{xp} XP
+              </span>
             )}
-          </span>
-        ))}
-        {editable && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowModal(true)}
-            title="Add Injury"
-            className="text-xs px-1.5 h-6"
-          >
-            <MdOutlinePersonalInjury className="h-4 w-4" />
-          </Button>
+            {canEdit ? (
+              injuryCount > 0 && (
+                <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                  {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
+                </span>
+              )
+            ) : (
+              injuries.map((injury, idx) => (
+                <span
+                  key={idx}
+                  className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                >
+                  {injury.effect_name}
+                </span>
+              ))
+            )}
+          </div>
         )}
-      </div>
-      {showModal && (
-        <InjuryPickerModal
-          fighter={fighter}
-          onClose={() => setShowModal(false)}
-          onInjuryAdded={onInjuryAdded}
-        />
+      </td>
+      {canEdit && (
+        <td className="p-1 md:p-2 text-right whitespace-nowrap">
+          <CgMoreVerticalO
+            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
+            title="Click to open action menu"
+            onClick={() => setShowActionModal(true)}
+          />
+          {showActionModal && (
+            <FighterActionModal
+              fighter={fighter}
+              onXpChanged={onXpChanged}
+              onInjuryAdded={onInjuryAdded}
+              onInjuryRemoved={onInjuryRemoved}
+              onRemove={onRemove}
+              onClose={() => setShowActionModal(false)}
+            />
+          )}
+        </td>
       )}
-    </div>
+    </tr>
   );
 }
 
@@ -545,6 +651,29 @@ export default function ParticipantCard({
     },
   });
 
+  const updateXpMutation = useMutation({
+    mutationFn: async ({ sessionFighterId, totalXp }: { sessionFighterId: string; totalXp: number }) => {
+      const result = await updateSessionXp({ session_fighter_id: sessionFighterId, xp_earned: totalXp });
+      if (!result.success) throw new Error(result.error || 'Failed to record XP');
+      return result;
+    },
+    onMutate: ({ sessionFighterId, totalXp }) => {
+      const prev = localFighters;
+      setLocalFighters((cur) =>
+        cur.map((lf) =>
+          lf.id === sessionFighterId
+            ? { ...lf, session_record: { ...lf.session_record, xp_earned: totalXp } }
+            : lf
+        )
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) setLocalFighters(context.prev);
+      toast.error('Failed to record XP');
+    },
+  });
+
   useEffect(() => {
     setLocalFighters(participant.fighters);
   }, [participant.fighters]);
@@ -621,15 +750,13 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
-                  <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">XP</th>
-                  <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Injuries</th>
                   {canEdit && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Action</th>}
                 </tr>
               </thead>
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 4 : 3} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={canEdit ? 2 : 1} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -637,68 +764,41 @@ export default function ParticipantCard({
                   localFighters.map((f) => {
                     const name = f.fighter?.fighter_name || 'Unknown Fighter';
                     const cost = f.fighter?.total_cost ?? f.fighter?.credits;
+                    const xp = f.session_record?.xp_earned ?? 0;
+                    const injuryCount = f.session_record?.injuries?.length ?? 0;
                     return (
-                      <tr key={f.id} className="border-b last:border-b-0">
-                        <td className="p-1 md:p-2 w-full">{cost !== undefined ? `${name} - ${cost}` : name}</td>
-                        <td className="p-1 md:p-2 text-right whitespace-nowrap">
-                          {(f.session_record?.xp_earned ?? 0) > 0 && (
-                            <span className="mr-1 text-xs text-neutral-500">+{f.session_record.xp_earned}</span>
-                          )}
-                          {canEdit ? (
-                            <XpCell
-                              fighter={f}
-                              onXpChanged={(delta) => {
-                                setLocalFighters((cur) =>
-                                  cur.map((lf) =>
-                                    lf.id === f.id
-                                      ? { ...lf, session_record: { ...lf.session_record, xp_earned: (lf.session_record?.xp_earned ?? 0) + delta } }
-                                      : lf
-                                  )
-                                );
-                                updateSessionXp({ session_fighter_id: f.id, xp_earned: (f.session_record?.xp_earned ?? 0) + delta });
-                              }}
-                            />
-                          ) : null}
-                        </td>
-                        <td className="p-1 md:p-2 text-right whitespace-nowrap">
-                          <InjuriesCell
-                            fighter={f}
-                            editable={canEdit}
-                            onInjuryAdded={(injury) => {
-                              setLocalFighters((cur) =>
-                                cur.map((lf) =>
-                                  lf.id === f.id
-                                    ? { ...lf, session_record: { ...lf.session_record, injuries: [...(lf.session_record?.injuries ?? []), injury] } }
-                                    : lf
-                                )
-                              );
-                              router.refresh();
-                            }}
-                            onInjuryRemoved={(index) => {
-                              setLocalFighters((cur) =>
-                                cur.map((lf) =>
-                                  lf.id === f.id
-                                    ? { ...lf, session_record: { ...lf.session_record, injuries: lf.session_record.injuries.filter((_, i) => i !== index) } }
-                                    : lf
-                                )
-                              );
-                            }}
-                          />
-                        </td>
-                        {canEdit && (
-                          <td className="p-1 md:p-2 text-right whitespace-nowrap">
-                            <Button
-                              variant="outline_remove"
-                              size="sm"
-                              onClick={() => removeFighterMutation.mutate(f.fighter_id)}
-                              className="text-xs px-1.5 h-6"
-                              title="Remove fighter"
-                            >
-                              <LuTrash2 className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        )}
-                      </tr>
+                      <FighterRow
+                        key={f.id}
+                        fighter={f}
+                        name={name}
+                        cost={cost}
+                        xp={xp}
+                        injuryCount={injuryCount}
+                        canEdit={canEdit}
+                        onXpChanged={(delta) => {
+                          const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
+                          updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
+                        }}
+                        onInjuryAdded={(injury) => {
+                          setLocalFighters((cur) =>
+                            cur.map((lf) =>
+                              lf.id === f.id
+                                ? { ...lf, session_record: { ...lf.session_record, injuries: [...(lf.session_record?.injuries ?? []), injury] } }
+                                : lf
+                            )
+                          );
+                        }}
+                        onInjuryRemoved={(index) => {
+                          setLocalFighters((cur) =>
+                            cur.map((lf) =>
+                              lf.id === f.id
+                                ? { ...lf, session_record: { ...lf.session_record, injuries: lf.session_record.injuries.filter((_, i) => i !== index) } }
+                                : lf
+                            )
+                          );
+                        }}
+                        onRemove={() => removeFighterMutation.mutate(f.fighter_id)}
+                      />
                     );
                   })
                 )}
