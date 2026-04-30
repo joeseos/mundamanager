@@ -1,4 +1,4 @@
-export type BattleSessionStatus = 'active' | 'review' | 'confirmed' | 'cancelled';
+export type BattleSessionStatus = 'active' | 'confirmed' | 'cancelled';
 
 export interface BattleSession {
   id: string;
@@ -22,10 +22,7 @@ export interface BattleSessionParticipant {
   gang_rating_snapshot: number | null;
   credits_earned: number;
   reputation_change: number;
-  confirmed: boolean;
-  confirmed_at: string | null;
   created_at: string;
-  // Joined data
   gang?: {
     id: string;
     name: string;
@@ -38,11 +35,17 @@ export interface BattleSessionParticipant {
   };
 }
 
-export interface PendingInjury {
+export interface SessionInjuryRecord {
+  fighter_effect_id: string;
   fighter_effect_type_id: string;
   effect_name: string;
   send_to_recovery: boolean;
   set_captured: boolean;
+}
+
+export interface SessionRecord {
+  xp_earned: number;
+  injuries: SessionInjuryRecord[];
 }
 
 export interface BattleSessionFighter {
@@ -50,12 +53,8 @@ export interface BattleSessionFighter {
   battle_session_id: string;
   participant_id: string;
   fighter_id: string;
-  xp_earned: number;
-  pending_injuries: PendingInjury[];
-  out_of_action: boolean;
-  note: string | null;
+  session_record: SessionRecord;
   created_at: string;
-  // Joined data
   fighter?: {
     id: string;
     fighter_name: string;

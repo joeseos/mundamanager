@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getUserBattleSessions } from '@/app/actions/battle-sessions';
+import { getUserBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import BattleSessionHub from '@/components/battle-session/battle-session-hub';
 
 export default async function BattleSessionsPage() {
@@ -14,7 +14,7 @@ export default async function BattleSessionsPage() {
     redirect('/sign-in');
   }
 
-  const sessions = await getUserBattleSessions();
+  const sessions = await getUserBattleSessionsCached(user.id, supabase);
 
   return <BattleSessionHub sessions={sessions} userId={user.id} />;
 }

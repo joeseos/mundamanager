@@ -91,15 +91,12 @@ export default function ConfirmedSession({
                     <span className="font-medium">
                       {f.fighter?.fighter_name}
                     </span>
-                    {f.xp_earned > 0 && (
+                    {(f.session_record?.xp_earned ?? 0) > 0 && (
                       <span className="text-neutral-500">
-                        +{f.xp_earned} XP
+                        +{f.session_record.xp_earned} XP
                       </span>
                     )}
-                    {f.out_of_action && (
-                      <span className="text-red-500">OOA</span>
-                    )}
-                    {f.pending_injuries?.map((injury, idx) => (
+                    {(f.session_record?.injuries ?? []).map((injury: { effect_name: string }, idx: number) => (
                       <span
                         key={idx}
                         className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
