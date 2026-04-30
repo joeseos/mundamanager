@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { MdOutlinePersonalInjury } from 'react-icons/md';
 import { LuTrash2 } from 'react-icons/lu';
@@ -17,16 +18,19 @@ import {
   updateGangOutcome,
   bulkAddFightersToSession,
   removeFighterFromSession,
-  addPendingInjury,
-  removePendingInjury,
+  updateSessionXp,
+  addSessionInjury,
+  removeSessionInjury,
 } from '@/app/actions/battle-sessions';
-import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter } from '@/types/battle-session';
+import { addFighterInjury } from '@/app/actions/fighter-injury';
+import { deleteFighterInjury } from '@/app/actions/fighter-injury';
+import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionInjuryRecord } from '@/types/battle-session';
 
 // ---------------------------------------------------------------------------
 // Sub-components for List cell rendering
 // ---------------------------------------------------------------------------
 
-function XpCell({ fighter }: { fighter: BattleSessionFighter }) {
+function XpCell({ fighter, onXpChanged }: { fighter: BattleSessionFighter; onXpChanged: (delta: number) => void }) {
   const [showModal, setShowModal] = useState(false);
   const [fighterData, setFighterData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -69,7 +73,11 @@ function XpCell({ fighter }: { fighter: BattleSessionFighter }) {
           currentKillCount={fighterData.kill_count}
           helperFighterName={fighter.fighter?.fighter_name}
           onClose={() => setShowModal(false)}
-          onXpUpdated={() => setShowModal(false)}
+          onXpUpdated={(newXp) => {
+            const delta = newXp - (fighterData?.xp ?? 0);
+            onXpChanged(delta);
+            setShowModal(false);
+          }}
         />
       )}
     </>
@@ -89,9 +97,11 @@ interface InjuryType {
 function InjuryPickerModal({
   fighter,
   onClose,
+  onInjuryAdded,
 }: {
   fighter: BattleSessionFighter;
   onClose: () => void;
+  onInjuryAdded: (injury: SessionInjuryRecord) => void;
 }) {
   const [injuryTypes, setInjuryTypes] = useState<InjuryType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,11 +111,30 @@ function InjuryPickerModal({
 
   const addMut = useMutation({
     mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean }) => {
-      const result = await addPendingInjury({ session_fighter_id: fighter.id, ...params });
-      if (!result.success) throw new Error(result.error || 'Failed to add injury');
-      return result;
+      const injuryResult = await addFighterInjury({
+        fighter_id: fighter.fighter_id,
+        injury_type_id: params.fighter_effect_type_id,
+        send_to_recovery: params.send_to_recovery,
+        set_captured: params.set_captured,
+      });
+      if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add injury');
+
+      const sessionInjury: SessionInjuryRecord = {
+        fighter_effect_id: injuryResult.injury!.id,
+        fighter_effect_type_id: params.fighter_effect_type_id,
+        effect_name: params.effect_name,
+        send_to_recovery: params.send_to_recovery,
+        set_captured: params.set_captured,
+      };
+
+      await addSessionInjury({ session_fighter_id: fighter.id, injury: sessionInjury });
+      return sessionInjury;
     },
-    onSuccess: () => { toast.success('Injury added'); onClose(); },
+    onSuccess: (injury) => {
+      toast.success('Injury added');
+      onInjuryAdded(injury);
+      onClose();
+    },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add injury'),
   });
 
@@ -261,18 +290,40 @@ function InjuryPickerModal({
   );
 }
 
-function InjuriesCell({ fighter, editable }: { fighter: BattleSessionFighter; editable: boolean }) {
+function InjuriesCell({
+  fighter,
+  editable,
+  onInjuryAdded,
+  onInjuryRemoved,
+}: {
+  fighter: BattleSessionFighter;
+  editable: boolean;
+  onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onInjuryRemoved: (index: number) => void;
+}) {
   const [showModal, setShowModal] = useState(false);
 
   const removeMut = useMutation({
-    mutationFn: (index: number) => removePendingInjury({ session_fighter_id: fighter.id, injury_index: index }),
+    mutationFn: async (index: number) => {
+      const injury = fighter.session_record.injuries[index];
+      await deleteFighterInjury({
+        fighter_id: fighter.fighter_id,
+        injury_id: injury.fighter_effect_id,
+      });
+      await removeSessionInjury({ session_fighter_id: fighter.id, injury_index: index });
+    },
+    onMutate: (index) => {
+      onInjuryRemoved(index);
+    },
     onError: () => toast.error('Failed to remove injury'),
   });
+
+  const injuries = fighter.session_record?.injuries ?? [];
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-end gap-1">
-        {fighter.pending_injuries?.map((injury, idx) => (
+        {injuries.map((injury, idx) => (
           <span
             key={idx}
             className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
@@ -297,7 +348,13 @@ function InjuriesCell({ fighter, editable }: { fighter: BattleSessionFighter; ed
           </Button>
         )}
       </div>
-      {showModal && <InjuryPickerModal fighter={fighter} onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <InjuryPickerModal
+          fighter={fighter}
+          onClose={() => setShowModal(false)}
+          onInjuryAdded={onInjuryAdded}
+        />
+      )}
     </div>
   );
 }
@@ -312,7 +369,6 @@ interface ParticipantCardProps {
   userId: string;
   isOwner: boolean;
   editable?: boolean;
-  refetch?: () => Promise<void>;
 }
 
 export default function ParticipantCard({
@@ -321,58 +377,44 @@ export default function ParticipantCard({
   userId,
   isOwner,
   editable = false,
-  refetch,
 }: ParticipantCardProps) {
+  const router = useRouter();
   const [creditsEarned, setCreditsEarned] = useState(participant.credits_earned);
   const [repChange, setRepChange] = useState(participant.reputation_change);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
-  const [gangFighters, setGangFighters] = useState<{
-    id: string;
-    fighter_name: string;
-    credits: number;
-    loadout_id?: string;
-    loadout_name?: string;
-  }[]>([]);
-  const [loadingFighters, setLoadingFighters] = useState(false);
+  const [fightersRequested, setFightersRequested] = useState(false);
 
   const isMyGang = participant.user_id === userId;
   const canEdit = editable && isMyGang;
 
-  // Fetch gang fighters for selection
-  useEffect(() => {
-    if (!canEdit) return;
-    const fetchFighters = async () => {
-      setLoadingFighters(true);
-      try {
-        const res = await fetch(`/api/fighters?gang_id=${participant.gang_id}&loadouts=true`);
-        const data = await res.json();
-        const entries = (data || []).flatMap((f: any) => {
-          const loadouts: { id: string; loadout_name: string; loadout_total: number }[] = f.loadouts || [];
-          if (loadouts.length === 0) {
-            return [{ id: f.id, fighter_name: f.fighter_name, credits: f.total_cost ?? f.credits }];
-          }
-          return loadouts.map((l) => ({
-            id: f.id,
-            fighter_name: f.fighter_name,
-            credits: l.loadout_total,
-            loadout_id: l.id,
-            loadout_name: l.loadout_name,
-          }));
-        });
-        setGangFighters(entries);
-      } catch {
-        console.error('Error fetching fighters');
-      } finally {
-        setLoadingFighters(false);
-      }
-    };
-    fetchFighters();
-  }, [canEdit, participant.gang_id]);
+  const { data: gangFighters = [], isLoading: loadingFighters } = useQuery({
+    queryKey: ['gang-fighters', participant.gang_id],
+    queryFn: async () => {
+      const res = await fetch(`/api/fighters?gang_id=${participant.gang_id}&loadouts=true`);
+      if (!res.ok) throw new Error('Failed to fetch fighters');
+      const data = await res.json();
+      return (data || []).flatMap((f: any) => {
+        const loadouts: { id: string; loadout_name: string; loadout_total: number }[] = f.loadouts || [];
+        if (loadouts.length === 0) {
+          return [{ id: f.id, fighter_name: f.fighter_name, credits: f.total_cost ?? f.credits }];
+        }
+        return loadouts.map((l: any) => ({
+          id: f.id,
+          fighter_name: f.fighter_name,
+          credits: l.loadout_total,
+          loadout_id: l.id,
+          loadout_name: l.loadout_name,
+        }));
+      }) as { id: string; fighter_name: string; credits: number; loadout_id?: string; loadout_name?: string }[];
+    },
+    enabled: canEdit && fightersRequested,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const selectedFighterIds = new Set(localFighters.map((f) => f.fighter_id));
   const availableFighters = gangFighters.filter((f) => !selectedFighterIds.has(f.id));
 
-  const totalInjuries = localFighters.reduce((sum, f) => sum + (f.pending_injuries?.length ?? 0), 0);
+  const totalInjuries = localFighters.reduce((sum, f) => sum + (f.session_record?.injuries?.length ?? 0), 0);
   const crewRating = localFighters.reduce(
     (sum, f) => sum + (f.fighter?.total_cost ?? f.fighter?.credits ?? 0),
     0
@@ -380,14 +422,44 @@ export default function ParticipantCard({
 
   const removeMutation = useMutation({
     mutationFn: () => removeParticipant(session.id, participant.id),
-    onSuccess: () => refetch?.(),
+    onSuccess: () => router.refresh(),
     onError: () => toast.error('Failed to remove participant'),
   });
 
+  const prevCreditsRef = useRef(participant.credits_earned);
+  const prevRepRef = useRef(participant.reputation_change);
+
   const gangOutcomeMutation = useMutation({
-    mutationFn: (params: { credits_earned?: number; reputation_change?: number }) =>
-      updateGangOutcome({ participant_id: participant.id, ...params }),
-    onError: () => toast.error('Failed to update gang outcome'),
+    mutationFn: (params: { field: 'credits' | 'reputation'; newValue: number }) => {
+      const prevValue = params.field === 'credits' ? prevCreditsRef.current : prevRepRef.current;
+      const delta = params.newValue - prevValue;
+      if (delta === 0) return Promise.resolve({ success: true });
+      const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
+      const absValue = Math.abs(delta);
+      return updateGangOutcome({
+        participant_id: participant.id,
+        gang_id: participant.gang_id,
+        ...(params.field === 'credits'
+          ? { credits_change: absValue, credits_operation: operation }
+          : { reputation_change: absValue, reputation_operation: operation }),
+      });
+    },
+    onMutate: (params) => {
+      const prev = params.field === 'credits' ? prevCreditsRef.current : prevRepRef.current;
+      if (params.field === 'credits') prevCreditsRef.current = params.newValue;
+      else prevRepRef.current = params.newValue;
+      return { prev, field: params.field };
+    },
+    onError: (_err, _params, context) => {
+      if (context?.field === 'credits') {
+        prevCreditsRef.current = context.prev;
+        setCreditsEarned(context.prev);
+      } else if (context?.field === 'reputation') {
+        prevRepRef.current = context.prev;
+        setRepChange(context.prev);
+      }
+      toast.error('Failed to update gang outcome');
+    },
   });
 
   const addFighterMutation = useMutation({
@@ -404,7 +476,7 @@ export default function ParticipantCard({
       }
       const name = gangFighters.find((gf) => gf.id === fighterId)?.fighter_name;
       toast.success(`${name ?? 'Fighter'} added`);
-      refetch?.();
+      router.refresh();
     },
     onError: () => {
       toast.error('Failed to add fighter');
@@ -426,7 +498,7 @@ export default function ParticipantCard({
         return;
       }
       toast.success(`${result.count} fighter${result.count !== 1 ? 's' : ''} added`);
-      refetch?.();
+      router.refresh();
     },
     onError: () => {
       toast.error('Failed to add fighters');
@@ -440,6 +512,7 @@ export default function ParticipantCard({
       setLocalFighters((cur) => cur.filter((f) => f.fighter_id !== fighterId));
       return { prev };
     },
+    onSuccess: () => router.refresh(),
     onError: (_err, _id, context) => {
       toast.error('Failed to remove fighter');
       setLocalFighters(context!.prev);
@@ -468,9 +541,6 @@ export default function ParticipantCard({
               <span className="font-semibold">
                 {participant.gang?.name || 'Unknown Gang'}
               </span>
-              {participant.confirmed && (
-                <span className="text-green-600" title="Confirmed">✓</span>
-              )}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-neutral-500">
               <span>Player: {participant.profile?.username || 'Unknown'}</span>
@@ -510,10 +580,14 @@ export default function ParticipantCard({
               placeholder="Add fighter..."
               className="flex-1 min-w-0"
               disabled={loadingFighters || addFighterMutation.isPending}
+              onFocus={() => setFightersRequested(true)}
             />
             <Button
-              onClick={() => addAllFightersMutation.mutate()}
-              disabled={addAllFightersMutation.isPending}
+              onClick={() => {
+                setFightersRequested(true);
+                addAllFightersMutation.mutate();
+              }}
+              disabled={addAllFightersMutation.isPending || loadingFighters}
               className="whitespace-nowrap"
             >
               Add All
@@ -547,8 +621,51 @@ export default function ParticipantCard({
                     return (
                       <tr key={f.id} className="border-b last:border-b-0">
                         <td className="p-1 md:p-2 w-full">{cost !== undefined ? `${name} - ${cost}` : name}</td>
-                        <td className="p-1 md:p-2 text-right whitespace-nowrap">{canEdit ? <XpCell fighter={f} /> : null}</td>
-                        <td className="p-1 md:p-2 text-right whitespace-nowrap"><InjuriesCell fighter={f} editable={canEdit} /></td>
+                        <td className="p-1 md:p-2 text-right whitespace-nowrap">
+                          {(f.session_record?.xp_earned ?? 0) > 0 && (
+                            <span className="mr-1 text-xs text-neutral-500">+{f.session_record.xp_earned}</span>
+                          )}
+                          {canEdit ? (
+                            <XpCell
+                              fighter={f}
+                              onXpChanged={(delta) => {
+                                setLocalFighters((cur) =>
+                                  cur.map((lf) =>
+                                    lf.id === f.id
+                                      ? { ...lf, session_record: { ...lf.session_record, xp_earned: (lf.session_record?.xp_earned ?? 0) + delta } }
+                                      : lf
+                                  )
+                                );
+                                updateSessionXp({ session_fighter_id: f.id, xp_earned: (f.session_record?.xp_earned ?? 0) + delta });
+                              }}
+                            />
+                          ) : null}
+                        </td>
+                        <td className="p-1 md:p-2 text-right whitespace-nowrap">
+                          <InjuriesCell
+                            fighter={f}
+                            editable={canEdit}
+                            onInjuryAdded={(injury) => {
+                              setLocalFighters((cur) =>
+                                cur.map((lf) =>
+                                  lf.id === f.id
+                                    ? { ...lf, session_record: { ...lf.session_record, injuries: [...(lf.session_record?.injuries ?? []), injury] } }
+                                    : lf
+                                )
+                              );
+                              router.refresh();
+                            }}
+                            onInjuryRemoved={(index) => {
+                              setLocalFighters((cur) =>
+                                cur.map((lf) =>
+                                  lf.id === f.id
+                                    ? { ...lf, session_record: { ...lf.session_record, injuries: lf.session_record.injuries.filter((_, i) => i !== index) } }
+                                    : lf
+                                )
+                              );
+                            }}
+                          />
+                        </td>
                         {canEdit && (
                           <td className="p-1 md:p-2 text-right whitespace-nowrap">
                             <Button
@@ -579,7 +696,7 @@ export default function ParticipantCard({
                   type="number"
                   value={creditsEarned}
                   onChange={(e) => setCreditsEarned(Number(e.target.value))}
-                  onBlur={() => gangOutcomeMutation.mutate({ credits_earned: creditsEarned })}
+                  onBlur={() => gangOutcomeMutation.mutate({ field: 'credits', newValue: creditsEarned })}
                   className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
                 />
               </div>
@@ -589,7 +706,7 @@ export default function ParticipantCard({
                   type="number"
                   value={repChange}
                   onChange={(e) => setRepChange(Number(e.target.value))}
-                  onBlur={() => gangOutcomeMutation.mutate({ reputation_change: repChange })}
+                  onBlur={() => gangOutcomeMutation.mutate({ field: 'reputation', newValue: repChange })}
                   className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
                 />
               </div>

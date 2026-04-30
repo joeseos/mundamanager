@@ -8,7 +8,7 @@ import {
   addParticipant,
   inviteToSession,
   setSessionScenario,
-  moveToReview,
+  completeBattleSession,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
 import ParticipantCard from './participant-card';
@@ -24,7 +24,6 @@ interface ActiveSessionProps {
   userGangs: { id: string; name: string; rating: number }[];
   campaignGangs: { gang_id: string; user_id: string }[];
   scenarios: Scenario[];
-  refetch: () => Promise<void>;
 }
 
 export default function ActiveSession({
@@ -33,7 +32,6 @@ export default function ActiveSession({
   userGangs,
   campaignGangs,
   scenarios,
-  refetch,
 }: ActiveSessionProps) {
   const router = useRouter();
   const [selectedGangId, setSelectedGangId] = useState('');
@@ -103,7 +101,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         setSelectedGangId('');
-        refetch();
+        router.refresh();
       } else {
         toast.error(result.error || 'Failed to add gang');
       }
@@ -129,12 +127,17 @@ export default function ActiveSession({
     onError: () => toast.error('Failed to invite player'),
   });
 
-  const moveToReviewMutation = useMutation({
-    mutationFn: () => moveToReview(session.id),
+  const completeMutation = useMutation({
+    mutationFn: () => completeBattleSession(session.id),
     onSuccess: (result) => {
-      if (!result.success) toast.error(result.error);
+      if (result.success) {
+        toast.success('Battle session completed');
+        router.refresh();
+      } else {
+        toast.error(result.error || 'Failed to complete session');
+      }
     },
-    onError: () => toast.error('Failed to move to review'),
+    onError: () => toast.error('Failed to complete session'),
   });
 
   const cancelMutation = useMutation({
@@ -309,7 +312,6 @@ export default function ActiveSession({
             userId={userId}
             isOwner={isOwner}
             editable
-            refetch={refetch}
           />
         ))}
       </div>
@@ -318,10 +320,10 @@ export default function ActiveSession({
       {isOwner && session.participants.length >= 2 && (
         <div className="flex justify-end">
           <Button
-            onClick={() => moveToReviewMutation.mutate()}
-            disabled={moveToReviewMutation.isPending}
+            onClick={() => completeMutation.mutate()}
+            disabled={completeMutation.isPending}
           >
-            Move to Review
+            Complete Session
           </Button>
         </div>
       )}

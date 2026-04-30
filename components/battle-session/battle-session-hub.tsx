@@ -10,7 +10,6 @@ import type { BattleSession, BattleSessionStatus } from '@/types/battle-session'
 
 const statusColors: Record<BattleSessionStatus, string> = {
   active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  review: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   cancelled: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
 };
@@ -39,7 +38,7 @@ export default function BattleSessionHub({
 
   const filteredSessions =
     filter === 'active'
-      ? sessions.filter((s) => s.status === 'active' || s.status === 'review')
+      ? sessions.filter((s) => s.status === 'active')
       : sessions;
 
   const formatDate = (dateStr: string) => {
