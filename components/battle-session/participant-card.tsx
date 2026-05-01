@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { LuPlus, LuMinus } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import DiceRoller from '@/components/dice-roller';
@@ -61,12 +62,15 @@ const SESSION_CONDITIONS: ConditionDefinition[] = [
       </span>
     ),
   },
-  { key: 'flesh_wound', name: 'Flesh wound', colorClass: 'text-neutral-200', icon: <GiHealthDecrease /> },
-  { key: 'wounds', name: 'Wounds', colorClass: 'text-red-800', icon: <GiWaterDrop /> },
   { key: 'gunked', name: 'Gunked', colorClass: 'text-slate-900', icon: <GiSpill /> },
 ];
 
-const CONDITION_BY_KEY = new Map(SESSION_CONDITIONS.map((condition) => [condition.key, condition]));
+const NUMERIC_CONDITIONS: ConditionDefinition[] = [
+  { key: 'flesh_wound', name: 'Flesh Wounds', colorClass: 'text-neutral-200', icon: <GiHealthDecrease /> },
+  { key: 'wounds', name: 'Wounds', colorClass: 'text-red-800', icon: <GiWaterDrop /> },
+];
+
+const CONDITION_BY_KEY = new Map([...SESSION_CONDITIONS, ...NUMERIC_CONDITIONS].map((condition) => [condition.key, condition]));
 
 function ConditionBadge({ condition }: { condition: SessionCondition }) {
   const config = CONDITION_BY_KEY.get(condition.key);
@@ -81,7 +85,9 @@ function ConditionBadge({ condition }: { condition: SessionCondition }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
       <span className={config.colorClass}>{config.icon}</span>
-      {condition.name}
+      {condition.value != null && condition.value > 0
+        ? `${condition.value} ${condition.name}`
+        : condition.name}
     </span>
   );
 }
@@ -172,6 +178,21 @@ function FighterActionModal({
     onClose();
   };
 
+  const adjustNumericCondition = (key: string, name: string, delta: number) => {
+    const existing = conditions.find((c) => c.key === key);
+    const currentValue = existing?.value ?? 0;
+    const newValue = Math.max(0, currentValue + delta);
+    let nextConditions: SessionCondition[];
+    if (newValue === 0) {
+      nextConditions = conditions.filter((c) => c.key !== key);
+    } else if (existing) {
+      nextConditions = conditions.map((c) => c.key === key ? { ...c, value: newValue } : c);
+    } else {
+      nextConditions = [...conditions, { key, name, value: newValue }];
+    }
+    onConditionsChanged(nextConditions);
+  };
+
   return (
     <>
       <Modal
@@ -196,6 +217,42 @@ function FighterActionModal({
             >
               Add Injury
             </Button>
+          </div>
+          <div className="space-y-2 border-t pt-3 text-left">
+            <h4 className="text-sm font-medium text-neutral-500">Wounds & Flesh Wounds</h4>
+            <div className="flex flex-col gap-2">
+              {NUMERIC_CONDITIONS.map((nc) => {
+                const current = conditions.find((c) => c.key === nc.key)?.value ?? 0;
+                return (
+                  <div key={nc.key} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`${nc.colorClass} text-base`}>{nc.icon}</span>
+                      <span className="text-sm">{nc.name}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
+                        onClick={() => adjustNumericCondition(nc.key, nc.name, -1)}
+                        disabled={current === 0}
+                      >
+                        <LuMinus className="h-4 w-4" />
+                      </Button>
+                      <span className="w-6 text-center">{current}</span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
+                        onClick={() => adjustNumericCondition(nc.key, nc.name, 1)}
+                      >
+                        <LuPlus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div className="space-y-2 border-t pt-3 text-left">
             <h4 className="text-sm font-medium text-neutral-500">Conditions</h4>
