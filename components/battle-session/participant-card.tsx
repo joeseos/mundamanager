@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,6 +12,13 @@ import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
+import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
+import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthDecrease, GiWaterDrop, GiSpill } from 'react-icons/gi';
+import { IoFlashOutline } from 'react-icons/io5';
+import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
+import { PiBeerBottleFill } from 'react-icons/pi';
+import { WiStars } from 'react-icons/wi';
+import { FaUserCheck, FaBan } from 'react-icons/fa';
 import {
   removeParticipant,
   updateGangOutcome,
@@ -20,10 +27,65 @@ import {
   updateSessionXp,
   addSessionInjury,
   removeSessionInjury,
+  updateSessionConditions,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { deleteFighterInjury } from '@/app/actions/fighter-injury';
-import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionInjuryRecord } from '@/types/battle-session';
+import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
+
+interface ConditionDefinition {
+  key: string;
+  name: string;
+  colorClass: string;
+  icon: ReactNode;
+}
+
+const SESSION_CONDITIONS: ConditionDefinition[] = [
+  { key: 'blaze', name: 'Blaze', colorClass: 'text-orange-600', icon: <BsFire /> },
+  { key: 'insane', name: 'Insane', colorClass: 'text-purple-700', icon: <GiPieceSkull /> },
+  { key: 'webbed', name: 'Webbed', colorClass: 'text-neutral-200', icon: <GiSpiderWeb /> },
+  { key: 'blind', name: 'Blind', colorClass: 'text-neutral-200', icon: <IoFlashOutline /> },
+  { key: 'broken', name: 'Broken', colorClass: 'text-red-700', icon: <BsFillExclamationCircleFill /> },
+  { key: 'intoxicated', name: 'Intoxicated', colorClass: 'text-emerald-500', icon: <PiBeerBottleFill /> },
+  { key: 'hidden', name: 'Hidden', colorClass: 'text-red-700', icon: <IoMdEyeOff /> },
+  { key: 'revealed', name: 'Revealed', colorClass: 'text-neutral-200', icon: <IoMdEye /> },
+  { key: 'concussion', name: 'Concussion', colorClass: 'text-red-400', icon: <WiStars /> },
+  { key: 'ready', name: 'Ready', colorClass: 'text-neutral-200', icon: <FaUserCheck /> },
+  {
+    key: 'out_of_ammo',
+    name: 'Out of Ammo',
+    colorClass: 'text-neutral-700',
+    icon: (
+      <span className="relative inline-flex size-4 items-center justify-center">
+        <GiHeavyBullets className="size-4" />
+        <FaBan className="absolute -right-1 -top-1 size-2.5" />
+      </span>
+    ),
+  },
+  { key: 'flesh_wound', name: 'Flesh wound', colorClass: 'text-neutral-200', icon: <GiHealthDecrease /> },
+  { key: 'wounds', name: 'Wounds', colorClass: 'text-red-800', icon: <GiWaterDrop /> },
+  { key: 'gunked', name: 'Gunked', colorClass: 'text-slate-900', icon: <GiSpill /> },
+];
+
+const CONDITION_BY_KEY = new Map(SESSION_CONDITIONS.map((condition) => [condition.key, condition]));
+
+function ConditionBadge({ condition }: { condition: SessionCondition }) {
+  const config = CONDITION_BY_KEY.get(condition.key);
+  if (!config) {
+    return (
+      <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+        {condition.name}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+      <span className={config.colorClass}>{config.icon}</span>
+      {condition.name}
+    </span>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // FighterActionModal — XP, Injuries, Remove in one modal
@@ -32,6 +94,7 @@ import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter,
 function FighterActionModal({
   fighter,
   onXpChanged,
+  onConditionsChanged,
   onInjuryAdded,
   onInjuryRemoved,
   onRemove,
@@ -39,6 +102,7 @@ function FighterActionModal({
 }: {
   fighter: BattleSessionFighter;
   onXpChanged: (delta: number) => void;
+  onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
   onRemove: () => void;
@@ -68,22 +132,34 @@ function FighterActionModal({
   };
 
   const removeInjuryMut = useMutation({
-    mutationFn: async (index: number) => {
-      const injury = fighter.session_record.injuries[index];
-      await deleteFighterInjury({
+    mutationFn: async ({ index, injury }: { index: number; injury: SessionInjuryRecord }) => {
+      const deleteResult = await deleteFighterInjury({
         fighter_id: fighter.fighter_id,
         injury_id: injury.fighter_effect_id,
       });
-      await removeSessionInjury({ session_fighter_id: fighter.id, injury_index: index });
+      if (!deleteResult.success) throw new Error(deleteResult.error || 'Failed to delete injury');
+
+      const removeResult = await removeSessionInjury({ session_fighter_id: fighter.id, injury_index: index });
+      if (!removeResult.success) throw new Error(removeResult.error || 'Failed to remove session injury');
     },
-    onMutate: (index) => {
+    onMutate: ({ index }) => {
       onInjuryRemoved(index);
     },
-    onError: () => toast.error('Failed to remove injury'),
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to remove injury'),
   });
 
   const injuries = fighter.session_record?.injuries ?? [];
   const xpEarned = fighter.session_record?.xp_earned ?? 0;
+  const conditions = fighter.session_record?.conditions ?? [];
+
+  const toggleCondition = (condition: ConditionDefinition) => {
+    const exists = conditions.some((item) => item.key === condition.key);
+    const nextConditions = exists
+      ? conditions.filter((item) => item.key !== condition.key)
+      : [...conditions, { key: condition.key, name: condition.name }];
+    onConditionsChanged(nextConditions);
+    onClose();
+  };
 
   return (
     <>
@@ -112,8 +188,27 @@ function FighterActionModal({
               Add Injury
             </Button>
           </div>
+          <div className="space-y-2 border-t pt-3 text-left">
+            <h4 className="text-sm font-medium text-neutral-500">Conditions</h4>
+            <div className="flex flex-wrap gap-2">
+              {SESSION_CONDITIONS.map((condition) => {
+                const isActive = conditions.some((c) => c.key === condition.key);
+                return (
+                  <Button
+                    key={condition.key}
+                    onClick={() => toggleCondition(condition)}
+                    variant={isActive ? "default" : "outline"}
+                    className="flex-1 min-w-[140px] justify-center text-xs"
+                  >
+                    <span className={`${condition.colorClass} mr-1.5 text-base`}>{condition.icon}</span>
+                    {condition.name}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
 
-          {(xpEarned > 0 || injuries.length > 0) && (
+          {(xpEarned > 0 || injuries.length > 0 || conditions.length > 0) && (
             <div className="space-y-2 border-t pt-3 text-left">
               <h4 className="text-sm font-medium text-neutral-500">Session Record</h4>
               <div className="flex flex-wrap items-center gap-1 justify-start">
@@ -128,10 +223,13 @@ function FighterActionModal({
                     className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
                   >
                     {injury.effect_name}
-                    <button onClick={() => removeInjuryMut.mutate(idx)} className="ml-0.5 hover:text-red-900">
+                    <button onClick={() => removeInjuryMut.mutate({ index: idx, injury })} className="ml-0.5 hover:text-red-900">
                       ✕
                     </button>
                   </span>
+                ))}
+                {conditions.map((condition) => (
+                  <ConditionBadge key={condition.key} condition={condition} />
                 ))}
               </div>
             </div>
@@ -394,6 +492,7 @@ function FighterRow({
   injuryCount,
   canEdit,
   onXpChanged,
+  onConditionsChanged,
   onInjuryAdded,
   onInjuryRemoved,
   onRemove,
@@ -405,18 +504,20 @@ function FighterRow({
   injuryCount: number;
   canEdit: boolean;
   onXpChanged: (delta: number) => void;
+  onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
   onRemove: () => void;
 }) {
   const [showActionModal, setShowActionModal] = useState(false);
   const injuries = fighter.session_record?.injuries ?? [];
+  const conditions = fighter.session_record?.conditions ?? [];
 
   return (
     <tr className="border-b last:border-b-0">
       <td className="p-1 md:p-2 w-full">
         <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
-        {(xp > 0 || injuryCount > 0 || (!canEdit && injuries.length > 0)) && (
+        {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canEdit && injuries.length > 0)) && (
           <div className="flex flex-wrap gap-1 mt-0.5">
             {xp > 0 && (
               <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -424,20 +525,30 @@ function FighterRow({
               </span>
             )}
             {canEdit ? (
-              injuryCount > 0 && (
-                <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                  {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
-                </span>
-              )
+              <>
+                {injuryCount > 0 && (
+                  <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
+                  </span>
+                )}
+                {conditions.map((condition) => (
+                  <ConditionBadge key={condition.key} condition={condition} />
+                ))}
+              </>
             ) : (
-              injuries.map((injury, idx) => (
-                <span
-                  key={idx}
-                  className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                >
-                  {injury.effect_name}
-                </span>
-              ))
+              <>
+                {injuries.map((injury, idx) => (
+                  <span
+                    key={idx}
+                    className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                  >
+                    {injury.effect_name}
+                  </span>
+                ))}
+                {conditions.map((condition) => (
+                  <ConditionBadge key={condition.key} condition={condition} />
+                ))}
+              </>
             )}
           </div>
         )}
@@ -453,6 +564,7 @@ function FighterRow({
             <FighterActionModal
               fighter={fighter}
               onXpChanged={onXpChanged}
+              onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
               onInjuryRemoved={onInjuryRemoved}
               onRemove={onRemove}
@@ -575,7 +687,7 @@ export default function ParticipantCard({
       battle_session_id: session.id,
       participant_id: participant.id,
       fighter_id: fighterId,
-      session_record: { xp_earned: 0, injuries: [] },
+      session_record: { xp_earned: 0, injuries: [], conditions: [] },
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, total_cost: gf.credits } : undefined,
     };
@@ -671,6 +783,29 @@ export default function ParticipantCard({
     onError: (_err, _vars, context) => {
       if (context?.prev) setLocalFighters(context.prev);
       toast.error('Failed to record XP');
+    },
+  });
+
+  const updateConditionsMutation = useMutation({
+    mutationFn: async ({ sessionFighterId, conditions }: { sessionFighterId: string; conditions: SessionCondition[] }) => {
+      const result = await updateSessionConditions({ session_fighter_id: sessionFighterId, conditions });
+      if (!result.success) throw new Error(result.error || 'Failed to update conditions');
+      return result;
+    },
+    onMutate: ({ sessionFighterId, conditions }) => {
+      const prev = localFighters;
+      setLocalFighters((cur) =>
+        cur.map((lf) =>
+          lf.id === sessionFighterId
+            ? { ...lf, session_record: { ...lf.session_record, conditions } }
+            : lf
+        )
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) setLocalFighters(context.prev);
+      toast.error('Failed to update conditions');
     },
   });
 
@@ -778,6 +913,12 @@ export default function ParticipantCard({
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
+                        }}
+                        onConditionsChanged={(conditions) => {
+                          updateConditionsMutation.mutate({
+                            sessionFighterId: f.id,
+                            conditions,
+                          });
                         }}
                         onInjuryAdded={(injury) => {
                           setLocalFighters((cur) =>

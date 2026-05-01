@@ -43,9 +43,15 @@ export interface SessionInjuryRecord {
   set_captured: boolean;
 }
 
+export interface SessionCondition {
+  key: string;
+  name: string;
+}
+
 export interface SessionRecord {
   xp_earned: number;
   injuries: SessionInjuryRecord[];
+  conditions: SessionCondition[];
 }
 
 export interface BattleSessionFighter {

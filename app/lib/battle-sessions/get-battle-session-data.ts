@@ -86,7 +86,11 @@ export const getBattleSessionCached = async (
         const list = fightersByParticipant.get(f.participant_id) || [];
         list.push({
           ...f,
-          session_record: f.session_record || { xp_earned: 0, injuries: [] },
+          session_record: {
+            xp_earned: f.session_record?.xp_earned ?? 0,
+            injuries: f.session_record?.injuries ?? [],
+            conditions: f.session_record?.conditions ?? [],
+          },
           fighter: fighterMap.get(f.fighter_id) || undefined,
         });
         fightersByParticipant.set(f.participant_id, list);
