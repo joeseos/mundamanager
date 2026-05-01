@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -15,7 +16,7 @@ import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
 import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthDecrease, GiWaterDrop, GiSpill } from 'react-icons/gi';
-import { IoFlashOutline } from 'react-icons/io5';
+import { IoFlashOutline, IoInformationCircleOutline } from 'react-icons/io5';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
 import { PiBeerBottleFill } from 'react-icons/pi';
 import { WiStars } from 'react-icons/wi';
@@ -29,9 +30,11 @@ import {
   addSessionInjury,
   removeSessionInjury,
   updateSessionConditions,
+  getFighterCardData,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { deleteFighterInjury } from '@/app/actions/fighter-injury';
+import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 
 interface ConditionDefinition {
@@ -586,10 +589,28 @@ function FighterRow({
   onRemove: () => void;
 }) {
   const [showActionModal, setShowActionModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [fighterCardData, setFighterCardData] = useState<any>(null);
+  const [loadingInfo, setLoadingInfo] = useState(false);
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const isReady = conditions.some((c) => c.key === 'ready');
   const displayConditions = conditions.filter((c) => c.key !== 'ready');
+
+  const handleInfoClick = async () => {
+    setShowInfoModal(true);
+    if (!fighterCardData) {
+      setLoadingInfo(true);
+      try {
+        const data = await getFighterCardData(fighter.fighter_id);
+        setFighterCardData(data);
+      } catch (err) {
+        console.error('Failed to load fighter data:', err);
+      } finally {
+        setLoadingInfo(false);
+      }
+    }
+  };
 
   const toggleReady = () => {
     const nextConditions = isReady
@@ -601,42 +622,51 @@ function FighterRow({
   return (
     <tr className={`border-b last:border-b-0 ${!isReady && canEdit ? 'opacity-40' : ''}`}>
       <td className="p-1 md:p-2 w-full">
-        <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
-        {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canEdit && injuries.length > 0)) && (
-          <div className="flex flex-wrap gap-1 mt-0.5">
-            {xp > 0 && (
-              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                +{xp} XP
-              </span>
-            )}
-            {canEdit ? (
-              <>
-                {injuryCount > 0 && (
-                  <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                    {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
+        <div className="flex items-center gap-2">
+          <IoInformationCircleOutline
+            className="text-2xl size-7 shrink-0 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200 self-center"
+            title="View fighter card"
+            onClick={handleInfoClick}
+          />
+          <div>
+            <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
+            {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canEdit && injuries.length > 0)) && (
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {xp > 0 && (
+                  <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    +{xp} XP
                   </span>
                 )}
-                {displayConditions.map((condition) => (
-                  <ConditionBadge key={condition.key} condition={condition} />
-                ))}
-              </>
-            ) : (
-              <>
-                {injuries.map((injury, idx) => (
-                  <span
-                    key={idx}
-                    className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                  >
-                    {injury.effect_name}
-                  </span>
-                ))}
-                {displayConditions.map((condition) => (
-                  <ConditionBadge key={condition.key} condition={condition} />
-                ))}
-              </>
+                {canEdit ? (
+                  <>
+                    {injuryCount > 0 && (
+                      <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                        {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
+                      </span>
+                    )}
+                    {displayConditions.map((condition) => (
+                      <ConditionBadge key={condition.key} condition={condition} />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {injuries.map((injury, idx) => (
+                      <span
+                        key={idx}
+                        className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      >
+                        {injury.effect_name}
+                      </span>
+                    ))}
+                    {displayConditions.map((condition) => (
+                      <ConditionBadge key={condition.key} condition={condition} />
+                    ))}
+                  </>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
       </td>
       {canEdit && (
         <td className="p-1 md:p-2 text-right whitespace-nowrap">
@@ -664,6 +694,30 @@ function FighterRow({
             />
           )}
         </td>
+      )}
+      {showInfoModal && createPortal(
+        <div
+          className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowInfoModal(false);
+          }}
+        >
+          {loadingInfo ? (
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          ) : fighterCardData ? (
+            <div className="max-h-svh max-w-2xl w-full overflow-y-auto [&>*]:hover:!scale-100 [&>*]:!shadow-lg">
+              <FighterCard
+                {...fighterCardData}
+                name={fighterCardData.fighter_name}
+                type={fighterCardData.fighter_type}
+                disableLink
+              />
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">Failed to load fighter data.</p>
+          )}
+        </div>,
+        document.body
       )}
     </tr>
   );
