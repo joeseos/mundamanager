@@ -11,7 +11,18 @@ import {
   hexKey,
   type HexCoord,
 } from '@/utils/campaigns/hex-grid';
-import { MARKER_ICONS, DEFAULT_MARKER_ICON } from '@/utils/campaigns/map-markers';
+import {
+  MARKER_ICONS,
+  DEFAULT_MARKER_ICON,
+  LABEL_TERRITORY_NAME_OFFSET_X,
+  buildSizedMarkerHtml,
+  getLabelDisplayFontSize,
+  getLabelTerritoryNameOffset,
+  getLabelTextDimensions,
+  getMarkerDisplaySize,
+  isMapRelativeLabel,
+  isMapRelativeMarker,
+} from '@/utils/campaigns/map-markers';
 
 interface Gang {
   id: string;
@@ -175,6 +186,7 @@ interface ObjectEntry {
   nameLayer?: L.Tooltip;
   signature: string;
   territoryId?: string;
+  cleanup?: () => void;
 }
 
 export default function CampaignMapCanvas({
@@ -280,6 +292,7 @@ export default function CampaignMapCanvas({
     setMapReadyTick(t => t + 1);
 
     return () => {
+      objectLayersRef.current.forEach(entry => entry.cleanup?.());
       map.remove();
       mapRef.current = null;
       hexGroupRef.current = null;
@@ -408,13 +421,14 @@ export default function CampaignMapCanvas({
       // correctness-preserving; performance is still fine because we only
       // touch the layers that actually changed.
       if (existing) {
+        existing.cleanup?.();
         objectsGroup.removeLayer(existing.layer);
         if (existing.nameLayer) map.removeLayer(existing.nameLayer);
         if (existing.territoryId) objectSelectionSettersRef.current.delete(existing.territoryId);
         objectLayersRef.current.delete(obj.id);
       }
 
-      const built = buildObjectEntry(obj, territory, colour);
+      const built = buildObjectEntry(obj, territory, colour, map);
       if (!built) return;
 
       built.layer.addTo(objectsGroup);
@@ -436,6 +450,7 @@ export default function CampaignMapCanvas({
         nameLayer: built.nameLayer,
         signature,
         territoryId: territory?.id,
+        cleanup: built.cleanup,
       });
     });
 
@@ -444,6 +459,7 @@ export default function CampaignMapCanvas({
       if (seenIds.has(id)) return;
       const entry = objectLayersRef.current.get(id);
       if (!entry) return;
+      entry.cleanup?.();
       objectsGroup.removeLayer(entry.layer);
       if (entry.nameLayer) map.removeLayer(entry.nameLayer);
       if (entry.territoryId) objectSelectionSettersRef.current.delete(entry.territoryId);
@@ -538,12 +554,14 @@ interface BuiltObject {
   layer: L.Layer;
   nameLayer?: L.Tooltip;
   setSelected?: (selected: boolean) => void;
+  cleanup?: () => void;
 }
 
 function buildObjectEntry(
   obj: MapObject,
   territory: Territory | undefined,
-  colour: string
+  colour: string,
+  map: L.Map
 ): BuiltObject | null {
   const props = obj.properties as Record<string, unknown>;
   const showTerritoryName = !!territory && territory.show_name_on_map !== false;
@@ -553,13 +571,30 @@ function buildObjectEntry(
       const geo = obj.geometry as { latlng: [number, number] };
       const iconName = (props.icon as string) ?? DEFAULT_MARKER_ICON;
       const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
-      const makeIcon = (iconColour: string) => L.divIcon({
-        html: `<div class="campaign-map-landmark">${markerDef.html(iconColour)}</div>`,
-        className: 'campaign-map-div-icon',
-        iconSize: markerDef.iconSize,
-        iconAnchor: markerDef.iconAnchor,
-      });
+      const makeIcon = (iconColour: string) => {
+        const zoomScale = isMapRelativeMarker(props)
+          ? map.getZoomScale(map.getZoom(), 0)
+          : 1;
+        const displaySize = getMarkerDisplaySize(markerDef, props, zoomScale);
+
+        return L.divIcon({
+          html: buildSizedMarkerHtml(markerDef, iconColour, displaySize),
+          className: 'campaign-map-div-icon',
+          iconSize: [displaySize, displaySize],
+          iconAnchor: [displaySize / 2, displaySize / 2],
+        });
+      };
       const marker = L.marker(geo.latlng, { icon: makeIcon(colour) });
+      let isSelected = false;
+
+      const refreshRelativeIcon = () => {
+        marker.setIcon(makeIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
+      };
+
+      if (isMapRelativeMarker(props)) {
+        map.on('zoom', refreshRelativeIcon);
+        map.on('zoomend', refreshRelativeIcon);
+      }
 
       let nameLayer: L.Tooltip | undefined;
       if (showTerritoryName && territory) {
@@ -579,8 +614,15 @@ function buildObjectEntry(
         layer: marker,
         nameLayer,
         setSelected: (selected: boolean) => {
-          marker.setIcon(makeIcon(selected ? HIGHLIGHT_COLOUR : colour));
+          isSelected = selected;
+          marker.setIcon(makeIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
         },
+        cleanup: isMapRelativeMarker(props)
+          ? () => {
+              map.off('zoom', refreshRelativeIcon);
+              map.off('zoomend', refreshRelativeIcon);
+            }
+          : undefined,
       };
     }
     case 'route': {
@@ -701,35 +743,66 @@ function buildObjectEntry(
     case 'label': {
       const geo = obj.geometry as { latlng: [number, number] };
       const text = (props.text as string) ?? '';
-      const fontSize = (props.fontSize as number) ?? 14;
-      const lineCount = text.split(/\r?\n/).length;
-      const lineHeightPx = fontSize;
-      const offsetY = (Math.max(1, lineCount) - 1) * (lineHeightPx / 2);
-      const makeLabelIcon = (labelColour: string) => L.divIcon({
-        html: `<div style="display:inline-block;color:${labelColour};font-size:${fontSize}px;font-weight:600;line-height:1;white-space:pre;transform:translate(-50%, -50%);text-shadow:0 1px 3px rgba(255, 255, 255, 0.7);">${text}</div>`,
-        className: 'campaign-map-div-icon',
-        iconAnchor: [0, 0],
-      });
+      const getDisplayFontSize = () => getLabelDisplayFontSize(
+        props,
+        isMapRelativeLabel(props) ? map.getZoomScale(map.getZoom(), 0) : 1
+      );
+      const getNameOffset = () => L.point(
+        LABEL_TERRITORY_NAME_OFFSET_X,
+        getLabelTerritoryNameOffset(text, getDisplayFontSize())
+      );
+      const makeLabelIcon = (labelColour: string) => {
+        const displayFontSize = getDisplayFontSize();
+        const dimensions = getLabelTextDimensions(text, displayFontSize);
+
+        return L.divIcon({
+          html: `<div style="width:${dimensions.width}px;height:${dimensions.height}px;display:flex;align-items:center;justify-content:center;overflow:visible;"><div style="display:inline-block;color:${labelColour};font-size:${displayFontSize}px;font-weight:600;line-height:1;white-space:pre;text-align:center;text-shadow:0 1px 3px rgba(255, 255, 255, 0.7);">${text}</div></div>`,
+          className: 'campaign-map-div-icon',
+          iconSize: [dimensions.width, dimensions.height],
+          iconAnchor: [dimensions.width / 2, dimensions.height / 2],
+        });
+      };
       const marker = L.marker(geo.latlng, { icon: makeLabelIcon(colour) });
+      let isSelected = false;
 
       let nameLayer: L.Tooltip | undefined;
       if (showTerritoryName && territory) {
         nameLayer = L.tooltip({
           permanent: true,
           direction: 'bottom',
-          offset: L.point(0, offsetY),
+          offset: getNameOffset(),
           className: 'campaign-map-territory-name',
         })
           .setContent(territory.territory_name)
           .setLatLng(geo.latlng);
       }
 
+      const refreshRelativeLabel = () => {
+        marker.setIcon(makeLabelIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
+        if (nameLayer) {
+          nameLayer.options.offset = getNameOffset();
+          nameLayer.setLatLng(geo.latlng);
+        }
+      };
+
+      if (isMapRelativeLabel(props)) {
+        map.on('zoom', refreshRelativeLabel);
+        map.on('zoomend', refreshRelativeLabel);
+      }
+
       return {
         layer: marker,
         nameLayer,
         setSelected: (selected: boolean) => {
-          marker.setIcon(makeLabelIcon(selected ? HIGHLIGHT_COLOUR : colour));
+          isSelected = selected;
+          marker.setIcon(makeLabelIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
         },
+        cleanup: isMapRelativeLabel(props)
+          ? () => {
+              map.off('zoom', refreshRelativeLabel);
+              map.off('zoomend', refreshRelativeLabel);
+            }
+          : undefined,
       };
     }
     default:

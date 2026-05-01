@@ -27,7 +27,26 @@ import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import type { HexCoord } from '@/utils/campaigns/hex-grid';
 import { generateHexGrid, getHexCornersLatLng, hexKey } from '@/utils/campaigns/hex-grid';
-import { MARKER_ICONS, MARKER_ICON_KEYS, DEFAULT_MARKER_ICON } from '@/utils/campaigns/map-markers';
+import {
+  MARKER_ICONS,
+  MARKER_ICON_KEYS,
+  DEFAULT_MARKER_ICON,
+  DEFAULT_MAP_RELATIVE_MARKER_SIZE,
+  LABEL_TERRITORY_NAME_OFFSET_X,
+  MAX_LABEL_FONT_SIZE,
+  MAX_MAP_RELATIVE_MARKER_SIZE,
+  MIN_LABEL_FONT_SIZE,
+  MIN_MAP_RELATIVE_MARKER_SIZE,
+  buildSizedMarkerHtml,
+  getLabelDisplayFontSize,
+  getLabelTerritoryNameOffset,
+  getLabelTextDimensions,
+  getMarkerDisplaySize,
+  isMapRelativeLabel,
+  isMapRelativeMarker,
+  normaliseLabelFontSize,
+  normaliseMapRelativeMarkerSize,
+} from '@/utils/campaigns/map-markers';
 
 const HIGHLIGHT_COLOUR = '#ffffff';
 const LINKED_COLOUR = '#8a203a';
@@ -194,9 +213,60 @@ export default function CampaignMapEditorModal({
   const objectLayersRef = useRef<Map<string, L.Layer>>(new Map());
   const placingMarkerRef = useRef(false);
   const selectedMarkerIconRef = useRef(DEFAULT_MARKER_ICON);
-  const markerColourRef = useRef<Map<string, string>>(new Map());
+  const markerIconSignatureRef = useRef<Map<string, string>>(new Map());
   const hexCentresRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const territoryNameLayersRef = useRef<Map<string, L.Tooltip>>(new Map());
+
+  const createLandmarkIcon = useCallback((
+    iconName: string,
+    colour: string,
+    properties: Record<string, unknown>,
+    map: L.Map
+  ) => {
+    const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
+    const zoomScale = isMapRelativeMarker(properties)
+      ? map.getZoomScale(map.getZoom(), 0)
+      : 1;
+    const displaySize = getMarkerDisplaySize(markerDef, properties, zoomScale);
+
+    return L.divIcon({
+      html: buildSizedMarkerHtml(markerDef, colour, displaySize),
+      className: 'campaign-map-div-icon',
+      iconSize: [displaySize, displaySize],
+      iconAnchor: [displaySize / 2, displaySize / 2],
+    });
+  }, []);
+
+  const applyLabelTextStyle = useCallback((
+    layer: L.Layer,
+    properties: Record<string, unknown>,
+    colour: string,
+    map: L.Map
+  ) => {
+    // Geoman text markers store their editable textarea on `layer.pm.textArea`.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const marker = layer as any;
+    const textArea = marker.pm?.textArea as HTMLTextAreaElement | undefined;
+    if (!textArea) return;
+
+    const zoomScale = isMapRelativeLabel(properties)
+      ? map.getZoomScale(map.getZoom(), 0)
+      : 1;
+
+    textArea.classList.add(EDITOR_TEXT_CLASSNAME);
+    const displayFontSize = getLabelDisplayFontSize(properties, zoomScale);
+    const text = (properties.text as string) ?? textArea.value ?? '';
+    const dimensions = getLabelTextDimensions(text, displayFontSize);
+
+    textArea.style.color = colour;
+    textArea.style.fontSize = `${displayFontSize}px`;
+    textArea.style.lineHeight = '1';
+    textArea.style.width = `${dimensions.width}px`;
+    textArea.style.height = `${dimensions.height}px`;
+    textArea.style.overflow = 'visible';
+    textArea.style.marginLeft = `${-(dimensions.width / 2)}px`;
+    textArea.style.marginTop = `${-(dimensions.height / 2)}px`;
+  }, []);
 
   // Handle custom image upload with original dimensions preserved
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -506,14 +576,14 @@ export default function CampaignMapEditorModal({
         switch (obj.object_type) {
           case 'landmark': {
             const geo = obj.geometry as { latlng: [number, number] };
-            const iconName = (obj.properties as Record<string, unknown>).icon as string ?? DEFAULT_MARKER_ICON;
-            const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
-            const icon = L.divIcon({
-              html: markerDef.html(isLinked ? LINKED_COLOUR : NON_LINKED_OBJECT_COLOUR),
-              className: 'campaign-map-div-icon',
-              iconSize: markerDef.iconSize,
-              iconAnchor: markerDef.iconAnchor,
-            });
+            const properties = obj.properties as Record<string, unknown>;
+            const iconName = properties.icon as string ?? DEFAULT_MARKER_ICON;
+            const icon = createLandmarkIcon(
+              iconName,
+              isLinked ? LINKED_COLOUR : NON_LINKED_OBJECT_COLOUR,
+              properties,
+              map
+            );
             layer = L.marker(geo.latlng, { icon }).addTo(map);
             break;
           }
@@ -609,6 +679,7 @@ export default function CampaignMapEditorModal({
           const textContent = (layer as any).pm?.getText?.() || 'Text';
           properties.text = textContent;
           properties.fontSize = 14;
+          properties.fixedSizeRelativeToMap = false;
 
           objectLayersRef.current.set(tempId, textLayer);
           attachLayerClickHandler(textLayer, tempId);
@@ -662,6 +733,7 @@ export default function CampaignMapEditorModal({
         if (!tempId) return;
 
         objectLayersRef.current.delete(tempId);
+        markerIconSignatureRef.current.delete(tempId);
         setLocalObjects(prev => {
           const obj = prev.find(o => o.tempId === tempId);
           if (obj?.id) setDeletedObjectIds(d => [...d, obj.id!]);
@@ -681,16 +753,15 @@ export default function CampaignMapEditorModal({
       map.on('click', (evt: L.LeafletMouseEvent) => {
         if (placingMarkerRef.current) {
           const iconKey = selectedMarkerIconRef.current;
-          const markerDef = MARKER_ICONS[iconKey] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
           const tempId = crypto.randomUUID();
           const latlng: [number, number] = [evt.latlng.lat, evt.latlng.lng];
+          const properties: Record<string, unknown> = {
+            icon: iconKey,
+            fixedSizeRelativeToMap: false,
+            mapRelativeIconSize: DEFAULT_MAP_RELATIVE_MARKER_SIZE,
+          };
 
-          const icon = L.divIcon({
-            html: markerDef.html(NON_LINKED_OBJECT_COLOUR),
-            className: 'campaign-map-div-icon',
-            iconSize: markerDef.iconSize,
-            iconAnchor: markerDef.iconAnchor,
-          });
+          const icon = createLandmarkIcon(iconKey, NON_LINKED_OBJECT_COLOUR, properties, map);
           const marker = L.marker(latlng, { icon }).addTo(map);
           (marker as unknown as { options: Record<string, unknown> }).options.objectTempId = tempId;
           objectLayersRef.current.set(tempId, marker);
@@ -701,7 +772,7 @@ export default function CampaignMapEditorModal({
             tempId,
             object_type: 'landmark',
             geometry: { latlng },
-            properties: { icon: iconKey },
+            properties,
             layer: marker,
           }]);
           setSelectedObjectTempId(tempId);
@@ -767,11 +838,12 @@ export default function CampaignMapEditorModal({
       hexLayersRef.current.clear();
       hexCentresRef.current.clear();
       objectLayersRef.current.clear();
+      markerIconSignatureRef.current.clear();
       styledObjectRingsRef.current.clear();
       territoryNameLayersRef.current.clear();
       setEditorReady(false);
     };
-  }, [step, selectedImageUrl, hexGridEnabled, hexSize]);
+  }, [step, selectedImageUrl, hexGridEnabled, hexSize, createLandmarkIcon]);
 
   // Visual styling: linked territories shown in green, selected item in highlight colour.
   // Runs whenever selection or associations change, restyling all hexes and affected objects.
@@ -832,31 +904,128 @@ export default function CampaignMapEditorModal({
         }
       } else if (obj.object_type === 'landmark' && layer instanceof L.Marker) {
         const colour = isSelected ? HIGHLIGHT_COLOUR : isLinked ? LINKED_COLOUR : NON_LINKED_OBJECT_COLOUR;
-        if (markerColourRef.current.get(obj.tempId) !== colour) {
-          markerColourRef.current.set(obj.tempId, colour);
-          const iconName = (obj.properties as Record<string, unknown>).icon as string ?? DEFAULT_MARKER_ICON;
-          const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
-          const icon = L.divIcon({
-            html: markerDef.html(colour),
-            className: 'campaign-map-div-icon',
-            iconSize: markerDef.iconSize,
-            iconAnchor: markerDef.iconAnchor,
-          });
-          layer.setIcon(icon);
+        const properties = obj.properties as Record<string, unknown>;
+        const iconName = properties.icon as string ?? DEFAULT_MARKER_ICON;
+        const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
+        const zoomScale = isMapRelativeMarker(properties) ? map.getZoomScale(map.getZoom(), 0) : 1;
+        const displaySize = getMarkerDisplaySize(markerDef, properties, zoomScale);
+        const signature = `${colour}|${iconName}|${displaySize}`;
+
+        if (markerIconSignatureRef.current.get(obj.tempId) !== signature) {
+          markerIconSignatureRef.current.set(obj.tempId, signature);
+          layer.setIcon(createLandmarkIcon(iconName, colour, properties, map));
         }
         } else if (obj.object_type === 'label' && layer instanceof L.Marker) {
           const colour = isSelected ? HIGHLIGHT_COLOUR : isLinked ? LINKED_COLOUR : NON_LINKED_OBJECT_COLOUR;
-          // Geoman text markers store their editable textarea on `layer.pm.textArea`.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const marker = layer as any;
-          const textArea = marker.pm?.textArea as HTMLTextAreaElement | undefined;
-          if (textArea) {
-            // Only colour the text itself; keep Geoman focus background/border styling intact.
-            textArea.style.color = colour;
-          }
+          applyLabelTextStyle(layer, obj.properties as Record<string, unknown>, colour, map);
       }
     });
-  }, [selectedObjectTempId, selectedHexCoord, editorReady, localObjects, associations]);
+  }, [selectedObjectTempId, selectedHexCoord, editorReady, localObjects, associations, createLandmarkIcon, applyLabelTextStyle]);
+
+  // Map-relative landmark icons need to be resized as the Leaflet zoom changes.
+  useEffect(() => {
+    const map = editorMapRef.current;
+    if (!map || !editorReady) return;
+
+    const refreshRelativeLandmarks = () => {
+      const linkedObjectIds = new Set(
+        associations.filter(a => a.mapObjectTempId).map(a => a.mapObjectTempId!)
+      );
+
+      localObjects.forEach(obj => {
+        if (obj.object_type !== 'landmark') return;
+
+        const properties = obj.properties as Record<string, unknown>;
+        if (!isMapRelativeMarker(properties)) return;
+
+        const layer = objectLayersRef.current.get(obj.tempId);
+        if (!(layer instanceof L.Marker)) return;
+
+        const iconName = properties.icon as string ?? DEFAULT_MARKER_ICON;
+        const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
+        const colour = obj.tempId === selectedObjectTempId
+          ? HIGHLIGHT_COLOUR
+          : linkedObjectIds.has(obj.tempId)
+            ? LINKED_COLOUR
+            : NON_LINKED_OBJECT_COLOUR;
+        const displaySize = getMarkerDisplaySize(
+          markerDef,
+          properties,
+          map.getZoomScale(map.getZoom(), 0)
+        );
+        const signature = `${colour}|${iconName}|${displaySize}`;
+
+        if (markerIconSignatureRef.current.get(obj.tempId) !== signature) {
+          markerIconSignatureRef.current.set(obj.tempId, signature);
+          layer.setIcon(createLandmarkIcon(iconName, colour, properties, map));
+        }
+      });
+    };
+
+    map.on('zoom', refreshRelativeLandmarks);
+    map.on('zoomend', refreshRelativeLandmarks);
+    refreshRelativeLandmarks();
+
+    return () => {
+      map.off('zoom', refreshRelativeLandmarks);
+      map.off('zoomend', refreshRelativeLandmarks);
+    };
+  }, [editorReady, localObjects, associations, selectedObjectTempId, createLandmarkIcon]);
+
+  // Map-relative labels use their stored font size as map pixels and need the
+  // textarea refreshed as Leaflet zoom changes.
+  useEffect(() => {
+    const map = editorMapRef.current;
+    if (!map || !editorReady) return;
+
+    const refreshRelativeLabels = () => {
+      const linkedObjectIds = new Set(
+        associations.filter(a => a.mapObjectTempId).map(a => a.mapObjectTempId!)
+      );
+
+      localObjects.forEach(obj => {
+        if (obj.object_type !== 'label') return;
+
+        const properties = obj.properties as Record<string, unknown>;
+        if (!isMapRelativeLabel(properties)) return;
+
+        const layer = objectLayersRef.current.get(obj.tempId);
+        if (!(layer instanceof L.Marker)) return;
+
+        const colour = obj.tempId === selectedObjectTempId
+          ? HIGHLIGHT_COLOUR
+          : linkedObjectIds.has(obj.tempId)
+            ? LINKED_COLOUR
+            : NON_LINKED_OBJECT_COLOUR;
+
+        applyLabelTextStyle(layer, properties, colour, map);
+
+        const assoc = associations.find(a => a.mapObjectTempId === obj.tempId);
+        const nameLayer = assoc ? territoryNameLayersRef.current.get(assoc.territoryId) : undefined;
+        if (nameLayer) {
+          const text = (properties.text as string) ?? '';
+          const displayFontSize = getLabelDisplayFontSize(
+            properties,
+            map.getZoomScale(map.getZoom(), 0)
+          );
+          nameLayer.options.offset = L.point(
+            LABEL_TERRITORY_NAME_OFFSET_X,
+            getLabelTerritoryNameOffset(text, displayFontSize)
+          );
+          nameLayer.setLatLng((obj.geometry as { latlng: [number, number] }).latlng);
+        }
+      });
+    };
+
+    map.on('zoom', refreshRelativeLabels);
+    map.on('zoomend', refreshRelativeLabels);
+    refreshRelativeLabels();
+
+    return () => {
+      map.off('zoom', refreshRelativeLabels);
+      map.off('zoomend', refreshRelativeLabels);
+    };
+  }, [editorReady, localObjects, associations, selectedObjectTempId, applyLabelTextStyle]);
 
   // Territory name labels on the map (mirrors the canvas rendering)
   useEffect(() => {
@@ -919,10 +1088,14 @@ export default function CampaignMapEditorModal({
             direction = 'bottom';
             const props = obj.properties as Record<string, unknown>;
             const text = (props.text as string) ?? '';
-            const fontSize = typeof props.fontSize === 'number' ? props.fontSize : 14;
-            const lineCount = text.split(/\r?\n/).length;
-            const lineHeightPx = fontSize;
-            offset = L.point(0, (Math.max(1, lineCount) - 1) * (lineHeightPx / 2));
+            const displayFontSize = getLabelDisplayFontSize(
+              props,
+              isMapRelativeLabel(props) ? map.getZoomScale(map.getZoom(), 0) : 1
+            );
+            offset = L.point(
+              LABEL_TERRITORY_NAME_OFFSET_X,
+              getLabelTerritoryNameOffset(text, displayFontSize)
+            );
             break;
           }
         }
@@ -1199,6 +1372,70 @@ export default function CampaignMapEditorModal({
     }
   }, []);
 
+  const handleToggleMapRelativeMarker = useCallback((tempId: string, enabled: boolean) => {
+    setLocalObjects(prev => prev.map(obj => {
+      if (obj.tempId !== tempId || obj.object_type !== 'landmark') return obj;
+
+      const properties = obj.properties as Record<string, unknown>;
+
+      return {
+        ...obj,
+        properties: {
+          ...properties,
+          fixedSizeRelativeToMap: enabled,
+          mapRelativeIconSize: normaliseMapRelativeMarkerSize(properties.mapRelativeIconSize),
+        },
+      };
+    }));
+  }, []);
+
+  const handleUpdateMapRelativeMarkerSize = useCallback((tempId: string, size: number) => {
+    setLocalObjects(prev => prev.map(obj => {
+      if (obj.tempId !== tempId || obj.object_type !== 'landmark') return obj;
+
+      const properties = obj.properties as Record<string, unknown>;
+
+      return {
+        ...obj,
+        properties: {
+          ...properties,
+          mapRelativeIconSize: normaliseMapRelativeMarkerSize(size),
+        },
+      };
+    }));
+  }, []);
+
+  const handleToggleMapRelativeLabel = useCallback((tempId: string, enabled: boolean) => {
+    setLocalObjects(prev => prev.map(obj => {
+      if (obj.tempId !== tempId || obj.object_type !== 'label') return obj;
+
+      const properties = obj.properties as Record<string, unknown>;
+
+      return {
+        ...obj,
+        properties: {
+          ...properties,
+          fixedSizeRelativeToMap: enabled,
+          fontSize: normaliseLabelFontSize(properties.fontSize),
+        },
+      };
+    }));
+  }, []);
+
+  const handleUpdateLabelFontSize = useCallback((tempId: string, fontSize: number) => {
+    setLocalObjects(prev => prev.map(obj => {
+      if (obj.tempId !== tempId || obj.object_type !== 'label') return obj;
+
+      return {
+        ...obj,
+        properties: {
+          ...obj.properties,
+          fontSize: normaliseLabelFontSize(fontSize),
+        },
+      };
+    }));
+  }, []);
+
   // Image selection step
   if (step === 'image') {
     return (
@@ -1331,6 +1568,11 @@ export default function CampaignMapEditorModal({
           background: hsl(var(--background)) !important;
         }
 
+        .campaign-map-div-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+
         .leaflet-container .${EDITOR_TEXT_CLASSNAME}.pm-textarea,
         .leaflet-container .pm-textarea.pm-disabled {
           background: transparent;
@@ -1340,9 +1582,10 @@ export default function CampaignMapEditorModal({
           font-weight: 600;
           line-height: 1;
           padding: 0;
-          transform: translate(-50%, -50%) translateX(6px) translateY(6px); /* Nudge to visually centre the glyphs on the marker point. */
+          transform: none;
           text-shadow: 0 1px 3px rgba(255, 255, 255, 0.7), 0 0 6px rgba(0,0,0,0.5);
           white-space: pre;
+          text-align: center;
         }
 
         .leaflet-container .${EDITOR_TEXT_CLASSNAME}.pm-textarea:focus,
@@ -1546,6 +1789,74 @@ export default function CampaignMapEditorModal({
                     );
                   }
                   return null;
+                })()}
+                {(() => {
+                  const obj = localObjects.find(o => o.tempId === selectedObjectTempId);
+                  if (obj?.object_type !== 'landmark') return null;
+
+                  const properties = obj.properties as Record<string, unknown>;
+                  const isRelative = isMapRelativeMarker(properties);
+                  const markerSize = normaliseMapRelativeMarkerSize(properties.mapRelativeIconSize);
+
+                  return (
+                    <div className="pt-1 border-t border-primary/20 space-y-2">
+                      <label className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isRelative}
+                          onCheckedChange={checked => handleToggleMapRelativeMarker(selectedObjectTempId, checked === true)}
+                        />
+                        <span className="font-medium">Fixed size relative to map</span>
+                      </label>
+                      {isRelative && (
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="range"
+                            min={MIN_MAP_RELATIVE_MARKER_SIZE}
+                            max={MAX_MAP_RELATIVE_MARKER_SIZE}
+                            step={5}
+                            value={markerSize}
+                            onChange={e => handleUpdateMapRelativeMarkerSize(selectedObjectTempId, Number(e.target.value))}
+                            className="w-full"
+                          />
+                          <span className="w-10 text-right">{markerSize}px</span>
+                        </label>
+                      )}
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const obj = localObjects.find(o => o.tempId === selectedObjectTempId);
+                  if (obj?.object_type !== 'label') return null;
+
+                  const properties = obj.properties as Record<string, unknown>;
+                  const isRelative = isMapRelativeLabel(properties);
+                  const fontSize = normaliseLabelFontSize(properties.fontSize);
+
+                  return (
+                    <div className="pt-1 border-t border-primary/20 space-y-2">
+                      <label className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isRelative}
+                          onCheckedChange={checked => handleToggleMapRelativeLabel(selectedObjectTempId, checked === true)}
+                        />
+                        <span className="font-medium">Fixed size relative to map</span>
+                      </label>
+                      {isRelative && (
+                        <label className="flex items-center gap-1">
+                          <input
+                            type="range"
+                            min={MIN_LABEL_FONT_SIZE}
+                            max={MAX_LABEL_FONT_SIZE}
+                            step={1}
+                            value={fontSize}
+                            onChange={e => handleUpdateLabelFontSize(selectedObjectTempId, Number(e.target.value))}
+                            className="w-full"
+                          />
+                          <span className="w-10 text-right">{fontSize}px</span>
+                        </label>
+                      )}
+                    </div>
+                  );
                 })()}
               </div>
             ) : selectedHexCoord ? (
