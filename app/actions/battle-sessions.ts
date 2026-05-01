@@ -482,7 +482,6 @@ export async function updateSessionConditions(params: {
 
     if (error) return { success: false, error: error.message };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
     return { success: true };
   } catch (err) {
     console.error('Error updating session conditions:', err);
