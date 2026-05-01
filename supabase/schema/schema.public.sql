@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict w7BlfmRb3VZ9qvLOdPk1RvKgGEWrxEahf89HmGJdhFOMLvUWIKjfnbW54soYyT7
+\restrict K25NDifkxrtPeRXn5lZ8CYORXPTWuHH8hruNS4ooZ1sKp70Zrs2nVg2SMBR22mQ
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -3736,7 +3736,7 @@ CREATE TABLE public.battle_session_fighters (
     battle_session_id uuid NOT NULL,
     participant_id uuid NOT NULL,
     fighter_id uuid NOT NULL,
-    session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0}'::jsonb NOT NULL,
+    session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0, "conditions": [{"key": "ready", "name": "Ready"}]}'::jsonb NOT NULL,
     out_of_action boolean DEFAULT false NOT NULL,
     note text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -6030,6 +6030,13 @@ ALTER TABLE ONLY public.weapon_profiles
 
 ALTER TABLE ONLY public.equipment
     ADD CONSTRAINT weapons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: battle_session_fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_fighters_created_at_idx ON public.battle_session_fighters USING btree (created_at);
 
 
 --
@@ -10850,5 +10857,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict w7BlfmRb3VZ9qvLOdPk1RvKgGEWrxEahf89HmGJdhFOMLvUWIKjfnbW54soYyT7
+\unrestrict K25NDifkxrtPeRXn5lZ8CYORXPTWuHH8hruNS4ooZ1sKp70Zrs2nVg2SMBR22mQ
 
