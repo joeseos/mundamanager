@@ -705,13 +705,22 @@ function FighterRow({
           {loadingInfo ? (
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           ) : fighterCardData ? (
-            <div className="max-h-svh max-w-2xl w-full overflow-y-auto [&>*]:hover:!scale-100 [&>*]:!shadow-lg">
-              <FighterCard
-                {...fighterCardData}
-                name={fighterCardData.fighter_name}
-                type={fighterCardData.fighter_type}
-                disableLink
-              />
+            <div className="relative max-w-2xl w-full">
+              <button
+                type="button"
+                onClick={() => setShowInfoModal(false)}
+                className="absolute -top-3 -right-3 z-10 bg-black hover:bg-neutral-800 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
+              >
+                ×
+              </button>
+              <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:!scale-100 [&>.fighter-card-bg]:hover:!shadow-none [&>.fighter-card-bg]:!shadow-none [&>.fighter-card-bg]:!transition-none">
+                <FighterCard
+                  {...fighterCardData}
+                  name={fighterCardData.fighter_name}
+                  type={fighterCardData.fighter_type}
+                  disableLink
+                />
+              </div>
             </div>
           ) : (
             <p className="text-center text-muted-foreground py-8">Failed to load fighter data.</p>
