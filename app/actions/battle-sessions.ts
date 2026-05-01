@@ -806,3 +806,95 @@ export async function completeBattleSession(
     return { success: false, error: 'Failed to complete battle session' };
   }
 }
+
+// =============================================================================
+// Fighter Card Data (for info modal)
+// =============================================================================
+
+export async function getFighterCardData(fighterId: string) {
+  const {
+    getFighterBasic,
+    getFighterEquipment,
+    getFighterSkills,
+    getFighterEffects,
+    getFighterTypeInfo,
+    getFighterSubTypeInfo,
+  } = await import('@/app/lib/shared/fighter-data');
+
+  const supabase = await createClient();
+
+  const basic = await getFighterBasic(fighterId, supabase);
+  if (!basic) return null;
+
+  const [equipment, skills, effects, typeInfo, subTypeInfo] = await Promise.all([
+    getFighterEquipment(fighterId, supabase),
+    getFighterSkills(fighterId, supabase),
+    getFighterEffects(fighterId, supabase),
+    getFighterTypeInfo(basic.fighter_type_id, supabase),
+    basic.fighter_sub_type_id
+      ? getFighterSubTypeInfo(basic.fighter_sub_type_id, supabase)
+      : Promise.resolve(null),
+  ]);
+
+  const weapons = equipment
+    .filter((item) => item.equipment_type === 'weapon')
+    .map((item) => ({
+      fighter_weapon_id: item.fighter_equipment_id,
+      weapon_id: item.equipment_id || item.custom_equipment_id || '',
+      weapon_name: item.equipment_name,
+      cost: item.purchase_cost || 0,
+      weapon_profiles: item.weapon_profiles || [],
+      is_master_crafted: item.is_master_crafted || false,
+      equipment_category: item.equipment_category || undefined,
+      effect_names: item.effect_names,
+    }));
+
+  const wargear = equipment
+    .filter((item) => item.equipment_type === 'wargear')
+    .map((item) => ({
+      fighter_weapon_id: item.fighter_equipment_id,
+      wargear_id: item.equipment_id || item.custom_equipment_id || '',
+      wargear_name: item.equipment_name,
+      cost: item.purchase_cost || 0,
+      is_master_crafted: item.is_master_crafted || false,
+    }));
+
+  return {
+    id: basic.id,
+    fighter_name: basic.fighter_name,
+    label: basic.label,
+    fighter_type: basic.fighter_type || typeInfo?.fighter_type || 'Unknown',
+    fighter_class: basic.fighter_class,
+    fighter_sub_type: subTypeInfo ?? undefined,
+    alliance_crew_name: typeInfo?.alliance_crew_name,
+    xp: basic.xp,
+    kills: basic.kills || 0,
+    credits: basic.credits,
+    movement: basic.movement,
+    weapon_skill: basic.weapon_skill,
+    ballistic_skill: basic.ballistic_skill,
+    strength: basic.strength,
+    toughness: basic.toughness,
+    wounds: basic.wounds,
+    initiative: basic.initiative,
+    attacks: basic.attacks,
+    leadership: basic.leadership,
+    cool: basic.cool,
+    willpower: basic.willpower,
+    intelligence: basic.intelligence,
+    weapons,
+    wargear,
+    effects,
+    skills,
+    special_rules: basic.special_rules || [],
+    note: basic.note,
+    killed: basic.killed || false,
+    starved: basic.starved || false,
+    retired: basic.retired || false,
+    enslaved: basic.enslaved || false,
+    recovery: basic.recovery || false,
+    captured: basic.captured || false,
+    free_skill: basic.free_skill || false,
+    image_url: basic.image_url,
+  };
+}
