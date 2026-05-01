@@ -152,11 +152,23 @@ function FighterActionModal({
   const xpEarned = fighter.session_record?.xp_earned ?? 0;
   const conditions = fighter.session_record?.conditions ?? [];
 
+  const EXCLUSIVE_PAIRS: Record<string, string> = {
+    hidden: 'revealed',
+    revealed: 'hidden',
+  };
+
   const toggleCondition = (condition: ConditionDefinition) => {
     const exists = conditions.some((item) => item.key === condition.key);
-    const nextConditions = exists
-      ? conditions.filter((item) => item.key !== condition.key)
-      : [...conditions, { key: condition.key, name: condition.name }];
+    let nextConditions: SessionCondition[];
+    if (exists) {
+      nextConditions = conditions.filter((item) => item.key !== condition.key);
+    } else {
+      const excludeKey = EXCLUSIVE_PAIRS[condition.key];
+      nextConditions = [
+        ...conditions.filter((item) => item.key !== excludeKey),
+        { key: condition.key, name: condition.name },
+      ];
+    }
     onConditionsChanged(nextConditions);
     onClose();
   };
