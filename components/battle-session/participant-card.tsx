@@ -50,7 +50,6 @@ const SESSION_CONDITIONS: ConditionDefinition[] = [
   { key: 'hidden', name: 'Hidden', colorClass: 'text-red-700', icon: <IoMdEyeOff /> },
   { key: 'revealed', name: 'Revealed', colorClass: 'text-neutral-200', icon: <IoMdEye /> },
   { key: 'concussion', name: 'Concussion', colorClass: 'text-red-400', icon: <WiStars /> },
-  { key: 'ready', name: 'Ready', colorClass: 'text-neutral-200', icon: <FaUserCheck /> },
   {
     key: 'out_of_ammo',
     name: 'Out of Ammo',
@@ -179,8 +178,6 @@ function FighterActionModal({
         title="Fighter Actions"
         onClose={onClose}
         hideCancel
-        onDelete={() => { onRemove(); onClose(); }}
-        deleteLabel="Remove Fighter"
       >
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -246,6 +243,16 @@ function FighterActionModal({
               </div>
             </div>
           )}
+
+          <div className="border-t pt-3">
+            <Button
+              variant="destructive"
+              onClick={() => { onRemove(); onClose(); }}
+              className="w-full"
+            >
+              Remove Fighter
+            </Button>
+          </div>
         </div>
       </Modal>
 
@@ -524,12 +531,21 @@ function FighterRow({
   const [showActionModal, setShowActionModal] = useState(false);
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
+  const isReady = conditions.some((c) => c.key === 'ready');
+  const displayConditions = conditions.filter((c) => c.key !== 'ready');
+
+  const toggleReady = () => {
+    const nextConditions = isReady
+      ? conditions.filter((c) => c.key !== 'ready')
+      : [...conditions, { key: 'ready', name: 'Ready' }];
+    onConditionsChanged(nextConditions);
+  };
 
   return (
-    <tr className="border-b last:border-b-0">
+    <tr className={`border-b last:border-b-0 ${!isReady && canEdit ? 'opacity-40' : ''}`}>
       <td className="p-1 md:p-2 w-full">
         <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
-        {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canEdit && injuries.length > 0)) && (
+        {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canEdit && injuries.length > 0)) && (
           <div className="flex flex-wrap gap-1 mt-0.5">
             {xp > 0 && (
               <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -543,7 +559,7 @@ function FighterRow({
                     {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
                   </span>
                 )}
-                {conditions.map((condition) => (
+                {displayConditions.map((condition) => (
                   <ConditionBadge key={condition.key} condition={condition} />
                 ))}
               </>
@@ -557,7 +573,7 @@ function FighterRow({
                     {injury.effect_name}
                   </span>
                 ))}
-                {conditions.map((condition) => (
+                {displayConditions.map((condition) => (
                   <ConditionBadge key={condition.key} condition={condition} />
                 ))}
               </>
@@ -567,11 +583,18 @@ function FighterRow({
       </td>
       {canEdit && (
         <td className="p-1 md:p-2 text-right whitespace-nowrap">
-          <CgMoreVerticalO
-            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
-            title="Click to open action menu"
-            onClick={() => setShowActionModal(true)}
-          />
+          <div className="flex items-center justify-end gap-4">
+            <FaUserCheck
+              className={`size-5 cursor-pointer transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30 hover:text-muted-foreground'}`}
+              title={isReady ? 'Ready — click to mark as activated' : 'Activated — click to mark as ready'}
+              onClick={toggleReady}
+            />
+            <CgMoreVerticalO
+              className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
+              title="Click to open action menu"
+              onClick={() => setShowActionModal(true)}
+            />
+          </div>
           {showActionModal && (
             <FighterActionModal
               fighter={fighter}
@@ -699,7 +722,7 @@ export default function ParticipantCard({
       battle_session_id: session.id,
       participant_id: participant.id,
       fighter_id: fighterId,
-      session_record: { xp_earned: 0, injuries: [], conditions: [] },
+      session_record: { xp_earned: 0, injuries: [], conditions: [{ key: 'ready', name: 'Ready' }] },
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, total_cost: gf.credits } : undefined,
     };

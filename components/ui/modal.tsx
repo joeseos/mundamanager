@@ -100,7 +100,7 @@ export default function Modal({
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           {content || children}
         </div>
-        {onConfirm && (
+        {(onConfirm || onDelete) && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
             {onDelete && deleteLabel && (
               <Button
@@ -111,7 +111,7 @@ export default function Modal({
                 {deleteLabel}
               </Button>
             )}
-            {!hideCancel && (
+            {onConfirm && !hideCancel && (
               <Button
                 variant="outline"
                 onClick={onClose}
@@ -123,15 +123,17 @@ export default function Modal({
                 Cancel
               </Button>
               )}
-            <Button
-              onClick={(e) => handleConfirm(e)}
-              disabled={confirmDisabled || isSubmitting}
-              className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
-                (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {isSubmitting && confirmText === 'Confirm' ? 'Confirming...' : confirmText}
-            </Button>
+            {onConfirm && (
+              <Button
+                onClick={(e) => handleConfirm(e)}
+                disabled={confirmDisabled || isSubmitting}
+                className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
+                  (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isSubmitting && confirmText === 'Confirm' ? 'Confirming...' : confirmText}
+              </Button>
+            )}
           </div>
         )}
       </div>
