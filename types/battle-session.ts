@@ -46,6 +46,7 @@ export interface SessionInjuryRecord {
 export interface SessionCondition {
   key: string;
   name: string;
+  value?: number;
 }
 
 export interface SessionRecord {
