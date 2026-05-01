@@ -9,6 +9,7 @@ import {
 import { logBattleResult } from '@/app/actions/logs/gang-campaign-logs';
 import { updateGang } from '@/app/actions/update-gang';
 import type {
+  SessionCondition,
   SessionInjuryRecord,
   SessionRecord,
 } from '@/types/battle-session';
@@ -426,7 +427,11 @@ export async function updateSessionXp(params: {
     const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const record: SessionRecord = fighter.session_record || { xp_earned: 0, injuries: [] };
+    const record: SessionRecord = {
+      xp_earned: fighter.session_record?.xp_earned ?? 0,
+      injuries: fighter.session_record?.injuries ?? [],
+      conditions: fighter.session_record?.conditions ?? [],
+    };
     record.xp_earned = params.xp_earned;
 
     const { error } = await supabase
@@ -441,6 +446,47 @@ export async function updateSessionXp(params: {
   } catch (err) {
     console.error('Error updating session XP:', err);
     return { success: false, error: 'Failed to update session XP' };
+  }
+}
+
+export async function updateSessionConditions(params: {
+  session_fighter_id: string;
+  conditions: SessionCondition[];
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: fighter, error: fetchError } = await supabase
+      .from('battle_session_fighters')
+      .select('session_record, battle_session_id')
+      .eq('id', params.session_fighter_id)
+      .single();
+
+    if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
+
+    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const record: SessionRecord = {
+      xp_earned: fighter.session_record?.xp_earned ?? 0,
+      injuries: fighter.session_record?.injuries ?? [],
+      conditions: fighter.session_record?.conditions ?? [],
+    };
+    record.conditions = params.conditions;
+
+    const { error } = await supabase
+      .from('battle_session_fighters')
+      .update({ session_record: record })
+      .eq('id', params.session_fighter_id);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
+    return { success: true };
+  } catch (err) {
+    console.error('Error updating session conditions:', err);
+    return { success: false, error: 'Failed to update session conditions' };
   }
 }
 
@@ -463,7 +509,11 @@ export async function addSessionInjury(params: {
     const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const record: SessionRecord = fighter.session_record || { xp_earned: 0, injuries: [] };
+    const record: SessionRecord = {
+      xp_earned: fighter.session_record?.xp_earned ?? 0,
+      injuries: fighter.session_record?.injuries ?? [],
+      conditions: fighter.session_record?.conditions ?? [],
+    };
     record.injuries.push(params.injury);
 
     const { error } = await supabase
@@ -500,7 +550,11 @@ export async function removeSessionInjury(params: {
     const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const record: SessionRecord = fighter.session_record || { xp_earned: 0, injuries: [] };
+    const record: SessionRecord = {
+      xp_earned: fighter.session_record?.xp_earned ?? 0,
+      injuries: fighter.session_record?.injuries ?? [],
+      conditions: fighter.session_record?.conditions ?? [],
+    };
     if (params.injury_index < 0 || params.injury_index >= record.injuries.length)
       return { success: false, error: 'Invalid injury index' };
 
