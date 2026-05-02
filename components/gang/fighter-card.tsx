@@ -797,6 +797,7 @@ const FighterCard = memo(function FighterCard({
     <FighterCardActionMenu
       fighterId={id}
       isCrewWithVehicle={isCrew && !!vehicle}
+      isCaptured={!!captured}
       isSpyrer={is_spyrer}
       disableLink={disableLink || isDragging}
     >

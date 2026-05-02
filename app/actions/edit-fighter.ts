@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
-import { logFighterRecovery } from './logs/gang-fighter-logs';
+import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
@@ -94,7 +94,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     const supabase = await createClient();
     
     // Authenticate user (RLS handles permissions)
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
     
 
     // Get fighter information (RLS will handle permissions)
@@ -677,6 +677,68 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
+        if (willBeCaptured) {
+          const { data: existingCapturedInjuries, error: existingCapturedInjuriesError } = await supabase
+            .from('fighter_effects')
+            .select('id')
+            .eq('fighter_id', params.fighter_id)
+            .eq('effect_name', 'Captured')
+            .limit(1);
+
+          if (existingCapturedInjuriesError) throw existingCapturedInjuriesError;
+
+          if (!existingCapturedInjuries || existingCapturedInjuries.length === 0) {
+            const { data: capturedInjuryTypes, error: capturedInjuryTypeError } = await supabase
+              .from('fighter_effect_types')
+              .select('id')
+              .eq('effect_name', 'Captured')
+              .limit(1);
+
+            if (capturedInjuryTypeError) throw capturedInjuryTypeError;
+
+            const capturedInjuryTypeId = capturedInjuryTypes?.[0]?.id;
+            if (!capturedInjuryTypeId) {
+              throw new Error('Captured lasting injury type not found');
+            }
+
+            const { error: addCapturedInjuryError } = await supabase
+              .rpc('add_fighter_injury', {
+                in_fighter_id: params.fighter_id,
+                in_injury_type_id: capturedInjuryTypeId,
+                in_user_id: user.id,
+                in_target_equipment_id: null
+              });
+
+            if (addCapturedInjuryError) throw addCapturedInjuryError;
+
+            await logFighterInjury({
+              gang_id: gangId,
+              fighter_id: params.fighter_id,
+              fighter_name: fighter.fighter_name,
+              injury_name: 'Captured'
+            });
+          }
+        } else {
+          const { data: capturedInjuries, error: capturedInjuriesError } = await supabase
+            .from('fighter_effects')
+            .select('id')
+            .eq('fighter_id', params.fighter_id)
+            .eq('effect_name', 'Captured');
+
+          if (capturedInjuriesError) throw capturedInjuriesError;
+
+          const capturedInjuryIds = capturedInjuries?.map((injury: { id: string }) => injury.id) ?? [];
+
+          if (capturedInjuryIds.length > 0) {
+            const { error: deleteCapturedInjuriesError } = await supabase
+              .from('fighter_effects')
+              .delete()
+              .in('id', capturedInjuryIds);
+
+            if (deleteCapturedInjuriesError) throw deleteCapturedInjuriesError;
+          }
+        }
+
         // Log fighter capture/release
         try {
           const actionType = !fighter.captured ? 'fighter_captured' : 'fighter_released';
@@ -691,6 +753,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         invalidateFighterData(params.fighter_id, gangId);
+        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {

@@ -20,6 +20,8 @@ import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
 import Modal from "@/components/ui/modal";
+import { editFighterStatus } from "@/app/actions/edit-fighter";
+import { toast } from 'sonner';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -410,15 +412,67 @@ export default function GangPageContent({
     }
   }, [gangData.processedData.fighters]);
 
+  const rescueFighter = useCallback(async (fighterId: string) => {
+    const fighter = gangData.processedData.fighters.find(f => f.id === fighterId);
+    if (!fighter?.captured) return;
+
+    if (!userPermissions.canEdit) {
+      toast.error('You do not have permission to edit this fighter');
+      return;
+    }
+
+    setGangData(prev => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        fighters: prev.processedData.fighters.map(f =>
+          f.id === fighterId
+            ? {
+                ...f,
+                captured: false,
+                captured_by_gang_id: undefined,
+                effects: {
+                  ...f.effects,
+                  injuries: (f.effects?.injuries || []).filter(injury => injury.effect_name !== 'Captured'),
+                },
+              }
+            : f
+        ),
+      },
+    }));
+
+    const result = await editFighterStatus({
+      fighter_id: fighterId,
+      action: 'capture',
+    });
+
+    if (!result.success) {
+      setGangData(prev => ({
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: prev.processedData.fighters.map(f =>
+            f.id === fighterId ? fighter : f
+          ),
+        },
+      }));
+      toast.error(result.error || 'Failed to rescue fighter');
+      return;
+    }
+
+    toast.success('Fighter has been rescued from captivity');
+  }, [gangData.processedData.fighters, userPermissions.canEdit]);
+
   const fighterCardModalsValue = useMemo(
     () => ({
       openXpModal,
       openInjuryModal,
       openVehicleDamageModal,
+      rescueFighter,
       openActionMenuFighterId,
       setOpenActionMenuFighterId,
     }),
-    [openXpModal, openInjuryModal, openVehicleDamageModal, openActionMenuFighterId, setOpenActionMenuFighterId]
+    [openXpModal, openInjuryModal, openVehicleDamageModal, rescueFighter, openActionMenuFighterId, setOpenActionMenuFighterId]
   );
 
   // Update the gang data callbacks
@@ -489,7 +543,11 @@ export default function GangPageContent({
                 ...(currentFighter.effects?.['rig-glitches'] || []),
               ]}
               fighterId={currentFighter.id}
+              fighterGangId={gangId}
+              fighterCampaigns={currentFighter.campaigns ?? gangData.processedData.campaigns}
               fighterRecovery={currentFighter.recovery}
+              fighterCaptured={currentFighter.captured}
+              fighterCapturedByGangId={currentFighter.captured_by_gang_id ?? null}
               userPermissions={userPermissions}
               fighter_class={currentFighter.fighter_class}
               is_spyrer={currentFighter.is_spyrer}
@@ -505,7 +563,7 @@ export default function GangPageContent({
                 // Equipment-based weapon profile adjustments are handled on the fighter page;
                 // for the gang view we rely on server reconciliation.
               }}
-              onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
+              onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId) => {
                 setGangData(prev => ({
                   ...prev,
                   processedData: {
@@ -518,6 +576,10 @@ export default function GangPageContent({
                         ...f,
                         recovery:
                           recoveryStatus !== undefined ? recoveryStatus : f.recovery,
+                        captured:
+                          capturedStatus !== undefined ? capturedStatus : f.captured,
+                        captured_by_gang_id:
+                          capturedByGangId !== undefined ? capturedByGangId ?? undefined : f.captured_by_gang_id,
                         effects: {
                           ...f.effects,
                           injuries: isSpyrer ? [] : updatedInjuries,

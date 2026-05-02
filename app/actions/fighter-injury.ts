@@ -14,6 +14,7 @@ export interface AddFighterInjuryParams {
   injury_type_id: string;
   send_to_recovery?: boolean;
   set_captured?: boolean;
+  captured_by_gang_id?: string;
   target_equipment_id?: string;
 }
 
@@ -144,9 +145,13 @@ export async function addFighterInjury(
     }
     
     // Handle status updates from parameters
-    const statusUpdates: Record<string, boolean> = {};
+    const statusUpdates: Record<string, boolean | string | null> = {};
     if (params.send_to_recovery) statusUpdates.recovery = true;
-    if (params.set_captured) statusUpdates.captured = true;
+    if (params.set_captured) {
+      statusUpdates.captured = true;
+      statusUpdates.captured_by_gang_id = params.captured_by_gang_id ?? null;
+      statusUpdates.recovery = false;
+    }
 
     let recoveryStatus = undefined;
     if (Object.keys(statusUpdates).length > 0) {
@@ -159,7 +164,7 @@ export async function addFighterInjury(
         console.error('Error setting fighter status:', statusError);
         // Don't fail the entire operation, just log the error
       } else {
-        recoveryStatus = statusUpdates.recovery;
+        recoveryStatus = typeof statusUpdates.recovery === 'boolean' ? statusUpdates.recovery : undefined;
       }
     }
 
