@@ -107,6 +107,11 @@ export function InjuriesList({
       : {};
     return typeSpecificData.captured === "true";
   }, [selectedInjury]);
+
+  const hasCapturedInjury = useMemo(
+    () => fighterCaptured || injuries.some(injury => injury.effect_name === 'Captured'),
+    [fighterCaptured, injuries]
+  );
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
     mutationFn: async (variables: { 
@@ -597,6 +602,11 @@ export function InjuriesList({
     const requiresRecovery = typeSpecificData.recovery === "true";
     const requiresCaptured = typeSpecificData.captured === "true";
 
+    if (requiresCaptured && hasCapturedInjury) {
+      toast.error("This fighter already has the Captured lasting injury");
+      return false;
+    }
+
     // Check if glitch requires equipment selection FIRST
     // Only show equipment selection if there are weapons available to select
     if (appliesToEquipment) {
@@ -797,6 +807,9 @@ export function InjuriesList({
               .filter(injury => {
                 if (fighter_class === 'Crew') {
                   return lastingInjuryCrewRank.hasOwnProperty(injury.effect_name);
+                }
+                if (injury.effect_name === 'Captured' && hasCapturedInjury) {
+                  return false;
                 }
                 return true;
               })

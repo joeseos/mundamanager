@@ -1049,7 +1049,7 @@ export default function FighterPage({
                     ...prev.fighter,
                     recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
                     captured: capturedStatus !== undefined ? capturedStatus : prev.fighter.captured,
-                    captured_by_gang_id: capturedByGangId !== undefined ? capturedByGangId ?? undefined : prev.fighter.captured_by_gang_id,
+                    captured_by_gang_id: capturedByGangId !== undefined ? capturedByGangId : prev.fighter.captured_by_gang_id,
                     effects: {
                       ...prev.fighter.effects,
                       injuries: isSpyrer ? [] : updatedInjuries,

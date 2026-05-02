@@ -110,7 +110,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         enslaved,
         starved,
         recovery,
-        captured
+        captured,
+        captured_by_gang_id
       `)
       .eq('id', params.fighter_id)
       .single();
@@ -677,66 +678,84 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        if (willBeCaptured) {
-          const { data: existingCapturedInjuries, error: existingCapturedInjuriesError } = await supabase
-            .from('fighter_effects')
-            .select('id')
-            .eq('fighter_id', params.fighter_id)
-            .eq('effect_name', 'Captured')
-            .limit(1);
-
-          if (existingCapturedInjuriesError) throw existingCapturedInjuriesError;
-
-          if (!existingCapturedInjuries || existingCapturedInjuries.length === 0) {
-            const { data: capturedInjuryTypes, error: capturedInjuryTypeError } = await supabase
-              .from('fighter_effect_types')
+        try {
+          if (willBeCaptured) {
+            const { data: existingCapturedInjuries, error: existingCapturedInjuriesError } = await supabase
+              .from('fighter_effects')
               .select('id')
+              .eq('fighter_id', params.fighter_id)
               .eq('effect_name', 'Captured')
               .limit(1);
 
-            if (capturedInjuryTypeError) throw capturedInjuryTypeError;
+            if (existingCapturedInjuriesError) throw existingCapturedInjuriesError;
 
-            const capturedInjuryTypeId = capturedInjuryTypes?.[0]?.id;
-            if (!capturedInjuryTypeId) {
-              throw new Error('Captured lasting injury type not found');
-            }
+            if (!existingCapturedInjuries || existingCapturedInjuries.length === 0) {
+              const { data: capturedInjuryTypes, error: capturedInjuryTypeError } = await supabase
+                .from('fighter_effect_types')
+                .select('id')
+                .eq('effect_name', 'Captured')
+                .limit(1);
 
-            const { error: addCapturedInjuryError } = await supabase
-              .rpc('add_fighter_injury', {
-                in_fighter_id: params.fighter_id,
-                in_injury_type_id: capturedInjuryTypeId,
-                in_user_id: user.id,
-                in_target_equipment_id: null
+              if (capturedInjuryTypeError) throw capturedInjuryTypeError;
+
+              const capturedInjuryTypeId = capturedInjuryTypes?.[0]?.id;
+              if (!capturedInjuryTypeId) {
+                throw new Error('Captured lasting injury type not found');
+              }
+
+              const { error: addCapturedInjuryError } = await supabase
+                .rpc('add_fighter_injury', {
+                  in_fighter_id: params.fighter_id,
+                  in_injury_type_id: capturedInjuryTypeId,
+                  in_user_id: user.id,
+                  in_target_equipment_id: null
+                });
+
+              if (addCapturedInjuryError) throw addCapturedInjuryError;
+
+              await logFighterInjury({
+                gang_id: gangId,
+                fighter_id: params.fighter_id,
+                fighter_name: fighter.fighter_name,
+                injury_name: 'Captured'
               });
-
-            if (addCapturedInjuryError) throw addCapturedInjuryError;
-
-            await logFighterInjury({
-              gang_id: gangId,
-              fighter_id: params.fighter_id,
-              fighter_name: fighter.fighter_name,
-              injury_name: 'Captured'
-            });
-          }
-        } else {
-          const { data: capturedInjuries, error: capturedInjuriesError } = await supabase
-            .from('fighter_effects')
-            .select('id')
-            .eq('fighter_id', params.fighter_id)
-            .eq('effect_name', 'Captured');
-
-          if (capturedInjuriesError) throw capturedInjuriesError;
-
-          const capturedInjuryIds = capturedInjuries?.map((injury: { id: string }) => injury.id) ?? [];
-
-          if (capturedInjuryIds.length > 0) {
-            const { error: deleteCapturedInjuriesError } = await supabase
+            }
+          } else {
+            const { data: capturedInjuries, error: capturedInjuriesError } = await supabase
               .from('fighter_effects')
-              .delete()
-              .in('id', capturedInjuryIds);
+              .select('id')
+              .eq('fighter_id', params.fighter_id)
+              .eq('effect_name', 'Captured');
 
-            if (deleteCapturedInjuriesError) throw deleteCapturedInjuriesError;
+            if (capturedInjuriesError) throw capturedInjuriesError;
+
+            const capturedInjuryIds = capturedInjuries?.map((injury: { id: string }) => injury.id) ?? [];
+
+            if (capturedInjuryIds.length > 0) {
+              const { error: deleteCapturedInjuriesError } = await supabase
+                .from('fighter_effects')
+                .delete()
+                .in('id', capturedInjuryIds);
+
+              if (deleteCapturedInjuriesError) throw deleteCapturedInjuriesError;
+            }
           }
+        } catch (syncError) {
+          const { error: rollbackError } = await supabase
+            .from('fighters')
+            .update({
+              captured: fighter.captured,
+              captured_by_gang_id: fighter.captured_by_gang_id ?? null,
+              recovery: fighter.recovery,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id);
+
+          if (rollbackError) {
+            console.error('Failed to roll back fighter capture status after injury sync failure:', rollbackError);
+          }
+
+          throw syncError;
         }
 
         // Log fighter capture/release

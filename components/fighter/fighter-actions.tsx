@@ -529,31 +529,29 @@ export function FighterActions({
                   {isFetchingGangs ? (
                     <p className="text-sm text-muted-foreground">Loading gangs...</p>
                   ) : campaignGangs.length > 0 ? (
-                    <>
-                      <Combobox
-                        options={campaignGangs
-                          .slice()
-                          .sort((a, b) => a.name.localeCompare(b.name))
-                          .map(g => {
-                            const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                            return {
-                              value: g.id,
-                              label: (
-                                <span>
-                                  <span>{g.name}</span>
-                                  {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                                </span>
-                              ),
-                              displayValue: `${g.name}${owner}`,
-                            };
-                          })
-                        }
-                        value={selectedCapturingGangId}
-                        onValueChange={setSelectedCapturingGangId}
-                        placeholder="Select capturing gang..."
-                        clearable
-                      />
-                    </>
+                    <Combobox
+                      options={campaignGangs
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(g => {
+                          const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                          return {
+                            value: g.id,
+                            label: (
+                              <span>
+                                <span>{g.name}</span>
+                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                              </span>
+                            ),
+                            displayValue: `${g.name}${owner}`,
+                          };
+                        })
+                      }
+                      value={selectedCapturingGangId}
+                      onValueChange={setSelectedCapturingGangId}
+                      placeholder="Select capturing gang..."
+                      clearable
+                    />
                   ) : (
                     <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
                   )}

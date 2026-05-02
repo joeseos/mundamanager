@@ -42,6 +42,7 @@ export interface InjuryResult {
     created_at: string;
   };
   recovery_status?: boolean;
+  captured_status?: boolean;
 }
 
 export async function verifyAndLogRolledFighterInjury(params: VerifyAndLogRolledFighterInjuryParams
@@ -118,6 +119,29 @@ export async function addFighterInjury(
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
+    if (params.set_captured) {
+      const { data: existingCapturedInjuries, error: existingCapturedInjuriesError } = await supabase
+        .from('fighter_effects')
+        .select('id')
+        .eq('fighter_id', params.fighter_id)
+        .eq('effect_name', 'Captured')
+        .limit(1);
+
+      if (existingCapturedInjuriesError) {
+        return {
+          success: false,
+          error: existingCapturedInjuriesError.message || 'Failed to check existing Captured injury'
+        };
+      }
+
+      if (existingCapturedInjuries && existingCapturedInjuries.length > 0) {
+        return {
+          success: false,
+          error: 'Fighter already has the Captured lasting injury'
+        };
+      }
+    }
+
     // Add the injury using the RPC function
     const { data, error } = await supabase
       .rpc('add_fighter_injury', {
@@ -154,6 +178,7 @@ export async function addFighterInjury(
     }
 
     let recoveryStatus = undefined;
+    let capturedStatus = undefined;
     if (Object.keys(statusUpdates).length > 0) {
       const { error: statusError } = await supabase
         .from('fighters')
@@ -162,9 +187,32 @@ export async function addFighterInjury(
 
       if (statusError) {
         console.error('Error setting fighter status:', statusError);
-        // Don't fail the entire operation, just log the error
+
+        if (injuryData?.id) {
+          const { error: rollbackInjuryError } = await supabase
+            .from('fighter_effects')
+            .delete()
+            .eq('id', injuryData.id);
+
+          if (rollbackInjuryError) {
+            console.error('Error rolling back injury after status failure:', rollbackInjuryError);
+          }
+        }
+
+        if (delta) {
+          await updateGangRatingSimple(supabase, fighter.gang_id, -delta);
+        }
+
+        invalidateFighterData(params.fighter_id, fighter.gang_id);
+        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+
+        return {
+          success: false,
+          error: statusError.message || 'Failed to update fighter status'
+        };
       } else {
         recoveryStatus = typeof statusUpdates.recovery === 'boolean' ? statusUpdates.recovery : undefined;
+        capturedStatus = typeof statusUpdates.captured === 'boolean' ? statusUpdates.captured : undefined;
       }
     }
 
@@ -196,7 +244,8 @@ export async function addFighterInjury(
         type_specific_data: injuryData.type_specific_data,
         created_at: injuryData.created_at || new Date().toISOString()
       },
-      recovery_status: recoveryStatus
+      recovery_status: recoveryStatus,
+      captured_status: capturedStatus
     };
 
   } catch (error) {
