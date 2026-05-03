@@ -122,10 +122,15 @@ export function FighterActions({
         const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
         const seenIds = new Set<string>();
 
-        for (const campaignId of campaignIds) {
-          const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
-          if (!res.ok) continue;
-          const gangs = await res.json();
+        const gangResults = await Promise.all(
+          campaignIds.map(async (campaignId) => {
+            const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
+            if (!res.ok) return [];
+            return await res.json();
+          })
+        );
+
+        for (const gangs of gangResults) {
           for (const g of gangs) {
             if (g.id !== gang.id && !seenIds.has(g.id)) {
               seenIds.add(g.id);
@@ -174,7 +179,7 @@ export function FighterActions({
 
   // TanStack mutation for fighter status updates
   const statusMutation = useMutation({
-    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund?: boolean; captured_by_gang_id?: string }) => {
+    mutationFn: async (variables: { action: 'kill' | 'retire' | 'sell' | 'release' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete'; sell_value?: number; refund?: boolean; captured_by_gang_id?: string | null }) => {
       const result = await editFighterStatus({ fighter_id: fighterId, ...variables });
       if (!result.success) throw new Error(result.error || 'Failed to update fighter status');
       return result;
@@ -185,10 +190,11 @@ export function FighterActions({
         case 'kill': optimistic.killed = !fighter.killed; optimistic.recovery = false; break;
         case 'retire': optimistic.retired = !fighter.retired; break;
         case 'sell': optimistic.enslaved = true; break;
-        case 'rescue': optimistic.enslaved = false; break;
+        case 'release': optimistic.enslaved = false; break;
         case 'starve': optimistic.starved = !fighter.starved; break;
         case 'recover': optimistic.recovery = !fighter.recovery; break;
-        case 'capture': optimistic.captured = !fighter.captured; break;
+        case 'capture': optimistic.captured = true; optimistic.recovery = false; break;
+        case 'rescue': optimistic.captured = false; break;
       }
 
       const snapshot = onStatusMutate?.(optimistic, vars.action === 'sell' ? (vars.sell_value || 0) : undefined);
@@ -225,8 +231,8 @@ export function FighterActions({
         case 'sell':
           successMessage = `Fighter has been sold for ${vars.sell_value ?? 0} credits`;
           break;
-        case 'rescue':
-          successMessage = 'Fighter has been rescued from the Guilders';
+        case 'release':
+          successMessage = 'Fighter has been released from the Guilders';
           break;
         case 'starve':
           successMessage = prev?.starved ? 'Fighter has been fed' : 'Fighter has been starved';
@@ -235,7 +241,10 @@ export function FighterActions({
           successMessage = prev?.recovery ? 'Fighter has been recovered from the recovery bay' : 'Fighter has been sent to the recovery bay';
           break;
         case 'capture':
-          successMessage = prev?.captured ? 'Fighter has been rescued from captivity' : 'Fighter has been marked as captured';
+          successMessage = 'Fighter has been marked as captured';
+          break;
+        case 'rescue':
+          successMessage = 'Fighter has been rescued from captivity';
           break;
       }
       toast.success(successMessage);
@@ -252,7 +261,7 @@ export function FighterActions({
 
   // Delete handled via statusMutation; close modal immediately in onConfirm
 
-  const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number, capturedByGangId?: string) => {
+  const handleActionConfirm = async (action: 'kill' | 'retire' | 'sell' | 'release' | 'rescue' | 'starve' | 'recover' | 'capture', sellValue?: number, capturedByGangId?: string | null) => {
     statusMutation.mutate({
       action,
       sell_value: action === 'sell' ? sellValue : undefined,
@@ -290,7 +299,7 @@ export function FighterActions({
             disabled={!userPermissions.canEdit || isStatusIncompatible(fighter, 'enslave')}
             title={isStatusIncompatible(fighter, 'enslave') ? 'Cannot sell to guilders: fighter is killed, retired, captured, or in recovery' : undefined}
           >
-            {fighter?.enslaved ? 'Rescue from Guilders' : 'Sell to Guilders'}
+            {fighter?.enslaved ? 'Release from Guilders' : 'Sell to Guilders'}
           </Button>
           {isMeatEnabled() && (
             <Button
@@ -454,7 +463,7 @@ export function FighterActions({
           fighterValue={fighter?.credits || 0}
           isEnslaved={fighter?.enslaved || false}
           onConfirm={async (sellValue) => {
-            const action = fighter?.enslaved ? 'rescue' : 'sell';
+            const action = fighter?.enslaved ? 'release' : 'sell';
             const success = await handleActionConfirm(action, sellValue);
             if (success) {
               handleModalToggle('enslave', false);
@@ -565,9 +574,9 @@ export function FighterActions({
           }}
           onConfirm={async () => {
             const success = await handleActionConfirm(
-              'capture',
+              fighter?.captured ? 'rescue' : 'capture',
               undefined,
-              selectedCapturingGangId || undefined
+              fighter?.captured ? undefined : selectedCapturingGangId || null
             );
             if (success) {
               handleModalToggle('captured', false);

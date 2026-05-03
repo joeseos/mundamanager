@@ -153,6 +153,7 @@ export interface FighterProps {
   kills: number;
   kill_count?: number;
   gang_id?: string;
+  campaigns?: Array<{ campaign_id?: string; id?: string }>;
   advancements: {
     characteristics: Record<string, any>;
     skills: Record<string, Skill>;
@@ -166,6 +167,8 @@ export interface FighterProps {
   starved?: boolean;
   recovery?: boolean;
   captured?: boolean;
+  captured_by_gang_id?: string | null;
+  captured_by_gang_name?: string;
   free_skill?: boolean;
   fighter_class?: string;
   fighter_class_id?: string;

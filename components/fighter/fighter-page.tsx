@@ -118,7 +118,7 @@ interface Fighter {
   wargear?: any[];
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   captured_by_gang_name?: string;
-  captured_by_gang_id?: string;
+  captured_by_gang_id?: string | null;
   image_url?: string;
   base_credits?: number;
   base_copy_cost?: number;
@@ -705,7 +705,7 @@ export default function FighterPage({
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
             captured_by_gang_name={fighterData.fighter?.captured_by_gang_name}
-            captured_by_gang_id={fighterData.fighter?.captured_by_gang_id}
+            captured_by_gang_id={fighterData.fighter?.captured_by_gang_id ?? null}
             fighter_gang_legacy={(fighterData as any)?.fighter?.fighter_gang_legacy}
             image_url={fighterData.fighter?.image_url}
             selected_archetype={(fighterData as any)?.fighter?.selected_archetype}
@@ -942,7 +942,11 @@ export default function FighterPage({
               ...(fighterData.fighter?.effects?.['rig-glitches'] || [])
             ]}
             fighterId={fighterData.fighter?.id || ''}
+            fighterGangId={fighterData.gang?.id}
+            fighterCampaigns={fighterData.fighter?.campaigns}
             fighterRecovery={fighterData.fighter?.recovery}
+            fighterCaptured={fighterData.fighter?.captured}
+            fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
             userPermissions={userPermissions}
             fighter_class={fighterData.fighter?.fighter_class}
             is_spyrer={fighterData.fighter?.is_spyrer}
@@ -1031,7 +1035,7 @@ export default function FighterPage({
                 };
               });
             }}
-            onInjuryUpdate={(updatedInjuries, recoveryStatus) => {
+            onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId) => {
               setFighterData(prev => {
                 if (!prev.fighter) return prev;
 
@@ -1044,6 +1048,8 @@ export default function FighterPage({
                   fighter: {
                     ...prev.fighter,
                     recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
+                    captured: capturedStatus !== undefined ? capturedStatus : prev.fighter.captured,
+                    captured_by_gang_id: capturedByGangId !== undefined ? capturedByGangId : prev.fighter.captured_by_gang_id,
                     effects: {
                       ...prev.fighter.effects,
                       injuries: isSpyrer ? [] : updatedInjuries,

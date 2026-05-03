@@ -69,16 +69,16 @@ export function SellFighterModal({
 
   return (
     <Modal
-      title={isEnslaved ? "Rescue from Guilders" : "Sell to Guilders"}
+      title={isEnslaved ? "Release from Guilders" : "Sell to Guilders"}
       onClose={onClose}
       onConfirm={handleConfirm}
-      confirmText={isEnslaved ? "Rescue" : "Sell"}
+      confirmText={isEnslaved ? "Release" : "Sell"}
       confirmDisabled={isSubmitting}
     >
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           {isEnslaved 
-            ? `Are you sure you want to rescue "${fighterName}" from the Guilders?`
+            ? `Are you sure you want to release "${fighterName}" from the Guilders?`
             : `Are you sure you want to sell "${fighterName}" to the Guilders?`
           }
         </p>

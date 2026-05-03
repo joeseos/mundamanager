@@ -13,6 +13,7 @@ import { useFighterCardModals } from './fighter-card-modals-context';
 interface FighterCardActionMenuProps {
   fighterId: string;
   isCrewWithVehicle: boolean;
+  isCaptured?: boolean;
   isSpyrer?: boolean;
   disableLink?: boolean;
   children: ReactNode;
@@ -24,6 +25,7 @@ const MENU_TAP_MOVE_THRESHOLD = 10;
 export function FighterCardActionMenu({
   fighterId,
   isCrewWithVehicle,
+  isCaptured = false,
   isSpyrer = false,
   disableLink = false,
   children,
@@ -208,6 +210,12 @@ export function FighterCardActionMenu({
     modalsContext.openVehicleDamageModal(fighterId, { openAddModal: true });
   };
 
+  const handleRescueFighter = () => {
+    if (!modalsContext) return;
+    closeMenu();
+    modalsContext.rescueFighter(fighterId);
+  };
+
   // If context is not available (e.g. print views), just render children without menu behaviour
   if (!modalsContext) {
     return <>{children}</>;
@@ -275,6 +283,17 @@ export function FighterCardActionMenu({
               onTouchEnd={(e) => handleMenuTouchEnd(e, handleAddVehicleDamage)}
             >
               Add Lasting Damage
+            </button>
+          )}
+          {isCaptured && (
+            <button
+              type="button"
+              className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={handleRescueFighter}
+              onTouchStart={handleMenuTouchStart}
+              onTouchEnd={(e) => handleMenuTouchEnd(e, handleRescueFighter)}
+            >
+              Rescue Fighter
             </button>
           )}
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
@@ -31,13 +31,22 @@ interface InjuriesListProps {
   addFormOnly?: boolean;
   /** When addFormOnly, called when user cancels or after successful add (closes parent modal). */
   onRequestClose?: () => void;
-  onInjuryUpdate?: (updatedInjuries: FighterEffect[], recoveryStatus?: boolean) => void;
+  onInjuryUpdate?: (
+    updatedInjuries: FighterEffect[],
+    recoveryStatus?: boolean,
+    capturedStatus?: boolean,
+    capturedByGangId?: string | null
+  ) => void;
   onSkillsUpdate?: (updatedSkills: FighterSkills) => void;
   onKillCountUpdate?: (newKillCount: number) => void;
   onEquipmentEffectUpdate?: (fighterEquipmentId: string | null, effectData: any | null) => void;
   skills?: FighterSkills;
   fighterId: string;
+  fighterGangId?: string;
+  fighterCampaigns?: Array<{ campaign_id?: string; id?: string }>;
   fighterRecovery?: boolean;
+  fighterCaptured?: boolean;
+  fighterCapturedByGangId?: string | null;
   userPermissions: UserPermissions;
   fighter_class?: string;
   is_spyrer?: boolean;
@@ -56,7 +65,11 @@ export function InjuriesList({
   onEquipmentEffectUpdate,
   skills = {},
   fighterId,
+  fighterGangId,
+  fighterCampaigns,
   fighterRecovery = false,
+  fighterCaptured = false,
+  fighterCapturedByGangId = null,
   userPermissions,
   fighter_class,
   is_spyrer = false,
@@ -66,7 +79,6 @@ export function InjuriesList({
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
-  const [isCapturedModalOpen, setIsCapturedModalOpen] = useState(false);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
   const [clearAllKillCost, setClearAllKillCost] = useState<number>(4);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
@@ -77,7 +89,29 @@ export function InjuriesList({
   const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
+  const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; owner_username?: string }>>([]);
+  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
+
+  const campaignIds = useMemo(() =>
+    (fighterCampaigns ?? [])
+      .map(campaign => campaign.campaign_id ?? campaign.id)
+      .filter((campaignId): campaignId is string => Boolean(campaignId)),
+    [fighterCampaigns]
+  );
+
+  const selectedInjuryRequiresCaptured = useMemo(() => {
+    const typeSpecificData = selectedInjury?.type_specific_data && typeof selectedInjury.type_specific_data === 'object'
+      ? selectedInjury.type_specific_data
+      : {};
+    return typeSpecificData.captured === "true";
+  }, [selectedInjury]);
+
+  const hasCapturedInjury = useMemo(
+    () => fighterCaptured || injuries.some(injury => injury.effect_name === 'Captured'),
+    [fighterCaptured, injuries]
+  );
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
     mutationFn: async (variables: { 
@@ -85,6 +119,7 @@ export function InjuriesList({
       injury_type_id: string; 
       send_to_recovery?: boolean; 
       set_captured?: boolean; 
+      captured_by_gang_id?: string | null;
       target_equipment_id?: string;
       injury_data: any; // Full injury data for optimistic updates
     }) => {
@@ -93,6 +128,7 @@ export function InjuriesList({
         injury_type_id: variables.injury_type_id,
         send_to_recovery: variables.send_to_recovery,
         set_captured: variables.set_captured,
+        captured_by_gang_id: variables.captured_by_gang_id,
         target_equipment_id: variables.target_equipment_id
       });
       if (!result.success) {
@@ -107,6 +143,9 @@ export function InjuriesList({
       // Store previous state for rollback
       const previousInjuries = [...injuries];
       const previousSkills = { ...skills };
+      const previousRecovery = fighterRecovery;
+      const previousCaptured = fighterCaptured;
+      const previousCapturedByGangId = fighterCapturedByGangId;
 
       // Optimistically add injury (data passed through variables)
       const tempInjury: FighterEffect = {
@@ -117,7 +156,12 @@ export function InjuriesList({
       };
 
       if (onInjuryUpdate) {
-        onInjuryUpdate([...injuries, tempInjury], variables.send_to_recovery ? true : undefined);
+        onInjuryUpdate(
+          [...injuries, tempInjury],
+          variables.send_to_recovery ? true : variables.set_captured ? false : undefined,
+          variables.set_captured ? true : undefined,
+          variables.set_captured ? (variables.captured_by_gang_id ?? null) : undefined
+        );
       }
 
       // Optimistically add equipment effect if attached to equipment
@@ -149,6 +193,9 @@ export function InjuriesList({
       return {
         previousInjuries,
         previousSkills,
+        previousRecovery,
+        previousCaptured,
+        previousCapturedByGangId,
         grantedSkillName,
         injuryName: injuryData?.effect_name,
         targetEquipmentId: variables.target_equipment_id
@@ -170,7 +217,12 @@ export function InjuriesList({
           ...result.injury,
           fighter_equipment_id: variables.target_equipment_id || undefined,
         };
-        onInjuryUpdate([...context.previousInjuries, realInjury]);
+        onInjuryUpdate(
+          [...context.previousInjuries, realInjury],
+          variables.send_to_recovery ? true : variables.set_captured ? false : undefined,
+          variables.set_captured ? true : undefined,
+          variables.set_captured ? (variables.captured_by_gang_id ?? null) : undefined
+        );
       }
 
       // Reconcile equipment effect with server response (replace optimistic with real data)
@@ -181,7 +233,12 @@ export function InjuriesList({
     onError: (error, variables, context) => {
       // Rollback optimistic updates
       if (context?.previousInjuries && onInjuryUpdate) {
-        onInjuryUpdate(context.previousInjuries);
+        onInjuryUpdate(
+          context.previousInjuries,
+          context.previousRecovery,
+          context.previousCaptured,
+          context.previousCapturedByGangId
+        );
       }
       if (context?.previousSkills && onSkillsUpdate) {
         onSkillsUpdate(context.previousSkills);
@@ -469,6 +526,7 @@ export function InjuriesList({
     setIsAddModalOpen(false);
     setSelectedInjuryId('');
     setSelectedInjury(null);
+    setSelectedCapturingGangId('');
   }, []);
 
   // When opened from gang card menu, open the Add modal (or add-form-only view) and fetch if needed
@@ -481,6 +539,52 @@ export function InjuriesList({
   // Only run when mounting with initialOpenAddModal or addFormOnly true
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpenAddModal, addFormOnly]);
+
+  useEffect(() => {
+    if (!selectedInjuryRequiresCaptured || campaignIds.length === 0) {
+      setCampaignGangs([]);
+      setSelectedCapturingGangId('');
+      return;
+    }
+
+    let cancelled = false;
+    setIsFetchingGangs(true);
+
+    const fetchGangs = async () => {
+      try {
+        const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
+        const seenIds = new Set<string>();
+
+        const gangResults = await Promise.all(
+          campaignIds.map(async (campaignId) => {
+            const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
+            if (!res.ok) return [];
+            return await res.json();
+          })
+        );
+
+        for (const gangs of gangResults) {
+          for (const g of gangs) {
+            if (g.id !== fighterGangId && !seenIds.has(g.id)) {
+              seenIds.add(g.id);
+              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, owner_username: g.owner_username });
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setCampaignGangs(allGangs);
+        }
+      } catch (err) {
+        console.error('Failed to fetch campaign gangs:', err);
+      } finally {
+        if (!cancelled) setIsFetchingGangs(false);
+      }
+    };
+
+    fetchGangs();
+    return () => { cancelled = true; };
+  }, [selectedInjuryRequiresCaptured, campaignIds, fighterGangId]);
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -503,6 +607,11 @@ export function InjuriesList({
     const requiresRecovery = typeSpecificData.recovery === "true";
     const requiresCaptured = typeSpecificData.captured === "true";
 
+    if (requiresCaptured && hasCapturedInjury) {
+      toast.error("This fighter already has the Captured lasting injury");
+      return false;
+    }
+
     // Check if glitch requires equipment selection FIRST
     // Only show equipment selection if there are weapons available to select
     if (appliesToEquipment) {
@@ -519,15 +628,23 @@ export function InjuriesList({
     }
 
     // If fighter is already in Recovery, don't show the Recovery modal again
-    if (requiresRecovery && !fighterRecovery) {
+    if (requiresCaptured) {
+      // Captured injuries mark the fighter as Captured and optionally record the capturing gang.
+      setIsAddModalOpen(false);
+      if (addFormOnly) onRequestClose?.();
+      addInjuryMutation.mutate({
+        fighter_id: fighterId,
+        injury_type_id: selectedInjuryId,
+        send_to_recovery: false,
+        set_captured: true,
+        captured_by_gang_id: selectedCapturingGangId || null,
+        injury_data: selectedInjury
+      });
+      return true;
+    } else if (requiresRecovery && !fighterRecovery) {
       // Close the injury selection modal and open the Recovery confirmation modal
       setIsAddModalOpen(false);
       setIsRecoveryModalOpen(true);
-      return false;
-    } else if (requiresCaptured) {
-      // Close the injury selection modal and open the Captured confirmation modal
-      setIsAddModalOpen(false);
-      setIsCapturedModalOpen(true);
       return false;
     } else {
       // Directly add the injury without asking for status changes
@@ -553,7 +670,6 @@ export function InjuriesList({
 
     // Close modals immediately
     setIsRecoveryModalOpen(false);
-    setIsCapturedModalOpen(false);
 
     // Trigger mutation
     addInjuryMutation.mutate({
@@ -561,12 +677,14 @@ export function InjuriesList({
       injury_type_id: selectedInjuryId,
       send_to_recovery: sendToRecovery,
       set_captured: setCaptured,
+      captured_by_gang_id: setCaptured ? (selectedCapturingGangId || null) : undefined,
       target_equipment_id: targetEquipmentId || undefined,
       injury_data: selectedInjury
     });
 
     // Reset target after mutation
     setTargetEquipmentId(null);
+    setSelectedCapturingGangId('');
   };
 
   const handleDeleteInjury = (injuryId: string, injuryName: string) => {
@@ -675,6 +793,7 @@ export function InjuriesList({
           value={selectedInjuryId}
           onValueChange={(value) => {
             setSelectedInjuryId(value);
+            setSelectedCapturingGangId('');
             if (value) {
               const selectedInjury = localAvailableInjuries.find(injury => injury.id === value);
               setSelectedInjury(selectedInjury || null);
@@ -693,6 +812,9 @@ export function InjuriesList({
               .filter(injury => {
                 if (fighter_class === 'Crew') {
                   return lastingInjuryCrewRank.hasOwnProperty(injury.effect_name);
+                }
+                if (injury.effect_name === 'Captured' && hasCapturedInjury) {
+                  return false;
                 }
                 return true;
               })
@@ -744,6 +866,42 @@ export function InjuriesList({
           ])}
         />
       </div>
+      {selectedInjuryRequiresCaptured && campaignIds.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Captured by
+          </label>
+          {isFetchingGangs ? (
+            <p className="text-sm text-muted-foreground">Loading gangs...</p>
+          ) : campaignGangs.length > 0 ? (
+            <Combobox
+              options={campaignGangs
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(g => {
+                  const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                  return {
+                    value: g.id,
+                    label: (
+                      <span>
+                        <span>{g.name}</span>
+                        {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                      </span>
+                    ),
+                    displayValue: `${g.name}${owner}`,
+                  };
+                })
+              }
+              value={selectedCapturingGangId}
+              onValueChange={setSelectedCapturingGangId}
+              placeholder="Select capturing gang..."
+              clearable
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
+          )}
+        </div>
+      )}
       {addFormOnly && (
         <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="outline" onClick={onRequestClose} disabled={addInjuryMutation.isPending}>
@@ -957,71 +1115,6 @@ export function InjuriesList({
         </div>
       )}
 
-      {isCapturedModalOpen && (
-        <div
-          className="fixed inset-0 min-h-screen bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-[100] px-[10px]"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsCapturedModalOpen(false);
-              setSelectedInjuryId('');
-              setSelectedInjury(null);
-              setTargetEquipmentId(null);
-            }
-          }}
-        >
-          <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
-            <div className="border-b px-[10px] py-2 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl md:text-2xl font-bold text-foreground">Mark fighter as Captured?</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setIsCapturedModalOpen(false);
-                    setSelectedInjuryId('');
-                    setSelectedInjury(null);
-                    setTargetEquipmentId(null);
-                  }}
-                  className="text-muted-foreground hover:text-muted-foreground text-xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="px-[10px] py-4">
-              <p>This injury results in the fighter being captured. Do you want to mark the fighter as Captured?</p>
-            </div>
-
-            <div className="border-t px-[10px] py-2 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setIsCapturedModalOpen(false);
-                  setSelectedInjuryId('');
-                  setSelectedInjury(null);
-                  setTargetEquipmentId(null);
-                }}
-                className="px-4 py-2 border rounded hover:bg-muted"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setIsCapturedModalOpen(false); void proceedWithAddingInjury(false, false); }}
-                className="px-4 py-2 border rounded hover:bg-muted"
-              >
-                No
-              </button>
-              <button
-                onClick={() => { setIsCapturedModalOpen(false); void proceedWithAddingInjury(false, true); }}
-                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
-              >
-                Yes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {deleteModalData && (
         <Modal
           title={is_spyrer ? "Delete Rig Glitch" : "Delete Lasting Injury"}
@@ -1062,10 +1155,23 @@ export function InjuriesList({
                 const requiresCaptured = typeSpecificData.captured === "true";
 
                 // Check for recovery/captured modal or proceed directly
-                if (requiresRecovery && !fighterRecovery) {
+                if (requiresCaptured) {
+                  addInjuryMutation.mutate({
+                    fighter_id: fighterId,
+                    injury_type_id: selectedInjuryId,
+                    send_to_recovery: false,
+                    set_captured: true,
+                    captured_by_gang_id: selectedCapturingGangId || null,
+                    target_equipment_id: equipmentId,
+                    injury_data: selectedInjury
+                  });
+                  // Reset state
+                  setTargetEquipmentId(null);
+                  setSelectedCapturingGangId('');
+                  setSelectedInjuryId('');
+                  setSelectedInjury(null);
+                } else if (requiresRecovery && !fighterRecovery) {
                   setIsRecoveryModalOpen(true);
-                } else if (requiresCaptured) {
-                  setIsCapturedModalOpen(true);
                 } else {
                   addInjuryMutation.mutate({
                     fighter_id: fighterId,

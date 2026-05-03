@@ -84,7 +84,7 @@ interface FighterDetailsCardProps {
   userPermissions: UserPermissions;
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   captured_by_gang_name?: string;
-  captured_by_gang_id?: string;
+  captured_by_gang_id?: string | null;
   image_url?: string;
   fighter_gang_legacy?: {
     id: string;
