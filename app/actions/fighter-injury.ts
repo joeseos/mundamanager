@@ -14,7 +14,7 @@ export interface AddFighterInjuryParams {
   injury_type_id: string;
   send_to_recovery?: boolean;
   set_captured?: boolean;
-  captured_by_gang_id?: string;
+  captured_by_gang_id?: string | null;
   target_equipment_id?: string;
 }
 

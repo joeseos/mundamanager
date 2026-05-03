@@ -119,7 +119,7 @@ export function InjuriesList({
       injury_type_id: string; 
       send_to_recovery?: boolean; 
       set_captured?: boolean; 
-      captured_by_gang_id?: string;
+      captured_by_gang_id?: string | null;
       target_equipment_id?: string;
       injury_data: any; // Full injury data for optimistic updates
     }) => {
@@ -555,10 +555,15 @@ export function InjuriesList({
         const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
         const seenIds = new Set<string>();
 
-        for (const campaignId of campaignIds) {
-          const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
-          if (!res.ok) continue;
-          const gangs = await res.json();
+        const gangResults = await Promise.all(
+          campaignIds.map(async (campaignId) => {
+            const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
+            if (!res.ok) return [];
+            return await res.json();
+          })
+        );
+
+        for (const gangs of gangResults) {
           for (const g of gangs) {
             if (g.id !== fighterGangId && !seenIds.has(g.id)) {
               seenIds.add(g.id);
@@ -632,7 +637,7 @@ export function InjuriesList({
         injury_type_id: selectedInjuryId,
         send_to_recovery: false,
         set_captured: true,
-        captured_by_gang_id: selectedCapturingGangId || undefined,
+        captured_by_gang_id: selectedCapturingGangId || null,
         injury_data: selectedInjury
       });
       return true;
@@ -672,7 +677,7 @@ export function InjuriesList({
       injury_type_id: selectedInjuryId,
       send_to_recovery: sendToRecovery,
       set_captured: setCaptured,
-      captured_by_gang_id: setCaptured ? (selectedCapturingGangId || undefined) : undefined,
+      captured_by_gang_id: setCaptured ? (selectedCapturingGangId || null) : undefined,
       target_equipment_id: targetEquipmentId || undefined,
       injury_data: selectedInjury
     });
@@ -869,31 +874,29 @@ export function InjuriesList({
           {isFetchingGangs ? (
             <p className="text-sm text-muted-foreground">Loading gangs...</p>
           ) : campaignGangs.length > 0 ? (
-            <>
-              <Combobox
-                options={campaignGangs
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map(g => {
-                    const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                    return {
-                      value: g.id,
-                      label: (
-                        <span>
-                          <span>{g.name}</span>
-                          {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                        </span>
-                      ),
-                      displayValue: `${g.name}${owner}`,
-                    };
-                  })
-                }
-                value={selectedCapturingGangId}
-                onValueChange={setSelectedCapturingGangId}
-                placeholder="Select capturing gang..."
-                clearable
-              />
-            </>
+            <Combobox
+              options={campaignGangs
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(g => {
+                  const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                  return {
+                    value: g.id,
+                    label: (
+                      <span>
+                        <span>{g.name}</span>
+                        {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                      </span>
+                    ),
+                    displayValue: `${g.name}${owner}`,
+                  };
+                })
+              }
+              value={selectedCapturingGangId}
+              onValueChange={setSelectedCapturingGangId}
+              placeholder="Select capturing gang..."
+              clearable
+            />
           ) : (
             <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
           )}
@@ -1158,7 +1161,7 @@ export function InjuriesList({
                     injury_type_id: selectedInjuryId,
                     send_to_recovery: false,
                     set_captured: true,
-                    captured_by_gang_id: selectedCapturingGangId || undefined,
+                    captured_by_gang_id: selectedCapturingGangId || null,
                     target_equipment_id: equipmentId,
                     injury_data: selectedInjury
                   });

@@ -31,10 +31,10 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
 interface EditFighterStatusParams {
   fighter_id: string;
-  action: 'kill' | 'retire' | 'sell' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
+  action: 'kill' | 'retire' | 'sell' | 'release' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete';
   sell_value?: number;
   refund?: boolean;
-  captured_by_gang_id?: string;
+  captured_by_gang_id?: string | null;
 }
 
 export interface UpdateFighterXpParams {
@@ -421,9 +421,16 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         };
       }
 
-      case 'rescue': {
-        // Check if fighter is CURRENTLY active (before rescue)
+      case 'release': {
+        // Check if fighter is CURRENTLY active (before release)
         const wasActive = countsTowardRating(fighter);
+
+        if (!fighter.enslaved) {
+          return {
+            success: true,
+            data: { fighter }
+          };
+        }
 
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
@@ -437,7 +444,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         if (updateError) throw updateError;
 
-        // Check if fighter WILL BE active (after rescue)
+        // Check if fighter WILL BE active (after release)
         const willBeActive = countsTowardRating({ ...fighter, enslaved: false });
 
         // Delta = change in active status
@@ -449,13 +456,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         const financialResult = await adjustRating(delta);
 
-        // Log fighter rescue
+        // Log fighter release
         try {
           await logFighterAction({
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
-            action_type: 'fighter_rescued',
+            action_type: 'fighter_released',
             oldCredits: financialResult.oldValues?.credits,
             oldRating: financialResult.oldValues?.rating,
             oldWealth: financialResult.oldValues?.wealth,
@@ -464,7 +471,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             newWealth: financialResult.newValues?.wealth
           });
         } catch (logError) {
-          console.error('Failed to log fighter rescue:', logError);
+          console.error('Failed to log fighter release:', logError);
         }
 
         invalidateFighterData(params.fighter_id, gangId);
@@ -663,82 +670,68 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'capture': {
-        const willBeCaptured = !fighter.captured;
+        if (fighter.captured) {
+          return {
+            success: true,
+            data: { fighter }
+          };
+        }
+
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 
-            captured: willBeCaptured,
-            captured_by_gang_id: willBeCaptured ? (params.captured_by_gang_id ?? null) : null,
-            recovery: willBeCaptured ? false : fighter.recovery,
+            captured: true,
+            captured_by_gang_id: params.captured_by_gang_id ?? null,
+            recovery: false,
             updated_at: new Date().toISOString()
           })
           .eq('id', params.fighter_id)
+          .eq('captured', false)
           .select()
           .single();
 
         if (updateError) throw updateError;
 
         try {
-          if (willBeCaptured) {
-            const { data: existingCapturedInjuries, error: existingCapturedInjuriesError } = await supabase
-              .from('fighter_effects')
+          const { data: existingCapturedInjuries, error: existingCapturedInjuriesError } = await supabase
+            .from('fighter_effects')
+            .select('id')
+            .eq('fighter_id', params.fighter_id)
+            .eq('effect_name', 'Captured')
+            .limit(1);
+
+          if (existingCapturedInjuriesError) throw existingCapturedInjuriesError;
+
+          if (!existingCapturedInjuries || existingCapturedInjuries.length === 0) {
+            const { data: capturedInjuryTypes, error: capturedInjuryTypeError } = await supabase
+              .from('fighter_effect_types')
               .select('id')
-              .eq('fighter_id', params.fighter_id)
               .eq('effect_name', 'Captured')
               .limit(1);
 
-            if (existingCapturedInjuriesError) throw existingCapturedInjuriesError;
+            if (capturedInjuryTypeError) throw capturedInjuryTypeError;
 
-            if (!existingCapturedInjuries || existingCapturedInjuries.length === 0) {
-              const { data: capturedInjuryTypes, error: capturedInjuryTypeError } = await supabase
-                .from('fighter_effect_types')
-                .select('id')
-                .eq('effect_name', 'Captured')
-                .limit(1);
+            const capturedInjuryTypeId = capturedInjuryTypes?.[0]?.id;
+            if (!capturedInjuryTypeId) {
+              throw new Error('Captured lasting injury type not found');
+            }
 
-              if (capturedInjuryTypeError) throw capturedInjuryTypeError;
-
-              const capturedInjuryTypeId = capturedInjuryTypes?.[0]?.id;
-              if (!capturedInjuryTypeId) {
-                throw new Error('Captured lasting injury type not found');
-              }
-
-              const { error: addCapturedInjuryError } = await supabase
-                .rpc('add_fighter_injury', {
-                  in_fighter_id: params.fighter_id,
-                  in_injury_type_id: capturedInjuryTypeId,
-                  in_user_id: user.id,
-                  in_target_equipment_id: null
-                });
-
-              if (addCapturedInjuryError) throw addCapturedInjuryError;
-
-              await logFighterInjury({
-                gang_id: gangId,
-                fighter_id: params.fighter_id,
-                fighter_name: fighter.fighter_name,
-                injury_name: 'Captured'
+            const { error: addCapturedInjuryError } = await supabase
+              .rpc('add_fighter_injury', {
+                in_fighter_id: params.fighter_id,
+                in_injury_type_id: capturedInjuryTypeId,
+                in_user_id: user.id,
+                in_target_equipment_id: null
               });
-            }
-          } else {
-            const { data: capturedInjuries, error: capturedInjuriesError } = await supabase
-              .from('fighter_effects')
-              .select('id')
-              .eq('fighter_id', params.fighter_id)
-              .eq('effect_name', 'Captured');
 
-            if (capturedInjuriesError) throw capturedInjuriesError;
+            if (addCapturedInjuryError) throw addCapturedInjuryError;
 
-            const capturedInjuryIds = capturedInjuries?.map((injury: { id: string }) => injury.id) ?? [];
-
-            if (capturedInjuryIds.length > 0) {
-              const { error: deleteCapturedInjuriesError } = await supabase
-                .from('fighter_effects')
-                .delete()
-                .in('id', capturedInjuryIds);
-
-              if (deleteCapturedInjuriesError) throw deleteCapturedInjuriesError;
-            }
+            await logFighterInjury({
+              gang_id: gangId,
+              fighter_id: params.fighter_id,
+              fighter_name: fighter.fighter_name,
+              injury_name: 'Captured'
+            });
           }
         } catch (syncError) {
           const { error: rollbackError } = await supabase
@@ -758,17 +751,97 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           throw syncError;
         }
 
-        // Log fighter capture/release
+        // Log fighter capture
         try {
-          const actionType = !fighter.captured ? 'fighter_captured' : 'fighter_released';
           await logFighterAction({
             gang_id: gangId,
             fighter_id: params.fighter_id,
             fighter_name: fighter.fighter_name,
-            action_type: actionType
+            action_type: 'fighter_captured'
           });
         } catch (logError) {
-          console.error('Failed to log fighter capture/release:', logError);
+          console.error('Failed to log fighter capture:', logError);
+        }
+
+        invalidateFighterData(params.fighter_id, gangId);
+        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+        await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+
+        return {
+          success: true,
+          data: { fighter: updatedFighter }
+        };
+      }
+
+      case 'rescue': {
+        if (!fighter.captured) {
+          return {
+            success: true,
+            data: { fighter }
+          };
+        }
+
+        const { data: updatedFighter, error: updateError } = await supabase
+          .from('fighters')
+          .update({ 
+            captured: false,
+            captured_by_gang_id: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', params.fighter_id)
+          .eq('captured', true)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        try {
+          const { data: capturedInjuries, error: capturedInjuriesError } = await supabase
+            .from('fighter_effects')
+            .select('id')
+            .eq('fighter_id', params.fighter_id)
+            .eq('effect_name', 'Captured');
+
+          if (capturedInjuriesError) throw capturedInjuriesError;
+
+          const capturedInjuryIds = capturedInjuries?.map((injury: { id: string }) => injury.id) ?? [];
+
+          if (capturedInjuryIds.length > 0) {
+            const { error: deleteCapturedInjuriesError } = await supabase
+              .from('fighter_effects')
+              .delete()
+              .in('id', capturedInjuryIds);
+
+            if (deleteCapturedInjuriesError) throw deleteCapturedInjuriesError;
+          }
+        } catch (syncError) {
+          const { error: rollbackError } = await supabase
+            .from('fighters')
+            .update({
+              captured: fighter.captured,
+              captured_by_gang_id: fighter.captured_by_gang_id ?? null,
+              recovery: fighter.recovery,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', params.fighter_id);
+
+          if (rollbackError) {
+            console.error('Failed to roll back fighter capture status after injury sync failure:', rollbackError);
+          }
+
+          throw syncError;
+        }
+
+        // Log fighter rescue from captivity
+        try {
+          await logFighterAction({
+            gang_id: gangId,
+            fighter_id: params.fighter_id,
+            fighter_name: fighter.fighter_name,
+            action_type: 'fighter_released'
+          });
+        } catch (logError) {
+          console.error('Failed to log fighter rescue from captivity:', logError);
         }
 
         invalidateFighterData(params.fighter_id, gangId);

@@ -705,7 +705,7 @@ export default function FighterPage({
             userPermissions={userPermissions}
             owner_name={initialFighterData.fighter?.owner_name}
             captured_by_gang_name={fighterData.fighter?.captured_by_gang_name}
-            captured_by_gang_id={fighterData.fighter?.captured_by_gang_id ?? undefined}
+            captured_by_gang_id={fighterData.fighter?.captured_by_gang_id ?? null}
             fighter_gang_legacy={(fighterData as any)?.fighter?.fighter_gang_legacy}
             image_url={fighterData.fighter?.image_url}
             selected_archetype={(fighterData as any)?.fighter?.selected_archetype}

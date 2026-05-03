@@ -441,7 +441,7 @@ export default function GangPageContent({
             ? {
                 ...f,
                 captured: false,
-                captured_by_gang_id: undefined,
+                captured_by_gang_id: null,
                 effects: {
                   ...f.effects,
                   injuries: (f.effects?.injuries || []).filter(injury => injury.effect_name !== 'Captured'),
@@ -454,7 +454,7 @@ export default function GangPageContent({
 
     const result = await editFighterStatus({
       fighter_id: fighterId,
-      action: 'capture',
+      action: 'rescue',
     });
 
     if (!result.success) {
@@ -468,7 +468,7 @@ export default function GangPageContent({
         },
       }));
       toast.error(result.error || 'Failed to rescue fighter');
-      return;
+      return false;
     }
 
     toast.success('Fighter has been rescued from captivity');

@@ -78,12 +78,12 @@ export function isStatusIncompatible(
     
     case 'enslave':
       // Can't enslave if already killed, retired, captured, or in recovery
-      // But can always rescue (toggle off)
+      // But can always release from Guilders
       return !fighter.enslaved && !!(fighter.killed || fighter.retired || fighter.captured || fighter.recovery);
     
     case 'capture':
       // Can't capture if already killed, retired, enslaved, or in recovery
-      // But can always rescue (toggle off)
+      // But can always rescue from captivity
       return !fighter.captured && !!(fighter.killed || fighter.retired || fighter.enslaved || fighter.recovery);
     
     case 'recovery':
