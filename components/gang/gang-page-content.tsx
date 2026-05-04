@@ -763,9 +763,10 @@ export default function GangPageContent({
           campaignTradingPostIds={(gangData.processedData.campaigns || []).length > 0 
             ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_posts || [])
             : undefined}
-          campaignTradingPostNames={(gangData.processedData.campaigns || []).length > 0 
+          campaignTradingPostNames={(gangData.processedData.campaigns || []).length > 0
             ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
             : undefined}
+          positioning={gangData.processedData.positioning}
         />
         <GangVehicles
           vehicles={gangData.processedData.vehicles || []}
