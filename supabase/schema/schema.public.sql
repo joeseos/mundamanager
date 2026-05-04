@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict EZvNnSdJ7LCKzqxIEJ2Eg8dgc00mdbL8IsUnZl2KtofghdwPZEIwzYeatvdc6zQ
+\restrict hbEe0ZBn22JSY7GjCjin9TijxJz3YcDhFzoNgVXDmbkhvaO0F9wt1Nm6Rd5ah5l
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -6334,6 +6334,13 @@ CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_n
 
 
 --
+-- Name: fighters_updated_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighters_updated_at_idx ON public.fighters USING btree (updated_at);
+
+
+--
 -- Name: gang_origins_gang_origin_category_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10857,5 +10864,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict EZvNnSdJ7LCKzqxIEJ2Eg8dgc00mdbL8IsUnZl2KtofghdwPZEIwzYeatvdc6zQ
+\unrestrict hbEe0ZBn22JSY7GjCjin9TijxJz3YcDhFzoNgVXDmbkhvaO0F9wt1Nm6Rd5ah5l
 
