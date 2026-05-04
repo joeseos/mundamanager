@@ -44,6 +44,7 @@ interface GangInventoryProps {
   userPermissions?: UserPermissions;
   campaignTradingPostIds?: string[];
   campaignTradingPostNames?: string[];
+  positioning?: Record<number, string>;
 }
 
 export default function GangInventory({
@@ -62,7 +63,8 @@ export default function GangInventory({
   onGangWealthUpdate,
   userPermissions,
   campaignTradingPostIds,
-  campaignTradingPostNames
+  campaignTradingPostNames,
+  positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -792,7 +794,14 @@ export default function GangInventory({
                       <>
                         {!hasVehicleExclusiveItem && (
                           <optgroup label="Fighters">
-                            {fighters.map((fighter) => {
+                            {[...fighters].sort((a, b) => {
+                              if (!positioning) return 0;
+                              const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+                              const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+                              const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+                              const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+                              return posA - posB;
+                            }).map((fighter) => {
                               const isDisabled = hasSelectedVehicle && !isCrew(fighter);
 
                               return (
