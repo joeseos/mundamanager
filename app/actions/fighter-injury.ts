@@ -4,15 +4,19 @@ import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData } from '@/utils/cache-tags';
 import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
+import { logFighterAction } from './logs/fighter-logs';
 import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
+import { countsTowardRating } from '@/utils/fighter-status';
+import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
   injury_type_id: string;
   send_to_recovery?: boolean;
+  set_killed?: boolean;
   set_captured?: boolean;
   captured_by_gang_id?: string | null;
   target_equipment_id?: string;
@@ -43,6 +47,17 @@ export interface InjuryResult {
   };
   recovery_status?: boolean;
   captured_status?: boolean;
+  killed_status?: boolean;
+  gang?: {
+    id: string;
+    credits: number;
+    rating: number;
+    wealth: number;
+  };
+}
+
+function hasKilledStatusFlag(typeSpecificData: any): boolean {
+  return typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
 }
 
 export async function verifyAndLogRolledFighterInjury(params: VerifyAndLogRolledFighterInjuryParams
@@ -109,7 +124,7 @@ export async function addFighterInjury(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, fighter_name')
+      .select('id, user_id, gang_id, fighter_name, killed, retired, enslaved, captured, recovery')
       .eq('id', params.fighter_id)
       .single();
 
@@ -161,6 +176,7 @@ export async function addFighterInjury(
 
     // The database function returns the complete injury data with modifiers
     const injuryData = data[0]?.result || data;
+    const shouldSetKilled = params.set_killed || hasKilledStatusFlag(injuryData?.type_specific_data);
 
     // Update rating based on injury credits_increase (if any)
     const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
@@ -171,6 +187,10 @@ export async function addFighterInjury(
     // Handle status updates from parameters
     const statusUpdates: Record<string, boolean | string | null> = {};
     if (params.send_to_recovery) statusUpdates.recovery = true;
+    if (shouldSetKilled) {
+      statusUpdates.killed = true;
+      statusUpdates.recovery = false;
+    }
     if (params.set_captured) {
       statusUpdates.captured = true;
       statusUpdates.captured_by_gang_id = params.captured_by_gang_id ?? null;
@@ -179,6 +199,23 @@ export async function addFighterInjury(
 
     let recoveryStatus = undefined;
     let capturedStatus = undefined;
+    let killedStatus = undefined;
+    let killedFinancialResult = null;
+    let killedRatingDelta = 0;
+
+    if (shouldSetKilled && !fighter.killed) {
+      const wasActive = countsTowardRating(fighter);
+      const willBeActive = false;
+
+      if (wasActive && !willBeActive) {
+        try {
+          killedRatingDelta = -(await getFighterTotalCost(params.fighter_id, supabase));
+        } catch (e) {
+          console.error('Failed to compute fighter total cost for killed injury rating adjustment:', e);
+        }
+      }
+    }
+
     if (Object.keys(statusUpdates).length > 0) {
       const { error: statusError } = await supabase
         .from('fighters')
@@ -213,7 +250,12 @@ export async function addFighterInjury(
       } else {
         recoveryStatus = typeof statusUpdates.recovery === 'boolean' ? statusUpdates.recovery : undefined;
         capturedStatus = typeof statusUpdates.captured === 'boolean' ? statusUpdates.captured : undefined;
+        killedStatus = typeof statusUpdates.killed === 'boolean' ? statusUpdates.killed : undefined;
       }
+    }
+
+    if (killedRatingDelta !== 0) {
+      killedFinancialResult = await updateGangRatingSimple(supabase, fighter.gang_id, killedRatingDelta);
     }
 
     if (fighter.fighter_name) {
@@ -223,6 +265,21 @@ export async function addFighterInjury(
         fighter_name: fighter.fighter_name,
         injury_name: injuryData.effect_name
       });
+
+      if (killedStatus === true && !fighter.killed) {
+        await logFighterAction({
+          gang_id: fighter.gang_id,
+          fighter_id: params.fighter_id,
+          fighter_name: fighter.fighter_name,
+          action_type: 'fighter_killed',
+          oldCredits: killedFinancialResult?.oldValues?.credits,
+          oldRating: killedFinancialResult?.oldValues?.rating,
+          oldWealth: killedFinancialResult?.oldValues?.wealth,
+          newCredits: killedFinancialResult?.newValues?.credits,
+          newRating: killedFinancialResult?.newValues?.rating,
+          newWealth: killedFinancialResult?.newValues?.wealth
+        });
+      }
     }
 
     // Invalidate fighter cache
@@ -245,7 +302,16 @@ export async function addFighterInjury(
         created_at: injuryData.created_at || new Date().toISOString()
       },
       recovery_status: recoveryStatus,
-      captured_status: capturedStatus
+      captured_status: capturedStatus,
+      killed_status: killedStatus,
+      gang: killedFinancialResult?.newValues
+        ? {
+            id: fighter.gang_id,
+            credits: killedFinancialResult.newValues.credits,
+            rating: killedFinancialResult.newValues.rating,
+            wealth: killedFinancialResult.newValues.wealth
+          }
+        : undefined
     };
 
   } catch (error) {
@@ -272,7 +338,7 @@ export async function deleteFighterInjury(
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, user_id, gang_id, fighter_name')
+      .select('id, user_id, gang_id, fighter_name, killed, retired, enslaved, captured, recovery')
       .eq('id', params.fighter_id)
       .single();
 
@@ -291,6 +357,8 @@ export async function deleteFighterInjury(
     if (injuryError || !injury || injury.fighter_id !== params.fighter_id) {
       return { success: false, error: 'Injury not found or does not belong to this fighter' };
     }
+
+    const removedKilledStatusEffect = hasKilledStatusFlag(injury.type_specific_data);
 
     // Delete any skills granted by this injury before deleting the injury
     const { data: relatedSkills } = await supabase
@@ -328,6 +396,64 @@ export async function deleteFighterInjury(
       await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
 
+    let killedStatus = undefined;
+    let resurrectedFinancialResult = null;
+
+    if (removedKilledStatusEffect) {
+      const { data: remainingEffects, error: remainingEffectsError } = await supabase
+        .from('fighter_effects')
+        .select('id, type_specific_data')
+        .eq('fighter_id', params.fighter_id);
+
+      if (remainingEffectsError) {
+        console.error('Error checking remaining killed-status effects:', remainingEffectsError);
+        return {
+          success: false,
+          error: remainingEffectsError.message || 'Failed to check remaining killed-status effects'
+        };
+      }
+
+      const hasRemainingKilledStatusEffect = (remainingEffects || []).some(effect =>
+        hasKilledStatusFlag(effect.type_specific_data)
+      );
+
+      if (!hasRemainingKilledStatusEffect && fighter.killed) {
+        const wasActive = countsTowardRating(fighter);
+        const willBeActive = countsTowardRating({ ...fighter, killed: false });
+        let resurrectedRatingDelta = 0;
+
+        if (!wasActive && willBeActive) {
+          try {
+            resurrectedRatingDelta = await getFighterTotalCost(params.fighter_id, supabase);
+          } catch (e) {
+            console.error('Failed to compute fighter total cost for killed injury removal rating adjustment:', e);
+          }
+        }
+
+        const { error: killedStatusError } = await supabase
+          .from('fighters')
+          .update({
+            killed: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', params.fighter_id);
+
+        if (killedStatusError) {
+          console.error('Error clearing fighter killed status:', killedStatusError);
+          return {
+            success: false,
+            error: killedStatusError.message || 'Failed to clear fighter killed status'
+          };
+        }
+
+        killedStatus = false;
+
+        if (resurrectedRatingDelta !== 0) {
+          resurrectedFinancialResult = await updateGangRatingSimple(supabase, fighter.gang_id, resurrectedRatingDelta);
+        }
+      }
+    }
+
     // Log the injury removal as recovery
     if (fighter.fighter_name) {
       await logFighterRecovery({
@@ -337,6 +463,21 @@ export async function deleteFighterInjury(
         recovery_type: 'injury_removed',
         recovered_from: injury.effect_name
       });
+
+      if (killedStatus === false) {
+        await logFighterAction({
+          gang_id: fighter.gang_id,
+          fighter_id: params.fighter_id,
+          fighter_name: fighter.fighter_name,
+          action_type: 'fighter_resurected',
+          oldCredits: resurrectedFinancialResult?.oldValues?.credits,
+          oldRating: resurrectedFinancialResult?.oldValues?.rating,
+          oldWealth: resurrectedFinancialResult?.oldValues?.wealth,
+          newCredits: resurrectedFinancialResult?.newValues?.credits,
+          newRating: resurrectedFinancialResult?.newValues?.rating,
+          newWealth: resurrectedFinancialResult?.newValues?.wealth
+        });
+      }
     }
 
     // Invalidate fighter cache
@@ -348,7 +489,18 @@ export async function deleteFighterInjury(
       revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id));
     }
 
-    return { success: true };
+    return {
+      success: true,
+      killed_status: killedStatus,
+      gang: resurrectedFinancialResult?.newValues
+        ? {
+            id: fighter.gang_id,
+            credits: resurrectedFinancialResult.newValues.credits,
+            rating: resurrectedFinancialResult.newValues.rating,
+            wealth: resurrectedFinancialResult.newValues.wealth
+          }
+        : undefined
+    };
 
   } catch (error) {
     console.error('Error deleting fighter injury:', error);

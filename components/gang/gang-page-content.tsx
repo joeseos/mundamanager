@@ -22,6 +22,7 @@ import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages
 import Modal from "@/components/ui/modal";
 import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
+import type { FighterEffect } from '@/types/fighter';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -391,7 +392,16 @@ export default function GangPageContent({
   const [vehicleModalFighter, setVehicleModalFighter] = useState<FighterProps | null>(null);
   const [vehicleModalOpenAddOnMount, setVehicleModalOpenAddOnMount] = useState(false);
   const [rescueModalFighter, setRescueModalFighter] = useState<FighterProps | null>(null);
+  const [resurrectModalFighter, setResurrectModalFighter] = useState<FighterProps | null>(null);
   const [openActionMenuFighterId, setOpenActionMenuFighterId] = useState<string | null>(null);
+
+  const removeKilledStatusEffect = (effect: FighterEffect) => {
+    const typeSpecificData = effect.type_specific_data && typeof effect.type_specific_data === 'object'
+      ? effect.type_specific_data
+      : {};
+
+    return !(typeSpecificData.killed === 'true' || typeSpecificData.killed === true);
+  };
 
   const openXpModal = useCallback((fighterId: string) => {
     const fighter = gangData.processedData.fighters.find(f => f.id === fighterId) || null;
@@ -423,6 +433,18 @@ export default function GangPageContent({
     }
 
     setRescueModalFighter(fighter);
+  }, [gangData.processedData.fighters, userPermissions.canEdit]);
+
+  const resurrectFighter = useCallback((fighterId: string) => {
+    const fighter = gangData.processedData.fighters.find(f => f.id === fighterId);
+    if (!fighter?.killed) return;
+
+    if (!userPermissions.canEdit) {
+      toast.error('You do not have permission to edit this fighter');
+      return;
+    }
+
+    setResurrectModalFighter(fighter);
   }, [gangData.processedData.fighters, userPermissions.canEdit]);
 
   const confirmRescueFighter = useCallback(async () => {
@@ -475,16 +497,79 @@ export default function GangPageContent({
     return true;
   }, [rescueModalFighter]);
 
+  const confirmResurrectFighter = useCallback(async () => {
+    const fighter = resurrectModalFighter;
+    if (!fighter?.killed) return true;
+
+    const fighterId = fighter.id;
+    setResurrectModalFighter(null);
+
+    setGangData(prev => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        fighters: prev.processedData.fighters.map(f =>
+          f.id === fighterId
+            ? {
+                ...f,
+                killed: false,
+                effects: {
+                  ...f.effects,
+                  injuries: (f.effects?.injuries || []).filter(removeKilledStatusEffect),
+                  'rig-glitches': (f.effects?.['rig-glitches'] || []).filter(removeKilledStatusEffect),
+                },
+              }
+            : f
+        ),
+      },
+    }));
+
+    const result = await editFighterStatus({
+      fighter_id: fighterId,
+      action: 'kill',
+    });
+
+    if (!result.success) {
+      setGangData(prev => ({
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          fighters: prev.processedData.fighters.map(f =>
+            f.id === fighterId ? fighter : f
+          ),
+        },
+      }));
+      toast.error(result.error || 'Failed to resurrect fighter');
+      return false;
+    }
+
+    if (result.data?.gang) {
+      setGangData(prev => ({
+        ...prev,
+        processedData: {
+          ...prev.processedData,
+          credits: result.data?.gang?.credits ?? prev.processedData.credits,
+          rating: result.data?.gang?.rating ?? prev.processedData.rating,
+          wealth: result.data?.gang?.wealth ?? prev.processedData.wealth,
+        },
+      }));
+    }
+
+    toast.success('Fighter has been resurrected');
+    return true;
+  }, [resurrectModalFighter]);
+
   const fighterCardModalsValue = useMemo(
     () => ({
       openXpModal,
       openInjuryModal,
       openVehicleDamageModal,
       rescueFighter,
+      resurrectFighter,
       openActionMenuFighterId,
       setOpenActionMenuFighterId,
     }),
-    [openXpModal, openInjuryModal, openVehicleDamageModal, rescueFighter, openActionMenuFighterId, setOpenActionMenuFighterId]
+    [openXpModal, openInjuryModal, openVehicleDamageModal, rescueFighter, resurrectFighter, openActionMenuFighterId, setOpenActionMenuFighterId]
   );
 
   // Update the gang data callbacks
@@ -541,6 +626,20 @@ export default function GangPageContent({
         />
       )}
 
+      {resurrectModalFighter && (
+        <Modal
+          title="Resurrect Fighter"
+          content={
+            <p>
+              Resurrect <strong>{resurrectModalFighter.fighter_name}</strong>?
+            </p>
+          }
+          onClose={() => setResurrectModalFighter(null)}
+          onConfirm={confirmResurrectFighter}
+          confirmText="Resurrect Fighter"
+        />
+      )}
+
       {injuryModalFighter && (() => {
         // Use latest fighter from gangData so the list reflects optimistic updates (e.g. after adding an injury)
         const currentFighter = gangData.processedData.fighters.find(f => f.id === injuryModalFighter.id) ?? injuryModalFighter;
@@ -577,6 +676,7 @@ export default function GangPageContent({
               fighterGangId={gangId}
               fighterCampaigns={fighterCampaigns}
               fighterRecovery={currentFighter.recovery}
+              fighterKilled={currentFighter.killed}
               fighterCaptured={currentFighter.captured}
               fighterCapturedByGangId={currentFighter.captured_by_gang_id ?? null}
               userPermissions={userPermissions}
@@ -594,7 +694,7 @@ export default function GangPageContent({
                 // Equipment-based weapon profile adjustments are handled on the fighter page;
                 // for the gang view we rely on server reconciliation.
               }}
-              onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId) => {
+              onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId, killedStatus) => {
                 setGangData(prev => ({
                   ...prev,
                   processedData: {
@@ -607,6 +707,8 @@ export default function GangPageContent({
                         ...f,
                         recovery:
                           recoveryStatus !== undefined ? recoveryStatus : f.recovery,
+                        killed:
+                          killedStatus !== undefined ? killedStatus : f.killed,
                         captured:
                           capturedStatus !== undefined ? capturedStatus : f.captured,
                         captured_by_gang_id:
@@ -644,6 +746,17 @@ export default function GangPageContent({
                         ? { ...f, kill_count: newKillCount }
                         : f
                     ),
+                  },
+                }));
+              }}
+              onGangFinancialsUpdate={(financials) => {
+                setGangData(prev => ({
+                  ...prev,
+                  processedData: {
+                    ...prev.processedData,
+                    credits: financials.credits,
+                    rating: financials.rating,
+                    wealth: financials.wealth,
                   },
                 }));
               }}

@@ -18,6 +18,7 @@ interface FighterCardModalsContextValue {
   openInjuryModal: (fighterId: string, options?: OpenInjuryModalOptions) => void;
   openVehicleDamageModal: (fighterId: string, options?: OpenVehicleDamageModalOptions) => void;
   rescueFighter: (fighterId: string) => void;
+  resurrectFighter: (fighterId: string) => void;
   /** ID of the fighter whose action menu is open, or null if none. Only one menu is open at a time. */
   openActionMenuFighterId: string | null;
   setOpenActionMenuFighterId: (fighterId: string | null) => void;

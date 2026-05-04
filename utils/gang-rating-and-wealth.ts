@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { invalidateGangRating } from './cache-tags';
+import { invalidateGangFinancials } from './cache-tags';
 
 export interface GangFinancialUpdateOptions {
   gangId: string;
@@ -133,7 +133,7 @@ export async function updateGangFinancials(
       };
     }
 
-    invalidateGangRating(gangId);
+    invalidateGangFinancials(gangId);
     return {
       success: true,
       oldValues: {
