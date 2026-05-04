@@ -6,7 +6,7 @@ import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { TbMeatOff } from "react-icons/tb";
-import { GiCrossedChains, GiHandcuffs } from "react-icons/gi";
+import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
@@ -479,10 +479,10 @@ const FighterCard = memo(function FighterCard({
           <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-muted-foreground" />}
-            {enslaved && <GiCrossedChains className="text-sky-200" />}
+            {enslaved && <GiImprisoned className="text-red-600" />}
             {starved && <TbMeatOff className="text-red-500" />}
             {recovery && <FaMedkit className="text-blue-500" />}
-            {captured && <GiHandcuffs className="text-red-600" />}
+            {captured && <GiHandcuffs className="text-sky-300" />}
           </div>
           {/* Render image if image_url is present, before credits box */}
           {image_url && (
