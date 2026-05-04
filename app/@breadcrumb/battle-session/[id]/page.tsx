@@ -20,7 +20,7 @@ export default async function BattleSessionBreadcrumb({
 
   const { data: session } = await supabase
     .from("battle_sessions")
-    .select("campaign_id")
+    .select("campaign_id, created_at")
     .eq("id", id)
     .single();
 
@@ -116,7 +116,9 @@ export default async function BattleSessionBreadcrumb({
                 className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
-                Battle Session
+                {session?.created_at
+                  ? new Date(session.created_at).toISOString().slice(0, 10)
+                  : 'Battle Session'}
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>

@@ -43,12 +43,10 @@ export default function GangBattleSessions({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
   return (
@@ -101,18 +99,13 @@ export default function GangBattleSessions({
               onClick={() => router.push(`/battle-session/${session.id}`)}
               className="flex w-full items-center justify-between rounded-lg border border-neutral-200 p-4 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
             >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">
-                    {session.scenario || 'Untitled Battle'}
-                  </span>
-                  <Badge className={statusColors[session.status]}>
-                    {session.status}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-sm text-neutral-500">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">
                   {formatDate(session.updated_at)}
-                </p>
+                </span>
+                <Badge className={statusColors[session.status]}>
+                  {session.status}
+                </Badge>
               </div>
               <span className="text-neutral-400">&rarr;</span>
             </button>
