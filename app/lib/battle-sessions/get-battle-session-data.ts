@@ -119,41 +119,34 @@ export const getBattleSessionCached = async (
   )();
 };
 
-export const getUserBattleSessionsCached = async (
-  userId: string,
+export const getGangBattleSessionsCached = async (
+  gangId: string,
   supabase: any
 ): Promise<BattleSession[]> => {
   return unstable_cache(
     async () => {
-      const [{ data: createdSessions }, { data: participantSessions }] =
-        await Promise.all([
-          supabase
-            .from('battle_sessions')
-            .select('id')
-            .eq('created_by', userId),
-          supabase
-            .from('battle_session_participants')
-            .select('battle_session_id')
-            .eq('user_id', userId),
-        ]);
+      const { data: participantSessions } = await supabase
+        .from('battle_session_participants')
+        .select('battle_session_id')
+        .eq('gang_id', gangId);
 
-      const allIds = new Set<string>();
-      createdSessions?.forEach((s: any) => allIds.add(s.id));
-      participantSessions?.forEach((p: any) => allIds.add(p.battle_session_id));
+      const sessionIds = Array.from(
+        new Set((participantSessions || []).map((p: any) => p.battle_session_id))
+      ) as string[];
 
-      if (allIds.size === 0) return [];
+      if (sessionIds.length === 0) return [];
 
       const { data: sessions } = await supabase
         .from('battle_sessions')
         .select('*')
-        .in('id', Array.from(allIds))
+        .in('id', sessionIds)
         .order('updated_at', { ascending: false });
 
       return sessions || [];
     },
-    [`user-battle-sessions-${userId}`],
+    [`gang-battle-sessions-${gangId}`],
     {
-      tags: [CACHE_TAGS.USER_BATTLE_SESSIONS(userId)],
+      tags: [CACHE_TAGS.GANG_BATTLE_SESSIONS(gangId)],
       revalidate: false,
     }
   )();

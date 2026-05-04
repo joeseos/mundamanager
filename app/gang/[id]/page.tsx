@@ -19,6 +19,7 @@ import {
   getGangCredits,
   getUserProfile
 } from '@/app/lib/shared/gang-data';
+import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -65,7 +66,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangVariants,
       gangRatingAndWealth,
       userProfile,
-      userPermissions
+      userPermissions,
+      battleSessions
     ] = await Promise.all([
       getGangPositioning(params.id, supabase),
       getGangType(gangBasic, supabase),
@@ -78,7 +80,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRatingAndWealth(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
-      permissionService.getGangPermissions(user.id, params.id)
+      permissionService.getGangPermissions(user.id, params.id),
+      getGangBattleSessionsCached(params.id, supabase)
     ]);
 
     // Initialize positioning if needed (lazy initialization only)
@@ -142,7 +145,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       patreon_tier_id: userProfile?.patreon_tier_id,
       patreon_tier_title: userProfile?.patreon_tier_title,
       patron_status: userProfile?.patron_status,
-      hidden: gangBasic.hidden
+      hidden: gangBasic.hidden,
+      battleSessions: battleSessions
     };
 
     return (

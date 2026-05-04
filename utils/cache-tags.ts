@@ -130,7 +130,7 @@ export const CACHE_TAGS = {
   
   // Battle session data
   BASE_BATTLE_SESSION: (id: string) => `base-battle-session-${id}`,
-  USER_BATTLE_SESSIONS: (userId: string) => `user-battle-sessions-${userId}`,
+  GANG_BATTLE_SESSIONS: (gangId: string) => `gang-battle-sessions-${gangId}`,
 
   // Gang-specific reference data
   GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang

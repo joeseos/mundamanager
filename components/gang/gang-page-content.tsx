@@ -14,7 +14,8 @@ import { VehicleProps } from '@/types/vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { PiFlagBannerFoldBold } from 'react-icons/pi';
-import { LuClipboard } from 'react-icons/lu';
+import { LuClipboard, LuSwords } from 'react-icons/lu';
+import GangBattleSessions from "@/components/gang/battle-sessions-tab";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
@@ -73,6 +74,7 @@ interface GangDataState {
     patreon_tier_title?: string;
     patron_status?: string;
     hidden: boolean;
+    battleSessions?: any[];
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
@@ -628,13 +630,14 @@ export default function GangPageContent({
       })()}
 
       <div>
-      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']}
+      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes', 'Battles']}
          tabIcons={[
            <FaUsers key="users" />,
            <FaBox key="box" />,
            <FaTruckMoving key="car" />,
            <PiFlagBannerFoldBold key="map" />,
-           <LuClipboard key="note" />
+           <LuClipboard key="note" />,
+           <LuSwords key="swords" />
          ]}
         >
         <div className="container max-w-full w-full space-y-4 print:print-fighters">
@@ -694,13 +697,17 @@ export default function GangPageContent({
             campaigns={gangData.processedData.campaigns || []} 
           />
         </div>
-        <GangNotes 
+        <GangNotes
           gangId={gangId}
           initialNote={gangData.processedData.note || ''}
           initialNoteBackstory={gangData.processedData.note_backstory || ''}
           onNoteUpdate={handleNoteUpdate}
           onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
           userPermissions={userPermissions}
+        />
+        <GangBattleSessions
+          sessions={gangData.processedData.battleSessions || []}
+          gangId={gangId}
         />
       </Tabs>
       </div>

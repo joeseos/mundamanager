@@ -77,8 +77,6 @@ export async function createBattleSession(params: {
 
     if (error) return { success: false, error: error.message };
 
-    revalidateTag(CACHE_TAGS.USER_BATTLE_SESSIONS(user.id));
-
     return { success: true, session_id: data.id };
   } catch (err) {
     console.error('Error creating battle session:', err);
@@ -106,6 +104,11 @@ export async function cancelBattleSession(
     if (session.status === 'confirmed')
       return { success: false, error: 'Cannot cancel a confirmed session' };
 
+    const { data: participants } = await supabase
+      .from('battle_session_participants')
+      .select('gang_id')
+      .eq('battle_session_id', sessionId);
+
     const { error } = await supabase
       .from('battle_sessions')
       .delete()
@@ -114,7 +117,11 @@ export async function cancelBattleSession(
     if (error) return { success: false, error: error.message };
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    revalidateTag(CACHE_TAGS.USER_BATTLE_SESSIONS(user.id));
+    if (participants) {
+      for (const p of participants) {
+        revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(p.gang_id));
+      }
+    }
 
     return { success: true };
   } catch (err) {
@@ -251,7 +258,7 @@ export async function addParticipant(params: {
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(params.session_id));
-    revalidateTag(CACHE_TAGS.USER_BATTLE_SESSIONS(params.user_id));
+    revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(params.gang_id));
 
     // Send notification if adding someone else
     if (params.user_id !== currentUser.id) {
@@ -283,7 +290,7 @@ export async function removeParticipant(
     // Allow session creator or self-removal
     const { data: participant } = await supabase
       .from('battle_session_participants')
-      .select('user_id')
+      .select('user_id, gang_id')
       .eq('id', participantId)
       .eq('battle_session_id', sessionId)
       .single();
@@ -305,7 +312,7 @@ export async function removeParticipant(
     if (error) return { success: false, error: error.message };
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    revalidateTag(CACHE_TAGS.USER_BATTLE_SESSIONS(participant.user_id));
+    revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(participant.gang_id));
     return { success: true };
   } catch (err) {
     console.error('Error removing participant:', err);
@@ -713,7 +720,6 @@ export async function completeBattleSession(
     if (error) return { success: false, error: error.message };
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    revalidateTag(CACHE_TAGS.USER_BATTLE_SESSIONS(user.id));
     if (campaign_battle_id) {
       revalidateTag('campaign-battles');
     }
@@ -721,14 +727,12 @@ export async function completeBattleSession(
     // Invalidate for all participants
     const { data: allParticipants } = await supabase
       .from('battle_session_participants')
-      .select('user_id, gang_id')
+      .select('gang_id, user_id')
       .eq('battle_session_id', sessionId);
 
     if (allParticipants) {
       for (const p of allParticipants) {
-        if (p.user_id !== user.id) {
-          revalidateTag(CACHE_TAGS.USER_BATTLE_SESSIONS(p.user_id));
-        }
+        revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(p.gang_id));
       }
     }
 
