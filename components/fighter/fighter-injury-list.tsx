@@ -22,6 +22,7 @@ import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { Combobox } from '@/components/ui/combobox';
 import { useMutation } from '@tanstack/react-query';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
+import { hasKilledStatusFlag } from '@/utils/fighter-status';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -117,9 +118,6 @@ export function InjuriesList({
     () => fighterCaptured || injuries.some(injury => injury.effect_name === 'Captured'),
     [fighterCaptured, injuries]
   );
-
-  const hasKilledStatusFlag = (typeSpecificData: any): boolean =>
-    typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
 
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
@@ -1220,6 +1218,7 @@ export function InjuriesList({
 
                 const typeSpecificData = (selectedInjury as any).type_specific_data || {};
                 const requiresRecovery = typeSpecificData.recovery === "true";
+                const requiresKilled = hasKilledStatusFlag(typeSpecificData);
                 const requiresCaptured = typeSpecificData.captured === "true";
 
                 // Check for recovery/captured modal or proceed directly
@@ -1228,6 +1227,7 @@ export function InjuriesList({
                     fighter_id: fighterId,
                     injury_type_id: selectedInjuryId,
                     send_to_recovery: false,
+                    set_killed: requiresKilled,
                     set_captured: true,
                     captured_by_gang_id: selectedCapturingGangId || null,
                     target_equipment_id: equipmentId,
@@ -1245,6 +1245,7 @@ export function InjuriesList({
                     fighter_id: fighterId,
                     injury_type_id: selectedInjuryId,
                     send_to_recovery: false,
+                    set_killed: requiresKilled,
                     set_captured: false,
                     target_equipment_id: equipmentId,
                     injury_data: selectedInjury

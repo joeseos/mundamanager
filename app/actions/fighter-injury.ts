@@ -9,7 +9,7 @@ import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
 export interface AddFighterInjuryParams {
@@ -54,10 +54,6 @@ export interface InjuryResult {
     rating: number;
     wealth: number;
   };
-}
-
-function hasKilledStatusFlag(typeSpecificData: any): boolean {
-  return typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
 }
 
 export async function verifyAndLogRolledFighterInjury(params: VerifyAndLogRolledFighterInjuryParams
@@ -180,7 +176,7 @@ export async function addFighterInjury(
 
     // Update rating based on injury credits_increase (if any)
     const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
-    if (delta) {
+    if (delta && !shouldSetKilled) {
       await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
     
@@ -205,11 +201,10 @@ export async function addFighterInjury(
 
     if (shouldSetKilled && !fighter.killed) {
       const wasActive = countsTowardRating(fighter);
-      const willBeActive = false;
 
-      if (wasActive && !willBeActive) {
+      if (wasActive) {
         try {
-          killedRatingDelta = -(await getFighterTotalCost(params.fighter_id, supabase));
+          killedRatingDelta = -(await getFighterTotalCost(params.fighter_id, supabase)) - delta;
         } catch (e) {
           console.error('Failed to compute fighter total cost for killed injury rating adjustment:', e);
         }
@@ -236,7 +231,7 @@ export async function addFighterInjury(
           }
         }
 
-        if (delta) {
+        if (delta && !shouldSetKilled) {
           await updateGangRatingSimple(supabase, fighter.gang_id, -delta);
         }
 
@@ -425,6 +420,7 @@ export async function deleteFighterInjury(
         if (!wasActive && willBeActive) {
           try {
             resurrectedRatingDelta = await getFighterTotalCost(params.fighter_id, supabase);
+            resurrectedRatingDelta -= (injury?.type_specific_data?.credits_increase || 0) as number;
           } catch (e) {
             console.error('Failed to compute fighter total cost for killed injury removal rating adjustment:', e);
           }
@@ -469,7 +465,7 @@ export async function deleteFighterInjury(
           gang_id: fighter.gang_id,
           fighter_id: params.fighter_id,
           fighter_name: fighter.fighter_name,
-          action_type: 'fighter_resurected',
+          action_type: 'fighter_resurrected',
           oldCredits: resurrectedFinancialResult?.oldValues?.credits,
           oldRating: resurrectedFinancialResult?.oldValues?.rating,
           oldWealth: resurrectedFinancialResult?.oldValues?.wealth,

@@ -7,7 +7,7 @@ import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -27,10 +27,6 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     // Without this, the owner's cost calculation uses stale beast data
     revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
   }
-}
-
-function hasKilledStatusFlag(typeSpecificData: any): boolean {
-  return typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
 }
 
 async function getKilledStatusEffects(supabase: any, fighterId: string) {
@@ -333,7 +329,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               gang_id: gangId,
               fighter_id: params.fighter_id,
               fighter_name: fighter.fighter_name,
-              action_type: 'fighter_resurected',
+              action_type: 'fighter_resurrected',
               oldCredits: financialResult.oldValues?.credits,
               oldRating: financialResult.oldValues?.rating,
               oldWealth: financialResult.oldValues?.wealth,
@@ -342,7 +338,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               newWealth: financialResult.newValues?.wealth
             });
           } catch (logError) {
-            console.error('Failed to log fighter resurected:', logError);
+            console.error('Failed to log fighter resurrected:', logError);
           }
         }
         

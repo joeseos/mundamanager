@@ -8,7 +8,7 @@ export interface FighterLogParams {
   gang_id: string;
   fighter_id: string;
   fighter_name: string;
-  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
+  action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurrected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
               'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_kill_count_changed' | 'fighter_cost_adjusted' |
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied';
   user_id?: string;
@@ -69,8 +69,8 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
       case 'fighter_killed':
         description = `Fighter "${params.fighter_name}" was killed.${financialChanges}`;
         break;
-      case 'fighter_resurected':
-        description = `Fighter "${params.fighter_name}" was resurected.${financialChanges}`;
+      case 'fighter_resurrected':
+        description = `Fighter "${params.fighter_name}" was resurrected.${financialChanges}`;
         break;
       case 'fighter_retired':
         description = `Fighter "${params.fighter_name}" retired.${financialChanges}`;

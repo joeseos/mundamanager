@@ -23,6 +23,7 @@ import Modal from "@/components/ui/modal";
 import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
+import { hasKilledStatusFlag } from '@/utils/fighter-status';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -400,7 +401,7 @@ export default function GangPageContent({
       ? effect.type_specific_data
       : {};
 
-    return !(typeSpecificData.killed === 'true' || typeSpecificData.killed === true);
+    return !hasKilledStatusFlag(typeSpecificData);
   };
 
   const openXpModal = useCallback((fighterId: string) => {
@@ -502,7 +503,6 @@ export default function GangPageContent({
     if (!fighter?.killed) return true;
 
     const fighterId = fighter.id;
-    setResurrectModalFighter(null);
 
     setGangData(prev => ({
       ...prev,
