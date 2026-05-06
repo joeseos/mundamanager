@@ -153,6 +153,32 @@ export async function addFighterInjury(
       }
     }
 
+    const { data: injuryType, error: injuryTypeError } = await supabase
+      .from('fighter_effect_types')
+      .select('type_specific_data')
+      .eq('id', params.injury_type_id)
+      .single();
+
+    if (injuryTypeError || !injuryType) {
+      return {
+        success: false,
+        error: injuryTypeError?.message || 'Injury type not found'
+      };
+    }
+
+    const injuryTypeSpecificData = injuryType.type_specific_data || {};
+    const shouldSetKilled = params.set_killed || hasKilledStatusFlag(injuryTypeSpecificData);
+    const delta = (injuryTypeSpecificData?.credits_increase || 0) as number;
+
+    let preInjuryCost = 0;
+    if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
+      try {
+        preInjuryCost = await getFighterTotalCost(params.fighter_id, supabase);
+      } catch (e) {
+        console.error('Failed to compute pre-injury fighter total cost for killed injury rating adjustment:', e);
+      }
+    }
+
     // Add the injury using the RPC function
     const { data, error } = await supabase
       .rpc('add_fighter_injury', {
@@ -172,10 +198,6 @@ export async function addFighterInjury(
 
     // The database function returns the complete injury data with modifiers
     const injuryData = data[0]?.result || data;
-    const shouldSetKilled = params.set_killed || hasKilledStatusFlag(injuryData?.type_specific_data);
-
-    // Update rating based on injury credits_increase (if any)
-    const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
     if (delta && !shouldSetKilled) {
       await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
@@ -200,14 +222,9 @@ export async function addFighterInjury(
     let killedRatingDelta = 0;
 
     if (shouldSetKilled && !fighter.killed) {
-      const wasActive = countsTowardRating(fighter);
-
-      if (wasActive) {
-        try {
-          killedRatingDelta = -(await getFighterTotalCost(params.fighter_id, supabase)) - delta;
-        } catch (e) {
-          console.error('Failed to compute fighter total cost for killed injury rating adjustment:', e);
-        }
+      if (countsTowardRating(fighter)) {
+        // Use pre-write cost to avoid stale unstable_cache reads within this request.
+        killedRatingDelta = -(preInjuryCost + delta);
       }
     }
 
@@ -231,6 +248,8 @@ export async function addFighterInjury(
           }
         }
 
+        // Roll back only the standalone credits_increase adjustment applied before status updates.
+        // killedRatingDelta is applied later, so there is nothing to undo for kill-path rating here.
         if (delta && !shouldSetKilled) {
           await updateGangRatingSimple(supabase, fighter.gang_id, -delta);
         }
@@ -354,6 +373,16 @@ export async function deleteFighterInjury(
     }
 
     const removedKilledStatusEffect = hasKilledStatusFlag(injury.type_specific_data);
+    const willBeActiveAfterResurrection = countsTowardRating({ ...fighter, killed: false });
+    let preDeletionCost = 0;
+
+    if (removedKilledStatusEffect && fighter.killed && willBeActiveAfterResurrection) {
+      try {
+        preDeletionCost = await getFighterTotalCost(params.fighter_id, supabase);
+      } catch (e) {
+        console.error('Failed to compute pre-deletion fighter total cost for killed injury removal rating adjustment:', e);
+      }
+    }
 
     // Delete any skills granted by this injury before deleting the injury
     const { data: relatedSkills } = await supabase
@@ -414,16 +443,11 @@ export async function deleteFighterInjury(
 
       if (!hasRemainingKilledStatusEffect && fighter.killed) {
         const wasActive = countsTowardRating(fighter);
-        const willBeActive = countsTowardRating({ ...fighter, killed: false });
+        const willBeActive = willBeActiveAfterResurrection;
         let resurrectedRatingDelta = 0;
 
         if (!wasActive && willBeActive) {
-          try {
-            resurrectedRatingDelta = await getFighterTotalCost(params.fighter_id, supabase);
-            resurrectedRatingDelta -= (injury?.type_specific_data?.credits_increase || 0) as number;
-          } catch (e) {
-            console.error('Failed to compute fighter total cost for killed injury removal rating adjustment:', e);
-          }
+          resurrectedRatingDelta = preDeletionCost - ((injury?.type_specific_data?.credits_increase || 0) as number);
         }
 
         const { error: killedStatusError } = await supabase
