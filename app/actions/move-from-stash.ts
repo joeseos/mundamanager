@@ -644,7 +644,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     console.error('Error in moveEquipmentFromStash server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }

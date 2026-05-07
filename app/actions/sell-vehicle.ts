@@ -208,7 +208,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     console.error('Error in sellVehicle server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }
