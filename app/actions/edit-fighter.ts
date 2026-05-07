@@ -53,7 +53,8 @@ export interface UpdateFighterDetailsParams {
   fighter_class?: string;
   fighter_class_id?: string;
   fighter_type?: string;
-  fighter_type_id?: string;
+  fighter_type_id?: string | null;
+  custom_fighter_type_id?: string | null;
   fighter_sub_type?: string | null;
   fighter_sub_type_id?: string | null;
   note?: string;
@@ -1221,6 +1222,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.fighter_class_id !== undefined) updateData.fighter_class_id = params.fighter_class_id;
     if (params.fighter_type !== undefined) updateData.fighter_type = params.fighter_type;
     if (params.fighter_type_id !== undefined) updateData.fighter_type_id = params.fighter_type_id;
+    if (params.custom_fighter_type_id !== undefined) updateData.custom_fighter_type_id = params.custom_fighter_type_id;
     if (params.fighter_sub_type !== undefined) updateData.fighter_sub_type = params.fighter_sub_type;
     if (params.fighter_sub_type_id !== undefined) updateData.fighter_sub_type_id = params.fighter_sub_type_id;
     if (params.note !== undefined) updateData.note = params.note;

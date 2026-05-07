@@ -142,6 +142,7 @@ export function EditFighterModal({
     fighter_sub_type?: string;
     fighter_sub_type_id?: string;
     available_legacies?: Array<{id: string; name: string}>;
+    is_custom_fighter?: boolean;
   }>>([]);
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState(false);
   const [fighterTypesError, setFighterTypesError] = useState<string | null>(null);
@@ -399,7 +400,8 @@ export function EditFighterModal({
           fighter_sub_type: type.sub_type?.sub_type_name || null,
           fighter_sub_type_id: type.sub_type?.id || null,
           // Include available legacies for each fighter type
-          available_legacies: type.available_legacies || []
+          available_legacies: type.available_legacies || [],
+          is_custom_fighter: type.is_custom_fighter || false
         }));
         setFighterTypes(transformedData);
 
@@ -453,7 +455,8 @@ export function EditFighterModal({
         fighter_sub_type: type.sub_type?.sub_type_name || null,
         fighter_sub_type_id: type.sub_type?.id || null,
         // Include available legacies for each fighter type
-        available_legacies: type.available_legacies || []
+        available_legacies: type.available_legacies || [],
+        is_custom_fighter: type.is_custom_fighter || false
       }));
       
       console.log('EditFighterModal: Fetched fighter types:', transformedData.length);
@@ -852,9 +855,18 @@ export function EditFighterModal({
         submitData.fighter_class = fighterTypeToUse.fighter_class;
         submitData.fighter_class_id = fighterTypeToUse.fighter_class_id;
         submitData.fighter_type = fighterTypeToUse.fighter_type;
-        submitData.fighter_type_id = fighterTypeToUse.id;
-        submitData.fighter_sub_type = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null;
-        submitData.fighter_sub_type_id = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null;
+        if (fighterTypeToUse.is_custom_fighter) {
+          // Custom type IDs live in custom_fighter_types, not fighter_types — must not write to fighter_type_id
+          submitData.custom_fighter_type_id = fighterTypeToUse.id;
+          submitData.fighter_type_id = null;
+          submitData.fighter_sub_type = null;
+          submitData.fighter_sub_type_id = null;
+        } else {
+          submitData.fighter_type_id = fighterTypeToUse.id;
+          submitData.custom_fighter_type_id = null;
+          submitData.fighter_sub_type = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null;
+          submitData.fighter_sub_type_id = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null;
+        }
       }
 
       // Apply the selected fighter class
