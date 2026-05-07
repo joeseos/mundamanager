@@ -219,7 +219,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     console.error('Error in addGangVehicle server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
 }
@@ -271,7 +271,7 @@ export async function getGangVehicleTypes(gangId: string) {
     console.error('Error fetching vehicle types:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
 }

@@ -616,7 +616,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     console.error('Error in copyGang server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
 } 
