@@ -1185,7 +1185,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     console.error('Error in addFighterToGang server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
 } 

@@ -140,7 +140,7 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
     console.error('Error in unassignVehicle server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
 }
