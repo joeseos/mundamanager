@@ -147,7 +147,7 @@ function FighterActionModal({
       });
       if (!deleteResult.success) throw new Error(deleteResult.error || 'Failed to delete injury');
 
-      const removeResult = await removeSessionInjury({ session_fighter_id: fighter.id, injury_index: index });
+      const removeResult = await removeSessionInjury({ session_fighter_id: fighter.id, injury_id: injury.fighter_effect_id });
       if (!removeResult.success) throw new Error(removeResult.error || 'Failed to remove session injury');
     },
     onMutate: ({ index }) => {

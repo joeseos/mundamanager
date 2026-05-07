@@ -38,7 +38,7 @@ CREATE TABLE public.battle_session_fighters (
     battle_session_id uuid NOT NULL REFERENCES public.battle_sessions(id) ON DELETE CASCADE,
     participant_id uuid NOT NULL REFERENCES public.battle_session_participants(id) ON DELETE CASCADE,
     fighter_id uuid NOT NULL REFERENCES public.fighters(id) ON DELETE CASCADE,
-    session_record jsonb DEFAULT '{"xp_earned": 0, "injuries": []}'::jsonb NOT NULL,
+    session_record jsonb DEFAULT '{"xp_earned": 0, "injuries": [], "conditions": []}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     UNIQUE(battle_session_id, fighter_id)
 );
