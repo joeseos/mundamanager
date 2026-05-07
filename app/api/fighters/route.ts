@@ -6,47 +6,6 @@ import { getUserIdFromClaims } from "@/utils/auth";
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-// Define TypeScript types for better type checking
-type Weapon = {
-  weapon_id: string;
-  weapon_name: string;
-  range_short: number;
-  range_long: number;
-  acc_short: number;
-  acc_long: number;
-  strength: number;
-  ap: number;
-  damage: number;
-  ammo: number;
-  traits: string;
-};
-
-type Fighter = {
-  id: string;
-  fighter_name: string;
-  fighter_type_id: string;
-  fighter_type: string;
-  fighter_sub_type?: string;
-  fighter_sub_type_id?: string;
-  fighter_class?: string;
-  fighter_class_id?: string;
-  credits: number;
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  attacks: number;
-  weapons: Weapon[];
-  updated_at?: string;
-};
-
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -66,8 +25,6 @@ export async function POST(request: Request) {
     fighter_class,
     fighter_class_id
   } = await request.json();
-
-  console.log('Received data:', { gang_id, fighter_type_id, fighter_name, fighter_type, fighter_sub_type, fighter_sub_type_id, fighter_class });
 
   if (!gang_id || !fighter_type_id || !fighter_name) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -162,15 +119,19 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const supabase = await createClient();
+
+  const userId = await getUserIdFromClaims(supabase);
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const gangId = searchParams.get('gang_id');
-  const includeLoadouts = searchParams.get('loadouts') === 'true';
 
   if (!gangId) {
     return NextResponse.json({ error: 'Gang ID is required' }, { status: 400 });
   }
-
-  const supabase = await createClient();
 
   try {
     // Fetch fighters
@@ -217,83 +178,6 @@ export async function GET(request: Request) {
     const fighterTypeMap = Object.fromEntries(
       fighterTypes.map(type => [type.id, type.fighter_type])
     );
-
-    // If loadouts are not requested, return the existing response
-    if (!includeLoadouts) {
-      // Fetch all fighter_weapons for the fetched fighters
-      const { data: fighterWeapons, error: weaponsError } = await supabase
-        .from('fighter_weapons')
-        .select('fighter_id, weapon_id')
-        .eq('fighter_id', gangId);
-
-      if (weaponsError) throw weaponsError;
-
-      // Fetch all weapons in one query
-      const weaponIds = fighterWeapons.map(fw => fw.weapon_id);
-      const { data: weapons, error: weaponsDataError } = await supabase
-        .from('weapons')
-        .select('id, weapon_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, ammo, traits')
-        .in('id', weaponIds);
-
-      if (weaponsDataError) throw weaponsDataError;
-
-      // Create a map of weapon_id to weapon details
-      const weaponMap: Record<string, Weapon> = {};
-      weapons.forEach(weapon => {
-        weaponMap[weapon.id] = {
-          weapon_id: weapon.id,
-          weapon_name: weapon.weapon_name,
-          range_short: weapon.range_short,
-          range_long: weapon.range_long,
-          acc_short: weapon.acc_short,
-          acc_long: weapon.acc_long,
-          strength: weapon.strength,
-          ap: weapon.ap,
-          damage: weapon.damage,
-          ammo: weapon.ammo,
-          traits: weapon.traits
-        };
-      });
-
-      // Create a map of fighter_id to weapons
-      const fighterWeaponsMap: Record<string, Weapon[]> = {};
-      fighterWeapons.forEach(fw => {
-        if (!fighterWeaponsMap[fw.fighter_id]) {
-          fighterWeaponsMap[fw.fighter_id] = [];
-        }
-        if (weaponMap[fw.weapon_id]) {
-          fighterWeaponsMap[fw.fighter_id].push(weaponMap[fw.weapon_id]);
-        }
-      });
-      const fightersWithTypes = fighters.map(fighter => ({
-        id: fighter.id,
-        fighter_name: fighter.fighter_name,
-        fighter_type_id: fighter.fighter_type_id,
-        fighter_type: fighterTypeMap[fighter.fighter_type_id] || 'Unknown Type',
-        fighter_sub_type: fighter.fighter_sub_type,
-        fighter_sub_type_id: fighter.fighter_sub_type_id,
-        fighter_class: fighter.fighter_class,
-        fighter_class_id: fighter.fighter_class_id,
-        credits: fighter.credits,
-        movement: fighter.movement,
-        weapon_skill: fighter.weapon_skill,
-        ballistic_skill: fighter.ballistic_skill,
-        strength: fighter.strength,
-        toughness: fighter.toughness,
-        wounds: fighter.wounds,
-        initiative: fighter.initiative,
-        leadership: fighter.leadership,
-        cool: fighter.cool,
-        willpower: fighter.willpower,
-        intelligence: fighter.intelligence,
-        attacks: fighter.attacks,
-        updated_at: fighter.updated_at,
-        weapons: fighterWeaponsMap[fighter.id] || []
-      }));
-
-      console.log('Fighters with types and weapons:', JSON.stringify(fightersWithTypes, null, 2));
-      return NextResponse.json(fightersWithTypes);
-    }
 
     // Fetch additional data for loadouts
     // Filter out exotic beasts - they are treated as equipment, not standalone fighters

@@ -489,6 +489,7 @@ export async function updateSessionConditions(params: {
 
     if (error) return { success: false, error: error.message };
 
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
     return { success: true };
   } catch (err) {
     console.error('Error updating session conditions:', err);
@@ -539,7 +540,7 @@ export async function addSessionInjury(params: {
 
 export async function removeSessionInjury(params: {
   session_fighter_id: string;
-  injury_index: number;
+  injury_id: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
@@ -561,10 +562,10 @@ export async function removeSessionInjury(params: {
       injuries: fighter.session_record?.injuries ?? [],
       conditions: fighter.session_record?.conditions ?? [],
     };
-    if (params.injury_index < 0 || params.injury_index >= record.injuries.length)
-      return { success: false, error: 'Invalid injury index' };
+    const idx = record.injuries.findIndex((i) => i.fighter_effect_id === params.injury_id);
+    if (idx === -1) return { success: false, error: 'Injury not found' };
 
-    record.injuries.splice(params.injury_index, 1);
+    record.injuries.splice(idx, 1);
 
     const { error } = await supabase
       .from('battle_session_fighters')
@@ -717,7 +718,12 @@ export async function completeBattleSession(
       })
       .eq('id', sessionId);
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      if (campaign_battle_id) {
+        await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+      }
+      return { success: false, error: error.message };
+    }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
     if (campaign_battle_id) {
