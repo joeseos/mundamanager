@@ -1005,7 +1005,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     console.error('Error in editFighterStatus server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }
@@ -1072,7 +1072,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
     console.error('Error updating fighter XP:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }
@@ -1178,7 +1178,7 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     console.error('Error updating fighter XP with OOA:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }
@@ -1405,7 +1405,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     console.error('Error updating fighter details:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }

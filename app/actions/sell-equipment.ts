@@ -360,7 +360,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     console.error('Error in sellEquipmentFromFighter server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 } 

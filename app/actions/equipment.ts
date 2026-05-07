@@ -916,7 +916,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     console.error('Error in buyEquipmentForFighter server action:', error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }
@@ -1129,7 +1129,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     console.error('Error in deleteEquipmentFromFighter server action:', error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error instanceof Error ? error.message : (error as any)?.message || 'An unknown error occurred'
     };
   }
 }
