@@ -323,7 +323,11 @@ export function EditFighterModal({
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
         ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
         ...(submit.fighter_type && (submit.fighter_type_id || submit.custom_fighter_type_id)
-          ? { fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null } as any }
+          ? {
+              fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null } as any,
+              custom_fighter_type_id: submit.custom_fighter_type_id ?? null,
+              fighter_type_id: submit.fighter_type_id ?? null,
+            }
           : {}),
         ...(submit.fighter_sub_type && submit.fighter_sub_type_id
           ? { fighter_sub_type: { fighter_sub_type: submit.fighter_sub_type, fighter_sub_type_id: submit.fighter_sub_type_id } as any }
