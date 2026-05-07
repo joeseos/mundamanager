@@ -82,7 +82,8 @@ interface EditFighterModalProps {
     fighter_class?: string;
     fighter_class_id?: string;
     fighter_type?: string;
-    fighter_type_id?: string;
+    fighter_type_id?: string | null;
+    custom_fighter_type_id?: string | null;
     special_rules?: string[];
     stats?: Record<string, number>;
     fighter_sub_type?: string | null;
@@ -257,7 +258,8 @@ export function EditFighterModal({
       fighter_class?: string;
       fighter_class_id?: string;
       fighter_type?: string;
-      fighter_type_id?: string;
+      fighter_type_id?: string | null;
+      custom_fighter_type_id?: string | null;
       special_rules?: string[];
       fighter_sub_type?: string | null;
       fighter_sub_type_id?: string | null;
@@ -276,6 +278,7 @@ export function EditFighterModal({
         fighter_class_id: submit.fighter_class_id,
         fighter_type: submit.fighter_type,
         fighter_type_id: submit.fighter_type_id,
+        custom_fighter_type_id: submit.custom_fighter_type_id,
         fighter_sub_type: submit.fighter_sub_type,
         fighter_sub_type_id: submit.fighter_sub_type_id,
         fighter_gang_legacy_id: submit.fighter_gang_legacy_id,
@@ -319,8 +322,8 @@ export function EditFighterModal({
         kill_count: submit.kill_count,
         cost_adjustment: parseInt(submit.costAdjustment) || 0,
         ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
-        ...(submit.fighter_type && submit.fighter_type_id
-          ? { fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id } as any }
+        ...(submit.fighter_type && (submit.fighter_type_id || submit.custom_fighter_type_id)
+          ? { fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null } as any }
           : {}),
         ...(submit.fighter_sub_type && submit.fighter_sub_type_id
           ? { fighter_sub_type: { fighter_sub_type: submit.fighter_sub_type, fighter_sub_type_id: submit.fighter_sub_type_id } as any }
