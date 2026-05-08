@@ -14,6 +14,7 @@ interface FighterCardActionMenuProps {
   fighterId: string;
   isCrewWithVehicle: boolean;
   isCaptured?: boolean;
+  isKilled?: boolean;
   isSpyrer?: boolean;
   disableLink?: boolean;
   children: ReactNode;
@@ -26,6 +27,7 @@ export function FighterCardActionMenu({
   fighterId,
   isCrewWithVehicle,
   isCaptured = false,
+  isKilled = false,
   isSpyrer = false,
   disableLink = false,
   children,
@@ -216,6 +218,12 @@ export function FighterCardActionMenu({
     modalsContext.rescueFighter(fighterId);
   };
 
+  const handleResurrectFighter = () => {
+    if (!modalsContext) return;
+    closeMenu();
+    modalsContext.resurrectFighter(fighterId);
+  };
+
   // If context is not available (e.g. print views), just render children without menu behaviour
   if (!modalsContext) {
     return <>{children}</>;
@@ -294,6 +302,17 @@ export function FighterCardActionMenu({
               onTouchEnd={(e) => handleMenuTouchEnd(e, handleRescueFighter)}
             >
               Rescue Fighter
+            </button>
+          )}
+          {isKilled && (
+            <button
+              type="button"
+              className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={handleResurrectFighter}
+              onTouchStart={handleMenuTouchStart}
+              onTouchEnd={(e) => handleMenuTouchEnd(e, handleResurrectFighter)}
+            >
+              Resurrect Fighter
             </button>
           )}
         </div>

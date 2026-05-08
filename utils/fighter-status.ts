@@ -36,6 +36,10 @@ export function countsTowardRating(fighter: FighterStatus | null | undefined): b
   return !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
 }
 
+export function hasKilledStatusFlag(typeSpecificData: any): boolean {
+  return typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
+}
+
 /**
  * Determines if a fighter can be sent to recovery.
  * 

@@ -798,6 +798,7 @@ const FighterCard = memo(function FighterCard({
       fighterId={id}
       isCrewWithVehicle={isCrew && !!vehicle}
       isCaptured={!!captured}
+      isKilled={!!killed}
       isSpyrer={is_spyrer}
       disableLink={disableLink || isDragging}
     >

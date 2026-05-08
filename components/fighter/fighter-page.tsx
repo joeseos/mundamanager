@@ -135,6 +135,7 @@ interface Gang {
   gang_affiliation_id?: string | null;
   gang_affiliation_name?: string;
   rating?: number;
+  wealth?: number;
 }
 
 interface FighterPageState {
@@ -945,6 +946,7 @@ export default function FighterPage({
             fighterGangId={fighterData.gang?.id}
             fighterCampaigns={fighterData.fighter?.campaigns}
             fighterRecovery={fighterData.fighter?.recovery}
+            fighterKilled={fighterData.fighter?.killed}
             fighterCaptured={fighterData.fighter?.captured}
             fighterCapturedByGangId={fighterData.fighter?.captured_by_gang_id ?? null}
             userPermissions={userPermissions}
@@ -1035,7 +1037,7 @@ export default function FighterPage({
                 };
               });
             }}
-            onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId) => {
+            onInjuryUpdate={(updatedInjuries, recoveryStatus, capturedStatus, capturedByGangId, killedStatus) => {
               setFighterData(prev => {
                 if (!prev.fighter) return prev;
 
@@ -1048,6 +1050,7 @@ export default function FighterPage({
                   fighter: {
                     ...prev.fighter,
                     recovery: recoveryStatus !== undefined ? recoveryStatus : prev.fighter.recovery,
+                    killed: killedStatus !== undefined ? killedStatus : prev.fighter.killed,
                     captured: capturedStatus !== undefined ? capturedStatus : prev.fighter.captured,
                     captured_by_gang_id: capturedByGangId !== undefined ? capturedByGangId : prev.fighter.captured_by_gang_id,
                     effects: {
@@ -1075,6 +1078,17 @@ export default function FighterPage({
                   ...prev.fighter,
                   kill_count: newKillCount
                 } : null
+              }));
+            }}
+            onGangFinancialsUpdate={(financials) => {
+              setFighterData(prev => ({
+                ...prev,
+                gang: prev.gang ? {
+                  ...prev.gang,
+                  credits: financials.credits,
+                  rating: financials.rating,
+                  wealth: financials.wealth
+                } : prev.gang
               }));
             }}
           />
@@ -1184,22 +1198,64 @@ export default function FighterPage({
             fighterId={fighterId}
             userPermissions={userPermissions}
             onFighterUpdate={() => {}}
-            onStatusMutate={(optimistic, gangCreditsDelta) => {
+            onStatusMutate={(optimistic, gangCreditsDelta, action) => {
               const snapshot = structuredClone(fighterData);
-              setFighterData(prev => ({
-                ...prev,
-                fighter: prev.fighter ? { ...prev.fighter, ...optimistic } as Fighter : null,
-                gang: typeof gangCreditsDelta === 'number' && prev.gang
-                  ? { ...prev.gang, credits: prev.gang.credits + gangCreditsDelta }
-                  : prev.gang
-              }));
+              setFighterData(prev => {
+                if (!prev.fighter) {
+                  return {
+                    ...prev,
+                    fighter: null,
+                    gang: typeof gangCreditsDelta === 'number' && prev.gang
+                      ? { ...prev.gang, credits: prev.gang.credits + gangCreditsDelta }
+                      : prev.gang
+                  };
+                }
+
+                const isResurrecting = action === 'kill' && prev.fighter.killed === true && optimistic.killed === false;
+                const removeKilledStatusEffect = (effect: FighterEffect) => {
+                  const typeSpecificData = effect.type_specific_data && typeof effect.type_specific_data === 'object'
+                    ? effect.type_specific_data
+                    : {};
+
+                  return !(typeSpecificData.killed === 'true' || typeSpecificData.killed === true);
+                };
+
+                return {
+                  ...prev,
+                  fighter: {
+                    ...prev.fighter,
+                    ...optimistic,
+                    effects: isResurrecting
+                      ? {
+                          ...prev.fighter.effects,
+                          injuries: (prev.fighter.effects?.injuries || []).filter(removeKilledStatusEffect),
+                          'rig-glitches': (prev.fighter.effects?.['rig-glitches'] || []).filter(removeKilledStatusEffect)
+                        }
+                      : prev.fighter.effects
+                  } as Fighter,
+                  gang: typeof gangCreditsDelta === 'number' && prev.gang
+                    ? { ...prev.gang, credits: prev.gang.credits + gangCreditsDelta }
+                    : prev.gang
+                };
+              });
               return snapshot;
             }}
             onStatusError={(snapshot) => {
               if (snapshot) setFighterData(snapshot);
             }}
-            onStatusSuccess={() => {
-              // No-op: server-side tags will reconcile authoritative state
+            onStatusSuccess={(result) => {
+              const updatedGang = result?.data?.gang;
+              if (!updatedGang) return;
+
+              setFighterData(prev => ({
+                ...prev,
+                gang: prev.gang ? {
+                  ...prev.gang,
+                  credits: updatedGang.credits,
+                  rating: updatedGang.rating ?? prev.gang.rating,
+                  wealth: updatedGang.wealth ?? prev.gang.wealth
+                } : prev.gang
+              }));
             }}
           />
 

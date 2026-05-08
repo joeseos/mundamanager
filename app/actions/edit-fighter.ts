@@ -7,7 +7,7 @@ import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
@@ -27,6 +27,66 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     // Without this, the owner's cost calculation uses stale beast data
     revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
   }
+}
+
+async function getKilledStatusEffects(supabase: any, fighterId: string) {
+  const { data: effects, error } = await supabase
+    .from('fighter_effects')
+    .select('id, effect_name, type_specific_data')
+    .eq('fighter_id', fighterId);
+
+  if (error) throw error;
+
+  return (effects || []).filter((effect: any) => hasKilledStatusFlag(effect.type_specific_data));
+}
+
+async function deleteKilledStatusEffects(
+  supabase: any,
+  fighterId: string,
+  gangId: string,
+  fighterName: string
+): Promise<{ removedCount: number; removedSkillCount: number }> {
+  const killedStatusEffects = await getKilledStatusEffects(supabase, fighterId);
+  let removedSkillCount = 0;
+
+  for (const effect of killedStatusEffects) {
+    const { data: relatedSkills } = await supabase
+      .from('fighter_effect_skills')
+      .select('fighter_skill_id')
+      .eq('fighter_effect_id', effect.id);
+
+    if (relatedSkills && relatedSkills.length > 0) {
+      const skillIds = relatedSkills.map((rs: any) => rs.fighter_skill_id);
+      removedSkillCount += skillIds.length;
+
+      const { error: skillDeleteError } = await supabase
+        .from('fighter_skills')
+        .delete()
+        .in('id', skillIds);
+
+      if (skillDeleteError) throw skillDeleteError;
+    }
+
+    const { error: deleteError } = await supabase
+      .from('fighter_effects')
+      .delete()
+      .eq('id', effect.id);
+
+    if (deleteError) throw deleteError;
+
+    await logFighterRecovery({
+      gang_id: gangId,
+      fighter_id: fighterId,
+      fighter_name: fighterName,
+      recovery_type: 'injury_removed',
+      recovered_from: effect.effect_name
+    });
+  }
+
+  return {
+    removedCount: killedStatusEffects.length,
+    removedSkillCount
+  };
 }
 
 interface EditFighterStatusParams {
@@ -72,6 +132,8 @@ interface EditFighterResult {
     gang?: {
       id: string;
       credits: number;
+      rating?: number;
+      wealth?: number;
     };
     redirectTo?: string;
     xp?: number;
@@ -199,6 +261,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         const wasActive = countsTowardRating(fighter);
 
         const willBeKilled = !fighter.killed;
+        const killedStatusEffects = willBeKilled ? [] : await getKilledStatusEffects(supabase, params.fighter_id);
+        const removedKilledStatusEffectCredits = killedStatusEffects.reduce((sum: number, effect: any) => {
+          return sum + (effect.type_specific_data?.credits_increase || 0);
+        }, 0);
 
         // Check if fighter WILL BE active (after kill toggle)
         const willBeActive = willBeKilled ? false : countsTowardRating({ ...fighter, killed: false });
@@ -208,7 +274,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (wasActive && !willBeActive) {
           delta = -(await getEffectiveCost()); // Became inactive
         } else if (!wasActive && willBeActive) {
-          delta = +(await getEffectiveCost()); // Became active
+          delta = Math.max(0, (await getEffectiveCost()) - removedKilledStatusEffectCredits); // Became active
         }
         // else: stayed inactive, delta = 0
 
@@ -226,8 +292,19 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         const financialResult = await adjustRating(delta);
+
+        const removedKilledStatusEffects = !willBeKilled
+          ? await deleteKilledStatusEffects(supabase, params.fighter_id, gangId, fighter.fighter_name)
+          : { removedCount: 0, removedSkillCount: 0 };
+
         invalidateFighterData(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        if (removedKilledStatusEffects.removedCount > 0) {
+          revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+        }
+        if (removedKilledStatusEffects.removedSkillCount > 0) {
+          revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id));
+        }
 
         // Log fighter status change
         if (willBeKilled) {
@@ -253,7 +330,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               gang_id: gangId,
               fighter_id: params.fighter_id,
               fighter_name: fighter.fighter_name,
-              action_type: 'fighter_resurected',
+              action_type: 'fighter_resurrected',
               oldCredits: financialResult.oldValues?.credits,
               oldRating: financialResult.oldValues?.rating,
               oldWealth: financialResult.oldValues?.wealth,
@@ -262,14 +339,22 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
               newWealth: financialResult.newValues?.wealth
             });
           } catch (logError) {
-            console.error('Failed to log fighter resurected:', logError);
+            console.error('Failed to log fighter resurrected:', logError);
           }
         }
         
 
         return {
           success: true,
-          data: { fighter: updatedFighter }
+          data: {
+            fighter: updatedFighter,
+            gang: {
+              id: gangId,
+              credits: financialResult.newValues?.credits ?? gang.credits,
+              rating: financialResult.newValues?.rating ?? gang.rating,
+              wealth: financialResult.newValues?.wealth ?? gang.wealth
+            }
+          }
         };
       }
 

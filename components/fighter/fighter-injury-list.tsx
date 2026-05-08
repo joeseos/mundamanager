@@ -22,6 +22,7 @@ import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { Combobox } from '@/components/ui/combobox';
 import { useMutation } from '@tanstack/react-query';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
+import { hasKilledStatusFlag } from '@/utils/fighter-status';
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -35,16 +36,19 @@ interface InjuriesListProps {
     updatedInjuries: FighterEffect[],
     recoveryStatus?: boolean,
     capturedStatus?: boolean,
-    capturedByGangId?: string | null
+    capturedByGangId?: string | null,
+    killedStatus?: boolean
   ) => void;
   onSkillsUpdate?: (updatedSkills: FighterSkills) => void;
   onKillCountUpdate?: (newKillCount: number) => void;
+  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
   onEquipmentEffectUpdate?: (fighterEquipmentId: string | null, effectData: any | null) => void;
   skills?: FighterSkills;
   fighterId: string;
   fighterGangId?: string;
   fighterCampaigns?: Array<{ campaign_id?: string; id?: string }>;
   fighterRecovery?: boolean;
+  fighterKilled?: boolean;
   fighterCaptured?: boolean;
   fighterCapturedByGangId?: string | null;
   userPermissions: UserPermissions;
@@ -62,12 +66,14 @@ export function InjuriesList({
   onInjuryUpdate,
   onSkillsUpdate,
   onKillCountUpdate,
+  onGangFinancialsUpdate,
   onEquipmentEffectUpdate,
   skills = {},
   fighterId,
   fighterGangId,
   fighterCampaigns,
   fighterRecovery = false,
+  fighterKilled = false,
   fighterCaptured = false,
   fighterCapturedByGangId = null,
   userPermissions,
@@ -112,12 +118,14 @@ export function InjuriesList({
     () => fighterCaptured || injuries.some(injury => injury.effect_name === 'Captured'),
     [fighterCaptured, injuries]
   );
+
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
     mutationFn: async (variables: { 
       fighter_id: string; 
       injury_type_id: string; 
       send_to_recovery?: boolean; 
+      set_killed?: boolean; 
       set_captured?: boolean; 
       captured_by_gang_id?: string | null;
       target_equipment_id?: string;
@@ -127,6 +135,7 @@ export function InjuriesList({
         fighter_id: variables.fighter_id,
         injury_type_id: variables.injury_type_id,
         send_to_recovery: variables.send_to_recovery,
+        set_killed: variables.set_killed,
         set_captured: variables.set_captured,
         captured_by_gang_id: variables.captured_by_gang_id,
         target_equipment_id: variables.target_equipment_id
@@ -144,6 +153,7 @@ export function InjuriesList({
       const previousInjuries = [...injuries];
       const previousSkills = { ...skills };
       const previousRecovery = fighterRecovery;
+      const previousKilled = fighterKilled;
       const previousCaptured = fighterCaptured;
       const previousCapturedByGangId = fighterCapturedByGangId;
 
@@ -158,9 +168,10 @@ export function InjuriesList({
       if (onInjuryUpdate) {
         onInjuryUpdate(
           [...injuries, tempInjury],
-          variables.send_to_recovery ? true : variables.set_captured ? false : undefined,
+          variables.set_killed ? false : variables.send_to_recovery ? true : variables.set_captured ? false : undefined,
           variables.set_captured ? true : undefined,
-          variables.set_captured ? (variables.captured_by_gang_id ?? null) : undefined
+          variables.set_captured ? (variables.captured_by_gang_id ?? null) : undefined,
+          variables.set_killed ? true : undefined
         );
       }
 
@@ -194,6 +205,7 @@ export function InjuriesList({
         previousInjuries,
         previousSkills,
         previousRecovery,
+        previousKilled,
         previousCaptured,
         previousCapturedByGangId,
         grantedSkillName,
@@ -204,7 +216,11 @@ export function InjuriesList({
     onSuccess: (result, variables, context) => {
       const statusMessage: string[] = [];
       if (variables.send_to_recovery) statusMessage.push('fighter sent to Recovery');
+      if (variables.set_killed) statusMessage.push('fighter marked as Killed');
       if (variables.set_captured) statusMessage.push('fighter marked as Captured');
+      if (result.gang && onGangFinancialsUpdate) {
+        onGangFinancialsUpdate(result.gang);
+      }
 
       const successText = is_spyrer ? 'Rig glitch added successfully' : 'Lasting injury added successfully';
       toast.success(`${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`);
@@ -219,9 +235,10 @@ export function InjuriesList({
         };
         onInjuryUpdate(
           [...context.previousInjuries, realInjury],
-          variables.send_to_recovery ? true : variables.set_captured ? false : undefined,
+          result.recovery_status ?? (variables.set_killed ? false : variables.send_to_recovery ? true : variables.set_captured ? false : undefined),
           variables.set_captured ? true : undefined,
-          variables.set_captured ? (variables.captured_by_gang_id ?? null) : undefined
+          variables.set_captured ? (variables.captured_by_gang_id ?? null) : undefined,
+          result.killed_status ?? (variables.set_killed ? true : undefined)
         );
       }
 
@@ -237,7 +254,8 @@ export function InjuriesList({
           context.previousInjuries,
           context.previousRecovery,
           context.previousCaptured,
-          context.previousCapturedByGangId
+          context.previousCapturedByGangId,
+          context.previousKilled
         );
       }
       if (context?.previousSkills && onSkillsUpdate) {
@@ -270,12 +288,21 @@ export function InjuriesList({
       // Store previous state for rollback
       const previousInjuries = [...injuries];
       const previousSkills = { ...skills };
+      const previousKilled = fighterKilled;
       const fighterEquipmentId = (injuryToDelete as any)?.fighter_equipment_id;
+      const updatedInjuries = injuries.filter(i => i.id !== variables.injury_id);
+      const shouldClearKilled = hasKilledStatusFlag(injuryToDelete.type_specific_data)
+        && !updatedInjuries.some(injury => hasKilledStatusFlag(injury.type_specific_data));
 
       // Optimistically remove injury
       if (onInjuryUpdate) {
-        const updatedInjuries = injuries.filter(i => i.id !== variables.injury_id);
-        onInjuryUpdate(updatedInjuries);
+        onInjuryUpdate(
+          updatedInjuries,
+          undefined,
+          undefined,
+          undefined,
+          shouldClearKilled ? false : undefined
+        );
       }
 
       // Optimistically remove equipment effect if attached to equipment
@@ -299,18 +326,32 @@ export function InjuriesList({
       return {
         previousInjuries,
         previousSkills,
+        previousKilled,
         injuryName,
         fighterEquipmentId,
-        previousEffect: injuryToDelete
+        previousEffect: injuryToDelete,
+        updatedInjuries
       };
     },
     onSuccess: (result, variables, context) => {
+      if (result.killed_status !== undefined && context?.updatedInjuries && onInjuryUpdate) {
+        onInjuryUpdate(context.updatedInjuries, undefined, undefined, undefined, result.killed_status);
+      }
+      if (result.gang && onGangFinancialsUpdate) {
+        onGangFinancialsUpdate(result.gang);
+      }
       toast.success(`${context?.injuryName || 'Injury'} removed successfully`);
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates
       if (context?.previousInjuries && onInjuryUpdate) {
-        onInjuryUpdate(context.previousInjuries);
+        onInjuryUpdate(
+          context.previousInjuries,
+          undefined,
+          undefined,
+          undefined,
+          context.previousKilled
+        );
       }
       if (context?.previousSkills && onSkillsUpdate) {
         onSkillsUpdate(context.previousSkills);
@@ -335,6 +376,8 @@ export function InjuriesList({
 
       // Delete all glitches
       let deletedCount = 0;
+      let killedStatus: boolean | undefined = undefined;
+      let gangFinancials: { credits: number; rating: number; wealth: number } | undefined = undefined;
       for (const injury of params.glitches) {
         const result = await deleteFighterInjury({
           fighter_id: fighterId,
@@ -343,6 +386,12 @@ export function InjuriesList({
 
         if (!result.success) {
           throw new Error(result.error || 'Failed to delete glitch');
+        }
+        if (result.killed_status !== undefined) {
+          killedStatus = result.killed_status;
+        }
+        if (result.gang) {
+          gangFinancials = result.gang;
         }
         deletedCount++;
       }
@@ -358,16 +407,18 @@ export function InjuriesList({
         throw new Error('Failed to update kill count');
       }
 
-      return { clearedCount: deletedCount, newKillCount };
+      return { clearedCount: deletedCount, newKillCount, killedStatus, gangFinancials };
     },
     onMutate: async (params) => {
       // Store previous state for rollback
       const previousInjuries = [...injuries];
       const previousKillCount = params.currentKillCount;
+      const previousKilled = fighterKilled;
+      const shouldClearKilled = params.glitches.some(injury => hasKilledStatusFlag(injury.type_specific_data));
 
       // Optimistically clear all injuries
       if (onInjuryUpdate) {
-        onInjuryUpdate([]);
+        onInjuryUpdate([], undefined, undefined, undefined, shouldClearKilled ? false : undefined);
       }
 
       // Optimistically update kill count
@@ -377,17 +428,24 @@ export function InjuriesList({
 
       return {
         previousInjuries,
-        previousKillCount
+        previousKillCount,
+        previousKilled
       };
     },
     onSuccess: (result) => {
+      if (result.killedStatus !== undefined && onInjuryUpdate) {
+        onInjuryUpdate([], undefined, undefined, undefined, result.killedStatus);
+      }
+      if (result.gangFinancials && onGangFinancialsUpdate) {
+        onGangFinancialsUpdate(result.gangFinancials);
+      }
       toast.success(`Successfully cleared ${result.clearedCount} rig glitches. New kill count: ${result.newKillCount}`);
       setIsClearAllModalOpen(false);
     },
     onError: (error, variables, context) => {
       // Rollback optimistic updates
       if (context?.previousInjuries && onInjuryUpdate) {
-        onInjuryUpdate(context.previousInjuries);
+        onInjuryUpdate(context.previousInjuries, undefined, undefined, undefined, context.previousKilled);
       }
       if (context?.previousKillCount !== undefined && onKillCountUpdate) {
         onKillCountUpdate(context.previousKillCount);
@@ -605,6 +663,7 @@ export function InjuriesList({
     const typeSpecificData = injury.type_specific_data && typeof injury.type_specific_data === 'object' ? injury.type_specific_data : {};
     const appliesToEquipment = typeSpecificData.applies_to === 'equipment';
     const requiresRecovery = typeSpecificData.recovery === "true";
+    const requiresKilled = hasKilledStatusFlag(typeSpecificData);
     const requiresCaptured = typeSpecificData.captured === "true";
 
     if (requiresCaptured && hasCapturedInjury) {
@@ -636,9 +695,10 @@ export function InjuriesList({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
         send_to_recovery: false,
+        set_killed: requiresKilled,
         set_captured: true,
         captured_by_gang_id: selectedCapturingGangId || null,
-        injury_data: selectedInjury
+        injury_data: injury
       });
       return true;
     } else if (requiresRecovery && !fighterRecovery) {
@@ -655,8 +715,9 @@ export function InjuriesList({
         fighter_id: fighterId,
         injury_type_id: selectedInjuryId,
         send_to_recovery: false,
+        set_killed: requiresKilled,
         set_captured: false,
-        injury_data: selectedInjury
+        injury_data: injury
       });
       return true;
     }
@@ -671,11 +732,16 @@ export function InjuriesList({
     // Close modals immediately
     setIsRecoveryModalOpen(false);
 
+    const typeSpecificData = selectedInjury?.type_specific_data && typeof selectedInjury.type_specific_data === 'object'
+      ? selectedInjury.type_specific_data
+      : {};
+
     // Trigger mutation
     addInjuryMutation.mutate({
       fighter_id: fighterId,
       injury_type_id: selectedInjuryId,
       send_to_recovery: sendToRecovery,
+      set_killed: hasKilledStatusFlag(typeSpecificData),
       set_captured: setCaptured,
       captured_by_gang_id: setCaptured ? (selectedCapturingGangId || null) : undefined,
       target_equipment_id: targetEquipmentId || undefined,
@@ -1152,6 +1218,7 @@ export function InjuriesList({
 
                 const typeSpecificData = (selectedInjury as any).type_specific_data || {};
                 const requiresRecovery = typeSpecificData.recovery === "true";
+                const requiresKilled = hasKilledStatusFlag(typeSpecificData);
                 const requiresCaptured = typeSpecificData.captured === "true";
 
                 // Check for recovery/captured modal or proceed directly
@@ -1160,6 +1227,7 @@ export function InjuriesList({
                     fighter_id: fighterId,
                     injury_type_id: selectedInjuryId,
                     send_to_recovery: false,
+                    set_killed: requiresKilled,
                     set_captured: true,
                     captured_by_gang_id: selectedCapturingGangId || null,
                     target_equipment_id: equipmentId,
@@ -1177,6 +1245,7 @@ export function InjuriesList({
                     fighter_id: fighterId,
                     injury_type_id: selectedInjuryId,
                     send_to_recovery: false,
+                    set_killed: requiresKilled,
                     set_captured: false,
                     target_equipment_id: equipmentId,
                     injury_data: selectedInjury

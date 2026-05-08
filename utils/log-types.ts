@@ -15,7 +15,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'fighter_added': 'Fighter added',
   'fighter_removed': 'Fighter removed',
   'fighter_killed': 'Fighter killed',
-  'fighter_resurected': 'Fighter resurected',
+  'fighter_resurrected': 'Fighter resurrected',
   'fighter_retired': 'Fighter retired',
   'fighter_unretired': 'Fighter unretired',
   'fighter_enslaved': 'Fighter enslaved',

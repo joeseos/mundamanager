@@ -56,9 +56,9 @@ interface FighterActionsProps {
   fighterId: string;
   userPermissions: UserPermissions;
   onFighterUpdate?: () => void;
-  onStatusMutate?: (optimistic: Partial<Fighter>, gangCreditsDelta?: number) => any;
+  onStatusMutate?: (optimistic: Partial<Fighter>, gangCreditsDelta?: number, action?: 'kill' | 'retire' | 'sell' | 'release' | 'rescue' | 'starve' | 'recover' | 'capture' | 'delete') => any;
   onStatusError?: (snapshot: any) => void;
-  onStatusSuccess?: () => void;
+  onStatusSuccess?: (result: any) => void;
 }
 
 interface ActionModals {
@@ -197,7 +197,11 @@ export function FighterActions({
         case 'rescue': optimistic.captured = false; break;
       }
 
-      const snapshot = onStatusMutate?.(optimistic, vars.action === 'sell' ? (vars.sell_value || 0) : undefined);
+      const snapshot = onStatusMutate?.(
+        optimistic,
+        vars.action === 'sell' ? (vars.sell_value || 0) : undefined,
+        vars.action
+      );
       const prevFlags = {
         killed: !!fighter.killed,
         retired: !!fighter.retired,
@@ -249,7 +253,7 @@ export function FighterActions({
       }
       toast.success(successMessage);
       onFighterUpdate?.();
-      onStatusSuccess?.();
+      onStatusSuccess?.(result);
     },
     onError: (error, _vars, ctx) => {
       toast.error(error instanceof Error ? error.message : 'Failed to update fighter status');
