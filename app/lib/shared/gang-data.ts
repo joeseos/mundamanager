@@ -139,6 +139,8 @@ export interface GangFighter {
   kills: number;
   credits: number;
   loadout_cost?: number; // Cost of equipment in active loadout only (for fighter card display)
+  loadout_costs?: Record<string, number>; // Cost per loadout (loadout_id → cost)
+  loadouts?: { id: string; name: string }[]; // All loadouts for this fighter
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -1019,29 +1021,21 @@ export const getGangFightersList = async (
       // Extract all fighter IDs for batch queries
       const fighterIds = fighters.map((f: any) => f.id);
 
-      // Collect loadout IDs for batch fetch (active only for normal view, all for print expansion)
-      const activeLoadoutIds = fighters
-        .map((f: any) => f.active_loadout_id)
-        .filter((id: any) => id != null);
-
-      // When expanding for print, fetch all loadouts first to get their IDs for equipment fetch
-      let allLoadoutIdsForFetch = activeLoadoutIds;
-      let loadoutsByFighterForPrint = new Map<string, any[]>();
-      if (expandLoadoutsForPrint) {
-        const { data: allLoadoutsData } = await supabase
-          .from('fighter_loadouts')
-          .select('id, fighter_id, loadout_name')
-          .in('fighter_id', fighterIds)
-          .order('created_at', { ascending: true });
-        const allLoadoutsList = allLoadoutsData || [];
-        allLoadoutIdsForFetch = allLoadoutsList.map((l: any) => l.id);
-        allLoadoutsList.forEach((loadout: any) => {
-          if (!loadoutsByFighterForPrint.has(loadout.fighter_id)) {
-            loadoutsByFighterForPrint.set(loadout.fighter_id, []);
-          }
-          loadoutsByFighterForPrint.get(loadout.fighter_id)!.push(loadout);
-        });
-      }
+      // Always fetch all loadouts for all fighters (needed for loadout_costs map and print expansion)
+      const { data: allLoadoutsData } = await supabase
+        .from('fighter_loadouts')
+        .select('id, fighter_id, loadout_name')
+        .in('fighter_id', fighterIds)
+        .order('created_at', { ascending: true });
+      const allLoadoutsList = allLoadoutsData || [];
+      const allLoadoutIdsForFetch = allLoadoutsList.map((l: any) => l.id);
+      const loadoutsByFighter = new Map<string, any[]>();
+      allLoadoutsList.forEach((loadout: any) => {
+        if (!loadoutsByFighter.has(loadout.fighter_id)) {
+          loadoutsByFighter.set(loadout.fighter_id, []);
+        }
+        loadoutsByFighter.get(loadout.fighter_id)!.push(loadout);
+      });
 
       // Step 2: Batch fetch ALL related data in parallel
       const [
@@ -1053,7 +1047,6 @@ export const getGangFightersList = async (
         allBeastOwnershipInfo,
         allEquipmentTargetingEffects,
         allLoadoutEquipment,
-        allLoadouts,
         allCapturedByGangs
       ] = await Promise.all([
         // Batch fetch all equipment for all fighters
@@ -1237,14 +1230,6 @@ export const getGangFightersList = async (
               .from('fighter_loadout_equipment')
               .select('loadout_id, fighter_equipment_id')
               .in('loadout_id', allLoadoutIdsForFetch)
-          : Promise.resolve({ data: [] }),
-
-        // Batch fetch loadout names (active for normal view, all for print)
-        allLoadoutIdsForFetch.length > 0
-          ? supabase
-              .from('fighter_loadouts')
-              .select('id, loadout_name')
-              .in('id', allLoadoutIdsForFetch)
           : Promise.resolve({ data: [] }),
 
         // Batch fetch captured-by gang names
@@ -1494,9 +1479,9 @@ export const getGangFightersList = async (
         loadoutEquipmentMap.get(assignment.loadout_id)!.add(assignment.fighter_equipment_id);
       });
 
-      // Create loadout name map: loadout_id -> loadout_name
+      // Create loadout name map: loadout_id -> loadout_name (reuse allLoadoutsList from Step 1)
       const loadoutNameMap = new Map<string, string>();
-      (allLoadouts.data || []).forEach((loadout: any) => {
+      allLoadoutsList.forEach((loadout: any) => {
         loadoutNameMap.set(loadout.id, loadout.loadout_name);
       });
 
@@ -1528,7 +1513,7 @@ export const getGangFightersList = async (
           type LoadoutContext = { loadoutId: string | null; loadoutName?: string; isActiveLoadout: boolean };
           const loadoutContexts: LoadoutContext[] = [];
           if (expandLoadoutsForPrint) {
-            const fighterLoadouts = loadoutsByFighterForPrint.get(fighterId) || [];
+            const fighterLoadouts = loadoutsByFighter.get(fighterId) || [];
             const activeId = fighter.active_loadout_id;
             if (fighterLoadouts.length === 0) {
               // No loadouts: show all equipment in one card
@@ -1956,6 +1941,22 @@ export const getGangFightersList = async (
           ? fighter.credits + loadoutEquipmentCost + skillsCostForDisplay + effectsCostForDisplay + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts
           : 0;
 
+        // Compute costs for ALL loadouts (used by battle session enrichment)
+        const fighterAllLoadouts = loadoutsByFighter.get(fighterId) || [];
+        let allLoadoutCosts: Record<string, number> | undefined;
+        if (!isOwnedBeast && fighterAllLoadouts.length > 0) {
+          allLoadoutCosts = {};
+          for (const lo of fighterAllLoadouts) {
+            const loEquipIds = loadoutEquipmentMap.get(lo.id);
+            const loEquipCost = loEquipIds
+              ? processedEquipment
+                  .filter((eq: any) => loEquipIds.has(eq.fighter_equipment_id))
+                  .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0)
+              : 0;
+            allLoadoutCosts[lo.id] = fighter.credits + loEquipCost + skillsCostForDisplay + unfilteredEffectsCost + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts;
+          }
+        }
+
         const result = {
           id: fighter.id,
           fighter_name: fighter.fighter_name,
@@ -1973,7 +1974,11 @@ export const getGangFightersList = async (
           xp: fighter.xp,
           kills: fighter.kills || 0,
           credits: totalCost,
-          loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
+          loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined,
+          loadout_costs: allLoadoutCosts,
+          loadouts: fighterAllLoadouts.length > 0
+            ? fighterAllLoadouts.map((lo: any) => ({ id: lo.id, name: lo.loadout_name }))
+            : undefined,
           movement: fighter.movement,
           weapon_skill: fighter.weapon_skill,
           ballistic_skill: fighter.ballistic_skill,

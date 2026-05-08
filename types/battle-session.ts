@@ -60,6 +60,7 @@ export interface BattleSessionFighter {
   battle_session_id: string;
   participant_id: string;
   fighter_id: string;
+  loadout_id?: string;
   session_record: SessionRecord;
   created_at: string;
   fighter?: {

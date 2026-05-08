@@ -1,6 +1,5 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
-import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
 
 export const getBattleSessionCached = async (
@@ -64,6 +63,7 @@ export const getBattleSessionCached = async (
         .select('*')
         .eq('battle_session_id', sessionId);
 
+      // Lightweight fighter enrichment — only fetch name and base credits
       let fighterMap = new Map<string, any>();
       if (fighters && fighters.length > 0) {
         const fighterIds = fighters.map((f: any) => f.fighter_id);
@@ -72,13 +72,9 @@ export const getBattleSessionCached = async (
           .select('id, fighter_name, credits')
           .in('id', fighterIds);
 
-        const enriched = await Promise.all(
-          (fighterDetails ?? []).map(async (f: any) => ({
-            ...f,
-            total_cost: await getFighterTotalCost(f.id, supabase),
-          }))
+        fighterMap = new Map(
+          (fighterDetails ?? []).map((f: any) => [f.id, f])
         );
-        fighterMap = new Map(enriched.map((f: any) => [f.id, f]));
       }
 
       const fightersByParticipant = new Map<string, any[]>();

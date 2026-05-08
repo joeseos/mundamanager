@@ -328,6 +328,7 @@ export async function addFighterToSession(params: {
   session_id: string;
   participant_id: string;
   fighter_id: string;
+  loadout_id?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
@@ -339,6 +340,7 @@ export async function addFighterToSession(params: {
         battle_session_id: params.session_id,
         participant_id: params.participant_id,
         fighter_id: params.fighter_id,
+        ...(params.loadout_id ? { loadout_id: params.loadout_id } : {}),
       });
 
     if (error) {
@@ -385,16 +387,17 @@ export async function removeFighterFromSession(
 export async function bulkAddFightersToSession(params: {
   session_id: string;
   participant_id: string;
-  fighter_ids: string[];
+  fighter_entries: { fighter_id: string; loadout_id?: string }[];
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
 
-    const rows = params.fighter_ids.map((fighter_id) => ({
+    const rows = params.fighter_entries.map((entry) => ({
       battle_session_id: params.session_id,
       participant_id: params.participant_id,
-      fighter_id,
+      fighter_id: entry.fighter_id,
+      ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
     }));
 
     const { error } = await supabase

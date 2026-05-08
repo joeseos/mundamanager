@@ -24,38 +24,37 @@ interface GangFighterOption {
   captured?: boolean;
 }
 
+export interface FighterEntry {
+  fighter_id: string;
+  loadout_id?: string;
+}
+
 interface CrewSelectionModalProps {
   gangFighters: GangFighterOption[];
-  selectedFighterIds: Set<string>;
+  selectedFighters: Map<string, string | undefined>;
   loading: boolean;
-  onConfirm: (toAdd: string[], toRemove: string[]) => void;
+  onConfirm: (toAdd: FighterEntry[], toRemove: string[]) => void;
   onClose: () => void;
 }
 
 export default function CrewSelectionModal({
   gangFighters,
-  selectedFighterIds,
+  selectedFighters,
   loading,
   onConfirm,
   onClose,
 }: CrewSelectionModalProps) {
-  const [selected, setSelected] = useState<Set<string>>(() => {
-    const initial = new Set(selectedFighterIds);
-    for (const f of gangFighters) {
-      if (f.killed || f.retired || f.enslaved || f.captured || f.recovery) {
-        initial.delete(f.id);
-      }
-    }
-    return initial;
-  });
+  const [selected, setSelected] = useState<Map<string, string | undefined>>(
+    () => new Map(selectedFighters)
+  );
 
-  const toggle = (fighterId: string) => {
+  const toggle = (fighterId: string, loadoutId?: string) => {
     setSelected((prev) => {
-      const next = new Set(prev);
+      const next = new Map(prev);
       if (next.has(fighterId)) {
         next.delete(fighterId);
       } else {
-        next.add(fighterId);
+        next.set(fighterId, loadoutId);
       }
       return next;
     });
@@ -68,15 +67,26 @@ export default function CrewSelectionModal({
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelected(new Set());
+      setSelected(new Map());
     } else {
-      setSelected(new Set(activeFighters.map((f) => f.id)));
+      const next = new Map<string, string | undefined>();
+      for (const f of activeFighters) {
+        if (!next.has(f.id)) {
+          next.set(f.id, f.loadout_id);
+        }
+      }
+      setSelected(next);
     }
   };
 
   const handleConfirm = async () => {
-    const toAdd = Array.from(selected).filter((id) => !selectedFighterIds.has(id));
-    const toRemove = Array.from(selectedFighterIds).filter((id) => !selected.has(id));
+    const toAdd: FighterEntry[] = [];
+    Array.from(selected.entries()).forEach(([fighterId, loadoutId]) => {
+      if (!selectedFighters.has(fighterId)) {
+        toAdd.push({ fighter_id: fighterId, loadout_id: loadoutId });
+      }
+    });
+    const toRemove = Array.from(selectedFighters.keys()).filter((id) => !selected.has(id));
     onConfirm(toAdd, toRemove);
   };
 
@@ -128,7 +138,7 @@ export default function CrewSelectionModal({
               >
                 <Checkbox
                   checked={isSelected}
-                  onCheckedChange={() => toggle(f.id)}
+                  onCheckedChange={() => toggle(f.id, f.loadout_id)}
                   className="mr-3"
                 />
                 <span className="flex-grow overflow-hidden text-ellipsis flex items-center gap-1">

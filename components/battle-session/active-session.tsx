@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import type { BattleSessionFull } from '@/types/battle-session';
 import type { Scenario } from '@/types/campaign';
+import type { GangFighter } from '@/app/lib/shared/gang-data';
 
 interface ActiveSessionProps {
   session: BattleSessionFull;
@@ -24,6 +25,7 @@ interface ActiveSessionProps {
   userGangs: { id: string; name: string; rating: number }[];
   campaignGangs: { gang_id: string; user_id: string }[];
   scenarios: Scenario[];
+  gangFightersMap: Record<string, GangFighter[]>;
 }
 
 export default function ActiveSession({
@@ -32,6 +34,7 @@ export default function ActiveSession({
   userGangs,
   campaignGangs,
   scenarios,
+  gangFightersMap,
 }: ActiveSessionProps) {
   const router = useRouter();
   const [selectedGangId, setSelectedGangId] = useState('');
@@ -311,6 +314,7 @@ export default function ActiveSession({
               userId={userId}
               isOwner={isOwner}
               editable
+              gangFightersList={gangFightersMap[participant.gang_id] || []}
             />
           ))}
         </div>
