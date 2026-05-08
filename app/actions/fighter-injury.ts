@@ -153,22 +153,23 @@ export async function addFighterInjury(
       }
     }
 
-    const { data: injuryType, error: injuryTypeError } = await supabase
-      .from('fighter_effect_types')
-      .select('type_specific_data')
-      .eq('id', params.injury_type_id)
-      .single();
+    let shouldSetKilled = !!params.set_killed;
+    if (!shouldSetKilled) {
+      const { data: injuryType, error: injuryTypeError } = await supabase
+        .from('fighter_effect_types')
+        .select('type_specific_data')
+        .eq('id', params.injury_type_id)
+        .single();
 
-    if (injuryTypeError || !injuryType) {
-      return {
-        success: false,
-        error: injuryTypeError?.message || 'Injury type not found'
-      };
+      if (injuryTypeError || !injuryType) {
+        return {
+          success: false,
+          error: injuryTypeError?.message || 'Injury type not found'
+        };
+      }
+
+      shouldSetKilled = hasKilledStatusFlag(injuryType.type_specific_data || {});
     }
-
-    const injuryTypeSpecificData = injuryType.type_specific_data || {};
-    const shouldSetKilled = params.set_killed || hasKilledStatusFlag(injuryTypeSpecificData);
-    const delta = (injuryTypeSpecificData?.credits_increase || 0) as number;
 
     let preInjuryCost = 0;
     if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
@@ -198,6 +199,7 @@ export async function addFighterInjury(
 
     // The database function returns the complete injury data with modifiers
     const injuryData = data[0]?.result || data;
+    const delta = (injuryData?.type_specific_data?.credits_increase || 0) as number;
     if (delta && !shouldSetKilled) {
       await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
@@ -224,7 +226,7 @@ export async function addFighterInjury(
     if (shouldSetKilled && !fighter.killed) {
       if (countsTowardRating(fighter)) {
         // Use pre-write cost to avoid stale unstable_cache reads within this request.
-        killedRatingDelta = -(preInjuryCost + delta);
+        killedRatingDelta = -preInjuryCost;
       }
     }
 
@@ -414,9 +416,11 @@ export async function deleteFighterInjury(
       };
     }
 
-    // Decrease rating by injury credits_increase if present
-    const delta = -(injury?.type_specific_data?.credits_increase || 0) as number;
-    if (delta) {
+    // Decrease rating by injury credits_increase if present.
+    // Fatal injuries skip applying credits_increase when added, so do not reverse it on removal.
+    const creditsIncrease = (injury?.type_specific_data?.credits_increase || 0) as number;
+    const delta = -creditsIncrease;
+    if (delta && !removedKilledStatusEffect) {
       await updateGangRatingSimple(supabase, fighter.gang_id, delta);
     }
 
@@ -447,7 +451,7 @@ export async function deleteFighterInjury(
         let resurrectedRatingDelta = 0;
 
         if (!wasActive && willBeActive) {
-          resurrectedRatingDelta = preDeletionCost - ((injury?.type_specific_data?.credits_increase || 0) as number);
+          resurrectedRatingDelta = preDeletionCost - creditsIncrease;
         }
 
         const { error: killedStatusError } = await supabase

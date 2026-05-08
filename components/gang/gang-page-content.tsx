@@ -394,6 +394,7 @@ export default function GangPageContent({
   const [vehicleModalOpenAddOnMount, setVehicleModalOpenAddOnMount] = useState(false);
   const [rescueModalFighter, setRescueModalFighter] = useState<FighterProps | null>(null);
   const [resurrectModalFighter, setResurrectModalFighter] = useState<FighterProps | null>(null);
+  const [isResurrectSubmitting, setIsResurrectSubmitting] = useState(false);
   const [openActionMenuFighterId, setOpenActionMenuFighterId] = useState<string | null>(null);
 
   const removeKilledStatusEffect = (effect: FighterEffect) => {
@@ -499,65 +500,71 @@ export default function GangPageContent({
   }, [rescueModalFighter]);
 
   const confirmResurrectFighter = useCallback(async () => {
+    if (isResurrectSubmitting) return false;
     const fighter = resurrectModalFighter;
     if (!fighter?.killed) return true;
 
     const fighterId = fighter.id;
+    setIsResurrectSubmitting(true);
 
-    setGangData(prev => ({
-      ...prev,
-      processedData: {
-        ...prev.processedData,
-        fighters: prev.processedData.fighters.map(f =>
-          f.id === fighterId
-            ? {
-                ...f,
-                killed: false,
-                effects: {
-                  ...f.effects,
-                  injuries: (f.effects?.injuries || []).filter(removeKilledStatusEffect),
-                  'rig-glitches': (f.effects?.['rig-glitches'] || []).filter(removeKilledStatusEffect),
-                },
-              }
-            : f
-        ),
-      },
-    }));
-
-    const result = await editFighterStatus({
-      fighter_id: fighterId,
-      action: 'kill',
-    });
-
-    if (!result.success) {
+    try {
       setGangData(prev => ({
         ...prev,
         processedData: {
           ...prev.processedData,
           fighters: prev.processedData.fighters.map(f =>
-            f.id === fighterId ? fighter : f
+            f.id === fighterId
+              ? {
+                  ...f,
+                  killed: false,
+                  effects: {
+                    ...f.effects,
+                    injuries: (f.effects?.injuries || []).filter(removeKilledStatusEffect),
+                    'rig-glitches': (f.effects?.['rig-glitches'] || []).filter(removeKilledStatusEffect),
+                  },
+                }
+              : f
           ),
         },
       }));
-      toast.error(result.error || 'Failed to resurrect fighter');
-      return false;
-    }
 
-    if (result.data?.gang) {
-      setGangData(prev => ({
-        ...prev,
-        processedData: {
-          ...prev.processedData,
-          credits: result.data?.gang?.credits ?? prev.processedData.credits,
-          rating: result.data?.gang?.rating ?? prev.processedData.rating,
-          wealth: result.data?.gang?.wealth ?? prev.processedData.wealth,
-        },
-      }));
-    }
+      const result = await editFighterStatus({
+        fighter_id: fighterId,
+        action: 'kill',
+      });
 
-    toast.success('Fighter has been resurrected');
-    return true;
-  }, [resurrectModalFighter]);
+      if (!result.success) {
+        setGangData(prev => ({
+          ...prev,
+          processedData: {
+            ...prev.processedData,
+            fighters: prev.processedData.fighters.map(f =>
+              f.id === fighterId ? fighter : f
+            ),
+          },
+        }));
+        toast.error(result.error || 'Failed to resurrect fighter');
+        return false;
+      }
+
+      if (result.data?.gang) {
+        setGangData(prev => ({
+          ...prev,
+          processedData: {
+            ...prev.processedData,
+            credits: result.data?.gang?.credits ?? prev.processedData.credits,
+            rating: result.data?.gang?.rating ?? prev.processedData.rating,
+            wealth: result.data?.gang?.wealth ?? prev.processedData.wealth,
+          },
+        }));
+      }
+
+      toast.success('Fighter has been resurrected');
+      return true;
+    } finally {
+      setIsResurrectSubmitting(false);
+    }
+  }, [isResurrectSubmitting, resurrectModalFighter]);
 
   const fighterCardModalsValue = useMemo(
     () => ({
@@ -637,6 +644,7 @@ export default function GangPageContent({
           onClose={() => setResurrectModalFighter(null)}
           onConfirm={confirmResurrectFighter}
           confirmText="Resurrect Fighter"
+          confirmDisabled={isResurrectSubmitting}
         />
       )}
 
