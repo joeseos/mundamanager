@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,8 +20,12 @@ import { VehicleEquipment } from '@/types/fighter';
 import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
 import { deleteEquipmentFromStash } from '@/app/actions/equipment';
 import { sellEquipmentFromStash } from '@/app/actions/sell-equipment';
-import { MdCurrencyExchange } from 'react-icons/md';
-import { LuTrash2 } from 'react-icons/lu';
+import { MdCurrencyExchange, MdChair } from 'react-icons/md';
+import { IoSkull } from 'react-icons/io5';
+import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
+import { TbMeatOff } from 'react-icons/tb';
+import { FaMedkit } from 'react-icons/fa';
+import { Combobox } from '@/components/ui/combobox';
 import { rollD6 } from '@/utils/dice';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -194,19 +198,6 @@ export default function GangInventory({
   // Update isCrew to handle undefined
   const isCrew = (fighter: FighterProps | undefined): boolean => 
     fighter?.fighter_class === 'Crew';
-
-  const getSelectableFighters = () => {
-    if (selectedItems.length === 0) return fighters;
-    
-    // Check if any selected item is a vehicle
-    const hasVehicle = selectedItems.some(index => isVehicle(stash[index]));
-    
-    // If any selected item is a vehicle, only show Crew fighters
-    if (hasVehicle) {
-      return fighters.filter(isCrew);
-    }
-    return fighters;
-  };
 
   const findFighter = (id: string): FighterProps | undefined => 
     fighters.find(f => f.id === id);
@@ -640,20 +631,71 @@ export default function GangInventory({
     return [...vehicles, ...crewVehicles];
   };
 
-  const getSelectedStashItems = (): StashItem[] => 
-    selectedItems.map(index => stash[index]);
-
-  const handleFighterSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedFighter(e.target.value);
-  };
-
   // Check if any selected item is a vehicle
   const hasSelectedVehicle = selectedItems.some(index => isVehicle(stash[index]));
   
   // Check if any selected item is vehicle-exclusive
-  const hasVehicleExclusiveItem = selectedItems.some(index => 
+  const hasVehicleExclusiveItem = selectedItems.some(index =>
     isVehicleExclusive(stash[index])
   );
+
+  const showVehicleOptions = hasSelectedVehicle || selectedItems.some(index => isVehicleCompatible(stash[index]));
+
+  const fighterVehicleOptions = useMemo(() => {
+    if (selectedItems.length === 0) return [];
+
+    const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
+
+    if (!hasVehicleExclusiveItem) {
+      options.push({ value: '__fighters_header__', label: <span className="font-bold">Fighters</span>, displayValue: 'Fighters', disabled: true });
+
+      const sorted = [...fighters].sort((a, b) => {
+        if (!positioning) return 0;
+        const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+        const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+        const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+        const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+        return posA - posB;
+      });
+
+      for (const fighter of sorted) {
+        const isDisabled = hasSelectedVehicle && !isCrew(fighter);
+        const statusIcons = [];
+        if (fighter.killed) statusIcons.push(<IoSkull className="text-gray-400 w-4 h-4" key="killed" />);
+        if (fighter.retired) statusIcons.push(<MdChair className="text-muted-foreground w-4 h-4" key="retired" />);
+        if (fighter.enslaved) statusIcons.push(<GiCrossedChains className="text-sky-200 w-4 h-4" key="enslaved" />);
+        if (fighter.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
+        if (fighter.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
+        if (fighter.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
+        const displayText = `${fighter.fighter_name} (${fighter.fighter_class}) - ${fighter.credits} credits`;
+        options.push({
+          value: fighter.id,
+          displayValue: displayText,
+          label: (
+            <span className="flex items-center gap-1">
+              <span>{displayText}</span>
+              {statusIcons.length > 0 && <span className="flex items-center gap-0.5">{statusIcons}</span>}
+            </span>
+          ),
+          disabled: isDisabled
+        });
+      }
+    }
+
+    if (showVehicleOptions) {
+      options.push({ value: '__vehicles_header__', label: <span className="font-bold">Vehicles</span>, displayValue: 'Vehicles', disabled: true });
+      for (const vehicle of getAllVehicles()) {
+        const displayText = `${vehicle.vehicle_name || 'Unknown Vehicle'}${vehicle.vehicle_type ? ` (${vehicle.vehicle_type})` : ''}${vehicle.cost ? ` - ${vehicle.cost} credits` : ''}`;
+        options.push({
+          value: `vehicle-${vehicle.id}`,
+          displayValue: displayText,
+          label: displayText
+        });
+      }
+    }
+
+    return options;
+  }, [fighters, positioning, selectedItems, hasSelectedVehicle, hasVehicleExclusiveItem, showVehicleOptions, vehicles]);
 
   return (
     <>
@@ -767,73 +809,30 @@ export default function GangInventory({
 
               <div className="px-0">
                 <div className="border-t pt-4">
-                  <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Select Fighter or Vehicle
                     {hasSelectedVehicle && (
                       <span className="text-sm text-muted-foreground ml-2">(Only Crew fighters can receive vehicles)</span>
                     )}
                   </label>
-                  <select
-                    id="fighter-select"
+                  <Combobox
+                    options={fighterVehicleOptions}
                     value={selectedFighter}
-                    onChange={handleFighterSelect}
-                    className={`w-full p-2 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black mb-4 
-                      ${selectedItems.length === 0 ? 'bg-muted cursor-not-allowed' : ''}`}
+                    onValueChange={setSelectedFighter}
+                    placeholder={
+                      selectedItems.length === 0
+                        ? "Select items first..."
+                        : hasVehicleExclusiveItem
+                          ? "Select a vehicle..."
+                          : showVehicleOptions
+                            ? "Select a fighter or vehicle..."
+                            : "Select a fighter..."
+                    }
                     disabled={selectedItems.length === 0}
-                  >
-                    <option value="">
-                      {selectedItems.length > 0 && 
-                        (hasVehicleExclusiveItem
-                          ? "Select a vehicle"
-                          : hasSelectedVehicle || selectedItems.some(index => isVehicleCompatible(stash[index]))
-                            ? "Select a fighter or vehicle"
-                            : "Select a fighter"
-                        )}
-                    </option>
-                    {selectedItems.length > 0 && (
-                      <>
-                        {!hasVehicleExclusiveItem && (
-                          <optgroup label="Fighters">
-                            {[...fighters].sort((a, b) => {
-                              if (!positioning) return 0;
-                              const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
-                              const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
-                              const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
-                              const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
-                              return posA - posB;
-                            }).map((fighter) => {
-                              const isDisabled = hasSelectedVehicle && !isCrew(fighter);
-
-                              return (
-                                <option
-                                  key={fighter.id}
-                                  value={fighter.id}
-                                  disabled={isDisabled}
-                                  className={isDisabled ? 'text-gray-400' : ''}
-                                >
-                                  {fighter.fighter_name} ({fighter.fighter_class}) - {fighter.credits} credits
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        )}
-                        {(hasSelectedVehicle || selectedItems.some(index => isVehicleCompatible(stash[index]))) && (
-                          <optgroup label="Vehicles">
-                            {getAllVehicles().map((vehicle) => (
-                              <option 
-                                key={`vehicle-${vehicle.id}`}
-                                value={`vehicle-${vehicle.id}`}
-                              >
-                                {vehicle.vehicle_name || 'Unknown Vehicle'}
-                                {vehicle.vehicle_type ? ` (${vehicle.vehicle_type})` : ''}
-                                {vehicle.cost ? ` - ${vehicle.cost} credits` : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
-                    )}
-                  </select>
+                    className="mb-4"
+                    clearable
+                    dropdownPlacement="down"
+                  />
 
                   <Button
                     onClick={handleMoveToFighter}
@@ -845,8 +844,7 @@ export default function GangInventory({
                       (hasSelectedVehicle && 
                        !isCrew(findFighter(selectedFighter)) && 
                        !selectedFighter.startsWith('vehicle-')) ||
-                      (hasVehicleExclusiveItem && !selectedFighter.startsWith('vehicle-')) ||
-                      (!selectedFighter.startsWith('vehicle-') && hasVehicleExclusiveItem)
+                      (hasVehicleExclusiveItem && !selectedFighter.startsWith('vehicle-'))
                     }
                     className="w-full"
                   >
