@@ -161,7 +161,13 @@ export async function GET(request: Request) {
         intelligence,
         attacks,
         updated_at,
-        fighter_pet_id
+        fighter_pet_id,
+        killed,
+        retired,
+        enslaved,
+        starved,
+        recovery,
+        captured
       `)
       .eq('gang_id', gangId);
 
@@ -433,6 +439,14 @@ export async function GET(request: Request) {
         intelligence: fighter.intelligence,
         attacks: fighter.attacks,
         updated_at: fighter.updated_at,
+
+        // Status
+        killed: fighter.killed || false,
+        retired: fighter.retired || false,
+        enslaved: fighter.enslaved || false,
+        starved: fighter.starved || false,
+        recovery: fighter.recovery || false,
+        captured: fighter.captured || false,
 
         // Loadouts
         loadouts: processedLoadouts

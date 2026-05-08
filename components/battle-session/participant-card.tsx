@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { LuPlus, LuMinus } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
+import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
 import DiceRoller from '@/components/dice-roller';
 import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
 import { rollD66, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from '@/utils/dice';
@@ -756,6 +757,7 @@ export default function ParticipantCard({
   const [repChange, setRepChange] = useState(participant.reputation_change);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [fightersRequested, setFightersRequested] = useState(false);
+  const [showCrewModal, setShowCrewModal] = useState(false);
 
   const isMyGang = participant.user_id === userId;
   const canEdit = editable && isMyGang;
@@ -766,10 +768,18 @@ export default function ParticipantCard({
       const res = await fetch(`/api/fighters?gang_id=${participant.gang_id}&loadouts=true`);
       if (!res.ok) throw new Error('Failed to fetch fighters');
       const data = await res.json();
+      const status = (f: any) => ({
+        killed: f.killed as boolean,
+        retired: f.retired as boolean,
+        enslaved: f.enslaved as boolean,
+        starved: f.starved as boolean,
+        recovery: f.recovery as boolean,
+        captured: f.captured as boolean,
+      });
       return (data || []).flatMap((f: any) => {
         const loadouts: { id: string; loadout_name: string; loadout_total: number }[] = f.loadouts || [];
         if (loadouts.length === 0) {
-          return [{ id: f.id, fighter_name: f.fighter_name, credits: f.total_cost ?? f.credits }];
+          return [{ id: f.id, fighter_name: f.fighter_name, credits: f.total_cost ?? f.credits, ...status(f) }];
         }
         return loadouts.map((l: any) => ({
           id: f.id,
@@ -777,8 +787,9 @@ export default function ParticipantCard({
           credits: l.loadout_total,
           loadout_id: l.id,
           loadout_name: l.loadout_name,
+          ...status(f),
         }));
-      }) as { id: string; fighter_name: string; credits: number; loadout_id?: string; loadout_name?: string }[];
+      }) as { id: string; fighter_name: string; credits: number; loadout_id?: string; loadout_name?: string; killed: boolean; retired: boolean; enslaved: boolean; starved: boolean; recovery: boolean; captured: boolean }[];
     },
     enabled: canEdit && fightersRequested,
     staleTime: 5 * 60 * 1000,
@@ -989,6 +1000,16 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
+          {canEdit && (
+            <Button
+              onClick={() => {
+                setFightersRequested(true);
+                setShowCrewModal(true);
+              }}
+            >
+              Select Crew
+            </Button>
+          )}
           {(isOwner || isMyGang) && editable && (
             <Button
               variant="destructive"
@@ -1000,37 +1021,40 @@ export default function ParticipantCard({
             </Button>
           )}
         </div>
-        {canEdit && (
-          <div className="mt-2 flex gap-2">
-            <Combobox
-              options={availableFighters.map((f) => ({
-                value: f.loadout_id ? `${f.id}:${f.loadout_id}` : f.id,
-                label: f.loadout_name
-                  ? `${f.fighter_name} (${f.loadout_name}) - ${f.credits}`
-                  : `${f.fighter_name} - ${f.credits}`,
-              }))}
-              value=""
-              onValueChange={(key) => {
-                if (!key) return;
-                const fighterId = key.split(':')[0];
-                addFighterMutation.mutate(fighterId);
-              }}
-              placeholder="Add fighter..."
-              className="flex-1 min-w-0"
-              disabled={loadingFighters || addFighterMutation.isPending}
-              onFocus={() => setFightersRequested(true)}
-            />
-            <Button
-              onClick={() => {
-                setFightersRequested(true);
-                addAllFightersMutation.mutate();
-              }}
-              disabled={addAllFightersMutation.isPending || loadingFighters}
-              className="whitespace-nowrap"
-            >
-              Add All
-            </Button>
-          </div>
+        {showCrewModal && (
+          <CrewSelectionModal
+            gangFighters={gangFighters}
+            selectedFighterIds={selectedFighterIds}
+            loading={loadingFighters}
+            onClose={() => setShowCrewModal(false)}
+            onConfirm={(toAdd, toRemove) => {
+              if (toAdd.length > 0) {
+                bulkAddFightersToSession({
+                  session_id: session.id,
+                  participant_id: participant.id,
+                  fighter_ids: toAdd,
+                }).then((result) => {
+                  if (result.success) {
+                    const newFighters = toAdd.map(buildOptimisticFighter);
+                    setLocalFighters((cur) => [...cur, ...newFighters]);
+                    toast.success(`${toAdd.length} fighter${toAdd.length !== 1 ? 's' : ''} added`);
+                  } else {
+                    toast.error(result.error || 'Failed to add fighters');
+                  }
+                });
+              }
+              for (const id of toRemove) {
+                removeFighterFromSession(session.id, id).then((result) => {
+                  if (result.success) {
+                    setLocalFighters((cur) => cur.filter((f) => f.fighter_id !== id));
+                  } else {
+                    toast.error(result.error || 'Failed to remove fighter');
+                  }
+                });
+              }
+              setShowCrewModal(false);
+            }}
+          />
         )}
       </div>
 
