@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict awKNoqPDnXucCNXbpbr3a8qJagUydYqttotqJbvOVN1PDYvnMJbTgC3qzghhJxX
+\restrict 3hH5l9alzII25gVhgqGIMDhpuIWLvwTz205fVfiJT1hvfBFEbwDA0HDAq6oR8ca
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -3737,12 +3737,8 @@ CREATE TABLE public.battle_session_fighters (
     participant_id uuid NOT NULL,
     fighter_id uuid NOT NULL,
     session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0, "conditions": [{"key": "ready", "name": "Ready"}]}'::jsonb NOT NULL,
-    out_of_action boolean DEFAULT false NOT NULL,
-    note text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    is_activated boolean DEFAULT false,
-    flesh_wounds integer DEFAULT 0,
-    conditions jsonb
+    loadout_id uuid
 );
 
 
@@ -3766,8 +3762,6 @@ CREATE TABLE public.battle_session_participants (
     gang_rating_snapshot integer,
     credits_earned integer DEFAULT 0 NOT NULL,
     reputation_change integer DEFAULT 0 NOT NULL,
-    confirmed boolean DEFAULT false NOT NULL,
-    confirmed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
@@ -3788,7 +3782,6 @@ CREATE TABLE public.battle_sessions (
     winner_gang_id uuid,
     note text,
     campaign_battle_id uuid,
-    current_turn integer DEFAULT 1,
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'review'::text, 'confirmed'::text, 'cancelled'::text])))
 );
 
@@ -6816,6 +6809,14 @@ ALTER TABLE ONLY public.battle_session_fighters
 
 ALTER TABLE ONLY public.battle_session_fighters
     ADD CONSTRAINT battle_session_fighters_fighter_id_fkey FOREIGN KEY (fighter_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
+
+
+--
+-- Name: battle_session_fighters battle_session_fighters_loadout_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_fighters
+    ADD CONSTRAINT battle_session_fighters_loadout_id_fkey FOREIGN KEY (loadout_id) REFERENCES public.fighter_loadouts(id) ON DELETE SET NULL;
 
 
 --
@@ -10864,5 +10865,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict awKNoqPDnXucCNXbpbr3a8qJagUydYqttotqJbvOVN1PDYvnMJbTgC3qzghhJxX
+\unrestrict 3hH5l9alzII25gVhgqGIMDhpuIWLvwTz205fVfiJT1hvfBFEbwDA0HDAq6oR8ca
 
