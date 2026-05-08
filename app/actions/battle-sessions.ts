@@ -384,6 +384,34 @@ export async function removeFighterFromSession(
   }
 }
 
+export async function updateFighterLoadout(
+  sessionId: string,
+  fighterId: string,
+  loadoutId: string | undefined
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { error } = await supabase
+      .from('battle_session_fighters')
+      .update({ loadout_id: loadoutId ?? null })
+      .eq('battle_session_id', sessionId)
+      .eq('fighter_id', fighterId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error updating fighter loadout:', err);
+    return { success: false, error: 'Failed to update loadout' };
+  }
+}
+
 export async function bulkAddFightersToSession(params: {
   session_id: string;
   participant_id: string;
@@ -824,7 +852,7 @@ export async function completeBattleSession(
 // Fighter Card Data (for info modal)
 // =============================================================================
 
-export async function getFighterCardData(fighterId: string) {
+export async function getFighterCardData(fighterId: string, loadoutId?: string) {
   const {
     getFighterBasic,
     getFighterEquipment,
@@ -849,7 +877,17 @@ export async function getFighterCardData(fighterId: string) {
       : Promise.resolve(null),
   ]);
 
-  const weapons = equipment
+  let filteredEquipment = equipment;
+  if (loadoutId) {
+    const { data: loadoutEquip } = await supabase
+      .from('fighter_loadout_equipment')
+      .select('fighter_equipment_id')
+      .eq('loadout_id', loadoutId);
+    const loadoutEquipIds = new Set((loadoutEquip || []).map((le: any) => le.fighter_equipment_id));
+    filteredEquipment = equipment.filter((item) => loadoutEquipIds.has(item.fighter_equipment_id));
+  }
+
+  const weapons = filteredEquipment
     .filter((item) => item.equipment_type === 'weapon')
     .map((item) => ({
       fighter_weapon_id: item.fighter_equipment_id,
@@ -862,7 +900,7 @@ export async function getFighterCardData(fighterId: string) {
       effect_names: item.effect_names,
     }));
 
-  const wargear = equipment
+  const wargear = filteredEquipment
     .filter((item) => item.equipment_type === 'wargear')
     .map((item) => ({
       fighter_weapon_id: item.fighter_equipment_id,

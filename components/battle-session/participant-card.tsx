@@ -28,10 +28,12 @@ import {
   updateGangOutcome,
   bulkAddFightersToSession,
   removeFighterFromSession,
+  updateFighterLoadout,
   updateSessionXp,
   addSessionInjury,
   removeSessionInjury,
   updateSessionConditions,
+  getFighterCardData,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { deleteFighterInjury } from '@/app/actions/fighter-injury';
@@ -560,7 +562,6 @@ function FighterRow({
   xp,
   injuryCount,
   canEdit,
-  gangFighterData,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -572,7 +573,6 @@ function FighterRow({
   xp: number;
   injuryCount: number;
   canEdit: boolean;
-  gangFighterData?: GangFighter;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -580,13 +580,26 @@ function FighterRow({
 }) {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [fighterCardData, setFighterCardData] = useState<any>(null);
+  const [loadingCard, setLoadingCard] = useState(false);
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const isReady = conditions.some((c) => c.key === 'ready');
   const displayConditions = conditions.filter((c) => c.key !== 'ready');
 
-  const handleInfoClick = () => {
+  const handleInfoClick = async () => {
     setShowInfoModal(true);
+    if (!fighterCardData) {
+      setLoadingCard(true);
+      try {
+        const data = await getFighterCardData(fighter.fighter_id, fighter.loadout_id);
+        setFighterCardData(data);
+      } catch {
+        toast.error('Failed to load fighter data');
+      } finally {
+        setLoadingCard(false);
+      }
+    }
   };
 
   const toggleReady = () => {
@@ -678,7 +691,11 @@ function FighterRow({
             if (e.target === e.currentTarget) setShowInfoModal(false);
           }}
         >
-          {gangFighterData ? (
+          {loadingCard ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
+            </div>
+          ) : fighterCardData ? (
             <div className="relative max-w-2xl w-full">
               <button
                 type="button"
@@ -689,39 +706,37 @@ function FighterRow({
               </button>
               <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:!scale-100 [&>.fighter-card-bg]:hover:!shadow-none [&>.fighter-card-bg]:!shadow-none [&>.fighter-card-bg]:!transition-none">
                 <FighterCard
-                  {...gangFighterData}
-                  name={gangFighterData.fighter_name}
-                  type={gangFighterData.fighter_type}
-                  effects={gangFighterData.effects as any}
-                  skills={gangFighterData.skills}
+                  {...fighterCardData}
+                  name={fighterCardData.fighter_name}
+                  type={fighterCardData.fighter_type}
                   advancements={{ characteristics: {}, skills: {} }}
                   base_stats={{
-                    movement: gangFighterData.movement,
-                    weapon_skill: gangFighterData.weapon_skill,
-                    ballistic_skill: gangFighterData.ballistic_skill,
-                    strength: gangFighterData.strength,
-                    toughness: gangFighterData.toughness,
-                    wounds: gangFighterData.wounds,
-                    initiative: gangFighterData.initiative,
-                    attacks: gangFighterData.attacks,
-                    leadership: gangFighterData.leadership,
-                    cool: gangFighterData.cool,
-                    willpower: gangFighterData.willpower,
-                    intelligence: gangFighterData.intelligence,
+                    movement: fighterCardData.movement,
+                    weapon_skill: fighterCardData.weapon_skill,
+                    ballistic_skill: fighterCardData.ballistic_skill,
+                    strength: fighterCardData.strength,
+                    toughness: fighterCardData.toughness,
+                    wounds: fighterCardData.wounds,
+                    initiative: fighterCardData.initiative,
+                    attacks: fighterCardData.attacks,
+                    leadership: fighterCardData.leadership,
+                    cool: fighterCardData.cool,
+                    willpower: fighterCardData.willpower,
+                    intelligence: fighterCardData.intelligence,
                   }}
                   current_stats={{
-                    movement: gangFighterData.movement,
-                    weapon_skill: gangFighterData.weapon_skill,
-                    ballistic_skill: gangFighterData.ballistic_skill,
-                    strength: gangFighterData.strength,
-                    toughness: gangFighterData.toughness,
-                    wounds: gangFighterData.wounds,
-                    initiative: gangFighterData.initiative,
-                    attacks: gangFighterData.attacks,
-                    leadership: gangFighterData.leadership,
-                    cool: gangFighterData.cool,
-                    willpower: gangFighterData.willpower,
-                    intelligence: gangFighterData.intelligence,
+                    movement: fighterCardData.movement,
+                    weapon_skill: fighterCardData.weapon_skill,
+                    ballistic_skill: fighterCardData.ballistic_skill,
+                    strength: fighterCardData.strength,
+                    toughness: fighterCardData.toughness,
+                    wounds: fighterCardData.wounds,
+                    initiative: fighterCardData.initiative,
+                    attacks: fighterCardData.attacks,
+                    leadership: fighterCardData.leadership,
+                    cool: fighterCardData.cool,
+                    willpower: fighterCardData.willpower,
+                    intelligence: fighterCardData.intelligence,
                   }}
                   disableLink
                 />
@@ -803,7 +818,7 @@ export default function ParticipantCard({
 
   const selectedFighterIds = new Set(localFighters.map((f) => f.fighter_id));
   const selectedFighters = new Map<string, string | undefined>(
-    localFighters.map((f) => [f.fighter_id, f.loadout_id])
+    localFighters.map((f) => [f.fighter_id, f.loadout_id ?? undefined])
   );
   const availableFighters = gangFighters.filter((f) => !selectedFighterIds.has(f.id));
 
@@ -1028,7 +1043,7 @@ export default function ParticipantCard({
             selectedFighters={selectedFighters}
             loading={false}
             onClose={() => setShowCrewModal(false)}
-            onConfirm={(toAdd, toRemove) => {
+            onConfirm={(toAdd, toRemove, toUpdate) => {
               if (toAdd.length > 0) {
                 bulkAddFightersToSession({
                   session_id: session.id,
@@ -1050,6 +1065,21 @@ export default function ParticipantCard({
                     setLocalFighters((cur) => cur.filter((f) => f.fighter_id !== id));
                   } else {
                     toast.error(result.error || 'Failed to remove fighter');
+                  }
+                });
+              }
+              for (const entry of toUpdate) {
+                updateFighterLoadout(session.id, entry.fighter_id, entry.loadout_id).then((result) => {
+                  if (result.success) {
+                    setLocalFighters((cur) =>
+                      cur.map((f) =>
+                        f.fighter_id === entry.fighter_id
+                          ? { ...f, loadout_id: entry.loadout_id }
+                          : f
+                      )
+                    );
+                  } else {
+                    toast.error(result.error || 'Failed to update loadout');
                   }
                 });
               }
@@ -1095,7 +1125,6 @@ export default function ParticipantCard({
                         xp={xp}
                         injuryCount={injuryCount}
                         canEdit={canEdit}
-                        gangFighterData={gfData}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });

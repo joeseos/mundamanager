@@ -33,7 +33,7 @@ interface CrewSelectionModalProps {
   gangFighters: GangFighterOption[];
   selectedFighters: Map<string, string | undefined>;
   loading: boolean;
-  onConfirm: (toAdd: FighterEntry[], toRemove: string[]) => void;
+  onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => void;
   onClose: () => void;
 }
 
@@ -45,13 +45,26 @@ export default function CrewSelectionModal({
   onClose,
 }: CrewSelectionModalProps) {
   const [selected, setSelected] = useState<Map<string, string | undefined>>(
-    () => new Map(selectedFighters)
+    () => {
+      const initial = new Map(selectedFighters);
+      // Resolve undefined loadouts to the fighter's first available loadout
+      initial.forEach((loadoutId, fighterId) => {
+        if (loadoutId === undefined) {
+          const match = gangFighters.find((f) => f.id === fighterId && f.loadout_id);
+          if (match?.loadout_id) {
+            initial.set(fighterId, match.loadout_id);
+          }
+        }
+      });
+      return initial;
+    }
   );
 
   const toggle = (fighterId: string, loadoutId?: string) => {
     setSelected((prev) => {
       const next = new Map(prev);
-      if (next.has(fighterId)) {
+      const currentLoadout = next.get(fighterId);
+      if (next.has(fighterId) && currentLoadout === loadoutId) {
         next.delete(fighterId);
       } else {
         next.set(fighterId, loadoutId);
@@ -63,7 +76,8 @@ export default function CrewSelectionModal({
   const isAvailable = (f: GangFighterOption) =>
     countsTowardRating(f) && !f.recovery;
   const activeFighters = gangFighters.filter(isAvailable);
-  const allSelected = activeFighters.length > 0 && activeFighters.every((f) => selected.has(f.id));
+  const uniqueActiveFighterIds = new Set(activeFighters.map((f) => f.id));
+  const allSelected = uniqueActiveFighterIds.size > 0 && Array.from(uniqueActiveFighterIds).every((id) => selected.has(id));
 
   const toggleAll = () => {
     if (allSelected) {
@@ -81,17 +95,28 @@ export default function CrewSelectionModal({
 
   const handleConfirm = async () => {
     const toAdd: FighterEntry[] = [];
+    const toRemove: string[] = [];
+    const toUpdate: FighterEntry[] = [];
+
     Array.from(selected.entries()).forEach(([fighterId, loadoutId]) => {
       if (!selectedFighters.has(fighterId)) {
         toAdd.push({ fighter_id: fighterId, loadout_id: loadoutId });
+      } else if (selectedFighters.get(fighterId) !== loadoutId) {
+        toUpdate.push({ fighter_id: fighterId, loadout_id: loadoutId });
       }
     });
-    const toRemove = Array.from(selectedFighters.keys()).filter((id) => !selected.has(id));
-    onConfirm(toAdd, toRemove);
+
+    Array.from(selectedFighters.keys()).forEach((id) => {
+      if (!selected.has(id)) {
+        toRemove.push(id);
+      }
+    });
+
+    onConfirm(toAdd, toRemove, toUpdate);
   };
 
   const totalValue = gangFighters
-    .filter((f) => selected.has(f.id))
+    .filter((f) => selected.has(f.id) && selected.get(f.id) === f.loadout_id)
     .reduce((sum, f) => sum + f.credits, 0);
 
   return (
@@ -130,7 +155,7 @@ export default function CrewSelectionModal({
             <div className="text-right">Value</div>
           </div>
           {gangFighters.map((f) => {
-            const isSelected = selected.has(f.id);
+            const isSelected = selected.has(f.id) && selected.get(f.id) === f.loadout_id;
             return (
               <label
                 key={f.loadout_id ? `${f.id}:${f.loadout_id}` : f.id}
