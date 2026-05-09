@@ -47,7 +47,7 @@ export default async function BattleSessionPage(props: {
         .select('id, name, rating')
         .eq('user_id', user.id)
         .order('name'),
-      Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase))),
+      Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
       supabase
         .from('scenarios')
         .select('id, scenario_name, scenario_number')

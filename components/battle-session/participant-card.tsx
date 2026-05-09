@@ -782,38 +782,21 @@ export default function ParticipantCard({
   const isMyGang = participant.user_id === userId;
   const canEdit = editable && isMyGang;
 
-  // Derive crew modal entries from server-provided gang fighters (no API call needed)
+  // Map expanded gang fighters (one entry per loadout) to crew modal format
   const gangFighters = useMemo(() => {
-    return gangFightersList.flatMap((gf) => {
-      const status = {
-        killed: gf.killed,
-        retired: gf.retired,
-        enslaved: gf.enslaved,
-        starved: gf.starved,
-        recovery: gf.recovery,
-        captured: gf.captured,
-      };
-      if (gf.loadouts && gf.loadouts.length > 0 && gf.loadout_costs) {
-        return gf.loadouts.map((lo) => ({
-          id: gf.id,
-          fighter_name: gf.fighter_name,
-          credits: gf.loadout_costs![lo.id] ?? gf.credits,
-          loadout_id: lo.id,
-          loadout_name: lo.name,
-          ...status,
-        }));
-      }
-      return [{ id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, loadout_id: undefined as string | undefined, loadout_name: undefined as string | undefined, ...status }];
-    });
-  }, [gangFightersList]);
-
-  // Build lookup for fighter card (i) button
-  const gangFighterLookup = useMemo(() => {
-    const map = new Map<string, GangFighter>();
-    for (const gf of gangFightersList) {
-      if (!map.has(gf.id)) map.set(gf.id, gf);
-    }
-    return map;
+    return gangFightersList.map((gf) => ({
+      id: gf.id,
+      fighter_name: gf.fighter_name,
+      credits: gf.loadout_cost ?? gf.credits,
+      loadout_id: gf.active_loadout_id,
+      loadout_name: gf.active_loadout_name,
+      killed: gf.killed,
+      retired: gf.retired,
+      enslaved: gf.enslaved,
+      starved: gf.starved,
+      recovery: gf.recovery,
+      captured: gf.captured,
+    }));
   }, [gangFightersList]);
 
   const selectedFighterIds = new Set(localFighters.map((f) => f.fighter_id));
@@ -824,12 +807,10 @@ export default function ParticipantCard({
 
   const totalInjuries = localFighters.reduce((sum, f) => sum + (f.session_record?.injuries?.length ?? 0), 0);
   const crewRating = localFighters.reduce((sum, f) => {
-    const gf = gangFighterLookup.get(f.fighter_id);
-    if (!gf) return sum + (f.fighter?.total_cost ?? f.fighter?.credits ?? 0);
-    if (f.loadout_id && gf.loadout_costs?.[f.loadout_id] != null) {
-      return sum + gf.loadout_costs[f.loadout_id];
-    }
-    return sum + gf.credits;
+    const match = gangFighters.find(
+      (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
+    ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
+    return sum + (match?.credits ?? f.fighter?.total_cost ?? f.fighter?.credits ?? 0);
   }, 0);
 
   const removeMutation = useMutation({
@@ -1107,13 +1088,11 @@ export default function ParticipantCard({
                   </tr>
                 ) : (
                   localFighters.map((f) => {
-                    const gfData = gangFighterLookup.get(f.fighter_id);
-                    const name = gfData?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
-                    const cost = gfData
-                      ? (f.loadout_id && gfData.loadout_costs?.[f.loadout_id] != null
-                          ? gfData.loadout_costs[f.loadout_id]
-                          : gfData.credits)
-                      : (f.fighter?.total_cost ?? f.fighter?.credits);
+                    const match = gangFighters.find(
+                      (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
+                    ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
+                    const name = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
+                    const cost = match?.credits ?? f.fighter?.total_cost ?? f.fighter?.credits;
                     const xp = f.session_record?.xp_earned ?? 0;
                     const injuryCount = f.session_record?.injuries?.length ?? 0;
                     return (
