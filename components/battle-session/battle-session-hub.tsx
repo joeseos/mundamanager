@@ -16,10 +16,8 @@ const statusColors: Record<BattleSessionStatus, string> = {
 
 export default function BattleSessionHub({
   sessions,
-  userId,
 }: {
   sessions: BattleSession[];
-  userId: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
@@ -36,10 +34,9 @@ export default function BattleSessionHub({
     onError: () => toast.error('Failed to create battle session'),
   });
 
-  const filteredSessions =
-    filter === 'active'
-      ? sessions.filter((s) => s.status === 'active')
-      : sessions;
+  const filteredSessions = filter === 'active'
+    ? sessions.filter((s) => s.status === 'active')
+    : sessions;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

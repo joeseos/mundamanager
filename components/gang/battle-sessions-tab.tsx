@@ -16,10 +16,8 @@ const statusColors: Record<BattleSessionStatus, string> = {
 
 export default function GangBattleSessions({
   sessions,
-  gangId,
 }: {
   sessions: BattleSession[];
-  gangId: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
@@ -36,17 +34,18 @@ export default function GangBattleSessions({
     onError: () => toast.error('Failed to create battle session'),
   });
 
-  const filteredSessions =
-    filter === 'active'
-      ? sessions.filter((s) => s.status === 'active')
-      : sessions;
+  const filteredSessions = filter === 'active'
+    ? sessions.filter((s) => s.status === 'active')
+    : sessions;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (

@@ -61,7 +61,7 @@ export default function ActiveSession({
   // Rating difference calculation
   const ratings = session.participants.map((p) =>
     (p.fighters ?? []).reduce(
-      (sum, f) => sum + (f.fighter?.total_cost ?? f.fighter?.credits ?? 0),
+      (sum, f) => sum + (f.fighter?.credits ?? 0),
       0
     )
   );

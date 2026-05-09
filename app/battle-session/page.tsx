@@ -33,5 +33,5 @@ export default async function BattleSessionsPage() {
   }
   sessions.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-  return <BattleSessionHub sessions={sessions} userId={user.id} />;
+  return <BattleSessionHub sessions={sessions} />;
 }

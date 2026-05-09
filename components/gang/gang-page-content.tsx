@@ -938,7 +938,6 @@ export default function GangPageContent({
         />
         <GangBattleSessions
           sessions={gangData.processedData.battleSessions || []}
-          gangId={gangId}
         />
       </Tabs>
       </div>
