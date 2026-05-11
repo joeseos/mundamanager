@@ -34,6 +34,11 @@ interface CampaignTriumph {
   updated_at?: string | null;
 }
 
+interface TradingPostType {
+  id: string;
+  trading_post_name: string;
+}
+
 interface AdminCampaignManagementModalProps {
   onClose: () => void;
   onSubmit?: () => void;
@@ -96,6 +101,16 @@ export function AdminCampaignManagementModal({
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: tradingPostTypes = [] } = useQuery<TradingPostType[]>({
+    queryKey: ['admin-trading-post-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/equipment/trading-post-types');
+      if (!response.ok) throw new Error('Failed to fetch trading post types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const isLoading = isLoadingCampaignTypes || isLoadingTerritories || isLoadingTriumphs || isSubmitting;
   
   // Campaign Types form state
@@ -107,10 +122,13 @@ export function AdminCampaignManagementModal({
   // Relationship management for campaign types
   const [relatedTerritories, setRelatedTerritories] = useState<Territory[]>([]);
   const [relatedTriumphs, setRelatedTriumphs] = useState<CampaignTriumph[]>([]);
+  const [relatedTradingPostIds, setRelatedTradingPostIds] = useState<string[]>([]);
   const [showAddTerritoryModal, setShowAddTerritoryModal] = useState(false);
   const [showAddTriumphModal, setShowAddTriumphModal] = useState(false);
+  const [showAddTradingPostModal, setShowAddTradingPostModal] = useState(false);
   const [selectedTerritoryToAdd, setSelectedTerritoryToAdd] = useState('');
   const [selectedTriumphToAdd, setSelectedTriumphToAdd] = useState('');
+  const [selectedTradingPostToAdd, setSelectedTradingPostToAdd] = useState('');
   
   // Territories form state
   const [selectedTerritoryId, setSelectedTerritoryId] = useState('');
@@ -135,6 +153,7 @@ export function AdminCampaignManagementModal({
     setIsCreateModeCampaignType(false);
     setRelatedTerritories([]);
     setRelatedTriumphs([]);
+    setRelatedTradingPostIds([]);
 
     setSelectedTerritoryId('');
     setTerritoryName('');
@@ -176,6 +195,7 @@ export function AdminCampaignManagementModal({
     if (selected) {
       setCampaignTypeName(selected.campaign_type_name);
       setImageUrl(selected.image_url || '');
+      setRelatedTradingPostIds(selected.trading_posts || []);
     }
   };
 
@@ -186,6 +206,7 @@ export function AdminCampaignManagementModal({
     setIsCreateModeCampaignType(true);
     setRelatedTerritories([]);
     setRelatedTriumphs([]);
+    setRelatedTradingPostIds([]);
   };
 
   const handleSubmitCampaignType = async (operation: OperationType) => {
@@ -205,7 +226,8 @@ export function AdminCampaignManagementModal({
           method = 'POST';
           body = JSON.stringify({
             campaign_type_name: campaignTypeName.trim(),
-            image_url: imageUrl.trim() || null
+            image_url: imageUrl.trim() || null,
+            trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null
           });
           break;
         case OperationType.UPDATE:
@@ -213,7 +235,8 @@ export function AdminCampaignManagementModal({
           body = JSON.stringify({
             id: selectedCampaignTypeId,
             campaign_type_name: campaignTypeName.trim(),
-            image_url: imageUrl.trim() || null
+            image_url: imageUrl.trim() || null,
+            trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null
           });
           break;
         default:
@@ -317,6 +340,7 @@ export function AdminCampaignManagementModal({
       setImageUrl('');
       setRelatedTerritories([]);
       setRelatedTriumphs([]);
+      setRelatedTradingPostIds([]);
       setIsCreateModeCampaignType(false);
 
       if (onSubmit) {
@@ -537,6 +561,16 @@ export function AdminCampaignManagementModal({
       }
       setShowAddTriumphModal(false);
       setSelectedTriumphToAdd('');
+      return true;
+    }
+    return false;
+  };
+
+  const handleAddTradingPost = () => {
+    if (selectedTradingPostToAdd) {
+      setRelatedTradingPostIds([...relatedTradingPostIds, selectedTradingPostToAdd]);
+      setShowAddTradingPostModal(false);
+      setSelectedTradingPostToAdd('');
       return true;
     }
     return false;
@@ -776,6 +810,45 @@ export function AdminCampaignManagementModal({
                             </button>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Default Trading Posts Section */}
+                {(isCreateModeCampaignType || (selectedCampaignTypeId && !isCreateModeCampaignType)) && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Default Trading Posts
+                    </label>
+                    <Button
+                      onClick={() => setShowAddTradingPostModal(true)}
+                      variant="outline"
+                      size="sm"
+                      className="mb-2"
+                      disabled={tradingPostTypes.filter(tp => !relatedTradingPostIds.includes(tp.id)).length === 0}
+                    >
+                      Add Trading Post
+                    </Button>
+                    {relatedTradingPostIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {relatedTradingPostIds.map((id) => {
+                          const tradingPost = tradingPostTypes.find(tp => tp.id === id);
+                          return (
+                            <div
+                              key={id}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                            >
+                              <span>{tradingPost?.trading_post_name ?? id}</span>
+                              <button
+                                onClick={() => setRelatedTradingPostIds(relatedTradingPostIds.filter(tid => tid !== id))}
+                                className="hover:text-red-500 focus:outline-none"
+                              >
+                                <HiX className="h-4 w-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1042,6 +1115,41 @@ export function AdminCampaignManagementModal({
           onConfirm={handleAddTriumph}
           confirmText="Add Triumph"
           confirmDisabled={!selectedTriumphToAdd}
+        />
+      )}
+
+      {/* Add Trading Post Modal */}
+      {showAddTradingPostModal && (
+        <Modal
+          title="Add Trading Post"
+          content={
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a trading post to add as a default for this campaign type
+              </p>
+              <select
+                value={selectedTradingPostToAdd}
+                onChange={(e) => setSelectedTradingPostToAdd(e.target.value)}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select a trading post</option>
+                {tradingPostTypes
+                  .filter(tp => !relatedTradingPostIds.includes(tp.id))
+                  .map((tp) => (
+                    <option key={tp.id} value={tp.id}>
+                      {tp.trading_post_name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          }
+          onClose={() => {
+            setShowAddTradingPostModal(false);
+            setSelectedTradingPostToAdd('');
+          }}
+          onConfirm={handleAddTradingPost}
+          confirmText="Add Trading Post"
+          confirmDisabled={!selectedTradingPostToAdd}
         />
       )}
     </div>
