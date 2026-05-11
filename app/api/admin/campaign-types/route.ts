@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data: campaignTypes, error } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, image_url')
+      .select('id, campaign_type_name, image_url, trading_posts')
       .order('campaign_type_name', { ascending: true });
 
     if (error) throw error;
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { campaign_type_name, image_url } = body;
+    const { campaign_type_name, image_url, trading_posts } = body;
 
     if (!campaign_type_name?.trim()) {
       return NextResponse.json(
@@ -65,11 +65,19 @@ export async function POST(request: Request) {
       }
     }
 
+    if (trading_posts !== undefined && trading_posts !== null && !Array.isArray(trading_posts)) {
+      return NextResponse.json(
+        { error: 'trading_posts must be an array or null' },
+        { status: 400 }
+      );
+    }
+
     const { data: campaignType, error } = await supabase
       .from('campaign_types')
       .insert([{
         campaign_type_name: campaign_type_name.trim(),
-        image_url: image_url?.trim() || null
+        image_url: image_url?.trim() || null,
+        trading_posts: trading_posts ?? null
       }])
       .select()
       .single();
@@ -95,7 +103,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, campaign_type_name, image_url } = body;
+    const { id, campaign_type_name, image_url, trading_posts } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -128,6 +136,15 @@ export async function PATCH(request: Request) {
         }
       }
       updateData.image_url = trimmedUrl;
+    }
+    if (trading_posts !== undefined) {
+      if (trading_posts !== null && !Array.isArray(trading_posts)) {
+        return NextResponse.json(
+          { error: 'trading_posts must be an array or null' },
+          { status: 400 }
+        );
+      }
+      updateData.trading_posts = trading_posts;
     }
 
     if (Object.keys(updateData).length === 0) {
