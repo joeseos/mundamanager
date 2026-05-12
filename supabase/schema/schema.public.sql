@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict fAd6aSgipp9rig9UiSinZJZtnxWQWNQzg95mc4lat4QYJy30vfaQAd9Ybvn3d3p
+\restrict FireHNv7LHXjDA8ziIZrqQRJpuKLPfgmEUrhKCfEMdTRJokVYPtOhgeHhTurumx
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
@@ -4718,6 +4718,13 @@ CREATE TABLE public.fighter_type_gang_cost (
     adjusted_cost numeric,
     gang_affiliation_id uuid
 );
+
+
+--
+-- Name: TABLE fighter_type_gang_cost; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fighter_type_gang_cost IS 'Joining table for outcasts and their delegation fighters';
 
 
 --
@@ -10865,5 +10872,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fAd6aSgipp9rig9UiSinZJZtnxWQWNQzg95mc4lat4QYJy30vfaQAd9Ybvn3d3p
+\unrestrict FireHNv7LHXjDA8ziIZrqQRJpuKLPfgmEUrhKCfEMdTRJokVYPtOhgeHhTurumx
 
