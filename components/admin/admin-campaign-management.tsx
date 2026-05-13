@@ -101,7 +101,7 @@ export function AdminCampaignManagementModal({
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: tradingPostTypes = [] } = useQuery<TradingPostType[]>({
+  const { data: tradingPostTypes = [], isLoading: isLoadingTradingPostTypes } = useQuery<TradingPostType[]>({
     queryKey: ['admin-trading-post-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment/trading-post-types');
@@ -111,7 +111,7 @@ export function AdminCampaignManagementModal({
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = isLoadingCampaignTypes || isLoadingTerritories || isLoadingTriumphs || isSubmitting;
+  const isLoading = isLoadingCampaignTypes || isLoadingTerritories || isLoadingTriumphs || isLoadingTradingPostTypes || isSubmitting;
   
   // Campaign Types form state
   const [selectedCampaignTypeId, setSelectedCampaignTypeId] = useState('');
@@ -185,6 +185,7 @@ export function AdminCampaignManagementModal({
     queryClient.invalidateQueries({ queryKey: ['admin-campaign-types'] }),
     queryClient.invalidateQueries({ queryKey: ['admin-territories'] }),
     queryClient.invalidateQueries({ queryKey: ['admin-campaign-triumphs'] }),
+    queryClient.invalidateQueries({ queryKey: ['admin-trading-post-types'] }),
   ]);
 
   // Campaign Types handlers
@@ -816,7 +817,7 @@ export function AdminCampaignManagementModal({
                 )}
 
                 {/* Default Trading Posts Section */}
-                {(isCreateModeCampaignType || (selectedCampaignTypeId && !isCreateModeCampaignType)) && (
+                {(isCreateModeCampaignType || selectedCampaignTypeId) && (
                   <div>
                     <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Default Trading Posts

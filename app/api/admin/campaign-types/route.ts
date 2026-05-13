@@ -72,6 +72,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (Array.isArray(trading_posts) && trading_posts.length > 0) {
+      const { data: validIds } = await supabase
+        .from('trading_post_types')
+        .select('id')
+        .in('id', trading_posts);
+      if (!validIds || validIds.length !== trading_posts.length) {
+        return NextResponse.json(
+          { error: 'One or more trading_posts IDs are invalid' },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data: campaignType, error } = await supabase
       .from('campaign_types')
       .insert([{
@@ -143,6 +156,18 @@ export async function PATCH(request: Request) {
           { error: 'trading_posts must be an array or null' },
           { status: 400 }
         );
+      }
+      if (Array.isArray(trading_posts) && trading_posts.length > 0) {
+        const { data: validIds } = await supabase
+          .from('trading_post_types')
+          .select('id')
+          .in('id', trading_posts);
+        if (!validIds || validIds.length !== trading_posts.length) {
+          return NextResponse.json(
+            { error: 'One or more trading_posts IDs are invalid' },
+            { status: 400 }
+          );
+        }
       }
       updateData.trading_posts = trading_posts;
     }
