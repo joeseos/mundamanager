@@ -99,7 +99,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
     const r = rollD6();
     setLastRoll(r);
     const deduction = r * 10;
-    const final = Math.max(0, originalCost - deduction);
+    const final = Math.max(5, originalCost - deduction);
     setManualCost(final);
     toast(`Roll ${r}: -${deduction} → ${final} credits`);
   };
@@ -120,7 +120,11 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
             </button>
             {lastRoll !== null && (
               <div className="text-sm">
-                {`Roll ${lastRoll}: -${lastRoll * 10} → ${Math.max(0, originalCost - lastRoll * 10)} credits`}
+                {(() => {
+                  const raw = originalCost - lastRoll * 10;
+                  const final = Math.max(5, raw);
+                  return `Roll ${lastRoll}: -${lastRoll * 10} → ${final} credits`;
+                })()}
               </div>
             )}
           </div>
@@ -139,6 +143,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
         </div>
       }
       onClose={onClose}
