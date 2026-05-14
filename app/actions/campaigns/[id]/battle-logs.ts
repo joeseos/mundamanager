@@ -236,7 +236,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
     if (claimed_territories.length > 0 && winner_id) {
-      revalidateTag(`campaign-territories-${campaignId}`);
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId));
       revalidateTag(`campaign-${campaignId}`);
       revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(winner_id));
     }
@@ -394,7 +394,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
     if (claimed_territories.length > 0 || existingBattle.campaign_territory_id) {
-      revalidateTag(`campaign-territories-${campaignId}`);
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId));
       revalidateTag(`campaign-${campaignId}`);
       if (winner_id && claimed_territories.length > 0) {
         revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(winner_id));
@@ -415,8 +415,6 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
  * Delete a battle log using direct Supabase client
  */
 export async function deleteBattleLog(campaignId: string, battleId: string): Promise<void> {
-  'use server';
-
   try {
     const supabase = await createClient();
 
@@ -472,7 +470,7 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
     const { revalidateTag } = await import('next/cache');
     revalidateTag('campaign-battles');
     if (existingBattle.campaign_territory_id) {
-      revalidateTag(`campaign-territories-${campaignId}`);
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId));
       revalidateTag(`campaign-${campaignId}`);
       if (releasedTerritoryGangId) {
         revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(releasedTerritoryGangId));
