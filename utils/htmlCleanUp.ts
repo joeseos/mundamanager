@@ -17,4 +17,35 @@ export const isHtmlEffectivelyEmpty = (htmlContent: string) => {
   return textContent.length === 0;
 };
 
+function decodeHtmlEntitiesServerFallback(str: string): string {
+  let out = str.replace(/&nbsp;/gi, " ");
+  for (let i = 0; i < 8; i += 1) {
+    const next = out
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+      .replace(/&#x([\da-fA-F]+);/gi, (_, h) =>
+        String.fromCharCode(parseInt(h, 16)),
+      )
+      .replace(/&quot;/gi, '"')
+      .replace(/&apos;/gi, "'")
+      .replace(/&gt;/gi, ">")
+      .replace(/&lt;/gi, "<")
+      .replace(/&amp;/gi, "&");
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+/**
+ * Decodes HTML entities to plain text. Uses the browser when available;
+ * otherwise a small decoder (sufficient for SSR and typical rich-text output).
+ */
+export function decodeHtmlEntities(str: string): string {
+  if (typeof document !== "undefined") {
+    const textArea = document.createElement("textarea");
+    textArea.innerHTML = str;
+    return textArea.value;
+  }
+  return decodeHtmlEntitiesServerFallback(str);
+}
 

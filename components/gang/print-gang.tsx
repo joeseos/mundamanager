@@ -15,15 +15,13 @@ import FighterCard from "./fighter-card";
 import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
-import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
+import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
 function getRosterFighterNotePreview(note: string | undefined): string | null {
   if (!note || isHtmlEffectivelyEmpty(note)) return null;
-  const plain = note
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
+  const plain = decodeHtmlEntities(note.replace(/<[^>]*>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
   if (!plain) return null;
