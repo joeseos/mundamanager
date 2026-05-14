@@ -17,16 +17,31 @@ export const isHtmlEffectivelyEmpty = (htmlContent: string) => {
   return textContent.length === 0;
 };
 
+function numericEntityToChar(full: string, code: number): string {
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return full;
+  }
+}
+
 function decodeHtmlEntitiesServerFallback(str: string): string {
   let out = str.replace(/&nbsp;/gi, " ");
   for (let i = 0; i < 8; i += 1) {
     const next = out
-      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-      .replace(/&#x([\da-fA-F]+);/gi, (_, h) =>
-        String.fromCharCode(parseInt(h, 16)),
+      .replace(/&#(\d+);/g, (full, n) => numericEntityToChar(full, Number(n)))
+      .replace(/&#x([\da-fA-F]+);/gi, (full, h) =>
+        numericEntityToChar(full, parseInt(h, 16)),
       )
       .replace(/&quot;/gi, '"')
       .replace(/&apos;/gi, "'")
+      .replace(/&mdash;/gi, "—")
+      .replace(/&ndash;/gi, "–")
+      .replace(/&hellip;/gi, "…")
+      .replace(/&rsquo;/gi, "’")
+      .replace(/&lsquo;/gi, "‘")
+      .replace(/&rdquo;/gi, "”")
+      .replace(/&ldquo;/gi, "“")
       .replace(/&gt;/gi, ">")
       .replace(/&lt;/gi, "<")
       .replace(/&amp;/gi, "&");
