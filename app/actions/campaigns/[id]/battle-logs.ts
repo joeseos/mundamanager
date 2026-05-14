@@ -287,10 +287,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       throw new Error('Battle not found or access denied');
     }
 
-    // Look up the gang currently holding the old territory so we can invalidate their cache
+    // Look up the gang currently holding the old territory so we can invalidate their cache.
+    // This covers both cases: territory changes (old owner loses it) and same territory with
+    // a different winner (old owner is replaced without a release/re-claim cycle).
     let oldTerritoryGangId: string | null = null;
-    if (existingBattle.campaign_territory_id &&
-        existingBattle.campaign_territory_id !== newTerritoryId) {
+    if (existingBattle.campaign_territory_id) {
       const { data: oldTerritory } = await supabase
         .from('campaign_territories')
         .select('gang_id')
