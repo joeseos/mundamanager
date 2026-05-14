@@ -15,6 +15,19 @@ import FighterCard from "./fighter-card";
 import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
+import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
+
+const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
+
+function getRosterFighterNotePreview(note: string | undefined): string | null {
+  if (!note || isHtmlEffectivelyEmpty(note)) return null;
+  const plain = decodeHtmlEntities(note.replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return null;
+  if (plain.length <= ROSTER_FIGHTER_NOTE_MAX_CHARS) return plain;
+  return `${plain.slice(0, ROSTER_FIGHTER_NOTE_MAX_CHARS)}…`;
+}
 
 interface PrintGangProps {
   gang: {
@@ -480,7 +493,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   Weapons
                 </th>
                 <th className="border border-black px-1 py-1 text-left w-[260px]">
-                  Wargear, Injuries & XP
+                  Wargear, Injuries & Notes
                 </th>
               </tr>
             </thead>
@@ -614,6 +627,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         .map(([name, count]) => (count > 1 ? `${name} (x${count})` : name))
                         .join(", ")
                     : "";
+
+                const fighterNotePreview = getRosterFighterNotePreview(fighter.note);
 
                 // Create stats object for StatsTable component (same format as fighter-card.tsx, but without XP)
                 const stats = (isCrew
@@ -864,7 +879,13 @@ export default function PrintGang({ gang }: PrintGangProps) {
                              <span>{injuriesText}</span>
                            </div>
                          )}
-                         {!wargearText && !vehicleEquipmentText && !vehicleLastingDamagesText && !rigGlitchesText && !skillsText && !injuriesText && !specialRulesText && !vehicleRulesText && (
+                         {fighterNotePreview && (
+                           <div>
+                             <span className="font-semibold">Note:</span>{" "}
+                             <span>{fighterNotePreview}</span>
+                           </div>
+                         )}
+                         {!wargearText && !vehicleEquipmentText && !vehicleLastingDamagesText && !rigGlitchesText && !skillsText && !injuriesText && !specialRulesText && !vehicleRulesText && !fighterNotePreview && (
                            <div>—</div>
                          )}
                          {/* XP boxes */}
