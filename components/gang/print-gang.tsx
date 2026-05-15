@@ -561,14 +561,43 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         .join(", ")
                     : "";
 
-                const specialRulesText =
-                  fighter.special_rules && fighter.special_rules.length > 0
-                    ? fighter.special_rules.join(", ")
+                const mergedFighterRules = (() => {
+                  let rules = [...(fighter.special_rules || [])];
+                  if (fighter.effects) {
+                    Object.values(fighter.effects).flat().forEach((effect: any) => {
+                      const tsd = effect.type_specific_data || {};
+                      (tsd.special_rules_to_remove || []).forEach((r: string) => {
+                        rules = rules.filter(rule => rule !== r);
+                      });
+                      (tsd.special_rules_to_add || []).forEach((r: string) => {
+                        if (!rules.includes(r)) rules.push(r);
+                      });
+                    });
+                  }
+                  return rules;
+                })();
+                const specialRulesText = mergedFighterRules.length > 0
+                    ? mergedFighterRules.join(", ")
                     : "";
 
-                const vehicleRulesText =
-                  isCrew && vehicle && Array.isArray(vehicle.special_rules) && vehicle.special_rules.length > 0
-                    ? vehicle.special_rules.join(", ")
+                const mergedVehicleRules = (() => {
+                  if (!isCrew || !vehicle) return [];
+                  let rules = Array.isArray(vehicle.special_rules) ? [...vehicle.special_rules] : [];
+                  if (vehicle.effects) {
+                    Object.values(vehicle.effects).flat().forEach((effect: any) => {
+                      const tsd = (effect as any).type_specific_data || {};
+                      (tsd.special_rules_to_remove || []).forEach((r: string) => {
+                        rules = rules.filter(rule => rule !== r);
+                      });
+                      (tsd.special_rules_to_add || []).forEach((r: string) => {
+                        if (!rules.includes(r)) rules.push(r);
+                      });
+                    });
+                  }
+                  return rules;
+                })();
+                const vehicleRulesText = mergedVehicleRules.length > 0
+                    ? mergedVehicleRules.join(", ")
                     : "";
 
                 // Get vehicle equipment (excluding weapons, which are shown in the Weapons column)
