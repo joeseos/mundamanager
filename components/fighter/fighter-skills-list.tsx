@@ -14,6 +14,7 @@ import {
 } from '@/app/actions/fighter-advancement';
 import { LuTrash2 } from 'react-icons/lu';
 import Link from 'next/link';
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -553,7 +554,7 @@ export function SkillsList({
             width: hasAnyCost ? '50%' : '70%',
             render: (_value, item) => {
               const showBitterBadge =
-                item.injury_name === 'Bitter Enmity' &&
+                item.injury_name === BITTER_ENMITY_EFFECT_NAME &&
                 item.bitter_enmity_target_gang_id &&
                 item.bitter_enmity_target_gang_name;
               if (showBitterBadge) {

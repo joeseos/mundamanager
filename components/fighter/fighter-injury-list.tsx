@@ -19,6 +19,7 @@ import DiceRoller from '@/components/dice-roller';
 import { rollD66Outcome, resolveInjuryFromUtil, resolveInjuryFromUtilCrew, resolveInjuryRangeFromUtilByName, resolveInjuryRangeFromUtilByNameCrew, resolveRigGlitchFromUtil, resolveRigGlitchRangeFromUtilByName } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { Combobox } from '@/components/ui/combobox';
 import { useMutation } from '@tanstack/react-query';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -122,7 +123,7 @@ export function InjuriesList({
 
   const addInjuryBlockedByBitterEnmityGang = useMemo(
     () =>
-      selectedInjury?.effect_name === 'Bitter Enmity' &&
+      selectedInjury?.effect_name === BITTER_ENMITY_EFFECT_NAME &&
       campaignGangs.length > 0 &&
       !selectedBitterEnmityGangId,
     [selectedInjury?.effect_name, campaignGangs.length, selectedBitterEnmityGangId]
@@ -181,12 +182,15 @@ export function InjuriesList({
       } | null = null;
       if (bitterId) {
         const g = campaignGangs.find((row) => row.id === bitterId);
-        bitterMeta = {
-          bitter_enmity_target_gang_id: bitterId,
-          bitter_enmity_target_gang_name: g?.name ?? '',
-          bitter_enmity_target_gang_colour: g?.gang_colour ?? null
-        };
-        mergedTsd = { ...mergedTsd, ...bitterMeta };
+        // Only merge when resolved locally — avoids empty badge / label flash if the list went stale.
+        if (g) {
+          bitterMeta = {
+            bitter_enmity_target_gang_id: bitterId,
+            bitter_enmity_target_gang_name: g.name,
+            bitter_enmity_target_gang_colour: g.gang_colour ?? null
+          };
+          mergedTsd = { ...mergedTsd, ...bitterMeta };
+        }
       }
 
       // Optimistically add injury (data passed through variables)
@@ -636,7 +640,7 @@ export function InjuriesList({
   useEffect(() => {
     const needsCampaignGangPicker =
       campaignIds.length > 0 &&
-      (selectedInjuryRequiresCaptured || selectedInjury?.effect_name === 'Bitter Enmity');
+      (selectedInjuryRequiresCaptured || selectedInjury?.effect_name === BITTER_ENMITY_EFFECT_NAME);
 
     if (!needsCampaignGangPicker) {
       setCampaignGangs([]);
@@ -718,16 +722,16 @@ export function InjuriesList({
     }
 
     if (
-      injury.effect_name === 'Bitter Enmity' &&
+      injury.effect_name === BITTER_ENMITY_EFFECT_NAME &&
       campaignGangs.length > 0 &&
       !selectedBitterEnmityGangId
     ) {
-      toast.error('Please select the enemy gang for Bitter Enmity');
+      toast.error(`Please select the enemy gang for ${BITTER_ENMITY_EFFECT_NAME}`);
       return false;
     }
 
     const bitterEnmitySubmitId =
-      injury.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+      injury.effect_name === BITTER_ENMITY_EFFECT_NAME && selectedBitterEnmityGangId
         ? selectedBitterEnmityGangId
         : undefined;
 
@@ -792,11 +796,11 @@ export function InjuriesList({
     }
 
     if (
-      selectedInjury?.effect_name === 'Bitter Enmity' &&
+      selectedInjury?.effect_name === BITTER_ENMITY_EFFECT_NAME &&
       campaignGangs.length > 0 &&
       !selectedBitterEnmityGangId
     ) {
-      toast.error('Please select the enemy gang for Bitter Enmity');
+      toast.error(`Please select the enemy gang for ${BITTER_ENMITY_EFFECT_NAME}`);
       return;
     }
 
@@ -808,7 +812,7 @@ export function InjuriesList({
       : {};
 
     const bitterForProceed =
-      selectedInjury?.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+      selectedInjury?.effect_name === BITTER_ENMITY_EFFECT_NAME && selectedBitterEnmityGangId
         ? selectedBitterEnmityGangId
         : undefined;
 
@@ -1047,47 +1051,53 @@ export function InjuriesList({
           )}
         </div>
       )}
-      {selectedInjury?.effect_name === 'Bitter Enmity' && campaignIds.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">
-            Against
-          </label>
-          {isFetchingGangs ? (
-            <p className="text-sm text-muted-foreground">Loading gangs...</p>
-          ) : campaignGangs.length > 0 ? (
-            <Combobox
-              options={campaignGangs
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(g => {
-                  const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                  const colour = g.gang_colour || '#888888';
-                  return {
-                    value: g.id,
-                    label: (
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: colour }}
-                          aria-hidden
-                        />
-                        <span>{g.name}</span>
-                        {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                      </span>
-                    ),
-                    displayValue: `${g.name}${owner}`,
-                  };
-                })
-              }
-              value={selectedBitterEnmityGangId}
-              onValueChange={setSelectedBitterEnmityGangId}
-              placeholder="Select enemy gang..."
-              clearable
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
-          )}
-        </div>
+      {selectedInjury?.effect_name === BITTER_ENMITY_EFFECT_NAME && (
+        campaignIds.length > 0 ? (
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Against
+            </label>
+            {isFetchingGangs ? (
+              <p className="text-sm text-muted-foreground">Loading gangs...</p>
+            ) : campaignGangs.length > 0 ? (
+              <Combobox
+                options={campaignGangs
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(g => {
+                    const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                    const colour = g.gang_colour || '#888888';
+                    return {
+                      value: g.id,
+                      label: (
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                            style={{ backgroundColor: colour }}
+                            aria-hidden
+                          />
+                          <span>{g.name}</span>
+                          {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                        </span>
+                      ),
+                      displayValue: `${g.name}${owner}`,
+                    };
+                  })
+                }
+                value={selectedBitterEnmityGangId}
+                onValueChange={setSelectedBitterEnmityGangId}
+                placeholder="Select enemy gang..."
+                clearable
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            In skirmish play, no gang selection is required.
+          </p>
+        )
       )}
       {addFormOnly && (
         <div className="flex justify-end gap-2 pt-2 border-t">
@@ -1353,7 +1363,7 @@ export function InjuriesList({
                     captured_by_gang_id: selectedCapturingGangId || null,
                     target_equipment_id: equipmentId,
                     bitter_enmity_target_gang_id:
-                      selectedInjury.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+                      selectedInjury.effect_name === BITTER_ENMITY_EFFECT_NAME && selectedBitterEnmityGangId
                         ? selectedBitterEnmityGangId
                         : undefined,
                     injury_data: selectedInjury
@@ -1375,7 +1385,7 @@ export function InjuriesList({
                     set_captured: false,
                     target_equipment_id: equipmentId,
                     bitter_enmity_target_gang_id:
-                      selectedInjury.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+                      selectedInjury.effect_name === BITTER_ENMITY_EFFECT_NAME && selectedBitterEnmityGangId
                         ? selectedBitterEnmityGangId
                         : undefined,
                     injury_data: selectedInjury

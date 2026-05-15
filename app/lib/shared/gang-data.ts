@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
@@ -1577,7 +1578,7 @@ export const getGangFightersList = async (
               fe?.type_specific_data && typeof fe.type_specific_data === 'object'
                 ? (fe.type_specific_data as Record<string, unknown>)
                 : null;
-            const isBitterEnmity = injuryName === 'Bitter Enmity';
+            const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
             const bitterId =
               isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
                 ? tsd.bitter_enmity_target_gang_id

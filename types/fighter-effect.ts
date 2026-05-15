@@ -27,7 +27,7 @@ export interface TypeSpecificData extends TraitModificationData {
   recovery?: 'true' | 'false' | string | boolean;
   convalescence?: 'true' | 'false' | string | boolean;
   captured?: 'true' | 'false' | string;
-  /** Bitter Enmity: user-selected enemy gang (stored on fighter_effects instance) */
+  /** {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}: user-selected enemy gang (stored on fighter_effects instance) */
   bitter_enmity_target_gang_id?: string;
   bitter_enmity_target_gang_name?: string;
   bitter_enmity_target_gang_colour?: string | null;

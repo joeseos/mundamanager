@@ -20,7 +20,7 @@ export interface AddFighterInjuryParams {
   set_captured?: boolean;
   captured_by_gang_id?: string | null;
   target_equipment_id?: string;
-  /** Enemy gang for Bitter Enmity; validated against shared campaign (RPC enforces). */
+  /** Enemy gang for {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}; validated against shared campaign (RPC enforces). */
   bitter_enmity_target_gang_id?: string | null;
 }
 
@@ -158,7 +158,7 @@ export async function addFighterInjury(
     let shouldSetKilled = !!params.set_killed;
     const { data: injuryType, error: injuryTypeError } = await supabase
       .from('fighter_effect_types')
-      .select('type_specific_data, effect_name')
+      .select('type_specific_data')
       .eq('id', params.injury_type_id)
       .single();
 
@@ -174,58 +174,6 @@ export async function addFighterInjury(
     }
 
     const bitterGangId = params.bitter_enmity_target_gang_id?.trim() || null;
-    if (bitterGangId) {
-      if (injuryType.effect_name !== 'Bitter Enmity') {
-        return {
-          success: false,
-          error: 'Enemy gang can only be set for Bitter Enmity lasting injuries'
-        };
-      }
-      if (bitterGangId === fighter.gang_id) {
-        return {
-          success: false,
-          error: 'Bitter Enmity enemy gang cannot be the fighter\'s own gang'
-        };
-      }
-      const { data: fighterCampaignRows, error: fighterCampaignErr } = await supabase
-        .from('campaign_gangs')
-        .select('campaign_id')
-        .eq('gang_id', fighter.gang_id);
-
-      if (fighterCampaignErr) {
-        return {
-          success: false,
-          error: fighterCampaignErr.message || 'Failed to validate campaign membership'
-        };
-      }
-
-      const fighterCampaignIdSet = new Set(
-        (fighterCampaignRows || []).map((r: { campaign_id: string }) => r.campaign_id)
-      );
-
-      const { data: targetCampaignRows, error: targetCampaignErr } = await supabase
-        .from('campaign_gangs')
-        .select('campaign_id')
-        .eq('gang_id', bitterGangId);
-
-      if (targetCampaignErr) {
-        return {
-          success: false,
-          error: targetCampaignErr.message || 'Failed to validate enemy gang campaign membership'
-        };
-      }
-
-      const sharesCampaign = (targetCampaignRows || []).some((r: { campaign_id: string }) =>
-        fighterCampaignIdSet.has(r.campaign_id)
-      );
-
-      if (!sharesCampaign) {
-        return {
-          success: false,
-          error: 'Enemy gang must share a campaign with the fighter\'s gang'
-        };
-      }
-    }
 
     let preInjuryCost = 0;
     if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
