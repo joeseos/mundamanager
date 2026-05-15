@@ -1,3 +1,5 @@
+-- Extend add_fighter_injury with optional Bitter Enmity enemy gang (campaign-validated).
+
 -- Drop all versions of the function to prevent overload conflicts
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, UUID, UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.add_fighter_injury(UUID, UUID, UUID, UUID, UUID) CASCADE;
@@ -83,10 +85,10 @@ BEGIN
 
     -- Check if this is "Partially Deafened"
     is_partially_deafened := effect_type_record.effect_name = 'Partially Deafened';
-    
+
     -- Base type_specific_data for the new effect row (template + optional Bitter Enmity gang fields)
     v_merged_tsd := COALESCE(effect_type_record.type_specific_data, '{}'::jsonb);
-    
+
     -- Optional Bitter Enmity: validate enemy gang and merge id / name / colour into instance jsonb
     IF in_bitter_enmity_target_gang_id IS NOT NULL THEN
         IF effect_type_record.effect_name <> 'Bitter Enmity' THEN

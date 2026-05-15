@@ -13,6 +13,7 @@ import {
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
 import { LuTrash2 } from 'react-icons/lu';
+import Link from 'next/link';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -23,6 +24,10 @@ interface Skill {
   acquired_at: string;
   is_advance: boolean;
   fighter_injury_id: string | null;
+  injury_name?: string;
+  bitter_enmity_target_gang_id?: string;
+  bitter_enmity_target_gang_name?: string;
+  bitter_enmity_target_gang_colour?: string | null;
 }
 
 // Props for the SkillsList component
@@ -519,7 +524,10 @@ export function SkillsList({
       acquired_at: typedData.acquired_at,
       is_advance: typedData.is_advance ?? false,
       fighter_injury_id: typedData.fighter_injury_id,
-      injury_name: typedData.injury_name
+      injury_name: typedData.injury_name,
+      bitter_enmity_target_gang_id: typedData.bitter_enmity_target_gang_id,
+      bitter_enmity_target_gang_name: typedData.bitter_enmity_target_gang_name,
+      bitter_enmity_target_gang_colour: typedData.bitter_enmity_target_gang_colour
     };
   });
 
@@ -542,7 +550,34 @@ export function SkillsList({
           {
             key: 'name',
             label: 'Name',
-            width: hasAnyCost ? '50%' : '70%'
+            width: hasAnyCost ? '50%' : '70%',
+            render: (_value, item) => {
+              const showBitterBadge =
+                item.injury_name === 'Bitter Enmity' &&
+                item.bitter_enmity_target_gang_id &&
+                item.bitter_enmity_target_gang_name;
+              if (showBitterBadge) {
+                const colour = item.bitter_enmity_target_gang_colour || '#525252';
+                return (
+                  <span className="inline-flex flex-wrap items-center gap-1 align-middle">
+                    <span>{item.name}</span>
+                    <span
+                      className="inline-flex max-w-[200px] items-center truncate rounded-full px-2.5 py-0.5 text-xs font-semibold bg-muted"
+                      style={{ color: colour }}
+                    >
+                      <Link
+                        href={`/gang/${item.bitter_enmity_target_gang_id}`}
+                        className="truncate hover:text-muted-foreground transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.bitter_enmity_target_gang_name}
+                      </Link>
+                    </span>
+                  </span>
+                );
+              }
+              return item.name;
+            }
           },
           {
             key: 'action_info',
@@ -553,14 +588,14 @@ export function SkillsList({
               if (item.fighter_injury_id) {
                 return (
                   <span className="text-muted-foreground text-sm italic whitespace-nowrap">
-                    ({item.injury_name || 'Lasting Injury'})
+                    {item.injury_name || 'Lasting Injury'}
                   </span>
                 );
               }
               if (item.is_advance) {
                 return (
                   <span className="text-muted-foreground text-sm italic whitespace-nowrap">
-                    (Advancement)
+                    Advancement
                   </span>
                 );
               }

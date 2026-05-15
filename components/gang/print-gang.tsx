@@ -6,6 +6,7 @@ import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
 import { calculateAdjustedStats } from "@/utils/effect-modifiers";
+import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
@@ -546,8 +547,8 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             return dA - dB;
                           })
                           .reduce<Record<string, number>>((acc, injury) => {
-                            acc[injury.effect_name] =
-                              (acc[injury.effect_name] || 0) + 1;
+                            const label = injuryAggregationLabel(injury);
+                            acc[label] = (acc[label] || 0) + 1;
                             return acc;
                           }, {}),
                       )

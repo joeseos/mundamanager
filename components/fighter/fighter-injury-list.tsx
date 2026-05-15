@@ -96,7 +96,8 @@ export function InjuriesList({
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; owner_username?: string }>>([]);
+  const [selectedBitterEnmityGangId, setSelectedBitterEnmityGangId] = useState<string>('');
+  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; gang_colour?: string | null; owner_username?: string }>>([]);
   const [isFetchingGangs, setIsFetchingGangs] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
@@ -119,6 +120,14 @@ export function InjuriesList({
     [fighterCaptured, injuries]
   );
 
+  const addInjuryBlockedByBitterEnmityGang = useMemo(
+    () =>
+      selectedInjury?.effect_name === 'Bitter Enmity' &&
+      campaignGangs.length > 0 &&
+      !selectedBitterEnmityGangId,
+    [selectedInjury?.effect_name, campaignGangs.length, selectedBitterEnmityGangId]
+  );
+
   // TanStack Query mutation for adding injuries
   const addInjuryMutation = useMutation({
     mutationFn: async (variables: { 
@@ -129,6 +138,7 @@ export function InjuriesList({
       set_captured?: boolean; 
       captured_by_gang_id?: string | null;
       target_equipment_id?: string;
+      bitter_enmity_target_gang_id?: string | null;
       injury_data: any; // Full injury data for optimistic updates
     }) => {
       const result = await addFighterInjury({
@@ -138,7 +148,8 @@ export function InjuriesList({
         set_killed: variables.set_killed,
         set_captured: variables.set_captured,
         captured_by_gang_id: variables.captured_by_gang_id,
-        target_equipment_id: variables.target_equipment_id
+        target_equipment_id: variables.target_equipment_id,
+        bitter_enmity_target_gang_id: variables.bitter_enmity_target_gang_id ?? null
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to add lasting injury');
@@ -157,12 +168,34 @@ export function InjuriesList({
       const previousCaptured = fighterCaptured;
       const previousCapturedByGangId = fighterCapturedByGangId;
 
+      const baseTsd =
+        injuryData.type_specific_data && typeof injuryData.type_specific_data === 'object'
+          ? { ...(injuryData.type_specific_data as object) }
+          : {};
+      let mergedTsd: Record<string, unknown> = { ...baseTsd };
+      const bitterId = variables.bitter_enmity_target_gang_id;
+      let bitterMeta: {
+        bitter_enmity_target_gang_id: string;
+        bitter_enmity_target_gang_name: string;
+        bitter_enmity_target_gang_colour: string | null;
+      } | null = null;
+      if (bitterId) {
+        const g = campaignGangs.find((row) => row.id === bitterId);
+        bitterMeta = {
+          bitter_enmity_target_gang_id: bitterId,
+          bitter_enmity_target_gang_name: g?.name ?? '',
+          bitter_enmity_target_gang_colour: g?.gang_colour ?? null
+        };
+        mergedTsd = { ...mergedTsd, ...bitterMeta };
+      }
+
       // Optimistically add injury (data passed through variables)
       const tempInjury: FighterEffect = {
         ...injuryData,
         id: `optimistic-injury-${Date.now()}`,
         created_at: new Date().toISOString(),
         fighter_equipment_id: variables.target_equipment_id || undefined,
+        type_specific_data: mergedTsd as FighterEffect['type_specific_data']
       };
 
       if (onInjuryUpdate) {
@@ -195,7 +228,8 @@ export function InjuriesList({
             is_advance: false,
             acquired_at: new Date().toISOString(),
             fighter_injury_id: tempInjury.id,
-            injury_name: injuryData?.effect_name
+            injury_name: injuryData?.effect_name,
+            ...(bitterMeta ? bitterMeta : {})
           }
         };
         onSkillsUpdate(updatedSkills);
@@ -585,6 +619,7 @@ export function InjuriesList({
     setSelectedInjuryId('');
     setSelectedInjury(null);
     setSelectedCapturingGangId('');
+    setSelectedBitterEnmityGangId('');
   }, []);
 
   // When opened from gang card menu, open the Add modal (or add-form-only view) and fetch if needed
@@ -599,9 +634,14 @@ export function InjuriesList({
   }, [initialOpenAddModal, addFormOnly]);
 
   useEffect(() => {
-    if (!selectedInjuryRequiresCaptured || campaignIds.length === 0) {
+    const needsCampaignGangPicker =
+      campaignIds.length > 0 &&
+      (selectedInjuryRequiresCaptured || selectedInjury?.effect_name === 'Bitter Enmity');
+
+    if (!needsCampaignGangPicker) {
       setCampaignGangs([]);
       setSelectedCapturingGangId('');
+      setSelectedBitterEnmityGangId('');
       return;
     }
 
@@ -610,7 +650,7 @@ export function InjuriesList({
 
     const fetchGangs = async () => {
       try {
-        const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
+        const allGangs: Array<{ id: string; name: string; gang_type: string; gang_colour?: string | null; owner_username?: string }> = [];
         const seenIds = new Set<string>();
 
         const gangResults = await Promise.all(
@@ -625,7 +665,13 @@ export function InjuriesList({
           for (const g of gangs) {
             if (g.id !== fighterGangId && !seenIds.has(g.id)) {
               seenIds.add(g.id);
-              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, owner_username: g.owner_username });
+              allGangs.push({
+                id: g.id,
+                name: g.name,
+                gang_type: g.gang_type,
+                gang_colour: g.gang_colour ?? undefined,
+                owner_username: g.owner_username
+              });
             }
           }
         }
@@ -642,7 +688,7 @@ export function InjuriesList({
 
     fetchGangs();
     return () => { cancelled = true; };
-  }, [selectedInjuryRequiresCaptured, campaignIds, fighterGangId]);
+  }, [selectedInjuryRequiresCaptured, selectedInjury?.effect_name, campaignIds, fighterGangId]);
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -671,6 +717,20 @@ export function InjuriesList({
       return false;
     }
 
+    if (
+      injury.effect_name === 'Bitter Enmity' &&
+      campaignGangs.length > 0 &&
+      !selectedBitterEnmityGangId
+    ) {
+      toast.error('Please select the enemy gang for Bitter Enmity');
+      return false;
+    }
+
+    const bitterEnmitySubmitId =
+      injury.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+        ? selectedBitterEnmityGangId
+        : undefined;
+
     // Check if glitch requires equipment selection FIRST
     // Only show equipment selection if there are weapons available to select
     if (appliesToEquipment) {
@@ -698,6 +758,7 @@ export function InjuriesList({
         set_killed: requiresKilled,
         set_captured: true,
         captured_by_gang_id: selectedCapturingGangId || null,
+        bitter_enmity_target_gang_id: bitterEnmitySubmitId,
         injury_data: injury
       });
       return true;
@@ -717,6 +778,7 @@ export function InjuriesList({
         send_to_recovery: false,
         set_killed: requiresKilled,
         set_captured: false,
+        bitter_enmity_target_gang_id: bitterEnmitySubmitId,
         injury_data: injury
       });
       return true;
@@ -729,12 +791,26 @@ export function InjuriesList({
       return;
     }
 
+    if (
+      selectedInjury?.effect_name === 'Bitter Enmity' &&
+      campaignGangs.length > 0 &&
+      !selectedBitterEnmityGangId
+    ) {
+      toast.error('Please select the enemy gang for Bitter Enmity');
+      return;
+    }
+
     // Close modals immediately
     setIsRecoveryModalOpen(false);
 
     const typeSpecificData = selectedInjury?.type_specific_data && typeof selectedInjury.type_specific_data === 'object'
       ? selectedInjury.type_specific_data
       : {};
+
+    const bitterForProceed =
+      selectedInjury?.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+        ? selectedBitterEnmityGangId
+        : undefined;
 
     // Trigger mutation
     addInjuryMutation.mutate({
@@ -745,12 +821,14 @@ export function InjuriesList({
       set_captured: setCaptured,
       captured_by_gang_id: setCaptured ? (selectedCapturingGangId || null) : undefined,
       target_equipment_id: targetEquipmentId || undefined,
+      bitter_enmity_target_gang_id: bitterForProceed,
       injury_data: selectedInjury
     });
 
     // Reset target after mutation
     setTargetEquipmentId(null);
     setSelectedCapturingGangId('');
+    setSelectedBitterEnmityGangId('');
   };
 
   const handleDeleteInjury = (injuryId: string, injuryName: string) => {
@@ -860,6 +938,7 @@ export function InjuriesList({
           onValueChange={(value) => {
             setSelectedInjuryId(value);
             setSelectedCapturingGangId('');
+            setSelectedBitterEnmityGangId('');
             if (value) {
               const selectedInjury = localAvailableInjuries.find(injury => injury.id === value);
               setSelectedInjury(selectedInjury || null);
@@ -968,6 +1047,48 @@ export function InjuriesList({
           )}
         </div>
       )}
+      {selectedInjury?.effect_name === 'Bitter Enmity' && campaignIds.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Against
+          </label>
+          {isFetchingGangs ? (
+            <p className="text-sm text-muted-foreground">Loading gangs...</p>
+          ) : campaignGangs.length > 0 ? (
+            <Combobox
+              options={campaignGangs
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(g => {
+                  const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                  const colour = g.gang_colour || '#888888';
+                  return {
+                    value: g.id,
+                    label: (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                          style={{ backgroundColor: colour }}
+                          aria-hidden
+                        />
+                        <span>{g.name}</span>
+                        {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
+                      </span>
+                    ),
+                    displayValue: `${g.name}${owner}`,
+                  };
+                })
+              }
+              value={selectedBitterEnmityGangId}
+              onValueChange={setSelectedBitterEnmityGangId}
+              placeholder="Select enemy gang..."
+              clearable
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
+          )}
+        </div>
+      )}
       {addFormOnly && (
         <div className="flex justify-end gap-2 pt-2 border-t">
           <Button variant="outline" onClick={onRequestClose} disabled={addInjuryMutation.isPending}>
@@ -975,7 +1096,7 @@ export function InjuriesList({
           </Button>
           <Button
             onClick={() => void handleAddInjury()}
-            disabled={!selectedInjuryId || addInjuryMutation.isPending}
+            disabled={!selectedInjuryId || addInjuryMutation.isPending || addInjuryBlockedByBitterEnmityGang}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
           >
             {is_spyrer ? "Add Rig Glitch" : "Add Lasting Injury"}
@@ -1111,7 +1232,7 @@ export function InjuriesList({
           onClose={handleCloseModal}
           onConfirm={handleAddInjury}
           confirmText={is_spyrer ? "Add Rig Glitch" : "Add Lasting Injury"}
-          confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending}
+          confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending || addInjuryBlockedByBitterEnmityGang}
         />
       )}
 
@@ -1231,11 +1352,16 @@ export function InjuriesList({
                     set_captured: true,
                     captured_by_gang_id: selectedCapturingGangId || null,
                     target_equipment_id: equipmentId,
+                    bitter_enmity_target_gang_id:
+                      selectedInjury.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+                        ? selectedBitterEnmityGangId
+                        : undefined,
                     injury_data: selectedInjury
                   });
                   // Reset state
                   setTargetEquipmentId(null);
                   setSelectedCapturingGangId('');
+                  setSelectedBitterEnmityGangId('');
                   setSelectedInjuryId('');
                   setSelectedInjury(null);
                 } else if (requiresRecovery && !fighterRecovery) {
@@ -1248,10 +1374,15 @@ export function InjuriesList({
                     set_killed: requiresKilled,
                     set_captured: false,
                     target_equipment_id: equipmentId,
+                    bitter_enmity_target_gang_id:
+                      selectedInjury.effect_name === 'Bitter Enmity' && selectedBitterEnmityGangId
+                        ? selectedBitterEnmityGangId
+                        : undefined,
                     injury_data: selectedInjury
                   });
                   // Reset state
                   setTargetEquipmentId(null);
+                  setSelectedBitterEnmityGangId('');
                   setSelectedInjuryId('');
                   setSelectedInjury(null);
                 }

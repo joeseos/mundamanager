@@ -1123,7 +1123,8 @@ export const getGangFightersList = async (
             ),
             fighter_effect_skills!fighter_effect_skill_id (
               fighter_effects (
-                effect_name
+                effect_name,
+                type_specific_data
               )
             )
           `)
@@ -1570,7 +1571,26 @@ export const getGangFightersList = async (
         skillsData.forEach((skillData: any) => {
           const skillName = (skillData.skill as any)?.name;
           if (skillName) {
-            const injuryName = skillData.fighter_effect_skills?.fighter_effects?.effect_name;
+            const fe = skillData.fighter_effect_skills?.fighter_effects;
+            const injuryName = fe?.effect_name;
+            const tsd =
+              fe?.type_specific_data && typeof fe.type_specific_data === 'object'
+                ? (fe.type_specific_data as Record<string, unknown>)
+                : null;
+            const isBitterEnmity = injuryName === 'Bitter Enmity';
+            const bitterId =
+              isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
+                ? tsd.bitter_enmity_target_gang_id
+                : undefined;
+            const bitterName =
+              isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
+                ? tsd.bitter_enmity_target_gang_name
+                : undefined;
+            const bitterColour =
+              isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
+                ? (tsd.bitter_enmity_target_gang_colour as string | null)
+                : undefined;
+
             skills[skillName] = {
               id: skillData.id,
               name: skillName,
@@ -1579,7 +1599,14 @@ export const getGangFightersList = async (
               is_advance: skillData.is_advance || false,
               fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
               injury_name: injuryName || undefined,
-              acquired_at: skillData.created_at
+              acquired_at: skillData.created_at,
+              ...(bitterId
+                ? {
+                    bitter_enmity_target_gang_id: bitterId,
+                    bitter_enmity_target_gang_name: bitterName,
+                    bitter_enmity_target_gang_colour: bitterColour ?? null
+                  }
+                : {})
             };
           }
         });

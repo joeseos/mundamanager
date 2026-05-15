@@ -104,6 +104,9 @@ export interface FighterSkill {
   injury_name?: string;
   acquired_at: string;
   custom_skill_id?: string;
+  bitter_enmity_target_gang_id?: string;
+  bitter_enmity_target_gang_name?: string;
+  bitter_enmity_target_gang_colour?: string | null;
 }
 
 // =============================================================================
@@ -519,7 +522,8 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
           ),
           fighter_effect_skills!fighter_effect_skill_id (
             fighter_effects (
-              effect_name
+              effect_name,
+              type_specific_data
             )
           )
         `)
@@ -531,8 +535,25 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
       (data || []).forEach((skillData: any) => {
         const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
         if (skillName) {
-          // Get the injury name from the related fighter effect
-          const injuryName = skillData.fighter_effect_skills?.fighter_effects?.effect_name;
+          const fe = skillData.fighter_effect_skills?.fighter_effects;
+          const injuryName = fe?.effect_name;
+          const tsd =
+            fe?.type_specific_data && typeof fe.type_specific_data === 'object'
+              ? (fe.type_specific_data as Record<string, unknown>)
+              : null;
+          const isBitterEnmity = injuryName === 'Bitter Enmity';
+          const bitterId =
+            isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
+              ? tsd.bitter_enmity_target_gang_id
+              : undefined;
+          const bitterName =
+            isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
+              ? tsd.bitter_enmity_target_gang_name
+              : undefined;
+          const bitterColour =
+            isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
+              ? (tsd.bitter_enmity_target_gang_colour as string | null)
+              : undefined;
 
           skills[skillName] = {
             id: skillData.id,
@@ -544,6 +565,13 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
             injury_name: injuryName || undefined,
             acquired_at: skillData.created_at,
             custom_skill_id: skillData.custom_skill_id || undefined,
+            ...(bitterId
+              ? {
+                  bitter_enmity_target_gang_id: bitterId,
+                  bitter_enmity_target_gang_name: bitterName,
+                  bitter_enmity_target_gang_colour: bitterColour ?? null
+                }
+              : {})
           };
         }
       });
