@@ -977,7 +977,7 @@ export function AdminFighterEffects({
                     type="text"
                     value={newEffect.special_rules_to_add}
                     onChange={(e) => setNewEffect(prev => ({ ...prev, special_rules_to_add: e.target.value }))}
-                    placeholder="e.g.,  Skimmer, Tenacious"
+                    placeholder="e.g., Skimmer, Tenacious"
                   />
                   <p className="text-xs text-muted-foreground">
                     Enter special rule names separated by commas

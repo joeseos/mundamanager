@@ -4,7 +4,7 @@ import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
-import { calculateAdjustedStats } from '@/utils/effect-modifiers';
+import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { injuryAggregationLabel } from '@/utils/bitterEnmityDisplay';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
@@ -236,6 +236,12 @@ const FighterCard = memo(function FighterCard({
     return getVehicleWeapons(vehicle);
   }, [isCrew, vehicle]);
 
+  const adjustedVehicleRules = useMemo(() => {
+    const baseRules = Array.isArray(vehicle?.special_rules) ? vehicle.special_rules : [];
+    const allEffects = vehicle?.effects ? Object.values(vehicle.effects).flat() : [];
+    return applySpecialRulesModifiers(baseRules, allEffects);
+  }, [vehicle?.special_rules, vehicle?.effects]);
+
   // Get vehicle upgrades only for crew members
   const vehicleUpgrades = useMemo(() => {
     if (!isCrew || !vehicle) return [];
@@ -330,19 +336,8 @@ const FighterCard = memo(function FighterCard({
   const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
   const adjustedSpecialRules = useMemo(() => {
-    let rules = [...(special_rules || [])];
-    if (effects) {
-      Object.values(effects).flat().forEach((effect: any) => {
-        const tsd = effect.type_specific_data || {};
-        (tsd.special_rules_to_remove || []).forEach((r: string) => {
-          rules = rules.filter(rule => rule !== r);
-        });
-        (tsd.special_rules_to_add || []).forEach((r: string) => {
-          if (!rules.includes(r)) rules.push(r);
-        });
-      });
-    }
-    return rules;
+    const allEffects = effects ? Object.values(effects).flat() : [];
+    return applySpecialRulesModifiers(special_rules || [], allEffects);
   }, [special_rules, effects]);
 
   // Update stats calculation to use modifiedStats
@@ -613,21 +608,7 @@ const FighterCard = memo(function FighterCard({
 
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                 <div className="min-w-[0px] text-sm break-words">
-                  {(() => {
-                    let rules = Array.isArray(vehicle?.special_rules) ? [...vehicle.special_rules] : [];
-                    if (vehicle?.effects) {
-                      Object.values(vehicle.effects).flat().forEach((effect: any) => {
-                        const tsd = (effect as any).type_specific_data || {};
-                        (tsd.special_rules_to_remove || []).forEach((r: string) => {
-                          rules = rules.filter(rule => rule !== r);
-                        });
-                        (tsd.special_rules_to_add || []).forEach((r: string) => {
-                          if (!rules.includes(r)) rules.push(r);
-                        });
-                      });
-                    }
-                    return rules.join(', ');
-                  })()}
+                  {adjustedVehicleRules.join(', ')}
                 </div>
 
                 {/* Vehicle effect, lasting damage */}
