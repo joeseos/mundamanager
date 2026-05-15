@@ -11,6 +11,8 @@
 export interface TraitModificationData {
   traits_to_add?: string[];
   traits_to_remove?: string[];
+  special_rules_to_add?: string[];
+  special_rules_to_remove?: string[];
 }
 
 /** Comprehensive type_specific_data for all effect types */

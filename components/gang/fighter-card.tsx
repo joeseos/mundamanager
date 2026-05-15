@@ -328,6 +328,22 @@ const FighterCard = memo(function FighterCard({
   // Replace adjustedStats with modifiedStats
   const adjustedStats = useMemo(() => calculateAdjustedStats(fighterData), [fighterData]);
 
+  const adjustedSpecialRules = useMemo(() => {
+    let rules = [...(special_rules || [])];
+    if (effects) {
+      Object.values(effects).flat().forEach((effect: any) => {
+        const tsd = effect.type_specific_data || {};
+        (tsd.special_rules_to_remove || []).forEach((r: string) => {
+          rules = rules.filter(rule => rule !== r);
+        });
+        (tsd.special_rules_to_add || []).forEach((r: string) => {
+          if (!rules.includes(r)) rules.push(r);
+        });
+      });
+    }
+    return rules;
+  }, [special_rules, effects]);
+
   // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
     if (isCrew) {
@@ -410,7 +426,7 @@ const FighterCard = memo(function FighterCard({
       observer.disconnect();
       window.removeEventListener('resize', checkHeight);
     };
-  }, [special_rules]);
+  }, [adjustedSpecialRules]);
 
   // Use programmatic navigation to avoid Link prefetching
   const router = useRouter();
@@ -596,7 +612,21 @@ const FighterCard = memo(function FighterCard({
 
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
                 <div className="min-w-[0px] text-sm break-words">
-                  {Array.isArray(vehicle?.special_rules) ? vehicle.special_rules.join(', ') : ''}
+                  {(() => {
+                    let rules = Array.isArray(vehicle?.special_rules) ? [...vehicle.special_rules] : [];
+                    if (vehicle?.effects) {
+                      Object.values(vehicle.effects).flat().forEach((effect: any) => {
+                        const tsd = (effect as any).type_specific_data || {};
+                        (tsd.special_rules_to_remove || []).forEach((r: string) => {
+                          rules = rules.filter(rule => rule !== r);
+                        });
+                        (tsd.special_rules_to_add || []).forEach((r: string) => {
+                          if (!rules.includes(r)) rules.push(r);
+                        });
+                      });
+                    }
+                    return rules.join(', ');
+                  })()}
                 </div>
 
                 {/* Vehicle effect, lasting damage */}
@@ -628,7 +658,7 @@ const FighterCard = memo(function FighterCard({
             {/* Horizontal bar: only visible when both sections are present */}
             {isCrew && vehicle &&
               (
-                ((special_rules?.length ?? 0) > 0) ||
+                ((adjustedSpecialRules?.length ?? 0) > 0) ||
                 ((wargear?.length ?? 0) > 0) ||
                 (advancements?.skills && Object.keys(advancements.skills).length > 0) ||
                 free_skill
@@ -694,7 +724,7 @@ const FighterCard = memo(function FighterCard({
               </>
             )}
 
-            {special_rules && special_rules.length > 0 && (
+            {adjustedSpecialRules && adjustedSpecialRules.length > 0 && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4">
                   {isMultiline ? (
@@ -706,7 +736,7 @@ const FighterCard = memo(function FighterCard({
                   )}
                 </div>
                 <div className="min-w-[0px] text-sm break-words">
-                  {special_rules.join(', ')}
+                  {adjustedSpecialRules.join(', ')}
                 </div>
               </>
             )}
