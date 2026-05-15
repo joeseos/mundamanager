@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
-import { calculateAdjustedStats } from "@/utils/effect-modifiers";
+import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
@@ -557,41 +557,17 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         .join(", ")
                     : "";
 
-                const mergedFighterRules = (() => {
-                  let rules = [...(fighter.special_rules || [])];
-                  if (fighter.effects) {
-                    Object.values(fighter.effects).flat().forEach((effect: any) => {
-                      const tsd = effect.type_specific_data || {};
-                      (tsd.special_rules_to_remove || []).forEach((r: string) => {
-                        rules = rules.filter(rule => rule !== r);
-                      });
-                      (tsd.special_rules_to_add || []).forEach((r: string) => {
-                        if (!rules.includes(r)) rules.push(r);
-                      });
-                    });
-                  }
-                  return rules;
-                })();
+                const fighterEffects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+                const mergedFighterRules = applySpecialRulesModifiers(fighter.special_rules || [], fighterEffects);
                 const specialRulesText = mergedFighterRules.length > 0
                     ? mergedFighterRules.join(", ")
                     : "";
 
-                const mergedVehicleRules = (() => {
-                  if (!isCrew || !vehicle) return [];
-                  let rules = Array.isArray(vehicle.special_rules) ? [...vehicle.special_rules] : [];
-                  if (vehicle.effects) {
-                    Object.values(vehicle.effects).flat().forEach((effect: any) => {
-                      const tsd = (effect as any).type_specific_data || {};
-                      (tsd.special_rules_to_remove || []).forEach((r: string) => {
-                        rules = rules.filter(rule => rule !== r);
-                      });
-                      (tsd.special_rules_to_add || []).forEach((r: string) => {
-                        if (!rules.includes(r)) rules.push(r);
-                      });
-                    });
-                  }
-                  return rules;
-                })();
+                const vehicleEffects = (isCrew && vehicle?.effects) ? Object.values(vehicle.effects).flat() : [];
+                const mergedVehicleRules = applySpecialRulesModifiers(
+                  (isCrew && vehicle && Array.isArray(vehicle.special_rules)) ? vehicle.special_rules : [],
+                  vehicleEffects
+                );
                 const vehicleRulesText = mergedVehicleRules.length > 0
                     ? mergedVehicleRules.join(", ")
                     : "";

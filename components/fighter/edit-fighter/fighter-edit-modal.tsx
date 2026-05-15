@@ -8,6 +8,7 @@ import { FighterProps as Fighter, Archetype } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
+import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterPromotionModal } from './fighter-promotion-modal';
@@ -712,16 +713,8 @@ export function EditFighterModal({
   };
 
   const effectSpecialRules = useMemo(() => {
-    const rules: string[] = [];
-    if (fighter.effects) {
-      Object.values(fighter.effects).flat().forEach((effect: any) => {
-        const tsd = effect.type_specific_data || {};
-        (tsd.special_rules_to_add || []).forEach((r: string) => {
-          if (!rules.includes(r)) rules.push(r);
-        });
-      });
-    }
-    return rules;
+    const allEffects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+    return applySpecialRulesModifiers([], allEffects);
   }, [fighter.effects]);
 
   // Add handler for adding a special rule

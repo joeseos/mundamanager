@@ -359,3 +359,29 @@ export function applyWeaponModifiers(
     return modified;
   });
 }
+
+// =============================================================================
+// SPECIAL RULES MODIFIERS
+// =============================================================================
+
+export function applySpecialRulesModifiers(
+  baseRules: string[],
+  effects: Array<{ type_specific_data?: TraitModificationData | string | null }>
+): string[] {
+  if (!effects || effects.length === 0) return baseRules;
+
+  let rules = [...baseRules];
+  for (const eff of effects) {
+    const tsd = typeof eff.type_specific_data === 'object' && eff.type_specific_data
+      ? eff.type_specific_data
+      : null;
+    if (!tsd) continue;
+    for (const r of (tsd.special_rules_to_remove || [])) {
+      rules = rules.filter(rule => rule !== r);
+    }
+    for (const r of (tsd.special_rules_to_add || [])) {
+      if (!rules.includes(r)) rules.push(r);
+    }
+  }
+  return rules;
+}
