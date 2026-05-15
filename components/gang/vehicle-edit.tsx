@@ -8,6 +8,7 @@ import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
+import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 
 type CombinedVehicleProps = VehicleProps & {
   assigned_to?: string;
@@ -362,6 +363,25 @@ export default function VehicleEdit({
     }
   }, [vehicle]);
 
+  const effectSpecialRules = useMemo(() => {
+    if (!vehicle?.effects) return [];
+    const allEffects = Object.values(vehicle.effects).flat().filter(Boolean) as VehicleEffect[];
+    return applySpecialRulesModifiers([], allEffects);
+  }, [vehicle?.effects]);
+
+  const effectRemovedRules = useMemo(() => {
+    const removed = new Set<string>();
+    if (vehicle?.effects) {
+      Object.values(vehicle.effects).flat().filter(Boolean).forEach((effect) => {
+        const tsd = effect?.type_specific_data;
+        if (tsd) {
+          (tsd.special_rules_to_remove || []).forEach((r: string) => removed.add(r));
+        }
+      });
+    }
+    return removed;
+  }, [vehicle?.effects]);
+
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
 
@@ -472,7 +492,9 @@ export default function VehicleEdit({
             </div>
 
             <div className="flex flex-wrap gap-2 mt-2">
-              {vehicleSpecialRules.map((rule, index) => (
+              {vehicleSpecialRules
+                .filter(rule => !effectRemovedRules.has(rule))
+                .map((rule, index) => (
                 <div
                   key={index}
                   className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
@@ -485,6 +507,17 @@ export default function VehicleEdit({
                   >
                     <HiX size={14} />
                   </button>
+                </div>
+              ))}
+              {effectSpecialRules
+                .filter(rule => !vehicleSpecialRules.includes(rule))
+                .map((rule, index) => (
+                <div
+                  key={`effect-${index}`}
+                  className="bg-muted/50 px-3 py-1 rounded-full flex items-center text-sm text-muted-foreground italic"
+                >
+                  <span>{rule}</span>
+                  <span className="ml-2 text-xs">(from effect)</span>
                 </div>
               ))}
             </div>

@@ -717,6 +717,20 @@ export function EditFighterModal({
     return applySpecialRulesModifiers([], allEffects);
   }, [fighter.effects]);
 
+  const effectRemovedRules = useMemo(() => {
+    const removed = new Set<string>();
+    if (fighter.effects) {
+      Object.values(fighter.effects).flat().forEach((effect: any) => {
+        const tsd = typeof effect.type_specific_data === 'object' && effect.type_specific_data
+          ? effect.type_specific_data : null;
+        if (tsd) {
+          (tsd.special_rules_to_remove || []).forEach((r: string) => removed.add(r));
+        }
+      });
+    }
+    return removed;
+  }, [fighter.effects]);
+
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
@@ -1252,7 +1266,9 @@ export function EditFighterModal({
               
               {/* Display existing special rules as tags */}
               <div className="flex flex-wrap gap-2 mt-2">
-                {formValues.special_rules.map((rule, index) => (
+                {formValues.special_rules
+                  .filter(rule => !effectRemovedRules.has(rule))
+                  .map((rule, index) => (
                   <div
                     key={index}
                     className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
