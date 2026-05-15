@@ -788,6 +788,19 @@ export function EditFighterModal({
     }
   };
 
+  const effectSpecialRules = useMemo(() => {
+    const rules: string[] = [];
+    if (fighter.effects) {
+      Object.values(fighter.effects).flat().forEach((effect: any) => {
+        const tsd = effect.type_specific_data || {};
+        (tsd.special_rules_to_add || []).forEach((r: string) => {
+          if (!rules.includes(r)) rules.push(r);
+        });
+      });
+    }
+    return rules;
+  }, [fighter.effects]);
+
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
     const ruleToAdd = selectedSpecialRuleOption === 'custom'
@@ -1368,6 +1381,17 @@ export function EditFighterModal({
                     >
                       <HiX size={14} />
                     </button>
+                  </div>
+                ))}
+                {effectSpecialRules
+                  .filter(rule => !formValues.special_rules.includes(rule))
+                  .map((rule, index) => (
+                  <div
+                    key={`effect-${index}`}
+                    className="bg-muted/50 px-3 py-1 rounded-full flex items-center text-sm text-muted-foreground italic"
+                  >
+                    <span>{rule}</span>
+                    <span className="ml-2 text-xs">(from effect)</span>
                   </div>
                 ))}
               </div>
