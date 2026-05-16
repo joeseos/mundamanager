@@ -350,8 +350,9 @@ export async function addSkillAdvancement(
 
       const { data: linkedEffectTypes } = await supabase
         .from('fighter_effect_types')
-        .select('id, effect_name, type_specific_data, sort_order')
-        .eq(skillFilterColumn, skillFilterValue);
+        .select('id, effect_name, type_specific_data, sort_order, fighter_effect_categories!inner(category_name)')
+        .eq(skillFilterColumn, skillFilterValue)
+        .eq('fighter_effect_categories.category_name', 'skills');
 
       if (linkedEffectTypes && linkedEffectTypes.length > 0) {
         for (const effectType of linkedEffectTypes) {
