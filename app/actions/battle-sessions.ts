@@ -59,6 +59,7 @@ async function verifySessionParticipant(
 export async function createBattleSession(params: {
   campaign_id?: string;
   scenario?: string;
+  gang_ids?: string[];
 }): Promise<{ success: boolean; session_id?: string; error?: string }> {
   try {
     const supabase = await createClient();
@@ -77,7 +78,45 @@ export async function createBattleSession(params: {
 
     if (error) return { success: false, error: error.message };
 
-    return { success: true, session_id: data.id };
+    const sessionId = data.id;
+
+    if (params.gang_ids && params.gang_ids.length > 0) {
+      const { data: gangs } = await supabase
+        .from('gangs')
+        .select('id, user_id, rating')
+        .in('id', params.gang_ids);
+
+      if (gangs && gangs.length > 0) {
+        const participants = gangs.map((g) => ({
+          battle_session_id: sessionId,
+          user_id: g.user_id,
+          gang_id: g.id,
+          role: 'none' as const,
+          gang_rating_snapshot: g.rating ?? 0,
+        }));
+
+        await supabase.from('battle_session_participants').insert(participants);
+
+        const otherUserIds = gangs
+          .filter((g) => g.user_id && g.user_id !== user.id)
+          .map((g) => g.user_id);
+
+        if (otherUserIds.length > 0) {
+          await supabase.from('notifications').insert(
+            otherUserIds.map((receiverId) => ({
+              receiver_id: receiverId,
+              sender_id: user.id,
+              type: 'invite',
+              text: 'You have been added to a battle session.',
+              link: `/battle-session/${sessionId}`,
+              dismissed: false,
+            }))
+          );
+        }
+      }
+    }
+
+    return { success: true, session_id: sessionId };
   } catch (err) {
     console.error('Error creating battle session:', err);
     return { success: false, error: 'Failed to create battle session' };
@@ -153,46 +192,6 @@ export async function setSessionScenario(
   } catch (err) {
     console.error('Error setting scenario:', err);
     return { success: false, error: 'Failed to set scenario' };
-  }
-}
-
-// =============================================================================
-// Invites
-// =============================================================================
-
-export async function inviteToSession(params: {
-  session_id: string;
-  user_id: string;
-}): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const currentUser = await getAuthenticatedUser(supabase);
-
-    const { data: session } = await supabase
-      .from('battle_sessions')
-      .select('id, status, created_by')
-      .eq('id', params.session_id)
-      .single();
-
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.created_by !== currentUser.id)
-      return { success: false, error: 'Only the session creator can invite players' };
-    if (session.status !== 'active')
-      return { success: false, error: 'Session is not active' };
-
-    await supabase.from('notifications').insert({
-      receiver_id: params.user_id,
-      sender_id: currentUser.id,
-      type: 'invite',
-      text: 'You have been invited to a battle session. Click here to join and select your gang.',
-      link: `/battle-session/${params.session_id}`,
-      dismissed: false,
-    });
-
-    return { success: true };
-  } catch (err) {
-    console.error('Error inviting to session:', err);
-    return { success: false, error: 'Failed to invite player' };
   }
 }
 

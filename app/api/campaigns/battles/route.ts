@@ -7,22 +7,17 @@ export async function GET(
   const supabase = await createClient();
   const campaignId = request.headers.get('X-Campaign-Id');
 
-  if (!campaignId) {
-    return NextResponse.json(
-      { error: 'Campaign ID is required' },
-      { status: 400 }
-    );
-  }
-
   try {
-    // Get scenarios
     const { data: scenarios, error: scenariosError } = await supabase
       .from('scenarios')
       .select('id, scenario_name, scenario_number');
 
     if (scenariosError) throw scenariosError;
 
-    // Get gangs in the campaign with their names
+    if (!campaignId) {
+      return NextResponse.json({ scenarios });
+    }
+
     const { data: campaignGangs, error: gangsError } = await supabase
       .from('campaign_gangs')
       .select(`gang_id, gangs:gang_id ( id, name )`)
@@ -30,12 +25,11 @@ export async function GET(
 
     if (gangsError) throw gangsError;
 
-    // Transform the data for easier consumption
     const gangs = campaignGangs
-      .filter(cg => cg.gangs && cg.gangs.length > 0) // Ensure gangs array is not empty
+      .filter(cg => cg.gangs && cg.gangs.length > 0)
       .map(cg => ({
         id: cg.gang_id,
-        name: cg.gangs[0].name // Access the first gang's name
+        name: cg.gangs[0].name
       }));
 
     return NextResponse.json({

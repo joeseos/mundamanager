@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { createBattleSession } from '@/app/actions/battle-sessions';
 import { Badge } from '@/components/ui/badge';
+import CreateBattleModal from '@/components/battle-session/create-battle-modal';
 import type { BattleSession, BattleSessionStatus } from '@/types/battle-session';
 
 const statusColors: Record<BattleSessionStatus, string> = {
@@ -16,23 +14,18 @@ const statusColors: Record<BattleSessionStatus, string> = {
 
 export default function GangBattleSessions({
   sessions,
+  gangId,
+  gangName,
+  campaignId,
 }: {
   sessions: BattleSession[];
+  gangId: string;
+  gangName: string;
+  campaignId?: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
-
-  const createMutation = useMutation({
-    mutationFn: () => createBattleSession({}),
-    onSuccess: (result) => {
-      if (result.success && result.session_id) {
-        router.push(`/battle-session/${result.session_id}`);
-      } else {
-        toast.error(result.error || 'Failed to create session');
-      }
-    },
-    onError: () => toast.error('Failed to create battle session'),
-  });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filteredSessions = filter === 'active'
     ? sessions.filter((s) => s.status === 'active')
@@ -53,11 +46,10 @@ export default function GangBattleSessions({
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
         <button
-          onClick={() => createMutation.mutate()}
-          disabled={createMutation.isPending}
+          onClick={() => setShowCreateModal(true)}
           className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
         >
-          {createMutation.isPending ? 'Creating...' : 'New Battle'}
+          New Battle
         </button>
       </div>
 
@@ -110,6 +102,15 @@ export default function GangBattleSessions({
             </button>
           ))}
         </div>
+      )}
+
+      {showCreateModal && (
+        <CreateBattleModal
+          gangId={gangId}
+          gangName={gangName}
+          campaignId={campaignId}
+          onClose={() => setShowCreateModal(false)}
+        />
       )}
     </div>
   );

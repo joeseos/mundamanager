@@ -938,6 +938,9 @@ export default function GangPageContent({
         />
         <GangBattleSessions
           sessions={gangData.processedData.battleSessions || []}
+          gangId={gangId}
+          gangName={gangData.processedData.name}
+          campaignId={(gangData.processedData.campaigns || []).find((c: any) => !c.status || c.status === 'ACCEPTED')?.campaign_id}
         />
       </Tabs>
       </div>

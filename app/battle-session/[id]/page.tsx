@@ -40,26 +40,13 @@ export default async function BattleSessionPage(props: {
     new Set(session.participants.map((p) => p.gang_id))
   );
 
-  const [{ data: userGangs }, gangFighterLists, { data: scenarios }, campaignGangs] =
-    await Promise.all([
-      supabase
-        .from('gangs')
-        .select('id, name, rating')
-        .eq('user_id', user.id)
-        .order('name'),
-      Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
-      supabase
-        .from('scenarios')
-        .select('id, scenario_name, scenario_number')
-        .order('scenario_number'),
-      session.campaign_id
-        ? supabase
-            .from('campaign_gangs')
-            .select('gang_id, user_id')
-            .eq('campaign_id', session.campaign_id)
-            .then(({ data }) => data || [])
-        : Promise.resolve([]),
-    ]);
+  const [gangFighterLists, { data: scenarios }] = await Promise.all([
+    Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
+    supabase
+      .from('scenarios')
+      .select('id, scenario_name, scenario_number')
+      .order('scenario_number'),
+  ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};
   uniqueGangIds.forEach((gId, i) => {
@@ -72,8 +59,6 @@ export default async function BattleSessionPage(props: {
         <ActiveSession
           session={session}
           userId={user.id}
-          userGangs={userGangs || []}
-          campaignGangs={campaignGangs}
           scenarios={scenarios || []}
           gangFightersMap={gangFightersMap}
         />
