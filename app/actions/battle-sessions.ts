@@ -65,6 +65,13 @@ export async function createBattleSession(params: {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+    const senderName = profile?.username || 'Someone';
+
     const { data, error } = await supabase
       .from('battle_sessions')
       .insert({
@@ -97,18 +104,16 @@ export async function createBattleSession(params: {
 
         await supabase.from('battle_session_participants').insert(participants);
 
-        const otherUserIds = gangs
-          .filter((g) => g.user_id && g.user_id !== user.id)
-          .map((g) => g.user_id);
+        const otherGangs = gangs.filter((g) => g.user_id && g.user_id !== user.id);
 
-        if (otherUserIds.length > 0) {
+        if (otherGangs.length > 0) {
           await supabase.from('notifications').insert(
-            otherUserIds.map((receiverId) => ({
-              receiver_id: receiverId,
+            otherGangs.map((g) => ({
+              receiver_id: g.user_id,
               sender_id: user.id,
               type: 'invite',
-              text: 'You have been added to a battle session.',
-              link: `/battle-session/${sessionId}`,
+              text: `${senderName} added you to a battle session.`,
+              link: `/gang/${g.id}/battle-session/${sessionId}`,
               dismissed: false,
             }))
           );
@@ -209,6 +214,13 @@ export async function addParticipant(params: {
     const supabase = await createClient();
     const currentUser = await getAuthenticatedUser(supabase);
 
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', currentUser.id)
+      .single();
+    const senderName = currentProfile?.username || 'Someone';
+
     // Verify session exists and is active
     const { data: session } = await supabase
       .from('battle_sessions')
@@ -265,8 +277,8 @@ export async function addParticipant(params: {
         receiver_id: params.user_id,
         sender_id: currentUser.id,
         type: 'invite',
-        text: 'You have been invited to a battle session.',
-        link: `/battle-session/${params.session_id}`,
+        text: `${senderName} invited you to a battle session.`,
+        link: `/gang/${params.gang_id}/battle-session/${params.session_id}`,
         dismissed: false,
       });
     }
@@ -322,39 +334,6 @@ export async function removeParticipant(
 // =============================================================================
 // Fighter Management
 // =============================================================================
-
-export async function addFighterToSession(params: {
-  session_id: string;
-  participant_id: string;
-  fighter_id: string;
-  loadout_id?: string;
-}): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
-
-    const { error } = await supabase
-      .from('battle_session_fighters')
-      .insert({
-        battle_session_id: params.session_id,
-        participant_id: params.participant_id,
-        fighter_id: params.fighter_id,
-        ...(params.loadout_id ? { loadout_id: params.loadout_id } : {}),
-      });
-
-    if (error) {
-      if (error.code === '23505')
-        return { success: false, error: 'Fighter is already in this session' };
-      return { success: false, error: error.message };
-    }
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(params.session_id));
-    return { success: true };
-  } catch (err) {
-    console.error('Error adding fighter to session:', err);
-    return { success: false, error: 'Failed to add fighter' };
-  }
-}
 
 export async function removeFighterFromSession(
   sessionId: string,
@@ -696,6 +675,13 @@ export async function completeBattleSession(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+    const senderName = userProfile?.username || 'Someone';
+
     const auth = await verifySessionCreator(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
@@ -831,8 +817,8 @@ export async function completeBattleSession(
           receiver_id: p.user_id,
           sender_id: user.id,
           type: 'info',
-          text: 'Battle session has been completed.',
-          link: `/battle-session/${sessionId}`,
+          text: `${senderName} completed a battle session.`,
+          link: `/gang/${p.gang_id}/battle-session/${sessionId}`,
           dismissed: false,
         }));
       if (notifications.length > 0) {

@@ -7,7 +7,7 @@ import ActiveSession from '@/components/battle-session/active-session';
 import ConfirmedSession from '@/components/battle-session/confirmed-session';
 
 export default async function BattleSessionPage(props: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; sessionId: string }>;
 }) {
   const params = await props.params;
   const supabase = await createClient();
@@ -19,7 +19,7 @@ export default async function BattleSessionPage(props: {
     redirect('/sign-in');
   }
 
-  const session = await getBattleSessionCached(params.id, supabase);
+  const session = await getBattleSessionCached(params.sessionId, supabase);
 
   if (!session) {
     notFound();
@@ -35,7 +35,6 @@ export default async function BattleSessionPage(props: {
     );
   }
 
-  // status === 'active' — fetch additional data needed for editing
   const uniqueGangIds = Array.from(
     new Set(session.participants.map((p) => p.gang_id))
   );

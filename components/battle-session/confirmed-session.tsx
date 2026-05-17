@@ -125,10 +125,10 @@ export default function ConfirmedSession({
       {/* Links */}
       <div className="flex justify-center gap-4">
         <Link
-          href="/battle-session"
+          href={`/gang/${session.participants.find((p) => p.user_id === userId)?.gang_id || ''}`}
           className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
         >
-          Back to Battle Sessions
+          Back to Gang
         </Link>
         {session.campaign_id && (
           <Link

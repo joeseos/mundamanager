@@ -280,7 +280,7 @@ export default function CreateBattleModal({
           router.refresh();
         } else if ('session_id' in result && result.session_id) {
           setNavigating(true);
-          router.push(`/battle-session/${result.session_id}`);
+          router.push(`/gang/${gangId}/battle-session/${result.session_id}`);
         }
       } else {
         toast.error(result.error || 'Failed');

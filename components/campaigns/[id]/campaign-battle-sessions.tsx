@@ -13,16 +13,16 @@ const statusColors: Record<BattleSessionStatus, string> = {
   cancelled: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
 };
 
-export default function GangBattleSessions({
+export default function CampaignBattleSessions({
   sessions,
-  gangId,
-  gangName,
   campaignId,
+  userGangId,
+  gangName,
 }: {
   sessions: BattleSession[];
-  gangId: string;
-  gangName: string;
-  campaignId?: string;
+  campaignId: string;
+  userGangId: string | undefined;
+  gangName: string | undefined;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
@@ -43,15 +43,17 @@ export default function GangBattleSessions({
   };
 
   return (
-    <div className="bg-card shadow-md rounded-lg p-4">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="mb-6">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-neutral-900 hover:bg-gray-800 text-white"
-        >
-          New
-        </Button>
+        {userGangId && (
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-neutral-900 hover:bg-gray-800 text-white"
+          >
+            New
+          </Button>
+        )}
       </div>
 
       <div className="mb-4 flex gap-2">
@@ -78,36 +80,45 @@ export default function GangBattleSessions({
       </div>
 
       {filteredSessions.length === 0 ? (
-        <p className="py-12 text-center text-neutral-500">
+        <p className="py-8 text-center text-neutral-500">
           {filter === 'active'
-            ? 'No active battles. Create one to get started.'
+            ? 'No active battle sessions.'
             : 'No battle sessions yet.'}
         </p>
       ) : (
-        <div className="space-y-2">
-          {filteredSessions.map((session) => (
-            <button
-              key={session.id}
-              onClick={() => router.push(`/gang/${gangId}/battle-session/${session.id}`)}
-              className="flex w-full items-center justify-between rounded-lg border border-neutral-200 p-4 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-medium">
-                  {formatDate(session.updated_at)}
-                </span>
-                <Badge className={statusColors[session.status]}>
-                  {session.status}
-                </Badge>
-              </div>
-              <span className="text-neutral-400">&rarr;</span>
-            </button>
-          ))}
+        <div className="rounded-md border overflow-x-auto">
+          <table className="w-full text-xs md:text-sm">
+            <thead>
+              <tr className="bg-muted border-b">
+                <th className="p-1 md:p-2 text-left font-medium">Date</th>
+                <th className="p-1 md:p-2 text-left font-medium">Scenario</th>
+                <th className="p-1 md:p-2 text-left font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSessions.map((session) => (
+                <tr
+                  key={session.id}
+                  onClick={() => router.push(`/campaigns/${campaignId}/battle-session/${session.id}`)}
+                  className="border-b cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  <td className="p-1 md:p-2">{formatDate(session.updated_at)}</td>
+                  <td className="p-1 md:p-2">{session.scenario || '-'}</td>
+                  <td className="p-1 md:p-2">
+                    <Badge className={statusColors[session.status]}>
+                      {session.status}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {showCreateModal && (
+      {showCreateModal && userGangId && gangName && (
         <CreateBattleModal
-          gangId={gangId}
+          gangId={userGangId}
           gangName={gangName}
           campaignId={campaignId}
           onClose={() => setShowCreateModal(false)}

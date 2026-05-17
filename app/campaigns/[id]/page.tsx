@@ -72,13 +72,19 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignMembers,
       campaignTerritories,
       campaignBattles,
-      campaignMapBundle
+      campaignMapBundle,
+      battleSessionsResult
     ] = await Promise.all([
       getCampaignBasic(params.id, supabase),
       getCampaignMembers(params.id, supabase),
       getCampaignTerritories(params.id, supabase),
       getCampaignBattles(params.id, 100, supabase),
-      getCampaignMapWithObjects(params.id, supabase)
+      getCampaignMapWithObjects(params.id, supabase),
+      supabase
+        .from('battle_sessions')
+        .select('*')
+        .eq('campaign_id', params.id)
+        .order('updated_at', { ascending: false }),
     ]);
 
     // Check if campaign exists
@@ -138,6 +144,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
+      battleSessions: battleSessionsResult.data || [],
       triumphs: campaignTriumphs,
       captives: campaignCaptives
     };
