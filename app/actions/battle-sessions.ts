@@ -200,9 +200,9 @@ export async function setSessionScenario(
   }
 }
 
-export async function advanceTurn(
+export async function advanceRound(
   sessionId: string
-): Promise<{ success: boolean; newTurn?: number; error?: string }> {
+): Promise<{ success: boolean; newRound?: number; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -212,7 +212,7 @@ export async function advanceTurn(
 
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('status, current_turn')
+      .select('status, round')
       .eq('id', sessionId)
       .single();
 
@@ -220,11 +220,11 @@ export async function advanceTurn(
     if (session.status !== 'active')
       return { success: false, error: 'Session is not active' };
 
-    const nextTurn = session.current_turn + 1;
+    const nextRound = session.round + 1;
 
     const { error: updateError } = await supabase
       .from('battle_sessions')
-      .update({ current_turn: nextTurn, updated_at: new Date().toISOString() })
+      .update({ round: nextRound, updated_at: new Date().toISOString() })
       .eq('id', sessionId);
 
     if (updateError) return { success: false, error: updateError.message };
@@ -255,10 +255,10 @@ export async function advanceTurn(
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    return { success: true, newTurn: nextTurn };
+    return { success: true, newRound: nextRound };
   } catch (err) {
-    console.error('Error advancing turn:', err);
-    return { success: false, error: 'Failed to advance turn' };
+    console.error('Error advancing round:', err);
+    return { success: false, error: 'Failed to advance round' };
   }
 }
 

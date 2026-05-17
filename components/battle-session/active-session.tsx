@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
   addParticipant,
   setSessionScenario,
-  advanceTurn,
+  advanceRound,
   completeBattleSession,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
@@ -36,7 +36,7 @@ export default function ActiveSession({
   const router = useRouter();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
-  const [showTurnModal, setShowTurnModal] = useState(false);
+  const [showRoundModal, setShowRoundModal] = useState(false);
   const isOwner = session.created_by === userId;
 
   const ratings = session.participants.map((p) =>
@@ -81,17 +81,17 @@ export default function ActiveSession({
     onError: () => toast.error('Failed to cancel'),
   });
 
-  const turnMutation = useMutation({
-    mutationFn: () => advanceTurn(session.id),
+  const roundMutation = useMutation({
+    mutationFn: () => advanceRound(session.id),
     onSuccess: (result) => {
       if (result.success) {
-        toast.success(`Turn ${result.newTurn} started`);
+        toast.success(`Round ${result.newRound} started`);
         router.refresh();
       } else {
-        toast.error(result.error || 'Failed to advance turn');
+        toast.error(result.error || 'Failed to advance round');
       }
     },
-    onError: () => toast.error('Failed to advance turn'),
+    onError: () => toast.error('Failed to advance round'),
   });
 
   // Join battle — shown when the user has no gang in the session
@@ -201,31 +201,31 @@ export default function ActiveSession({
 
         <div className="mt-4 flex items-center gap-3">
           <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Turn {session.current_turn}
+            Round {session.round}
           </span>
           {isOwner && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowTurnModal(true)}
-              disabled={turnMutation.isPending}
+              onClick={() => setShowRoundModal(true)}
+              disabled={roundMutation.isPending}
             >
-              {turnMutation.isPending ? 'Advancing...' : 'Complete Turn'}
+              {roundMutation.isPending ? 'Advancing...' : 'Complete Round'}
             </Button>
           )}
-          {showTurnModal && (
+          {showRoundModal && (
             <Modal
-              title="Complete Turn"
-              onClose={() => setShowTurnModal(false)}
+              title="Complete Round"
+              onClose={() => setShowRoundModal(false)}
               onConfirm={async () => {
-                turnMutation.mutate();
-                setShowTurnModal(false);
+                roundMutation.mutate();
+                setShowRoundModal(false);
                 return true;
               }}
-              confirmText="Complete Turn"
-              confirmDisabled={turnMutation.isPending}
+              confirmText="Complete Round"
+              confirmDisabled={roundMutation.isPending}
             >
-              <p>Complete turn {session.current_turn} and start turn {session.current_turn + 1}? All fighters will be reactivated.</p>
+              <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
             </Modal>
           )}
         </div>
