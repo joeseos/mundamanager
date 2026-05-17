@@ -796,6 +796,8 @@ export default function ParticipantCard({
       starved: gf.starved,
       recovery: gf.recovery,
       captured: gf.captured,
+      fighter_class: gf.fighter_class,
+      owner_name: gf.owner_name,
     }));
   }, [gangFightersList]);
 

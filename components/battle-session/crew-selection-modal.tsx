@@ -22,6 +22,56 @@ interface GangFighterOption {
   starved?: boolean;
   recovery?: boolean;
   captured?: boolean;
+  fighter_class?: string;
+  owner_name?: string;
+}
+
+function isBeast(f: GangFighterOption) {
+  const cls = f.fighter_class?.toLowerCase();
+  return cls === 'exotic beast' || cls === 'exotic beast specialist';
+}
+
+interface SortedEntry {
+  fighter: GangFighterOption;
+  parentOwnerId?: string;
+  parentLoadoutId?: string;
+}
+
+function sortWithBeasts(fighters: GangFighterOption[]): SortedEntry[] {
+  const nonBeasts: GangFighterOption[] = [];
+  const beastsByOwner = new Map<string, GangFighterOption[]>();
+
+  for (const f of fighters) {
+    if (isBeast(f) && f.owner_name) {
+      const list = beastsByOwner.get(f.owner_name) || [];
+      list.push(f);
+      beastsByOwner.set(f.owner_name, list);
+    } else {
+      nonBeasts.push(f);
+    }
+  }
+
+  const result: SortedEntry[] = [];
+  for (const fighter of nonBeasts) {
+    result.push({ fighter });
+    const beasts = beastsByOwner.get(fighter.fighter_name);
+    if (beasts) {
+      for (const beast of beasts) {
+        result.push({ fighter: beast, parentOwnerId: fighter.id, parentLoadoutId: fighter.loadout_id });
+      }
+    }
+  }
+
+  const placedOwners = new Set(nonBeasts.map((f) => f.fighter_name));
+  Array.from(beastsByOwner.entries()).forEach(([ownerName, beasts]) => {
+    if (!placedOwners.has(ownerName)) {
+      for (const beast of beasts) {
+        result.push({ fighter: beast });
+      }
+    }
+  });
+
+  return result;
 }
 
 export interface FighterEntry {
@@ -47,7 +97,6 @@ export default function CrewSelectionModal({
   const [selected, setSelected] = useState<Map<string, string | undefined>>(
     () => {
       const initial = new Map(selectedFighters);
-      // Resolve undefined loadouts to the fighter's first available loadout
       initial.forEach((loadoutId, fighterId) => {
         if (loadoutId === undefined) {
           const match = gangFighters.find((f) => f.id === fighterId && f.loadout_id);
@@ -60,21 +109,38 @@ export default function CrewSelectionModal({
     }
   );
 
-  const toggle = (fighterId: string, loadoutId?: string) => {
+  const isAvailable = (f: GangFighterOption) =>
+    countsTowardRating(f) && !f.recovery;
+
+  const sortedFighters = sortWithBeasts(gangFighters);
+
+  const getBeastsForOwner = (ownerName: string) =>
+    gangFighters.filter((f) => isBeast(f) && f.owner_name === ownerName);
+
+  const toggle = (fighter: GangFighterOption) => {
+    if (isBeast(fighter)) return;
     setSelected((prev) => {
       const next = new Map(prev);
-      const currentLoadout = next.get(fighterId);
-      if (next.has(fighterId) && currentLoadout === loadoutId) {
-        next.delete(fighterId);
+      const currentLoadout = next.get(fighter.id);
+      const wasSelected = next.has(fighter.id) && currentLoadout === fighter.loadout_id;
+
+      if (wasSelected) {
+        next.delete(fighter.id);
+        for (const beast of getBeastsForOwner(fighter.fighter_name)) {
+          next.delete(beast.id);
+        }
       } else {
-        next.set(fighterId, loadoutId);
+        next.set(fighter.id, fighter.loadout_id);
+        for (const beast of getBeastsForOwner(fighter.fighter_name)) {
+          if (isAvailable(beast)) {
+            next.set(beast.id, beast.loadout_id);
+          }
+        }
       }
       return next;
     });
   };
 
-  const isAvailable = (f: GangFighterOption) =>
-    countsTowardRating(f) && !f.recovery;
   const activeFighters = gangFighters.filter(isAvailable);
   const uniqueActiveFighterIds = new Set(activeFighters.map((f) => f.id));
   const allSelected = uniqueActiveFighterIds.size > 0 && Array.from(uniqueActiveFighterIds).every((id) => selected.has(id));
@@ -154,17 +220,22 @@ export default function CrewSelectionModal({
             <div className="flex-grow">Name</div>
             <div className="text-right">Value</div>
           </div>
-          {gangFighters.map((f) => {
-            const isSelected = selected.has(f.id) && selected.get(f.id) === f.loadout_id;
+          {sortedFighters.map((entry, idx) => {
+            const f = entry.fighter;
+            const beast = isBeast(f);
+            const isSelected = beast
+              ? selected.has(f.id) && entry.parentOwnerId != null && selected.get(entry.parentOwnerId) === entry.parentLoadoutId
+              : selected.has(f.id) && selected.get(f.id) === f.loadout_id;
             return (
               <label
-                key={f.loadout_id ? `${f.id}:${f.loadout_id}` : f.id}
-                className="flex items-center p-2 bg-muted rounded-md cursor-pointer hover:bg-muted"
+                key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
+                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : 'cursor-pointer'}`}
               >
                 <Checkbox
                   checked={isSelected}
-                  onCheckedChange={() => toggle(f.id, f.loadout_id)}
+                  onCheckedChange={() => toggle(f)}
                   className="mr-3"
+                  disabled={beast}
                 />
                 <span className="flex-grow overflow-hidden text-ellipsis flex items-center gap-1">
                   {f.fighter_name}
