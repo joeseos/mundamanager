@@ -295,7 +295,7 @@ export default function CreateBattleModal({
     ? selectedCampaignGangIds.length > 0
     : opponents.length > 0;
 
-  const canConfirm = isAddMode ? hasOpponents : true;
+  const canConfirm = isAddMode ? hasOpponents : !!selectedScenario;
 
   const modalContent = (
     <Modal
