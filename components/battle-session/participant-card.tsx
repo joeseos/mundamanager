@@ -797,6 +797,7 @@ export default function ParticipantCard({
       recovery: gf.recovery,
       captured: gf.captured,
       fighter_class: gf.fighter_class,
+      owner_id: gf.owner_id,
       owner_name: gf.owner_name,
     }));
   }, [gangFightersList]);

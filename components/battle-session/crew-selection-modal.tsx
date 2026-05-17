@@ -23,6 +23,7 @@ interface GangFighterOption {
   recovery?: boolean;
   captured?: boolean;
   fighter_class?: string;
+  owner_id?: string;
   owner_name?: string;
 }
 
@@ -42,10 +43,10 @@ function sortWithBeasts(fighters: GangFighterOption[]): SortedEntry[] {
   const beastsByOwner = new Map<string, GangFighterOption[]>();
 
   for (const f of fighters) {
-    if (isBeast(f) && f.owner_name) {
-      const list = beastsByOwner.get(f.owner_name) || [];
+    if (isBeast(f) && f.owner_id) {
+      const list = beastsByOwner.get(f.owner_id) || [];
       list.push(f);
-      beastsByOwner.set(f.owner_name, list);
+      beastsByOwner.set(f.owner_id, list);
     } else {
       nonBeasts.push(f);
     }
@@ -54,7 +55,7 @@ function sortWithBeasts(fighters: GangFighterOption[]): SortedEntry[] {
   const result: SortedEntry[] = [];
   for (const fighter of nonBeasts) {
     result.push({ fighter });
-    const beasts = beastsByOwner.get(fighter.fighter_name);
+    const beasts = beastsByOwner.get(fighter.id);
     if (beasts) {
       for (const beast of beasts) {
         result.push({ fighter: beast, parentOwnerId: fighter.id, parentLoadoutId: fighter.loadout_id });
@@ -62,9 +63,9 @@ function sortWithBeasts(fighters: GangFighterOption[]): SortedEntry[] {
     }
   }
 
-  const placedOwners = new Set(nonBeasts.map((f) => f.fighter_name));
-  Array.from(beastsByOwner.entries()).forEach(([ownerName, beasts]) => {
-    if (!placedOwners.has(ownerName)) {
+  const placedOwnerIds = new Set(nonBeasts.map((f) => f.id));
+  Array.from(beastsByOwner.entries()).forEach(([ownerId, beasts]) => {
+    if (!placedOwnerIds.has(ownerId)) {
       for (const beast of beasts) {
         result.push({ fighter: beast });
       }
@@ -114,8 +115,8 @@ export default function CrewSelectionModal({
 
   const sortedFighters = sortWithBeasts(gangFighters);
 
-  const getBeastsForOwner = (ownerName: string) =>
-    gangFighters.filter((f) => isBeast(f) && f.owner_name === ownerName);
+  const getBeastsForOwner = (ownerId: string) =>
+    gangFighters.filter((f) => isBeast(f) && f.owner_id === ownerId);
 
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
@@ -126,12 +127,12 @@ export default function CrewSelectionModal({
 
       if (wasSelected) {
         next.delete(fighter.id);
-        for (const beast of getBeastsForOwner(fighter.fighter_name)) {
+        for (const beast of getBeastsForOwner(fighter.id)) {
           next.delete(beast.id);
         }
       } else {
         next.set(fighter.id, fighter.loadout_id);
-        for (const beast of getBeastsForOwner(fighter.fighter_name)) {
+        for (const beast of getBeastsForOwner(fighter.id)) {
           if (isAvailable(beast)) {
             next.set(beast.id, beast.loadout_id);
           }

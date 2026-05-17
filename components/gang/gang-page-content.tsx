@@ -16,6 +16,7 @@ import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { PiFlagBannerFoldBold } from 'react-icons/pi';
 import { LuClipboard, LuSwords } from 'react-icons/lu';
 import GangBattleSessions from "@/components/gang/battle-sessions-tab";
+import type { BattleSession } from "@/types/battle-session";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
@@ -80,7 +81,7 @@ interface GangDataState {
     patreon_tier_title?: string;
     patron_status?: string;
     hidden: boolean;
-    battleSessions?: any[];
+    battleSessions?: BattleSession[];
   };
   stash: StashItem[];
   onStashUpdate: (newStash: StashItem[]) => void;
