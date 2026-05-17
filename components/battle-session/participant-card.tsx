@@ -812,7 +812,7 @@ export default function ParticipantCard({
     const match = gangFighters.find(
       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
     ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
-    return sum + (match?.credits ?? f.fighter?.total_cost ?? f.fighter?.credits ?? 0);
+    return sum + (match?.credits ?? f.fighter?.credits ?? 0);
   }, 0);
 
   const removeMutation = useMutation({
@@ -868,7 +868,7 @@ export default function ParticipantCard({
       loadout_id: loadoutId,
       session_record: { xp_earned: 0, injuries: [], conditions: [{ key: 'ready', name: 'Ready' }] },
       created_at: new Date().toISOString(),
-      fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, total_cost: gf.credits } : undefined,
+      fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits } : undefined,
     };
   };
 
@@ -1094,7 +1094,7 @@ export default function ParticipantCard({
                       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
                     ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
                     const name = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
-                    const cost = match?.credits ?? f.fighter?.total_cost ?? f.fighter?.credits;
+                    const cost = match?.credits ?? f.fighter?.credits;
                     const xp = f.session_record?.xp_earned ?? 0;
                     const injuryCount = f.session_record?.injuries?.length ?? 0;
                     return (

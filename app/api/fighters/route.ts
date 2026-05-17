@@ -370,14 +370,11 @@ export async function GET(request: Request) {
       const effectsCost = effectsByFighter.get(fighter.id) || 0;
       const vehicleCost = vehiclesByFighter.get(fighter.id) || 0;
 
-      // Calculate beast costs (simplified - would need recursive calculation for full accuracy)
-      const beastCosts = 0; // TODO: Implement if needed
-
       const allEquipment = equipmentByFighter.get(fighter.id) || [];
       const allEquipmentCost = allEquipment.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0);
 
       const totalCost = isOwnedBeast ? 0 :
-        baseCost + allEquipmentCost + skillsCost + effectsCost + vehicleCost + costAdjustment + beastCosts;
+        baseCost + allEquipmentCost + skillsCost + effectsCost + vehicleCost + costAdjustment;
 
       // Process loadouts
       const fighterLoadouts = loadoutsByFighter.get(fighter.id) || [];
@@ -395,7 +392,7 @@ export async function GET(request: Request) {
 
         const equipmentCost = loadoutEquipmentList.reduce((sum, eq) => sum + eq.cost, 0);
         const loadoutTotal = isOwnedBeast ? 0 :
-          baseCost + equipmentCost + skillsCost + effectsCost + vehicleCost + costAdjustment + beastCosts;
+          baseCost + equipmentCost + skillsCost + effectsCost + vehicleCost + costAdjustment;
 
         return {
           id: loadout.id,
@@ -422,7 +419,6 @@ export async function GET(request: Request) {
         effects_cost: effectsCost,
         vehicle_cost: vehicleCost,
         cost_adjustment: costAdjustment,
-        beast_costs: beastCosts,
         total_cost: totalCost,
 
         // Stats

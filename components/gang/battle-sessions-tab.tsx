@@ -5,13 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import CreateBattleModal from '@/components/battle-session/create-battle-modal';
-import type { BattleSession, BattleSessionStatus } from '@/types/battle-session';
-
-const statusColors: Record<BattleSessionStatus, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  cancelled: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
-};
+import { statusColors, formatBattleSessionDate } from '@/types/battle-session';
+import type { BattleSession } from '@/types/battle-session';
 
 export default function GangBattleSessions({
   sessions,
@@ -32,15 +27,6 @@ export default function GangBattleSessions({
     ? sessions.filter((s) => s.status === 'active')
     : sessions;
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const d = date.toISOString().slice(0, 10);
-    const t = date.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${d} ${t}`;
-  };
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
@@ -93,7 +79,7 @@ export default function GangBattleSessions({
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">
-                  {formatDate(session.updated_at)}
+                  {formatBattleSessionDate(session.updated_at)}
                 </span>
                 <Badge className={statusColors[session.status]}>
                   {session.status}

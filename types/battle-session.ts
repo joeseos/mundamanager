@@ -1,5 +1,21 @@
 export type BattleSessionStatus = 'active' | 'confirmed' | 'cancelled';
 
+export const statusColors: Record<BattleSessionStatus, string> = {
+  active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  cancelled: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
+};
+
+export function formatBattleSessionDate(dateStr: string) {
+  const date = new Date(dateStr);
+  const d = date.toISOString().slice(0, 10);
+  const t = date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${d} ${t}`;
+}
+
 export interface BattleSession {
   id: string;
   created_at: string;
@@ -69,7 +85,6 @@ export interface BattleSessionFighter {
     fighter_name: string;
     fighter_type?: string;
     credits?: number;
-    total_cost?: number;
   };
 }
 
