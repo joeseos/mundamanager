@@ -14,6 +14,7 @@ CREATE TABLE public.battle_sessions (
         CHECK (status IN ('active', 'confirmed', 'cancelled')),
     winner_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,
     note text,
+    current_turn integer NOT NULL DEFAULT 1,
     campaign_battle_id uuid REFERENCES public.campaign_battles(id) ON DELETE SET NULL
 );
 

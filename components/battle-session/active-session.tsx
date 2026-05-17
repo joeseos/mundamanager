@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import {
   addParticipant,
   setSessionScenario,
+  advanceTurn,
   completeBattleSession,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
@@ -35,6 +36,7 @@ export default function ActiveSession({
   const router = useRouter();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [showTurnModal, setShowTurnModal] = useState(false);
   const isOwner = session.created_by === userId;
 
   const ratings = session.participants.map((p) =>
@@ -77,6 +79,19 @@ export default function ActiveSession({
       }
     },
     onError: () => toast.error('Failed to cancel'),
+  });
+
+  const turnMutation = useMutation({
+    mutationFn: () => advanceTurn(session.id),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Turn ${result.newTurn} started`);
+        router.refresh();
+      } else {
+        toast.error(result.error || 'Failed to advance turn');
+      }
+    },
+    onError: () => toast.error('Failed to advance turn'),
   });
 
   // Join battle — shown when the user has no gang in the session
@@ -182,6 +197,37 @@ export default function ActiveSession({
             }}
             placeholder="Select scenario..."
           />
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Turn {session.current_turn}
+          </span>
+          {isOwner && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTurnModal(true)}
+              disabled={turnMutation.isPending}
+            >
+              {turnMutation.isPending ? 'Advancing...' : 'Complete Turn'}
+            </Button>
+          )}
+          {showTurnModal && (
+            <Modal
+              title="Complete Turn"
+              onClose={() => setShowTurnModal(false)}
+              onConfirm={async () => {
+                turnMutation.mutate();
+                setShowTurnModal(false);
+                return true;
+              }}
+              confirmText="Complete Turn"
+              confirmDisabled={turnMutation.isPending}
+            >
+              <p>Complete turn {session.current_turn} and start turn {session.current_turn + 1}? All fighters will be reactivated.</p>
+            </Modal>
+          )}
         </div>
       </div>
 

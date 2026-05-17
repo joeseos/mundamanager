@@ -610,7 +610,7 @@ function FighterRow({
   };
 
   return (
-    <tr className={`border-b last:border-b-0 ${!isReady && canEdit ? 'opacity-40' : ''}`}>
+    <tr className={`border-b last:border-b-0 ${!isReady ? 'opacity-40' : ''}`}>
       <td className="p-1 md:p-2 w-full">
         <div className="flex items-center gap-2">
           <IoInformationCircleOutline
@@ -658,21 +658,22 @@ function FighterRow({
           </div>
         </div>
       </td>
-      {canEdit && (
-        <td className="p-1 md:p-2 text-right whitespace-nowrap">
-          <div className="flex items-center justify-end gap-4">
-            <FaUserCheck
-              className={`size-5 cursor-pointer transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30 hover:text-muted-foreground'}`}
-              title={isReady ? 'Ready — click to mark as activated' : 'Activated — click to mark as ready'}
-              onClick={toggleReady}
-            />
+      <td className="p-1 md:p-2 text-right whitespace-nowrap">
+        <div className="flex items-center justify-end gap-4">
+          <FaUserCheck
+            className={`size-5 transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'} ${canEdit ? 'cursor-pointer hover:text-muted-foreground' : ''}`}
+            title={isReady ? 'Ready' : 'Activated'}
+            onClick={canEdit ? toggleReady : undefined}
+          />
+          {canEdit && (
             <CgMoreVerticalO
               className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
               title="Click to open action menu"
               onClick={() => setShowActionModal(true)}
             />
+          )}
           </div>
-          {showActionModal && (
+          {canEdit && showActionModal && (
             <FighterActionModal
               fighter={fighter}
               onXpChanged={onXpChanged}
@@ -683,7 +684,6 @@ function FighterRow({
             />
           )}
         </td>
-      )}
       {showInfoModal && createPortal(
         <div
           className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
@@ -1076,13 +1076,13 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
-                  {canEdit && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Action</th>}
+                  <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">{canEdit ? 'Action' : 'Status'}</th>
                 </tr>
               </thead>
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 2 : 1} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={2} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>

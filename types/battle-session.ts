@@ -10,6 +10,7 @@ export interface BattleSession {
   status: BattleSessionStatus;
   winner_gang_id: string | null;
   note: string | null;
+  current_turn: number;
   campaign_battle_id: string | null;
 }
 

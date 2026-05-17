@@ -200,6 +200,68 @@ export async function setSessionScenario(
   }
 }
 
+export async function advanceTurn(
+  sessionId: string
+): Promise<{ success: boolean; newTurn?: number; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status, current_turn')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) return { success: false, error: 'Session not found' };
+    if (session.status !== 'active')
+      return { success: false, error: 'Session is not active' };
+
+    const nextTurn = session.current_turn + 1;
+
+    const { error: updateError } = await supabase
+      .from('battle_sessions')
+      .update({ current_turn: nextTurn, updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (updateError) return { success: false, error: updateError.message };
+
+    const { data: fighters } = await supabase
+      .from('battle_session_fighters')
+      .select('id, session_record')
+      .eq('battle_session_id', sessionId);
+
+    if (fighters && fighters.length > 0) {
+      await Promise.all(
+        fighters.map((f) => {
+          const record: SessionRecord = {
+            xp_earned: f.session_record?.xp_earned ?? 0,
+            injuries: f.session_record?.injuries ?? [],
+            conditions: f.session_record?.conditions ?? [],
+          };
+          const hasReady = record.conditions.some((c) => c.key === 'ready');
+          if (!hasReady) {
+            record.conditions.push({ key: 'ready', name: 'Ready' });
+          }
+          return supabase
+            .from('battle_session_fighters')
+            .update({ session_record: record })
+            .eq('id', f.id);
+        })
+      );
+    }
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true, newTurn: nextTurn };
+  } catch (err) {
+    console.error('Error advancing turn:', err);
+    return { success: false, error: 'Failed to advance turn' };
+  }
+}
+
 // =============================================================================
 // Participant Management
 // =============================================================================
