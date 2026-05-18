@@ -8,6 +8,7 @@ import { FighterProps as Fighter, Archetype } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
+import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterPromotionModal } from './fighter-promotion-modal';
@@ -711,6 +712,25 @@ export function EditFighterModal({
     setSelectedGangLegacyId(legacyId);
   };
 
+  const effectSpecialRules = useMemo(() => {
+    const allEffects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+    return applySpecialRulesModifiers([], allEffects);
+  }, [fighter.effects]);
+
+  const effectRemovedRules = useMemo(() => {
+    const removed = new Set<string>();
+    if (fighter.effects) {
+      Object.values(fighter.effects).flat().forEach((effect: any) => {
+        const tsd = typeof effect.type_specific_data === 'object' && effect.type_specific_data
+          ? effect.type_specific_data : null;
+        if (tsd) {
+          (tsd.special_rules_to_remove || []).forEach((r: string) => removed.add(r));
+        }
+      });
+    }
+    return removed;
+  }, [fighter.effects]);
+
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
@@ -1246,7 +1266,9 @@ export function EditFighterModal({
               
               {/* Display existing special rules as tags */}
               <div className="flex flex-wrap gap-2 mt-2">
-                {formValues.special_rules.map((rule, index) => (
+                {formValues.special_rules
+                  .filter(rule => !effectRemovedRules.has(rule))
+                  .map((rule, index) => (
                   <div
                     key={index}
                     className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
@@ -1259,6 +1281,17 @@ export function EditFighterModal({
                     >
                       <HiX size={14} />
                     </button>
+                  </div>
+                ))}
+                {effectSpecialRules
+                  .filter(rule => !formValues.special_rules.includes(rule))
+                  .map((rule, index) => (
+                  <div
+                    key={`effect-${index}`}
+                    className="bg-muted/50 px-3 py-1 rounded-full flex items-center text-sm text-muted-foreground italic"
+                  >
+                    <span>{rule}</span>
+                    <span className="ml-2 text-xs">(from effect)</span>
                   </div>
                 ))}
               </div>
