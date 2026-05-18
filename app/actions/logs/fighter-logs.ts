@@ -10,7 +10,8 @@ export interface FighterLogParams {
   fighter_name: string;
   action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurrected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
               'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_kill_count_changed' | 'fighter_cost_adjusted' |
-              'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied';
+              'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied' |
+              'rig_glitches_cleared_downtime';
   user_id?: string;
   old_value?: number | string;
   new_value?: number | string;
@@ -147,6 +148,11 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         const sourceInfo = params.source_fighter_name ? ` from "${params.source_fighter_name}"` : '';
         description = `Copied ${copyTypeLabel} "${params.fighter_name}"${sourceInfo} (${params.fighter_credits || 0} credits).${financialChanges}`;
         break;
+      case 'rig_glitches_cleared_downtime': {
+        const count = Number(params.old_value ?? 0);
+        description = `Fighter "${params.fighter_name}" cleared ${count} rig glitch${count !== 1 ? 'es' : ''} via Downtime (-100 credits).${financialChanges}`;
+        break;
+      }
       default:
         throw new Error(`Unknown fighter action type: ${params.action_type}`);
     }

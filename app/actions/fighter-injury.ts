@@ -602,6 +602,20 @@ export async function clearRigGlitchesDowntime(params: {
 
     if (!financialResult.success) throw new Error(financialResult.error || 'Failed to deduct credits');
 
+    await logFighterAction({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      fighter_name: fighter.fighter_name,
+      action_type: 'rig_glitches_cleared_downtime',
+      old_value: deletedCount,
+      oldCredits: financialResult.oldValues?.credits,
+      oldRating:  financialResult.oldValues?.rating,
+      oldWealth:  financialResult.oldValues?.wealth,
+      newCredits: financialResult.newValues?.credits,
+      newRating:  financialResult.newValues?.rating,
+      newWealth:  financialResult.newValues?.wealth,
+    });
+
     return {
       success: true,
       clearedCount: deletedCount,
