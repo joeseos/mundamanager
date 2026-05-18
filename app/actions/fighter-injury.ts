@@ -559,12 +559,30 @@ export async function clearRigGlitchesDowntime(params: {
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name')
+      .select('id, gang_id, fighter_name, is_spyrer')
       .eq('id', params.fighter_id)
       .single();
 
     if (fighterError || !fighter) {
       return { success: false, clearedCount: 0, error: 'Fighter not found' };
+    }
+
+    if (!fighter.is_spyrer) {
+      return { success: false, clearedCount: 0, error: 'Fighter is not a Spyrer' };
+    }
+
+    if (params.glitch_ids.length === 0) {
+      return { success: false, clearedCount: 0, error: 'No glitches to clear' };
+    }
+
+    const { data: gang, error: gangError } = await supabase
+      .from('gangs')
+      .select('credits')
+      .eq('id', fighter.gang_id)
+      .single();
+
+    if (gangError || !gang || gang.credits < 100) {
+      return { success: false, clearedCount: 0, error: 'Insufficient credits' };
     }
 
     let deletedCount = 0;
