@@ -639,7 +639,7 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               sortedDisplayItems.map((item, index) => (
-                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}`} 
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}`}
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
                     <span className="text-gray-400 inline-block w-10 text-center">
