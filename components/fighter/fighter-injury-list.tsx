@@ -1494,7 +1494,7 @@ export function InjuriesList({
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Current kills: <strong>{kill_count}</strong> → New kills: <strong>{kill_count - clearAllKillCost}</strong>
+                  Current kills: <strong>{kill_count}</strong> → New kills: <strong>{Math.max(0, kill_count - clearAllKillCost)}</strong>
                 </p>
               </div>
               <div className="pt-3 border-t space-y-1">

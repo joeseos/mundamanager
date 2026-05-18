@@ -41,6 +41,7 @@ export default function Modal({
   secondaryConfirmDisabled = false,
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSecondarySubmitting, setIsSecondarySubmitting] = useState(false);
 
   const handleConfirm = async (e?: React.MouseEvent) => {
     if (!onConfirm) return;
@@ -131,13 +132,16 @@ export default function Modal({
               )}
             {onSecondaryConfirm && (
               <Button
-                onClick={onSecondaryConfirm}
-                disabled={secondaryConfirmDisabled || isSubmitting}
+                onClick={async () => {
+                  setIsSecondarySubmitting(true);
+                  try { await onSecondaryConfirm(); } finally { setIsSecondarySubmitting(false); }
+                }}
+                disabled={secondaryConfirmDisabled || isSecondarySubmitting || isSubmitting}
                 className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
-                  (secondaryConfirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+                  (secondaryConfirmDisabled || isSecondarySubmitting || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {secondaryConfirmText ?? 'Secondary'}
+                {isSecondarySubmitting ? 'Processing...' : (secondaryConfirmText ?? 'Secondary')}
               </Button>
             )}
             <Button
