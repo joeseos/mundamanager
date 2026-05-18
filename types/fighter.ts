@@ -125,6 +125,9 @@ export type FighterSkills = Record<string, {
   fighter_injury_id?: string | null;
   injury_name?: string;
   custom_skill_id?: string | null;
+  bitter_enmity_target_gang_id?: string;
+  bitter_enmity_target_gang_name?: string;
+  bitter_enmity_target_gang_colour?: string | null;
 }>;
 
 export interface FighterProps {

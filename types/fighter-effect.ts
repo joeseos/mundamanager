@@ -27,6 +27,10 @@ export interface TypeSpecificData extends TraitModificationData {
   recovery?: 'true' | 'false' | string | boolean;
   convalescence?: 'true' | 'false' | string | boolean;
   captured?: 'true' | 'false' | string;
+  /** {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}: user-selected enemy gang (stored on fighter_effects instance) */
+  bitter_enmity_target_gang_id?: string;
+  bitter_enmity_target_gang_name?: string;
+  bitter_enmity_target_gang_colour?: string | null;
   d66_min?: number;  // Dice roll range for injury tables
   d66_max?: number;
   adds_to_glitch_count?: boolean;  // For Spyrer rig glitches
@@ -46,7 +50,7 @@ export interface TypeSpecificData extends TraitModificationData {
   default_arcs?: string[];   // template arcs at creation — the free baseline for cost calc
   location?: string;         // mounting location on vehicle, e.g. 'hull', 'rear platform'
   // Index signature for legacy/unknown database fields
-  [key: string]: string | number | boolean | string[] | undefined;
+  [key: string]: string | number | boolean | string[] | null | undefined;
 }
 
 // =============================================================================

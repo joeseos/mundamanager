@@ -5,6 +5,7 @@ import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
+import { injuryAggregationLabel } from '@/utils/bitterEnmityDisplay';
 import { TbMeatOff } from "react-icons/tb";
 import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
@@ -724,7 +725,8 @@ const FighterCard = memo(function FighterCard({
                         return dateA - dateB;
                       })
                       .reduce<Record<string, number>>((acc, injury) => {
-                        acc[injury.effect_name] = (acc[injury.effect_name] || 0) + 1;
+                        const label = injuryAggregationLabel(injury);
+                        acc[label] = (acc[label] || 0) + 1;
                         return acc;
                       }, {})
                   )

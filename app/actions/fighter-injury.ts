@@ -20,6 +20,8 @@ export interface AddFighterInjuryParams {
   set_captured?: boolean;
   captured_by_gang_id?: string | null;
   target_equipment_id?: string;
+  /** Enemy gang for {@link import('@/utils/bitterEnmityDisplay').BITTER_ENMITY_EFFECT_NAME}; validated against shared campaign (RPC enforces). */
+  bitter_enmity_target_gang_id?: string | null;
 }
 
 export interface VerifyAndLogRolledFighterInjuryParams {
@@ -154,22 +156,24 @@ export async function addFighterInjury(
     }
 
     let shouldSetKilled = !!params.set_killed;
+    const { data: injuryType, error: injuryTypeError } = await supabase
+      .from('fighter_effect_types')
+      .select('type_specific_data')
+      .eq('id', params.injury_type_id)
+      .single();
+
+    if (injuryTypeError || !injuryType) {
+      return {
+        success: false,
+        error: injuryTypeError?.message || 'Injury type not found'
+      };
+    }
+
     if (!shouldSetKilled) {
-      const { data: injuryType, error: injuryTypeError } = await supabase
-        .from('fighter_effect_types')
-        .select('type_specific_data')
-        .eq('id', params.injury_type_id)
-        .single();
-
-      if (injuryTypeError || !injuryType) {
-        return {
-          success: false,
-          error: injuryTypeError?.message || 'Injury type not found'
-        };
-      }
-
       shouldSetKilled = hasKilledStatusFlag(injuryType.type_specific_data || {});
     }
+
+    const bitterGangId = params.bitter_enmity_target_gang_id?.trim() || null;
 
     let preInjuryCost = 0;
     if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
@@ -186,7 +190,8 @@ export async function addFighterInjury(
         in_fighter_id: params.fighter_id,
         in_injury_type_id: params.injury_type_id,
         in_user_id: user.id,
-        in_target_equipment_id: params.target_equipment_id || null
+        in_target_equipment_id: params.target_equipment_id || null,
+        in_bitter_enmity_target_gang_id: bitterGangId
       });
 
     if (error) {

@@ -1,6 +1,8 @@
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+
 export const lastingInjuryRank: { [key: string]: number } = {
   // Lasting Injuries
-  "Bitter Enmity": 1,
+  [BITTER_ENMITY_EFFECT_NAME]: 1,
   "Captured": 2,
   "Convalescence": 3,
   "Critical Injury": 4,

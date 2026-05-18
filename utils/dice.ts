@@ -1,5 +1,7 @@
 // Dice utilities and roll tables (injuries, vehicles, ganger advancement, etc.)
 
+import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+
 export const roll = (sides: number): number => Math.floor(Math.random() * sides) + 1;
 
 /** Three-sided die — not a multiple of D6; keep separate from `rollNd6`. */
@@ -79,7 +81,7 @@ export const LASTING_INJURY_TABLE: TableEntry[] = [
   { range: [11, 11], name: 'Lesson Learned' },
   { range: [12, 12], name: 'Impressive Scars' },
   { range: [13, 13], name: 'Horrid Scars' },
-  { range: [14, 14], name: 'Bitter Enmity' },
+  { range: [14, 14], name: BITTER_ENMITY_EFFECT_NAME },
   { range: [15, 26], name: 'Out Cold' },
   { range: [31, 36], name: 'Convalescence' },
   { range: [41, 41], name: 'Old Battle Wound' },
