@@ -23,6 +23,7 @@ import {
   getMarkerDisplaySize,
   isMapRelativeLabel,
   isMapRelativeMarker,
+  escapeHtml,
 } from '@/utils/campaigns/map-markers';
 
 interface Gang {
@@ -91,15 +92,15 @@ function getGangColour(territory: Territory | undefined, allGangs: Gang[]): stri
 }
 
 function buildTooltipContent(territory: Territory, allGangs: Gang[]): string {
-  const card = territory.playing_card ? `${territory.playing_card} ` : '';
+  const card = territory.playing_card ? `${escapeHtml(territory.playing_card)} ` : '';
   const owningGang = territory.owning_gangs?.[0];
   const isUnallocated = !territory.gang_id || !owningGang;
   const desc = territory.description
-    ? `<div class="text-[0.7rem] mt-1 opacity-80" style="white-space: pre-wrap;">${territory.description}</div>`
+    ? `<div class="text-[0.7rem] mt-1 opacity-80" style="white-space: pre-wrap;">${escapeHtml(territory.description)}</div>`
     : '';
 
   if (isUnallocated) {
-    return `<div class="text-sm font-semibold">${card}${territory.territory_name}</div><div class="text-xs mt-1">Unallocated</div>${desc}`;
+    return `<div class="text-sm font-semibold">${card}${escapeHtml(territory.territory_name)}</div><div class="text-xs mt-1">Unallocated</div>${desc}`;
   }
 
   // `territory.owning_gangs` (from _getCampaignTerritories) only carries
@@ -145,7 +146,7 @@ function buildTooltipContent(territory: Territory, allGangs: Gang[]): string {
     </Badge>
   );
   const gangDetails = `<div class="mt-1 space-y-1"><div class="text-xs flex items-center gap-1"><span>Type:</span>${gangTypeBadge}</div><div class="text-xs flex items-center gap-1"><span>Allegiance:</span>${gangAllegianceBadge}</div></div>`;
-  return `<div class="text-sm font-semibold">${card}${territory.territory_name}</div>${gangBadge}${gangDetails}${desc}`;
+  return `<div class="text-sm font-semibold">${card}${escapeHtml(territory.territory_name)}</div>${gangBadge}${gangDetails}${desc}`;
 }
 
 function getDashArray(lineStyle?: string): string | undefined {
@@ -614,7 +615,7 @@ function buildObjectEntry(
         marker.setIcon(makeIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
         if (nameLayer) {
           nameLayer.options.offset = getTerritoryNameOffset();
-          nameLayer.setLatLng(geo.latlng);
+          nameLayer.update();
         }
       };
 

@@ -3,6 +3,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { RxCrosshair2 } from 'react-icons/rx';
 import { FaBiohazard } from 'react-icons/fa6';
 
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 const HIVE_CITY_SVG_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/campaigns/map/icons/hive-city.svg';
 const SETTLEMENT_SVG_URL =
@@ -13,6 +22,8 @@ const BEAST_SVG_URL =
 export interface MarkerIconDef {
   label: string;
   html: (colour: string) => string;
+  /** Renders the icon into the fixed-size palette slot in the map editor. */
+  paletteHtml: (colour: string) => string;
   iconSize: [number, number];
   iconAnchor: [number, number];
   isReactIcon?: boolean;
@@ -28,7 +39,7 @@ export const MAX_LABEL_FONT_SIZE = 72;
 export const LABEL_TERRITORY_NAME_OFFSET_X = -6;
 export const LABEL_TERRITORY_NAME_GAP = -14;
 
-/** Gap (px) between the bottom of a landmark icon box and the territory name label. */
+/** Gap (px) between the bottom of a landmark icon box and the territory name label. Negative number = overlap */
 export const LANDMARK_TERRITORY_NAME_GAP = -6;
 
 // Render react-icon components to static SVG strings on first use and cache
@@ -70,22 +81,27 @@ function reactIconPaletteHtml(svg: string, colour: string, fontSize: number): st
   );
 }
 
+const PALETTE_REACT_ICON_FONT_SIZE = 24;
+
 export const MARKER_ICONS: Record<string, MarkerIconDef> = {
   'hive-city': {
     label: 'Hive City',
     html: (colour) => maskedSvgHtml(HIVE_CITY_SVG_URL, colour, 32),
+    paletteHtml: (colour) => maskedSvgPaletteHtml(HIVE_CITY_SVG_URL, colour),
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   },
   settlement: {
     label: 'Settlement',
     html: (colour) => maskedSvgHtml(SETTLEMENT_SVG_URL, colour, 32),
+    paletteHtml: (colour) => maskedSvgPaletteHtml(SETTLEMENT_SVG_URL, colour),
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   },
   beast: {
     label: 'Beast',
     html: (colour) => maskedSvgHtml(BEAST_SVG_URL, colour, 32),
+    paletteHtml: (colour) => maskedSvgPaletteHtml(BEAST_SVG_URL, colour),
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   },
@@ -93,6 +109,7 @@ export const MARKER_ICONS: Record<string, MarkerIconDef> = {
     label: 'Crosshair',
     html: (colour) =>
       `<div style="color:${colour};font-size:28px;line-height:1;">${getReactIconSvg(RxCrosshair2)}</div>`,
+    paletteHtml: (colour) => reactIconPaletteHtml(getReactIconSvg(RxCrosshair2), colour, PALETTE_REACT_ICON_FONT_SIZE),
     iconSize: [30, 30],
     iconAnchor: [15, 15],
     isReactIcon: true,
@@ -101,6 +118,7 @@ export const MARKER_ICONS: Record<string, MarkerIconDef> = {
     label: 'Biohazard',
     html: (colour) =>
       `<div style="color:${colour};font-size:28px;line-height:1;">${getReactIconSvg(FaBiohazard)}</div>`,
+    paletteHtml: (colour) => reactIconPaletteHtml(getReactIconSvg(FaBiohazard), colour, PALETTE_REACT_ICON_FONT_SIZE),
     iconSize: [30, 30],
     iconAnchor: [15, 15],
     isReactIcon: true,
@@ -111,23 +129,8 @@ export const DEFAULT_MARKER_ICON = 'hive-city';
 
 export const MARKER_ICON_KEYS = Object.keys(MARKER_ICONS);
 
-const PALETTE_REACT_ICON_FONT_SIZE = 24;
-
 export function buildPaletteMarkerHtml(iconKey: string, colour = '#888888'): string {
-  switch (iconKey) {
-    case 'hive-city':
-      return maskedSvgPaletteHtml(HIVE_CITY_SVG_URL, colour);
-    case 'settlement':
-      return maskedSvgPaletteHtml(SETTLEMENT_SVG_URL, colour);
-    case 'beast':
-      return maskedSvgPaletteHtml(BEAST_SVG_URL, colour);
-    case 'crosshair':
-      return reactIconPaletteHtml(getReactIconSvg(RxCrosshair2), colour, PALETTE_REACT_ICON_FONT_SIZE);
-    case 'biohazard':
-      return reactIconPaletteHtml(getReactIconSvg(FaBiohazard), colour, PALETTE_REACT_ICON_FONT_SIZE);
-    default:
-      return MARKER_ICONS[iconKey]?.html(colour) ?? '';
-  }
+  return MARKER_ICONS[iconKey]?.paletteHtml(colour) ?? '';
 }
 
 export function isMapRelativeMarker(properties: Record<string, unknown>): boolean {

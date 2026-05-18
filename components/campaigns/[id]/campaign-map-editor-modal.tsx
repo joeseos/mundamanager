@@ -987,7 +987,7 @@ export default function CampaignMapEditorModal({
             0,
             getLandmarkTerritoryNameOffset(markerDef, properties, zoomScale)
           );
-          nameLayer.setLatLng((obj.geometry as { latlng: [number, number] }).latlng);
+          nameLayer.update();
         }
       });
     };

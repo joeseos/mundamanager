@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Tooltip } from 'react-tooltip';
 import { getPlayingCardSortKey } from '@/utils/campaigns/territory-playing-card-options';
+import { escapeHtml } from '@/utils/campaigns/map-markers';
 
 interface Gang {
   id: string;
@@ -23,13 +24,6 @@ interface Territory {
   owning_gangs?: Gang[];
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function buildTerritoryTooltipHtml(t: Territory): string {
   const card = t.playing_card?.trim() ? `${t.playing_card.trim()} ` : '';
