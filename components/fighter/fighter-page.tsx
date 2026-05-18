@@ -953,6 +953,7 @@ export default function FighterPage({
             fighter_class={fighterData.fighter?.fighter_class}
             is_spyrer={fighterData.fighter?.is_spyrer}
             kill_count={fighterData.fighter?.kill_count ?? 0}
+            gangCredits={fighterData.gang?.credits ?? 0}
             skills={fighterData.fighter?.skills || {}}
             fighterWeapons={fighterData.equipment
               ?.filter((e: any) => e.equipment_type === 'weapon')

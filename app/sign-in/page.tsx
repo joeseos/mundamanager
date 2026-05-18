@@ -89,7 +89,7 @@ export default function SignIn() {
 
   async function clientAction(formData: FormData) {
     const result = await signInAction(formData);
-    
+
     // If we get a non-redirect result with an error, display it
     if (result && 'error' in result) {
       setErrorMessage(result.error);
