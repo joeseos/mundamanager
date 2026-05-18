@@ -556,10 +556,22 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           <div className="text-sm text-muted-foreground">
             Vehicle:{' '}
             {vehicles?.[0]
-              ? vehicles[0].vehicle_name
-                ? <Badge variant="secondary">{vehicles[0].vehicle_name} - {vehicles[0].vehicle_type}</Badge>
-                : <Badge variant="secondary">{vehicles[0].vehicle_type || 'None'}</Badge>
-              : <Badge variant="secondary">None</Badge>
+              ? gangId
+                ? <Link href={`/gang/${gangId}?tab=2`} prefetch={false}>
+                    <Badge variant="secondary" className="hover:bg-secondary/80 cursor-pointer">
+                      {vehicles[0].vehicle_name
+                        ? `${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
+                        : vehicles[0].vehicle_type || 'None'}
+                    </Badge>
+                  </Link>
+                : <Badge variant="secondary">
+                    {vehicles[0].vehicle_name
+                      ? `${vehicles[0].vehicle_name} - ${vehicles[0].vehicle_type}`
+                      : vehicles[0].vehicle_type || 'None'}
+                  </Badge>
+              : gangId
+                ? <Link href={`/gang/${gangId}?tab=2`} prefetch={false}><Badge variant="secondary" className="hover:bg-secondary/80 cursor-pointer">None</Badge></Link>
+                : <Badge variant="secondary">None</Badge>
             }
           </div>
         )}

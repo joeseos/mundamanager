@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
@@ -732,8 +733,15 @@ export default function GangVehicles({
                       <span className="w-64 overflow-hidden text-ellipsis text-nowrap">
                         {vehicle.vehicle_type}
                       </span>
-                      <span className="w-64 overflow-hidden text-ellipsis text-muted-foreground">
-                        {vehicle.assigned_to || '-'}
+                      <span className="w-64 overflow-hidden text-ellipsis">
+                        {(() => {
+                          const fighter = vehicle.assigned_to
+                            ? fighters.find(f => f.fighter_name === vehicle.assigned_to)
+                            : null;
+                          return fighter
+                            ? <Link href={`/fighter/${fighter.id}`} prefetch={false} onClick={e => e.stopPropagation()}><span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/80 cursor-pointer">{vehicle.assigned_to}</span></Link>
+                            : <span className="text-muted-foreground">{vehicle.assigned_to || '-'}</span>;
+                        })()}
                       </span>
                       <div className="flex-1" />
                       <div className="w-48 flex justify-end gap-1">

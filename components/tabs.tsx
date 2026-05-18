@@ -5,12 +5,13 @@ import React, { useState, useEffect } from 'react';
 interface TabsProps {
   children: React.ReactNode[];
   tabTitles?: string[];
-  tabIcons?: React.ReactNode[]; // Accept icons for each tab
-  onTabChange?: (tabIndex: number) => void; // Callback for tab changes
+  tabIcons?: React.ReactNode[];
+  onTabChange?: (tabIndex: number) => void;
+  initialTab?: number;
 }
 
-const Tabs = ({ children, tabTitles, tabIcons, onTabChange }: TabsProps) => {
-  const [activeTab, setActiveTab] = useState(0);
+const Tabs = ({ children, tabTitles, tabIcons, onTabChange, initialTab = 0 }: TabsProps) => {
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const defaultTabTitles = ['Gang', 'Stash', 'Notes'];
   const titles = tabTitles || defaultTabTitles;

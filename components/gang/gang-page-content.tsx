@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FighterProps } from "@/types/fighter";
 import { FighterType } from "@/types/fighter-type";
 import Gang from "@/components/gang/gang";
@@ -90,6 +91,12 @@ export default function GangPageContent({
   userId,
   userPermissions 
 }: GangPageContentProps) {
+  const searchParams = useSearchParams();
+  const initialTab = Math.min(
+    Number(searchParams.get('tab') ?? 0),
+    4 // max tab index
+  ) || 0;
+
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
     stash: initialGangData.stash || [],
@@ -842,7 +849,7 @@ export default function GangPageContent({
       })()}
 
       <div>
-      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']}
+      <Tabs tabTitles={['Gang', 'Stash', 'Vehicles', 'Campaign', 'Notes']} initialTab={initialTab}
          tabIcons={[
            <FaUsers key="users" />,
            <FaBox key="box" />,
