@@ -143,6 +143,9 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
       case 'fighter_released':
         description = `Fighter "${params.fighter_name}" was released from captivity.${financialChanges}`;
         break;
+      case 'rig_glitches_cleared_downtime':
+        description = `Fighter "${params.fighter_name}" cleared ${params.old_value} rig glitch${Number(params.old_value) !== 1 ? 'es' : ''} via Downtime.${financialChanges}`;
+        break;
       case 'fighter_copied':
         const copyTypeLabel = params.copy_type === 'experienced' ? 'experienced fighter' : 'base fighter';
         const sourceInfo = params.source_fighter_name ? ` from "${params.source_fighter_name}"` : '';
