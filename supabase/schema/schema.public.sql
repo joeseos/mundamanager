@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict aL7ZDjaWliNCczlRyFNUPb3RhIIi95uHsAa1td3YBpwJRME7XFJcxCqDRJp33VS
+\restrict FP58V6C4r4F8YPK4e5ZAjMjlxrehrBSf2InP9iOxKnm5bK8sxEfjX8nOhiRzBd0
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -45,10 +45,10 @@ CREATE TYPE public.alignment AS ENUM (
 
 
 --
--- Name: add_fighter_injury(uuid, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: add_fighter_injury(uuid, uuid, uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.add_fighter_injury(in_fighter_id uuid, in_injury_type_id uuid, in_user_id uuid, in_target_equipment_id uuid DEFAULT NULL::uuid) RETURNS TABLE(result json)
+CREATE FUNCTION public.add_fighter_injury(in_fighter_id uuid, in_injury_type_id uuid, in_user_id uuid, in_target_equipment_id uuid DEFAULT NULL::uuid, in_bitter_enmity_target_gang_id uuid DEFAULT NULL::uuid) RETURNS TABLE(result json)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth', 'private'
     AS $$
@@ -65,18 +65,22 @@ DECLARE
     v_fighter_owner_id UUID;
     injury_count INTEGER;
     is_partially_deafened BOOLEAN;
+    v_merged_tsd JSONB;
+    v_enemy_gang_name TEXT;
+    v_enemy_gang_colour TEXT;
+    v_shares_campaign BOOLEAN;
 BEGIN
     -- Set user context for is_admin check
     PERFORM set_config('request.jwt.claim.sub', in_user_id::text, true);
-    
+
     -- Check if user is an admin
     SELECT private.is_admin() INTO v_is_admin;
-    
+
     -- Get the gang_id and user_id for the fighter
     SELECT gang_id, user_id INTO v_gang_id, v_fighter_owner_id
     FROM fighters
     WHERE id = in_fighter_id;
-    
+
     -- If not admin, check if user owns the gang OR is an arbitrator for a campaign containing the gang
     IF NOT v_is_admin THEN
         SELECT EXISTS (
@@ -93,33 +97,70 @@ BEGIN
             RAISE EXCEPTION 'User does not have permission to add effects to this fighter';
         END IF;
     END IF;
-    
+
     -- Get the effect type details from fighter_effect_types
     SELECT * INTO effect_type_record
     FROM fighter_effect_types
     WHERE id = in_injury_type_id;
-    
+
     -- Validate that the effect type exists
     IF effect_type_record.id IS NULL THEN
         RAISE EXCEPTION 'The provided fighter effect type ID does not exist';
     END IF;
-    
+
     -- Validate that the effect type belongs to the injuries or rig-glitches category
     IF effect_type_record.fighter_effect_category_id NOT IN (
         SELECT id FROM fighter_effect_categories WHERE category_name IN ('injuries', 'rig-glitches')
     ) THEN
         RAISE EXCEPTION 'The provided fighter effect type is not an injury or rig glitch';
     END IF;
-    
+
     -- Check if this is "Partially Deafened"
     is_partially_deafened := effect_type_record.effect_name = 'Partially Deafened';
     
+    -- Base type_specific_data for the new effect row (template + optional Bitter Enmity gang fields)
+    v_merged_tsd := COALESCE(effect_type_record.type_specific_data, '{}'::jsonb);
+    
+    -- Optional Bitter Enmity: validate enemy gang and merge id / name / colour into instance jsonb
+    IF in_bitter_enmity_target_gang_id IS NOT NULL THEN
+        IF effect_type_record.effect_name <> 'Bitter Enmity' THEN
+            RAISE EXCEPTION 'Enemy gang can only be set for Bitter Enmity lasting injuries';
+        END IF;
+
+        IF in_bitter_enmity_target_gang_id = v_gang_id THEN
+            RAISE EXCEPTION 'Bitter Enmity enemy gang cannot be the fighter''s own gang';
+        END IF;
+
+        SELECT EXISTS (
+            SELECT 1
+            FROM campaign_gangs cg1
+            INNER JOIN campaign_gangs cg2 ON cg1.campaign_id = cg2.campaign_id
+            WHERE cg1.gang_id = v_gang_id
+              AND cg2.gang_id = in_bitter_enmity_target_gang_id
+        ) INTO v_shares_campaign;
+
+        IF NOT COALESCE(v_shares_campaign, false) THEN
+            RAISE EXCEPTION 'Enemy gang must share a campaign with the fighter''s gang';
+        END IF;
+
+        SELECT g.name, g.gang_colour::text
+        INTO STRICT v_enemy_gang_name, v_enemy_gang_colour
+        FROM gangs g
+        WHERE g.id = in_bitter_enmity_target_gang_id;
+
+        v_merged_tsd := v_merged_tsd || jsonb_build_object(
+            'bitter_enmity_target_gang_id', in_bitter_enmity_target_gang_id::text,
+            'bitter_enmity_target_gang_name', v_enemy_gang_name,
+            'bitter_enmity_target_gang_colour', v_enemy_gang_colour
+        );
+    END IF;
+
     -- Count existing instances of this injury for the fighter
     SELECT COUNT(*) INTO injury_count
     FROM fighter_effects
-    WHERE fighter_id = in_fighter_id 
+    WHERE fighter_id = in_fighter_id
     AND fighter_effect_type_id = in_injury_type_id;
-    
+
     -- Insert the new fighter effect with fighter owner's user_id
     INSERT INTO fighter_effects (
         fighter_id,
@@ -133,15 +174,15 @@ BEGIN
         in_fighter_id,
         in_injury_type_id,
         effect_type_record.effect_name,
-        effect_type_record.type_specific_data,
+        v_merged_tsd,
         v_fighter_owner_id,
         in_target_equipment_id
     )
     RETURNING id INTO new_effect_id;
-    
+
     -- Create the modifiers associated with this effect type
     -- For "Partially Deafened", only add the leadership modifier if this isn't the first instance
-    FOR modifier_record IN 
+    FOR modifier_record IN
         SELECT * FROM fighter_effect_type_modifiers
         WHERE fighter_effect_type_id = in_injury_type_id
     LOOP
@@ -159,11 +200,11 @@ BEGIN
             );
         END IF;
     END LOOP;
-    
+
     -- Check if there's a skill_id in the type_specific_data and add the skill relation
     IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
         skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
-        
+
         -- Add the skill to fighter_skills if it doesn't already exist
         INSERT INTO fighter_skills (
             fighter_id,
@@ -176,20 +217,20 @@ BEGIN
             skill_id_val,
             v_fighter_owner_id,
             NULL  -- Initially NULL, will update after creating relation
-        WHERE 
+        WHERE
             NOT EXISTS (
-                SELECT 1 FROM fighter_skills 
+                SELECT 1 FROM fighter_skills
                 WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val
             )
         RETURNING id INTO new_fighter_skill_id;
-        
+
         -- If the skill already exists, get its ID
         IF new_fighter_skill_id IS NULL THEN
-            SELECT id INTO new_fighter_skill_id 
+            SELECT id INTO new_fighter_skill_id
             FROM fighter_skills
             WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val;
         END IF;
-        
+
         -- Create the relation in fighter_effect_skills
         IF new_fighter_skill_id IS NOT NULL THEN
             INSERT INTO fighter_effect_skills (
@@ -201,14 +242,14 @@ BEGIN
                 new_fighter_skill_id
             )
             RETURNING id INTO new_fighter_effect_skill_id;
-            
+
             -- Update the fighter_skills record with the relation ID
             UPDATE fighter_skills
             SET fighter_effect_skill_id = new_fighter_effect_skill_id
             WHERE id = new_fighter_skill_id;
         END IF;
     END IF;
-    
+
     -- Return the newly created effect
     RETURN QUERY
     SELECT json_build_object(
@@ -10873,5 +10914,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict aL7ZDjaWliNCczlRyFNUPb3RhIIi95uHsAa1td3YBpwJRME7XFJcxCqDRJp33VS
+\unrestrict FP58V6C4r4F8YPK4e5ZAjMjlxrehrBSf2InP9iOxKnm5bK8sxEfjX8nOhiRzBd0
 
