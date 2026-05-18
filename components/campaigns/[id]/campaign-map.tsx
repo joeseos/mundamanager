@@ -118,7 +118,9 @@ export default function CampaignMap({
         }
       });
     });
-    return Array.from(gangMap.values());
+    return Array.from(gangMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
   }, [members]);
 
   const selectedTerritory = territories.find(t => t.id === selectedTerritoryId);

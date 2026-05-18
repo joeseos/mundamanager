@@ -5,6 +5,8 @@ import { FaBiohazard } from 'react-icons/fa6';
 
 const HIVE_CITY_SVG_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/campaigns/map/icons/hive-city.svg';
+const SETTLEMENT_SVG_URL =
+  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/campaigns/map/icons/settlement.svg';
 const BEAST_SVG_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/campaigns/map/icons/beast.svg';
 
@@ -26,6 +28,9 @@ export const MAX_LABEL_FONT_SIZE = 72;
 export const LABEL_TERRITORY_NAME_OFFSET_X = -6;
 export const LABEL_TERRITORY_NAME_GAP = -14;
 
+/** Gap (px) between the bottom of a landmark icon box and the territory name label. */
+export const LANDMARK_TERRITORY_NAME_GAP = -6;
+
 // Render react-icon components to static SVG strings on first use and cache
 // the result. Avoids running renderToStaticMarkup at module load time so the
 // work is only paid by code paths that actually use a react-icon-based
@@ -42,13 +47,39 @@ function getReactIconSvg(IconComponent: ComponentType): string {
 }
 
 function maskedSvgHtml(url: string, colour: string, size: number): string {
-  return `<div style="width:${size}px;height:${size}px;background-color:${colour};-webkit-mask-image:url(${url});mask-image:url(${url});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;"></div>`;
+  return `<div style="width:${size}px;height:${size}px;background-color:${colour};-webkit-mask-image:url(${url});mask-image:url(${url});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center bottom;mask-position:center bottom;"></div>`;
+}
+
+/** Fixed slot for the map editor marker palette (px). */
+export const PALETTE_SLOT_WIDTH = 32;
+export const PALETTE_SLOT_HEIGHT = 28;
+
+function paletteSlotHtml(innerHtml: string): string {
+  return `<div style="width:${PALETTE_SLOT_WIDTH}px;height:${PALETTE_SLOT_HEIGHT}px;display:flex;align-items:flex-end;justify-content:center;line-height:0;">${innerHtml}</div>`;
+}
+
+function maskedSvgPaletteHtml(url: string, colour: string): string {
+  return paletteSlotHtml(
+    `<div style="width:100%;height:100%;background-color:${colour};-webkit-mask-image:url(${url});mask-image:url(${url});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center bottom;mask-position:center bottom;"></div>`
+  );
+}
+
+function reactIconPaletteHtml(svg: string, colour: string, fontSize: number): string {
+  return paletteSlotHtml(
+    `<div style="color:${colour};font-size:${fontSize}px;line-height:1;display:flex;align-items:flex-end;justify-content:center;">${svg}</div>`
+  );
 }
 
 export const MARKER_ICONS: Record<string, MarkerIconDef> = {
   'hive-city': {
     label: 'Hive City',
     html: (colour) => maskedSvgHtml(HIVE_CITY_SVG_URL, colour, 32),
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  },
+  settlement: {
+    label: 'Settlement',
+    html: (colour) => maskedSvgHtml(SETTLEMENT_SVG_URL, colour, 32),
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   },
@@ -79,6 +110,25 @@ export const MARKER_ICONS: Record<string, MarkerIconDef> = {
 export const DEFAULT_MARKER_ICON = 'hive-city';
 
 export const MARKER_ICON_KEYS = Object.keys(MARKER_ICONS);
+
+const PALETTE_REACT_ICON_FONT_SIZE = 24;
+
+export function buildPaletteMarkerHtml(iconKey: string, colour = '#888888'): string {
+  switch (iconKey) {
+    case 'hive-city':
+      return maskedSvgPaletteHtml(HIVE_CITY_SVG_URL, colour);
+    case 'settlement':
+      return maskedSvgPaletteHtml(SETTLEMENT_SVG_URL, colour);
+    case 'beast':
+      return maskedSvgPaletteHtml(BEAST_SVG_URL, colour);
+    case 'crosshair':
+      return reactIconPaletteHtml(getReactIconSvg(RxCrosshair2), colour, PALETTE_REACT_ICON_FONT_SIZE);
+    case 'biohazard':
+      return reactIconPaletteHtml(getReactIconSvg(FaBiohazard), colour, PALETTE_REACT_ICON_FONT_SIZE);
+    default:
+      return MARKER_ICONS[iconKey]?.html(colour) ?? '';
+  }
+}
 
 export function isMapRelativeMarker(properties: Record<string, unknown>): boolean {
   return properties.fixedSizeRelativeToMap === true;
@@ -131,6 +181,16 @@ export function getMarkerDisplaySize(
   return normaliseMapRelativeMarkerSize(properties.mapRelativeIconSize) * zoomScale;
 }
 
+/** Leaflet tooltip Y offset from a centre-anchored landmark to its territory name. */
+export function getLandmarkTerritoryNameOffset(
+  markerDef: MarkerIconDef,
+  properties: Record<string, unknown>,
+  zoomScale: number
+): number {
+  const displaySize = getMarkerDisplaySize(markerDef, properties, zoomScale);
+  return displaySize / 2 + LANDMARK_TERRITORY_NAME_GAP;
+}
+
 export function getLabelDisplayFontSize(
   properties: Record<string, unknown>,
   zoomScale: number
@@ -171,5 +231,5 @@ export function buildSizedMarkerHtml(
   const baseSize = getDefaultMarkerIconSize(markerDef);
   const scale = displaySize / baseSize;
 
-  return `<div style="width:${displaySize}px;height:${displaySize}px;display:flex;align-items:center;justify-content:center;overflow:visible;"><div style="width:${baseSize}px;height:${baseSize}px;display:flex;align-items:center;justify-content:center;transform:scale(${scale});transform-origin:center center;">${markerDef.html(colour)}</div></div>`;
+  return `<div style="width:${displaySize}px;height:${displaySize}px;display:flex;align-items:flex-end;justify-content:center;overflow:visible;"><div style="width:${baseSize}px;height:${baseSize}px;display:flex;align-items:flex-end;justify-content:center;transform:scale(${scale});transform-origin:center bottom;line-height:0;">${markerDef.html(colour)}</div></div>`;
 }
