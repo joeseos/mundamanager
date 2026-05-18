@@ -1516,7 +1516,7 @@ export function InjuriesList({
           confirmDisabled={injuries.length === 0 || clearAllGlitchesMutation.isPending || clearAllKillCost < 1 || clearAllKillCost > kill_count || clearGlitchesDowntimeMutation.isPending}
           onSecondaryConfirm={() => clearGlitchesDowntimeMutation.mutate(injuries)}
           secondaryConfirmText="Downtime"
-          secondaryConfirmDisabled={injuries.length === 0 || gangCredits < 100 || clearGlitchesDowntimeMutation.isPending || clearAllGlitchesMutation.isPending}
+          secondaryConfirmDisabled={injuries.length === 0 || gangCredits < 100 || !userPermissions.canEdit || clearGlitchesDowntimeMutation.isPending || clearAllGlitchesMutation.isPending}
         />
       )}
     </>
