@@ -11,7 +11,8 @@ import { UserPermissions } from '@/types/user-permissions';
 import {
   addFighterInjury,
   deleteFighterInjury,
-  verifyAndLogRolledFighterInjury
+  verifyAndLogRolledFighterInjury,
+  clearRigGlitchesDowntime,
 } from '@/app/actions/fighter-injury';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
@@ -56,6 +57,7 @@ interface InjuriesListProps {
   fighter_class?: string;
   is_spyrer?: boolean;
   kill_count?: number;
+  gangCredits?: number;
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
 }
 
@@ -81,6 +83,7 @@ export function InjuriesList({
   fighter_class,
   is_spyrer = false,
   kill_count = 0,
+  gangCredits = 0,
   fighterWeapons
 }: InjuriesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
@@ -491,6 +494,42 @@ export function InjuriesList({
 
       toast.error(error instanceof Error ? error.message : 'Failed to clear rig glitches');
     }
+  });
+
+  const clearGlitchesDowntimeMutation = useMutation({
+    mutationFn: async (glitches: FighterEffect[]) => {
+      const result = await clearRigGlitchesDowntime({
+        fighter_id: fighterId,
+        glitch_ids: glitches.map(g => g.id),
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to clear rig glitches');
+      return result;
+    },
+    onMutate: async (glitches) => {
+      const previousInjuries = [...injuries];
+      const previousKilled = fighterKilled;
+      const shouldClearKilled = glitches.some(g => hasKilledStatusFlag(g.type_specific_data));
+      if (onInjuryUpdate) {
+        onInjuryUpdate([], undefined, undefined, undefined, shouldClearKilled ? false : undefined);
+      }
+      return { previousInjuries, previousKilled };
+    },
+    onSuccess: (result) => {
+      if (result.killedStatus !== undefined && onInjuryUpdate) {
+        onInjuryUpdate([], undefined, undefined, undefined, result.killedStatus);
+      }
+      if (result.gangFinancials && onGangFinancialsUpdate) {
+        onGangFinancialsUpdate(result.gangFinancials);
+      }
+      toast.success(`Cleared ${result.clearedCount} rig glitch${result.clearedCount !== 1 ? 'es' : ''} via Downtime (-100 credits)`);
+      setIsClearAllModalOpen(false);
+    },
+    onError: (error, _glitches, context) => {
+      if (context?.previousInjuries && onInjuryUpdate) {
+        onInjuryUpdate(context.previousInjuries, undefined, undefined, undefined, context.previousKilled);
+      }
+      toast.error(error instanceof Error ? error.message : 'Failed to clear rig glitches');
+    },
   });
 
   // TanStack Query mutation for logging rolled injury results
@@ -1127,7 +1166,7 @@ export function InjuriesList({
               <Button
                 onClick={handleOpenClearAllModal}
                 className="bg-card hover:bg-muted text-foreground border border-border"
-                disabled={injuries.length === 0 || !userPermissions.canEdit || kill_count < 1 || clearAllGlitchesMutation.isPending}
+                disabled={injuries.length === 0 || !userPermissions.canEdit || clearAllGlitchesMutation.isPending}
               >
                 Clear all
               </Button>
@@ -1458,12 +1497,26 @@ export function InjuriesList({
                   Current kills: <strong>{kill_count}</strong> → New kills: <strong>{kill_count - clearAllKillCost}</strong>
                 </p>
               </div>
+              <div className="pt-3 border-t space-y-1">
+                <p className="text-sm font-medium">Downtime</p>
+                <p className="text-sm text-muted-foreground">
+                  Cost: <strong>100 credits</strong> (kills unchanged)
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Gang credits: <strong>{gangCredits}</strong>
+                  {gangCredits >= 100 && <> → <strong>{gangCredits - 100}</strong></>}
+                  {gangCredits < 100 && <span className="text-red-500"> — insufficient credits</span>}
+                </p>
+              </div>
             </div>
           }
           onClose={() => setIsClearAllModalOpen(false)}
           onConfirm={handleClearAllGlitches}
           confirmText="Clear All"
-          confirmDisabled={injuries.length === 0 || clearAllGlitchesMutation.isPending || clearAllKillCost < 1 || clearAllKillCost > kill_count}
+          confirmDisabled={injuries.length === 0 || clearAllGlitchesMutation.isPending || clearAllKillCost < 1 || clearAllKillCost > kill_count || clearGlitchesDowntimeMutation.isPending}
+          onSecondaryConfirm={() => clearGlitchesDowntimeMutation.mutate(injuries)}
+          secondaryConfirmText="Downtime"
+          secondaryConfirmDisabled={injuries.length === 0 || gangCredits < 100 || clearGlitchesDowntimeMutation.isPending || clearAllGlitchesMutation.isPending}
         />
       )}
     </>

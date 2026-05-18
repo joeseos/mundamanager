@@ -45,6 +45,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'injury_roll': 'Lasting Injury roll',
   'skill_advancement_roll': 'Skill Advancement roll',
   'ganger_advancement_roll': 'Ganger Advancement roll',
+  'rig_glitches_cleared_downtime': 'Downtime glitch removal',
 
   // Equipment
   'equipment_purchased': 'Equipment purchased',

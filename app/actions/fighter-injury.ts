@@ -2,13 +2,14 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { invalidateFighterData } from '@/utils/cache-tags';
-import { updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
 import { logFighterAction } from './logs/fighter-logs';
 import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
+import { createGangLog } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
@@ -538,4 +539,67 @@ export async function deleteFighterInjury(
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
-} 
+}
+
+export interface ClearRigGlitchesDowntimeResult {
+  success: boolean;
+  clearedCount: number;
+  killedStatus?: boolean;
+  gangFinancials?: { credits: number; rating: number; wealth: number };
+  error?: string;
+}
+
+export async function clearRigGlitchesDowntime(params: {
+  fighter_id: string;
+  glitch_ids: string[];
+}): Promise<ClearRigGlitchesDowntimeResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, gang_id, fighter_name')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      return { success: false, clearedCount: 0, error: 'Fighter not found' };
+    }
+
+    let deletedCount = 0;
+    let killedStatus: boolean | undefined;
+
+    for (const injuryId of params.glitch_ids) {
+      const result = await deleteFighterInjury({ fighter_id: params.fighter_id, injury_id: injuryId });
+      if (!result.success) throw new Error(result.error || 'Failed to delete glitch');
+      if (result.killed_status !== undefined) killedStatus = result.killed_status;
+      deletedCount++;
+    }
+
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId: fighter.gang_id,
+      creditsDelta: -100,
+      applyToRating: false,
+    });
+
+    if (!financialResult.success) throw new Error(financialResult.error || 'Failed to deduct credits');
+
+    await createGangLog({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      action_type: 'rig_glitches_cleared_downtime',
+      description: `Fighter "${fighter.fighter_name}" cleared ${deletedCount} rig glitch${deletedCount !== 1 ? 'es' : ''} via Downtime (-100 credits)`,
+    });
+
+    return {
+      success: true,
+      clearedCount: deletedCount,
+      killedStatus,
+      gangFinancials: financialResult.newValues,
+    };
+  } catch (error) {
+    console.error('Error clearing rig glitches via downtime:', error);
+    return { success: false, clearedCount: 0, error: error instanceof Error ? error.message : 'Failed to clear rig glitches' };
+  }
+}
