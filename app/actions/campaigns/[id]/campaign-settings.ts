@@ -108,8 +108,8 @@ export async function deleteCampaign(campaignId: string) {
     const supabase = await createClient();
     
     // Authenticate user
-    await getAuthenticatedUser(supabase);
-    
+    const user = await getAuthenticatedUser(supabase);
+
     // Get all gangs in this campaign before deletion
     const { data: campaignGangs } = await supabase
       .from('campaign_gangs')
@@ -189,9 +189,8 @@ export async function deleteCampaign(campaignId: string) {
       });
     }
 
-    // Invalidate user dashboard cache since user's campaign list changed
-    // Note: We'd need the user ID to properly invalidate USER_CAMPAIGNS cache
-    
+    revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(user.id));
+
     // Invalidate global campaign count
     invalidateCampaignCount();
 
