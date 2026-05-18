@@ -37,16 +37,19 @@ import {
   MAX_MAP_RELATIVE_MARKER_SIZE,
   MIN_LABEL_FONT_SIZE,
   MIN_MAP_RELATIVE_MARKER_SIZE,
+  buildPaletteMarkerHtml,
   buildSizedMarkerHtml,
   getLabelDisplayFontSize,
   getLabelTerritoryNameOffset,
   getLabelTextDimensions,
+  getLandmarkTerritoryNameOffset,
   getMarkerDisplaySize,
   isMapRelativeLabel,
   isMapRelativeMarker,
   normaliseLabelFontSize,
   normaliseMapRelativeMarkerSize,
 } from '@/utils/campaigns/map-markers';
+import { getPlayingCardSortKey } from '@/utils/campaigns/territory-playing-card-options';
 
 const HIGHLIGHT_COLOUR = '#ffffff';
 const LINKED_COLOUR = '#8a203a';
@@ -148,7 +151,7 @@ const MarkerPaletteButton = React.memo(function MarkerPaletteButton({
       type="button"
       title={label}
       onClick={() => onToggle(iconKey)}
-      className={`w-8 h-8 flex items-center justify-center rounded border-2 transition-colors ${
+      className={`w-8 h-8 flex items-end justify-center rounded border-2 transition-colors ${
         isActive
           ? 'border-foreground bg-foreground/10'
           : 'border-transparent hover:border-muted-foreground/50'
@@ -196,6 +199,18 @@ export default function CampaignMapEditorModal({
       mapHexCoords: t.map_hex_coords as HexCoord | null,
       showNameOnMap: t.show_name_on_map ?? true,
     }))
+  );
+
+  const sortedTerritories = useMemo(
+    () =>
+      [...territories].sort((a, b) => {
+        const cardCompare = getPlayingCardSortKey(a.playing_card).localeCompare(
+          getPlayingCardSortKey(b.playing_card)
+        );
+        if (cardCompare !== 0) return cardCompare;
+        return a.territory_name.localeCompare(b.territory_name);
+      }),
+    [territories]
   );
 
   // Leaflet map ref for the editor
@@ -959,6 +974,21 @@ export default function CampaignMapEditorModal({
           markerIconSignatureRef.current.set(obj.tempId, signature);
           layer.setIcon(createLandmarkIcon(iconName, colour, properties, map));
         }
+
+        const assoc = associations.find(
+          a => a.mapObjectTempId === obj.tempId && a.showNameOnMap
+        );
+        const nameLayer = assoc
+          ? territoryNameLayersRef.current.get(assoc.territoryId)
+          : undefined;
+        if (nameLayer) {
+          const zoomScale = map.getZoomScale(map.getZoom(), 0);
+          nameLayer.options.offset = L.point(
+            0,
+            getLandmarkTerritoryNameOffset(markerDef, properties, zoomScale)
+          );
+          nameLayer.update();
+        }
       });
     };
 
@@ -1052,12 +1082,18 @@ export default function CampaignMapEditorModal({
         switch (obj.object_type) {
           case 'landmark': {
             const geo = obj.geometry as { latlng: [number, number] };
-            const iconName = (obj.properties as Record<string, unknown>).icon as string ?? DEFAULT_MARKER_ICON;
+            const properties = obj.properties as Record<string, unknown>;
+            const iconName = properties.icon as string ?? DEFAULT_MARKER_ICON;
             const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
+            const zoomScale = isMapRelativeMarker(properties)
+              ? map.getZoomScale(map.getZoom(), 0)
+              : 1;
             position = geo.latlng;
             direction = 'bottom';
-            const isReactIcon = markerDef.isReactIcon ?? false;
-            offset = L.point(0, isReactIcon ? 6 : 10);
+            offset = L.point(
+              0,
+              getLandmarkTerritoryNameOffset(markerDef, properties, zoomScale)
+            );
             break;
           }
           case 'route': {
@@ -1273,7 +1309,7 @@ export default function CampaignMapEditorModal({
     () => MARKER_ICON_KEYS.map(key => ({
       key,
       label: MARKER_ICONS[key].label,
-      html: MARKER_ICONS[key].html('#888888'),
+      html: buildPaletteMarkerHtml(key, '#888888'),
     })),
     []
   );
@@ -1651,8 +1687,8 @@ export default function CampaignMapEditorModal({
             </label>
           )}
 
-          <div className="border-l pl-4 flex items-center gap-2">
-            <span className="text-muted-foreground text-xs">Place Landmark:</span>
+          <div className="border-l pl-4 flex items-end gap-2">
+            <span className="text-muted-foreground text-xs pb-1">Place Landmark:</span>
             {paletteItems.map(({ key, label, html }) => (
               <MarkerPaletteButton
                 key={key}
@@ -1869,7 +1905,7 @@ export default function CampaignMapEditorModal({
                 No object selected. Click a shape or hex on the map.
               </div>
             )}
-            {territories.map(territory => {
+            {sortedTerritories.map(territory => {
               const assoc = associations.find(a => a.territoryId === territory.id);
               const isLinked = !!(assoc?.mapObjectTempId || assoc?.mapHexCoords);
               const isLinkedToSelection =

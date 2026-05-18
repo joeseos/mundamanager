@@ -19,9 +19,11 @@ import {
   getLabelDisplayFontSize,
   getLabelTerritoryNameOffset,
   getLabelTextDimensions,
+  getLandmarkTerritoryNameOffset,
   getMarkerDisplaySize,
   isMapRelativeLabel,
   isMapRelativeMarker,
+  escapeHtml,
 } from '@/utils/campaigns/map-markers';
 
 interface Gang {
@@ -90,11 +92,15 @@ function getGangColour(territory: Territory | undefined, allGangs: Gang[]): stri
 }
 
 function buildTooltipContent(territory: Territory, allGangs: Gang[]): string {
-  const card = territory.playing_card ? `${territory.playing_card} ` : '';
+  const card = territory.playing_card ? `${escapeHtml(territory.playing_card)} ` : '';
   const owningGang = territory.owning_gangs?.[0];
   const isUnallocated = !territory.gang_id || !owningGang;
+  const desc = territory.description
+    ? `<div class="text-[0.7rem] mt-1 opacity-80" style="white-space: pre-wrap;">${escapeHtml(territory.description)}</div>`
+    : '';
+
   if (isUnallocated) {
-    return `<div class="text-sm font-semibold">${card}${territory.territory_name}</div><div class="text-xs mt-1">Unallocated</div>`;
+    return `<div class="text-sm font-semibold">${card}${escapeHtml(territory.territory_name)}</div><div class="text-xs mt-1">Unallocated</div>${desc}`;
   }
 
   // `territory.owning_gangs` (from _getCampaignTerritories) only carries
@@ -106,7 +112,6 @@ function buildTooltipContent(territory: Territory, allGangs: Gang[]): string {
   const gangColour = owningGang?.gang_colour ?? '#6b7280';
   const gangType = owningGang?.gang_type ?? 'Unknown';
   const gangAllegiance = enrichedGang?.allegiance?.name ?? owningGang?.allegiance?.name ?? 'None';
-  const desc = territory.description ? `<div class="text-[0.7rem] mt-1 opacity-80" style="white-space: pre-wrap;">${territory.description}</div>` : '';
   const gangNameBadge = renderToStaticMarkup(
     <Badge
       variant="secondary"
@@ -141,7 +146,7 @@ function buildTooltipContent(territory: Territory, allGangs: Gang[]): string {
     </Badge>
   );
   const gangDetails = `<div class="mt-1 space-y-1"><div class="text-xs flex items-center gap-1"><span>Type:</span>${gangTypeBadge}</div><div class="text-xs flex items-center gap-1"><span>Allegiance:</span>${gangAllegianceBadge}</div></div>`;
-  return `<div class="text-sm font-semibold">${card}${territory.territory_name}</div>${gangBadge}${gangDetails}${desc}`;
+  return `<div class="text-sm font-semibold">${card}${escapeHtml(territory.territory_name)}</div>${gangBadge}${gangDetails}${desc}`;
 }
 
 function getDashArray(lineStyle?: string): string | undefined {
@@ -571,11 +576,12 @@ function buildObjectEntry(
       const geo = obj.geometry as { latlng: [number, number] };
       const iconName = (props.icon as string) ?? DEFAULT_MARKER_ICON;
       const markerDef = MARKER_ICONS[iconName] ?? MARKER_ICONS[DEFAULT_MARKER_ICON];
+      const getZoomScale = () => (
+        isMapRelativeMarker(props) ? map.getZoomScale(map.getZoom(), 0) : 1
+      );
+
       const makeIcon = (iconColour: string) => {
-        const zoomScale = isMapRelativeMarker(props)
-          ? map.getZoomScale(map.getZoom(), 0)
-          : 1;
-        const displaySize = getMarkerDisplaySize(markerDef, props, zoomScale);
+        const displaySize = getMarkerDisplaySize(markerDef, props, getZoomScale());
 
         return L.divIcon({
           html: buildSizedMarkerHtml(markerDef, iconColour, displaySize),
@@ -584,30 +590,38 @@ function buildObjectEntry(
           iconAnchor: [displaySize / 2, displaySize / 2],
         });
       };
+
+      const getTerritoryNameOffset = () => L.point(
+        0,
+        getLandmarkTerritoryNameOffset(markerDef, props, getZoomScale())
+      );
+
       const marker = L.marker(geo.latlng, { icon: makeIcon(colour) });
       let isSelected = false;
 
-      const refreshRelativeIcon = () => {
-        marker.setIcon(makeIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
-      };
-
-      if (isMapRelativeMarker(props)) {
-        map.on('zoom', refreshRelativeIcon);
-        map.on('zoomend', refreshRelativeIcon);
-      }
-
       let nameLayer: L.Tooltip | undefined;
       if (showTerritoryName && territory) {
-        const isReactIcon = markerDef.isReactIcon ?? false;
-        const offsetY = isReactIcon ? 6 : 10;
         nameLayer = L.tooltip({
           permanent: true,
           direction: 'bottom',
-          offset: L.point(0, offsetY),
+          offset: getTerritoryNameOffset(),
           className: 'campaign-map-territory-name',
         })
           .setContent(territory.territory_name)
           .setLatLng(geo.latlng);
+      }
+
+      const refreshRelativeLandmark = () => {
+        marker.setIcon(makeIcon(isSelected ? HIGHLIGHT_COLOUR : colour));
+        if (nameLayer) {
+          nameLayer.options.offset = getTerritoryNameOffset();
+          nameLayer.update();
+        }
+      };
+
+      if (isMapRelativeMarker(props)) {
+        map.on('zoom', refreshRelativeLandmark);
+        map.on('zoomend', refreshRelativeLandmark);
       }
 
       return {
@@ -619,8 +633,8 @@ function buildObjectEntry(
         },
         cleanup: isMapRelativeMarker(props)
           ? () => {
-              map.off('zoom', refreshRelativeIcon);
-              map.off('zoomend', refreshRelativeIcon);
+              map.off('zoom', refreshRelativeLandmark);
+              map.off('zoomend', refreshRelativeLandmark);
             }
           : undefined,
       };
