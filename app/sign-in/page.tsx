@@ -97,6 +97,20 @@ export default function SignIn() {
     // No return value needed here (void)
   }
 
+  function devLogin(role: 'user' | 'admin') {
+    const email = role === 'admin'
+      ? process.env.NEXT_PUBLIC_DEV_ADMIN_EMAIL!
+      : process.env.NEXT_PUBLIC_DEV_USER_EMAIL!;
+    const password = role === 'admin'
+      ? process.env.NEXT_PUBLIC_DEV_ADMIN_PASSWORD!
+      : process.env.NEXT_PUBLIC_DEV_USER_PASSWORD!;
+    const emailInput = document.getElementById('email') as HTMLInputElement;
+    const passwordInput = document.getElementById('password') as HTMLInputElement;
+    if (emailInput) emailInput.value = email;
+    if (passwordInput) passwordInput.value = password;
+    emailInput?.closest('form')?.requestSubmit();
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full p-4">
@@ -185,6 +199,24 @@ export default function SignIn() {
             <div className="mt-2 flex justify-center">
               <TurnstileWidget />
             </div>
+            {process.env.NODE_ENV === 'development' && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => devLogin('user')}
+                  className="flex-1 py-1.5 text-xs rounded bg-blue-800 hover:bg-blue-700 text-white"
+                >
+                  Dev: User
+                </button>
+                <button
+                  type="button"
+                  onClick={() => devLogin('admin')}
+                  className="flex-1 py-1.5 text-xs rounded bg-purple-800 hover:bg-purple-700 text-white"
+                >
+                  Dev: Admin
+                </button>
+              </div>
+            )}
             <SubmitButton pendingText="Signing In..." className="mt-2">
               Sign In
             </SubmitButton>
