@@ -9,7 +9,6 @@ import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
-import { createGangLog } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
@@ -602,13 +601,6 @@ export async function clearRigGlitchesDowntime(params: {
     });
 
     if (!financialResult.success) throw new Error(financialResult.error || 'Failed to deduct credits');
-
-    await createGangLog({
-      gang_id: fighter.gang_id,
-      fighter_id: params.fighter_id,
-      action_type: 'rig_glitches_cleared_downtime',
-      description: `Fighter "${fighter.fighter_name}" cleared ${deletedCount} rig glitch${deletedCount !== 1 ? 'es' : ''} via Downtime (-100 credits)`,
-    });
 
     return {
       success: true,
