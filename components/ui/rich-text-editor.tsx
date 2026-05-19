@@ -511,7 +511,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       {/* Toolbar */}
       <div
         ref={toolbarRef}
-        className={`border-b rounded-t-md p-2 flex flex-wrap gap-[3px] items-center bg-card z-[70] ${
+        className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] ${
         useViewportFixedToolbar
           ? 'fixed left-0 right-0 border-b-2 border-border' 
           : stickyWithinScrollContainer
