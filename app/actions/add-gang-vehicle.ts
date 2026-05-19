@@ -83,7 +83,7 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       .from('vehicles')
       .insert({
         vehicle_name: (params.vehicleName || vehicleType.vehicle_type).trimEnd(),
-        movement: vehicleType.movement,
+        movement: vehicleType.movement - (params.locomotionChoice === 'Tracked' ? 1 : 0),
         front: vehicleType.front,
         side: vehicleType.side,
         rear: vehicleType.rear,

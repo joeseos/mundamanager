@@ -8,7 +8,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
-import { cn } from "@/app/lib/utils";
 
 interface VehicleType {
   id: string;
@@ -143,7 +142,7 @@ export default function AddVehicle({
         vehicle_type: selectedVehicleType.vehicle_type,
         gang_id: gangId,
         fighter_id: null,
-        movement: selectedVehicleType.movement,
+        movement: selectedVehicleType.movement - (locomotionChoice === 'Tracked' ? 1 : 0),
         front: selectedVehicleType.front,
         side: selectedVehicleType.side,
         rear: selectedVehicleType.rear,
@@ -297,23 +296,19 @@ export default function AddVehicle({
               <label className="block text-sm font-medium text-muted-foreground">
                 Locomotion *
               </label>
-              <div className="flex gap-2">
-                {['Wheeled', 'Tracked', 'Walker'].map(opt => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => setLocomotionChoice(opt)}
-                    className={cn(
-                      'flex-1 py-2 rounded-md border text-sm font-medium transition-colors',
-                      locomotionChoice === opt
-                        ? 'bg-neutral-900 text-white border-neutral-900'
-                        : 'bg-background border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                    )}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
+              <Combobox
+                value={locomotionChoice}
+                onValueChange={setLocomotionChoice}
+                placeholder="Locomotion"
+                options={[
+                  { value: 'Wheeled', label: 'Wheeled' },
+                  { value: 'Tracked', label: 'Tracked' },
+                  { value: 'Walker', label: 'Walker' },
+                ]}
+              />
+              {locomotionChoice === 'Tracked' && (
+                <p className="text-sm text-muted-foreground">Movement reduced by 1&quot;</p>
+              )}
             </div>
           )}
 
