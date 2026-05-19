@@ -125,6 +125,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       positioning: processedPositioning,
       note: gangBasic.note,
       note_backstory: gangBasic.note_backstory,
+      note_private: userPermissions.canEdit ? gangBasic.note_private : undefined,
+      note_private_updated_at: userPermissions.canEdit ? gangBasic.note_private_updated_at : undefined,
       stash: stash,
       created_at: gangBasic.created_at,
       last_updated: gangBasic.last_updated,
