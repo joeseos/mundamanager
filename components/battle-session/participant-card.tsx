@@ -33,7 +33,6 @@ import {
   addSessionInjury,
   removeSessionInjury,
   updateSessionConditions,
-  getFighterCardData,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { deleteFighterInjury } from '@/app/actions/fighter-injury';
@@ -562,6 +561,7 @@ function FighterRow({
   xp,
   injuryCount,
   canInteract,
+  gangFighter,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -573,6 +573,7 @@ function FighterRow({
   xp: number;
   injuryCount: number;
   canInteract: boolean;
+  gangFighter: GangFighter | undefined;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -580,27 +581,10 @@ function FighterRow({
 }) {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [fighterCardData, setFighterCardData] = useState<any>(null);
-  const [loadingCard, setLoadingCard] = useState(false);
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const isReady = conditions.some((c) => c.key === 'ready');
   const displayConditions = conditions.filter((c) => c.key !== 'ready');
-
-  const handleInfoClick = async () => {
-    setShowInfoModal(true);
-    if (!fighterCardData) {
-      setLoadingCard(true);
-      try {
-        const data = await getFighterCardData(fighter.fighter_id, fighter.loadout_id);
-        setFighterCardData(data);
-      } catch {
-        toast.error('Failed to load fighter data');
-      } finally {
-        setLoadingCard(false);
-      }
-    }
-  };
 
   const toggleReady = () => {
     const nextConditions = isReady
@@ -616,7 +600,7 @@ function FighterRow({
           <IoInformationCircleOutline
             className="text-2xl size-7 shrink-0 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200 self-center"
             title="View fighter card"
-            onClick={handleInfoClick}
+            onClick={() => setShowInfoModal(true)}
           />
           <div>
             <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
@@ -684,67 +668,62 @@ function FighterRow({
           )}
         </td>
       )}
-      {showInfoModal && createPortal(
+      {showInfoModal && gangFighter && createPortal(
         <div
           className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setShowInfoModal(false);
           }}
         >
-          {loadingCard ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
+          <div className="relative max-w-2xl w-full">
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(false)}
+              className="absolute -top-3 -right-3 z-10 bg-black hover:bg-neutral-800 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
+            >
+              ×
+            </button>
+            <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:!scale-100 [&>.fighter-card-bg]:hover:!shadow-none [&>.fighter-card-bg]:!shadow-none [&>.fighter-card-bg]:!transition-none">
+              <FighterCard
+                {...gangFighter}
+                name={gangFighter.fighter_name}
+                type={gangFighter.fighter_type}
+                skills={gangFighter.skills}
+                effects={gangFighter.effects as any}
+                vehicle={gangFighter.vehicles?.[0]}
+                advancements={{ characteristics: {}, skills: {} }}
+                base_stats={{
+                  movement: gangFighter.movement,
+                  weapon_skill: gangFighter.weapon_skill,
+                  ballistic_skill: gangFighter.ballistic_skill,
+                  strength: gangFighter.strength,
+                  toughness: gangFighter.toughness,
+                  wounds: gangFighter.wounds,
+                  initiative: gangFighter.initiative,
+                  attacks: gangFighter.attacks,
+                  leadership: gangFighter.leadership,
+                  cool: gangFighter.cool,
+                  willpower: gangFighter.willpower,
+                  intelligence: gangFighter.intelligence,
+                }}
+                current_stats={{
+                  movement: gangFighter.movement,
+                  weapon_skill: gangFighter.weapon_skill,
+                  ballistic_skill: gangFighter.ballistic_skill,
+                  strength: gangFighter.strength,
+                  toughness: gangFighter.toughness,
+                  wounds: gangFighter.wounds,
+                  initiative: gangFighter.initiative,
+                  attacks: gangFighter.attacks,
+                  leadership: gangFighter.leadership,
+                  cool: gangFighter.cool,
+                  willpower: gangFighter.willpower,
+                  intelligence: gangFighter.intelligence,
+                }}
+                disableLink
+              />
             </div>
-          ) : fighterCardData ? (
-            <div className="relative max-w-2xl w-full">
-              <button
-                type="button"
-                onClick={() => setShowInfoModal(false)}
-                className="absolute -top-3 -right-3 z-10 bg-black hover:bg-neutral-800 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
-              >
-                ×
-              </button>
-              <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:!scale-100 [&>.fighter-card-bg]:hover:!shadow-none [&>.fighter-card-bg]:!shadow-none [&>.fighter-card-bg]:!transition-none">
-                <FighterCard
-                  {...fighterCardData}
-                  name={fighterCardData.fighter_name}
-                  type={fighterCardData.fighter_type}
-                  advancements={{ characteristics: {}, skills: {} }}
-                  base_stats={{
-                    movement: fighterCardData.movement,
-                    weapon_skill: fighterCardData.weapon_skill,
-                    ballistic_skill: fighterCardData.ballistic_skill,
-                    strength: fighterCardData.strength,
-                    toughness: fighterCardData.toughness,
-                    wounds: fighterCardData.wounds,
-                    initiative: fighterCardData.initiative,
-                    attacks: fighterCardData.attacks,
-                    leadership: fighterCardData.leadership,
-                    cool: fighterCardData.cool,
-                    willpower: fighterCardData.willpower,
-                    intelligence: fighterCardData.intelligence,
-                  }}
-                  current_stats={{
-                    movement: fighterCardData.movement,
-                    weapon_skill: fighterCardData.weapon_skill,
-                    ballistic_skill: fighterCardData.ballistic_skill,
-                    strength: fighterCardData.strength,
-                    toughness: fighterCardData.toughness,
-                    wounds: fighterCardData.wounds,
-                    initiative: fighterCardData.initiative,
-                    attacks: fighterCardData.attacks,
-                    leadership: fighterCardData.leadership,
-                    cool: fighterCardData.cool,
-                    willpower: fighterCardData.willpower,
-                    intelligence: fighterCardData.intelligence,
-                  }}
-                  disableLink
-                />
-              </div>
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground py-8">No fighter data available.</p>
-          )}
+          </div>
         </div>,
         document.body
       )}
@@ -1111,6 +1090,9 @@ export default function ParticipantCard({
                     const match = gangFighters.find(
                       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
                     ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
+                    const fullMatch = gangFightersList.find(
+                      (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
+                    ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
                     const name = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
                     const cost = match?.credits ?? f.fighter?.credits;
                     const xp = f.session_record?.xp_earned ?? 0;
@@ -1124,6 +1106,7 @@ export default function ParticipantCard({
                         xp={xp}
                         injuryCount={injuryCount}
                         canInteract={canInteract}
+                        gangFighter={fullMatch}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
