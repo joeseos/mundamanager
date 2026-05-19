@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 
 interface ModalProps {
@@ -71,8 +70,8 @@ export default function Modal({
     }
   };
 
-  return createPortal(
-    <div
+  return (
+    <div 
       className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -101,7 +100,7 @@ export default function Modal({
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           {content || children}
         </div>
-        {(onConfirm || onDelete) && (
+        {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
             {onDelete && deleteLabel && (
               <Button
@@ -112,7 +111,7 @@ export default function Modal({
                 {deleteLabel}
               </Button>
             )}
-            {onConfirm && !hideCancel && (
+            {!hideCancel && (
               <Button
                 variant="outline"
                 onClick={onClose}
@@ -124,21 +123,18 @@ export default function Modal({
                 Cancel
               </Button>
               )}
-            {onConfirm && (
-              <Button
-                onClick={(e) => handleConfirm(e)}
-                disabled={confirmDisabled || isSubmitting}
-                className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
-                  (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isSubmitting && confirmText === 'Confirm' ? 'Confirming...' : confirmText}
-              </Button>
-            )}
+            <Button
+              onClick={(e) => handleConfirm(e)}
+              disabled={confirmDisabled || isSubmitting}
+              className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
+                (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSubmitting && confirmText === 'Confirm' ? 'Confirming...' : confirmText}
+            </Button>
           </div>
         )}
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

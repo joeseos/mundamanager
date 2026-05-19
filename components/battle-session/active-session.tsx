@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -323,7 +324,7 @@ export default function ActiveSession({
         )}
       </div>
 
-      {showCancelModal && (
+      {showCancelModal && createPortal(
         <Modal
           title="Cancel Battle Session"
           onClose={() => setShowCancelModal(false)}
@@ -335,10 +336,11 @@ export default function ActiveSession({
           confirmDisabled={cancelMutation.isPending}
         >
           <p>Are you sure you want to cancel this battle session? This will delete all records.</p>
-        </Modal>
+        </Modal>,
+        document.body
       )}
 
-      {showRoundModal && (
+      {showRoundModal && createPortal(
         <Modal
           title="Complete Round"
           onClose={() => setShowRoundModal(false)}
@@ -351,10 +353,11 @@ export default function ActiveSession({
           confirmDisabled={roundMutation.isPending}
         >
           <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
-        </Modal>
+        </Modal>,
+        document.body
       )}
 
-      {showStartBattleModal && (
+      {showStartBattleModal && createPortal(
         <Modal
           title="Start Battle"
           onClose={() => setShowStartBattleModal(false)}
@@ -367,10 +370,11 @@ export default function ActiveSession({
           confirmDisabled={startBattleMutation.isPending}
         >
           <p>Start the battle? Crew selection will be locked until you return to pre-battle.</p>
-        </Modal>
+        </Modal>,
+        document.body
       )}
 
-      {showReturnToSetupModal && (
+      {showReturnToSetupModal && createPortal(
         <Modal
           title="Return to Pre-Battle"
           onClose={() => setShowReturnToSetupModal(false)}
@@ -383,7 +387,8 @@ export default function ActiveSession({
           confirmDisabled={returnToSetupMutation.isPending}
         >
           <p>Return to Pre-Battle Sequence? This will unlock crew selection for all players.</p>
-        </Modal>
+        </Modal>,
+        document.body
       )}
 
       {showAddPlayerModal && userGangInSession && (
