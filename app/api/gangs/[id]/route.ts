@@ -116,6 +116,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     salvage,
     note,
     note_backstory,
+    note_private,
     vehicleId,
     vehicle_name,
     special_rules,
@@ -190,6 +191,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     // Add note_backstory if provided
     if (note_backstory !== undefined) {
       updates.note_backstory = note_backstory;
+      notesChanged = true;
+    }
+
+    // Add note_private if provided
+    if (note_private !== undefined) {
+      updates.note_private = note_private;
+      updates.note_private_updated_at = new Date().toISOString();
       notesChanged = true;
     }
 

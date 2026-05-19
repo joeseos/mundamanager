@@ -69,6 +69,8 @@ interface GangDataState {
     vehicles: VehicleProps[];
     note?: string;
     note_backstory?: string;
+    note_private?: string;
+    note_private_updated_at?: string;
     positioning: Record<number, string>;
     campaigns: any[];
     gang_variants: Array<{id: string, variant: string}>;
@@ -383,6 +385,16 @@ export default function GangPageContent({
       processedData: {
         ...prev.processedData,
         note_backstory: updatedNoteBackstory
+      }
+    }));
+  }, []);
+
+  const handleNotePrivateUpdate = useCallback((updatedNotePrivate: string) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        note_private: updatedNotePrivate
       }
     }));
   }, []);
@@ -913,8 +925,11 @@ export default function GangPageContent({
           gangId={gangId}
           initialNote={gangData.processedData.note || ''}
           initialNoteBackstory={gangData.processedData.note_backstory || ''}
+          initialNotePrivate={gangData.processedData.note_private || ''}
+          initialNotePrivateUpdatedAt={gangData.processedData.note_private_updated_at}
           onNoteUpdate={handleNoteUpdate}
           onNoteBackstoryUpdate={handleNoteBackstoryUpdate}
+          onNotePrivateUpdate={handleNotePrivateUpdate}
           userPermissions={userPermissions}
         />
       </Tabs>

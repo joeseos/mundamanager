@@ -11,29 +11,46 @@ interface GangNotesProps {
   gangId: string;
   initialNote?: string;
   initialNoteBackstory?: string;
+  initialNotePrivate?: string;
+  initialNotePrivateUpdatedAt?: string;
   onNoteUpdate?: (updatedNote: string) => void;
   onNoteBackstoryUpdate?: (updatedNoteBackstory: string) => void;
+  onNotePrivateUpdate?: (updatedNotePrivate: string) => void;
   userPermissions?: UserPermissions;
 }
 
 interface NoteEditorProps {
   title: string;
+  description?: string;
   content: string;
   onContentChange: (content: string) => void;
   onSave: () => Promise<void>;
   placeholder: string;
   charLimit: number;
   userPermissions?: UserPermissions;
+  updatedAt?: string;
+}
+
+function formatUpdatedAt(isoString: string): string {
+  const d = new Date(isoString);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `Updated: ${year}-${month}-${day} at ${hours}:${minutes}`;
 }
 
 function NoteEditor({ 
-  title, 
+  title,
+  description,
   content, 
   onContentChange, 
   onSave, 
   placeholder, 
   charLimit, 
-  userPermissions 
+  userPermissions,
+  updatedAt
 }: NoteEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,8 +110,8 @@ function NoteEditor({
   return (
     <div className="bg-card rounded-lg shadow-md p-4 mb-6">
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl md:text-2xl font-bold mb-6">{title}</h2>
+        <div className="flex justify-between items-start mb-2">
+          <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
           <div className="flex items-center gap-2">
             <div className="flex gap-2">
               {isEditing ? (
@@ -143,11 +160,20 @@ function NoteEditor({
               enableImages={false}
             />
           </div>
+        ) : isHtmlEffectivelyEmpty(content) ? (
+          <p className="text-muted-foreground italic text-center">
+            No {title.toLowerCase()} added.{description && ` ${description}`}
+          </p>
         ) : (
-          <div 
-          className={`max-w-none ${!isHtmlEffectivelyEmpty(content) ? 'prose prose-sm break-words' : 'text-muted-foreground italic text-center'}`}
-          dangerouslySetInnerHTML={{ __html: !isHtmlEffectivelyEmpty(content) ? content : `No ${title.toLowerCase()} added. ${title === 'Gang Notes' ? 'They\'ll appear on the Gang card when printed.' : ''}` }}
+          <div
+            className="prose prose-sm max-w-none break-words"
+            dangerouslySetInnerHTML={{ __html: content }}
           />
+        )}
+        {updatedAt && !isEditing && (
+          <p className="text-xs text-muted-foreground text-right mt-2">
+            {formatUpdatedAt(updatedAt)}
+          </p>
         )}
       </div>
     </div>
@@ -158,12 +184,17 @@ export function GangNotes({
   gangId, 
   initialNote = '', 
   initialNoteBackstory = '',
+  initialNotePrivate = '',
+  initialNotePrivateUpdatedAt,
   onNoteUpdate, 
   onNoteBackstoryUpdate, 
+  onNotePrivateUpdate,
   userPermissions 
 }: GangNotesProps) {
   const [note, setNote] = useState(initialNote || '');
   const [noteBackstory, setNoteBackstory] = useState(initialNoteBackstory || '');
+  const [notePrivate, setNotePrivate] = useState(initialNotePrivate || '');
+  const [notePrivateUpdatedAt, setNotePrivateUpdatedAt] = useState<string | undefined>(initialNotePrivateUpdatedAt);
 
   // Update notes when initial values change
   useEffect(() => {
@@ -173,6 +204,14 @@ export function GangNotes({
   useEffect(() => {
     setNoteBackstory(initialNoteBackstory || '');
   }, [initialNoteBackstory]);
+
+  useEffect(() => {
+    setNotePrivate(initialNotePrivate || '');
+  }, [initialNotePrivate]);
+
+  useEffect(() => {
+    setNotePrivateUpdatedAt(initialNotePrivateUpdatedAt);
+  }, [initialNotePrivateUpdatedAt]);
 
   const handleNoteSave = async () => {
     const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;
@@ -214,10 +253,35 @@ export function GangNotes({
     onNoteBackstoryUpdate?.(noteBackstory);
   };
 
+  const handleNotePrivateSave = async () => {
+    const cleanNotePrivate = isHtmlEffectivelyEmpty(notePrivate) ? '' : notePrivate;
+
+    const response = await fetch(`/api/gangs/${gangId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ note_private: cleanNotePrivate }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update private notes');
+    }
+
+    if (data.note_private_updated_at) {
+      setNotePrivateUpdatedAt(data.note_private_updated_at);
+    }
+
+    onNotePrivateUpdate?.(notePrivate);
+  };
+
   return (
     <div className="container max-w-5xl w-full space-y-4 mx-auto">
       <NoteEditor
         title="Gang Notes"
+        description="They'll appear on the Gang card when printed."
         content={note}
         onContentChange={setNote}
         onSave={handleNoteSave}
@@ -235,6 +299,20 @@ export function GangNotes({
         charLimit={2500}
         userPermissions={userPermissions}
       />
+
+      {userPermissions?.canEdit && (
+        <NoteEditor
+          title="Private Notes"
+          description="Only you and your Arbitrators can view and edit these notes."
+          content={notePrivate}
+          onContentChange={setNotePrivate}
+          onSave={handleNotePrivateSave}
+          placeholder="Add private notes here. Only you and your Arbitrators can view and edit these notes."
+          charLimit={2500}
+          userPermissions={userPermissions}
+          updatedAt={notePrivateUpdatedAt}
+        />
+      )}
     </div>
   );
 }

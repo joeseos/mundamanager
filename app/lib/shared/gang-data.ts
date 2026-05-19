@@ -26,6 +26,8 @@ export interface GangBasic {
   alignment: string;
   note?: string;
   note_backstory?: string;
+  note_private?: string;
+  note_private_updated_at?: string;
   created_at: string;
   last_updated: string;
   alliance_id?: string;
@@ -202,6 +204,8 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           alignment,
           note,
           note_backstory,
+          note_private,
+          note_private_updated_at,
           created_at,
           last_updated,
           alliance_id,
