@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
-import { getGangFightersList, type GangFighter } from '@/app/lib/shared/gang-data';
+import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
 import ActiveSession from '@/components/battle-session/active-session';
 import ConfirmedSession from '@/components/battle-session/confirmed-session';
 
@@ -39,8 +39,9 @@ export default async function CampaignBattleSessionPage(props: {
     new Set(session.participants.map((p) => p.gang_id))
   );
 
-  const [gangFighterLists, { data: scenarios }] = await Promise.all([
+  const [gangFighterLists, gangPositioningList, { data: scenarios }] = await Promise.all([
     Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
+    Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
     supabase
       .from('scenarios')
       .select('id, scenario_name, scenario_number')
@@ -48,8 +49,10 @@ export default async function CampaignBattleSessionPage(props: {
   ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};
+  const gangPositioningMap: Record<string, Record<string, any> | null> = {};
   uniqueGangIds.forEach((gId, i) => {
     gangFightersMap[gId] = gangFighterLists[i];
+    gangPositioningMap[gId] = gangPositioningList[i];
   });
 
   return (
@@ -60,6 +63,7 @@ export default async function CampaignBattleSessionPage(props: {
           userId={user.id}
           scenarios={scenarios || []}
           gangFightersMap={gangFightersMap}
+          gangPositioningMap={gangPositioningMap}
         />
       </div>
     </main>

@@ -25,6 +25,7 @@ interface ActiveSessionProps {
   userId: string;
   scenarios: Scenario[];
   gangFightersMap: Record<string, GangFighter[]>;
+  gangPositioningMap: Record<string, Record<string, any> | null>;
 }
 
 export default function ActiveSession({
@@ -32,6 +33,7 @@ export default function ActiveSession({
   userId,
   scenarios,
   gangFightersMap,
+  gangPositioningMap,
 }: ActiveSessionProps) {
   const router = useRouter();
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -279,6 +281,7 @@ export default function ActiveSession({
               isOwner={isOwner}
               editable
               gangFightersList={gangFightersMap[participant.gang_id] || []}
+              positioning={gangPositioningMap[participant.gang_id]}
             />
           ))}
         </div>

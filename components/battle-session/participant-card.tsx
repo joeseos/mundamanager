@@ -763,6 +763,7 @@ interface ParticipantCardProps {
   isOwner: boolean;
   editable?: boolean;
   gangFightersList?: GangFighter[];
+  positioning?: Record<string, any> | null;
 }
 
 export default function ParticipantCard({
@@ -772,6 +773,7 @@ export default function ParticipantCard({
   isOwner,
   editable = false,
   gangFightersList = [],
+  positioning,
 }: ParticipantCardProps) {
   const router = useRouter();
   const [creditsEarned, setCreditsEarned] = useState(participant.credits_earned);
@@ -807,6 +809,18 @@ export default function ParticipantCard({
     localFighters.map((f) => [f.fighter_id, f.loadout_id ?? undefined])
   );
   const availableFighters = gangFighters.filter((f) => !selectedFighterIds.has(f.id));
+
+  const sortedLocalFighters = useMemo(() => {
+    const posMap: Record<string, number> = {};
+    Object.entries(positioning || {}).forEach(([pos, fighterId]) => {
+      posMap[fighterId as string] = Number(pos);
+    });
+    return [...localFighters].sort((a, b) => {
+      const posA = posMap[a.fighter_id] ?? Number.MAX_SAFE_INTEGER;
+      const posB = posMap[b.fighter_id] ?? Number.MAX_SAFE_INTEGER;
+      return posA - posB;
+    });
+  }, [localFighters, positioning]);
 
   const totalInjuries = localFighters.reduce((sum, f) => sum + (f.session_record?.injuries?.length ?? 0), 0);
   const crewRating = localFighters.reduce((sum, f) => {
@@ -1090,7 +1104,7 @@ export default function ParticipantCard({
                     </td>
                   </tr>
                 ) : (
-                  localFighters.map((f) => {
+                  sortedLocalFighters.map((f) => {
                     const match = gangFighters.find(
                       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
                     ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
