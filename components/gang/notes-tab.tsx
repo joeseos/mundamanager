@@ -15,7 +15,7 @@ interface GangNotesProps {
   initialNotePrivateUpdatedAt?: string;
   onNoteUpdate?: (updatedNote: string) => void;
   onNoteBackstoryUpdate?: (updatedNoteBackstory: string) => void;
-  onNotePrivateUpdate?: (updatedNotePrivate: string) => void;
+  onNotePrivateUpdate?: (updatedNotePrivate: string, updatedAt?: string) => void;
   userPermissions?: UserPermissions;
 }
 
@@ -33,6 +33,7 @@ interface NoteEditorProps {
 
 function formatUpdatedAt(isoString: string): string {
   const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -274,7 +275,7 @@ export function GangNotes({
       setNotePrivateUpdatedAt(data.note_private_updated_at);
     }
 
-    onNotePrivateUpdate?.(notePrivate);
+    onNotePrivateUpdate?.(notePrivate, data.note_private_updated_at);
   };
 
   return (

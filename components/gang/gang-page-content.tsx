@@ -389,12 +389,13 @@ export default function GangPageContent({
     }));
   }, []);
 
-  const handleNotePrivateUpdate = useCallback((updatedNotePrivate: string) => {
+  const handleNotePrivateUpdate = useCallback((updatedNotePrivate: string, updatedAt?: string) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
       processedData: {
         ...prev.processedData,
-        note_private: updatedNotePrivate
+        note_private: updatedNotePrivate,
+        note_private_updated_at: updatedAt ?? prev.processedData.note_private_updated_at,
       }
     }));
   }, []);
