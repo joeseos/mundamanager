@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict FP58V6C4r4F8YPK4e5ZAjMjlxrehrBSf2InP9iOxKnm5bK8sxEfjX8nOhiRzBd0
+\restrict uHSQDKEEMzzVxroNIcgppfcYwY8MClJhx0sK422mVaHJr7btWYMTBqNngk6USfc
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -3824,7 +3824,7 @@ CREATE TABLE public.battle_sessions (
     note text,
     campaign_battle_id uuid,
     round integer DEFAULT 1 NOT NULL,
-    CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'review'::text, 'confirmed'::text, 'cancelled'::text])))
+    CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'pre_battle'::text, 'completed'::text])))
 );
 
 
@@ -5085,6 +5085,8 @@ CREATE TABLE public.gangs (
     is_favourite boolean DEFAULT false NOT NULL,
     favourite_order integer,
     custom_gang_type_id uuid,
+    note_private text,
+    note_private_updated_at timestamp with time zone,
     CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
 
@@ -10914,5 +10916,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict FP58V6C4r4F8YPK4e5ZAjMjlxrehrBSf2InP9iOxKnm5bK8sxEfjX8nOhiRzBd0
+\unrestrict uHSQDKEEMzzVxroNIcgppfcYwY8MClJhx0sK422mVaHJr7btWYMTBqNngk6USfc
 
