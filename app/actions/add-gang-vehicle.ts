@@ -13,6 +13,7 @@ interface AddGangVehicleParams {
   cost: number;
   vehicleName: string;
   baseCost?: number;
+  locomotionChoice?: string;
 }
 
 interface AddGangVehicleResult {
@@ -92,7 +93,9 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
         body_slots: vehicleType.body_slots,
         drive_slots: vehicleType.drive_slots,
         engine_slots: vehicleType.engine_slots,
-        special_rules: vehicleType.special_rules,
+        special_rules: (vehicleType.special_rules as string[] || []).map(
+          r => r === 'Locomotion' && params.locomotionChoice ? params.locomotionChoice : r
+        ),
         body_slots_occupied: 0,
         drive_slots_occupied: 0,
         engine_slots_occupied: 0,
