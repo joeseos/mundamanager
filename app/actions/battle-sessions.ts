@@ -78,7 +78,7 @@ export async function createBattleSession(params: {
         created_by: user.id,
         campaign_id: params.campaign_id || null,
         scenario: params.scenario || null,
-        status: 'active',
+        status: 'pre_battle',
       })
       .select('id')
       .single();
@@ -145,8 +145,8 @@ export async function cancelBattleSession(
     if (!session) return { success: false, error: 'Session not found' };
     if (session.created_by !== user.id)
       return { success: false, error: 'Only the session creator can cancel' };
-    if (session.status === 'confirmed')
-      return { success: false, error: 'Cannot cancel a confirmed session' };
+    if (session.status === 'completed')
+      return { success: false, error: 'Cannot cancel a completed session' };
 
     const { data: participants } = await supabase
       .from('battle_session_participants')
@@ -266,6 +266,76 @@ export async function advanceRound(
 // Participant Management
 // =============================================================================
 
+export async function startBattle(
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) return { success: false, error: 'Session not found' };
+    if (session.status !== 'pre_battle')
+      return { success: false, error: 'Can only start from pre-battle' };
+
+    const { error } = await supabase
+      .from('battle_sessions')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error starting battle:', err);
+    return { success: false, error: 'Failed to start battle' };
+  }
+}
+
+export async function returnToSetup(
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) return { success: false, error: 'Session not found' };
+    if (session.status !== 'active')
+      return { success: false, error: 'Can only return to pre-battle from active' };
+
+    const { error } = await supabase
+      .from('battle_sessions')
+      .update({ status: 'pre_battle', updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error returning to setup:', err);
+    return { success: false, error: 'Failed to return to pre-battle' };
+  }
+}
+
 export async function addParticipant(params: {
   session_id: string;
   gang_id: string;
@@ -291,8 +361,8 @@ export async function addParticipant(params: {
       .single();
 
     if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'active')
-      return { success: false, error: 'Session is not active' };
+    if (session.status !== 'pre_battle')
+      return { success: false, error: 'Can only add players during pre-battle' };
 
     // If campaign session, validate gang is in the campaign
     if (session.campaign_id) {
@@ -408,6 +478,14 @@ export async function removeFighterFromSession(
     const auth = await verifySessionParticipant(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single();
+    if (session?.status !== 'pre_battle')
+      return { success: false, error: 'Crew can only be changed during pre-battle' };
+
     const { error } = await supabase
       .from('battle_session_fighters')
       .delete()
@@ -436,6 +514,14 @@ export async function updateFighterLoadout(
     const auth = await verifySessionParticipant(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single();
+    if (session?.status !== 'pre_battle')
+      return { success: false, error: 'Crew can only be changed during pre-battle' };
+
     const { error } = await supabase
       .from('battle_session_fighters')
       .update({ loadout_id: loadoutId ?? null })
@@ -460,6 +546,14 @@ export async function bulkAddFightersToSession(params: {
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', params.session_id)
+      .single();
+    if (session?.status !== 'pre_battle')
+      return { success: false, error: 'Crew can only be changed during pre-battle' };
 
     const rows = params.fighter_entries.map((entry) => ({
       battle_session_id: params.session_id,
@@ -790,7 +884,7 @@ export async function completeBattleSession(
     const { error } = await supabase
       .from('battle_sessions')
       .update({
-        status: 'confirmed',
+        status: 'completed',
         campaign_battle_id: campaign_battle_id || null,
         updated_at: new Date().toISOString(),
       })

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 
 interface ModalProps {
@@ -70,8 +71,8 @@ export default function Modal({
     }
   };
 
-  return (
-    <div 
+  return createPortal(
+    <div
       className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -137,6 +138,7 @@ export default function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

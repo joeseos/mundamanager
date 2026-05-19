@@ -8,6 +8,8 @@ import {
   addParticipant,
   setSessionScenario,
   advanceRound,
+  startBattle,
+  returnToSetup,
   completeBattleSession,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
@@ -39,14 +41,20 @@ export default function ActiveSession({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
+  const [showStartBattleModal, setShowStartBattleModal] = useState(false);
+  const [showReturnToSetupModal, setShowReturnToSetupModal] = useState(false);
   const isOwner = session.created_by === userId;
+  const isPreBattle = session.status === 'pre_battle';
 
-  const ratings = session.participants.map((p) =>
-    (p.fighters ?? []).reduce(
-      (sum, f) => sum + (f.fighter?.credits ?? 0),
-      0
-    )
-  );
+  const ratings = session.participants.map((p) => {
+    const gfList = gangFightersMap[p.gang_id] || [];
+    return (p.fighters ?? []).reduce((sum, f) => {
+      const match = gfList.find(
+        (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
+      ) ?? gfList.find((gf) => gf.id === f.fighter_id);
+      return sum + (match ? (match.loadout_cost ?? match.credits) : (f.fighter?.credits ?? 0));
+    }, 0);
+  });
   const maxRating = ratings.length > 0 ? Math.max(...ratings) : 0;
   const minRating = ratings.length > 0 ? Math.min(...ratings) : 0;
   const ratingDiff = ratings.length >= 2 ? maxRating - minRating : 0;
@@ -94,6 +102,32 @@ export default function ActiveSession({
       }
     },
     onError: () => toast.error('Failed to advance round'),
+  });
+
+  const startBattleMutation = useMutation({
+    mutationFn: () => startBattle(session.id),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success('Battle started');
+        router.refresh();
+      } else {
+        toast.error(result.error || 'Failed to start battle');
+      }
+    },
+    onError: () => toast.error('Failed to start battle'),
+  });
+
+  const returnToSetupMutation = useMutation({
+    mutationFn: () => returnToSetup(session.id),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success('Returned to pre-battle');
+        router.refresh();
+      } else {
+        toast.error(result.error || 'Failed to return to pre-battle');
+      }
+    },
+    onError: () => toast.error('Failed to return to pre-battle'),
   });
 
   // Join battle — shown when the user has no gang in the session
@@ -152,11 +186,20 @@ export default function ActiveSession({
           <div className="flex items-center gap-2">
             {isOwner && (
               <>
-                <Button
-                  onClick={() => setShowAddPlayerModal(true)}
-                >
-                  Add Player
-                </Button>
+                {isPreBattle && (
+                  <Button onClick={() => setShowAddPlayerModal(true)}>
+                    Add Player
+                  </Button>
+                )}
+                {!isPreBattle && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowReturnToSetupModal(true)}
+                    disabled={returnToSetupMutation.isPending}
+                  >
+                    Back to Pre-Battle
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   onClick={() => setShowCancelModal(true)}
@@ -167,20 +210,6 @@ export default function ActiveSession({
               </>
             )}
           </div>
-          {showCancelModal && (
-            <Modal
-              title="Cancel Battle Session"
-              onClose={() => setShowCancelModal(false)}
-              onConfirm={async () => {
-                cancelMutation.mutate();
-                return false;
-              }}
-              confirmText="Delete Session"
-              confirmDisabled={cancelMutation.isPending}
-            >
-              <p>Are you sure you want to cancel this battle session? This will delete all records.</p>
-            </Modal>
-          )}
         </div>
 
         <div className="mt-4">
@@ -201,40 +230,27 @@ export default function ActiveSession({
           />
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
-          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Round {session.round}
-          </span>
-          {isOwner && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowRoundModal(true)}
-              disabled={roundMutation.isPending}
-            >
-              {roundMutation.isPending ? 'Advancing...' : 'Complete Round'}
-            </Button>
-          )}
-          {showRoundModal && (
-            <Modal
-              title="Complete Round"
-              onClose={() => setShowRoundModal(false)}
-              onConfirm={async () => {
-                roundMutation.mutate();
-                setShowRoundModal(false);
-                return true;
-              }}
-              confirmText="Complete Round"
-              confirmDisabled={roundMutation.isPending}
-            >
-              <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
-            </Modal>
-          )}
-        </div>
+        {!isPreBattle && (
+          <div className="mt-4 flex items-center gap-3">
+            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Round {session.round}
+            </span>
+            {isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRoundModal(true)}
+                disabled={roundMutation.isPending}
+              >
+                {roundMutation.isPending ? 'Advancing...' : 'Complete Round'}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Join battle block — shown when the user has no gang in the session */}
-      {hasNoGangInSession && availableJoinGangs.length > 0 && (
+      {/* Join battle block — shown when the user has no gang in the session (setup only) */}
+      {isPreBattle && hasNoGangInSession && availableJoinGangs.length > 0 && (
         <div className="bg-card shadow-md rounded-lg p-4">
           <h3 className="mb-3 text-lg font-bold">Join Battle</h3>
           <p className="mb-3 text-sm text-neutral-500">
@@ -279,7 +295,7 @@ export default function ActiveSession({
               session={session}
               userId={userId}
               isOwner={isOwner}
-              editable
+              editable={isPreBattle}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
               positioning={gangPositioningMap[participant.gang_id]}
             />
@@ -287,16 +303,88 @@ export default function ActiveSession({
         </div>
 
         {isOwner && session.participants.length >= 2 && (
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={() => completeMutation.mutate()}
-              disabled={completeMutation.isPending}
-            >
-              Complete Session
-            </Button>
+          <div className="mt-4 flex justify-end gap-2">
+            {isPreBattle ? (
+              <Button
+                onClick={() => setShowStartBattleModal(true)}
+                disabled={startBattleMutation.isPending}
+              >
+                {startBattleMutation.isPending ? 'Starting...' : 'Start Battle'}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => completeMutation.mutate()}
+                disabled={completeMutation.isPending}
+              >
+                Complete Session
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {showCancelModal && (
+        <Modal
+          title="Cancel Battle Session"
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={async () => {
+            cancelMutation.mutate();
+            return false;
+          }}
+          confirmText="Delete Session"
+          confirmDisabled={cancelMutation.isPending}
+        >
+          <p>Are you sure you want to cancel this battle session? This will delete all records.</p>
+        </Modal>
+      )}
+
+      {showRoundModal && (
+        <Modal
+          title="Complete Round"
+          onClose={() => setShowRoundModal(false)}
+          onConfirm={async () => {
+            roundMutation.mutate();
+            setShowRoundModal(false);
+            return true;
+          }}
+          confirmText="Complete Round"
+          confirmDisabled={roundMutation.isPending}
+        >
+          <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
+        </Modal>
+      )}
+
+      {showStartBattleModal && (
+        <Modal
+          title="Start Battle"
+          onClose={() => setShowStartBattleModal(false)}
+          onConfirm={async () => {
+            startBattleMutation.mutate();
+            setShowStartBattleModal(false);
+            return true;
+          }}
+          confirmText="Start Battle"
+          confirmDisabled={startBattleMutation.isPending}
+        >
+          <p>Start the battle? Crew selection will be locked until you return to pre-battle.</p>
+        </Modal>
+      )}
+
+      {showReturnToSetupModal && (
+        <Modal
+          title="Return to Pre-Battle"
+          onClose={() => setShowReturnToSetupModal(false)}
+          onConfirm={async () => {
+            returnToSetupMutation.mutate();
+            setShowReturnToSetupModal(false);
+            return true;
+          }}
+          confirmText="Return to Pre-Battle"
+          confirmDisabled={returnToSetupMutation.isPending}
+        >
+          <p>Return to Pre-Battle Sequence? This will unlock crew selection for all players.</p>
+        </Modal>
+      )}
 
       {showAddPlayerModal && userGangInSession && (
         <CreateBattleModal

@@ -3,15 +3,15 @@
 import Link from 'next/link';
 import type { BattleSessionFull } from '@/types/battle-session';
 
-interface ConfirmedSessionProps {
+interface CompletedSessionProps {
   session: BattleSessionFull;
   userId: string;
 }
 
-export default function ConfirmedSession({
+export default function CompletedSession({
   session,
   userId,
-}: ConfirmedSessionProps) {
+}: CompletedSessionProps) {
   const winner = session.participants.find(
     (p) => p.gang_id === session.winner_gang_id
   );

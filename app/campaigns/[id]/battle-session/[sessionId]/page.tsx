@@ -4,7 +4,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
 import ActiveSession from '@/components/battle-session/active-session';
-import ConfirmedSession from '@/components/battle-session/confirmed-session';
+import CompletedSession from '@/components/battle-session/completed-session';
 
 export default async function CampaignBattleSessionPage(props: {
   params: Promise<{ id: string; sessionId: string }>;
@@ -25,11 +25,11 @@ export default async function CampaignBattleSessionPage(props: {
     notFound();
   }
 
-  if (session.status === 'confirmed') {
+  if (session.status === 'completed') {
     return (
       <main className="flex min-h-screen flex-col items-center">
         <div className="container mx-auto max-w-5xl w-full space-y-4">
-          <ConfirmedSession session={session} userId={user.id} />
+          <CompletedSession session={session} userId={user.id} />
         </div>
       </main>
     );

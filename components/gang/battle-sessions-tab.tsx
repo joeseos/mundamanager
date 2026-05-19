@@ -24,7 +24,7 @@ export default function GangBattleSessions({
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filteredSessions = filter === 'active'
-    ? sessions.filter((s) => s.status === 'active')
+    ? sessions.filter((s) => s.status === 'pre_battle' || s.status === 'active')
     : sessions;
 
 

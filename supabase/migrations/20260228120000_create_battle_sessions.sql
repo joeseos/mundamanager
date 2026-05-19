@@ -10,8 +10,8 @@ CREATE TABLE public.battle_sessions (
     created_by uuid NOT NULL REFERENCES auth.users(id),
     campaign_id uuid REFERENCES public.campaigns(id) ON DELETE SET NULL,
     scenario text,
-    status text NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'confirmed', 'cancelled')),
+    status text NOT NULL DEFAULT 'pre_battle'
+        CHECK (status IN ('pre_battle', 'active', 'completed', 'cancelled')),
     winner_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,
     note text,
     current_turn integer NOT NULL DEFAULT 1,
