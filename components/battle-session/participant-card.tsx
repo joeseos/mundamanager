@@ -561,7 +561,7 @@ function FighterRow({
   cost,
   xp,
   injuryCount,
-  canEdit,
+  canInteract,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -572,7 +572,7 @@ function FighterRow({
   cost: number | undefined;
   xp: number;
   injuryCount: number;
-  canEdit: boolean;
+  canInteract: boolean;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -620,14 +620,14 @@ function FighterRow({
           />
           <div>
             <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
-            {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canEdit && injuries.length > 0)) && (
+            {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canInteract && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
                   <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     +{xp} XP
                   </span>
                 )}
-                {canEdit ? (
+                {canInteract ? (
                   <>
                     {injuryCount > 0 && (
                       <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
@@ -658,22 +658,21 @@ function FighterRow({
           </div>
         </div>
       </td>
-      <td className="p-1 md:p-2 text-right whitespace-nowrap">
-        <div className="flex items-center justify-end gap-4">
-          <FaUserCheck
-            className={`size-5 transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'} ${canEdit ? 'cursor-pointer hover:text-muted-foreground' : ''}`}
-            title={isReady ? 'Ready' : 'Activated'}
-            onClick={canEdit ? toggleReady : undefined}
-          />
-          {canEdit && (
+      {canInteract && (
+        <td className="p-1 md:p-2 text-right whitespace-nowrap">
+          <div className="flex items-center justify-end gap-4">
+            <FaUserCheck
+              className={`size-5 transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'} cursor-pointer hover:text-muted-foreground`}
+              title={isReady ? 'Ready' : 'Activated'}
+              onClick={toggleReady}
+            />
             <CgMoreVerticalO
               className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
               title="Click to open action menu"
               onClick={() => setShowActionModal(true)}
             />
-          )}
           </div>
-          {canEdit && showActionModal && (
+          {showActionModal && (
             <FighterActionModal
               fighter={fighter}
               onXpChanged={onXpChanged}
@@ -684,6 +683,7 @@ function FighterRow({
             />
           )}
         </td>
+      )}
       {showInfoModal && createPortal(
         <div
           className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
@@ -762,6 +762,7 @@ interface ParticipantCardProps {
   userId: string;
   isOwner: boolean;
   editable?: boolean;
+  battleActive?: boolean;
   gangFightersList?: GangFighter[];
   positioning?: Record<string, any> | null;
 }
@@ -772,6 +773,7 @@ export default function ParticipantCard({
   userId,
   isOwner,
   editable = false,
+  battleActive = false,
   gangFightersList = [],
   positioning,
 }: ParticipantCardProps) {
@@ -783,6 +785,7 @@ export default function ParticipantCard({
 
   const isMyGang = participant.user_id === userId;
   const canEdit = editable && isMyGang;
+  const canInteract = battleActive && isMyGang;
 
   // Map expanded gang fighters (one entry per loadout) to crew modal format
   const gangFighters = useMemo(() => {
@@ -1093,13 +1096,13 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
-                  <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">{canEdit ? 'Action' : 'Status'}</th>
+                  {canInteract && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Action</th>}
                 </tr>
               </thead>
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={canInteract ? 2 : 1} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -1120,7 +1123,7 @@ export default function ParticipantCard({
                         cost={cost}
                         xp={xp}
                         injuryCount={injuryCount}
-                        canEdit={canEdit}
+                        canInteract={canInteract}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });

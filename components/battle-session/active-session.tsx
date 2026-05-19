@@ -240,7 +240,6 @@ export default function ActiveSession({
             </span>
             {isOwner && (
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => setShowRoundModal(true)}
                 disabled={roundMutation.isPending}
@@ -299,6 +298,7 @@ export default function ActiveSession({
               userId={userId}
               isOwner={isOwner}
               editable={isPreBattle}
+              battleActive={!isPreBattle}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
               positioning={gangPositioningMap[participant.gang_id]}
             />
@@ -319,7 +319,7 @@ export default function ActiveSession({
                 onClick={() => completeMutation.mutate()}
                 disabled={completeMutation.isPending}
               >
-                Complete Session
+                Complete Battle
               </Button>
             )}
           </div>
