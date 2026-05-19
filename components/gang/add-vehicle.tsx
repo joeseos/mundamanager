@@ -307,7 +307,7 @@ export default function AddVehicle({
                 ]}
               />
               {locomotionChoice === 'Tracked' && (
-                <p className="text-sm text-amber-800 dark:text-amber-200">Movement reduced by 1&quot;</p>
+                <p className="text-amber-500 text-sm">Movement reduced by 1&quot;</p>
               )}
             </div>
           )}
