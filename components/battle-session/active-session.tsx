@@ -213,23 +213,25 @@ export default function ActiveSession({
           </div>
         </div>
 
-        <div className="mt-4">
-          <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Scenario
-          </label>
-          <Combobox
-            options={scenarios.map((s) => ({
-              value: s.id,
-              label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
-            }))}
-            value={scenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
-            onValueChange={(id) => {
-              const name = scenarios.find((s) => s.id === id)?.scenario_name ?? id;
-              scenarioMutation.mutate(name);
-            }}
-            placeholder="Select scenario..."
-          />
-        </div>
+        {isPreBattle && (
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Scenario
+            </label>
+            <Combobox
+              options={scenarios.map((s) => ({
+                value: s.id,
+                label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
+              }))}
+              value={scenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
+              onValueChange={(id) => {
+                const name = scenarios.find((s) => s.id === id)?.scenario_name ?? id;
+                scenarioMutation.mutate(name);
+              }}
+              placeholder="Select scenario..."
+            />
+          </div>
+        )}
 
         {!isPreBattle && (
           <div className="mt-4 flex items-center gap-3">
@@ -366,7 +368,7 @@ export default function ActiveSession({
             setShowStartBattleModal(false);
             return true;
           }}
-          confirmText="Start Battle"
+          confirmText="Confirm"
           confirmDisabled={startBattleMutation.isPending}
         >
           <p>Start the battle? Crew selection will be locked until you return to pre-battle.</p>
