@@ -8,6 +8,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
+import { LOCOMOTION_OPTIONS } from '@/utils/vehicle-locomotion';
 
 interface VehicleType {
   id: string;
@@ -53,7 +54,10 @@ export default function AddVehicle({
   const [vehicleName, setVehicleName] = useState('');
   const [useBaseCost, setUseBaseCost] = useState<boolean>(true);
   const [locomotionChoice, setLocomotionChoice] = useState('');
-  
+
+  const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId) ?? null;
+  const locomotionRequired = selectedVehicleType?.special_rules?.includes('Locomotion') ?? false;
+
   // Fetch vehicle types when component mounts
   useEffect(() => {
     const fetchVehicleTypes = async () => {
@@ -116,14 +120,13 @@ export default function AddVehicle({
     }
 
     try {
-      const needsLocomotion = selectedVehicleType.special_rules?.includes('Locomotion') ?? false;
       const result = await addGangVehicle({
         gangId,
         vehicleTypeId: selectedVehicleTypeId,
         cost: paymentCost, // This is what the user pays in credits
         vehicleName: name,
         baseCost: ratingCost, // The vehicle's base cost for display and when equipped
-        locomotionChoice: needsLocomotion ? locomotionChoice : undefined,
+        locomotionChoice: locomotionRequired ? locomotionChoice : undefined,
       });
 
       if (!result.success) {
@@ -142,7 +145,7 @@ export default function AddVehicle({
         vehicle_type: selectedVehicleType.vehicle_type,
         gang_id: gangId,
         fighter_id: null,
-        movement: selectedVehicleType.movement - (locomotionChoice === 'Tracked' ? 1 : 0),
+        movement: Math.max(0, selectedVehicleType.movement - (locomotionRequired && locomotionChoice === 'Tracked' ? 1 : 0)),
         front: selectedVehicleType.front,
         side: selectedVehicleType.side,
         rear: selectedVehicleType.rear,
@@ -155,9 +158,9 @@ export default function AddVehicle({
         drive_slots_occupied: 0,
         engine_slots: selectedVehicleType.engine_slots,
         engine_slots_occupied: 0,
-        special_rules: (selectedVehicleType.special_rules || []).map(
-          (r: string) => r === 'Locomotion' && locomotionChoice ? locomotionChoice : r
-        ),
+        special_rules: locomotionRequired && locomotionChoice
+          ? (selectedVehicleType.special_rules || []).map((r: string) => r === 'Locomotion' ? locomotionChoice : r)
+          : (selectedVehicleType.special_rules || []),
         created_at: new Date().toISOString(),
         equipment: [],
         payment_cost: paymentCost // Track what was actually paid
@@ -291,7 +294,7 @@ export default function AddVehicle({
           </div>
 
           {/* Locomotion selection — only shown for vehicle types with the Locomotion special rule */}
-          {selectedVehicleTypeId && vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.special_rules?.includes('Locomotion') && (
+          {locomotionRequired && (
             <div className="space-y-2">
               <label className="block text-sm font-medium text-muted-foreground">
                 Locomotion *
@@ -300,11 +303,7 @@ export default function AddVehicle({
                 value={locomotionChoice}
                 onValueChange={setLocomotionChoice}
                 placeholder="Locomotion"
-                options={[
-                  { value: 'Wheeled', label: 'Wheeled' },
-                  { value: 'Tracked', label: 'Tracked' },
-                  { value: 'Walker', label: 'Walker' },
-                ]}
+                options={LOCOMOTION_OPTIONS.map(opt => ({ value: opt, label: opt }))}
               />
               {locomotionChoice === 'Tracked' && (
                 <p className="text-amber-500 text-sm">Movement reduced by 1&quot;</p>
@@ -373,7 +372,8 @@ export default function AddVehicle({
       onClose={handleClose}
       onConfirm={handleAddVehicle}
       confirmText="Add Vehicle"
-      confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost || (!!vehicleTypes.find(v => v.id === selectedVehicleTypeId)?.special_rules?.includes('Locomotion') && !locomotionChoice)}
+      confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost || (locomotionRequired && !locomotionChoice)}
     />
   );
-} 
+}
+ 

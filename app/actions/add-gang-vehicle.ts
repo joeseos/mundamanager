@@ -6,6 +6,7 @@ import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
 import { logVehicleAction } from "./logs/vehicle-logs";
+import { LOCOMOTION_OPTIONS } from "@/utils/vehicle-locomotion";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -78,12 +79,22 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
+    // Validate locomotionChoice against the allowed set
+    if (params.locomotionChoice !== undefined &&
+        !LOCOMOTION_OPTIONS.includes(params.locomotionChoice as typeof LOCOMOTION_OPTIONS[number])) {
+      return { success: false, error: 'Invalid locomotion choice' };
+    }
+
+    const vehicleSpecialRules = vehicleType.special_rules as string[] || [];
+    const hasLocomotionRule = vehicleSpecialRules.includes('Locomotion');
+    const movementDelta = hasLocomotionRule && params.locomotionChoice === 'Tracked' ? 1 : 0;
+
     // Create the vehicle in vehicles table
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
         vehicle_name: (params.vehicleName || vehicleType.vehicle_type).trimEnd(),
-        movement: vehicleType.movement - (params.locomotionChoice === 'Tracked' ? 1 : 0),
+        movement: Math.max(0, vehicleType.movement - movementDelta),
         front: vehicleType.front,
         side: vehicleType.side,
         rear: vehicleType.rear,
@@ -93,9 +104,9 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
         body_slots: vehicleType.body_slots,
         drive_slots: vehicleType.drive_slots,
         engine_slots: vehicleType.engine_slots,
-        special_rules: (vehicleType.special_rules as string[] || []).map(
-          r => r === 'Locomotion' && params.locomotionChoice ? params.locomotionChoice : r
-        ),
+        special_rules: hasLocomotionRule && params.locomotionChoice
+          ? vehicleSpecialRules.map(r => r === 'Locomotion' ? params.locomotionChoice! : r)
+          : vehicleSpecialRules,
         body_slots_occupied: 0,
         drive_slots_occupied: 0,
         engine_slots_occupied: 0,
