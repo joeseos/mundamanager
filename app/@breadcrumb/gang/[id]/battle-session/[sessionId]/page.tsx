@@ -68,25 +68,11 @@ export default async function BattleSessionBreadcrumb({
               /
             </BreadcrumbSeparator>
             <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link
-                  href={`/gang/${id}?tab=battles`}
-                  className="text-muted-foreground hover:text-primary"
-                  aria-label="Navigate to Battle Sessions"
-                >
-                  Battle Sessions
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator className="text-gray-400" aria-hidden="true">
-              /
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
               <BreadcrumbPage
                 className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
-                {session?.created_at
+                Battle Sessions - {session?.created_at
                   ? new Date(session.created_at).toISOString().slice(0, 10)
                   : 'Battle Session'}
               </BreadcrumbPage>
