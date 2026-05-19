@@ -1,10 +1,15 @@
-export type BattleSessionStatus = 'pre_battle' | 'active' | 'completed' | 'cancelled';
+export type BattleSessionStatus = 'pre_battle' | 'active' | 'completed';
+
+export const statusLabels: Record<BattleSessionStatus, string> = {
+  pre_battle: 'Pre-Battle',
+  active: 'Active',
+  completed: 'Completed',
+};
 
 export const statusColors: Record<BattleSessionStatus, string> = {
   pre_battle: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
   active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  cancelled: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
 };
 
 export function formatBattleSessionDate(dateStr: string) {

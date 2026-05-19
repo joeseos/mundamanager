@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import CreateBattleModal from '@/components/battle-session/create-battle-modal';
-import { statusColors, formatBattleSessionDate } from '@/types/battle-session';
+import { statusColors, statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
 
 export default function GangBattleSessions({
@@ -82,7 +82,7 @@ export default function GangBattleSessions({
                   {formatBattleSessionDate(session.updated_at)}
                 </span>
                 <Badge className={statusColors[session.status]}>
-                  {session.status}
+                  {statusLabels[session.status]}
                 </Badge>
               </div>
               <span className="text-neutral-400">&rarr;</span>

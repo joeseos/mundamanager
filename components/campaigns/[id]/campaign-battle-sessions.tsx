@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import CreateBattleModal from '@/components/battle-session/create-battle-modal';
-import { statusColors, formatBattleSessionDate } from '@/types/battle-session';
+import { statusColors, statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
 
 export default function CampaignBattleSessions({
@@ -92,7 +92,7 @@ export default function CampaignBattleSessions({
                   <td className="p-1 md:p-2">{session.scenario || '-'}</td>
                   <td className="p-1 md:p-2">
                     <Badge className={statusColors[session.status]}>
-                      {session.status}
+                      {statusLabels[session.status]}
                     </Badge>
                   </td>
                 </tr>
