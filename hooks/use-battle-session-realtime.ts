@@ -42,6 +42,16 @@ export function useBattleSessionRealtime(sessionId: string) {
         },
         debouncedRefresh
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'battle_session_participants',
+          filter: `battle_session_id=eq.${sessionId}`,
+        },
+        debouncedRefresh
+      )
       .subscribe();
 
     const broadcastChannel = supabase

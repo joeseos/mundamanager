@@ -9,7 +9,6 @@ import {
   addParticipant,
   setSessionScenario,
   advanceRound,
-  startBattle,
   returnToSetup,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
@@ -46,7 +45,6 @@ export default function ActiveSession({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
-  const [showStartBattleModal, setShowStartBattleModal] = useState(false);
   const [showReturnToSetupModal, setShowReturnToSetupModal] = useState(false);
   const [showCompleteBattleModal, setShowCompleteBattleModal] = useState(false);
   const isOwner = session.created_by === userId;
@@ -96,20 +94,6 @@ export default function ActiveSession({
       }
     },
     onError: () => toast.error('Failed to advance round'),
-  });
-
-  const startBattleMutation = useMutation({
-    mutationFn: () => startBattle(session.id),
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success('Battle started');
-        broadcast();
-        router.refresh();
-      } else {
-        toast.error(result.error || 'Failed to start battle');
-      }
-    },
-    onError: () => toast.error('Failed to start battle'),
   });
 
   const returnToSetupMutation = useMutation({
@@ -225,6 +209,25 @@ export default function ActiveSession({
               }}
               placeholder="Select scenario..."
             />
+            {session.participants.length >= 2 && (() => {
+              const readyCount = session.participants.filter((p) => p.ready).length;
+              const total = session.participants.length;
+              const notReady = session.participants.filter((p) => !p.ready);
+              return (
+                <div className="mt-3 text-sm text-muted-foreground">
+                  {readyCount === total ? (
+                    <span className="text-green-600 font-medium">All players ready — starting battle...</span>
+                  ) : (
+                    <span>
+                      {readyCount}/{total} ready
+                      {notReady.length > 0 && (
+                        <span> — Waiting for {notReady.map((p) => p.gang?.name || 'Unknown').join(', ')}</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -299,22 +302,11 @@ export default function ActiveSession({
           ))}
         </div>
 
-        {isOwner && session.participants.length >= 2 && (
+        {!isPreBattle && (
           <div className="mt-4 flex justify-end gap-2">
-            {isPreBattle ? (
-              <Button
-                onClick={() => setShowStartBattleModal(true)}
-                disabled={startBattleMutation.isPending}
-              >
-                {startBattleMutation.isPending ? 'Starting...' : 'Start Battle'}
-              </Button>
-            ) : (
-              <Button
-                onClick={() => setShowCompleteBattleModal(true)}
-              >
-                Complete Battle
-              </Button>
-            )}
+            <Button onClick={() => setShowCompleteBattleModal(true)}>
+              Complete Battle
+            </Button>
           </div>
         )}
       </div>
@@ -348,23 +340,6 @@ export default function ActiveSession({
           confirmDisabled={roundMutation.isPending}
         >
           <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
-        </Modal>,
-        document.body
-      )}
-
-      {showStartBattleModal && createPortal(
-        <Modal
-          title="Start Battle"
-          onClose={() => setShowStartBattleModal(false)}
-          onConfirm={async () => {
-            startBattleMutation.mutate();
-            setShowStartBattleModal(false);
-            return true;
-          }}
-          confirmText="Confirm"
-          confirmDisabled={startBattleMutation.isPending}
-        >
-          <p>Start the battle? Crew selection will be locked until you return to pre-battle.</p>
         </Modal>,
         document.body
       )}

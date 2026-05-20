@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
@@ -34,6 +34,7 @@ import {
   addSessionInjury,
   removeSessionInjury,
   updateSessionConditions,
+  toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { deleteFighterInjury } from '@/app/actions/fighter-injury';
@@ -786,6 +787,13 @@ export default function ParticipantCard({
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
 
+  const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
+  const prevReadyProp = useRef(participant.ready);
+  if (prevReadyProp.current !== participant.ready) {
+    prevReadyProp.current = participant.ready;
+    if (readyOverride !== null) setReadyOverride(null);
+  }
+  const localReady = readyOverride ?? participant.ready;
   const isMyGang = participant.user_id === userId;
   const canEdit = editable && isMyGang;
   const canInteract = battleActive && isMyGang;
@@ -1016,12 +1024,13 @@ export default function ParticipantCard({
   }, [participant.role]);
 
 
+
   return (
     <div>
       {/* Gang Header */}
       <div className="py-2">
-        <div className="flex w-full items-center gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-[24rem] flex-1">
             <div className="flex items-center gap-2">
               <span className="font-semibold">
                 {participant.gang?.name || 'Unknown Gang'}
@@ -1035,6 +1044,15 @@ export default function ParticipantCard({
                   {localRole === 'attacker' ? 'Attacker' : 'Defender'}
                 </span>
               )}
+              {editable && !isMyGang && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                  participant.ready
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                }`}>
+                  {participant.ready ? 'Ready' : 'Not Ready'}
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-neutral-500">
               <span>Player: {participant.profile?.username || 'Unknown'}</span>
@@ -1045,22 +1063,43 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
-          {canEdit && (
-            <Button
-              onClick={() => setShowCrewModal(true)}
-            >
-              Select Crew
-            </Button>
-          )}
-          {(isOwner || isMyGang) && editable && (
-            <Button
-              variant="destructive"
-              onClick={() => removeMutation.mutate()}
-              disabled={removeMutation.isPending}
-              className="px-3.5"
-            >
-              Remove
-            </Button>
+          {(canEdit || ((isOwner || isMyGang) && editable)) && (
+            <div className="flex gap-2">
+              {canEdit && (
+                <>
+                  <Button
+                    variant={localReady ? 'default' : 'outline'}
+                    onClick={async () => {
+                      const prev = localReady;
+                      setReadyOverride(!prev);
+                      const result = await toggleParticipantReady(session.id);
+                      if (!result.success) {
+                        setReadyOverride(null);
+                        toast.error(result.error || 'Failed to toggle ready');
+                      } else {
+                        onBroadcast?.();
+                      }
+                    }}
+                    disabled={readyOverride !== null}
+                  >
+                    {localReady ? 'Ready' : 'Not Ready'}
+                  </Button>
+                  <Button onClick={() => setShowCrewModal(true)}>
+                    Select Crew
+                  </Button>
+                </>
+              )}
+              {(isOwner || isMyGang) && editable && (
+                <Button
+                  variant="destructive"
+                  onClick={() => removeMutation.mutate()}
+                  disabled={removeMutation.isPending}
+                  className="px-3.5"
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
           )}
         </div>
         {canEditRole && (

@@ -44,6 +44,7 @@ export interface BattleSessionParticipant {
   gang_rating_snapshot: number | null;
   credits_earned: number;
   reputation_change: number;
+  ready: boolean;
   created_at: string;
   gang?: {
     id: string;

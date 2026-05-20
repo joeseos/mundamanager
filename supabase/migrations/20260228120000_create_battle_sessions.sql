@@ -28,6 +28,7 @@ CREATE TABLE public.battle_session_participants (
     gang_rating_snapshot integer,
     credits_earned integer DEFAULT 0 NOT NULL,
     reputation_change integer DEFAULT 0 NOT NULL,
+    ready boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     UNIQUE(battle_session_id, gang_id)
 );
@@ -170,8 +171,10 @@ CREATE POLICY "Admins, arbs or own participant can delete fighters"
 -- =============================================================================
 
 ALTER PUBLICATION supabase_realtime ADD TABLE battle_sessions;
+ALTER PUBLICATION supabase_realtime ADD TABLE battle_session_participants;
 ALTER PUBLICATION supabase_realtime ADD TABLE battle_session_fighters;
 
 -- Required so filtered realtime subscriptions receive UPDATE/DELETE events
 ALTER TABLE battle_sessions REPLICA IDENTITY FULL;
+ALTER TABLE battle_session_participants REPLICA IDENTITY FULL;
 ALTER TABLE battle_session_fighters REPLICA IDENTITY FULL;

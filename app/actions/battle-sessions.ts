@@ -314,14 +314,86 @@ export async function startBattle(
   }
 }
 
+export async function toggleParticipantReady(
+  sessionId: string
+): Promise<{ success: boolean; battleStarted?: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single();
+    if (!session || session.status !== 'pre_battle')
+      return { success: false, error: 'Can only toggle ready during pre-battle' };
+
+    const { data: myParticipant } = await supabase
+      .from('battle_session_participants')
+      .select('id, ready')
+      .eq('battle_session_id', sessionId)
+      .eq('user_id', user.id)
+      .single();
+    if (!myParticipant) return { success: false, error: 'Participant not found' };
+
+    const newReady = !myParticipant.ready;
+    await supabase
+      .from('battle_session_participants')
+      .update({ ready: newReady })
+      .eq('id', myParticipant.id);
+
+    let battleStarted = false;
+    if (newReady) {
+      const { data: allParticipants } = await supabase
+        .from('battle_session_participants')
+        .select('ready')
+        .eq('battle_session_id', sessionId);
+
+      const allReady =
+        allParticipants &&
+        allParticipants.length >= 2 &&
+        allParticipants.every((p) => p.ready);
+
+      if (allReady) {
+        await supabase
+          .from('battle_sessions')
+          .update({ status: 'active', updated_at: new Date().toISOString() })
+          .eq('id', sessionId)
+          .eq('status', 'pre_battle');
+        battleStarted = true;
+      }
+    }
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true, battleStarted };
+  } catch (err) {
+    console.error('Error toggling ready:', err);
+    return { success: false, error: 'Failed to toggle ready' };
+  }
+}
+
 export async function returnToSetup(
   sessionId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    return await updateSessionAsCreator(sessionId, { status: 'pre_battle' }, {
+    const result = await updateSessionAsCreator(sessionId, { status: 'pre_battle' }, {
       requireStatus: 'active',
       statusError: 'Can only return to pre-battle from active',
     });
+    if (!result.success) return result;
+
+    const supabase = await createClient();
+    await supabase
+      .from('battle_session_participants')
+      .update({ ready: false })
+      .eq('battle_session_id', sessionId);
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
   } catch (err) {
     console.error('Error returning to setup:', err);
     return { success: false, error: 'Failed to return to pre-battle' };
@@ -402,6 +474,11 @@ export async function addParticipant(params: {
         return { success: false, error: 'Gang is already in this session' };
       return { success: false, error: error.message };
     }
+
+    await supabase
+      .from('battle_session_participants')
+      .update({ ready: false })
+      .eq('battle_session_id', params.session_id);
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(params.session_id));
     revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(params.gang_id));
