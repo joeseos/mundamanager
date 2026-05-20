@@ -810,7 +810,7 @@ export async function updateGangOutcome(params: {
 
 export async function completeBattleSession(
   sessionId: string,
-  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null; reputation_changes?: Record<string, number> }
+  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null; reputation_changes?: Record<string, number>; income_changes?: Record<string, number> }
 ): Promise<{
   success: boolean;
   campaign_battle_id?: string;
@@ -887,8 +887,9 @@ export async function completeBattleSession(
       return { success: false, error: error?.message || 'Session was already completed' };
     }
 
+    const validParticipantIds = new Set(allParticipants?.map((p) => p.id) ?? []);
+
     if (options?.reputation_changes) {
-      const validParticipantIds = new Set(allParticipants?.map((p) => p.id) ?? []);
       for (const [participantId, repValue] of Object.entries(options.reputation_changes)) {
         if (!validParticipantIds.has(participantId)) continue;
 
@@ -911,6 +912,30 @@ export async function completeBattleSession(
         await supabase
           .from('battle_session_participants')
           .update({ reputation_change: repValue })
+          .eq('id', participantId);
+      }
+    }
+
+    if (options?.income_changes) {
+      for (const [participantId, delta] of Object.entries(options.income_changes)) {
+        if (!validParticipantIds.has(participantId) || delta === 0) continue;
+
+        const { data: part } = await supabase
+          .from('battle_session_participants')
+          .select('gang_id, credits_earned')
+          .eq('id', participantId)
+          .single();
+        if (!part) continue;
+
+        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
+        await updateGang({
+          gang_id: part.gang_id,
+          credits: Math.abs(delta),
+          credits_operation: operation,
+        });
+        await supabase
+          .from('battle_session_participants')
+          .update({ credits_earned: part.credits_earned + delta })
           .eq('id', participantId);
       }
     }
