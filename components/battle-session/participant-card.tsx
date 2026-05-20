@@ -562,6 +562,7 @@ function FighterRow({
   xp,
   injuryCount,
   canInteract,
+  battleActive,
   gangFighter,
   onXpChanged,
   onConditionsChanged,
@@ -574,6 +575,7 @@ function FighterRow({
   xp: number;
   injuryCount: number;
   canInteract: boolean;
+  battleActive: boolean;
   gangFighter: GangFighter | undefined;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
@@ -605,14 +607,14 @@ function FighterRow({
           />
           <div>
             <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
-            {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canInteract && injuries.length > 0)) && (
+            {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
                   <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     +{xp} XP
                   </span>
                 )}
-                {canInteract ? (
+                {canInteract || battleActive ? (
                   <>
                     {injuryCount > 0 && (
                       <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
@@ -643,7 +645,7 @@ function FighterRow({
           </div>
         </div>
       </td>
-      {canInteract && (
+      {canInteract ? (
         <td className="p-1 md:p-2 text-right whitespace-nowrap">
           <div className="flex items-center justify-end gap-4">
             <FaUserCheck
@@ -667,6 +669,13 @@ function FighterRow({
               onClose={() => setShowActionModal(false)}
             />
           )}
+        </td>
+      ) : battleActive && (
+        <td className="p-1 md:p-2 text-right whitespace-nowrap">
+          <FaUserCheck
+            className={`size-5 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'}`}
+            title={isReady ? 'Ready' : 'Activated'}
+          />
         </td>
       )}
       {showInfoModal && gangFighter && createPortal(
@@ -1127,13 +1136,13 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
-                  {canInteract && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Action</th>}
+                  {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">{canInteract ? 'Action' : 'Status'}</th>}
                 </tr>
               </thead>
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={canInteract ? 2 : 1} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={(canInteract || battleActive) ? 2 : 1} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -1158,6 +1167,7 @@ export default function ParticipantCard({
                         xp={xp}
                         injuryCount={injuryCount}
                         canInteract={canInteract}
+                        battleActive={battleActive}
                         gangFighter={fullMatch}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
