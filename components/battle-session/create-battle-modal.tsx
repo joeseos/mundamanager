@@ -45,6 +45,7 @@ export default function CreateBattleModal({
   const isAddMode = !!existingSessionId;
 
   const [selectedScenario, setSelectedScenario] = useState('');
+  const [customScenario, setCustomScenario] = useState('');
 
   // Non-campaign: user search + gang picker
   const [searchQuery, setSearchQuery] = useState('');
@@ -210,7 +211,9 @@ export default function CreateBattleModal({
       }
 
       // Create mode
-      const scenarioName = sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
+      const scenarioName = selectedScenario === 'custom'
+        ? customScenario.trim()
+        : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
       const allGangIds = [gangId];
 
       if (campaignId) {
@@ -432,16 +435,45 @@ export default function CreateBattleModal({
               Scenario
             </label>
             <Combobox
-              options={sortedScenarios.map((s) => ({
-                value: s.id,
-                label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
-              }))}
-              value={selectedScenario}
-              onValueChange={setSelectedScenario}
-              placeholder="Select scenario..."
+              options={[
+                { value: 'custom', label: 'Custom' },
+                ...sortedScenarios.map((s) => ({
+                  value: s.id,
+                  label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
+                })),
+              ]}
+              value={selectedScenario === 'custom' ? 'custom' : selectedScenario}
+              onValueChange={(value) => {
+                if (value === 'custom') {
+                  setSelectedScenario('custom');
+                  setCustomScenario('');
+                } else {
+                  const isCustomValue = !sortedScenarios.some((s) => s.id === value);
+                  if (isCustomValue) {
+                    setSelectedScenario('custom');
+                    setCustomScenario(value);
+                  } else {
+                    setSelectedScenario(value);
+                    setCustomScenario('');
+                  }
+                }
+              }}
+              placeholder="Select or search for a Scenario..."
               disabled={isLoadingBattleData}
               dropdownPlacement="down"
+              allowCustom={true}
             />
+            {selectedScenario === 'custom' && (
+              <div className="mt-2">
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+                  placeholder="Enter custom Scenario name"
+                  value={customScenario}
+                  onChange={(e) => setCustomScenario(e.target.value)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
