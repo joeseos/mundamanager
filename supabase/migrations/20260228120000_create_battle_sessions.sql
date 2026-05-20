@@ -161,3 +161,13 @@ CREATE POLICY "Admins, arbs or own participant can delete fighters"
     OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
     OR participant_id IN (SELECT bsp.id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
   );
+
+-- =============================================================================
+-- Realtime
+-- =============================================================================
+
+ALTER PUBLICATION supabase_realtime ADD TABLE battle_sessions;
+ALTER PUBLICATION supabase_realtime ADD TABLE battle_session_fighters;
+
+-- Required so UPDATE/DELETE filters on battle_session_id (FK) work
+ALTER TABLE battle_session_fighters REPLICA IDENTITY FULL;

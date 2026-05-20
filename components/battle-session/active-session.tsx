@@ -13,6 +13,7 @@ import {
   returnToSetup,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
+import { useBattleSessionRealtime } from '@/hooks/use-battle-session-realtime';
 import ParticipantCard from './participant-card';
 import CreateBattleModal from './create-battle-modal';
 import CompleteBattleModal from './complete-battle-modal';
@@ -41,6 +42,7 @@ export default function ActiveSession({
   territories = [],
 }: ActiveSessionProps) {
   const router = useRouter();
+  useBattleSessionRealtime(session.id);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);

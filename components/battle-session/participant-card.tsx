@@ -991,6 +991,20 @@ export default function ParticipantCard({
     setLocalFighters(participant.fighters);
   }, [participant.fighters]);
 
+  useEffect(() => {
+    setCreditsEarned(participant.credits_earned);
+    prevCreditsRef.current = participant.credits_earned;
+  }, [participant.credits_earned]);
+
+  useEffect(() => {
+    setRepChange(participant.reputation_change);
+    prevRepRef.current = participant.reputation_change;
+  }, [participant.reputation_change]);
+
+  useEffect(() => {
+    setLocalRole(participant.role);
+  }, [participant.role]);
+
 
   return (
     <div>

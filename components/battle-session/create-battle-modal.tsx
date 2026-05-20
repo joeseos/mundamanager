@@ -230,7 +230,6 @@ export default function CreateBattleModal({
         if (isAddMode) {
           toast.success('Player(s) added');
           onClose();
-          router.refresh();
         } else if ('session_id' in result && result.session_id) {
           setNavigating(true);
           router.push(`/gang/${gangId}/battle-session/${result.session_id}`);

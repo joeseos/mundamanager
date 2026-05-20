@@ -772,6 +772,11 @@ export async function updateGangOutcome(params: {
         .eq('id', params.participant_id);
     }
 
+    await supabase
+      .from('battle_sessions')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', participant.battle_session_id);
+
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(participant.battle_session_id));
     return { success: true };
   } catch (err) {
