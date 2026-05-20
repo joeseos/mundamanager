@@ -595,6 +595,8 @@ export async function bulkAddFightersToSession(params: {
 
     const auth = await verifySessionParticipant(supabase, params.session_id, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
+    if (auth.participantId !== params.participant_id)
+      return { success: false, error: 'Not authorized for this participant' };
 
     const { data: session } = await supabase
       .from('battle_sessions')
@@ -604,9 +606,26 @@ export async function bulkAddFightersToSession(params: {
     if (session?.status !== 'pre_battle')
       return { success: false, error: 'Crew can only be changed during pre-battle' };
 
+    const { data: participant } = await supabase
+      .from('battle_session_participants')
+      .select('gang_id')
+      .eq('id', auth.participantId)
+      .single();
+    if (!participant) return { success: false, error: 'Participant not found' };
+
+    const fighterIds = params.fighter_entries.map((e) => e.fighter_id);
+    const { data: validFighters } = await supabase
+      .from('fighters')
+      .select('id')
+      .eq('gang_id', participant.gang_id)
+      .in('id', fighterIds);
+    const validIds = new Set(validFighters?.map((f) => f.id));
+    if (fighterIds.some((id) => !validIds.has(id)))
+      return { success: false, error: 'One or more fighters do not belong to your gang' };
+
     const rows = params.fighter_entries.map((entry) => ({
       battle_session_id: params.session_id,
-      participant_id: params.participant_id,
+      participant_id: auth.participantId!,
       fighter_id: entry.fighter_id,
       ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
     }));
@@ -825,7 +844,7 @@ export async function completeBattleSession(
 
     const { data: allParticipants } = await supabase
       .from('battle_session_participants')
-      .select('gang_id, user_id, role')
+      .select('id, gang_id, user_id, role')
       .eq('battle_session_id', sessionId);
 
     if (session.campaign_id && allParticipants) {
@@ -850,8 +869,29 @@ export async function completeBattleSession(
       }
     }
 
+    const { data: updated, error } = await supabase
+      .from('battle_sessions')
+      .update({
+        status: 'completed',
+        campaign_battle_id: campaign_battle_id || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId)
+      .eq('status', 'active')
+      .select('id');
+
+    if (error || !updated || updated.length === 0) {
+      if (campaign_battle_id) {
+        await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+      }
+      return { success: false, error: error?.message || 'Session was already completed' };
+    }
+
     if (options?.reputation_changes) {
+      const validParticipantIds = new Set(allParticipants?.map((p) => p.id) ?? []);
       for (const [participantId, repValue] of Object.entries(options.reputation_changes)) {
+        if (!validParticipantIds.has(participantId)) continue;
+
         const { data: part } = await supabase
           .from('battle_session_participants')
           .select('gang_id, reputation_change')
@@ -873,24 +913,6 @@ export async function completeBattleSession(
           .update({ reputation_change: repValue })
           .eq('id', participantId);
       }
-    }
-
-    const { data: updated, error } = await supabase
-      .from('battle_sessions')
-      .update({
-        status: 'completed',
-        campaign_battle_id: campaign_battle_id || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', sessionId)
-      .eq('status', 'active')
-      .select('id');
-
-    if (error || !updated || updated.length === 0) {
-      if (campaign_battle_id) {
-        await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
-      }
-      return { success: false, error: error?.message || 'Session was already completed' };
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));

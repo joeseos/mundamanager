@@ -55,6 +55,9 @@ CREATE INDEX battle_session_participants_session_idx ON public.battle_session_pa
 CREATE INDEX battle_session_participants_user_idx ON public.battle_session_participants(user_id);
 CREATE INDEX battle_session_fighters_session_idx ON public.battle_session_fighters(battle_session_id);
 CREATE INDEX battle_session_fighters_participant_idx ON public.battle_session_fighters(participant_id);
+CREATE INDEX battle_session_fighters_fighter_idx ON public.battle_session_fighters(fighter_id);
+CREATE INDEX battle_sessions_campaign_battle_id_idx ON public.battle_sessions(campaign_battle_id);
+CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions(winner_gang_id);
 
 -- =============================================================================
 -- Row Level Security

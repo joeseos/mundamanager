@@ -856,8 +856,8 @@ export default function ParticipantCard({
   });
 
   const gangOutcomeMutation = useMutation({
-    mutationFn: () => {
-      const delta = parseInt(creditsDelta) || 0;
+    mutationFn: (deltaStr: string) => {
+      const delta = parseInt(deltaStr) || 0;
       if (delta === 0) return Promise.resolve({ success: true });
       const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
       return updateGangOutcome({
@@ -867,9 +867,9 @@ export default function ParticipantCard({
         credits_operation: operation,
       });
     },
-    onMutate: () => {
+    onMutate: (deltaStr: string) => {
       const prev = localCreditsEarned;
-      const delta = parseInt(creditsDelta) || 0;
+      const delta = parseInt(deltaStr) || 0;
       setLocalCreditsEarned((cur) => cur + delta);
       setCreditsDelta('');
       return { prev };
@@ -1193,7 +1193,7 @@ export default function ParticipantCard({
                           setLocalFighters((cur) =>
                             cur.map((lf) =>
                               lf.id === f.id
-                                ? { ...lf, session_record: { ...lf.session_record, injuries: lf.session_record.injuries.filter((_, i) => i !== index) } }
+                                ? { ...lf, session_record: { ...lf.session_record, injuries: (lf.session_record?.injuries ?? []).filter((_, i) => i !== index) } }
                                 : lf
                             )
                           );
@@ -1225,7 +1225,7 @@ export default function ParticipantCard({
                 />
                 <Button
                   size="sm"
-                  onClick={() => gangOutcomeMutation.mutate()}
+                  onClick={() => gangOutcomeMutation.mutate(creditsDelta)}
                   disabled={!creditsDelta || (parseInt(creditsDelta) || 0) === 0 || gangOutcomeMutation.isPending}
                 >
                   {gangOutcomeMutation.isPending ? 'Saving...' : 'Save'}
