@@ -250,7 +250,7 @@ export default function CrewSelectionModal({
                   {f.recovery && <FaMedkit className="text-blue-500" />}
                   {f.captured && <GiHandcuffs className="text-red-600" />}
                 </span>
-                <span className="text-right text-muted-foreground whitespace-nowrap">{f.credits}</span>
+                <span className="text-right text-muted-foreground whitespace-nowrap">{f.credits === 0 ? '*' : f.credits}</span>
               </label>
             );
           })}

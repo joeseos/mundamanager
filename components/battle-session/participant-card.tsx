@@ -606,7 +606,7 @@ function FighterRow({
             onClick={() => setShowInfoModal(true)}
           />
           <div>
-            <div>{cost !== undefined ? `${name} - ${cost}` : name}</div>
+            <div>{cost !== undefined ? `${name} - ${cost === 0 ? '*' : cost}` : name}</div>
             {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
