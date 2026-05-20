@@ -169,5 +169,6 @@ CREATE POLICY "Admins, arbs or own participant can delete fighters"
 ALTER PUBLICATION supabase_realtime ADD TABLE battle_sessions;
 ALTER PUBLICATION supabase_realtime ADD TABLE battle_session_fighters;
 
--- Required so UPDATE/DELETE filters on battle_session_id (FK) work
+-- Required so filtered realtime subscriptions receive UPDATE/DELETE events
+ALTER TABLE battle_sessions REPLICA IDENTITY FULL;
 ALTER TABLE battle_session_fighters REPLICA IDENTITY FULL;
