@@ -119,6 +119,10 @@ export async function createBattleSession(params: {
             }))
           );
         }
+        revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+        for (const g of gangs) {
+          revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(g.id));
+        }
       }
     }
 
