@@ -7,6 +7,7 @@ import {
   CACHE_TAGS,
 } from '@/utils/cache-tags';
 import { logBattleResult } from '@/app/actions/logs/gang-campaign-logs';
+import { createBattleLog } from '@/app/actions/campaigns/[id]/battle-logs';
 import { updateGang } from '@/app/actions/update-gang';
 import type {
   SessionCondition,
@@ -223,32 +224,6 @@ export async function setSessionWinner(
   } catch (err) {
     console.error('Error setting winner:', err);
     return { success: false, error: 'Failed to set winner' };
-  }
-}
-
-export async function setSessionNote(
-  sessionId: string,
-  note: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const { error } = await supabase
-      .from('battle_sessions')
-      .update({ note, updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    return { success: true };
-  } catch (err) {
-    console.error('Error setting note:', err);
-    return { success: false, error: 'Failed to set note' };
   }
 }
 
@@ -921,7 +896,7 @@ export async function updateGangOutcome(params: {
 
 export async function completeBattleSession(
   sessionId: string,
-  options?: { campaign_territory_id?: string }
+  options?: { campaign_territory_id?: string; note?: string }
 ): Promise<{
   success: boolean;
   campaign_battle_id?: string;
@@ -943,7 +918,7 @@ export async function completeBattleSession(
 
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('status, campaign_id, scenario, winner_gang_id, note, created_at')
+      .select('status, campaign_id, scenario, winner_gang_id, created_at')
       .eq('id', sessionId)
       .single();
 
@@ -953,32 +928,28 @@ export async function completeBattleSession(
 
     let campaign_battle_id: string | undefined;
 
-    if (session.campaign_id) {
-      const { data: participants } = await supabase
-        .from('battle_session_participants')
-        .select('gang_id, role')
-        .eq('battle_session_id', sessionId);
+    const { data: allParticipants } = await supabase
+      .from('battle_session_participants')
+      .select('gang_id, user_id, role')
+      .eq('battle_session_id', sessionId);
 
-      const { data: campaignBattle, error: cbError } = await supabase
-        .from('campaign_battles')
-        .insert({
-          campaign_id: session.campaign_id,
-          scenario: session.scenario,
+    if (session.campaign_id && allParticipants) {
+      try {
+        const battleLog = await createBattleLog(session.campaign_id, {
+          scenario: session.scenario || '',
+          attacker_id: allParticipants.find((p) => p.role === 'attacker')?.gang_id || allParticipants[0]?.gang_id || '',
+          defender_id: allParticipants.find((p) => p.role === 'defender')?.gang_id || allParticipants[1]?.gang_id || '',
           winner_id: session.winner_gang_id,
-          note: session.note,
-          participants: JSON.stringify(
-            participants?.map((p) => ({ gang_id: p.gang_id, role: p.role })) || []
-          ),
+          note: options?.note || null,
+          participants: allParticipants.map((p) => ({ gang_id: p.gang_id, role: p.role as 'attacker' | 'defender' | 'none' })),
+          claimed_territories: options?.campaign_territory_id
+            ? [{ campaign_territory_id: options.campaign_territory_id }]
+            : [],
           created_at: session.created_at,
-          attacker_id: participants?.find((p) => p.role === 'attacker')?.gang_id || null,
-          defender_id: participants?.find((p) => p.role === 'defender')?.gang_id || null,
-          ...(options?.campaign_territory_id ? { campaign_territory_id: options.campaign_territory_id } : {}),
-        })
-        .select('id')
-        .single();
-
-      if (!cbError && campaignBattle) {
-        campaign_battle_id = campaignBattle.id;
+        });
+        campaign_battle_id = battleLog?.id;
+      } catch (err) {
+        console.error('Error creating campaign battle log:', err);
       }
     }
 
@@ -999,71 +970,52 @@ export async function completeBattleSession(
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    if (campaign_battle_id) {
-      revalidateTag('campaign-battles');
-    }
-
-    // Invalidate for all participants
-    const { data: allParticipants } = await supabase
-      .from('battle_session_participants')
-      .select('gang_id, user_id')
-      .eq('battle_session_id', sessionId);
 
     if (allParticipants) {
       for (const p of allParticipants) {
         revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(p.gang_id));
       }
-    }
 
-    // Log battle results
-    if (allParticipants) {
-      const gangIds = allParticipants.map((p) => p.gang_id);
-      const { data: gangNames } = await supabase
-        .from('gangs')
-        .select('id, name')
-        .in('id', gangIds);
-      const gangNameMap = new Map(gangNames?.map((g) => [g.id, g.name]) || []);
+      // Log battle results for non-campaign sessions (campaign logging handled by createBattleLog)
+      if (!session.campaign_id) {
+        const gangIds = allParticipants.map((p) => p.gang_id);
+        const { data: gangNames } = await supabase
+          .from('gangs')
+          .select('id, name')
+          .in('id', gangIds);
+        const gangNameMap = new Map(gangNames?.map((g) => [g.id, g.name]) || []);
 
-      let campaignName = 'Standalone Battle';
-      if (session.campaign_id) {
-        const { data: campaign } = await supabase
-          .from('campaigns')
-          .select('campaign_name')
-          .eq('id', session.campaign_id)
-          .single();
-        campaignName = campaign?.campaign_name || campaignName;
-      }
+        for (const p of allParticipants) {
+          const gangName = gangNameMap.get(p.gang_id);
+          if (!gangName) continue;
 
-      for (const p of allParticipants) {
-        const gangName = gangNameMap.get(p.gang_id);
-        if (!gangName) continue;
+          let battleResult: 'won' | 'lost' | 'draw';
+          if (session.winner_gang_id === null) {
+            battleResult = 'draw';
+          } else if (session.winner_gang_id === p.gang_id) {
+            battleResult = 'won';
+          } else {
+            battleResult = 'lost';
+          }
 
-        let battleResult: 'won' | 'lost' | 'draw';
-        if (session.winner_gang_id === null) {
-          battleResult = 'draw';
-        } else if (session.winner_gang_id === p.gang_id) {
-          battleResult = 'won';
-        } else {
-          battleResult = 'lost';
-        }
+          const opponents = allParticipants
+            .filter((op) => op.gang_id !== p.gang_id)
+            .map((op) => gangNameMap.get(op.gang_id))
+            .filter(Boolean)
+            .join(', ');
 
-        const opponents = allParticipants
-          .filter((op) => op.gang_id !== p.gang_id)
-          .map((op) => gangNameMap.get(op.gang_id))
-          .filter(Boolean)
-          .join(', ');
-
-        try {
-          await logBattleResult({
-            gang_id: p.gang_id,
-            gang_name: gangName,
-            campaign_name: campaignName,
-            opponent_name: opponents || 'Unknown',
-            scenario: session.scenario || 'Unknown Scenario',
-            result: battleResult,
-          });
-        } catch (logErr) {
-          console.error('Error logging battle result:', logErr);
+          try {
+            await logBattleResult({
+              gang_id: p.gang_id,
+              gang_name: gangName,
+              campaign_name: 'Standalone Battle',
+              opponent_name: opponents || 'Unknown',
+              scenario: session.scenario || 'Unknown Scenario',
+              result: battleResult,
+            });
+          } catch (logErr) {
+            console.error('Error logging battle result:', logErr);
+          }
         }
       }
 

@@ -9,7 +9,6 @@ import { Combobox } from '@/components/ui/combobox';
 import { Textarea } from '@/components/ui/textarea';
 import {
   setSessionWinner,
-  setSessionNote,
   completeBattleSession,
 } from '@/app/actions/battle-sessions';
 import type { BattleSessionFull } from '@/types/battle-session';
@@ -38,7 +37,7 @@ export default function CompleteBattleModal({
   const router = useRouter();
   const [winner, setWinner] = useState(session.winner_gang_id ?? '');
   const [selectedTerritory, setSelectedTerritory] = useState('');
-  const [notes, setNotes] = useState(session.note ?? '');
+  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const gangNameMap = new Map(
@@ -63,17 +62,9 @@ export default function CompleteBattleModal({
       return false;
     }
 
-    if (notes !== (session.note ?? '')) {
-      const noteResult = await setSessionNote(session.id, notes);
-      if (!noteResult.success) {
-        toast.error(noteResult.error || 'Failed to save notes');
-        setSubmitting(false);
-        return false;
-      }
-    }
-
     const completeResult = await completeBattleSession(session.id, {
       campaign_territory_id: selectedTerritory || undefined,
+      note: notes || undefined,
     });
     if (!completeResult.success) {
       toast.error(completeResult.error || 'Failed to complete session');
@@ -219,22 +210,23 @@ export default function CompleteBattleModal({
           </div>
         )}
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-muted-foreground">
-            Report
-          </label>
-          <Textarea
-            placeholder="Add any additional details about the battle..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="min-h-[100px] bg-muted"
-          />
-        </div>
-
         {session.campaign_id && (
-          <p className="text-sm text-neutral-500">
-            A battle log entry will be created for the campaign.
-          </p>
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted-foreground">
+                Report
+              </label>
+              <Textarea
+                placeholder="Add any additional details about the battle..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="min-h-[100px] bg-muted"
+              />
+            </div>
+            <p className="text-sm text-neutral-500">
+              A battle log entry will be created for the campaign.
+            </p>
+          </>
         )}
       </div>
     </Modal>,

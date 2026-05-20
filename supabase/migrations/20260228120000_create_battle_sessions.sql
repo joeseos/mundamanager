@@ -13,7 +13,6 @@ CREATE TABLE public.battle_sessions (
     status text NOT NULL DEFAULT 'pre_battle'
         CHECK (status IN ('pre_battle', 'active', 'completed')),
     winner_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,
-    note text,
     current_turn integer NOT NULL DEFAULT 1,
     campaign_battle_id uuid REFERENCES public.campaign_battles(id) ON DELETE SET NULL
 );

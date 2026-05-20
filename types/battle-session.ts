@@ -31,7 +31,6 @@ export interface BattleSession {
   scenario: string | null;
   status: BattleSessionStatus;
   winner_gang_id: string | null;
-  note: string | null;
   round: number;
   campaign_battle_id: string | null;
 }
