@@ -953,11 +953,22 @@ export async function completeBattleSession(
       }
     }
 
+    let claimed_territory: string | null = null;
+    if (options?.campaign_territory_id) {
+      const { data: territory } = await supabase
+        .from('campaign_territories')
+        .select('territory_name')
+        .eq('id', options.campaign_territory_id)
+        .single();
+      claimed_territory = territory?.territory_name ?? null;
+    }
+
     const { data: updated, error } = await supabase
       .from('battle_sessions')
       .update({
         status: 'completed',
         campaign_battle_id: campaign_battle_id || null,
+        claimed_territory,
         updated_at: new Date().toISOString(),
       })
       .eq('id', sessionId)

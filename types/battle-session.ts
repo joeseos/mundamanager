@@ -33,6 +33,7 @@ export interface BattleSession {
   winner_gang_id: string | null;
   round: number;
   campaign_battle_id: string | null;
+  claimed_territory: string | null;
 }
 
 export interface BattleSessionParticipant {

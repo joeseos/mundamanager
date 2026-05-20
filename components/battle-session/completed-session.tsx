@@ -38,6 +38,11 @@ export default function CompletedSession({
         ) : (
           <p className="text-lg font-medium text-neutral-500">Draw</p>
         )}
+        {session.claimed_territory && (
+          <p className="mt-1 text-sm text-neutral-500">
+            Claimed Territory: <span className="font-medium text-foreground">{session.claimed_territory}</span>
+          </p>
+        )}
       </div>
 
       {/* Results per gang */}

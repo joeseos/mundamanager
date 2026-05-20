@@ -14,7 +14,8 @@ CREATE TABLE public.battle_sessions (
         CHECK (status IN ('pre_battle', 'active', 'completed')),
     winner_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,
     round integer NOT NULL DEFAULT 1,
-    campaign_battle_id uuid REFERENCES public.campaign_battles(id) ON DELETE SET NULL
+    campaign_battle_id uuid REFERENCES public.campaign_battles(id) ON DELETE SET NULL,
+    claimed_territory text
 );
 
 -- 2. battle_session_participants — One row per gang in the battle
