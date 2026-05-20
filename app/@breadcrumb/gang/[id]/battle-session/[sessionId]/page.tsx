@@ -10,23 +10,13 @@ import {
 } from "@/components/ui/breadcrumb";
 import Link from "next/link";
 
-export default async function BattleSessionBreadcrumb({
-  params,
+export function BattleSessionBreadcrumbLayout({
+  parentLinks,
+  sessionDate,
 }: {
-  params: Promise<{ id: string; sessionId: string }>;
+  parentLinks: { href: string; label: string }[];
+  sessionDate: string | null;
 }) {
-  const { id, sessionId } = await params;
-  const supabase = await createClient();
-
-  const [{ data: gangData }, { data: session }] = await Promise.all([
-    supabase.from("gangs").select("name").eq("id", id).maybeSingle(),
-    supabase
-      .from("battle_sessions")
-      .select("created_at")
-      .eq("id", sessionId)
-      .maybeSingle(),
-  ]);
-
   return (
     <div
       className="w-full fixed top-14 z-40 bg-card border-b border-neutral-800 print:hidden"
@@ -50,20 +40,22 @@ export default async function BattleSessionBreadcrumb({
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="text-gray-400" aria-hidden="true">
-              /
-            </BreadcrumbSeparator>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link
-                  href={`/gang/${id}`}
-                  className="text-muted-foreground hover:text-primary"
-                  aria-label={`Navigate to ${gangData?.name || 'Gang'}`}
-                >
-                  {gangData?.name || 'Gang'}
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
+            {parentLinks.map((link) => [
+              <BreadcrumbSeparator key={`sep-${link.href}`} className="text-gray-400" aria-hidden="true">
+                /
+              </BreadcrumbSeparator>,
+              <BreadcrumbItem key={link.href}>
+                <BreadcrumbLink asChild>
+                  <Link
+                    href={link.href}
+                    className="text-muted-foreground hover:text-primary"
+                    aria-label={`Navigate to ${link.label}`}
+                  >
+                    {link.label}
+                  </Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>,
+            ])}
             <BreadcrumbSeparator className="text-gray-400" aria-hidden="true">
               /
             </BreadcrumbSeparator>
@@ -72,14 +64,37 @@ export default async function BattleSessionBreadcrumb({
                 className="text-foreground font-medium items-center whitespace-nowrap leading-none"
                 aria-current="page"
               >
-                Battle Sessions - {session?.created_at
-                  ? new Date(session.created_at).toISOString().slice(0, 10)
-                  : 'Battle Session'}
+                Battle Sessions - {sessionDate || 'Battle Session'}
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </div>
     </div>
+  );
+}
+
+export default async function BattleSessionBreadcrumb({
+  params,
+}: {
+  params: Promise<{ id: string; sessionId: string }>;
+}) {
+  const { id, sessionId } = await params;
+  const supabase = await createClient();
+
+  const [{ data: gangData }, { data: session }] = await Promise.all([
+    supabase.from("gangs").select("name").eq("id", id).maybeSingle(),
+    supabase
+      .from("battle_sessions")
+      .select("created_at")
+      .eq("id", sessionId)
+      .maybeSingle(),
+  ]);
+
+  return (
+    <BattleSessionBreadcrumbLayout
+      parentLinks={[{ href: `/gang/${id}`, label: gangData?.name || 'Gang' }]}
+      sessionDate={session?.created_at ? new Date(session.created_at).toISOString().slice(0, 10) : null}
+    />
   );
 }

@@ -175,26 +175,43 @@ export async function cancelBattleSession(
   }
 }
 
+async function updateSessionAsCreator(
+  sessionId: string,
+  updateFields: Record<string, unknown>,
+  options?: { requireStatus?: string; statusError?: string }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  const { data: session } = await supabase
+    .from('battle_sessions')
+    .select('created_by, status')
+    .eq('id', sessionId)
+    .single();
+
+  if (!session) return { success: false, error: 'Session not found' };
+  if (session.created_by !== user.id)
+    return { success: false, error: 'Only the session creator can perform this action' };
+  if (options?.requireStatus && session.status !== options.requireStatus)
+    return { success: false, error: options.statusError || 'Invalid session status' };
+
+  const { error } = await supabase
+    .from('battle_sessions')
+    .update({ ...updateFields, updated_at: new Date().toISOString() })
+    .eq('id', sessionId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+  return { success: true };
+}
+
 export async function setSessionScenario(
   sessionId: string,
   scenario: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const { error } = await supabase
-      .from('battle_sessions')
-      .update({ scenario, updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    return { success: true };
+    return await updateSessionAsCreator(sessionId, { scenario });
   } catch (err) {
     console.error('Error setting scenario:', err);
     return { success: false, error: 'Failed to set scenario' };
@@ -206,21 +223,7 @@ export async function setSessionWinner(
   winnerGangId: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const { error } = await supabase
-      .from('battle_sessions')
-      .update({ winner_gang_id: winnerGangId, updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    return { success: true };
+    return await updateSessionAsCreator(sessionId, { winner_gang_id: winnerGangId });
   } catch (err) {
     console.error('Error setting winner:', err);
     return { success: false, error: 'Failed to set winner' };
@@ -297,31 +300,10 @@ export async function startBattle(
   sessionId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const { data: session } = await supabase
-      .from('battle_sessions')
-      .select('status')
-      .eq('id', sessionId)
-      .single();
-
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'pre_battle')
-      return { success: false, error: 'Can only start from pre-battle' };
-
-    const { error } = await supabase
-      .from('battle_sessions')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    return { success: true };
+    return await updateSessionAsCreator(sessionId, { status: 'active' }, {
+      requireStatus: 'pre_battle',
+      statusError: 'Can only start from pre-battle',
+    });
   } catch (err) {
     console.error('Error starting battle:', err);
     return { success: false, error: 'Failed to start battle' };
@@ -332,31 +314,10 @@ export async function returnToSetup(
   sessionId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const { data: session } = await supabase
-      .from('battle_sessions')
-      .select('status')
-      .eq('id', sessionId)
-      .single();
-
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'active')
-      return { success: false, error: 'Can only return to pre-battle from active' };
-
-    const { error } = await supabase
-      .from('battle_sessions')
-      .update({ status: 'pre_battle', updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
-    return { success: true };
+    return await updateSessionAsCreator(sessionId, { status: 'pre_battle' }, {
+      requireStatus: 'active',
+      statusError: 'Can only return to pre-battle from active',
+    });
   } catch (err) {
     console.error('Error returning to setup:', err);
     return { success: false, error: 'Failed to return to pre-battle' };
@@ -668,171 +629,86 @@ export async function bulkAddFightersToSession(params: {
 // Session Record — XP & Injury Tracking
 // =============================================================================
 
+async function withSessionRecord(
+  sessionFighterId: string,
+  updateFn: (record: SessionRecord) => SessionRecord | { error: string }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+
+  const { data: fighter, error: fetchError } = await supabase
+    .from('battle_session_fighters')
+    .select('session_record, battle_session_id')
+    .eq('id', sessionFighterId)
+    .single();
+
+  if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
+
+  const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
+  if (!auth.authorized) return { success: false, error: auth.error };
+
+  const record: SessionRecord = {
+    xp_earned: fighter.session_record?.xp_earned ?? 0,
+    injuries: fighter.session_record?.injuries ?? [],
+    conditions: fighter.session_record?.conditions ?? [],
+  };
+
+  const result = updateFn(record);
+  if ('error' in result) return { success: false, error: result.error };
+
+  const { error } = await supabase
+    .from('battle_session_fighters')
+    .update({ session_record: result })
+    .eq('id', sessionFighterId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
+  return { success: true };
+}
+
 export async function updateSessionXp(params: {
   session_fighter_id: string;
   xp_earned: number;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const { data: fighter, error: fetchError } = await supabase
-      .from('battle_session_fighters')
-      .select('session_record, battle_session_id')
-      .eq('id', params.session_fighter_id)
-      .single();
-
-    if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
-
-    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const record: SessionRecord = {
-      xp_earned: fighter.session_record?.xp_earned ?? 0,
-      injuries: fighter.session_record?.injuries ?? [],
-      conditions: fighter.session_record?.conditions ?? [],
-    };
-    record.xp_earned = params.xp_earned;
-
-    const { error } = await supabase
-      .from('battle_session_fighters')
-      .update({ session_record: record })
-      .eq('id', params.session_fighter_id);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
-    return { success: true };
-  } catch (err) {
-    console.error('Error updating session XP:', err);
-    return { success: false, error: 'Failed to update session XP' };
-  }
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    xp_earned: params.xp_earned,
+  }));
 }
 
 export async function updateSessionConditions(params: {
   session_fighter_id: string;
   conditions: SessionCondition[];
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const { data: fighter, error: fetchError } = await supabase
-      .from('battle_session_fighters')
-      .select('session_record, battle_session_id')
-      .eq('id', params.session_fighter_id)
-      .single();
-
-    if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
-
-    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const record: SessionRecord = {
-      xp_earned: fighter.session_record?.xp_earned ?? 0,
-      injuries: fighter.session_record?.injuries ?? [],
-      conditions: fighter.session_record?.conditions ?? [],
-    };
-    record.conditions = params.conditions;
-
-    const { error } = await supabase
-      .from('battle_session_fighters')
-      .update({ session_record: record })
-      .eq('id', params.session_fighter_id);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
-    return { success: true };
-  } catch (err) {
-    console.error('Error updating session conditions:', err);
-    return { success: false, error: 'Failed to update session conditions' };
-  }
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    conditions: params.conditions,
+  }));
 }
 
 export async function addSessionInjury(params: {
   session_fighter_id: string;
   injury: SessionInjuryRecord;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const { data: fighter, error: fetchError } = await supabase
-      .from('battle_session_fighters')
-      .select('session_record, battle_session_id')
-      .eq('id', params.session_fighter_id)
-      .single();
-
-    if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
-
-    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const record: SessionRecord = {
-      xp_earned: fighter.session_record?.xp_earned ?? 0,
-      injuries: fighter.session_record?.injuries ?? [],
-      conditions: fighter.session_record?.conditions ?? [],
-    };
-    record.injuries.push(params.injury);
-
-    const { error } = await supabase
-      .from('battle_session_fighters')
-      .update({ session_record: record })
-      .eq('id', params.session_fighter_id);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
-    return { success: true };
-  } catch (err) {
-    console.error('Error adding session injury:', err);
-    return { success: false, error: 'Failed to add session injury' };
-  }
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    injuries: [...record.injuries, params.injury],
+  }));
 }
 
 export async function removeSessionInjury(params: {
   session_fighter_id: string;
   injury_id: string;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const { data: fighter, error: fetchError } = await supabase
-      .from('battle_session_fighters')
-      .select('session_record, battle_session_id')
-      .eq('id', params.session_fighter_id)
-      .single();
-
-    if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
-
-    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
-    if (!auth.authorized) return { success: false, error: auth.error };
-
-    const record: SessionRecord = {
-      xp_earned: fighter.session_record?.xp_earned ?? 0,
-      injuries: fighter.session_record?.injuries ?? [],
-      conditions: fighter.session_record?.conditions ?? [],
-    };
+  return withSessionRecord(params.session_fighter_id, (record) => {
     const idx = record.injuries.findIndex((i) => i.fighter_effect_id === params.injury_id);
-    if (idx === -1) return { success: false, error: 'Injury not found' };
-
-    record.injuries.splice(idx, 1);
-
-    const { error } = await supabase
-      .from('battle_session_fighters')
-      .update({ session_record: record })
-      .eq('id', params.session_fighter_id);
-
-    if (error) return { success: false, error: error.message };
-
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
-    return { success: true };
-  } catch (err) {
-    console.error('Error removing session injury:', err);
-    return { success: false, error: 'Failed to remove session injury' };
-  }
+    if (idx === -1) return { error: 'Injury not found' };
+    return {
+      ...record,
+      injuries: record.injuries.filter((_, i) => i !== idx),
+    };
+  });
 }
 
 // =============================================================================
@@ -1059,105 +935,3 @@ export async function completeBattleSession(
   }
 }
 
-// =============================================================================
-// Fighter Card Data (for info modal)
-// =============================================================================
-
-export async function getFighterCardData(fighterId: string, loadoutId?: string) {
-  const {
-    getFighterBasic,
-    getFighterEquipment,
-    getFighterSkills,
-    getFighterEffects,
-    getFighterTypeInfo,
-    getFighterSubTypeInfo,
-  } = await import('@/app/lib/shared/fighter-data');
-
-  const supabase = await createClient();
-  await getAuthenticatedUser(supabase);
-
-  const basic = await getFighterBasic(fighterId, supabase);
-  if (!basic) return null;
-
-  const [equipment, skills, effects, typeInfo, subTypeInfo] = await Promise.all([
-    getFighterEquipment(fighterId, supabase),
-    getFighterSkills(fighterId, supabase),
-    getFighterEffects(fighterId, supabase),
-    getFighterTypeInfo(basic.fighter_type_id, supabase),
-    basic.fighter_sub_type_id
-      ? getFighterSubTypeInfo(basic.fighter_sub_type_id, supabase)
-      : Promise.resolve(null),
-  ]);
-
-  let filteredEquipment = equipment;
-  if (loadoutId) {
-    const { data: loadoutEquip } = await supabase
-      .from('fighter_loadout_equipment')
-      .select('fighter_equipment_id')
-      .eq('loadout_id', loadoutId);
-    const loadoutEquipIds = new Set((loadoutEquip || []).map((le: any) => le.fighter_equipment_id));
-    filteredEquipment = equipment.filter((item) => loadoutEquipIds.has(item.fighter_equipment_id));
-  }
-
-  const weapons = filteredEquipment
-    .filter((item) => item.equipment_type === 'weapon')
-    .map((item) => ({
-      fighter_weapon_id: item.fighter_equipment_id,
-      weapon_id: item.equipment_id || item.custom_equipment_id || '',
-      weapon_name: item.equipment_name,
-      cost: item.purchase_cost || 0,
-      weapon_profiles: item.weapon_profiles || [],
-      is_master_crafted: item.is_master_crafted || false,
-      equipment_category: item.equipment_category || undefined,
-      effect_names: item.effect_names,
-    }));
-
-  const wargear = filteredEquipment
-    .filter((item) => item.equipment_type === 'wargear')
-    .map((item) => ({
-      fighter_weapon_id: item.fighter_equipment_id,
-      wargear_id: item.equipment_id || item.custom_equipment_id || '',
-      wargear_name: item.equipment_name,
-      cost: item.purchase_cost || 0,
-      is_master_crafted: item.is_master_crafted || false,
-    }));
-
-  return {
-    id: basic.id,
-    fighter_name: basic.fighter_name,
-    label: basic.label,
-    fighter_type: basic.fighter_type || typeInfo?.fighter_type || 'Unknown',
-    fighter_class: basic.fighter_class,
-    fighter_sub_type: subTypeInfo ?? undefined,
-    alliance_crew_name: typeInfo?.alliance_crew_name,
-    xp: basic.xp,
-    kills: basic.kills || 0,
-    credits: basic.credits,
-    movement: basic.movement,
-    weapon_skill: basic.weapon_skill,
-    ballistic_skill: basic.ballistic_skill,
-    strength: basic.strength,
-    toughness: basic.toughness,
-    wounds: basic.wounds,
-    initiative: basic.initiative,
-    attacks: basic.attacks,
-    leadership: basic.leadership,
-    cool: basic.cool,
-    willpower: basic.willpower,
-    intelligence: basic.intelligence,
-    weapons,
-    wargear,
-    effects,
-    skills,
-    special_rules: basic.special_rules || [],
-    note: basic.note,
-    killed: basic.killed || false,
-    starved: basic.starved || false,
-    retired: basic.retired || false,
-    enslaved: basic.enslaved || false,
-    recovery: basic.recovery || false,
-    captured: basic.captured || false,
-    free_skill: basic.free_skill || false,
-    image_url: basic.image_url,
-  };
-}

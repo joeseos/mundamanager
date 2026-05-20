@@ -7,10 +7,7 @@ import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-da
 import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
 
-export default async function BattleSessionPage(props: {
-  params: Promise<{ id: string; sessionId: string }>;
-}) {
-  const params = await props.params;
+export async function renderBattleSessionPage(sessionId: string) {
   const supabase = await createClient();
 
   let user: { id: string };
@@ -20,7 +17,7 @@ export default async function BattleSessionPage(props: {
     redirect('/sign-in');
   }
 
-  const session = await getBattleSessionCached(params.sessionId, supabase);
+  const session = await getBattleSessionCached(sessionId, supabase);
 
   if (!session) {
     notFound();
@@ -76,4 +73,11 @@ export default async function BattleSessionPage(props: {
       </div>
     </main>
   );
+}
+
+export default async function BattleSessionPage(props: {
+  params: Promise<{ id: string; sessionId: string }>;
+}) {
+  const params = await props.params;
+  return renderBattleSessionPage(params.sessionId);
 }

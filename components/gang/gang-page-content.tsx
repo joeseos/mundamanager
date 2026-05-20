@@ -942,6 +942,7 @@ export default function GangPageContent({
           gangId={gangId}
           gangName={gangData.processedData.name}
           campaignId={(gangData.processedData.campaigns || []).find((c: any) => !c.status || c.status === 'ACCEPTED')?.campaign_id}
+          sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
         />
       </Tabs>
       </div>

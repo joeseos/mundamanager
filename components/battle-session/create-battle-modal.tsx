@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -34,52 +34,6 @@ interface Opponent {
   gangName: string;
 }
 
-function SearchDropdown({
-  inputRef,
-  results,
-  onSelect,
-}: {
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  results: { id: string; username: string }[];
-  onSelect: (profile: { id: string; username: string }) => void;
-}) {
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
-
-  useEffect(() => {
-    if (!inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    setPos({
-      top: rect.bottom + window.scrollY + 4,
-      left: rect.left + window.scrollX,
-      width: rect.width,
-    });
-  }, [inputRef, results]);
-
-  if (results.length === 0) return null;
-
-  return createPortal(
-    <div
-      style={{ position: 'absolute', top: pos.top, left: pos.left, width: pos.width }}
-      className="z-[200] rounded-lg border bg-card shadow-lg"
-    >
-      <ul className="py-2">
-        {results.map((profile) => (
-          <li key={profile.id}>
-            <button
-              type="button"
-              onClick={() => onSelect(profile)}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
-            >
-              {profile.username}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>,
-    document.body
-  );
-}
-
 export default function CreateBattleModal({
   gangId,
   gangName,
@@ -89,7 +43,6 @@ export default function CreateBattleModal({
 }: CreateBattleModalProps) {
   const router = useRouter();
   const isAddMode = !!existingSessionId;
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedScenario, setSelectedScenario] = useState('');
 
@@ -378,7 +331,6 @@ export default function CreateBattleModal({
             {!selectedUser && (
               <div className="relative">
                 <input
-                  ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => {
@@ -396,14 +348,22 @@ export default function CreateBattleModal({
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent" />
                   </div>
                 )}
+                {showSuggestions && filteredSearchResults.length > 0 && (
+                  <ul className="absolute z-[200] mt-1 w-full rounded-lg border bg-card py-2 shadow-lg">
+                    {filteredSearchResults.map((profile) => (
+                      <li key={profile.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectUser(profile)}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
+                        >
+                          {profile.username}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            )}
-            {showSuggestions && filteredSearchResults.length > 0 && (
-              <SearchDropdown
-                inputRef={searchInputRef}
-                results={filteredSearchResults}
-                onSelect={handleSelectUser}
-              />
             )}
 
             {/* Gang picker for selected user */}
