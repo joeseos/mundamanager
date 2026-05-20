@@ -200,6 +200,58 @@ export async function setSessionScenario(
   }
 }
 
+export async function setSessionWinner(
+  sessionId: string,
+  winnerGangId: string | null
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { error } = await supabase
+      .from('battle_sessions')
+      .update({ winner_gang_id: winnerGangId, updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error setting winner:', err);
+    return { success: false, error: 'Failed to set winner' };
+  }
+}
+
+export async function setSessionNote(
+  sessionId: string,
+  note: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { error } = await supabase
+      .from('battle_sessions')
+      .update({ note, updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error setting note:', err);
+    return { success: false, error: 'Failed to set note' };
+  }
+}
+
 export async function advanceRound(
   sessionId: string
 ): Promise<{ success: boolean; newRound?: number; error?: string }> {
@@ -868,7 +920,8 @@ export async function updateGangOutcome(params: {
 // =============================================================================
 
 export async function completeBattleSession(
-  sessionId: string
+  sessionId: string,
+  options?: { campaign_territory_id?: string }
 ): Promise<{
   success: boolean;
   campaign_battle_id?: string;
@@ -919,6 +972,7 @@ export async function completeBattleSession(
           created_at: session.created_at,
           attacker_id: participants?.find((p) => p.role === 'attacker')?.gang_id || null,
           defender_id: participants?.find((p) => p.role === 'defender')?.gang_id || null,
+          ...(options?.campaign_territory_id ? { campaign_territory_id: options.campaign_territory_id } : {}),
         })
         .select('id')
         .single();

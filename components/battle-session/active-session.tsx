@@ -11,11 +11,11 @@ import {
   advanceRound,
   startBattle,
   returnToSetup,
-  completeBattleSession,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
 import ParticipantCard from './participant-card';
 import CreateBattleModal from './create-battle-modal';
+import CompleteBattleModal from './complete-battle-modal';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -29,6 +29,7 @@ interface ActiveSessionProps {
   scenarios: Scenario[];
   gangFightersMap: Record<string, GangFighter[]>;
   gangPositioningMap: Record<string, Record<string, any> | null>;
+  territories?: { id: string; name: string; controlled_by?: string; default_gang_territory?: boolean }[];
 }
 
 export default function ActiveSession({
@@ -37,6 +38,7 @@ export default function ActiveSession({
   scenarios,
   gangFightersMap,
   gangPositioningMap,
+  territories = [],
 }: ActiveSessionProps) {
   const router = useRouter();
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -44,6 +46,7 @@ export default function ActiveSession({
   const [showRoundModal, setShowRoundModal] = useState(false);
   const [showStartBattleModal, setShowStartBattleModal] = useState(false);
   const [showReturnToSetupModal, setShowReturnToSetupModal] = useState(false);
+  const [showCompleteBattleModal, setShowCompleteBattleModal] = useState(false);
   const isOwner = session.created_by === userId;
   const isPreBattle = session.status === 'pre_battle';
 
@@ -64,19 +67,6 @@ export default function ActiveSession({
     mutationFn: (scenario: string) =>
       setSessionScenario(session.id, scenario),
     onError: () => toast.error('Failed to update scenario'),
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: () => completeBattleSession(session.id),
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success('Battle session completed');
-        router.refresh();
-      } else {
-        toast.error(result.error || 'Failed to complete session');
-      }
-    },
-    onError: () => toast.error('Failed to complete session'),
   });
 
   const cancelMutation = useMutation({
@@ -316,8 +306,7 @@ export default function ActiveSession({
               </Button>
             ) : (
               <Button
-                onClick={() => completeMutation.mutate()}
-                disabled={completeMutation.isPending}
+                onClick={() => setShowCompleteBattleModal(true)}
               >
                 Complete Battle
               </Button>
@@ -400,6 +389,15 @@ export default function ActiveSession({
           campaignId={session.campaign_id ?? undefined}
           existingSessionId={session.id}
           onClose={() => setShowAddPlayerModal(false)}
+        />
+      )}
+
+      {showCompleteBattleModal && (
+        <CompleteBattleModal
+          session={session}
+          gangFightersMap={gangFightersMap}
+          territories={territories}
+          onClose={() => setShowCompleteBattleModal(false)}
         />
       )}
     </>

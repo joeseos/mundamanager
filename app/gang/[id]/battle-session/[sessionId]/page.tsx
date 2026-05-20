@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
+import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
 import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
 
@@ -39,13 +40,14 @@ export default async function BattleSessionPage(props: {
     new Set(session.participants.map((p) => p.gang_id))
   );
 
-  const [gangFighterLists, gangPositioningList, { data: scenarios }] = await Promise.all([
+  const [gangFighterLists, gangPositioningList, { data: scenarios }, campaignTerritories] = await Promise.all([
     Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
     Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
     supabase
       .from('scenarios')
       .select('id, scenario_name, scenario_number')
       .order('scenario_number'),
+    session.campaign_id ? getCampaignTerritories(session.campaign_id, supabase) : Promise.resolve([]),
   ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};
@@ -64,6 +66,12 @@ export default async function BattleSessionPage(props: {
           scenarios={scenarios || []}
           gangFightersMap={gangFightersMap}
           gangPositioningMap={gangPositioningMap}
+          territories={(campaignTerritories || []).map((t: any) => ({
+            id: t.id,
+            name: t.territory_name,
+            controlled_by: t.gang_id || undefined,
+            default_gang_territory: t.default_gang_territory,
+          }))}
         />
       </div>
     </main>

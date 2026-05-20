@@ -29,15 +29,12 @@ export default function CompletedSession({
       </div>
 
       {/* Winner */}
-      <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 p-6 text-center dark:border-neutral-700 dark:bg-neutral-800">
+      <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-center dark:border-neutral-700 dark:bg-neutral-800">
         {winner ? (
-          <>
-            <p className="text-sm text-neutral-500">Winner</p>
-            <p className="text-xl font-bold">{winner.gang?.name}</p>
-            <p className="text-sm text-neutral-500">
-              {winner.profile?.username}
-            </p>
-          </>
+          <p className="text-lg font-medium">
+            <span className="text-neutral-500">Winner </span>
+            {winner.gang?.name}
+          </p>
         ) : (
           <p className="text-lg font-medium text-neutral-500">Draw</p>
         )}
@@ -50,18 +47,16 @@ export default function CompletedSession({
             key={p.id}
             className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-700"
           >
-            <div className="mb-2 flex items-center justify-between">
-              <div>
-                <span className="font-semibold">{p.gang?.name}</span>
-                <span className="ml-2 text-sm text-neutral-500">
-                  {p.profile?.username}
-                </span>
-              </div>
+            <div className="mb-2 flex items-center gap-2">
               {p.gang_id === session.winner_gang_id && (
                 <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
                   Winner
                 </span>
               )}
+              <span className="font-semibold">{p.gang?.name}</span>
+              <span className="text-sm text-neutral-500">
+                {p.profile?.username}
+              </span>
             </div>
 
             {/* Gang-level results */}
