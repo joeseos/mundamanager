@@ -463,6 +463,53 @@ export async function removeParticipant(
   }
 }
 
+export async function updateParticipantRole(
+  sessionId: string,
+  participantId: string,
+  role: 'attacker' | 'defender' | 'none'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('id, status, created_by')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) return { success: false, error: 'Session not found' };
+    if (session.status !== 'pre_battle')
+      return { success: false, error: 'Roles can only be changed during pre-battle' };
+
+    const { data: participant } = await supabase
+      .from('battle_session_participants')
+      .select('user_id')
+      .eq('id', participantId)
+      .eq('battle_session_id', sessionId)
+      .single();
+
+    if (!participant) return { success: false, error: 'Participant not found' };
+
+    if (participant.user_id !== user.id && session.created_by !== user.id)
+      return { success: false, error: 'Not authorized to change this role' };
+
+    const { error } = await supabase
+      .from('battle_session_participants')
+      .update({ role })
+      .eq('id', participantId)
+      .eq('battle_session_id', sessionId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error updating participant role:', err);
+    return { success: false, error: 'Failed to update role' };
+  }
+}
+
 // =============================================================================
 // Fighter Management
 // =============================================================================

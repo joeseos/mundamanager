@@ -29,7 +29,9 @@ export const getBattleSessionCached = async (
       const { data: participants } = await supabase
         .from('battle_session_participants')
         .select('*')
-        .eq('battle_session_id', sessionId);
+        .eq('battle_session_id', sessionId)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
 
       if (!participants || participants.length === 0) {
         return {

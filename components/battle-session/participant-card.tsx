@@ -25,6 +25,7 @@ import { WiStars } from 'react-icons/wi';
 import { FaUserCheck, FaBan } from 'react-icons/fa';
 import {
   removeParticipant,
+  updateParticipantRole,
   updateGangOutcome,
   bulkAddFightersToSession,
   removeFighterFromSession,
@@ -761,10 +762,22 @@ export default function ParticipantCard({
   const [repChange, setRepChange] = useState(participant.reputation_change);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
+  const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
 
   const isMyGang = participant.user_id === userId;
   const canEdit = editable && isMyGang;
   const canInteract = battleActive && isMyGang;
+  const canEditRole = editable && (isOwner || isMyGang);
+
+  const handleRoleChange = (role: 'attacker' | 'defender' | 'none') => {
+    setLocalRole(role);
+    updateParticipantRole(session.id, participant.id, role).then((result) => {
+      if (!result.success) {
+        setLocalRole(participant.role);
+        toast.error(result.error || 'Failed to update role');
+      }
+    });
+  };
 
   // Map expanded gang fighters (one entry per loadout) to crew modal format
   const gangFighters = useMemo(() => {
@@ -989,6 +1002,15 @@ export default function ParticipantCard({
               <span className="font-semibold">
                 {participant.gang?.name || 'Unknown Gang'}
               </span>
+              {localRole !== 'none' && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                  localRole === 'attacker'
+                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                }`}>
+                  {localRole === 'attacker' ? 'Attacker' : 'Defender'}
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-neutral-500">
               <span>Player: {participant.profile?.username || 'Unknown'}</span>
@@ -1017,6 +1039,22 @@ export default function ParticipantCard({
             </Button>
           )}
         </div>
+        {canEditRole && (
+          <div className="mt-2 flex items-center gap-4">
+            {(['attacker', 'defender', 'none'] as const).map((role) => (
+              <label key={role} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name={`role-${participant.id}`}
+                  checked={localRole === role}
+                  onChange={() => handleRoleChange(role)}
+                  className="h-4 w-4 text-foreground focus:ring-black border-border"
+                />
+                {role === 'attacker' ? 'Attacker' : role === 'defender' ? 'Defender' : 'None'}
+              </label>
+            ))}
+          </div>
+        )}
         {showCrewModal && (
           <CrewSelectionModal
             gangFighters={gangFighters}
