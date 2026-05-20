@@ -233,15 +233,13 @@ export default function ActiveSession({
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Round {session.round}
             </span>
-            {isOwner && (
-              <Button
-                size="sm"
-                onClick={() => setShowRoundModal(true)}
-                disabled={roundMutation.isPending}
-              >
-                {roundMutation.isPending ? 'Advancing...' : 'Complete Round'}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              onClick={() => setShowRoundModal(true)}
+              disabled={roundMutation.isPending}
+            >
+              {roundMutation.isPending ? 'Advancing...' : 'Complete Round'}
+            </Button>
           </div>
         )}
       </div>

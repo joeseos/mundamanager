@@ -237,7 +237,7 @@ export async function advanceRound(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const { data: session } = await supabase
