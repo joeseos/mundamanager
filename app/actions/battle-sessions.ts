@@ -390,6 +390,17 @@ export async function addParticipant(params: {
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'pre_battle')
       return { success: false, error: 'Can only add players during pre-battle' };
+    if (session.created_by !== currentUser.id)
+      return { success: false, error: 'Only the session creator can add participants' };
+
+    // Validate gang belongs to the specified user
+    const { data: gangOwner } = await supabase
+      .from('gangs')
+      .select('user_id')
+      .eq('id', params.gang_id)
+      .single();
+    if (gangOwner?.user_id !== params.user_id)
+      return { success: false, error: 'User does not own this gang' };
 
     // If campaign session, validate gang is in the campaign
     if (session.campaign_id) {
@@ -619,7 +630,10 @@ export async function bulkAddFightersToSession(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionParticipant(supabase, params.session_id, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
 
     const { data: session } = await supabase
       .from('battle_sessions')
@@ -937,8 +951,8 @@ export async function completeBattleSession(
       try {
         const battleLog = await createBattleLog(session.campaign_id, {
           scenario: session.scenario || '',
-          attacker_id: allParticipants.find((p) => p.role === 'attacker')?.gang_id || allParticipants[0]?.gang_id || '',
-          defender_id: allParticipants.find((p) => p.role === 'defender')?.gang_id || allParticipants[1]?.gang_id || '',
+          attacker_id: allParticipants.find((p) => p.role === 'attacker')?.gang_id || allParticipants[0]?.gang_id || allParticipants[1]?.gang_id || '',
+          defender_id: allParticipants.find((p) => p.role === 'defender')?.gang_id || allParticipants[1]?.gang_id || allParticipants[0]?.gang_id || '',
           winner_id: session.winner_gang_id,
           note: options?.note || null,
           participants: allParticipants.map((p) => ({ gang_id: p.gang_id, role: p.role as 'attacker' | 'defender' | 'none' })),
@@ -950,23 +964,26 @@ export async function completeBattleSession(
         campaign_battle_id = battleLog?.id;
       } catch (err) {
         console.error('Error creating campaign battle log:', err);
+        return { success: false, error: 'Failed to create campaign battle log' };
       }
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('battle_sessions')
       .update({
         status: 'completed',
         campaign_battle_id: campaign_battle_id || null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', sessionId);
+      .eq('id', sessionId)
+      .eq('status', 'active')
+      .select('id');
 
-    if (error) {
+    if (error || !updated || updated.length === 0) {
       if (campaign_battle_id) {
         await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
       }
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || 'Session was already completed' };
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
@@ -1057,6 +1074,7 @@ export async function getFighterCardData(fighterId: string, loadoutId?: string) 
   } = await import('@/app/lib/shared/fighter-data');
 
   const supabase = await createClient();
+  await getAuthenticatedUser(supabase);
 
   const basic = await getFighterBasic(fighterId, supabase);
   if (!basic) return null;

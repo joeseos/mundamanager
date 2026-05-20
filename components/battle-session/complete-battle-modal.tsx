@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
@@ -34,7 +33,6 @@ export default function CompleteBattleModal({
   territories = [],
   onClose,
 }: CompleteBattleModalProps) {
-  const router = useRouter();
   const [winner, setWinner] = useState(session.winner_gang_id ?? '');
   const [selectedTerritory, setSelectedTerritory] = useState('');
   const [notes, setNotes] = useState('');
@@ -73,7 +71,6 @@ export default function CompleteBattleModal({
     }
 
     toast.success('Battle completed');
-    router.refresh();
     return true;
   };
 

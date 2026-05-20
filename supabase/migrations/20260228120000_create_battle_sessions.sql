@@ -13,7 +13,7 @@ CREATE TABLE public.battle_sessions (
     status text NOT NULL DEFAULT 'pre_battle'
         CHECK (status IN ('pre_battle', 'active', 'completed')),
     winner_gang_id uuid REFERENCES public.gangs(id) ON DELETE SET NULL,
-    current_turn integer NOT NULL DEFAULT 1,
+    round integer NOT NULL DEFAULT 1,
     campaign_battle_id uuid REFERENCES public.campaign_battles(id) ON DELETE SET NULL
 );
 
@@ -55,3 +55,109 @@ CREATE INDEX battle_session_participants_session_idx ON public.battle_session_pa
 CREATE INDEX battle_session_participants_user_idx ON public.battle_session_participants(user_id);
 CREATE INDEX battle_session_fighters_session_idx ON public.battle_session_fighters(battle_session_id);
 CREATE INDEX battle_session_fighters_participant_idx ON public.battle_session_fighters(participant_id);
+
+-- =============================================================================
+-- Row Level Security
+-- =============================================================================
+
+ALTER TABLE public.battle_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.battle_session_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.battle_session_fighters ENABLE ROW LEVEL SECURITY;
+
+-- battle_sessions policies
+CREATE POLICY "Allow authenticated users to view battle sessions"
+  ON public.battle_sessions FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Campaign members can create battle sessions"
+  ON public.battle_sessions FOR INSERT TO authenticated
+  WITH CHECK (
+    private.is_admin() OR private.is_arb(campaign_id)
+    OR campaign_id IN (SELECT cm.campaign_id FROM campaign_members cm WHERE cm.user_id = auth.uid())
+  );
+
+CREATE POLICY "Admins, arbs, creator or participants can update battle session"
+  ON public.battle_sessions FOR UPDATE TO authenticated
+  USING (
+    private.is_admin() OR private.is_arb(campaign_id)
+    OR created_by = auth.uid()
+    OR id IN (SELECT bsp.battle_session_id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
+  )
+  WITH CHECK (
+    private.is_admin() OR private.is_arb(campaign_id)
+    OR created_by = auth.uid()
+    OR id IN (SELECT bsp.battle_session_id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
+  );
+
+CREATE POLICY "Admins, arbs or creator can delete battle sessions"
+  ON public.battle_sessions FOR DELETE TO authenticated
+  USING (private.is_admin() OR private.is_arb(campaign_id) OR created_by = auth.uid());
+
+-- battle_session_participants policies
+CREATE POLICY "Allow authenticated users to view battle session participants"
+  ON public.battle_session_participants FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Admins, arbs, session creator or self can insert participants"
+  ON public.battle_session_participants FOR INSERT TO authenticated
+  WITH CHECK (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE bs.created_by = auth.uid())
+    OR user_id = auth.uid()
+  );
+
+CREATE POLICY "Admins, arbs, session creator or self can update participants"
+  ON public.battle_session_participants FOR UPDATE TO authenticated
+  USING (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE bs.created_by = auth.uid())
+    OR user_id = auth.uid()
+  )
+  WITH CHECK (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE bs.created_by = auth.uid())
+    OR user_id = auth.uid()
+  );
+
+CREATE POLICY "Admins, arbs, session creator or self can delete participants"
+  ON public.battle_session_participants FOR DELETE TO authenticated
+  USING (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE bs.created_by = auth.uid())
+    OR user_id = auth.uid()
+  );
+
+-- battle_session_fighters policies
+CREATE POLICY "Allow authenticated users to view battle session fighters"
+  ON public.battle_session_fighters FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Admins, arbs or own participant can insert fighters"
+  ON public.battle_session_fighters FOR INSERT TO authenticated
+  WITH CHECK (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR participant_id IN (SELECT bsp.id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
+  );
+
+CREATE POLICY "Admins, arbs or own participant can update fighters"
+  ON public.battle_session_fighters FOR UPDATE TO authenticated
+  USING (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR participant_id IN (SELECT bsp.id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
+  )
+  WITH CHECK (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR participant_id IN (SELECT bsp.id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
+  );
+
+CREATE POLICY "Admins, arbs or own participant can delete fighters"
+  ON public.battle_session_fighters FOR DELETE TO authenticated
+  USING (
+    private.is_admin()
+    OR battle_session_id IN (SELECT bs.id FROM battle_sessions bs WHERE private.is_arb(bs.campaign_id))
+    OR participant_id IN (SELECT bsp.id FROM battle_session_participants bsp WHERE bsp.user_id = auth.uid())
+  );
