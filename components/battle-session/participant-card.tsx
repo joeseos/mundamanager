@@ -108,6 +108,7 @@ function FighterActionModal({
   onConditionsChanged,
   onInjuryAdded,
   onInjuryRemoved,
+  onBroadcast,
   onClose,
 }: {
   fighter: BattleSessionFighter;
@@ -115,6 +116,7 @@ function FighterActionModal({
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
+  onBroadcast?: () => void;
   onClose: () => void;
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
@@ -154,6 +156,7 @@ function FighterActionModal({
     onMutate: ({ index }) => {
       onInjuryRemoved(index);
     },
+    onSuccess: () => onBroadcast?.(),
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to remove injury'),
   });
 
@@ -334,6 +337,7 @@ function FighterActionModal({
             onInjuryAdded(injury);
             onClose();
           }}
+          onBroadcast={onBroadcast}
         />
       )}
     </>
@@ -354,10 +358,12 @@ function InjuryPickerModal({
   fighter,
   onClose,
   onInjuryAdded,
+  onBroadcast,
 }: {
   fighter: BattleSessionFighter;
   onClose: () => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onBroadcast?: () => void;
 }) {
   const [injuryTypes, setInjuryTypes] = useState<InjuryType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -389,6 +395,7 @@ function InjuryPickerModal({
     onSuccess: (injury) => {
       toast.success('Injury added');
       onInjuryAdded(injury);
+      onBroadcast?.();
       onClose();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add injury'),
@@ -568,6 +575,7 @@ function FighterRow({
   onConditionsChanged,
   onInjuryAdded,
   onInjuryRemoved,
+  onBroadcast,
 }: {
   fighter: BattleSessionFighter;
   name: string;
@@ -581,6 +589,7 @@ function FighterRow({
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
+  onBroadcast?: () => void;
 }) {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -659,15 +668,17 @@ function FighterRow({
               onClick={() => setShowActionModal(true)}
             />
           </div>
-          {showActionModal && (
+          {showActionModal && createPortal(
             <FighterActionModal
               fighter={fighter}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
               onInjuryRemoved={onInjuryRemoved}
+              onBroadcast={onBroadcast}
               onClose={() => setShowActionModal(false)}
-            />
+            />,
+            document.body
           )}
         </td>
       ) : battleActive && (
@@ -754,6 +765,7 @@ interface ParticipantCardProps {
   battleActive?: boolean;
   gangFightersList?: GangFighter[];
   positioning?: Record<string, any> | null;
+  onBroadcast?: () => void;
 }
 
 export default function ParticipantCard({
@@ -765,6 +777,7 @@ export default function ParticipantCard({
   battleActive = false,
   gangFightersList = [],
   positioning,
+  onBroadcast,
 }: ParticipantCardProps) {
   const router = useRouter();
   const [creditsDelta, setCreditsDelta] = useState('');
@@ -781,7 +794,9 @@ export default function ParticipantCard({
   const handleRoleChange = (role: 'attacker' | 'defender' | 'none') => {
     setLocalRole(role);
     updateParticipantRole(session.id, participant.id, role).then((result) => {
-      if (!result.success) {
+      if (result.success) {
+        onBroadcast?.();
+      } else {
         setLocalRole(participant.role);
         toast.error(result.error || 'Failed to update role');
       }
@@ -859,6 +874,7 @@ export default function ParticipantCard({
       setCreditsDelta('');
       return { prev };
     },
+    onSuccess: () => onBroadcast?.(),
     onError: (_err, _vars, context) => {
       if (context) setLocalCreditsEarned(context.prev);
       toast.error('Failed to update credits');
@@ -956,6 +972,7 @@ export default function ParticipantCard({
       );
       return { prev };
     },
+    onSuccess: () => onBroadcast?.(),
     onError: (_err, _vars, context) => {
       if (context?.prev) setLocalFighters(context.prev);
       toast.error('Failed to record XP');
@@ -979,6 +996,7 @@ export default function ParticipantCard({
       );
       return { prev };
     },
+    onSuccess: () => onBroadcast?.(),
     onError: (_err, _vars, context) => {
       if (context?.prev) setLocalFighters(context.prev);
       toast.error('Failed to update conditions');
@@ -1180,6 +1198,7 @@ export default function ParticipantCard({
                             )
                           );
                         }}
+                        onBroadcast={onBroadcast}
                       />
                     );
                   })

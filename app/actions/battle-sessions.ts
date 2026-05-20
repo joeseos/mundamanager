@@ -663,11 +663,6 @@ async function withSessionRecord(
 
   if (error) return { success: false, error: error.message };
 
-  await supabase
-    .from('battle_sessions')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', fighter.battle_session_id);
-
   revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
   return { success: true };
 }

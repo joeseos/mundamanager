@@ -42,7 +42,7 @@ export default function ActiveSession({
   territories = [],
 }: ActiveSessionProps) {
   const router = useRouter();
-  useBattleSessionRealtime(session.id);
+  const broadcast = useBattleSessionRealtime(session.id);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
@@ -89,6 +89,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         toast.success(`Round ${result.newRound} started`);
+        broadcast();
         router.refresh();
       } else {
         toast.error(result.error || 'Failed to advance round');
@@ -102,6 +103,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Battle started');
+        broadcast();
         router.refresh();
       } else {
         toast.error(result.error || 'Failed to start battle');
@@ -115,6 +117,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Returned to pre-battle');
+        broadcast();
         router.refresh();
       } else {
         toast.error(result.error || 'Failed to return to pre-battle');
@@ -293,6 +296,7 @@ export default function ActiveSession({
               battleActive={!isPreBattle}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
               positioning={gangPositioningMap[participant.gang_id]}
+              onBroadcast={broadcast}
             />
           ))}
         </div>
