@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
@@ -767,8 +767,8 @@ export default function ParticipantCard({
   positioning,
 }: ParticipantCardProps) {
   const router = useRouter();
-  const [creditsEarned, setCreditsEarned] = useState(participant.credits_earned);
-  const [repChange, setRepChange] = useState(participant.reputation_change);
+  const [creditsDelta, setCreditsDelta] = useState('');
+  const [localCreditsEarned, setLocalCreditsEarned] = useState(participant.credits_earned);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
@@ -840,39 +840,28 @@ export default function ParticipantCard({
     onError: () => toast.error('Failed to remove participant'),
   });
 
-  const prevCreditsRef = useRef(participant.credits_earned);
-  const prevRepRef = useRef(participant.reputation_change);
-
   const gangOutcomeMutation = useMutation({
-    mutationFn: (params: { field: 'credits' | 'reputation'; newValue: number }) => {
-      const prevValue = params.field === 'credits' ? prevCreditsRef.current : prevRepRef.current;
-      const delta = params.newValue - prevValue;
+    mutationFn: () => {
+      const delta = parseInt(creditsDelta) || 0;
       if (delta === 0) return Promise.resolve({ success: true });
       const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
-      const absValue = Math.abs(delta);
       return updateGangOutcome({
         participant_id: participant.id,
         gang_id: participant.gang_id,
-        ...(params.field === 'credits'
-          ? { credits_change: absValue, credits_operation: operation }
-          : { reputation_change: absValue, reputation_operation: operation }),
+        credits_change: Math.abs(delta),
+        credits_operation: operation,
       });
     },
-    onMutate: (params) => {
-      const prev = params.field === 'credits' ? prevCreditsRef.current : prevRepRef.current;
-      if (params.field === 'credits') prevCreditsRef.current = params.newValue;
-      else prevRepRef.current = params.newValue;
-      return { prev, field: params.field };
+    onMutate: () => {
+      const prev = localCreditsEarned;
+      const delta = parseInt(creditsDelta) || 0;
+      setLocalCreditsEarned((cur) => cur + delta);
+      setCreditsDelta('');
+      return { prev };
     },
-    onError: (_err, _params, context) => {
-      if (context?.field === 'credits') {
-        prevCreditsRef.current = context.prev;
-        setCreditsEarned(context.prev);
-      } else if (context?.field === 'reputation') {
-        prevRepRef.current = context.prev;
-        setRepChange(context.prev);
-      }
-      toast.error('Failed to update gang outcome');
+    onError: (_err, _vars, context) => {
+      if (context) setLocalCreditsEarned(context.prev);
+      toast.error('Failed to update credits');
     },
   });
 
@@ -1001,14 +990,8 @@ export default function ParticipantCard({
   }, [participant.fighters]);
 
   useEffect(() => {
-    setCreditsEarned(participant.credits_earned);
-    prevCreditsRef.current = participant.credits_earned;
+    setLocalCreditsEarned(participant.credits_earned);
   }, [participant.credits_earned]);
-
-  useEffect(() => {
-    setRepChange(participant.reputation_change);
-    prevRepRef.current = participant.reputation_change;
-  }, [participant.reputation_change]);
 
   useEffect(() => {
     setLocalRole(participant.role);
@@ -1205,41 +1188,36 @@ export default function ParticipantCard({
             </table>
           </div>
 
-          {/* Gang-level outcomes */}
-          {canEdit && (
-            <div className="flex gap-4 border-t border-neutral-100 pt-3 dark:border-neutral-700">
-              <div className="flex-1">
-                <label className="mb-1 block text-sm text-neutral-500">Credits Earned</label>
+          {canInteract && (
+            <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700">
+              <label className="mb-1 block text-sm text-neutral-500">
+                Credits Earned
+                <span className="text-xs text-muted-foreground"> (Current: {localCreditsEarned})</span>
+              </label>
+              <div className="flex items-center gap-2 max-w-[250px]">
                 <input
-                  type="number"
-                  value={creditsEarned}
-                  onChange={(e) => setCreditsEarned(Number(e.target.value))}
-                  onBlur={() => gangOutcomeMutation.mutate({ field: 'credits', newValue: creditsEarned })}
+                  type="tel"
+                  inputMode="url"
+                  pattern="-?[0-9]+"
+                  value={creditsDelta}
+                  onChange={(e) => setCreditsDelta(e.target.value)}
+                  placeholder="0"
                   className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
                 />
-              </div>
-              <div className="flex-1">
-                <label className="mb-1 block text-sm text-neutral-500">Reputation Change</label>
-                <input
-                  type="number"
-                  value={repChange}
-                  onChange={(e) => setRepChange(Number(e.target.value))}
-                  onBlur={() => gangOutcomeMutation.mutate({ field: 'reputation', newValue: repChange })}
-                  className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
-                />
+                <Button
+                  size="sm"
+                  onClick={() => gangOutcomeMutation.mutate()}
+                  disabled={!creditsDelta || (parseInt(creditsDelta) || 0) === 0 || gangOutcomeMutation.isPending}
+                >
+                  {gangOutcomeMutation.isPending ? 'Saving...' : 'Save'}
+                </Button>
               </div>
             </div>
           )}
 
-          {/* Read-only gang outcomes */}
-          {!canEdit && (participant.credits_earned !== 0 || participant.reputation_change !== 0) && (
-            <div className="flex gap-4 border-t border-neutral-100 pt-3 text-sm dark:border-neutral-700">
-              {participant.credits_earned !== 0 && (
-                <span>Credits: {participant.credits_earned > 0 ? '+' : ''}{participant.credits_earned}</span>
-              )}
-              {participant.reputation_change !== 0 && (
-                <span>Reputation: {participant.reputation_change > 0 ? '+' : ''}{participant.reputation_change}</span>
-              )}
+          {!canInteract && battleActive && localCreditsEarned !== 0 && (
+            <div className="border-t border-neutral-100 pt-3 text-sm dark:border-neutral-700">
+              <span>Credits: {localCreditsEarned > 0 ? '+' : ''}{localCreditsEarned}</span>
             </div>
           )}
         </div>

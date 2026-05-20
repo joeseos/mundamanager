@@ -663,6 +663,11 @@ async function withSessionRecord(
 
   if (error) return { success: false, error: error.message };
 
+  await supabase
+    .from('battle_sessions')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', fighter.battle_session_id);
+
   revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id));
   return { success: true };
 }
@@ -791,7 +796,7 @@ export async function updateGangOutcome(params: {
 
 export async function completeBattleSession(
   sessionId: string,
-  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null }
+  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null; reputation_changes?: Record<string, number> }
 ): Promise<{
   success: boolean;
   campaign_battle_id?: string;
@@ -847,6 +852,31 @@ export async function completeBattleSession(
       } catch (err) {
         console.error('Error creating campaign battle log:', err);
         return { success: false, error: 'Failed to create campaign battle log' };
+      }
+    }
+
+    if (options?.reputation_changes) {
+      for (const [participantId, repValue] of Object.entries(options.reputation_changes)) {
+        const { data: part } = await supabase
+          .from('battle_session_participants')
+          .select('gang_id, reputation_change')
+          .eq('id', participantId)
+          .single();
+        if (!part) continue;
+
+        const delta = repValue - part.reputation_change;
+        if (delta === 0) continue;
+
+        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
+        await updateGang({
+          gang_id: part.gang_id,
+          reputation: Math.abs(delta),
+          reputation_operation: operation,
+        });
+        await supabase
+          .from('battle_session_participants')
+          .update({ reputation_change: repValue })
+          .eq('id', participantId);
       }
     }
 

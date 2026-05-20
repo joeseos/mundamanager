@@ -37,6 +37,9 @@ export default function CompleteBattleModal({
   const [selectedTerritory, setSelectedTerritory] = useState('');
   const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
+  const [repChanges, setRepChanges] = useState<Record<string, string>>(
+    () => Object.fromEntries(session.participants.map((p) => [p.id, String(p.reputation_change || 0)]))
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const gangNameMap = new Map(
@@ -67,10 +70,17 @@ export default function CompleteBattleModal({
       if (!isNaN(parsed) && parsed > 0) cycleValue = parsed;
     }
 
+    const reputationChanges: Record<string, number> = {};
+    for (const [participantId, value] of Object.entries(repChanges)) {
+      const num = parseInt(value, 10);
+      if (!isNaN(num) && num !== 0) reputationChanges[participantId] = num;
+    }
+
     const completeResult = await completeBattleSession(session.id, {
       campaign_territory_id: selectedTerritory || undefined,
       note: notes || undefined,
       cycle: cycleValue,
+      reputation_changes: Object.keys(reputationChanges).length > 0 ? reputationChanges : undefined,
     });
     if (!completeResult.success) {
       toast.error(completeResult.error || 'Failed to complete session');
@@ -154,6 +164,15 @@ export default function CompleteBattleModal({
                     {totalInjuries > 0 && (
                       <span className="text-red-500">{totalInjuries} injuries</span>
                     )}
+                  </div>
+                  <div className="mt-2">
+                    <label className="mb-1 block text-xs text-neutral-500">Reputation Change</label>
+                    <input
+                      type="number"
+                      value={repChanges[p.id] ?? '0'}
+                      onChange={(e) => setRepChanges((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      className="w-full rounded border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                    />
                   </div>
                 </div>
               );
