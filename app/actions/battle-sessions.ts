@@ -235,7 +235,8 @@ export async function setSessionWinner(
 }
 
 export async function advanceRound(
-  sessionId: string
+  sessionId: string,
+  direction: 'forward' | 'back' = 'forward'
 ): Promise<{ success: boolean; newRound?: number; error?: string }> {
   try {
     const supabase = await createClient();
@@ -253,8 +254,10 @@ export async function advanceRound(
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'active')
       return { success: false, error: 'Session is not active' };
+    if (direction === 'back' && session.round <= 1)
+      return { success: false, error: 'Already at round 1' };
 
-    const nextRound = session.round + 1;
+    const nextRound = direction === 'forward' ? session.round + 1 : session.round - 1;
 
     const { error: updateError } = await supabase
       .from('battle_sessions')
@@ -291,8 +294,8 @@ export async function advanceRound(
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
     return { success: true, newRound: nextRound };
   } catch (err) {
-    console.error('Error advancing round:', err);
-    return { success: false, error: 'Failed to advance round' };
+    console.error('Error changing round:', err);
+    return { success: false, error: 'Failed to change round' };
   }
 }
 

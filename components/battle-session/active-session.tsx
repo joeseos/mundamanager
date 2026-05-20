@@ -45,6 +45,7 @@ export default function ActiveSession({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
+  const [showRevertRoundModal, setShowRevertRoundModal] = useState(false);
   const [showReturnToSetupModal, setShowReturnToSetupModal] = useState(false);
   const [showCompleteBattleModal, setShowCompleteBattleModal] = useState(false);
   const isOwner = session.created_by === userId;
@@ -94,6 +95,20 @@ export default function ActiveSession({
       }
     },
     onError: () => toast.error('Failed to advance round'),
+  });
+
+  const revertRoundMutation = useMutation({
+    mutationFn: () => advanceRound(session.id, 'back'),
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Reverted to round ${result.newRound}`);
+        broadcast();
+        router.refresh();
+      } else {
+        toast.error(result.error || 'Failed to revert round');
+      }
+    },
+    onError: () => toast.error('Failed to revert round'),
   });
 
   const returnToSetupMutation = useMutation({
@@ -236,12 +251,22 @@ export default function ActiveSession({
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Round {session.round}
             </span>
+            {session.round > 1 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowRevertRoundModal(true)}
+                disabled={revertRoundMutation.isPending}
+              >
+                Revert Round
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={() => setShowRoundModal(true)}
               disabled={roundMutation.isPending}
             >
-              {roundMutation.isPending ? 'Advancing...' : 'Complete Round'}
+              Complete Round
             </Button>
           </div>
         )}
@@ -340,6 +365,23 @@ export default function ActiveSession({
           confirmDisabled={roundMutation.isPending}
         >
           <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
+        </Modal>,
+        document.body
+      )}
+
+      {showRevertRoundModal && createPortal(
+        <Modal
+          title="Revert Round"
+          onClose={() => setShowRevertRoundModal(false)}
+          onConfirm={async () => {
+            revertRoundMutation.mutate();
+            setShowRevertRoundModal(false);
+            return true;
+          }}
+          confirmText="Revert Round"
+          confirmDisabled={revertRoundMutation.isPending}
+        >
+          <p>Go back to round {session.round - 1}? All fighters will be reactivated.</p>
         </Modal>,
         document.body
       )}
