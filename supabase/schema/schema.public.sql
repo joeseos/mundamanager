@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict uHSQDKEEMzzVxroNIcgppfcYwY8MClJhx0sK422mVaHJr7btWYMTBqNngk6USfc
+\restrict 7CTWZCKQgcm2Azb8PUU97IQz2oKQE4rMAWTwTsHecEczTji24VcWXJCvQwzCxsM
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -3782,6 +3782,8 @@ CREATE TABLE public.battle_session_fighters (
     loadout_id uuid
 );
 
+ALTER TABLE ONLY public.battle_session_fighters REPLICA IDENTITY FULL;
+
 
 --
 -- Name: COLUMN battle_session_fighters.session_record; Type: COMMENT; Schema: public; Owner: -
@@ -3819,13 +3821,14 @@ CREATE TABLE public.battle_sessions (
     created_by uuid NOT NULL,
     campaign_id uuid,
     scenario text,
-    status text DEFAULT 'active'::text NOT NULL,
+    status text DEFAULT '''pre_battle''::text'::text NOT NULL,
     winner_gang_id uuid,
-    note text,
     campaign_battle_id uuid,
     round integer DEFAULT 1 NOT NULL,
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'pre_battle'::text, 'completed'::text])))
 );
+
+ALTER TABLE ONLY public.battle_sessions REPLICA IDENTITY FULL;
 
 
 --
@@ -6084,6 +6087,13 @@ CREATE INDEX battle_session_fighters_created_at_idx ON public.battle_session_fig
 
 
 --
+-- Name: battle_session_fighters_fighter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_fighters_fighter_idx ON public.battle_session_fighters USING btree (fighter_id);
+
+
+--
 -- Name: battle_session_fighters_participant_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6112,6 +6122,13 @@ CREATE INDEX battle_session_participants_user_idx ON public.battle_session_parti
 
 
 --
+-- Name: battle_sessions_campaign_battle_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_campaign_battle_id_idx ON public.battle_sessions USING btree (campaign_battle_id);
+
+
+--
 -- Name: battle_sessions_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6130,6 +6147,13 @@ CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions USING btre
 --
 
 CREATE INDEX battle_sessions_status_idx ON public.battle_sessions USING btree (status);
+
+
+--
+-- Name: battle_sessions_winner_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions USING btree (winner_gang_id);
 
 
 --
@@ -10916,5 +10940,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict uHSQDKEEMzzVxroNIcgppfcYwY8MClJhx0sK422mVaHJr7btWYMTBqNngk6USfc
+\unrestrict 7CTWZCKQgcm2Azb8PUU97IQz2oKQE4rMAWTwTsHecEczTji24VcWXJCvQwzCxsM
 
