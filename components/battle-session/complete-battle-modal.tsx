@@ -239,7 +239,9 @@ export default function CompleteBattleModal({
                     : null;
                   const statusLabel = controlledBy
                     ? ` (Held by ${controlledBy})`
-                    : ' (Unclaimed)';
+                    : t.controlled_by
+                      ? ' (Claimed by another gang)'
+                      : ' (Unclaimed)';
                   return {
                     value: t.id,
                     label: (
