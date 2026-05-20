@@ -35,6 +35,7 @@ export default function CompleteBattleModal({
 }: CompleteBattleModalProps) {
   const [winner, setWinner] = useState(session.winner_gang_id ?? '');
   const [selectedTerritory, setSelectedTerritory] = useState('');
+  const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,9 +61,16 @@ export default function CompleteBattleModal({
       return false;
     }
 
+    let cycleValue: number | null = null;
+    if (cycle) {
+      const parsed = parseInt(cycle, 10);
+      if (!isNaN(parsed) && parsed > 0) cycleValue = parsed;
+    }
+
     const completeResult = await completeBattleSession(session.id, {
       campaign_territory_id: selectedTerritory || undefined,
       note: notes || undefined,
+      cycle: cycleValue,
     });
     if (!completeResult.success) {
       toast.error(completeResult.error || 'Failed to complete session');
@@ -209,6 +217,28 @@ export default function CompleteBattleModal({
 
         {session.campaign_id && (
           <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted-foreground">
+                Cycle
+              </label>
+              <input
+                type="number"
+                className="w-full px-3 py-2 rounded-md border border-border bg-muted"
+                placeholder="Enter cycle number (optional)"
+                value={cycle}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    setCycle(value);
+                  } else {
+                    const numValue = parseInt(value, 10);
+                    if (!isNaN(numValue) && numValue > 0 && !value.includes('-') && !value.includes('.')) {
+                      setCycle(value);
+                    }
+                  }
+                }}
+              />
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-muted-foreground">
                 Report

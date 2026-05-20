@@ -791,7 +791,7 @@ export async function updateGangOutcome(params: {
 
 export async function completeBattleSession(
   sessionId: string,
-  options?: { campaign_territory_id?: string; note?: string }
+  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null }
 ): Promise<{
   success: boolean;
   campaign_battle_id?: string;
@@ -841,6 +841,7 @@ export async function completeBattleSession(
             ? [{ campaign_territory_id: options.campaign_territory_id }]
             : [],
           created_at: session.created_at,
+          cycle: options?.cycle ?? null,
         });
         campaign_battle_id = battleLog?.id;
       } catch (err) {
