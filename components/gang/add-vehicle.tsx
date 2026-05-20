@@ -305,9 +305,7 @@ export default function AddVehicle({
                 placeholder="Locomotion"
                 options={LOCOMOTION_OPTIONS.map(opt => ({ value: opt, label: opt }))}
               />
-              {locomotionChoice === 'Tracked' && (
-                <p className="text-amber-500 text-sm">Movement reduced by 1&quot;</p>
-              )}
+
             </div>
           )}
 
