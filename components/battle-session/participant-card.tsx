@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
+
 import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
 import { toast } from 'sonner';
@@ -780,7 +780,6 @@ export default function ParticipantCard({
   positioning,
   onBroadcast,
 }: ParticipantCardProps) {
-  const router = useRouter();
   const [creditsDelta, setCreditsDelta] = useState('');
   const [repDelta, setRepDelta] = useState('');
   const [localCreditsEarned, setLocalCreditsEarned] = useState(participant.credits_earned);
@@ -865,10 +864,7 @@ export default function ParticipantCard({
 
   const removeMutation = useMutation({
     mutationFn: () => removeParticipant(session.id, participant.id),
-    onSuccess: () => {
-      router.refresh();
-      onBroadcast?.();
-    },
+    onSuccess: () => onBroadcast?.(),
     onError: () => toast.error('Failed to remove participant'),
   });
 
