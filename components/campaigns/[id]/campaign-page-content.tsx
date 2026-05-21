@@ -25,6 +25,8 @@ import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType } from '@/types/campaign';
+import type { BattleSession } from '@/types/battle-session';
+import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
@@ -121,6 +123,7 @@ interface CampaignPageContentProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     battles: Battle[];
+    battleSessions?: BattleSession[];
     triumphs: {
       id: string;
       triumph: string;
@@ -866,6 +869,17 @@ export default function CampaignPageContent({
 
           {/* Battle Log tab content */}
           {activeTab === 2 && (
+            <>
+            {(campaignData.battleSessions ?? []).length > 0 || userId ? (
+              <div className="bg-card shadow-md rounded-lg p-4 mb-4">
+                <CampaignBattleSessions
+                  sessions={campaignData.battleSessions || []}
+                  campaignId={campaignData.id}
+                  userGangId={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.id}
+                  gangName={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.name}
+                />
+              </div>
+            ) : null}
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
                 <div className="flex justify-between items-start mb-4">
@@ -897,6 +911,7 @@ export default function CampaignPageContent({
                 </div>
               </div>
             </div>
+            </>
           )}
 
           {/* Notes tab content */}

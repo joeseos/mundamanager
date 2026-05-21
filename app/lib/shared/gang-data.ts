@@ -167,6 +167,7 @@ export interface GangFighter {
   captured: boolean;
   free_skill: boolean;
   image_url?: string;
+  owner_id?: string;
   owner_name?: string;
   beast_equipment_stashed?: boolean;
   active_loadout_id?: string;
@@ -1202,6 +1203,7 @@ export const getGangFightersList = async (
           .select(`
             id,
             fighter_pet_id,
+            fighter_owner_id,
             fighter_equipment_id,
             fighters!fighter_owner_id (
               fighter_name
@@ -1447,6 +1449,7 @@ export const getGangFightersList = async (
       const ownershipInfoMap = new Map();
       (allBeastOwnershipInfo.data || []).forEach((info: any) => {
         ownershipInfoMap.set(info.fighter_pet_id, {
+          owner_id: info.fighter_owner_id,
           owner_name: (info.fighters as any)?.fighter_name,
           beast_equipment_stashed: info.fighter_equipment?.gang_stash || false
         });
@@ -2003,6 +2006,7 @@ export const getGangFightersList = async (
           free_skill: fighter.free_skill || false,
           image_url: fighter.image_url,
           captured_by_gang_name: fighter.captured_by_gang_id ? capturedByGangNameMap.get(fighter.captured_by_gang_id) : undefined,
+          owner_id: ownershipInfo?.owner_id,
           owner_name: ownershipInfo?.owner_name,
           beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
           active_loadout_id: activeLoadoutId || undefined,
