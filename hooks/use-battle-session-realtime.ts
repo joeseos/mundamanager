@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export function useBattleSessionRealtime(sessionId: string) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
 
@@ -16,7 +16,7 @@ export function useBattleSessionRealtime(sessionId: string) {
     const debouncedRefresh = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ['battle-session', sessionId] });
       }, 300);
     };
 
@@ -67,7 +67,7 @@ export function useBattleSessionRealtime(sessionId: string) {
       supabase.removeChannel(dbChannel);
       supabase.removeChannel(broadcastChannel);
     };
-  }, [sessionId, router]);
+  }, [sessionId, queryClient]);
 
   const broadcast = useCallback(() => {
     broadcastChannelRef.current?.send({

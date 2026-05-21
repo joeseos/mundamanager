@@ -10,10 +10,21 @@ import { logBattleResult } from '@/app/actions/logs/gang-campaign-logs';
 import { createBattleLog } from '@/app/actions/campaigns/[id]/battle-logs';
 import { updateGang } from '@/app/actions/update-gang';
 import type {
+  BattleSessionFull,
   SessionCondition,
   SessionInjuryRecord,
   SessionRecord,
 } from '@/types/battle-session';
+import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+
+// =============================================================================
+// Data Fetching
+// =============================================================================
+
+export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
+  const supabase = await createClient();
+  return getBattleSessionCached(sessionId, supabase);
+}
 
 // =============================================================================
 // Authorization Helpers
