@@ -55,6 +55,7 @@ CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions(created_by
 CREATE INDEX battle_sessions_campaign_id_idx ON public.battle_sessions(campaign_id);
 CREATE INDEX battle_session_participants_session_idx ON public.battle_session_participants(battle_session_id);
 CREATE INDEX battle_session_participants_user_idx ON public.battle_session_participants(user_id);
+CREATE INDEX battle_session_participants_gang_idx ON public.battle_session_participants(gang_id);
 CREATE INDEX battle_session_fighters_session_idx ON public.battle_session_fighters(battle_session_id);
 CREATE INDEX battle_session_fighters_participant_idx ON public.battle_session_fighters(participant_id);
 CREATE INDEX battle_session_fighters_fighter_idx ON public.battle_session_fighters(fighter_id);

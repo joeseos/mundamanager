@@ -1044,13 +1044,13 @@ export default function ParticipantCard({
                   {localRole === 'attacker' ? 'Attacker' : 'Defender'}
                 </span>
               )}
-              {editable && !isMyGang && (
+              {editable && (
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  participant.ready
+                  localReady
                     ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                     : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
                 }`}>
-                  {participant.ready ? 'Ready' : 'Not Ready'}
+                  {localReady ? 'Ready' : 'Not Ready'}
                 </span>
               )}
             </div>
@@ -1072,8 +1072,10 @@ export default function ParticipantCard({
                     onClick={async () => {
                       const prev = localReady;
                       setReadyOverride(!prev);
+                      const timeout = setTimeout(() => setReadyOverride(null), 10000);
                       const result = await toggleParticipantReady(session.id);
                       if (!result.success) {
+                        clearTimeout(timeout);
                         setReadyOverride(null);
                         toast.error(result.error || 'Failed to toggle ready');
                       } else {
@@ -1082,7 +1084,7 @@ export default function ParticipantCard({
                     }}
                     disabled={readyOverride !== null}
                   >
-                    {localReady ? 'Ready' : 'Not Ready'}
+                    {localReady ? 'Unready' : 'Ready'}
                   </Button>
                   <Button onClick={() => setShowCrewModal(true)}>
                     Select Crew
@@ -1124,47 +1126,47 @@ export default function ParticipantCard({
             selectedFighters={selectedFighters}
             loading={false}
             onClose={() => setShowCrewModal(false)}
-            onConfirm={(toAdd, toRemove, toUpdate) => {
+            onConfirm={async (toAdd, toRemove, toUpdate) => {
+              const snapshot = [...localFighters];
+
               if (toAdd.length > 0) {
-                bulkAddFightersToSession({
-                  session_id: session.id,
-                  participant_id: participant.id,
-                  fighter_entries: toAdd,
-                }).then((result) => {
-                  if (result.success) {
-                    const newFighters = toAdd.map((e) => buildOptimisticFighter(e.fighter_id, e.loadout_id));
-                    setLocalFighters((cur) => [...cur, ...newFighters]);
-                    toast.success(`${toAdd.length} fighter${toAdd.length !== 1 ? 's' : ''} added`);
-                  } else {
-                    toast.error(result.error || 'Failed to add fighters');
-                  }
-                });
+                const newFighters = toAdd.map((e) => buildOptimisticFighter(e.fighter_id, e.loadout_id));
+                setLocalFighters((cur) => [...cur, ...newFighters]);
               }
-              for (const id of toRemove) {
-                removeFighterFromSession(session.id, id).then((result) => {
-                  if (result.success) {
-                    setLocalFighters((cur) => cur.filter((f) => f.fighter_id !== id));
-                  } else {
-                    toast.error(result.error || 'Failed to remove fighter');
-                  }
-                });
+              if (toRemove.length > 0) {
+                const removeSet = new Set(toRemove);
+                setLocalFighters((cur) => cur.filter((f) => !removeSet.has(f.fighter_id)));
               }
-              for (const entry of toUpdate) {
-                updateFighterLoadout(session.id, entry.fighter_id, entry.loadout_id).then((result) => {
-                  if (result.success) {
-                    setLocalFighters((cur) =>
-                      cur.map((f) =>
-                        f.fighter_id === entry.fighter_id
-                          ? { ...f, loadout_id: entry.loadout_id }
-                          : f
-                      )
-                    );
-                  } else {
-                    toast.error(result.error || 'Failed to update loadout');
-                  }
-                });
+              if (toUpdate.length > 0) {
+                setLocalFighters((cur) =>
+                  cur.map((f) => {
+                    const match = toUpdate.find((e) => e.fighter_id === f.fighter_id);
+                    return match ? { ...f, loadout_id: match.loadout_id } : f;
+                  })
+                );
               }
-              setShowCrewModal(false);
+
+              const results = await Promise.all([
+                toAdd.length > 0
+                  ? bulkAddFightersToSession({
+                      session_id: session.id,
+                      participant_id: participant.id,
+                      fighter_entries: toAdd,
+                    })
+                  : { success: true as const, error: undefined },
+                ...toRemove.map((id) => removeFighterFromSession(session.id, id)),
+                ...toUpdate.map((entry) => updateFighterLoadout(session.id, entry.fighter_id, entry.loadout_id)),
+              ]);
+
+              const failed = results.filter((r) => !r.success);
+              if (failed.length > 0) {
+                setLocalFighters(snapshot);
+                toast.error(failed[0].error || 'Failed to update crew');
+                return false;
+              }
+
+              toast.success('Crew updated');
+              return true;
             }}
           />
         )}

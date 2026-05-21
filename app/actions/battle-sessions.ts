@@ -362,12 +362,13 @@ export async function toggleParticipantReady(
         allParticipants.every((p) => p.ready);
 
       if (allReady) {
-        await supabase
+        const { data: started } = await supabase
           .from('battle_sessions')
           .update({ status: 'active', updated_at: new Date().toISOString() })
           .eq('id', sessionId)
-          .eq('status', 'pre_battle');
-        battleStarted = true;
+          .eq('status', 'pre_battle')
+          .select('id');
+        battleStarted = (started?.length ?? 0) > 0;
       }
     }
 
@@ -616,13 +617,17 @@ export async function removeFighterFromSession(
     if (session?.status !== 'pre_battle')
       return { success: false, error: 'Crew can only be changed during pre-battle' };
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('battle_session_fighters')
       .delete()
       .eq('battle_session_id', sessionId)
-      .eq('fighter_id', fighterId);
+      .eq('fighter_id', fighterId)
+      .eq('participant_id', auth.participantId!)
+      .select('id');
 
     if (error) return { success: false, error: error.message };
+    if (!deleted || deleted.length === 0)
+      return { success: false, error: 'Fighter not found in your crew' };
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
     return { success: true };
@@ -652,13 +657,17 @@ export async function updateFighterLoadout(
     if (session?.status !== 'pre_battle')
       return { success: false, error: 'Crew can only be changed during pre-battle' };
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('battle_session_fighters')
       .update({ loadout_id: loadoutId ?? null })
       .eq('battle_session_id', sessionId)
-      .eq('fighter_id', fighterId);
+      .eq('fighter_id', fighterId)
+      .eq('participant_id', auth.participantId!)
+      .select('id');
 
     if (error) return { success: false, error: error.message };
+    if (!updated || updated.length === 0)
+      return { success: false, error: 'Fighter not found in your crew' };
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
     return { success: true };
@@ -741,7 +750,7 @@ async function withSessionRecord(
 
   const { data: fighter, error: fetchError } = await supabase
     .from('battle_session_fighters')
-    .select('session_record, battle_session_id')
+    .select('session_record, battle_session_id, participant_id')
     .eq('id', sessionFighterId)
     .single();
 
@@ -749,6 +758,8 @@ async function withSessionRecord(
 
   const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
   if (!auth.authorized) return { success: false, error: auth.error };
+  if (fighter.participant_id !== auth.participantId)
+    return { success: false, error: 'Not authorized to modify this fighter' };
 
   const record: SessionRecord = {
     xp_earned: fighter.session_record?.xp_earned ?? 0,
@@ -953,6 +964,71 @@ export async function completeBattleSession(
       }
     }
 
+    const validParticipantIds = new Set(allParticipants?.map((p) => p.id) ?? []);
+
+    if (options?.reputation_changes) {
+      for (const [participantId, repValue] of Object.entries(options.reputation_changes)) {
+        if (!validParticipantIds.has(participantId)) continue;
+
+        const { data: part } = await supabase
+          .from('battle_session_participants')
+          .select('gang_id, reputation_change')
+          .eq('id', participantId)
+          .single();
+        if (!part) continue;
+
+        const delta = repValue - part.reputation_change;
+        if (delta === 0) continue;
+
+        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
+        const gangResult = await updateGang({
+          gang_id: part.gang_id,
+          reputation: Math.abs(delta),
+          reputation_operation: operation,
+        });
+        if (!gangResult.success) {
+          if (campaign_battle_id) {
+            await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+          }
+          return { success: false, error: gangResult.error || 'Failed to apply reputation change' };
+        }
+        await supabase
+          .from('battle_session_participants')
+          .update({ reputation_change: repValue })
+          .eq('id', participantId);
+      }
+    }
+
+    if (options?.income_changes) {
+      for (const [participantId, delta] of Object.entries(options.income_changes)) {
+        if (!validParticipantIds.has(participantId) || delta === 0) continue;
+
+        const { data: part } = await supabase
+          .from('battle_session_participants')
+          .select('gang_id, credits_earned')
+          .eq('id', participantId)
+          .single();
+        if (!part) continue;
+
+        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
+        const gangResult = await updateGang({
+          gang_id: part.gang_id,
+          credits: Math.abs(delta),
+          credits_operation: operation,
+        });
+        if (!gangResult.success) {
+          if (campaign_battle_id) {
+            await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+          }
+          return { success: false, error: gangResult.error || 'Failed to apply income change' };
+        }
+        await supabase
+          .from('battle_session_participants')
+          .update({ credits_earned: part.credits_earned + delta })
+          .eq('id', participantId);
+      }
+    }
+
     let claimed_territory: string | null = null;
     if (options?.campaign_territory_id) {
       const { data: territory } = await supabase
@@ -980,59 +1056,6 @@ export async function completeBattleSession(
         await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
       }
       return { success: false, error: error?.message || 'Session was already completed' };
-    }
-
-    const validParticipantIds = new Set(allParticipants?.map((p) => p.id) ?? []);
-
-    if (options?.reputation_changes) {
-      for (const [participantId, repValue] of Object.entries(options.reputation_changes)) {
-        if (!validParticipantIds.has(participantId)) continue;
-
-        const { data: part } = await supabase
-          .from('battle_session_participants')
-          .select('gang_id, reputation_change')
-          .eq('id', participantId)
-          .single();
-        if (!part) continue;
-
-        const delta = repValue - part.reputation_change;
-        if (delta === 0) continue;
-
-        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
-        await updateGang({
-          gang_id: part.gang_id,
-          reputation: Math.abs(delta),
-          reputation_operation: operation,
-        });
-        await supabase
-          .from('battle_session_participants')
-          .update({ reputation_change: repValue })
-          .eq('id', participantId);
-      }
-    }
-
-    if (options?.income_changes) {
-      for (const [participantId, delta] of Object.entries(options.income_changes)) {
-        if (!validParticipantIds.has(participantId) || delta === 0) continue;
-
-        const { data: part } = await supabase
-          .from('battle_session_participants')
-          .select('gang_id, credits_earned')
-          .eq('id', participantId)
-          .single();
-        if (!part) continue;
-
-        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
-        await updateGang({
-          gang_id: part.gang_id,
-          credits: Math.abs(delta),
-          credits_operation: operation,
-        });
-        await supabase
-          .from('battle_session_participants')
-          .update({ credits_earned: part.credits_earned + delta })
-          .eq('id', participantId);
-      }
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));

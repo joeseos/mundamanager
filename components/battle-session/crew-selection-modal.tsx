@@ -84,7 +84,7 @@ interface CrewSelectionModalProps {
   gangFighters: GangFighterOption[];
   selectedFighters: Map<string, string | undefined>;
   loading: boolean;
-  onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => void;
+  onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => Promise<boolean> | void;
   onClose: () => void;
 }
 
@@ -179,7 +179,8 @@ export default function CrewSelectionModal({
       }
     });
 
-    onConfirm(toAdd, toRemove, toUpdate);
+    const result = await onConfirm(toAdd, toRemove, toUpdate);
+    return result;
   };
 
   const totalValue = gangFighters
