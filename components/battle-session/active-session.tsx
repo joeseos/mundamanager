@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  addParticipant,
   setSessionScenario,
   advanceRound,
   changeSessionPhase,
@@ -126,45 +125,7 @@ export default function ActiveSession({
     onError: () => toast.error('Failed to change phase'),
   });
 
-  // Join battle — shown when the user has no gang in the session
   const userGangInSession = session.participants.find((p) => p.user_id === userId);
-  const hasNoGangInSession = !userGangInSession;
-  const [selectedJoinGangId, setSelectedJoinGangId] = useState('');
-
-  const participantGangIds = new Set(session.participants.map((p) => p.gang_id));
-
-  const { data: userGangsData } = useQuery({
-    queryKey: ['user-gangs-for-join', userId],
-    queryFn: async () => {
-      const res = await fetch(`/api/users/${userId}`);
-      if (!res.ok) return { gangs: [] };
-      const data = await res.json();
-      return { gangs: (data.gangs || []) as { id: string; name: string; rating: number }[] };
-    },
-    enabled: hasNoGangInSession,
-  });
-
-  const availableJoinGangs = (userGangsData?.gangs ?? []).filter(
-    (g) => !participantGangIds.has(g.id)
-  );
-
-  const joinMutation = useMutation({
-    mutationFn: () =>
-      addParticipant({
-        session_id: session.id,
-        gang_id: selectedJoinGangId,
-        user_id: userId,
-      }),
-    onSuccess: (result) => {
-      if (result.success) {
-        setSelectedJoinGangId('');
-        router.refresh();
-      } else {
-        toast.error(result.error || 'Failed to join');
-      }
-    },
-    onError: () => toast.error('Failed to join battle'),
-  });
 
   return (
     <>
@@ -308,34 +269,6 @@ export default function ActiveSession({
           </div>
         )}
       </div>
-
-      {/* Join battle block — shown when the user has no gang in the session (setup only) */}
-      {isPreBattle && hasNoGangInSession && availableJoinGangs.length > 0 && (
-        <div className="bg-card shadow-md rounded-lg p-4">
-          <h3 className="mb-3 text-lg font-bold">Join Battle</h3>
-          <p className="mb-3 text-sm text-neutral-500">
-            You&apos;ve been invited to this battle. Select a gang to join.
-          </p>
-          <div className="flex gap-2">
-            <Combobox
-              className="flex-1"
-              options={availableJoinGangs.map((g) => ({
-                value: g.id,
-                label: `${g.name} (Rating: ${g.rating})`,
-              }))}
-              value={selectedJoinGangId}
-              onValueChange={setSelectedJoinGangId}
-              placeholder="Select your gang..."
-            />
-            <Button
-              onClick={() => joinMutation.mutate()}
-              disabled={!selectedJoinGangId || joinMutation.isPending}
-            >
-              Join
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Gangs block */}
       <div className="bg-card shadow-md rounded-lg p-4">
