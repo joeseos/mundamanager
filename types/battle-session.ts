@@ -79,6 +79,7 @@ export interface SessionRecord {
   xp_earned: number;
   injuries: SessionInjuryRecord[];
   conditions: SessionCondition[];
+  note?: string;
 }
 
 export interface BattleSessionFighter {

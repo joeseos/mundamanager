@@ -785,6 +785,7 @@ async function withSessionRecord(
     xp_earned: fighter.session_record?.xp_earned ?? 0,
     injuries: fighter.session_record?.injuries ?? [],
     conditions: fighter.session_record?.conditions ?? [],
+    note: fighter.session_record?.note,
   };
 
   const result = updateFn(record);
@@ -843,6 +844,16 @@ export async function removeSessionInjury(params: {
       injuries: record.injuries.filter((_, i) => i !== idx),
     };
   });
+}
+
+export async function updateSessionNote(params: {
+  session_fighter_id: string;
+  note: string;
+}): Promise<{ success: boolean; error?: string }> {
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    note: params.note || undefined,
+  }));
 }
 
 // =============================================================================
