@@ -154,8 +154,8 @@ export default function ActiveSession({
     <>
       {/* Header block */}
       <div className="bg-card shadow-md rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold">
               {session.scenario || 'Battle Session'}
             </h1>
