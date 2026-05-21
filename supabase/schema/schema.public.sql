@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7CTWZCKQgcm2Azb8PUU97IQz2oKQE4rMAWTwTsHecEczTji24VcWXJCvQwzCxsM
+\restrict xsXjSJ2YPmiRXdvjQputVROFLu5UMZ3g4imBSymWGZIOa6nyCotR3Wr1VVm0ouI
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -3777,7 +3777,7 @@ CREATE TABLE public.battle_session_fighters (
     battle_session_id uuid NOT NULL,
     participant_id uuid NOT NULL,
     fighter_id uuid NOT NULL,
-    session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0, "conditions": [{"key": "ready", "name": "Ready"}]}'::jsonb NOT NULL,
+    session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     loadout_id uuid
 );
@@ -3806,8 +3806,11 @@ CREATE TABLE public.battle_session_participants (
     credits_earned integer DEFAULT 0 NOT NULL,
     reputation_change integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    ready boolean DEFAULT false,
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
+
+ALTER TABLE ONLY public.battle_session_participants REPLICA IDENTITY FULL;
 
 
 --
@@ -3825,7 +3828,8 @@ CREATE TABLE public.battle_sessions (
     winner_gang_id uuid,
     campaign_battle_id uuid,
     round integer DEFAULT 1 NOT NULL,
-    CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'pre_battle'::text, 'completed'::text])))
+    claimed_territory text,
+    CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
 ALTER TABLE ONLY public.battle_sessions REPLICA IDENTITY FULL;
@@ -5118,6 +5122,8 @@ CREATE TABLE public.notifications (
     CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
 );
 
+ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
+
 
 --
 -- Name: profiles; Type: TABLE; Schema: public; Owner: -
@@ -6105,6 +6111,13 @@ CREATE INDEX battle_session_fighters_participant_idx ON public.battle_session_fi
 --
 
 CREATE INDEX battle_session_fighters_session_idx ON public.battle_session_fighters USING btree (battle_session_id);
+
+
+--
+-- Name: battle_session_participants_gang_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_participants_gang_idx ON public.battle_session_participants USING btree (gang_id);
 
 
 --
@@ -10940,5 +10953,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7CTWZCKQgcm2Azb8PUU97IQz2oKQE4rMAWTwTsHecEczTji24VcWXJCvQwzCxsM
+\unrestrict xsXjSJ2YPmiRXdvjQputVROFLu5UMZ3g4imBSymWGZIOa6nyCotR3Wr1VVm0ouI
 
