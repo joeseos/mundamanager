@@ -79,10 +79,13 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   if (!isOpen) return null;
 
-  // When selectedDefaultImageIndex is null we visually show index 1 as the fallback (index 0
+  // When selectedDefaultImageIndex is null we visually show index 1 as the fallback (index 0 for silhouette art
   // if only one image exists), so treat null as that index when default images are available.
-  const fallbackDefaultIndex =
-    defaultImageUrls && defaultImageUrls.length > 1 ? 1 : defaultImageUrls && defaultImageUrls.length === 1 ? 0 : null;
+  const fallbackDefaultIndex = !defaultImageUrls
+    ? null
+    : defaultImageUrls.length > 1 ? 1
+    : defaultImageUrls.length === 1 ? 0
+    : null;
   const effectiveSelectedIndex = selectedDefaultImageIndex ?? fallbackDefaultIndex;
 
   // Check if default image index has changed
@@ -152,16 +155,12 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   // Get the display image entry for default images
   const getDisplayDefaultImageEntry = (): DefaultImageEntry | undefined => {
-    if (defaultImageUrls && selectedDefaultImageIndex !== null && 
-        selectedDefaultImageIndex >= 0 && selectedDefaultImageIndex < defaultImageUrls.length) {
-      return defaultImageUrls[selectedDefaultImageIndex];
+    if (defaultImageUrls && effectiveSelectedIndex !== null &&
+        effectiveSelectedIndex >= 0 && effectiveSelectedIndex < defaultImageUrls.length) {
+      return defaultImageUrls[effectiveSelectedIndex];
     }
     if (defaultImageUrl) {
       return { url: defaultImageUrl };
-    }
-    // Fallback to index 1 (or 0 if only one image) when no index is selected
-    if (defaultImageUrls && fallbackDefaultIndex !== null) {
-      return defaultImageUrls[fallbackDefaultIndex];
     }
     return undefined;
   };
