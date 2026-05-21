@@ -79,11 +79,17 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   if (!isOpen) return null;
 
+  // When selectedDefaultImageIndex is null we visually show index 1 as the fallback (index 0
+  // if only one image exists), so treat null as that index when default images are available.
+  const fallbackDefaultIndex =
+    defaultImageUrls && defaultImageUrls.length > 1 ? 1 : defaultImageUrls && defaultImageUrls.length === 1 ? 0 : null;
+  const effectiveSelectedIndex = selectedDefaultImageIndex ?? fallbackDefaultIndex;
+
   // Check if default image index has changed
-  const defaultImageIndexChanged = 
-    defaultImageUrls && 
-    selectedDefaultImageIndex !== null &&
-    selectedDefaultImageIndex !== currentDefaultImageIndex;
+  const defaultImageIndexChanged =
+    defaultImageUrls &&
+    effectiveSelectedIndex !== null &&
+    effectiveSelectedIndex !== currentDefaultImageIndex;
 
   // Determine if confirm button should be enabled
   const hasImageToSave = image && ((enableCrop && croppedAreaPixels) || !enableCrop);
@@ -111,10 +117,10 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
       await handleRemoveImage();
     } else if (hasImageToSave) {
       await handleSave();
-    } else if (defaultImageIndexChanged && onDefaultImageIndexChange && selectedDefaultImageIndex !== null) {
+    } else if (defaultImageIndexChanged && onDefaultImageIndexChange && effectiveSelectedIndex !== null) {
       setIsSavingDefaultImage(true);
       try {
-        const result = await onDefaultImageIndexChange(selectedDefaultImageIndex);
+        const result = await onDefaultImageIndexChange(effectiveSelectedIndex);
         if (result.success) {
           onClose();
         }
@@ -128,17 +134,19 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
 
   const handlePreviousImage = () => {
     if (defaultImageUrls && defaultImageUrls.length > 0) {
-      setSelectedDefaultImageIndex((prev) => 
-        prev === null || prev === 0 ? defaultImageUrls.length - 1 : prev - 1
-      );
+      setSelectedDefaultImageIndex((prev) => {
+        const current = prev ?? fallbackDefaultIndex ?? 0;
+        return current === 0 ? defaultImageUrls.length - 1 : current - 1;
+      });
     }
   };
 
   const handleNextImage = () => {
     if (defaultImageUrls && defaultImageUrls.length > 0) {
-      setSelectedDefaultImageIndex((prev) => 
-        prev === null || prev === defaultImageUrls.length - 1 ? 0 : (prev ?? 0) + 1
-      );
+      setSelectedDefaultImageIndex((prev) => {
+        const current = prev ?? fallbackDefaultIndex ?? 0;
+        return current === defaultImageUrls.length - 1 ? 0 : current + 1;
+      });
     }
   };
 
@@ -148,7 +156,14 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         selectedDefaultImageIndex >= 0 && selectedDefaultImageIndex < defaultImageUrls.length) {
       return defaultImageUrls[selectedDefaultImageIndex];
     }
-    return defaultImageUrl ? { url: defaultImageUrl } : undefined;
+    if (defaultImageUrl) {
+      return { url: defaultImageUrl };
+    }
+    // Fallback to index 1 (or 0 if only one image) when no index is selected
+    if (defaultImageUrls && fallbackDefaultIndex !== null) {
+      return defaultImageUrls[fallbackDefaultIndex];
+    }
+    return undefined;
   };
 
   const displayDefaultImageEntry = getDisplayDefaultImageEntry();
