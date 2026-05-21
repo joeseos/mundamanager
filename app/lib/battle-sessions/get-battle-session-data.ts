@@ -88,6 +88,7 @@ export const getBattleSessionCached = async (
             xp_earned: f.session_record?.xp_earned ?? 0,
             injuries: f.session_record?.injuries ?? [],
             conditions: f.session_record?.conditions ?? [],
+            note: f.session_record?.note,
           },
           fighter: fighterMap.get(f.fighter_id) || undefined,
         });

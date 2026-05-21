@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { LuPlus, LuMinus } from 'react-icons/lu';
+import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
@@ -34,6 +34,7 @@ import {
   addSessionInjury,
   removeSessionInjury,
   updateSessionConditions,
+  updateSessionNote,
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
@@ -576,6 +577,7 @@ function FighterRow({
   onConditionsChanged,
   onInjuryAdded,
   onInjuryRemoved,
+  onNoteChanged,
   onBroadcast,
 }: {
   fighter: BattleSessionFighter;
@@ -590,12 +592,16 @@ function FighterRow({
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
+  onNoteChanged: (note: string) => void;
   onBroadcast?: () => void;
 }) {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
+  const note = fighter.session_record?.note ?? '';
   const isReady = conditions.some((c) => c.key === 'ready');
   const displayConditions = conditions.filter((c) => c.key !== 'ready');
 
@@ -658,6 +664,11 @@ function FighterRow({
       {canInteract ? (
         <td className="p-1 md:p-2 text-right whitespace-nowrap">
           <div className="flex items-center justify-end gap-4">
+            <LuClipboard
+              className={`size-5 transition-colors duration-200 cursor-pointer hover:text-muted-foreground ${note ? 'text-amber-500' : 'text-muted-foreground/30'}`}
+              title={note || 'Add note'}
+              onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
+            />
             <FaUserCheck
               className={`size-5 transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'} cursor-pointer hover:text-muted-foreground`}
               title={isReady ? 'Ready' : 'Activated'}
@@ -682,14 +693,25 @@ function FighterRow({
             document.body
           )}
         </td>
-      ) : battleActive && (
+      ) : (battleActive || note) ? (
         <td className="p-1 md:p-2 text-right whitespace-nowrap">
-          <FaUserCheck
-            className={`size-5 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'}`}
-            title={isReady ? 'Ready' : 'Activated'}
-          />
+          <div className="flex items-center justify-end gap-4">
+            {note && (
+              <LuClipboard
+                className="size-5 text-amber-500 cursor-pointer hover:text-amber-400 transition-colors duration-200"
+                title={note}
+                onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
+              />
+            )}
+            {battleActive && (
+              <FaUserCheck
+                className={`size-5 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'}`}
+                title={isReady ? 'Ready' : 'Activated'}
+              />
+            )}
+          </div>
         </td>
-      )}
+      ) : null}
       {showInfoModal && gangFighter && createPortal(
         <div
           className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
@@ -747,6 +769,37 @@ function FighterRow({
             </div>
           </div>
         </div>,
+        document.body
+      )}
+      {showNoteModal && createPortal(
+        <Modal
+          title="Fighter Note"
+          onClose={() => setShowNoteModal(false)}
+          onConfirm={canInteract ? async () => {
+            onNoteChanged(noteDraft.trim());
+            return true;
+          } : undefined}
+          confirmText="Save"
+          confirmDisabled={noteDraft.trim() === note}
+        >
+          {canInteract ? (
+            <div>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder="Add a note here..."
+                maxLength={250}
+                autoFocus
+              />
+              <p className={`mt-1 text-xs ${noteDraft.length > 250 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                {noteDraft.length}/250
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap">{note || 'No note.'}</p>
+          )}
+        </Modal>,
         document.body
       )}
     </tr>
@@ -1044,6 +1097,30 @@ export default function ParticipantCard({
     },
   });
 
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({ sessionFighterId, note }: { sessionFighterId: string; note: string }) => {
+      const result = await updateSessionNote({ session_fighter_id: sessionFighterId, note });
+      if (!result.success) throw new Error(result.error || 'Failed to update note');
+      return result;
+    },
+    onMutate: ({ sessionFighterId, note }) => {
+      const prev = localFighters;
+      setLocalFighters((cur) =>
+        cur.map((lf) =>
+          lf.id === sessionFighterId
+            ? { ...lf, session_record: { ...lf.session_record, note: note || undefined } }
+            : lf
+        )
+      );
+      return { prev };
+    },
+    onSuccess: () => onBroadcast?.(),
+    onError: (_err, _vars, context) => {
+      if (context?.prev) setLocalFighters(context.prev);
+      toast.error('Failed to update note');
+    },
+  });
+
   useEffect(() => {
     setLocalFighters(participant.fighters);
   }, [participant.fighters]);
@@ -1279,6 +1356,9 @@ export default function ParticipantCard({
                                 : lf
                             )
                           );
+                        }}
+                        onNoteChanged={(note) => {
+                          updateNoteMutation.mutate({ sessionFighterId: f.id, note });
                         }}
                         onBroadcast={onBroadcast}
                       />
