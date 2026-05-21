@@ -785,7 +785,7 @@ function FighterRow({
           {canInteract ? (
             <div>
               <textarea
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 placeholder="Add a note here..."
