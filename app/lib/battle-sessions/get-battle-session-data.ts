@@ -71,7 +71,7 @@ export const getBattleSessionCached = async (
         const fighterIds = fighters.map((f: any) => f.fighter_id);
         const { data: fighterDetails } = await supabase
           .from('fighters')
-          .select('id, fighter_name, credits')
+          .select('id, fighter_name, credits, special_rules')
           .in('id', fighterIds);
 
         fighterMap = new Map(
@@ -89,6 +89,7 @@ export const getBattleSessionCached = async (
             injuries: f.session_record?.injuries ?? [],
             conditions: f.session_record?.conditions ?? [],
             note: f.session_record?.note,
+            activations: f.session_record?.activations ?? 1,
           },
           fighter: fighterMap.get(f.fighter_id) || undefined,
         });

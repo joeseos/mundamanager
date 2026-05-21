@@ -80,6 +80,7 @@ export interface SessionRecord {
   injuries: SessionInjuryRecord[];
   conditions: SessionCondition[];
   note?: string;
+  activations: number;
 }
 
 export interface BattleSessionFighter {
@@ -95,6 +96,7 @@ export interface BattleSessionFighter {
     fighter_name: string;
     fighter_type?: string;
     credits?: number;
+    special_rules?: string[];
   };
 }
 

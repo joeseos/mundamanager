@@ -280,21 +280,31 @@ export async function advanceRound(
 
     const { data: fighters } = await supabase
       .from('battle_session_fighters')
-      .select('id, session_record')
+      .select('id, fighter_id, session_record')
       .eq('battle_session_id', sessionId);
 
     if (fighters && fighters.length > 0) {
+      const fighterIds = fighters.map((f) => f.fighter_id);
+      const { data: fighterDetails } = await supabase
+        .from('fighters')
+        .select('id, special_rules')
+        .in('id', fighterIds);
+      const rulesMap = new Map(
+        (fighterDetails ?? []).map((f: any) => [f.id, f.special_rules as string[] | null])
+      );
+      const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
+
       await Promise.all(
         fighters.map((f) => {
+          const rules = rulesMap.get(f.fighter_id);
+          const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
           const record: SessionRecord = {
             xp_earned: f.session_record?.xp_earned ?? 0,
             injuries: f.session_record?.injuries ?? [],
             conditions: f.session_record?.conditions ?? [],
+            note: f.session_record?.note,
+            activations: isDual ? 2 : 1,
           };
-          const hasReady = record.conditions.some((c) => c.key === 'ready');
-          if (!hasReady) {
-            record.conditions.push({ key: 'ready', name: 'Ready' });
-          }
           return supabase
             .from('battle_session_fighters')
             .update({ session_record: record })
@@ -730,19 +740,34 @@ export async function bulkAddFightersToSession(params: {
     const fighterIds = params.fighter_entries.map((e) => e.fighter_id);
     const { data: validFighters } = await supabase
       .from('fighters')
-      .select('id')
+      .select('id, special_rules')
       .eq('gang_id', participant.gang_id)
       .in('id', fighterIds);
     const validIds = new Set(validFighters?.map((f) => f.id));
     if (fighterIds.some((id) => !validIds.has(id)))
       return { success: false, error: 'One or more fighters do not belong to your gang' };
 
-    const rows = params.fighter_entries.map((entry) => ({
-      battle_session_id: params.session_id,
-      participant_id: auth.participantId!,
-      fighter_id: entry.fighter_id,
-      ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
-    }));
+    const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
+    const rulesMap = new Map(
+      (validFighters ?? []).map((f: any) => [f.id, f.special_rules as string[] | null])
+    );
+
+    const rows = params.fighter_entries.map((entry) => {
+      const rules = rulesMap.get(entry.fighter_id);
+      const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
+      return {
+        battle_session_id: params.session_id,
+        participant_id: auth.participantId!,
+        fighter_id: entry.fighter_id,
+        ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
+        session_record: {
+          xp_earned: 0,
+          injuries: [],
+          conditions: [],
+          activations: isDual ? 2 : 1,
+        },
+      };
+    });
 
     const { error } = await supabase
       .from('battle_session_fighters')
@@ -787,6 +812,7 @@ async function withSessionRecord(
     injuries: fighter.session_record?.injuries ?? [],
     conditions: fighter.session_record?.conditions ?? [],
     note: fighter.session_record?.note,
+    activations: fighter.session_record?.activations ?? 1,
   };
 
   const result = updateFn(record);
@@ -820,6 +846,16 @@ export async function updateSessionConditions(params: {
   return withSessionRecord(params.session_fighter_id, (record) => ({
     ...record,
     conditions: params.conditions,
+  }));
+}
+
+export async function updateActivations(params: {
+  session_fighter_id: string;
+  activations: number;
+}): Promise<{ success: boolean; error?: string }> {
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    activations: params.activations,
   }));
 }
 
