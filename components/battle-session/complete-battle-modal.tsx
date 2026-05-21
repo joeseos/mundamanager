@@ -38,7 +38,7 @@ export default function CompleteBattleModal({
   const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
   const [repChanges, setRepChanges] = useState<Record<string, string>>(
-    () => Object.fromEntries(session.participants.map((p) => [p.id, String(p.reputation_change || 0)]))
+    () => Object.fromEntries(session.participants.map((p) => [p.id, '']))
   );
   const [incomeChanges, setIncomeChanges] = useState<Record<string, string>>(
     () => Object.fromEntries(session.participants.map((p) => [p.id, '']))
@@ -179,9 +179,12 @@ export default function CompleteBattleModal({
                     <div className="flex-1">
                       <label className="mb-1 block text-xs text-neutral-500">Reputation Change</label>
                       <input
-                        type="number"
-                        value={repChanges[p.id] ?? '0'}
+                        type="tel"
+                        inputMode="url"
+                        pattern="-?[0-9]+"
+                        value={repChanges[p.id] ?? ''}
                         onChange={(e) => setRepChanges((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        placeholder="0"
                         className="w-full rounded border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-600 dark:bg-neutral-800"
                       />
                     </div>
