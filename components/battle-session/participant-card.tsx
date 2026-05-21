@@ -1383,7 +1383,7 @@ export default function ParticipantCard({
                   value={creditsDelta}
                   onChange={(e) => setCreditsDelta(e.target.value)}
                   placeholder="0"
-                  className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                  className="w-full rounded border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
                 />
                 <Button
                   size="sm"
@@ -1419,7 +1419,7 @@ export default function ParticipantCard({
                     value={repDelta}
                     onChange={(e) => setRepDelta(e.target.value)}
                     placeholder="+/-"
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
                   />
                   <Button
                     size="sm"
