@@ -68,6 +68,7 @@ export default function ActiveSession({
   const scenarioMutation = useMutation({
     mutationFn: (scenario: string) =>
       setSessionScenario(session.id, scenario),
+    onSuccess: () => broadcast(),
     onError: () => toast.error('Failed to update scenario'),
   });
 
