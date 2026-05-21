@@ -2,10 +2,9 @@
 
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import CreateBattleModal from '@/components/battle-session/create-battle-modal';
-import { statusColors, statusLabels, formatBattleSessionDate } from '@/types/battle-session';
+import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
 
 interface BattleSessionsListProps {
@@ -97,10 +96,8 @@ export default function BattleSessionsList({
                 >
                   <td className="p-1 md:p-2">{formatBattleSessionDate(session.updated_at)}</td>
                   <td className="p-1 md:p-2">{session.scenario || '-'}</td>
-                  <td className="p-1 md:p-2">
-                    <Badge className={statusColors[session.status]}>
-                      {statusLabels[session.status]}
-                    </Badge>
+                  <td className="p-1 md:p-2 text-sm">
+                    {statusLabels[session.status]}
                   </td>
                 </tr>
               ))}
@@ -119,9 +116,9 @@ export default function BattleSessionsList({
                 <span className="font-medium">
                   {formatBattleSessionDate(session.updated_at)}
                 </span>
-                <Badge className={statusColors[session.status]}>
+                <span className="text-sm text-muted-foreground">
                   {statusLabels[session.status]}
-                </Badge>
+                </span>
               </div>
               <span className="text-neutral-400">&rarr;</span>
             </button>
