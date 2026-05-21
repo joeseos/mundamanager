@@ -176,7 +176,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE battle_sessions;
 ALTER PUBLICATION supabase_realtime ADD TABLE battle_session_participants;
 ALTER PUBLICATION supabase_realtime ADD TABLE battle_session_fighters;
 
--- Required so filtered realtime subscriptions receive UPDATE/DELETE events
+-- Required so filtered realtime subscriptions receive all column values
 ALTER TABLE battle_sessions REPLICA IDENTITY FULL;
 ALTER TABLE battle_session_participants REPLICA IDENTITY FULL;
 ALTER TABLE battle_session_fighters REPLICA IDENTITY FULL;
+ALTER TABLE notifications REPLICA IDENTITY FULL;
