@@ -865,7 +865,10 @@ export default function ParticipantCard({
 
   const removeMutation = useMutation({
     mutationFn: () => removeParticipant(session.id, participant.id),
-    onSuccess: () => router.refresh(),
+    onSuccess: () => {
+      router.refresh();
+      onBroadcast?.();
+    },
     onError: () => toast.error('Failed to remove participant'),
   });
 
@@ -954,6 +957,7 @@ export default function ParticipantCard({
     onSuccess: (_result, entry) => {
       const name = gangFighters.find((gf) => gf.id === entry.fighter_id)?.fighter_name;
       toast.success(`${name ?? 'Fighter'} added`);
+      onBroadcast?.();
     },
     onError: (_err, _id, context) => {
       toast.error('Failed to add fighter');
@@ -988,6 +992,7 @@ export default function ParticipantCard({
     onSuccess: (_result, _vars, context) => {
       const count = context?.count ?? 0;
       toast.success(`${count} fighter${count !== 1 ? 's' : ''} added`);
+      onBroadcast?.();
     },
     onError: (_err, _vars, context) => {
       toast.error('Failed to add fighters');
@@ -1204,6 +1209,7 @@ export default function ParticipantCard({
               }
 
               toast.success('Crew updated');
+              onBroadcast?.();
               return true;
             }}
           />
