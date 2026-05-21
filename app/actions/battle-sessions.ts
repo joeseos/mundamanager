@@ -303,20 +303,6 @@ export async function advanceRound(
 // Participant Management
 // =============================================================================
 
-export async function startBattle(
-  sessionId: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    return await updateSessionAsCreator(sessionId, { status: 'active' }, {
-      requireStatus: 'pre_battle',
-      statusError: 'Can only start from pre-battle',
-    });
-  } catch (err) {
-    console.error('Error starting battle:', err);
-    return { success: false, error: 'Failed to start battle' };
-  }
-}
-
 export async function toggleParticipantReady(
   sessionId: string
 ): Promise<{ success: boolean; battleStarted?: boolean; error?: string }> {

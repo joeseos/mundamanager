@@ -790,6 +790,8 @@ export default function ParticipantCard({
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
 
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
+  const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current); }, []);
   const prevReadyProp = useRef(participant.ready);
   if (prevReadyProp.current !== participant.ready) {
     prevReadyProp.current = participant.ready;
@@ -1050,6 +1052,10 @@ export default function ParticipantCard({
   }, [participant.credits_earned]);
 
   useEffect(() => {
+    setLocalRepChange(participant.reputation_change);
+  }, [participant.reputation_change]);
+
+  useEffect(() => {
     setLocalRole(participant.role);
   }, [participant.role]);
 
@@ -1102,10 +1108,10 @@ export default function ParticipantCard({
                     onClick={async () => {
                       const prev = localReady;
                       setReadyOverride(!prev);
-                      const timeout = setTimeout(() => setReadyOverride(null), 10000);
+                      readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
                       const result = await toggleParticipantReady(session.id);
                       if (!result.success) {
-                        clearTimeout(timeout);
+                        if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
                         setReadyOverride(null);
                         toast.error(result.error || 'Failed to toggle ready');
                       } else {
