@@ -22,6 +22,7 @@ import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-ses
 // =============================================================================
 
 export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
+  revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
   const supabase = await createClient();
   return getBattleSessionCached(sessionId, supabase);
 }

@@ -86,7 +86,10 @@ export default function ActiveSession({
   const scenarioMutation = useMutation({
     mutationFn: (scenario: string) =>
       setSessionScenario(session.id, scenario),
-    onSuccess: () => broadcast(),
+    onSuccess: () => {
+      broadcast();
+      queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+    },
     onError: () => toast.error('Failed to update scenario'),
   });
 
@@ -312,7 +315,10 @@ export default function ActiveSession({
               battleActive={battleActive}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
               positioning={gangPositioningMap[participant.gang_id]}
-              onBroadcast={broadcast}
+              onBroadcast={() => {
+                broadcast();
+                queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+              }}
             />
           ))}
         </div>
