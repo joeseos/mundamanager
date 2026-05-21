@@ -9,7 +9,7 @@ import {
   addParticipant,
   setSessionScenario,
   advanceRound,
-  returnToSetup,
+  changeSessionPhase,
   cancelBattleSession,
 } from '@/app/actions/battle-sessions';
 import { useBattleSessionRealtime } from '@/hooks/use-battle-session-realtime';
@@ -50,6 +50,8 @@ export default function ActiveSession({
   const [showCompleteBattleModal, setShowCompleteBattleModal] = useState(false);
   const isOwner = session.created_by === userId;
   const isPreBattle = session.status === 'pre_battle';
+  const isPostBattle = session.status === 'post_battle';
+  const battleActive = session.status === 'active';
 
   const ratings = session.participants.map((p) => {
     const gfList = gangFightersMap[p.gang_id] || [];
@@ -111,18 +113,17 @@ export default function ActiveSession({
     onError: () => toast.error('Failed to revert round'),
   });
 
-  const returnToSetupMutation = useMutation({
-    mutationFn: () => returnToSetup(session.id),
+  const changePhaseMutation = useMutation({
+    mutationFn: (direction: 'forward' | 'back') => changeSessionPhase(session.id, direction),
     onSuccess: (result) => {
       if (result.success) {
-        toast.success('Returned to pre-battle');
         broadcast();
         router.refresh();
       } else {
-        toast.error(result.error || 'Failed to return to pre-battle');
+        toast.error(result.error || 'Failed to change phase');
       }
     },
-    onError: () => toast.error('Failed to return to pre-battle'),
+    onError: () => toast.error('Failed to change phase'),
   });
 
   // Join battle — shown when the user has no gang in the session
@@ -186,13 +187,22 @@ export default function ActiveSession({
                     Add Player
                   </Button>
                 )}
-                {!isPreBattle && (
+                {battleActive && (
                   <Button
                     variant="outline"
                     onClick={() => setShowReturnToSetupModal(true)}
-                    disabled={returnToSetupMutation.isPending}
+                    disabled={changePhaseMutation.isPending}
                   >
                     Back to Pre-Battle
+                  </Button>
+                )}
+                {isPostBattle && (
+                  <Button
+                    variant="outline"
+                    onClick={() => changePhaseMutation.mutate('back')}
+                    disabled={changePhaseMutation.isPending}
+                  >
+                    Resume Battle
                   </Button>
                 )}
                 <Button
@@ -246,7 +256,7 @@ export default function ActiveSession({
           </div>
         )}
 
-        {!isPreBattle && (
+        {battleActive && (
           <div className="mt-4 flex items-center gap-3">
             <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Round {session.round}
@@ -268,6 +278,33 @@ export default function ActiveSession({
             >
               Complete Round
             </Button>
+          </div>
+        )}
+
+        {isPostBattle && (
+          <div className="mt-4">
+            <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Post-Battle — enter reputation and income, then ready up
+            </p>
+            {session.participants.length >= 2 && (() => {
+              const readyCount = session.participants.filter((p) => p.ready).length;
+              const total = session.participants.length;
+              const notReady = session.participants.filter((p) => !p.ready);
+              return (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  {readyCount === total ? (
+                    <span className="text-green-600 font-medium">All players ready</span>
+                  ) : (
+                    <span>
+                      {readyCount}/{total} ready
+                      {notReady.length > 0 && (
+                        <span> — Waiting for {notReady.map((p) => p.gang?.name || 'Unknown').join(', ')}</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -318,8 +355,8 @@ export default function ActiveSession({
               session={session}
               userId={userId}
               isOwner={isOwner}
-              editable={isPreBattle}
-              battleActive={!isPreBattle}
+              editable={isPreBattle || isPostBattle}
+              battleActive={battleActive}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
               positioning={gangPositioningMap[participant.gang_id]}
               onBroadcast={broadcast}
@@ -327,9 +364,23 @@ export default function ActiveSession({
           ))}
         </div>
 
-        {!isPreBattle && (
+        {battleActive && isOwner && (
           <div className="mt-4 flex justify-end gap-2">
-            <Button onClick={() => setShowCompleteBattleModal(true)}>
+            <Button
+              onClick={() => changePhaseMutation.mutate('forward')}
+              disabled={changePhaseMutation.isPending}
+            >
+              End Battle
+            </Button>
+          </div>
+        )}
+
+        {isPostBattle && isOwner && (
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              onClick={() => setShowCompleteBattleModal(true)}
+              disabled={!session.participants.every((p) => p.ready)}
+            >
               Complete Battle
             </Button>
           </div>
@@ -391,12 +442,12 @@ export default function ActiveSession({
           title="Return to Pre-Battle"
           onClose={() => setShowReturnToSetupModal(false)}
           onConfirm={async () => {
-            returnToSetupMutation.mutate();
+            changePhaseMutation.mutate('back');
             setShowReturnToSetupModal(false);
             return true;
           }}
           confirmText="Return to Pre-Battle"
-          confirmDisabled={returnToSetupMutation.isPending}
+          confirmDisabled={changePhaseMutation.isPending}
         >
           <p>Return to Pre-Battle Sequence? This will unlock crew selection for all players.</p>
         </Modal>,

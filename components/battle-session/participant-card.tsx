@@ -782,7 +782,9 @@ export default function ParticipantCard({
 }: ParticipantCardProps) {
   const router = useRouter();
   const [creditsDelta, setCreditsDelta] = useState('');
+  const [repDelta, setRepDelta] = useState('');
   const [localCreditsEarned, setLocalCreditsEarned] = useState(participant.credits_earned);
+  const [localRepChange, setLocalRepChange] = useState(participant.reputation_change);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
@@ -795,9 +797,11 @@ export default function ParticipantCard({
   }
   const localReady = readyOverride ?? participant.ready;
   const isMyGang = participant.user_id === userId;
-  const canEdit = editable && isMyGang;
+  const isPostBattle = session.status === 'post_battle';
+  const canEdit = editable && isMyGang && !isPostBattle;
   const canInteract = battleActive && isMyGang;
-  const canEditRole = editable && (isOwner || isMyGang);
+  const canPostBattle = isPostBattle && isMyGang;
+  const canEditRole = editable && (isOwner || isMyGang) && !isPostBattle;
 
   const handleRoleChange = (role: 'attacker' | 'defender' | 'none') => {
     setLocalRole(role);
@@ -886,6 +890,32 @@ export default function ParticipantCard({
     onError: (_err, _vars, context) => {
       if (context) setLocalCreditsEarned(context.prev);
       toast.error('Failed to update credits');
+    },
+  });
+
+  const repOutcomeMutation = useMutation({
+    mutationFn: (deltaStr: string) => {
+      const delta = parseInt(deltaStr) || 0;
+      if (delta === 0) return Promise.resolve({ success: true });
+      const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
+      return updateGangOutcome({
+        participant_id: participant.id,
+        gang_id: participant.gang_id,
+        reputation_change: Math.abs(delta),
+        reputation_operation: operation,
+      });
+    },
+    onMutate: (deltaStr: string) => {
+      const prev = localRepChange;
+      const delta = parseInt(deltaStr) || 0;
+      setLocalRepChange((cur) => cur + delta);
+      setRepDelta('');
+      return { prev };
+    },
+    onSuccess: () => onBroadcast?.(),
+    onError: (_err, _vars, context) => {
+      if (context) setLocalRepChange(context.prev);
+      toast.error('Failed to update reputation');
     },
   });
 
@@ -1063,9 +1093,9 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
-          {(canEdit || ((isOwner || isMyGang) && editable)) && (
+          {(canEdit || canPostBattle || ((isOwner || isMyGang) && editable && !isPostBattle)) && (
             <div className="flex gap-2">
-              {canEdit && (
+              {(canEdit || canPostBattle) && (
                 <>
                   <Button
                     variant={localReady ? 'default' : 'outline'}
@@ -1086,12 +1116,14 @@ export default function ParticipantCard({
                   >
                     {localReady ? 'Unready' : 'Ready'}
                   </Button>
-                  <Button onClick={() => setShowCrewModal(true)}>
-                    Select Crew
-                  </Button>
+                  {canEdit && (
+                    <Button onClick={() => setShowCrewModal(true)}>
+                      Select Crew
+                    </Button>
+                  )}
                 </>
               )}
-              {(isOwner || isMyGang) && editable && (
+              {(isOwner || isMyGang) && editable && !isPostBattle && (
                 <Button
                   variant="destructive"
                   onClick={() => removeMutation.mutate()}
@@ -1172,6 +1204,7 @@ export default function ParticipantCard({
         )}
       </div>
 
+      {!isPostBattle && (
       <div className="pb-6">
           <div className="rounded-md border overflow-x-auto">
             <table className="w-full text-xs md:text-sm">
@@ -1269,7 +1302,7 @@ export default function ParticipantCard({
                   onClick={() => gangOutcomeMutation.mutate(creditsDelta)}
                   disabled={!creditsDelta || (parseInt(creditsDelta) || 0) === 0 || gangOutcomeMutation.isPending}
                 >
-                  {gangOutcomeMutation.isPending ? 'Saving...' : 'Save'}
+                  Save
                 </Button>
               </div>
             </div>
@@ -1281,6 +1314,71 @@ export default function ParticipantCard({
             </div>
           )}
         </div>
+      )}
+
+          {canPostBattle && (
+            <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 space-y-3">
+              <div>
+                <label className="mb-1 block text-sm text-neutral-500">
+                  Reputation Change
+                  <span className="text-xs text-muted-foreground"> (Current: {localRepChange})</span>
+                </label>
+                <div className="flex items-center gap-2 max-w-[250px]">
+                  <input
+                    type="tel"
+                    inputMode="url"
+                    pattern="-?[0-9]+"
+                    value={repDelta}
+                    onChange={(e) => setRepDelta(e.target.value)}
+                    placeholder="+/-"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => repOutcomeMutation.mutate(repDelta)}
+                    disabled={!repDelta || (parseInt(repDelta) || 0) === 0 || repOutcomeMutation.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-neutral-500">
+                  Credits Earned
+                  <span className="text-xs text-muted-foreground"> (Current: {localCreditsEarned})</span>
+                </label>
+                <div className="flex items-center gap-2 max-w-[250px]">
+                  <input
+                    type="tel"
+                    inputMode="url"
+                    pattern="-?[0-9]+"
+                    value={creditsDelta}
+                    onChange={(e) => setCreditsDelta(e.target.value)}
+                    placeholder="+/-"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => gangOutcomeMutation.mutate(creditsDelta)}
+                    disabled={!creditsDelta || (parseInt(creditsDelta) || 0) === 0 || gangOutcomeMutation.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isPostBattle && !isMyGang && (localRepChange !== 0 || localCreditsEarned !== 0) && (
+            <div className="border-t border-neutral-100 pt-3 text-sm dark:border-neutral-700 flex gap-4">
+              {localRepChange !== 0 && (
+                <span>Reputation: {localRepChange > 0 ? '+' : ''}{localRepChange}</span>
+              )}
+              {localCreditsEarned !== 0 && (
+                <span>Credits: {localCreditsEarned > 0 ? '+' : ''}{localCreditsEarned}</span>
+              )}
+            </div>
+          )}
     </div>
   );
 }

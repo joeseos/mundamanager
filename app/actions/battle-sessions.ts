@@ -332,8 +332,8 @@ export async function toggleParticipantReady(
       .select('status')
       .eq('id', sessionId)
       .single();
-    if (!session || session.status !== 'pre_battle')
-      return { success: false, error: 'Can only toggle ready during pre-battle' };
+    if (!session || (session.status !== 'pre_battle' && session.status !== 'post_battle'))
+      return { success: false, error: 'Can only toggle ready during pre-battle or post-battle' };
 
     const { data: myParticipant } = await supabase
       .from('battle_session_participants')
@@ -350,7 +350,7 @@ export async function toggleParticipantReady(
       .eq('id', myParticipant.id);
 
     let battleStarted = false;
-    if (newReady) {
+    if (newReady && session.status === 'pre_battle') {
       const { data: allParticipants } = await supabase
         .from('battle_session_participants')
         .select('ready')
@@ -380,17 +380,40 @@ export async function toggleParticipantReady(
   }
 }
 
-export async function returnToSetup(
-  sessionId: string
+export async function changeSessionPhase(
+  sessionId: string,
+  direction: 'forward' | 'back'
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const result = await updateSessionAsCreator(sessionId, { status: 'pre_battle' }, {
-      requireStatus: 'active',
-      statusError: 'Can only return to pre-battle from active',
-    });
-    if (!result.success) return result;
-
     const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const { data: session } = await supabase
+      .from('battle_sessions')
+      .select('status')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) return { success: false, error: 'Session not found' };
+
+    const transitions: Record<string, Record<string, string>> = {
+      forward: { active: 'post_battle' },
+      back: { active: 'pre_battle', post_battle: 'active' },
+    };
+    const targetStatus = transitions[direction]?.[session.status];
+    if (!targetStatus)
+      return { success: false, error: 'Invalid phase transition' };
+
+    const { error } = await supabase
+      .from('battle_sessions')
+      .update({ status: targetStatus, updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (error) return { success: false, error: error.message };
+
     await supabase
       .from('battle_session_participants')
       .update({ ready: false })
@@ -399,8 +422,8 @@ export async function returnToSetup(
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
     return { success: true };
   } catch (err) {
-    console.error('Error returning to setup:', err);
-    return { success: false, error: 'Failed to return to pre-battle' };
+    console.error('Error changing session phase:', err);
+    return { success: false, error: 'Failed to change session phase' };
   }
 }
 
@@ -852,6 +875,8 @@ export async function updateGangOutcome(params: {
 
     const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
+    if (auth.participantId !== params.participant_id)
+      return { success: false, error: 'You can only update your own gang outcomes' };
 
     const gangUpdateParams: {
       gang_id: string;
@@ -905,7 +930,7 @@ export async function updateGangOutcome(params: {
 
 export async function completeBattleSession(
   sessionId: string,
-  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null; reputation_changes?: Record<string, number>; income_changes?: Record<string, number> }
+  options?: { campaign_territory_id?: string; note?: string; cycle?: number | null }
 ): Promise<{
   success: boolean;
   campaign_battle_id?: string;
@@ -932,8 +957,8 @@ export async function completeBattleSession(
       .single();
 
     if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'active')
-      return { success: false, error: 'Session is not active' };
+    if (session.status !== 'post_battle')
+      return { success: false, error: 'Session must be in post-battle to complete' };
 
     let campaign_battle_id: string | undefined;
 
@@ -964,71 +989,6 @@ export async function completeBattleSession(
       }
     }
 
-    const validParticipantIds = new Set(allParticipants?.map((p) => p.id) ?? []);
-
-    if (options?.reputation_changes) {
-      for (const [participantId, repValue] of Object.entries(options.reputation_changes)) {
-        if (!validParticipantIds.has(participantId)) continue;
-
-        const { data: part } = await supabase
-          .from('battle_session_participants')
-          .select('gang_id, reputation_change')
-          .eq('id', participantId)
-          .single();
-        if (!part) continue;
-
-        const delta = repValue - part.reputation_change;
-        if (delta === 0) continue;
-
-        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
-        const gangResult = await updateGang({
-          gang_id: part.gang_id,
-          reputation: Math.abs(delta),
-          reputation_operation: operation,
-        });
-        if (!gangResult.success) {
-          if (campaign_battle_id) {
-            await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
-          }
-          return { success: false, error: gangResult.error || 'Failed to apply reputation change' };
-        }
-        await supabase
-          .from('battle_session_participants')
-          .update({ reputation_change: repValue })
-          .eq('id', participantId);
-      }
-    }
-
-    if (options?.income_changes) {
-      for (const [participantId, delta] of Object.entries(options.income_changes)) {
-        if (!validParticipantIds.has(participantId) || delta === 0) continue;
-
-        const { data: part } = await supabase
-          .from('battle_session_participants')
-          .select('gang_id, credits_earned')
-          .eq('id', participantId)
-          .single();
-        if (!part) continue;
-
-        const operation = delta >= 0 ? 'add' as const : 'subtract' as const;
-        const gangResult = await updateGang({
-          gang_id: part.gang_id,
-          credits: Math.abs(delta),
-          credits_operation: operation,
-        });
-        if (!gangResult.success) {
-          if (campaign_battle_id) {
-            await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
-          }
-          return { success: false, error: gangResult.error || 'Failed to apply income change' };
-        }
-        await supabase
-          .from('battle_session_participants')
-          .update({ credits_earned: part.credits_earned + delta })
-          .eq('id', participantId);
-      }
-    }
-
     let claimed_territory: string | null = null;
     if (options?.campaign_territory_id) {
       const { data: territory } = await supabase
@@ -1048,7 +1008,7 @@ export async function completeBattleSession(
         updated_at: new Date().toISOString(),
       })
       .eq('id', sessionId)
-      .eq('status', 'active')
+      .eq('status', 'post_battle')
       .select('id');
 
     if (error || !updated || updated.length === 0) {

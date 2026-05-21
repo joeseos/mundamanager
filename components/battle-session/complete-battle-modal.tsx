@@ -37,12 +37,6 @@ export default function CompleteBattleModal({
   const [selectedTerritory, setSelectedTerritory] = useState('');
   const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
-  const [repChanges, setRepChanges] = useState<Record<string, string>>(
-    () => Object.fromEntries(session.participants.map((p) => [p.id, '']))
-  );
-  const [incomeChanges, setIncomeChanges] = useState<Record<string, string>>(
-    () => Object.fromEntries(session.participants.map((p) => [p.id, '']))
-  );
   const [submitting, setSubmitting] = useState(false);
 
   const gangNameMap = new Map(
@@ -73,24 +67,10 @@ export default function CompleteBattleModal({
       if (!isNaN(parsed) && parsed > 0) cycleValue = parsed;
     }
 
-    const reputationChanges: Record<string, number> = {};
-    for (const [participantId, value] of Object.entries(repChanges)) {
-      const num = parseInt(value, 10);
-      if (!isNaN(num) && num !== 0) reputationChanges[participantId] = num;
-    }
-
-    const incomeValues: Record<string, number> = {};
-    for (const [participantId, value] of Object.entries(incomeChanges)) {
-      const num = parseInt(value, 10);
-      if (!isNaN(num) && num !== 0) incomeValues[participantId] = num;
-    }
-
     const completeResult = await completeBattleSession(session.id, {
       campaign_territory_id: selectedTerritory || undefined,
       note: notes || undefined,
       cycle: cycleValue,
-      reputation_changes: Object.keys(reputationChanges).length > 0 ? reputationChanges : undefined,
-      income_changes: Object.keys(incomeValues).length > 0 ? incomeValues : undefined,
     });
     if (!completeResult.success) {
       toast.error(completeResult.error || 'Failed to complete session');
@@ -175,32 +155,16 @@ export default function CompleteBattleModal({
                       <span className="text-red-500">{totalInjuries} injuries</span>
                     )}
                   </div>
-                  <div className="mt-2 flex gap-2">
-                    <div className="flex-1">
-                      <label className="mb-1 block text-xs text-neutral-500">Reputation Change</label>
-                      <input
-                        type="tel"
-                        inputMode="url"
-                        pattern="-?[0-9]+"
-                        value={repChanges[p.id] ?? ''}
-                        onChange={(e) => setRepChanges((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                        placeholder="0"
-                        className="w-full rounded border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-600 dark:bg-neutral-800"
-                      />
+                  {(p.reputation_change !== 0 || p.credits_earned !== 0) && (
+                    <div className="mt-1 flex gap-3 text-xs text-neutral-500">
+                      {p.reputation_change !== 0 && (
+                        <span>Rep: {p.reputation_change > 0 ? '+' : ''}{p.reputation_change}</span>
+                      )}
+                      {p.credits_earned !== 0 && (
+                        <span>Credits: {p.credits_earned > 0 ? '+' : ''}{p.credits_earned}</span>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <label className="mb-1 block text-xs text-neutral-500">Income</label>
-                      <input
-                        type="tel"
-                        inputMode="url"
-                        pattern="-?[0-9]+"
-                        value={incomeChanges[p.id] ?? ''}
-                        onChange={(e) => setIncomeChanges((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                        placeholder="0"
-                        className="w-full rounded border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-600 dark:bg-neutral-800"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
