@@ -693,7 +693,7 @@ function FighterRow({
             document.body
           )}
         </td>
-      ) : (battleActive || note) ? (
+      ) : battleActive ? (
         <td className="p-1 md:p-2 text-right whitespace-nowrap">
           <div className="flex items-center justify-end gap-4">
             {note && (
