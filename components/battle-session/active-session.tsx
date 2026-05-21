@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  fetchBattleSession,
   setSessionScenario,
   advanceRound,
   changeSessionPhase,
@@ -15,6 +16,7 @@ import { useBattleSessionRealtime } from '@/hooks/use-battle-session-realtime';
 import ParticipantCard from './participant-card';
 import CreateBattleModal from './create-battle-modal';
 import CompleteBattleModal from './complete-battle-modal';
+import CompletedSession from './completed-session';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
@@ -32,7 +34,7 @@ interface ActiveSessionProps {
 }
 
 export default function ActiveSession({
-  session,
+  session: initialSession,
   userId,
   scenarios,
   gangFightersMap,
@@ -40,7 +42,23 @@ export default function ActiveSession({
   territories = [],
 }: ActiveSessionProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: session = initialSession } = useQuery({
+    queryKey: ['battle-session', initialSession.id],
+    queryFn: async () => {
+      const data = await fetchBattleSession(initialSession.id);
+      if (!data) throw new Error('Session not found');
+      return data;
+    },
+    initialData: initialSession,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
   const broadcast = useBattleSessionRealtime(session.id);
+
+  if (session.status === 'completed') {
+    return <CompletedSession session={session} userId={userId} />;
+  }
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
@@ -77,6 +95,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         toast.success('Battle cancelled');
+        broadcast();
         router.back();
       } else {
         toast.error(result.error);
@@ -91,7 +110,7 @@ export default function ActiveSession({
       if (result.success) {
         toast.success(`Round ${result.newRound} started`);
         broadcast();
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
       } else {
         toast.error(result.error || 'Failed to advance round');
       }
@@ -105,7 +124,7 @@ export default function ActiveSession({
       if (result.success) {
         toast.success(`Reverted to round ${result.newRound}`);
         broadcast();
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
       } else {
         toast.error(result.error || 'Failed to revert round');
       }
@@ -118,7 +137,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         broadcast();
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
       } else {
         toast.error(result.error || 'Failed to change phase');
       }
