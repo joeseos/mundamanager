@@ -34,6 +34,7 @@ import {
   addSessionInjury,
   removeSessionInjury,
   updateSessionConditions,
+  updateActivations,
   updateSessionNote,
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
@@ -79,6 +80,10 @@ const NUMERIC_CONDITIONS: ConditionDefinition[] = [
 ];
 
 const CONDITION_BY_KEY = new Map([...SESSION_CONDITIONS, ...NUMERIC_CONDITIONS].map((condition) => [condition.key, condition]));
+
+const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
+const hasDualActivation = (rules?: string[]) =>
+  rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
 function ConditionBadge({ condition }: { condition: SessionCondition }) {
   const config = CONDITION_BY_KEY.get(condition.key);
@@ -572,9 +577,11 @@ function FighterRow({
   injuryCount,
   canInteract,
   battleActive,
+  isSpyrer,
   gangFighter,
   onXpChanged,
   onConditionsChanged,
+  onActivationsChange,
   onInjuryAdded,
   onInjuryRemoved,
   onNoteChanged,
@@ -587,9 +594,11 @@ function FighterRow({
   injuryCount: number;
   canInteract: boolean;
   battleActive: boolean;
+  isSpyrer: boolean;
   gangFighter: GangFighter | undefined;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
+  onActivationsChange: (activations: number) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
   onInjuryRemoved: (index: number) => void;
   onNoteChanged: (note: string) => void;
@@ -602,15 +611,18 @@ function FighterRow({
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const note = fighter.session_record?.note ?? '';
-  const isReady = conditions.some((c) => c.key === 'ready');
-  const displayConditions = conditions.filter((c) => c.key !== 'ready');
+  const activations = fighter.session_record?.activations ?? 1;
+  const isReady = activations > 0;
+  const maxActivations = isSpyrer ? 2 : 1;
 
   const toggleReady = () => {
-    const nextConditions = isReady
-      ? conditions.filter((c) => c.key !== 'ready')
-      : [...conditions, { key: 'ready', name: 'Ready' }];
-    onConditionsChanged(nextConditions);
+    const next = activations > 0 ? activations - 1 : maxActivations;
+    onActivationsChange(next);
   };
+
+  const iconColor = isSpyrer
+    ? activations === 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30'
+    : isReady ? 'text-green-500' : 'text-muted-foreground/30';
 
   return (
     <tr className={`border-b last:border-b-0 ${!isReady ? 'opacity-40' : ''}`}>
@@ -623,7 +635,7 @@ function FighterRow({
           />
           <div>
             <div>{cost !== undefined ? `${name} - ${cost === 0 ? '*' : cost}` : name}</div>
-            {(xp > 0 || injuryCount > 0 || displayConditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
+            {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
                   <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -637,7 +649,7 @@ function FighterRow({
                         {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
                       </span>
                     )}
-                    {displayConditions.map((condition) => (
+                    {conditions.map((condition) => (
                       <ConditionBadge key={condition.key} condition={condition} />
                     ))}
                   </>
@@ -651,7 +663,7 @@ function FighterRow({
                         {injury.effect_name}
                       </span>
                     ))}
-                    {displayConditions.map((condition) => (
+                    {conditions.map((condition) => (
                       <ConditionBadge key={condition.key} condition={condition} />
                     ))}
                   </>
@@ -670,8 +682,8 @@ function FighterRow({
               onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
             />
             <FaUserCheck
-              className={`size-5 transition-colors duration-200 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'} cursor-pointer hover:text-muted-foreground`}
-              title={isReady ? 'Ready' : 'Activated'}
+              className={`size-5 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
+              title={isSpyrer ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : isReady ? 'Ready' : 'Activated'}
               onClick={toggleReady}
             />
             <CgMoreVerticalO
@@ -976,15 +988,17 @@ export default function ParticipantCard({
   const buildOptimisticFighter = (fighterId: string, loadoutId?: string): BattleSessionFighter => {
     const gf = gangFighters.find((f) => f.id === fighterId && (!loadoutId || f.loadout_id === loadoutId))
       ?? gangFighters.find((f) => f.id === fighterId);
+    const fullGf = gangFightersList.find((f) => f.id === fighterId);
+    const isDual = hasDualActivation(fullGf?.special_rules);
     return {
       id: `temp-${Date.now()}-${fighterId}`,
       battle_session_id: session.id,
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,
-      session_record: { xp_earned: 0, injuries: [], conditions: [{ key: 'ready', name: 'Ready' }] },
+      session_record: { xp_earned: 0, injuries: [], conditions: [], activations: isDual ? 2 : 1 },
       created_at: new Date().toISOString(),
-      fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits } : undefined,
+      fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
   };
 
@@ -1094,6 +1108,30 @@ export default function ParticipantCard({
     onError: (_err, _vars, context) => {
       if (context?.prev) setLocalFighters(context.prev);
       toast.error('Failed to update conditions');
+    },
+  });
+
+  const updateActivationsMutation = useMutation({
+    mutationFn: async ({ sessionFighterId, activations }: { sessionFighterId: string; activations: number }) => {
+      const result = await updateActivations({ session_fighter_id: sessionFighterId, activations });
+      if (!result.success) throw new Error(result.error || 'Failed to update activations');
+      return result;
+    },
+    onMutate: ({ sessionFighterId, activations }) => {
+      const prev = localFighters;
+      setLocalFighters((cur) =>
+        cur.map((lf) =>
+          lf.id === sessionFighterId
+            ? { ...lf, session_record: { ...lf.session_record, activations } }
+            : lf
+        )
+      );
+      return { prev };
+    },
+    onSuccess: () => onBroadcast?.(),
+    onError: (_err, _vars, context) => {
+      if (context?.prev) setLocalFighters(context.prev);
+      toast.error('Failed to update activations');
     },
   });
 
@@ -1328,6 +1366,7 @@ export default function ParticipantCard({
                         injuryCount={injuryCount}
                         canInteract={canInteract}
                         battleActive={battleActive}
+                        isSpyrer={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
@@ -1337,6 +1376,12 @@ export default function ParticipantCard({
                           updateConditionsMutation.mutate({
                             sessionFighterId: f.id,
                             conditions,
+                          });
+                        }}
+                        onActivationsChange={(activations) => {
+                          updateActivationsMutation.mutate({
+                            sessionFighterId: f.id,
+                            activations,
                           });
                         }}
                         onInjuryAdded={(injury) => {
