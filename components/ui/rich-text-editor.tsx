@@ -201,7 +201,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     },
     editorProps: {
       attributes: {
-        class: 'focus:outline-none min-h-[200px] text-base md:text-sm ProseMirror',
+        class: 'focus:outline-none min-h-[200px] ProseMirror',
       },
     },
     immediatelyRender: false,

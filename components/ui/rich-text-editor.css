@@ -18,11 +18,20 @@
   outline: none;
   min-height: 200px;
   padding: 1rem;
-  
+
   @apply prose prose-sm max-w-none; /* Apply prose styling to TipTap editor */
 
   /* Override prose text color to be black */
   color: #000000;
+
+  /* Prevent iOS Safari zoom on focus — must be >= 16px on mobile */
+  font-size: 1rem;
+}
+
+@media (min-width: 768px) {
+  .ProseMirror {
+    font-size: 0.875rem;
+  }
 }
 
 /* Ensure bold text is properly colored */
