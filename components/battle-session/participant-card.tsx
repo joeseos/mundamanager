@@ -1225,7 +1225,7 @@ export default function ParticipantCard({
                       const prev = localReady;
                       setReadyOverride(!prev);
                       readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
-                      const result = await toggleParticipantReady(session.id);
+                      const result = await toggleParticipantReady(session.id, participant.id);
                       if (!result.success) {
                         if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
                         setReadyOverride(null);
@@ -1308,8 +1308,8 @@ export default function ParticipantCard({
                       fighter_entries: toAdd,
                     })
                   : { success: true as const, error: undefined },
-                ...toRemove.map((id) => removeFighterFromSession(session.id, id)),
-                ...toUpdate.map((entry) => updateFighterLoadout(session.id, entry.fighter_id, entry.loadout_id)),
+                ...toRemove.map((id) => removeFighterFromSession(session.id, id, participant.id)),
+                ...toUpdate.map((entry) => updateFighterLoadout(session.id, entry.fighter_id, entry.loadout_id, participant.id)),
               ]);
 
               const failed = results.filter((r) => !r.success);

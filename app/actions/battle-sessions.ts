@@ -51,17 +51,33 @@ async function verifySessionCreator(
 async function verifySessionParticipant(
   supabase: Awaited<ReturnType<typeof createClient>>,
   sessionId: string,
-  userId: string
+  userId: string,
+  participantId?: string
 ): Promise<{ authorized: boolean; participantId?: string; error?: string }> {
-  const { data: participant } = await supabase
+  if (participantId) {
+    const { data: participant } = await supabase
+      .from('battle_session_participants')
+      .select('id')
+      .eq('id', participantId)
+      .eq('battle_session_id', sessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!participant)
+      return { authorized: false, error: 'You are not a participant in this session' };
+    return { authorized: true, participantId: participant.id };
+  }
+
+  const { data: participants } = await supabase
     .from('battle_session_participants')
     .select('id')
     .eq('battle_session_id', sessionId)
     .eq('user_id', userId)
-    .maybeSingle();
+    .limit(1);
 
+  const participant = participants?.[0];
   if (!participant)
-    return { authorized: false, error: 'You are not a participant in this session' };
+    return { authorized: false, error: 'You are not a participant in this battle session' };
   return { authorized: true, participantId: participant.id };
 }
 
@@ -326,13 +342,14 @@ export async function advanceRound(
 // =============================================================================
 
 export async function toggleParticipantReady(
-  sessionId: string
+  sessionId: string,
+  participantId: string
 ): Promise<{ success: boolean; battleStarted?: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const { data: session } = await supabase
@@ -346,7 +363,7 @@ export async function toggleParticipantReady(
     const { data: myParticipant } = await supabase
       .from('battle_session_participants')
       .select('id, ready')
-      .eq('battle_session_id', sessionId)
+      .eq('id', participantId)
       .eq('user_id', user.id)
       .single();
     if (!myParticipant) return { success: false, error: 'Participant not found' };
@@ -631,13 +648,14 @@ export async function updateParticipantRole(
 
 export async function removeFighterFromSession(
   sessionId: string,
-  fighterId: string
+  fighterId: string,
+  participantId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const { data: session } = await supabase
@@ -671,13 +689,14 @@ export async function removeFighterFromSession(
 export async function updateFighterLoadout(
   sessionId: string,
   fighterId: string,
-  loadoutId: string | undefined
+  loadoutId: string | undefined,
+  participantId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const { data: session } = await supabase
@@ -717,10 +736,8 @@ export async function bulkAddFightersToSession(params: {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, params.session_id, user.id);
+    const auth = await verifySessionParticipant(supabase, params.session_id, user.id, params.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
-    if (auth.participantId !== params.participant_id)
-      return { success: false, error: 'Not authorized for this participant' };
 
     const { data: session } = await supabase
       .from('battle_sessions')
@@ -802,10 +819,8 @@ async function withSessionRecord(
 
   if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
 
-  const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id);
+  const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id, fighter.participant_id);
   if (!auth.authorized) return { success: false, error: auth.error };
-  if (fighter.participant_id !== auth.participantId)
-    return { success: false, error: 'Not authorized to modify this fighter' };
 
   const record: SessionRecord = {
     xp_earned: fighter.session_record?.xp_earned ?? 0,
@@ -918,10 +933,8 @@ export async function updateGangOutcome(params: {
     if (fetchError || !participant)
       return { success: false, error: 'Participant not found' };
 
-    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id);
+    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id, params.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
-    if (auth.participantId !== params.participant_id)
-      return { success: false, error: 'You can only update your own gang outcomes' };
 
     const gangUpdateParams: {
       gang_id: string;
