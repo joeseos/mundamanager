@@ -1123,9 +1123,13 @@ export const getGangFightersList = async (
             xp_cost,
             is_advance,
             fighter_effect_skill_id,
+            custom_skill_id,
             created_at,
             skill:skill_id (
               name
+            ),
+            custom_skill:custom_skill_id (
+              skill_name
             ),
             fighter_effect_skills!fighter_effect_skill_id (
               fighter_effects (
@@ -1577,7 +1581,7 @@ export const getGangFightersList = async (
         // Process skills into the expected format
         const skills: Record<string, any> = {};
         skillsData.forEach((skillData: any) => {
-          const skillName = (skillData.skill as any)?.name;
+          const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
           if (skillName) {
             const fe = skillData.fighter_effect_skills?.fighter_effects;
             const injuryName = fe?.effect_name;
@@ -1605,6 +1609,7 @@ export const getGangFightersList = async (
               credits_increase: skillData.credits_increase || 0,
               xp_cost: skillData.xp_cost || 0,
               is_advance: skillData.is_advance || false,
+              custom_skill_id: skillData.custom_skill_id || undefined,
               fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
               injury_name: injuryName || undefined,
               acquired_at: skillData.created_at,
