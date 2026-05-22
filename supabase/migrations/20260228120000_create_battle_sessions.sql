@@ -74,11 +74,11 @@ ALTER TABLE public.battle_session_fighters ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow authenticated users to view battle sessions"
   ON public.battle_sessions FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Campaign members can create battle sessions"
+CREATE POLICY "Authenticated users can create battle sessions"
   ON public.battle_sessions FOR INSERT TO authenticated
   WITH CHECK (
     private.is_admin() OR private.is_arb(campaign_id)
-    OR campaign_id IN (SELECT cm.campaign_id FROM campaign_members cm WHERE cm.user_id = auth.uid())
+    OR created_by = auth.uid()
   );
 
 CREATE POLICY "Admins, arbs, creator or participants can update battle session"
