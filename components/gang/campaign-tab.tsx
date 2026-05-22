@@ -125,8 +125,6 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             created_at,
             updated_at,
             scenario,
-            attacker_id,
-            defender_id,
             winner_id,
             note,
             participants,
@@ -141,20 +139,14 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
 
         // Filter battles where the gang is involved
         const gangBattles = (battles || []).filter(battle => {
-          // Check if gang is attacker, defender, winner, or in participants
-          if (battle.attacker_id === gangId || 
-              battle.defender_id === gangId || 
-              battle.winner_id === gangId) {
-            return true;
-          }
-          
-          // Check participants array
+          if (battle.winner_id === gangId) return true;
+
           if (battle.participants) {
             try {
-              const participants = typeof battle.participants === 'string' 
-                ? JSON.parse(battle.participants) 
+              const participants = typeof battle.participants === 'string'
+                ? JSON.parse(battle.participants)
                 : battle.participants;
-              
+
               if (Array.isArray(participants)) {
                 return participants.some((p: any) => p.gang_id === gangId);
               }
@@ -162,24 +154,21 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
               // Ignore parse errors
             }
           }
-          
+
           return false;
         });
 
-        // Extract all gang IDs including from participants
+        // Extract all gang IDs from participants and winner
         const allGangIds = new Set<string>();
         gangBattles.forEach(battle => {
-          if (battle.attacker_id) allGangIds.add(battle.attacker_id);
-          if (battle.defender_id) allGangIds.add(battle.defender_id);
           if (battle.winner_id) allGangIds.add(battle.winner_id);
-          
-          // Extract from participants
+
           if (battle.participants) {
             try {
-              const participants = typeof battle.participants === 'string' 
-                ? JSON.parse(battle.participants) 
+              const participants = typeof battle.participants === 'string'
+                ? JSON.parse(battle.participants)
                 : battle.participants;
-              
+
               if (Array.isArray(participants)) {
                 participants.forEach((p: any) => {
                   if (p.gang_id) allGangIds.add(p.gang_id);
@@ -245,21 +234,29 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             }
           }
           
+          // Derive attacker/defender from participants
+          let attackerId: string | undefined;
+          let defenderId: string | undefined;
+          if (Array.isArray(participantsWithNames)) {
+            attackerId = participantsWithNames.find((p: any) => p.role === 'attacker')?.gang_id;
+            defenderId = participantsWithNames.find((p: any) => p.role === 'defender')?.gang_id;
+          }
+
           return {
             ...battle,
             campaign_id: battle.campaign_id,
             campaign_name: campaign?.campaign_name || 'Unknown Campaign',
             territory_name: battle.campaign_territory_id ? territoriesMap.get(battle.campaign_territory_id) : undefined,
             participants: participantsWithNames,
-            attacker: battle.attacker_id ? {
-              id: battle.attacker_id,
-              name: gangMap.get(battle.attacker_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.attacker_id) || '#000000'
+            attacker: attackerId ? {
+              id: attackerId,
+              name: gangMap.get(attackerId)?.name || 'Unknown',
+              gang_colour: gangColourMap.get(attackerId) || '#000000'
             } : undefined,
-            defender: battle.defender_id ? {
-              id: battle.defender_id,
-              name: gangMap.get(battle.defender_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.defender_id) || '#000000'
+            defender: defenderId ? {
+              id: defenderId,
+              name: gangMap.get(defenderId)?.name || 'Unknown',
+              gang_colour: gangColourMap.get(defenderId) || '#000000'
             } : undefined,
             winner: battle.winner_id ? {
               id: battle.winner_id,

@@ -82,10 +82,7 @@ function parseBattleParticipants(battle: Battle): BattleParticipant[] {
     try { participants = JSON.parse(participants); } catch { participants = []; }
   }
   if (participants && Array.isArray(participants)) return participants;
-  const fallback: BattleParticipant[] = [];
-  if (battle.attacker_id) fallback.push({ gang_id: battle.attacker_id, role: 'attacker' });
-  if (battle.defender_id) fallback.push({ gang_id: battle.defender_id, role: 'defender' });
-  return fallback;
+  return [];
 }
 
 function applyCompetitionRanking(
