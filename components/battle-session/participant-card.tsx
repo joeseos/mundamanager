@@ -114,7 +114,6 @@ function FighterActionModal({
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
-  onInjuryRemoved,
   onBroadcast,
   onClose,
 }: {
@@ -122,7 +121,6 @@ function FighterActionModal({
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
-  onInjuryRemoved: (index: number) => void;
   onBroadcast?: () => void;
   onClose: () => void;
 }) {
@@ -130,6 +128,9 @@ function FighterActionModal({
   const [showInjuryModal, setShowInjuryModal] = useState(false);
   const [fighterData, setFighterData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
   const [loadingXp, setLoadingXp] = useState(false);
+  const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
+    fighter.session_record?.conditions ?? []
+  );
 
   const openXpModal = async () => {
     setLoadingXp(true);
@@ -149,27 +150,7 @@ function FighterActionModal({
     }
   };
 
-  const removeInjuryMut = useMutation({
-    mutationFn: async ({ index, injury }: { index: number; injury: SessionInjuryRecord }) => {
-      const deleteResult = await deleteFighterInjury({
-        fighter_id: fighter.fighter_id,
-        injury_id: injury.fighter_effect_id,
-      });
-      if (!deleteResult.success) throw new Error(deleteResult.error || 'Failed to delete injury');
-
-      const removeResult = await removeSessionInjury({ session_fighter_id: fighter.id, injury_id: injury.fighter_effect_id });
-      if (!removeResult.success) throw new Error(removeResult.error || 'Failed to remove session injury');
-    },
-    onMutate: ({ index }) => {
-      onInjuryRemoved(index);
-    },
-    onSuccess: () => onBroadcast?.(),
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to remove injury'),
-  });
-
-  const injuries = fighter.session_record?.injuries ?? [];
-  const xpEarned = fighter.session_record?.xp_earned ?? 0;
-  const conditions = fighter.session_record?.conditions ?? [];
+  const currentConditions = fighter.session_record?.conditions ?? [];
 
   const EXCLUSIVE_PAIRS: Record<string, string> = {
     hidden: 'revealed',
@@ -177,42 +158,44 @@ function FighterActionModal({
   };
 
   const toggleCondition = (condition: ConditionDefinition) => {
-    const exists = conditions.some((item) => item.key === condition.key);
-    let nextConditions: SessionCondition[];
+    const exists = draftConditions.some((item) => item.key === condition.key);
     if (exists) {
-      nextConditions = conditions.filter((item) => item.key !== condition.key);
+      setDraftConditions(draftConditions.filter((item) => item.key !== condition.key));
     } else {
       const excludeKey = EXCLUSIVE_PAIRS[condition.key];
-      nextConditions = [
-        ...conditions.filter((item) => item.key !== excludeKey),
+      setDraftConditions([
+        ...draftConditions.filter((item) => item.key !== excludeKey),
         { key: condition.key, name: condition.name },
-      ];
+      ]);
     }
-    onConditionsChanged(nextConditions);
-    onClose();
   };
 
   const adjustNumericCondition = (key: string, name: string, delta: number) => {
-    const existing = conditions.find((c) => c.key === key);
+    const existing = draftConditions.find((c) => c.key === key);
     const currentValue = existing?.value ?? 0;
     const newValue = Math.max(0, currentValue + delta);
-    let nextConditions: SessionCondition[];
     if (newValue === 0) {
-      nextConditions = conditions.filter((c) => c.key !== key);
+      setDraftConditions(draftConditions.filter((c) => c.key !== key));
     } else if (existing) {
-      nextConditions = conditions.map((c) => c.key === key ? { ...c, value: newValue } : c);
+      setDraftConditions(draftConditions.map((c) => c.key === key ? { ...c, value: newValue } : c));
     } else {
-      nextConditions = [...conditions, { key, name, value: newValue }];
+      setDraftConditions([...draftConditions, { key, name, value: newValue }]);
     }
-    onConditionsChanged(nextConditions);
   };
+
+  const hasConditionChanges = JSON.stringify(draftConditions) !== JSON.stringify(currentConditions);
 
   return (
     <>
       <Modal
         title="Fighter Actions"
         onClose={onClose}
-        hideCancel
+        onConfirm={async () => {
+          onConditionsChanged(draftConditions);
+          return true;
+        }}
+        confirmText="Confirm"
+        confirmDisabled={!hasConditionChanges}
       >
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -236,7 +219,7 @@ function FighterActionModal({
             <h4 className="text-sm font-medium text-neutral-500">Wounds & Flesh Wounds</h4>
             <div className="flex flex-col gap-2">
               {NUMERIC_CONDITIONS.map((nc) => {
-                const current = conditions.find((c) => c.key === nc.key)?.value ?? 0;
+                const current = draftConditions.find((c) => c.key === nc.key)?.value ?? 0;
                 return (
                   <div key={nc.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -272,7 +255,7 @@ function FighterActionModal({
             <h4 className="text-sm font-medium text-neutral-500">Conditions</h4>
             <div className="flex flex-wrap gap-2">
               {SESSION_CONDITIONS.map((condition) => {
-                const isActive = conditions.some((c) => c.key === condition.key);
+                const isActive = draftConditions.some((c) => c.key === condition.key);
                 return (
                   <Button
                     key={condition.key}
@@ -288,32 +271,6 @@ function FighterActionModal({
             </div>
           </div>
 
-          {(xpEarned > 0 || injuries.length > 0 || conditions.length > 0) && (
-            <div className="space-y-2 border-t pt-3 text-left">
-              <h4 className="text-sm font-medium text-neutral-500">Session Record</h4>
-              <div className="flex flex-wrap items-center gap-1 justify-start">
-                {xpEarned > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                    +{xpEarned} XP
-                  </span>
-                )}
-                {injuries.map((injury, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                  >
-                    {injury.effect_name}
-                    <button onClick={() => removeInjuryMut.mutate({ index: idx, injury })} className="ml-0.5 hover:text-red-900">
-                      ✕
-                    </button>
-                  </span>
-                ))}
-                {conditions.map((condition) => (
-                  <ConditionBadge key={condition.key} condition={condition} />
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
       </Modal>
@@ -583,7 +540,6 @@ function FighterRow({
   onConditionsChanged,
   onActivationsChange,
   onInjuryAdded,
-  onInjuryRemoved,
   onNoteChanged,
   onBroadcast,
 }: {
@@ -600,7 +556,6 @@ function FighterRow({
   onConditionsChanged: (conditions: SessionCondition[]) => void;
   onActivationsChange: (activations: number) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
-  onInjuryRemoved: (index: number) => void;
   onNoteChanged: (note: string) => void;
   onBroadcast?: () => void;
 }) {
@@ -698,7 +653,6 @@ function FighterRow({
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
-              onInjuryRemoved={onInjuryRemoved}
               onBroadcast={onBroadcast}
               onClose={() => setShowActionModal(false)}
             />,
@@ -1389,15 +1343,6 @@ export default function ParticipantCard({
                             cur.map((lf) =>
                               lf.id === f.id
                                 ? { ...lf, session_record: { ...lf.session_record, injuries: [...(lf.session_record?.injuries ?? []), injury] } }
-                                : lf
-                            )
-                          );
-                        }}
-                        onInjuryRemoved={(index) => {
-                          setLocalFighters((cur) =>
-                            cur.map((lf) =>
-                              lf.id === f.id
-                                ? { ...lf, session_record: { ...lf.session_record, injuries: (lf.session_record?.injuries ?? []).filter((_, i) => i !== index) } }
                                 : lf
                             )
                           );
