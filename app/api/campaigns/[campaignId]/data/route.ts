@@ -4,7 +4,8 @@ import {
   getCampaignBasic,
   getCampaignMembers,
   getCampaignTerritories,
-  getCampaignBattles
+  getCampaignBattles,
+  getCampaignResources
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 
 // IP-based rate limiting storage
@@ -208,6 +209,7 @@ interface DataGang {
   salvage: number | null;
   territory_count: number;
   territories: DataTerritory[];
+  resources: Array<{ resource_id: string; resource_name: string; quantity: number; is_custom: boolean }>;
 }
 
 interface DataBattle {
@@ -252,7 +254,8 @@ function transformGangForData(gang: any): DataGang {
     sustenance: gang.sustenance,
     salvage: gang.salvage,
     territory_count: gang.territory_count,
-    territories: (gang.territories ?? []).map((t: any) => transformTerritoryForData(t, true))
+    territories: (gang.territories ?? []).map((t: any) => transformTerritoryForData(t, true)),
+    resources: gang.resources ?? []
   };
 }
 
@@ -399,12 +402,14 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaignBasic,
       campaignMembers,
       campaignTerritories,
-      campaignBattles
+      campaignBattles,
+      campaignResources
     ] = await Promise.all([
       getCampaignBasic(campaignId, supabase),
       getCampaignMembers(campaignId, supabase),
       getCampaignTerritories(campaignId, supabase),
-      getCampaignBattles(campaignId, 100, supabase)
+      getCampaignBattles(campaignId, 100, supabase),
+      getCampaignResources(campaignId, supabase)
     ]);
 
     // Return 404 if campaign not found
@@ -470,6 +475,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         has_salvage: campaignBasic.has_salvage
       },
       members: membersWithTerritories,
+      resources: campaignResources,
       available_territories: campaignTerritories.map(t => transformTerritoryForData(t, false)),
       battle_logs: campaignBattles.map(transformBattleForData)
     };
