@@ -1291,6 +1291,7 @@ export function EditFighterModal({
         }
         onClose={onClose}
         onConfirm={handleConfirm}
+        confirmDisabled={!formValues.name.trim()}
       />
       
       {/* Stats modal */}
