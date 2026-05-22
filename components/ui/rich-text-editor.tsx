@@ -201,7 +201,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     },
     editorProps: {
       attributes: {
-        class: 'focus:outline-none min-h-[200px] ProseMirror',
+        class: 'focus:outline-none min-h-[200px] text-base md:text-sm ProseMirror',
       },
     },
     immediatelyRender: false,
@@ -776,7 +776,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 placeholder="Enter URL..."
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
-                className="flex-1 px-3 py-1 border rounded text-sm"
+                className="flex-1 px-3 py-1 border rounded text-base md:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     addLink();
@@ -875,7 +875,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     placeholder="Image URL (hotlink)..."
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    className="flex-1 px-3 py-1 border rounded text-sm"
+                    className="flex-1 px-3 py-1 border rounded text-base md:text-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         addImage();
