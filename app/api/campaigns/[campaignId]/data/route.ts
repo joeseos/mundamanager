@@ -201,12 +201,6 @@ interface DataGang {
   wealth: number;
   credits: number;
   reputation: number;
-  exploration_points: number | null;
-  meat: number | null;
-  scavenging_rolls: number | null;
-  power: number | null;
-  sustenance: number | null;
-  salvage: number | null;
   territory_count: number;
   territories: DataTerritory[];
   resources: Array<{ resource_id: string; resource_name: string; quantity: number; is_custom: boolean }>;
@@ -247,12 +241,6 @@ function transformGangForData(gang: any): DataGang {
     wealth: gang.wealth,
     credits: gang.credits,
     reputation: gang.reputation,
-    exploration_points: gang.exploration_points,
-    meat: gang.meat,
-    scavenging_rolls: gang.scavenging_rolls,
-    power: gang.power,
-    sustenance: gang.sustenance,
-    salvage: gang.salvage,
     territory_count: gang.territory_count,
     territories: (gang.territories ?? []).map((t: any) => transformTerritoryForData(t, true)),
     resources: gang.resources ?? []
@@ -466,13 +454,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         description: campaignBasic.description,
         created_at: campaignBasic.created_at,
         updated_at: campaignBasic.updated_at,
-        note: campaignBasic.note,
-        has_meat: campaignBasic.has_meat,
-        has_exploration_points: campaignBasic.has_exploration_points,
-        has_scavenging_rolls: campaignBasic.has_scavenging_rolls,
-        has_power: campaignBasic.has_power,
-        has_sustenance: campaignBasic.has_sustenance,
-        has_salvage: campaignBasic.has_salvage
+        note: campaignBasic.note
       },
       members: membersWithTerritories,
       resources: campaignResources,
