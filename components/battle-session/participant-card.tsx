@@ -575,9 +575,7 @@ function FighterRow({
     onActivationsChange(next);
   };
 
-  const iconColor = isSpyrer
-    ? activations === 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30'
-    : isReady ? 'text-green-500' : 'text-muted-foreground/30';
+  const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
 
   return (
     <tr className={`border-b last:border-b-0 ${!isReady ? 'opacity-40' : ''}`}>
@@ -638,7 +636,7 @@ function FighterRow({
             />
             <FaUserCheck
               className={`size-5 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
-              title={isSpyrer ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : isReady ? 'Ready' : 'Activated'}
+              title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
               onClick={toggleReady}
             />
             <CgMoreVerticalO
@@ -671,8 +669,8 @@ function FighterRow({
             )}
             {battleActive && (
               <FaUserCheck
-                className={`size-5 ${isReady ? 'text-green-500' : 'text-muted-foreground/30'}`}
-                title={isReady ? 'Ready' : 'Activated'}
+                className={`size-5 ${iconColor}`}
+                title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
               />
             )}
           </div>
