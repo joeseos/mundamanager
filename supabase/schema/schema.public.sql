@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xsXjSJ2YPmiRXdvjQputVROFLu5UMZ3g4imBSymWGZIOa6nyCotR3Wr1VVm0ouI
+\restrict S1Y4ysH8eMfFy3vXdbrMlqusRx72778llunIoUJR7nlrZ5ITfLCWsjAVBLWKJXO
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -8636,6 +8636,13 @@ CREATE POLICY "Anyone can view campaign type resources" ON public.campaign_type_
 
 
 --
+-- Name: battle_sessions Authenticated users can create battle sessions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authenticated users can create battle sessions" ON public.battle_sessions FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR private.is_arb(campaign_id) OR (created_by = auth.uid())));
+
+
+--
 -- Name: fighter_loadout_equipment Authenticated users can manage loadout equipment; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8686,15 +8693,6 @@ CREATE POLICY "Campaign map objects are viewable by everyone" ON public.campaign
 --
 
 CREATE POLICY "Campaign maps are viewable by everyone" ON public.campaign_maps FOR SELECT USING (true);
-
-
---
--- Name: battle_sessions Campaign members can create battle sessions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Campaign members can create battle sessions" ON public.battle_sessions FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (campaign_id IN ( SELECT cm.campaign_id
-   FROM public.campaign_members cm
-  WHERE (cm.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
@@ -10953,5 +10951,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xsXjSJ2YPmiRXdvjQputVROFLu5UMZ3g4imBSymWGZIOa6nyCotR3Wr1VVm0ouI
+\unrestrict S1Y4ysH8eMfFy3vXdbrMlqusRx72778llunIoUJR7nlrZ5ITfLCWsjAVBLWKJXO
 
