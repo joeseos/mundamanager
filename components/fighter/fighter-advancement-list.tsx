@@ -552,13 +552,16 @@ export function AdvancementModal({
     let cancelled = false;
     const run = async () => {
       try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+              'Authorization': `Bearer ${session?.access_token || ''}`,
             },
             body: JSON.stringify({ fighter_id: fighterId })
           }
@@ -1437,6 +1440,8 @@ export function AdvancementModal({
           if (!selectedCategory) return;
 
           
+          const supabase = createClient();
+          const { data: { session } } = await supabase.auth.getSession();
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
             {
@@ -1444,6 +1449,7 @@ export function AdvancementModal({
               headers: {
                 'Content-Type': 'application/json',
                 'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+                'Authorization': `Bearer ${session?.access_token || ''}`,
               },
               body: JSON.stringify({
                 fighter_id: fighterId
