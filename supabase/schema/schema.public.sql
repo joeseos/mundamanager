@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict S1Y4ysH8eMfFy3vXdbrMlqusRx72778llunIoUJR7nlrZ5ITfLCWsjAVBLWKJXO
+\restrict 3BiWT0fdzYEyuHYMQwSgT4QtnVv5hDMVkNSZgObP2NrmhXY2lqeOo2ID0ea2R51
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -6163,6 +6163,13 @@ CREATE INDEX battle_sessions_status_idx ON public.battle_sessions USING btree (s
 
 
 --
+-- Name: battle_sessions_updated_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_updated_at_idx ON public.battle_sessions USING btree (updated_at);
+
+
+--
 -- Name: battle_sessions_winner_gang_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10951,5 +10958,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict S1Y4ysH8eMfFy3vXdbrMlqusRx72778llunIoUJR7nlrZ5ITfLCWsjAVBLWKJXO
+\unrestrict 3BiWT0fdzYEyuHYMQwSgT4QtnVv5hDMVkNSZgObP2NrmhXY2lqeOo2ID0ea2R51
 
