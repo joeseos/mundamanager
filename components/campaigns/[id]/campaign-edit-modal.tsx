@@ -142,9 +142,12 @@ export default function CampaignEditModal({
       status: formValues.status,
     };
 
-    // Include discord_channel_id if guild is connected
+    // Include discord_channel_id and type if guild is connected
     if (campaignData.discord_guild_id) {
       saveData.discord_channel_id = selectedChannelId || null;
+      saveData.discord_channel_type = selectedChannelId
+        ? (discordChannels.find(ch => ch.id === selectedChannelId)?.type ?? 0)
+        : 0;
     }
 
     const result = await onSave(saveData);

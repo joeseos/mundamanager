@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
 
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("campaign_name, discord_channel_id")
+      .select("campaign_name, discord_channel_id, discord_channel_type")
       .eq("id", battle.campaign_id)
       .single();
 
@@ -187,22 +187,7 @@ Deno.serve(async (req) => {
       footer: { text: "MundaManager" },
     };
 
-    // Determine channel type to decide how to post
-    const channelInfoRes = await fetch(
-      `https://discord.com/api/v10/channels/${campaign.discord_channel_id}`,
-      {
-        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
-      }
-    );
-
-    if (!channelInfoRes.ok) {
-      const error = await channelInfoRes.text();
-      console.error("Discord channel info fetch failed:", error);
-      return new Response("Discord API failed", { status: 500 });
-    }
-
-    const channelInfo = await channelInfoRes.json();
-    const isForumChannel = channelInfo.type === 15;
+    const isForumChannel = campaign.discord_channel_type === 15;
 
     let discordRes: Response;
 
