@@ -825,3 +825,8 @@ BEGIN
         (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_fighter_types_with_cost(UUID, UUID, BOOLEAN) TO service_role;
