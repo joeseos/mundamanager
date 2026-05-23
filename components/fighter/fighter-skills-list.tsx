@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
@@ -6,6 +6,7 @@ import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
+import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -77,8 +78,8 @@ interface SkillResponse {
 
 interface SkillAccess {
   skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed' | null; // default from fighter type
-  override_access_level: 'primary' | 'secondary' | 'allowed' | null; // override from archetype
+  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
+  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
   skill_type_name: string;
 }
 
@@ -208,6 +209,129 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     fetchSkills();
   }, [selectedCategory, fighterId, toast]);
 
+  /**
+   * Skill Set combobox options grouped by rank (Custom Skill Sets first, then standard groups).
+   * Group headers are rendered as disabled rows so the Combobox treats them as section headers.
+   */
+  const skillSetComboboxOptions = useMemo(() => {
+    const skillAccessMap = new Map<string, SkillAccess>();
+    skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
+
+    const customCategories = categories.filter((c) => c.is_custom);
+    const standardCategories = categories.filter((c) => !c.is_custom);
+
+    const groupByLabel: Record<string, Category[]> = {};
+    standardCategories.forEach((category) => {
+      const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
+      let groupLabel = 'Misc.';
+      if (rank <= 19) groupLabel = 'Universal Skill Sets';
+      else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
+      else if (rank <= 59) groupLabel = 'Wyrd Powers';
+      else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+      else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
+      else if (rank <= 89) groupLabel = 'Legendary Names';
+      else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+      if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
+      groupByLabel[groupLabel].push(category);
+    });
+
+    const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
+      const aRank = Math.min(
+        ...groupByLabel[a].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
+      );
+      const bRank = Math.min(
+        ...groupByLabel[b].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
+      );
+      return aRank - bRank;
+    });
+
+    const options: Array<{
+      value: string;
+      label: React.ReactNode;
+      displayValue: string;
+      disabled?: boolean;
+    }> = [];
+
+    const pushCategory = (category: Category) => {
+      const access = skillAccessMap.get(category.id);
+      const rawLevel = access?.override_access_level ?? access?.access_level;
+      // Treat 'denied' the same as no access for display purposes
+      const effectiveLevel = rawLevel && rawLevel !== 'denied' ? rawLevel : null;
+      let accessLabel = '';
+      if (effectiveLevel === 'primary') accessLabel = '(Primary)';
+      else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
+      else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
+      const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
+      options.push({
+        value: category.id,
+        label: effectiveLevel ? (
+          <span className="pl-3">{labelText}</span>
+        ) : (
+          <span className="pl-3 italic text-neutral-400">{labelText}</span>
+        ),
+        displayValue: labelText
+      });
+    };
+
+    if (customCategories.length > 0) {
+      options.push({
+        value: '__group__custom',
+        label: (
+          <span className="text-xs font-bold uppercase tracking-wide">
+            Custom Skill Sets
+          </span>
+        ),
+        displayValue: 'Custom Skill Sets',
+        disabled: true
+      });
+      customCategories
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(pushCategory);
+    }
+
+    sortedGroupLabels.forEach((groupLabel) => {
+      options.push({
+        value: `__group__${groupLabel}`,
+        label: (
+          <span className="text-xs font-bold uppercase tracking-wide">
+            {groupLabel}
+          </span>
+        ),
+        displayValue: groupLabel,
+        disabled: true
+      });
+      const groupCategories = groupByLabel[groupLabel].slice().sort((a, b) => {
+        const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
+        const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
+        return rankA - rankB;
+      });
+      groupCategories.forEach(pushCategory);
+    });
+
+    return options;
+  }, [categories, skillAccess]);
+
+  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
+  const skillComboboxOptions = useMemo(() => {
+    if (!skillsData) return [];
+    return skillsData.skills.map((skill) => {
+      const customSuffix = skill.is_custom ? ' (Custom)' : '';
+      const ownedSuffix = !skill.available ? ' (already owned)' : '';
+      const display = `${skill.skill_name}${customSuffix}${ownedSuffix}`;
+      return {
+        value: skill.skill_id,
+        label: !skill.available ? (
+          <span className="italic text-muted-foreground">{display}</span>
+        ) : (
+          display
+        ),
+        displayValue: display,
+        disabled: !skill.available
+      };
+    });
+  }, [skillsData]);
+
   const handleSubmit = async () => {
     if (!selectedSkill) return false;
 
@@ -237,118 +361,35 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     <div className="space-y-4">
       <div className="space-y-2">
         <label className="text-sm font-medium">Skill Set</label>
-        <select
+        <Combobox
           value={selectedCategory}
-          onChange={(e) => { setSelectedCategory(e.target.value); setSelectedSkill(''); setIsCustomSkillSelected(false); setEditableCost(0); }}
-          className="w-full p-2 border rounded"
-        >
-          <option key="placeholder-type" value="">Select a skill set</option>
-
-          {(() => {
-            // Map skill access by skill type ID
-            const skillAccessMap = new Map<string, SkillAccess>();
-            skillAccess.forEach(access => {
-              skillAccessMap.set(access.skill_type_id, access);
-            });
-
-            const customCategories = categories.filter(c => c.is_custom);
-            const standardCategories = categories.filter(c => !c.is_custom);
-
-            // Group standard categories by rank label
-            const groupByLabel: Record<string, typeof standardCategories> = {};
-            standardCategories.forEach(category => {
-              const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
-              let groupLabel = 'Misc.';
-              if (rank <= 19) groupLabel = 'Universal Skill Sets';
-              else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
-              else if (rank <= 59) groupLabel = 'Wyrd Powers';
-              else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
-              else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
-              else if (rank <= 89) groupLabel = 'Legendary Names';
-              else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
-              if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
-              groupByLabel[groupLabel].push(category);
-            });
-
-            const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
-              const aRank = Math.min(...groupByLabel[a].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
-              const bRank = Math.min(...groupByLabel[b].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
-              return aRank - bRank;
-            });
-
-            const renderOption = (category: Category) => {
-              const access = skillAccessMap.get(category.id);
-              const effectiveLevel = access?.override_access_level ?? access?.access_level;
-              let accessLabel = '';
-              let style: React.CSSProperties = { color: '#999999', fontStyle: 'italic' };
-              if (effectiveLevel) {
-                if (effectiveLevel === 'primary') { accessLabel = '(Primary)'; style = {}; }
-                else if (effectiveLevel === 'secondary') { accessLabel = '(Secondary)'; style = {}; }
-                else if (effectiveLevel === 'allowed') { accessLabel = '(Allowed)'; style = {}; }
-              }
-              return (
-                <option key={category.id} value={category.id} style={style}>
-                  {category.name} {accessLabel}
-                </option>
-              );
-            };
-
-            return (
-              <>
-                {customCategories.length > 0 && (
-                  <optgroup label="Custom Skill Sets">
-                    {customCategories
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map(renderOption)}
-                  </optgroup>
-                )}
-                {sortedGroupLabels.map(groupLabel => {
-                  const groupCategories = groupByLabel[groupLabel].sort((a, b) => {
-                    const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
-                    const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
-                    return rankA - rankB;
-                  });
-                  return (
-                    <optgroup key={groupLabel} label={groupLabel}>
-                      {groupCategories.map(renderOption)}
-                    </optgroup>
-                  );
-                })}
-              </>
-            );
-          })()}
-        </select>
+          onValueChange={(v) => {
+            setSelectedCategory(v);
+            setSelectedSkill('');
+            setIsCustomSkillSelected(false);
+            setEditableCost(0);
+          }}
+          placeholder="Select a skill set"
+          options={skillSetComboboxOptions}
+          dropdownPlacement="down"
+        />
       </div>
 
       {selectedCategory && skillsData && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Skill</label>
-          <select
+          <Combobox
             value={selectedSkill}
-            onChange={(e) => {
-              const value = e.target.value;
-              const skill = skillsData?.skills.find(s => s.skill_id === value);
-              setSelectedSkill(value);
+            onValueChange={(v) => {
+              const skill = skillsData?.skills.find((s) => s.skill_id === v);
+              setSelectedSkill(v);
               setIsCustomSkillSelected(skill?.is_custom ?? false);
               setEditableCost(skill?.cost || 0);
             }}
-            className="w-full p-2 border rounded"
-          >
-            <option key="placeholder-skill" value="">Select a skill</option>
-            {skillsData.skills.map((skill) => (
-              <option
-                key={skill.skill_id}
-                value={skill.skill_id}
-                disabled={!skill.available}
-                style={{
-                  color: !skill.available ? '#9CA3AF' : 'inherit',
-                  fontStyle: !skill.available ? 'italic' : 'normal'
-                }}
-              >
-                {skill.skill_name}{skill.is_custom ? ' (Custom)' : ''}{!skill.available ? ' (already owned)' : ''}
-              </option>
-            ))}
-          </select>
+            placeholder="Select a skill"
+            options={skillComboboxOptions}
+            dropdownPlacement="down"
+          />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
           {(skillsData?.skills.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
