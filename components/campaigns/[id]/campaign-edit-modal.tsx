@@ -165,7 +165,7 @@ export default function CampaignEditModal({
 
     const params = new URLSearchParams({
       client_id: clientId,
-      permissions: '34359740416',
+      permissions: '2048',
       scope: 'bot identify',
       redirect_uri: `${appUrl}/api/discord/callback`,
       response_type: 'code',
