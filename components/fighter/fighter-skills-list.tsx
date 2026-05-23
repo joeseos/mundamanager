@@ -92,7 +92,8 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  
+  const [skillAccessLoading, setSkillAccessLoading] = useState(true);
+
   const session = useSession();
   const queryClient = useQueryClient();
 
@@ -157,6 +158,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
         setCategories([...standard, ...custom]);
 
         // Fetch skill access for this fighter
+        setSkillAccessLoading(true);
         try {
           const skillAccessResponse = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
           if (skillAccessResponse.ok) {
@@ -168,6 +170,8 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
         } catch (error) {
           console.error('Error fetching skill access:', error);
           setSkillAccess([]);
+        } finally {
+          setSkillAccessLoading(false);
         }
 
       } catch (error) {
@@ -312,6 +316,16 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     return options;
   }, [categories, skillAccess]);
 
+  // Whether the fighter has no meaningful access to the currently selected skill set.
+  // Suppressed while skill-access data is still loading to avoid false-positive warnings.
+  const selectedSkillSetLacksAccess = useMemo(() => {
+    if (!selectedCategory || skillAccessLoading) return false;
+    const access = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+    if (!access) return true;
+    const effective = access.override_access_level ?? access.access_level;
+    return !effective || effective === 'denied';
+  }, [selectedCategory, skillAccessLoading, skillAccess]);
+
   /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
   const skillComboboxOptions = useMemo(() => {
     if (!skillsData) return [];
@@ -373,6 +387,12 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
           options={skillSetComboboxOptions}
           dropdownPlacement="down"
         />
+        {selectedSkillSetLacksAccess && (
+          <p className="text-sm text-amber-500">
+            This Skill Set is not accessible to this fighter. Change their Skill Set
+            access in: Edit Fighter &gt; Customise Skill Set Access.
+          </p>
+        )}
       </div>
 
       {selectedCategory && skillsData && (

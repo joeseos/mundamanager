@@ -35,14 +35,16 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'fighter_cost_adjusted': 'Cost adjusted',
 
   // Fighter advancement
-  'fighter_characteristic_advancement': 'Characteristic advanced',
-  'fighter_skill_advancement': 'Skill advanced',
+  'fighter_characteristic_advancement': 'Characteristic Advancement',
+  'fighter_skill_advancement': 'Skill Advancement',
   'fighter_skill_learned': 'Skill learned',
   'fighter_skill_removed': 'Skill removed',
   'fighter_characteristic_removed': 'Characteristic removed',
   'fighter_injured': 'Fighter injured',
   'fighter_recovered': 'Fighter recovered',
   'injury_roll': 'Lasting Injury roll',
+  'skill_advancement_roll': 'Skill Advancement roll',
+  'ganger_advancement_roll': 'Ganger Advancement roll',
 
   // Equipment
   'equipment_purchased': 'Equipment purchased',

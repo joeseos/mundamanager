@@ -16,7 +16,8 @@ import {
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
   deleteAdvancement,
-  verifyAndLogRolledGangerAdvancementRoll
+  verifyAndLogRolledGangerAdvancementRoll,
+  verifyAndLogRolledSkillAdvancementRoll
 } from '@/app/actions/fighter-advancement';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
@@ -237,6 +238,15 @@ function effectiveSkillAccess(a: SkillAccess): 'primary' | 'secondary' | 'allowe
   return effective;
 }
 
+// There is intentionally no "any_selected" type. The rules only provide a
+// random option for "Allowed" access — selecting a specific skill from an
+// Allowed set is not permitted without Primary or Secondary access.
+//
+// This list mirrors the `type_id` values returned by `get_available_skills`
+// (supabase/functions/get_available_skills.sql, `available_acquisition_types`
+// array). If a new acquisition type is ever added to that function, it must
+// also be added here so the "no access / denied" fallback in
+// `getAcquisitionTypeIdsForAccess` offers all options correctly.
 const ALL_SKILL_ACQUISITION_TYPE_IDS = [
   'primary_random',
   'primary_selected',
@@ -254,6 +264,9 @@ function getAcquisitionTypeIdsForAccess(
     case 'secondary':
       return ['secondary_random', 'secondary_selected'];
     case 'allowed':
+      // "Allowed" access is intentionally random-only — there is no "any_selected"
+      // acquisition type. A fighter must have Primary or Secondary access to select
+      // a specific skill from a set.
       return ['any_random'];
     default:
       // No access: caller is expected to display a warning and offer all options
@@ -313,6 +326,7 @@ export function AdvancementModal({
   const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [skillsLoading, setSkillsLoading] = useState(false);
   const [advancementType, setAdvancementType] = useState<'characteristic' | 'skill' | ''>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
   // skillsData not used in optimistic path; removed
@@ -353,6 +367,7 @@ export function AdvancementModal({
   } | null>(null);
   // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
+  const [skillAccessLoading, setSkillAccessLoading] = useState(false);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -700,6 +715,33 @@ export function AdvancementModal({
     }
   });
 
+  const logSkillAdvancementRollMutation = useMutation({
+    mutationFn: async (variables: {
+      skill_set_name: string;
+      skill_set_access_label: string;
+      acquisition_type_label: string;
+      outcome_label: string;
+      dice_data: Record<string, unknown>;
+    }) => {
+      const result = await verifyAndLogRolledSkillAdvancementRoll({
+        fighter_id: fighterId,
+        skill_set_name: variables.skill_set_name,
+        skill_set_access_label: variables.skill_set_access_label,
+        acquisition_type_label: variables.acquisition_type_label,
+        outcome_label: variables.outcome_label,
+        dice_data: variables.dice_data
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to log skill advancement roll');
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Skill advancement roll recorded in gang log');
+    },
+    onError: (e: Error) => {
+      toast.error(e?.message || 'Failed to log skill advancement roll');
+    }
+  });
+
   const applyGangerSpecialistMutation = useMutation({
     mutationFn: async (vars: {
       promotion: {
@@ -1034,6 +1076,7 @@ export function AdvancementModal({
   };
 
   const rollSkillFromSet = useCallback(() => {
+    if (logSkillAdvancementRollMutation.isPending) return;
     const pool = availableAdvancements.filter((a) => a.is_available !== false);
     if (pool.length === 0) {
       toast.error('No available skills in this set');
@@ -1048,7 +1091,55 @@ export function AdvancementModal({
       has_enough_xp: currentXp >= editableXpCost
     });
     setSkillRollResult({ roll: r, skillName: chosen.stat_change_name ?? 'Skill' });
-  }, [availableAdvancements, editableXpCost, editableCreditsIncrease, currentXp]);
+
+    // Log the roll to the gang log so it's auditable, mirroring the Ganger / Exotic Beast flow.
+    const matchedSet = categories.find(
+      (c): c is SkillType => c.type === 'skill' && c.id === selectedCategory
+    );
+    const skillSetName = matchedSet?.name ?? 'Unknown Skill Set';
+    // Compute the effective access for the selected set inline (mirrors selectedSkillSetAccess
+    // useMemo below; declared later in the file due to hook ordering).
+    const accessRow = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+    const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
+    const skillSetAccessLabel =
+      accessLevel === 'primary'
+        ? 'Primary'
+        : accessLevel === 'secondary'
+          ? 'Secondary'
+          : accessLevel === 'allowed'
+            ? 'Allowed'
+            : 'Not normally accessible';
+    const sample = availableAdvancements.find(
+      (a) => a.available_acquisition_types && a.available_acquisition_types.length > 0
+    );
+    const acquisitionTypeLabel =
+      sample?.available_acquisition_types?.find((t) => t.type_id === skillAcquisitionType)?.name ??
+      skillAcquisitionType;
+    logSkillAdvancementRollMutation.mutate({
+      skill_set_name: skillSetName,
+      skill_set_access_label: skillSetAccessLabel,
+      acquisition_type_label: acquisitionTypeLabel,
+      outcome_label: chosen.stat_change_name ?? 'Skill',
+      dice_data: {
+        result: r,
+        dice: [r],
+        pool_size: pool.length,
+        roll_type: 'skill_advancement',
+        acquisition_type_id: skillAcquisitionType,
+        skill_set_access: accessLevel ?? 'none'
+      }
+    });
+  }, [
+    availableAdvancements,
+    editableXpCost,
+    editableCreditsIncrease,
+    currentXp,
+    categories,
+    selectedCategory,
+    skillAccess,
+    skillAcquisitionType,
+    logSkillAdvancementRollMutation
+  ]);
 
   const gangerAdvancementComboboxOptions = useMemo(
     () =>
@@ -1115,8 +1206,11 @@ export function AdvancementModal({
 
   const selectedSkillSetLacksAccess = useMemo(() => {
     if (advancementType !== 'skill' || !selectedCategory) return false;
+    // Suppress the warning while skill access data is still loading to avoid
+    // a false "not accessible" flash on slower connections.
+    if (skillAccessLoading) return false;
     return selectedSkillSetAccess === null;
-  }, [advancementType, selectedCategory, selectedSkillSetAccess]);
+  }, [advancementType, selectedCategory, skillAccessLoading, selectedSkillSetAccess]);
 
   /**
    * Skill Set combobox options. Custom Skill Sets group first (when present),
@@ -1136,8 +1230,8 @@ export function AdvancementModal({
     standardCategories.forEach((category) => {
       const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
       let groupLabel = 'Misc.';
-      if (rank <= 19) groupLabel = 'Universal Skills';
-      else if (rank <= 39) groupLabel = 'Gang-specific Skills';
+      if (rank <= 19) groupLabel = 'Universal Skill Sets';
+      else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
       else if (rank <= 59) groupLabel = 'Wyrd Powers';
       else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
       else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
@@ -1404,59 +1498,58 @@ export function AdvancementModal({
 
         } else {
           // Handle skills - only fetch if we have selected a skill set
-          const supabase = createClient();
-          const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
-            fighter_id: fighterId
-          });
+          setSkillsLoading(true);
+          try {
+            const supabase = createClient();
+            const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
+              fighter_id: fighterId
+            });
 
-          if (skillsError) {
-            throw new Error('Failed to fetch available skills');
+            if (skillsError) {
+              throw new Error('Failed to fetch available skills');
+            }
+
+            const data = skillsData as unknown as SkillResponse;
+
+            // Find the selected skill set name
+            const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
+            if (!selectedSkillType) {
+              console.error('Selected skill set not found:', selectedCategory);
+              return;
+            }
+
+            // Filter skills by the selected type
+            const skillsForType = data.skills.filter(
+              (skill) => skill.skill_type_id === selectedSkillType.id
+            );
+
+            // Format the skills into advancements
+            const formattedAdvancements: AvailableAdvancement[] = skillsForType.map((skill) => ({
+              id: skill.skill_id,
+              skill_id: skill.skill_id,
+              xp_cost: 0,
+              stat_change: 1,
+              can_purchase: skill.available,
+              stat_change_name: skill.skill_name,
+              credits_increase: 0,
+              has_enough_xp: true,
+              available_acquisition_types: skill.available_acquisition_types,
+              skill_type_id: skill.skill_type_id,
+              is_available: skill.available,
+              is_custom: skill.is_custom
+            }));
+
+            setAvailableAdvancements(formattedAdvancements);
+          } finally {
+            setSkillsLoading(false);
           }
-
-          const data = skillsData as unknown as SkillResponse;
-
-          // Find the selected skill set name
-          const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
-          if (!selectedSkillType) {
-            console.error('Selected skill set not found:', selectedCategory);
-            return;
-          }
-
-          // Filter skills by the selected type
-          const skillsForType = data.skills.filter(
-            (skill) => skill.skill_type_id === selectedSkillType.id
-          );
-
-          // Format the skills into advancements
-          const formattedAdvancements: AvailableAdvancement[] = skillsForType.map((skill) => ({
-            id: skill.skill_id,
-            skill_id: skill.skill_id,
-            xp_cost: 0,
-            stat_change: 1,
-            can_purchase: skill.available,
-            stat_change_name: skill.skill_name,
-            credits_increase: 0,
-            has_enough_xp: true,
-            available_acquisition_types: skill.available_acquisition_types,
-            skill_type_id: skill.skill_type_id,
-            is_available: skill.available,
-            is_custom: skill.is_custom
-          }));
-
-          setAvailableAdvancements(formattedAdvancements);
-          // Keep user selection; do not auto-select first advancement
-          // if (formattedAdvancements.length > 0) {
-          //   const initialAdvancement = formattedAdvancements[0];
-          //   setSelectedAdvancement(initialAdvancement);
-          //   setEditableXpCost(initialAdvancement.xp_cost);
-          //   setEditableCreditsIncrease(initialAdvancement.credits_increase || 0);
-          // }
         }
 
         setError(null);
       } catch (err) {
         console.error('Full error details:', err);
         setError(`Failed to load ${advancementType} details: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setSkillsLoading(false);
       }
     };
 
@@ -1490,20 +1583,26 @@ export function AdvancementModal({
   // Fetch skill access for fighter when advancementType is 'skill'
   useEffect(() => {
     if (advancementType !== 'skill') return;
+    let cancelled = false;
     const fetchSkillAccess = async () => {
+      setSkillAccessLoading(true);
       try {
         const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
+        if (cancelled) return;
         if (response.ok) {
           const data = await response.json();
-          setSkillAccess(data.skill_access || []);
+          if (!cancelled) setSkillAccess(data.skill_access || []);
         } else {
-          setSkillAccess([]);
+          if (!cancelled) setSkillAccess([]);
         }
       } catch {
-        setSkillAccess([]);
+        if (!cancelled) setSkillAccess([]);
+      } finally {
+        if (!cancelled) setSkillAccessLoading(false);
       }
     };
-    fetchSkillAccess();
+    void fetchSkillAccess();
+    return () => { cancelled = true; };
   }, [advancementType, fighterId]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1971,7 +2070,11 @@ export function AdvancementModal({
                   )}
                 </div>
 
-                {selectedCategory && acquisitionTypeComboboxOptions.length > 0 && (
+                {selectedCategory && skillsLoading && (
+                  <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
+                )}
+
+                {selectedCategory && !skillsLoading && acquisitionTypeComboboxOptions.length > 0 && (
                   <Combobox
                     value={skillAcquisitionType}
                     onValueChange={applyAcquisitionTypeSelection}
@@ -1981,7 +2084,7 @@ export function AdvancementModal({
                   />
                 )}
 
-                {selectedCategory && skillAcquisitionType && availableAdvancements.length > 0 && (
+                {selectedCategory && !skillsLoading && skillAcquisitionType && availableAdvancements.length > 0 && (
                   <div className="space-y-2">
                     {isRandomAcquisitionType && (
                       <div className="flex flex-wrap items-center gap-2">
@@ -1991,6 +2094,7 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
+                            logSkillAdvancementRollMutation.isPending ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
                         >
