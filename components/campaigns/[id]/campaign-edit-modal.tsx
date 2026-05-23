@@ -183,6 +183,7 @@ export default function CampaignEditModal({
       status: formValues.status,
       discord_guild_id: null,
       discord_channel_id: null,
+      discord_channel_type: 0,
     });
     if (result) {
       setDiscordChannels([]);
