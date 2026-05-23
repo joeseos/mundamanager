@@ -27,11 +27,9 @@ interface SkillAdvancementLogParams {
   credits_increase: number;
   remaining_xp: number;
   is_advance?: boolean;
-  include_gang_rating?: boolean;
   credits_deducted?: number;
-  /** When provided alongside `gang_financials_after`, the log shows
-   *  "Gang Rating: A → B | Wealth: C → D" on a new line and supersedes the
-   *  legacy "New gang rating" line built from `include_gang_rating`. */
+  /** When provided alongside `gang_financials_after`, the log appends a
+   *  "Gang Rating: A → B | Wealth: C → D" segment to the summary line. */
   gang_financials_before?: { rating: number; wealth: number };
   gang_financials_after?: { rating: number; wealth: number };
 }

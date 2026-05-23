@@ -506,7 +506,6 @@ export async function addSkillAdvancement(
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
       is_advance: params.is_advance ?? true,
-      include_gang_rating: true,
       ...(financialsBefore && financialsAfter
         ? { gang_financials_before: financialsBefore, gang_financials_after: financialsAfter }
         : {}),
