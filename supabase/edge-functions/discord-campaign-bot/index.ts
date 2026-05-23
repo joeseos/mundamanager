@@ -187,18 +187,59 @@ Deno.serve(async (req) => {
       footer: { text: "MundaManager" },
     };
 
-    // Send via Bot API instead of webhook
-    const discordRes = await fetch(
-      `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/messages`,
+    // Determine channel type to decide how to post
+    const channelInfoRes = await fetch(
+      `https://discord.com/api/v10/channels/${campaign.discord_channel_id}`,
       {
-        method: "POST",
-        headers: {
-          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ embeds: [embed] }),
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
       }
     );
+
+    if (!channelInfoRes.ok) {
+      const error = await channelInfoRes.text();
+      console.error("Discord channel info fetch failed:", error);
+      return new Response("Discord API failed", { status: 500 });
+    }
+
+    const channelInfo = await channelInfoRes.json();
+    const isForumChannel = channelInfo.type === 15;
+
+    let discordRes: Response;
+
+    if (isForumChannel) {
+      const dateStr = new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+      discordRes = await fetch(
+        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/threads`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: `Battle Report — ${campaign.campaign_name} (${dateStr})`,
+            auto_archive_duration: 10080,
+            message: { embeds: [embed] },
+          }),
+        }
+      );
+    } else {
+      discordRes = await fetch(
+        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ embeds: [embed] }),
+        }
+      );
+    }
 
     if (!discordRes.ok) {
       const error = await discordRes.text();

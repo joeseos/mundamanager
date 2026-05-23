@@ -88,7 +88,7 @@ export default function CampaignEditModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [confirmText, setConfirmText] = useState('');
-  const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
 
@@ -162,7 +162,7 @@ export default function CampaignEditModal({
 
     const params = new URLSearchParams({
       client_id: clientId,
-      permissions: '2048',
+      permissions: '34359740416',
       scope: 'bot identify',
       redirect_uri: `${appUrl}/api/discord/callback`,
       response_type: 'code',
@@ -444,7 +444,10 @@ export default function CampaignEditModal({
                         <p className="text-xs text-muted-foreground">Loading channels...</p>
                       ) : (
                         <Combobox
-                          options={discordChannels.map(ch => ({ value: ch.id, label: `#${ch.name}` }))}
+                          options={discordChannels.map(ch => ({
+                            value: ch.id,
+                            label: ch.type === 15 ? `📋 ${ch.name}` : `#${ch.name}`,
+                          }))}
                           value={selectedChannelId}
                           onValueChange={setSelectedChannelId}
                           placeholder="Select a channel"
