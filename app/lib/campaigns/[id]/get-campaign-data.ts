@@ -468,12 +468,14 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
   }
 
   const gangIdSet = new Set<string>();
+  const parsedParticipantsMap = new Map<string, any[]>();
   data?.forEach(b => {
     if (b.winner_id) gangIdSet.add(b.winner_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
         if (Array.isArray(parsed)) {
+          parsedParticipantsMap.set(b.id, parsed);
           parsed.forEach((p: any) => { if (p.gang_id) gangIdSet.add(p.gang_id); });
         }
       } catch { /* ignore */ }
@@ -514,17 +516,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       ? territoriesMap.get(battle.campaign_territory_id)
       : undefined;
 
-    let attackerId: string | undefined;
-    let defenderId: string | undefined;
-    if (battle.participants) {
-      try {
-        const parsed = typeof battle.participants === 'string' ? JSON.parse(battle.participants) : battle.participants;
-        if (Array.isArray(parsed)) {
-          attackerId = parsed.find((p: any) => p.role === 'attacker')?.gang_id;
-          defenderId = parsed.find((p: any) => p.role === 'defender')?.gang_id;
-        }
-      } catch { /* ignore */ }
-    }
+    const parsedParticipants = parsedParticipantsMap.get(battle.id);
+    const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
+    const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
     return {
       id: battle.id,

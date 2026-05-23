@@ -71,7 +71,7 @@ export async function POST(
     } = requestBody;
 
     // Validate required fields
-    if (!scenario || !participants || !Array.isArray(participants) || participants.length === 0) {
+    if (!scenario || !participants || !Array.isArray(participants) || participants.length < 2) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }

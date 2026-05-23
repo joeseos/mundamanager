@@ -36,10 +36,14 @@ export interface BattleLogParams {
 }
 
 function getAttackerDefenderFromParticipants(participants: BattleParticipant[] | string) {
-  const parsed = typeof participants === 'string' ? JSON.parse(participants) : participants;
-  const attacker = parsed?.find((p: BattleParticipant) => p.role === 'attacker');
-  const defender = parsed?.find((p: BattleParticipant) => p.role === 'defender');
-  return { attacker_id: attacker?.gang_id ?? null, defender_id: defender?.gang_id ?? null };
+  try {
+    const parsed = typeof participants === 'string' ? JSON.parse(participants) : participants;
+    const attacker = parsed?.find((p: BattleParticipant) => p.role === 'attacker');
+    const defender = parsed?.find((p: BattleParticipant) => p.role === 'defender');
+    return { attacker_id: attacker?.gang_id ?? null, defender_id: defender?.gang_id ?? null };
+  } catch {
+    return { attacker_id: null, defender_id: null };
+  }
 }
 
 /**
