@@ -16,7 +16,8 @@ import {
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
   deleteAdvancement,
-  verifyAndLogRolledGangerAdvancementRoll
+  verifyAndLogRolledGangerAdvancementRoll,
+  verifyAndLogRolledSkillAdvancementRoll
 } from '@/app/actions/fighter-advancement';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
@@ -78,8 +79,9 @@ interface SkillType {
   id: string;
   name: string;
   type: 'skill';
-  created_at: string;
-  updated_at: string | null;
+  is_custom?: boolean;
+  created_at?: string;
+  updated_at?: string | null;
 }
 
 interface AvailableAdvancement {
@@ -220,13 +222,56 @@ function isStatChangeCategory(category: StatChangeCategory | SkillType): categor
 // Add SkillAccess interface
 interface SkillAccess {
   skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed' | null; // default from fighter type
-  override_access_level: 'primary' | 'secondary' | 'allowed' | null; // override from archetype
+  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
+  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
   skill_type_name: string;
 }
 
+/**
+ * Returns the effective access level used for advancement workflows.
+ * "denied" is treated as null (no access) so the UI shows the warning and offers all
+ * acquisition types (matching the behaviour for skill sets the fighter has no access to).
+ */
 function effectiveSkillAccess(a: SkillAccess): 'primary' | 'secondary' | 'allowed' | null {
-  return (a.override_access_level ?? a.access_level) ?? null;
+  const effective = a.override_access_level ?? a.access_level ?? null;
+  if (effective === 'denied') return null;
+  return effective;
+}
+
+// There is intentionally no "any_selected" type. The rules only provide a
+// random option for "Allowed" access — selecting a specific skill from an
+// Allowed set is not permitted without Primary or Secondary access.
+//
+// This list mirrors the `type_id` values returned by `get_available_skills`
+// (supabase/functions/get_available_skills.sql, `available_acquisition_types`
+// array). If a new acquisition type is ever added to that function, it must
+// also be added here so the "no access / denied" fallback in
+// `getAcquisitionTypeIdsForAccess` offers all options correctly.
+const ALL_SKILL_ACQUISITION_TYPE_IDS = [
+  'primary_random',
+  'primary_selected',
+  'secondary_random',
+  'secondary_selected',
+  'any_random'
+] as const;
+
+function getAcquisitionTypeIdsForAccess(
+  level: 'primary' | 'secondary' | 'allowed' | null
+): string[] {
+  switch (level) {
+    case 'primary':
+      return ['primary_random', 'primary_selected'];
+    case 'secondary':
+      return ['secondary_random', 'secondary_selected'];
+    case 'allowed':
+      // "Allowed" access is intentionally random-only — there is no "any_selected"
+      // acquisition type. A fighter must have Primary or Secondary access to select
+      // a specific skill from a set.
+      return ['any_random'];
+    default:
+      // No access: caller is expected to display a warning and offer all options
+      return [...ALL_SKILL_ACQUISITION_TYPE_IDS];
+  }
 }
 
 const GANGER_ADVANCEMENT_TABLE_LABEL = 'Ganger / Exotic Beast Advancement';
@@ -281,6 +326,7 @@ export function AdvancementModal({
   const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [skillsLoading, setSkillsLoading] = useState(false);
   const [advancementType, setAdvancementType] = useState<'characteristic' | 'skill' | ''>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
   // skillsData not used in optimistic path; removed
@@ -321,6 +367,9 @@ export function AdvancementModal({
   } | null>(null);
   // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
+  const [skillAccessLoading, setSkillAccessLoading] = useState(false);
+  // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
+  const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
 
   // TanStack Query mutations
@@ -666,6 +715,33 @@ export function AdvancementModal({
     }
   });
 
+  const logSkillAdvancementRollMutation = useMutation({
+    mutationFn: async (variables: {
+      skill_set_name: string;
+      skill_set_access_label: string;
+      acquisition_type_label: string;
+      outcome_label: string;
+      dice_data: Record<string, unknown>;
+    }) => {
+      const result = await verifyAndLogRolledSkillAdvancementRoll({
+        fighter_id: fighterId,
+        skill_set_name: variables.skill_set_name,
+        skill_set_access_label: variables.skill_set_access_label,
+        acquisition_type_label: variables.acquisition_type_label,
+        outcome_label: variables.outcome_label,
+        dice_data: variables.dice_data
+      });
+      if (!result.success) throw new Error(result.error || 'Failed to log skill advancement roll');
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Skill advancement roll recorded in gang log');
+    },
+    onError: (e: Error) => {
+      toast.error(e?.message || 'Failed to log skill advancement roll');
+    }
+  });
+
   const applyGangerSpecialistMutation = useMutation({
     mutationFn: async (vars: {
       promotion: {
@@ -999,6 +1075,72 @@ export function AdvancementModal({
     });
   };
 
+  const rollSkillFromSet = useCallback(() => {
+    if (logSkillAdvancementRollMutation.isPending) return;
+    const pool = availableAdvancements.filter((a) => a.is_available !== false);
+    if (pool.length === 0) {
+      toast.error('No available skills in this set');
+      return;
+    }
+    const r = roll(pool.length);
+    const chosen = pool[r - 1];
+    setSelectedAdvancement({
+      ...chosen,
+      xp_cost: editableXpCost,
+      credits_increase: editableCreditsIncrease,
+      has_enough_xp: currentXp >= editableXpCost
+    });
+    setSkillRollResult({ roll: r, skillName: chosen.stat_change_name ?? 'Skill' });
+
+    // Log the roll to the gang log so it's auditable, mirroring the Ganger / Exotic Beast flow.
+    const matchedSet = categories.find(
+      (c): c is SkillType => c.type === 'skill' && c.id === selectedCategory
+    );
+    const skillSetName = matchedSet?.name ?? 'Unknown Skill Set';
+    // Compute the effective access for the selected set inline (mirrors selectedSkillSetAccess
+    // useMemo below; declared later in the file due to hook ordering).
+    const accessRow = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+    const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
+    const skillSetAccessLabel =
+      accessLevel === 'primary'
+        ? 'Primary'
+        : accessLevel === 'secondary'
+          ? 'Secondary'
+          : accessLevel === 'allowed'
+            ? 'Allowed'
+            : 'Not normally accessible';
+    const sample = availableAdvancements.find(
+      (a) => a.available_acquisition_types && a.available_acquisition_types.length > 0
+    );
+    const acquisitionTypeLabel =
+      sample?.available_acquisition_types?.find((t) => t.type_id === skillAcquisitionType)?.name ??
+      skillAcquisitionType;
+    logSkillAdvancementRollMutation.mutate({
+      skill_set_name: skillSetName,
+      skill_set_access_label: skillSetAccessLabel,
+      acquisition_type_label: acquisitionTypeLabel,
+      outcome_label: chosen.stat_change_name ?? 'Skill',
+      dice_data: {
+        result: r,
+        dice: [r],
+        pool_size: pool.length,
+        roll_type: 'skill_advancement',
+        acquisition_type_id: skillAcquisitionType,
+        skill_set_access: accessLevel ?? 'none'
+      }
+    });
+  }, [
+    availableAdvancements,
+    editableXpCost,
+    editableCreditsIncrease,
+    currentXp,
+    categories,
+    selectedCategory,
+    skillAccess,
+    skillAcquisitionType,
+    logSkillAdvancementRollMutation
+  ]);
+
   const gangerAdvancementComboboxOptions = useMemo(
     () =>
       GANGER_ADVANCEMENT_COMBO_OPTIONS.flatMap((row) => {
@@ -1054,42 +1196,224 @@ export function AdvancementModal({
   const gangerPairDetail =
     gangerSelectedRow?.kind === 'pair' && gangerPairStatName ? gangerCharMap[gangerPairStatName] : null;
 
+  // Effective skill access for the currently-selected Skill Set (skill flow only).
+  // Returns null when the fighter has no defined access to this set.
+  const selectedSkillSetAccess = useMemo<'primary' | 'secondary' | 'allowed' | null>(() => {
+    if (advancementType !== 'skill' || !selectedCategory) return null;
+    const access = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+    return access ? effectiveSkillAccess(access) : null;
+  }, [advancementType, selectedCategory, skillAccess]);
+
+  const selectedSkillSetLacksAccess = useMemo(() => {
+    if (advancementType !== 'skill' || !selectedCategory) return false;
+    // Suppress the warning while skill access data is still loading to avoid
+    // a false "not accessible" flash on slower connections.
+    if (skillAccessLoading) return false;
+    return selectedSkillSetAccess === null;
+  }, [advancementType, selectedCategory, skillAccessLoading, selectedSkillSetAccess]);
+
+  /**
+   * Skill Set combobox options. Custom Skill Sets group first (when present),
+   * then standard sets grouped by rank label, with access annotations.
+   * Group headers are rendered as disabled rows (the Combobox treats disabled rows as headers).
+   */
+  const skillSetComboboxOptions = useMemo(() => {
+    if (advancementType !== 'skill') return [];
+    const skillAccessMap = new Map<string, SkillAccess>();
+    skillAccess.forEach((a) => skillAccessMap.set(a.skill_type_id, a));
+
+    const allSkillCategories = categories.filter((cat): cat is SkillType => cat.type === 'skill');
+    const customCategories = allSkillCategories.filter((c) => c.is_custom);
+    const standardCategories = allSkillCategories.filter((c) => !c.is_custom);
+
+    const groupByLabel: Record<string, SkillType[]> = {};
+    standardCategories.forEach((category) => {
+      const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
+      let groupLabel = 'Misc.';
+      if (rank <= 19) groupLabel = 'Universal Skill Sets';
+      else if (rank <= 39) groupLabel = 'Gang-specific Skill Sets';
+      else if (rank <= 59) groupLabel = 'Wyrd Powers';
+      else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
+      else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
+      else if (rank <= 89) groupLabel = 'Legendary Names';
+      else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
+      if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
+      groupByLabel[groupLabel].push(category);
+    });
+
+    const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
+      const aRank = Math.min(
+        ...groupByLabel[a].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
+      );
+      const bRank = Math.min(
+        ...groupByLabel[b].map((cat) => skillSetRank[cat.name.toLowerCase()] ?? Infinity)
+      );
+      return aRank - bRank;
+    });
+
+    const options: Array<{
+      value: string;
+      label: React.ReactNode;
+      displayValue: string;
+      disabled?: boolean;
+    }> = [];
+
+    const pushCategory = (category: SkillType) => {
+      const access = skillAccessMap.get(category.id);
+      const effectiveLevel = access ? effectiveSkillAccess(access) : null;
+      let accessLabel = '';
+      if (effectiveLevel === 'primary') accessLabel = '(Primary)';
+      else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
+      else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
+      const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
+      options.push({
+        value: category.id,
+        label: effectiveLevel ? (
+          <span className="pl-4">{labelText}</span>
+        ) : (
+          <span className="pl-4 italic text-neutral-400">{labelText}</span>
+        ),
+        displayValue: labelText
+      });
+    };
+
+    if (customCategories.length > 0) {
+      options.push({
+        value: '__group__custom',
+        label: (
+          <span className="text-xs font-bold uppercase tracking-wide">Custom Skill Sets</span>
+        ),
+        displayValue: 'Custom Skill Sets',
+        disabled: true
+      });
+      customCategories
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(pushCategory);
+    }
+
+    sortedGroupLabels.forEach((groupLabel) => {
+      options.push({
+        value: `__group__${groupLabel}`,
+        label: (
+          <span className="text-xs font-bold uppercase tracking-wide">{groupLabel}</span>
+        ),
+        displayValue: groupLabel,
+        disabled: true
+      });
+      const groupCategories = groupByLabel[groupLabel].slice().sort((a, b) => {
+        const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
+        const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
+        return rankA - rankB;
+      });
+      groupCategories.forEach(pushCategory);
+    });
+    return options;
+  }, [advancementType, categories, skillAccess]);
+
+  /**
+   * Acquisition Type combobox options derived from the selected skill set's access level.
+   * Costs are taken from `available_acquisition_types` on any skill in the set (uniform across the set).
+   */
+  const acquisitionTypeComboboxOptions = useMemo(() => {
+    if (advancementType !== 'skill' || !selectedCategory) return [];
+    const sample = availableAdvancements.find(
+      (a) => a.available_acquisition_types && a.available_acquisition_types.length > 0
+    );
+    const allTypes = sample?.available_acquisition_types ?? [];
+    if (allTypes.length === 0) return [];
+    const allowedIds = new Set(getAcquisitionTypeIdsForAccess(selectedSkillSetAccess));
+    return allTypes
+      .filter((t) => allowedIds.has(t.type_id))
+      .sort((a, b) => a.xp_cost - b.xp_cost)
+      .map((t) => ({
+        value: t.type_id,
+        label: `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`,
+        displayValue: `${t.name} (${t.xp_cost} XP, ${t.credit_cost} credits)`
+      }));
+  }, [advancementType, selectedCategory, availableAdvancements, selectedSkillSetAccess]);
+
+  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
+  const skillComboboxOptions = useMemo(() => {
+    if (advancementType !== 'skill') return [];
+    return availableAdvancements.map((a) => {
+      const isAvailable = a.is_available !== false;
+      const baseName = a.stat_change_name ?? 'Skill';
+      const customSuffix = a.is_custom ? ' (Custom)' : '';
+      const ownedSuffix = !isAvailable ? ' (already owned)' : '';
+      const display = `${baseName}${customSuffix}${ownedSuffix}`;
+      return {
+        value: a.id,
+        label: !isAvailable ? <span className="italic text-muted-foreground">{display}</span> : display,
+        displayValue: display,
+        disabled: !isAvailable
+      };
+    });
+  }, [advancementType, availableAdvancements]);
+
+  const isRandomAcquisitionType = skillAcquisitionType.endsWith('_random');
+
+  const applyAcquisitionTypeSelection = useCallback(
+    (typeId: string) => {
+      setSkillAcquisitionType(typeId);
+      setSelectedAdvancement(null);
+      setSkillRollResult(null);
+      const sample = availableAdvancements.find(
+        (a) => a.available_acquisition_types && a.available_acquisition_types.length > 0
+      );
+      const matched = sample?.available_acquisition_types?.find((t) => t.type_id === typeId);
+      if (matched) {
+        setEditableXpCost(matched.xp_cost);
+        setEditableCreditsIncrease(matched.credit_cost);
+      } else {
+        setEditableXpCost(0);
+        setEditableCreditsIncrease(0);
+      }
+    },
+    [availableAdvancements]
+  );
+
   // Fetch stat change categories
   useEffect(() => {
     const fetchCategories = async () => {
       if (!advancementType) return;
-      
+
       setLoading(true);
       try {
-        // Get the current user's session
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        const endpoint = advancementType === 'characteristic' 
-          ? 'fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419'
-          : 'skill_types';
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${endpoint}`,
-          {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session?.access_token || ''}`,
-              'Content-Type': 'application/json',
+        if (advancementType === 'skill') {
+          // Use the API route so both standard and custom skill types (including
+          // campaign-shared customs) are returned.
+          const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
+          if (!response.ok) throw new Error('Failed to fetch skill sets');
+          const data = await response.json();
+          const categoriesWithType = (data as Array<{ id: string; name: string; is_custom?: boolean }>).map(
+            (cat) => ({
+              ...cat,
+              type: 'skill' as const
+            })
+          );
+          setCategories(categoriesWithType);
+        } else {
+          const supabase = createClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/fighter_effect_types?fighter_effect_category_id=eq.789b2065-c26d-453b-a4d5-81c04c5d4419`,
+            {
+              headers: {
+                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+                'Authorization': `Bearer ${session?.access_token || ''}`,
+                'Content-Type': 'application/json',
+              }
             }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ${advancementType}s`);
+          );
+          if (!response.ok) throw new Error('Failed to fetch characteristics');
+          const data = await response.json();
+          const categoriesWithType = data.map((cat: any) => ({
+            ...cat,
+            type: 'characteristic' as const
+          }));
+          setCategories(categoriesWithType);
         }
-
-        const data = await response.json();
-        const categoriesWithType = data.map((cat: any) => ({
-          ...cat,
-          type: advancementType
-        }));
-        setCategories(categoriesWithType);
       } catch (err) {
         setError(`Failed to load ${advancementType} categories`);
         console.error(err);
@@ -1099,7 +1423,7 @@ export function AdvancementModal({
     };
 
     fetchCategories();
-  }, [advancementType]);
+  }, [advancementType, fighterId]);
 
   // Fetch available advancements when category is selected
   useEffect(() => {
@@ -1174,59 +1498,58 @@ export function AdvancementModal({
 
         } else {
           // Handle skills - only fetch if we have selected a skill set
-          const supabase = createClient();
-          const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
-            fighter_id: fighterId
-          });
+          setSkillsLoading(true);
+          try {
+            const supabase = createClient();
+            const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
+              fighter_id: fighterId
+            });
 
-          if (skillsError) {
-            throw new Error('Failed to fetch available skills');
+            if (skillsError) {
+              throw new Error('Failed to fetch available skills');
+            }
+
+            const data = skillsData as unknown as SkillResponse;
+
+            // Find the selected skill set name
+            const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
+            if (!selectedSkillType) {
+              console.error('Selected skill set not found:', selectedCategory);
+              return;
+            }
+
+            // Filter skills by the selected type
+            const skillsForType = data.skills.filter(
+              (skill) => skill.skill_type_id === selectedSkillType.id
+            );
+
+            // Format the skills into advancements
+            const formattedAdvancements: AvailableAdvancement[] = skillsForType.map((skill) => ({
+              id: skill.skill_id,
+              skill_id: skill.skill_id,
+              xp_cost: 0,
+              stat_change: 1,
+              can_purchase: skill.available,
+              stat_change_name: skill.skill_name,
+              credits_increase: 0,
+              has_enough_xp: true,
+              available_acquisition_types: skill.available_acquisition_types,
+              skill_type_id: skill.skill_type_id,
+              is_available: skill.available,
+              is_custom: skill.is_custom
+            }));
+
+            setAvailableAdvancements(formattedAdvancements);
+          } finally {
+            setSkillsLoading(false);
           }
-
-          const data = skillsData as unknown as SkillResponse;
-
-          // Find the selected skill set name
-          const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
-          if (!selectedSkillType) {
-            console.error('Selected skill set not found:', selectedCategory);
-            return;
-          }
-
-          // Filter skills by the selected type
-          const skillsForType = data.skills.filter(
-            (skill) => skill.skill_type_id === selectedSkillType.id
-          );
-
-          // Format the skills into advancements
-          const formattedAdvancements: AvailableAdvancement[] = skillsForType.map((skill) => ({
-            id: skill.skill_id,
-            skill_id: skill.skill_id,
-            xp_cost: 0,
-            stat_change: 1,
-            can_purchase: skill.available,
-            stat_change_name: skill.skill_name,
-            credits_increase: 0,
-            has_enough_xp: true,
-            available_acquisition_types: skill.available_acquisition_types,
-            skill_type_id: skill.skill_type_id,
-            is_available: skill.available,
-            is_custom: skill.is_custom
-          }));
-
-          setAvailableAdvancements(formattedAdvancements);
-          // Keep user selection; do not auto-select first advancement
-          // if (formattedAdvancements.length > 0) {
-          //   const initialAdvancement = formattedAdvancements[0];
-          //   setSelectedAdvancement(initialAdvancement);
-          //   setEditableXpCost(initialAdvancement.xp_cost);
-          //   setEditableCreditsIncrease(initialAdvancement.credits_increase || 0);
-          // }
         }
 
         setError(null);
       } catch (err) {
         console.error('Full error details:', err);
         setError(`Failed to load ${advancementType} details: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setSkillsLoading(false);
       }
     };
 
@@ -1260,20 +1583,26 @@ export function AdvancementModal({
   // Fetch skill access for fighter when advancementType is 'skill'
   useEffect(() => {
     if (advancementType !== 'skill') return;
+    let cancelled = false;
     const fetchSkillAccess = async () => {
+      setSkillAccessLoading(true);
       try {
         const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
+        if (cancelled) return;
         if (response.ok) {
           const data = await response.json();
-          setSkillAccess(data.skill_access || []);
+          if (!cancelled) setSkillAccess(data.skill_access || []);
         } else {
-          setSkillAccess([]);
+          if (!cancelled) setSkillAccess([]);
         }
       } catch {
-        setSkillAccess([]);
+        if (!cancelled) setSkillAccess([]);
+      } finally {
+        if (!cancelled) setSkillAccessLoading(false);
       }
     };
-    fetchSkillAccess();
+    void fetchSkillAccess();
+    return () => { cancelled = true; };
   }, [advancementType, fighterId]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1672,7 +2001,7 @@ export function AdvancementModal({
               </select>
             </div>
 
-            {advancementType && !loading && (
+            {advancementType === 'characteristic' && !loading && (
               <div className="relative">
                 <select
                   className="w-full p-2 border rounded-md"
@@ -1685,199 +2014,117 @@ export function AdvancementModal({
                     setEditableCreditsIncrease(0);
                   }}
                 >
-                  <option key="default" value="">
-                    Select {advancementType === "characteristic" ? "a Characteristic" : "a Skill Set"}
-                  </option>
-
-                  {advancementType === "characteristic" ? (
-                    // If selecting a Characteristic, sort dynamically by characteristicRank and group into categories
-                    Object.entries(
-                      categories
-                        .filter(isStatChangeCategory)  // Filter to only StatChangeCategory types
-                        .sort((a, b) => {
-                          const rankA = characteristicRank[a.effect_name.toLowerCase()] ?? Infinity;
-                          const rankB = characteristicRank[b.effect_name.toLowerCase()] ?? Infinity;
-                          return rankA - rankB;
-                        })
-                        .reduce((groups, category) => {
-                          const rank = characteristicRank[category.effect_name.toLowerCase()] ?? Infinity;
-                          let groupLabel = "Misc."; // Default category for unlisted characteristics
-
-                          if (rank <= 8) groupLabel = "Main Characteristics";
-                          else if (rank <= 12) groupLabel = "Psychology Characteristics";
-
-                          if (!groups[groupLabel]) groups[groupLabel] = [];
-                          groups[groupLabel].push(category);
-                          return groups;
-                        }, {} as Record<string, StatChangeCategory[]>)
-                    ).map(([groupLabel, categoryList]) => (
-                      <optgroup key={groupLabel} label={groupLabel}>
-                        {categoryList.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.effect_name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))
-                  ) : (
-                    // Skill set rendering with access display
-                    (() => {
-                      // Map skill access by skill type ID
-                      const skillAccessMap = new Map<string, SkillAccess>();
-                      skillAccess.forEach(access => {
-                        skillAccessMap.set(access.skill_type_id, access);
-                      });
-                      // Group categories by rank label
-                      const groupByLabel: Record<string, SkillType[]> = {};
-                      categories
-                        .filter((cat): cat is SkillType => cat.type === 'skill')
-                        .forEach(category => {
-                          const rank = skillSetRank[category.name.toLowerCase()] ?? Infinity;
-                          let groupLabel = 'Misc.';
-                          if (rank <= 19) groupLabel = 'Universal Skills';
-                          else if (rank <= 39) groupLabel = 'Gang-specific Skills';
-                          else if (rank <= 59) groupLabel = 'Wyrd Powers';
-                          else if (rank <= 69) groupLabel = 'Cult Wyrd Powers';
-                          else if (rank <= 79) groupLabel = 'Psychoteric Whispers';
-                          else if (rank <= 89) groupLabel = 'Legendary Names';
-                          else if (rank <= 99) groupLabel = 'Ironhead Squat Mining Clans';
-                          if (!groupByLabel[groupLabel]) groupByLabel[groupLabel] = [];
-                          groupByLabel[groupLabel].push(category);
-                        });
-                      // Sort group labels by their first rank
-                      const sortedGroupLabels = Object.keys(groupByLabel).sort((a, b) => {
-                        const aRank = Math.min(...groupByLabel[a].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
-                        const bRank = Math.min(...groupByLabel[b].map(cat => skillSetRank[cat.name.toLowerCase()] ?? Infinity));
-                        return aRank - bRank;
-                      });
-                      // Render optgroups
-                      return sortedGroupLabels.map(groupLabel => {
-                        const groupCategories = groupByLabel[groupLabel].sort((a, b) => {
-                          const rankA = skillSetRank[a.name.toLowerCase()] ?? Infinity;
-                          const rankB = skillSetRank[b.name.toLowerCase()] ?? Infinity;
-                          return rankA - rankB;
-                        });
-                        return (
-                      <optgroup key={groupLabel} label={groupLabel}>
-                            {groupCategories.map(category => {
-                              const access = skillAccessMap.get(category.id);
-                              // Compute effective level: override takes priority over default
-                              const effectiveLevel = access?.override_access_level ?? access?.access_level;
-                              let accessLabel = '';
-                              let style: React.CSSProperties = { color: '#9CA3AF', fontStyle: 'italic' };
-                              if (effectiveLevel) {
-                                if (effectiveLevel === 'primary') {
-                                  accessLabel = '(Primary)';
-                                  style = {};
-                                } else if (effectiveLevel === 'secondary') {
-                                  accessLabel = '(Secondary)';
-                                  style = {};
-                                } else if (effectiveLevel === 'allowed') {
-                                  accessLabel = '(Allowed)';
-                                  style = {};
-                                }
-                              }
-                              return (
-                                <option
-                                  key={category.id}
-                                  value={category.id}
-                                  style={style}
-                                >
-                                  {category.name} {accessLabel}
-                          </option>
-                              );
-                            })}
-                      </optgroup>
-                        );
-                      });
-                    })()
-                  )}
+                  <option key="default" value="">Select a Characteristic</option>
+                  {Object.entries(
+                    categories
+                      .filter(isStatChangeCategory)
+                      .sort((a, b) => {
+                        const rankA = characteristicRank[a.effect_name.toLowerCase()] ?? Infinity;
+                        const rankB = characteristicRank[b.effect_name.toLowerCase()] ?? Infinity;
+                        return rankA - rankB;
+                      })
+                      .reduce((groups, category) => {
+                        const rank = characteristicRank[category.effect_name.toLowerCase()] ?? Infinity;
+                        let groupLabel = 'Misc.';
+                        if (rank <= 8) groupLabel = 'Main Characteristics';
+                        else if (rank <= 12) groupLabel = 'Psychology Characteristics';
+                        if (!groups[groupLabel]) groups[groupLabel] = [];
+                        groups[groupLabel].push(category);
+                        return groups;
+                      }, {} as Record<string, StatChangeCategory[]>)
+                  ).map(([groupLabel, categoryList]) => (
+                    <optgroup key={groupLabel} label={groupLabel}>
+                      {categoryList.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.effect_name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
             )}
 
-            {advancementType === 'skill' && selectedCategory && availableAdvancements.length > 0 && (
+            {advancementType === 'skill' && !loading && (
               <>
-                <div className="relative">
-                  <select
-                    className="w-full p-2 border rounded-md"
-                    value={selectedAdvancement?.id || ''}
-                    onChange={(e) => {
-                      const selected = availableAdvancements.find(adv => adv.id === e.target.value);
-
-                      if (selected) {
-                        setSelectedAdvancement({
-                          ...selected,
-                          xp_cost: 0,
-                          credits_increase: 0,
-                          has_enough_xp: true
-                        });
-                        setSkillAcquisitionType('');
-                        setEditableXpCost(0);
-                        setEditableCreditsIncrease(0);
-                      }
+                <div className="space-y-2">
+                  <Combobox
+                    value={selectedCategory}
+                    onValueChange={(v) => {
+                      setSelectedCategory(v);
+                      setSelectedAdvancement(null);
+                      setSkillAcquisitionType('');
+                      setSkillRollResult(null);
+                      setEditableXpCost(0);
+                      setEditableCreditsIncrease(0);
                     }}
-                  >
-                    <option key="default" value="">Select Skill</option>
-                    {availableAdvancements.map((advancement) => {
-                      const uniqueKey = `${advancement.id}_${advancement.skill_type_id}`;
-                      const isAvailable = advancement.is_available !== false; // Default to true if undefined
-                      return (
-                        <option 
-                          key={uniqueKey} 
-                          value={advancement.id}
-                          disabled={!isAvailable}
-                          style={{ 
-                            color: !isAvailable ? '#9CA3AF' : 'inherit',
-                            fontStyle: !isAvailable ? 'italic' : 'normal'
-                          }}
-                        >
-                          {advancement.stat_change_name}{advancement.is_custom ? ' (Custom)' : ''}{!isAvailable ? ' (already owned)' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    placeholder="Select a Skill Set"
+                    options={skillSetComboboxOptions}
+                    dropdownPlacement="down"
+                  />
+                  {selectedCategory && selectedSkillSetLacksAccess && (
+                    <p className="text-sm text-amber-500">
+                      This Skill Set is not accessible to this fighter. Change their Skill Set
+                      access in: Edit Fighter &gt; Customise Skill Set Access.
+                    </p>
+                  )}
                 </div>
 
-                {selectedAdvancement && (
-                  <div className="relative">
-                    <select
-                      className="w-full p-2 border rounded-md"
-                      value={skillAcquisitionType}
-                      onChange={(e) => {
-                        const acquisitionType = e.target.value;
-                        setSkillAcquisitionType(acquisitionType);
+                {selectedCategory && skillsLoading && (
+                  <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
+                )}
 
-                        if (selectedAdvancement?.available_acquisition_types) {
-                          const selectedType = selectedAdvancement.available_acquisition_types.find(
-                            type => type.type_id === acquisitionType
-                          );
+                {selectedCategory && !skillsLoading && acquisitionTypeComboboxOptions.length > 0 && (
+                  <Combobox
+                    value={skillAcquisitionType}
+                    onValueChange={applyAcquisitionTypeSelection}
+                    placeholder="Select Acquisition Type"
+                    options={acquisitionTypeComboboxOptions}
+                    dropdownPlacement="down"
+                  />
+                )}
 
-                          if (selectedType) {
-                            setSelectedAdvancement({
-                              ...selectedAdvancement,
-                              xp_cost: selectedType.xp_cost,
-                              credits_increase: selectedType.credit_cost,
-                              has_enough_xp: currentXp >= selectedType.xp_cost
-                            });
-                            setEditableXpCost(selectedType.xp_cost);
-                            setEditableCreditsIncrease(selectedType.credit_cost);
+                {selectedCategory && !skillsLoading && skillAcquisitionType && availableAdvancements.length > 0 && (
+                  <div className="space-y-2">
+                    {isRandomAcquisitionType && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="default"
+                          onClick={rollSkillFromSet}
+                          disabled={
+                            !userPermissions?.canEdit ||
+                            logSkillAdvancementRollMutation.isPending ||
+                            availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
+                        >
+                          Roll for skill
+                        </Button>
+                        {skillRollResult !== null && (
+                          <span className="text-sm text-muted-foreground">
+                            {formatRollOutcomeLine(skillRollResult.roll, [skillRollResult.roll])}:{' '}
+                            <strong className="text-foreground">{skillRollResult.skillName}</strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <Combobox
+                      value={selectedAdvancement?.id ?? ''}
+                      onValueChange={(v) => {
+                        const selected = availableAdvancements.find((adv) => adv.id === v);
+                        if (selected) {
+                          setSelectedAdvancement({
+                            ...selected,
+                            xp_cost: editableXpCost,
+                            credits_increase: editableCreditsIncrease,
+                            has_enough_xp: currentXp >= editableXpCost
+                          });
+                          setSkillRollResult(null);
                         }
                       }}
-                    >
-                      <option key="default" value="">Select Acquisition Type</option>
-                      {selectedAdvancement?.available_acquisition_types
-                        ?.sort((a, b) => a.xp_cost - b.xp_cost)
-                        .map(type => {
-                          const uniqueKey = `${selectedAdvancement.id}_${type.type_id}`;
-                          return (
-                            <option key={uniqueKey} value={type.type_id}>
-                              {type.name} ({type.xp_cost} XP, {type.credit_cost} credits)
-                            </option>
-                          );
-                        })}
-                    </select>
+                      placeholder="Select a Skill"
+                      options={skillComboboxOptions}
+                    />
                   </div>
                 )}
               </>

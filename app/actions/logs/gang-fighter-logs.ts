@@ -27,8 +27,11 @@ interface SkillAdvancementLogParams {
   credits_increase: number;
   remaining_xp: number;
   is_advance?: boolean;
-  include_gang_rating?: boolean;
   credits_deducted?: number;
+  /** When provided alongside `gang_financials_after`, the log appends a
+   *  "Gang Rating: A → B | Wealth: C → D" segment to the summary line. */
+  gang_financials_before?: { rating: number; wealth: number };
+  gang_financials_after?: { rating: number; wealth: number };
 }
 
 interface AdvancementDeletionLogParams {
@@ -57,6 +60,25 @@ interface GangerAdvancementRollLogParams {
   fighter_id: string;
   fighter_name: string;
   advancement_table: string;
+  outcome_label: string;
+  dice_data?: any;
+}
+
+interface SkillAdvancementRollLogParams {
+  gang_id: string;
+  fighter_id: string;
+  fighter_name: string;
+  /** The skill set name the roll was made within. */
+  skill_set_name: string;
+  /**
+   * Effective skill set access level for the fighter at roll time, e.g.
+   * "Primary", "Secondary", "Allowed", or "Not normally accessible" when the
+   * fighter has no access (or the set is denied) and the user proceeded anyway.
+   */
+  skill_set_access_label: string;
+  /** The acquisition type label, e.g. "Random Primary", "Random Secondary", "Random Any". */
+  acquisition_type_label: string;
+  /** The skill the dice landed on. */
   outcome_label: string;
   dice_data?: any;
 }
@@ -108,19 +130,33 @@ export async function logCharacteristicAdvancement(params: CharacteristicAdvance
 
 export async function logSkillAdvancement(params: SkillAdvancementLogParams): Promise<GangLogActionResult> {
   try {
-    const supabase = await createClient();
-    
     const advancementType = params.is_advance ? 'gained' : 'learned';
-    let description = `Fighter "${params.fighter_name}" ${advancementType} skill "${params.skill_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`;
+    let description = `Fighter "${params.fighter_name}" ${advancementType} skill "${params.skill_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits)`;
 
     if (params.credits_deducted && params.credits_deducted > 0) {
       description += `. Gang stash: -${params.credits_deducted} credits`;
     }
 
-    if (params.include_gang_rating) {
-      const gangRating = await calculateGangRating(supabase, params.gang_id);
-      description += `. New gang rating: ${gangRating}`;
+    // Build a summary line of before → after values, mirroring the dice-roll
+    // detail line. The gang/fighter log views split on the first `\n` and
+    // render anything after it as muted secondary text.
+    const summaryParts: string[] = [];
+
+    if (params.xp_cost > 0) {
+      const xpBefore = params.remaining_xp + params.xp_cost;
+      summaryParts.push(`XP: ${xpBefore} → ${params.remaining_xp}`);
+    } else {
+      summaryParts.push(`XP: ${params.remaining_xp}`);
     }
+
+    if (params.gang_financials_before && params.gang_financials_after) {
+      const before = params.gang_financials_before;
+      const after = params.gang_financials_after;
+      summaryParts.push(`Gang Rating: ${before.rating} → ${after.rating}`);
+      summaryParts.push(`Wealth: ${before.wealth} → ${after.wealth}`);
+    }
+
+    description += `\n${summaryParts.join(' | ')}`;
 
     return createGangLog({
       gang_id: params.gang_id,
@@ -202,6 +238,34 @@ export async function logRolledGangerAdvancement(params: GangerAdvancementRollLo
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to log the advancement roll'
+    };
+  }
+}
+
+export async function logRolledSkillAdvancement(params: SkillAdvancementRollLogParams): Promise<GangLogActionResult> {
+  try {
+    const resultNum =
+      params.dice_data &&
+      typeof params.dice_data === 'object' &&
+      typeof (params.dice_data as { result?: unknown }).result === 'number'
+        ? (params.dice_data as { result: number }).result
+        : '?';
+
+    const detail = gangerAdvancementRollDetailLine(params.dice_data);
+    const firstLine = `Fighter "${params.fighter_name}" rolled ${resultNum} for a "${params.acquisition_type_label}" skill advancement in the "${params.skill_set_name}" skill set (${params.skill_set_access_label}), resulting in: "${params.outcome_label}"`;
+    const description = detail ? `${firstLine}\n${detail}` : firstLine;
+
+    return await createGangLog({
+      gang_id: params.gang_id,
+      fighter_id: params.fighter_id,
+      action_type: 'skill_advancement_roll',
+      description
+    });
+  } catch (error) {
+    console.error('Error logging the skill advancement roll:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to log the skill advancement roll'
     };
   }
 }

@@ -11,7 +11,8 @@ import {
   logCharacteristicAdvancement, 
   logSkillAdvancement, 
   logSkillAdvancementDeletion,
-  logRolledGangerAdvancement
+  logRolledGangerAdvancement,
+  logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 
@@ -423,13 +424,20 @@ export async function addSkillAdvancement(
       return { success: false, error: 'Failed to update fighter' };
     }
 
-    // Update gang rating and wealth
+    // Update gang rating and wealth. We capture the before/after snapshots so the
+    // gang log can render a "Gang Rating: A → B | Wealth: C → D" line.
     const creditsIncrease = params.credits_increase || 0;
+    let financialsBefore: { rating: number; wealth: number } | undefined;
+    let financialsAfter: { rating: number; wealth: number } | undefined;
     if (creditsIncrease > 0) {
       if (params.is_advance ?? true) {
         // Advancement path (XP purchase): only increase rating, no stash deduction
         if (countsTowardRating(fighter)) {
-          await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+          const result = await updateGangRatingSimple(supabase, fighter.gang_id, creditsIncrease);
+          if (result.oldValues && result.newValues) {
+            financialsBefore = { rating: result.oldValues.rating, wealth: result.oldValues.wealth };
+            financialsAfter = { rating: result.newValues.rating, wealth: result.newValues.wealth };
+          }
         }
       } else {
         // Direct purchase: verify gang has sufficient credits before deducting
@@ -448,11 +456,15 @@ export async function addSkillAdvancement(
         }
 
         // Starting skill path (direct purchase): deduct from stash AND increase rating
-        await updateGangFinancials(supabase, {
+        const result = await updateGangFinancials(supabase, {
           gangId: fighter.gang_id,
           ratingDelta: countsTowardRating(fighter) ? creditsIncrease : 0,
           creditsDelta: -creditsIncrease
         });
+        if (result.oldValues && result.newValues) {
+          financialsBefore = { rating: result.oldValues.rating, wealth: result.oldValues.wealth };
+          financialsAfter = { rating: result.newValues.rating, wealth: result.newValues.wealth };
+        }
         invalidateGangCredits(fighter.gang_id);
       }
 
@@ -494,7 +506,9 @@ export async function addSkillAdvancement(
       credits_increase: params.credits_increase,
       remaining_xp: updatedFighter.xp,
       is_advance: params.is_advance ?? true,
-      include_gang_rating: true,
+      ...(financialsBefore && financialsAfter
+        ? { gang_financials_before: financialsBefore, gang_financials_after: financialsAfter }
+        : {}),
       ...(!(params.is_advance ?? true) && creditsIncrease > 0 ? { credits_deducted: creditsIncrease } : {})
     });
 
@@ -1254,6 +1268,71 @@ export async function verifyAndLogRolledGangerAdvancementRoll(
     });
   } catch (error) {
     console.error('Failed to log the Ganger / Exotic Beast advancement roll:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Skill advancement — random roll logging (gang log)
+// ---------------------------------------------------------------------------
+
+export interface VerifyAndLogRolledSkillAdvancementRollParams {
+  fighter_id: string;
+  /** The skill set name the roll was made within. */
+  skill_set_name: string;
+  /**
+   * Effective skill set access level the fighter had when the roll was made,
+   * e.g. "Primary", "Secondary", "Allowed", or "Not normally accessible".
+   */
+  skill_set_access_label: string;
+  /** The acquisition type label, e.g. "Random Primary", "Random Secondary", "Random Any". */
+  acquisition_type_label: string;
+  /** The skill the dice landed on. */
+  outcome_label: string;
+  dice_data: Record<string, unknown>;
+}
+
+/**
+ * Logs a random skill advancement roll to the gang log. Rejects Ganger / Exotic Beast
+ * fighters because they have their own dedicated logging pathway via
+ * `verifyAndLogRolledGangerAdvancementRoll`.
+ */
+export async function verifyAndLogRolledSkillAdvancementRoll(
+  params: VerifyAndLogRolledSkillAdvancementRollParams
+): Promise<GangLogActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: fighter, error: fighterError } = await supabase
+      .from('fighters')
+      .select('id, gang_id, fighter_name, fighter_class')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (fighterError || !fighter) {
+      throw new Error('Fighter not found');
+    }
+
+    if (fighter.fighter_class && GANGER_ELIGIBLE_CLASSES.has(fighter.fighter_class)) {
+      throw new Error('Use the Ganger / Exotic Beast advancement roll logger for this fighter class');
+    }
+
+    return await logRolledSkillAdvancement({
+      gang_id: fighter.gang_id,
+      fighter_id: params.fighter_id,
+      fighter_name: fighter.fighter_name,
+      skill_set_name: params.skill_set_name,
+      skill_set_access_label: params.skill_set_access_label,
+      acquisition_type_label: params.acquisition_type_label,
+      outcome_label: params.outcome_label,
+      dice_data: params.dice_data
+    });
+  } catch (error) {
+    console.error('Failed to log the skill advancement roll:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
