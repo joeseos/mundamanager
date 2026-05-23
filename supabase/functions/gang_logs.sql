@@ -29,4 +29,9 @@ BEGIN
     
     RETURN log_id;
 END;
-$function$
+$function$;
+
+REVOKE ALL ON FUNCTION public.gang_logs(UUID, TEXT, TEXT, UUID, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.gang_logs(UUID, TEXT, TEXT, UUID, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.gang_logs(UUID, TEXT, TEXT, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.gang_logs(UUID, TEXT, TEXT, UUID, UUID) TO service_role;

@@ -85,6 +85,7 @@ $$;
 -- Grant permissions
 -- ============================================================================
 REVOKE ALL ON FUNCTION public.get_gang_permissions(UUID, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_gang_permissions(UUID, UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_gang_permissions(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_gang_permissions(UUID, UUID) TO service_role;
 

@@ -851,5 +851,6 @@ END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.get_gang_details(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_gang_details(UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_gang_details(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_gang_details(UUID) TO service_role;

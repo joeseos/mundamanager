@@ -54,3 +54,8 @@ CREATE TRIGGER on_gang_invite
     AFTER INSERT ON campaign_gangs
     FOR EACH ROW
     EXECUTE FUNCTION notify_gang_invite();
+
+REVOKE ALL ON FUNCTION public.notify_gang_invite() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.notify_gang_invite() FROM anon;
+GRANT EXECUTE ON FUNCTION public.notify_gang_invite() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.notify_gang_invite() TO service_role;

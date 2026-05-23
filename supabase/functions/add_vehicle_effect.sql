@@ -161,6 +161,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth, private;
 
-REVOKE ALL ON FUNCTION add_vehicle_effect(UUID, UUID, UUID, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION add_vehicle_effect(UUID, UUID, UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION add_vehicle_effect(UUID, UUID, UUID, UUID) TO service_role;
+REVOKE ALL ON FUNCTION public.add_vehicle_effect(UUID, UUID, UUID, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.add_vehicle_effect(UUID, UUID, UUID, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.add_vehicle_effect(UUID, UUID, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_vehicle_effect(UUID, UUID, UUID, UUID) TO service_role;

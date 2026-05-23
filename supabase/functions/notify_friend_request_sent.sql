@@ -37,3 +37,8 @@ CREATE TRIGGER trigger_friend_request_notification
     AFTER INSERT ON friends
     FOR EACH ROW
     EXECUTE FUNCTION notify_friend_request_sent();
+
+REVOKE ALL ON FUNCTION public.notify_friend_request_sent() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.notify_friend_request_sent() FROM anon;
+GRANT EXECUTE ON FUNCTION public.notify_friend_request_sent() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.notify_friend_request_sent() TO service_role;

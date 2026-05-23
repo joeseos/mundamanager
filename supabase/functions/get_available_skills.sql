@@ -185,3 +185,8 @@ BEGIN
     RETURN v_result;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.get_available_skills(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_available_skills(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_available_skills(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_available_skills(UUID) TO service_role;

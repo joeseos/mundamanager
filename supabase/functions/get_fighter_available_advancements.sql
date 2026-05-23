@@ -149,3 +149,8 @@ BEGIN
   RETURN v_result;
 END;
 $function$;
+
+REVOKE ALL ON FUNCTION public.get_fighter_available_advancements(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_fighter_available_advancements(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_fighter_available_advancements(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_fighter_available_advancements(UUID) TO service_role;

@@ -683,3 +683,8 @@ BEGIN
             AND ftgc.gang_affiliation_id = p_gang_affiliation_id);
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.get_add_fighter_details(UUID, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_add_fighter_details(UUID, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_add_fighter_details(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_add_fighter_details(UUID, UUID) TO service_role;
