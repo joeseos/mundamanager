@@ -440,8 +440,6 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       created_at,
       updated_at,
       scenario,
-      attacker_id,
-      defender_id,
       winner_id,
       note,
       participants,
@@ -469,11 +467,21 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     }
   }
 
-  const gangIds = Array.from(new Set([
-    ...data?.map(b => b.attacker_id).filter(Boolean) || [],
-    ...data?.map(b => b.defender_id).filter(Boolean) || [],
-    ...data?.map(b => b.winner_id).filter(Boolean) || []
-  ]));
+  const gangIdSet = new Set<string>();
+  const parsedParticipantsMap = new Map<string, any[]>();
+  data?.forEach(b => {
+    if (b.winner_id) gangIdSet.add(b.winner_id);
+    if (b.participants) {
+      try {
+        const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
+        if (Array.isArray(parsed)) {
+          parsedParticipantsMap.set(b.id, parsed);
+          parsed.forEach((p: any) => { if (p.gang_id) gangIdSet.add(p.gang_id); });
+        }
+      } catch { /* ignore */ }
+    }
+  });
+  const gangIds = Array.from(gangIdSet);
 
   let gangsData: { id: string; name: string; gang_colour: string }[] = [];
   if (gangIds.length > 0) {
@@ -508,6 +516,10 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       ? territoriesMap.get(battle.campaign_territory_id)
       : undefined;
 
+    const parsedParticipants = parsedParticipantsMap.get(battle.id);
+    const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
+    const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
+
     return {
       id: battle.id,
       created_at: battle.created_at,
@@ -515,21 +527,19 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       scenario: battle.scenario || scenarioDetails?.scenario_name || '',
       scenario_name: scenarioDetails?.scenario_name || '',
       scenario_number: scenarioDetails?.scenario_number || null,
-      attacker_id: battle.attacker_id,
-      defender_id: battle.defender_id,
       winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
       campaign_territory_id: battle.campaign_territory_id,
       territory_name: territoryName,
       cycle: battle.cycle,
-      attacker: battle.attacker_id ? {
-        id: battle.attacker_id,
-        name: gangMap.get(battle.attacker_id)?.name || 'Unknown'
+      attacker: attackerId ? {
+        id: attackerId,
+        name: gangMap.get(attackerId)?.name || 'Unknown'
       } : undefined,
-      defender: battle.defender_id ? {
-        id: battle.defender_id,
-        name: gangMap.get(battle.defender_id)?.name || 'Unknown'
+      defender: defenderId ? {
+        id: defenderId,
+        name: gangMap.get(defenderId)?.name || 'Unknown'
       } : undefined,
       winner: battle.winner_id ? {
         id: battle.winner_id,

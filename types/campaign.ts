@@ -29,8 +29,6 @@ export interface Battle {
   scenario_number?: number;
   scenario_name?: string;
   scenario?: string;
-  attacker_id?: string;
-  defender_id?: string;
   winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string;

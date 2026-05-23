@@ -63,8 +63,6 @@ export async function POST(
     const requestBody = await request.json();
     const {
       scenario,
-      attacker_id,
-      defender_id,
       winner_id,
       note,
       participants,
@@ -73,7 +71,7 @@ export async function POST(
     } = requestBody;
 
     // Validate required fields
-    if (!scenario || !attacker_id || !defender_id) {
+    if (!scenario || !participants || !Array.isArray(participants) || participants.length < 2) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -87,11 +85,9 @@ export async function POST(
         {
           campaign_id: campaignId,
           scenario,
-          attacker_id,
-          defender_id,
           winner_id,
           note,
-          participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
+          participants: JSON.stringify(participants),
           created_at: new Date().toISOString(),
           cycle
         }
@@ -112,14 +108,18 @@ export async function POST(
       }
     }
 
+    // Derive attacker/defender from participants for enrichment
+    const attacker_id = participants.find((p: any) => p.role === 'attacker')?.gang_id;
+    const defender_id = participants.find((p: any) => p.role === 'defender')?.gang_id;
+
     // Then fetch the related data for display
     const [
       { data: attacker },
       { data: defender },
       { data: winner }
     ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle(),
-      supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle(),
+      attacker_id ? supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle() : Promise.resolve({ data: null }),
+      defender_id ? supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle() : Promise.resolve({ data: null }),
       winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).maybeSingle() : Promise.resolve({ data: null })
     ]);
 
@@ -127,8 +127,8 @@ export async function POST(
     const transformedBattle = {
       ...battle,
       cycle: battle.cycle,
-      attacker: { gang_name: attacker?.name },
-      defender: { gang_name: defender?.name },
+      attacker: attacker?.name ? { gang_name: attacker.name } : undefined,
+      defender: defender?.name ? { gang_name: defender.name } : undefined,
       winner: winner?.name ? { gang_name: winner.name } : null
     };
 

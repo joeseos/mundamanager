@@ -103,14 +103,16 @@ const CampaignBattleLogModal = ({
         territoryName = getTerritoryName(territoryId);
       }
 
+      // Derive attacker/defender from participants
+      const attackerParticipant = battleData.participants.find(p => p.role === 'attacker');
+      const defenderParticipant = battleData.participants.find(p => p.role === 'defender');
+
       // Create optimistic battle entry with full gang data
       const optimisticBattle: Battle = {
         id: `optimistic-battle-${Date.now()}`,
         created_at: battleData.created_at || new Date().toISOString(),
         scenario: battleData.scenario,
         scenario_name: battleData.scenario,
-        attacker_id: battleData.attacker_id,
-        defender_id: battleData.defender_id,
         winner_id: battleData.winner_id,
         note: battleData.note,
         participants: battleData.participants,
@@ -119,14 +121,13 @@ const CampaignBattleLogModal = ({
           : null,
         territory_name: territoryName,
         cycle: battleData.cycle,
-        // Add full gang objects for display
-        attacker: battleData.attacker_id ? {
-          id: battleData.attacker_id,
-          name: getGangName(battleData.attacker_id)
+        attacker: attackerParticipant ? {
+          id: attackerParticipant.gang_id,
+          name: getGangName(attackerParticipant.gang_id)
         } : undefined,
-        defender: battleData.defender_id ? {
-          id: battleData.defender_id,
-          name: getGangName(battleData.defender_id)
+        defender: defenderParticipant ? {
+          id: defenderParticipant.gang_id,
+          name: getGangName(defenderParticipant.gang_id)
         } : undefined,
         winner: battleData.winner_id ? {
           id: battleData.winner_id,
@@ -185,6 +186,10 @@ const CampaignBattleLogModal = ({
         territoryName = getTerritoryName(territoryId);
       }
 
+      // Derive attacker/defender from participants
+      const attackerP = battleData.participants.find(p => p.role === 'attacker');
+      const defenderP = battleData.participants.find(p => p.role === 'defender');
+
       // Find and update the battle optimistically using functional update
       onBattleUpdate((currentBattles) =>
         currentBattles.map(battle => {
@@ -193,8 +198,6 @@ const CampaignBattleLogModal = ({
               ...battle,
               scenario: battleData.scenario,
               scenario_name: battleData.scenario,
-              attacker_id: battleData.attacker_id,
-              defender_id: battleData.defender_id,
               winner_id: battleData.winner_id,
               note: battleData.note,
               participants: battleData.participants,
@@ -204,14 +207,13 @@ const CampaignBattleLogModal = ({
               territory_name: territoryName,
               cycle: battleData.cycle,
               updated_at: new Date().toISOString(),
-              // Update full gang objects for display
-              attacker: battleData.attacker_id ? {
-                id: battleData.attacker_id,
-                name: getGangName(battleData.attacker_id)
+              attacker: attackerP ? {
+                id: attackerP.gang_id,
+                name: getGangName(attackerP.gang_id)
               } : undefined,
-              defender: battleData.defender_id ? {
-                id: battleData.defender_id,
-                name: getGangName(battleData.defender_id)
+              defender: defenderP ? {
+                id: defenderP.gang_id,
+                name: getGangName(defenderP.gang_id)
               } : undefined,
               winner: battleData.winner_id ? {
                 id: battleData.winner_id,
@@ -364,29 +366,23 @@ const CampaignBattleLogModal = ({
         }
       });
     } else {
-      // Fallback to old data structure
+      // Fallback to enriched attacker/defender objects
       let idx = 1;
-      
-      if (battleToEdit.attacker_id || battleToEdit.attacker?.id) {
-        const gangId = battleToEdit.attacker?.id || battleToEdit.attacker_id || '';
-        if (gangId) {
-          newGangsInBattle.push({
-            id: idx++,
-            gangId,
-            role: 'attacker'
-          });
-        }
+
+      if (battleToEdit.attacker?.id) {
+        newGangsInBattle.push({
+          id: idx++,
+          gangId: battleToEdit.attacker.id,
+          role: 'attacker'
+        });
       }
 
-      if (battleToEdit.defender_id || battleToEdit.defender?.id) {
-        const gangId = battleToEdit.defender?.id || battleToEdit.defender_id || '';
-        if (gangId) {
-          newGangsInBattle.push({
-            id: idx++,
-            gangId,
-            role: 'defender'
-          });
-        }
+      if (battleToEdit.defender?.id) {
+        newGangsInBattle.push({
+          id: idx++,
+          gangId: battleToEdit.defender.id,
+          role: 'defender'
+        });
       }
     }
     
@@ -555,9 +551,6 @@ const CampaignBattleLogModal = ({
         : '';
     }
 
-    // Get a default attacker/defender if needed for the API
-    const firstGangId = gangsInBattle.find(g => g.gangId)?.gangId || '';
-
     // Validate and prepare cycle value
     let cycleValue: number | null = null;
     if (cycle) {
@@ -570,8 +563,6 @@ const CampaignBattleLogModal = ({
     // Prepare battle data for API
     const battleData: BattleLogParams = {
       scenario: scenarioName,
-      attacker_id: attackers.length > 0 ? attackers[0].gangId : (gangsInBattle[0]?.gangId || firstGangId),
-      defender_id: defenders.length > 0 ? defenders[0].gangId : (gangsInBattle[1]?.gangId || gangsInBattle[0]?.gangId || firstGangId),
       winner_id: winner === "draw" ? null : winner,
       note: notes || null,
       participants: participants,

@@ -27,14 +27,23 @@ export interface TerritoryClaimRequest {
  */
 export interface BattleLogParams {
   scenario: string;
-  attacker_id: string;
-  defender_id: string;
   winner_id: string | null;
   note: string | null;
   participants: BattleParticipant[];
   claimed_territories?: TerritoryClaimRequest[];
   created_at?: string;
   cycle?: number | null;
+}
+
+function getAttackerDefenderFromParticipants(participants: BattleParticipant[] | string) {
+  try {
+    const parsed = typeof participants === 'string' ? JSON.parse(participants) : participants;
+    const attacker = parsed?.find((p: BattleParticipant) => p.role === 'attacker');
+    const defender = parsed?.find((p: BattleParticipant) => p.role === 'defender');
+    return { attacker_id: attacker?.gang_id ?? null, defender_id: defender?.gang_id ?? null };
+  } catch {
+    return { attacker_id: null, defender_id: null };
+  }
 }
 
 /**
@@ -142,8 +151,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 
     const {
       scenario,
-      attacker_id,
-      defender_id,
       winner_id,
       note,
       participants,
@@ -160,6 +167,8 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       ? claimed_territories[0].campaign_territory_id
       : null;
 
+    const { attacker_id, defender_id } = getAttackerDefenderFromParticipants(participants);
+
     // First, create the battle record
     const { data: battle, error: battleError } = await supabase
       .from('campaign_battles')
@@ -167,8 +176,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
         {
           campaign_id: campaignId,
           scenario,
-          attacker_id,
-          defender_id,
           winner_id,
           note,
           participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
@@ -204,8 +211,8 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       { data: winner },
       { data: campaign }
     ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle(),
-      supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle(),
+      attacker_id ? supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle() : Promise.resolve({ data: null }),
+      defender_id ? supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle() : Promise.resolve({ data: null }),
       winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle()
     ]);
@@ -257,8 +264,6 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     const {
       scenario,
-      attacker_id,
-      defender_id,
       winner_id,
       note,
       participants,
@@ -329,11 +334,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       }
     }
 
+    const { attacker_id, defender_id } = getAttackerDefenderFromParticipants(participants);
+
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
       scenario,
-      attacker_id,
-      defender_id,
       winner_id,
       note,
       participants: Array.isArray(participants) ? JSON.stringify(participants) : participants,
@@ -362,8 +367,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       { data: winner },
       { data: campaign }
     ] = await Promise.all([
-      supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle(),
-      supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle(),
+      attacker_id ? supabase.from('gangs').select('name').eq('id', attacker_id).maybeSingle() : Promise.resolve({ data: null }),
+      defender_id ? supabase.from('gangs').select('name').eq('id', defender_id).maybeSingle() : Promise.resolve({ data: null }),
       winner_id ? supabase.from('gangs').select('name').eq('id', winner_id).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle()
     ]);

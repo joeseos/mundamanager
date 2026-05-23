@@ -167,15 +167,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           }
         });
       }
-      // Also check old structure
-      if (battle.attacker_id || battle.attacker?.id) {
-        const gangId = battle.attacker?.id || battle.attacker_id;
-        if (gangId) participatingGangIds.add(gangId);
-      }
-      if (battle.defender_id || battle.defender?.id) {
-        const gangId = battle.defender?.id || battle.defender_id;
-        if (gangId) participatingGangIds.add(gangId);
-      }
+      if (battle.attacker?.id) participatingGangIds.add(battle.attacker.id);
+      if (battle.defender?.id) participatingGangIds.add(battle.defender.id);
 
       // Winning gangs
       if (battle.winner_id === null) {
@@ -225,10 +218,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         if (participants && Array.isArray(participants)) {
           return participants.some((p: BattleParticipant) => p.gang_id === filterParticipatingGang);
         }
-        // Also check old structure
-        const attackerId = battle.attacker?.id || battle.attacker_id;
-        const defenderId = battle.defender?.id || battle.defender_id;
-        return attackerId === filterParticipatingGang || defenderId === filterParticipatingGang;
+        return (battle.attacker?.id === filterParticipatingGang || battle.defender?.id === filterParticipatingGang);
       });
     }
 
@@ -478,7 +468,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     if (participants && Array.isArray(participants)) {
       return participants.some((p: BattleParticipant) => p.gang_id === gangId);
     }
-    return battle.attacker_id === gangId || battle.defender_id === gangId;
+    return battle.attacker?.id === gangId || battle.defender?.id === gangId;
   }, []);
 
   // Compute gang standings from battles + members
@@ -673,33 +663,23 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       );
     }
     
-    // Fallback to old data structure
+    // Fallback to enriched attacker/defender objects
     const gangs = [];
-    
-    if (battle.attacker_id || battle.attacker?.id) {
-      const gangId = battle.attacker?.id || battle.attacker_id;
-      const gangName = battle.attacker?.name || getGangName(gangId || "");
 
-      if (gangId) {
-        gangs.push({
-          id: gangId,
-          name: gangName,
-          role: 'attacker'
-        });
-      }
+    if (battle.attacker?.id) {
+      gangs.push({
+        id: battle.attacker.id,
+        name: battle.attacker.name || getGangName(battle.attacker.id),
+        role: 'attacker'
+      });
     }
 
-    if (battle.defender_id || battle.defender?.id) {
-      const gangId = battle.defender?.id || battle.defender_id;
-      const gangName = battle.defender?.name || getGangName(gangId || "");
-      
-      if (gangId) {
-        gangs.push({
-          id: gangId,
-          name: gangName,
-          role: 'defender'
-        });
-      }
+    if (battle.defender?.id) {
+      gangs.push({
+        id: battle.defender.id,
+        name: battle.defender.name || getGangName(battle.defender.id),
+        role: 'defender'
+      });
     }
     
     if (gangs.length === 0) {

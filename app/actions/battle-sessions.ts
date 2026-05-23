@@ -1029,8 +1029,6 @@ export async function completeBattleSession(
       try {
         const battleLog = await createBattleLog(session.campaign_id, {
           scenario: session.scenario || '',
-          attacker_id: allParticipants.find((p) => p.role === 'attacker')?.gang_id || allParticipants[0]?.gang_id || allParticipants[1]?.gang_id || '',
-          defender_id: allParticipants.find((p) => p.role === 'defender')?.gang_id || allParticipants[1]?.gang_id || allParticipants[0]?.gang_id || '',
           winner_id: session.winner_gang_id,
           note: options?.note || null,
           participants: allParticipants.map((p) => ({ gang_id: p.gang_id, role: p.role as 'attacker' | 'defender' | 'none' })),

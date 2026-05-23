@@ -31,8 +31,8 @@ Deno.serve(async (req) => {
         : battle.participants ?? [];
 
     const gangIds = participants.map((p: { gang_id: string }) => p.gang_id);
-    for (const id of [battle.attacker_id, battle.defender_id, battle.winner_id]) {
-      if (id && !gangIds.includes(id)) gangIds.push(id);
+    if (battle.winner_id && !gangIds.includes(battle.winner_id)) {
+      gangIds.push(battle.winner_id);
     }
 
     const { data: gangs } = await supabase
@@ -81,9 +81,6 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } else {
-      if (battle.attacker_id) attackerGangIds = [battle.attacker_id];
-      if (battle.defender_id) defenderGangIds = [battle.defender_id];
     }
 
     const gangNamesLines = (ids: string[]) =>
