@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { LuPlus } from 'react-icons/lu';
@@ -19,6 +19,7 @@ import {
   getSessionClaimerGangId,
   getSessionWinnerIds,
 } from '@/utils/battle-winners';
+import { useWinnerSelection } from '@/utils/hooks/use-winner-selection';
 
 interface CompleteBattleTerritory {
   id: string;
@@ -47,13 +48,6 @@ export default function CompleteBattleModal({
   const initialIsDraw =
     initialWinnerIds.length === 0 && session.winner_gang_id === null;
 
-  const [winners, setWinners] = useState<string[]>(
-    initialWinnerIds.length > 0 ? initialWinnerIds : ['']
-  );
-  const [isDraw, setIsDraw] = useState<boolean>(initialIsDraw);
-  const [claimedByGangId, setClaimedByGangId] = useState<string>(
-    initialClaimerId ?? ''
-  );
   const [selectedTerritory, setSelectedTerritory] = useState('');
   const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
@@ -64,46 +58,25 @@ export default function CompleteBattleModal({
     [session.participants]
   );
 
-  const activeWinners = useMemo(() => winners.filter((w) => !!w), [winners]);
-  const hasAnyWinnerSelected = activeWinners.length > 0 || isDraw;
-
-  // Keep the claimer in sync with the selected winners — clear it if it is no
-  // longer a winner, and auto-fill it for the single-winner case so the user
-  // doesn't have to do anything special for the common path.
-  useEffect(() => {
-    if (claimedByGangId && !activeWinners.includes(claimedByGangId)) {
-      setClaimedByGangId('');
-    }
-  }, [activeWinners, claimedByGangId]);
-
-  useEffect(() => {
-    if (activeWinners.length === 1 && selectedTerritory) {
-      setClaimedByGangId(activeWinners[0]);
-    } else if (activeWinners.length === 0 || !selectedTerritory) {
-      setClaimedByGangId('');
-    }
-  }, [activeWinners, selectedTerritory]);
-
-  const handleWinnerChange = (slotIndex: number, value: string) => {
-    if (value === 'draw') {
-      setIsDraw(true);
-      setWinners(['']);
-      return;
-    }
-    setIsDraw(false);
-    setWinners((current) => {
-      const next = [...current];
-      while (next.length <= slotIndex) next.push('');
-      next[slotIndex] = value;
-      return next;
-    });
-  };
-
-  const addWinnerSlot = () => setWinners((current) => [...current, '']);
-  const removeWinnerSlot = (slotIndex: number) =>
-    setWinners((current) =>
-      current.length <= 1 ? current : current.filter((_, i) => i !== slotIndex)
-    );
+  const {
+    winners,
+    isDraw,
+    claimedByGangId,
+    setClaimedByGangId,
+    activeWinners,
+    hasAnyWinnerSelected,
+    slotsToRender,
+    canAddAnotherWinner,
+    handleWinnerChange,
+    addWinnerSlot,
+    removeWinnerSlot,
+  } = useWinnerSelection({
+    initialWinnerIds,
+    initialClaimerId,
+    initialIsDraw,
+    maxParticipants: session.participants.length,
+    selectedTerritory,
+  });
 
   const handleConfirm = async () => {
     if (!hasAnyWinnerSelected) {
@@ -175,13 +148,6 @@ export default function CompleteBattleModal({
     value: gangId,
     label: gangNameMap.get(gangId) ?? 'Unknown Gang',
   });
-
-  const slotsToRender = isDraw ? 1 : Math.max(1, winners.length);
-  const canAddAnotherWinner =
-    !isDraw &&
-    activeWinners.length === winners.length &&
-    activeWinners.length > 0 &&
-    activeWinners.length < session.participants.length;
 
   return createPortal(
     <Modal

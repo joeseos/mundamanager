@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
+import { getWinnerIds, getClaimerGangId } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
 
 // No TTL - infinite cache with server action invalidation only
@@ -524,24 +525,14 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
-    // Multi-winner enrichment: derive every winner from participants[*].is_winner
-    // with fallback to the legacy winner_id (covers historical single-winner rows).
-    const flaggedWinnerIds: string[] = (parsedParticipants ?? [])
-      .filter((p: any) => p?.is_winner === true && !!p.gang_id)
-      .map((p: any) => p.gang_id as string);
-    const effectiveWinnerIds = flaggedWinnerIds.length > 0
-      ? flaggedWinnerIds
-      : battle.winner_id
-        ? [battle.winner_id]
-        : [];
+    // Multi-winner enrichment: delegate to the shared helpers so this path
+    // stays in sync with everywhere else that reads winner data.
+    const effectiveWinnerIds = getWinnerIds(battle);
     const winners = effectiveWinnerIds.map((id) => ({
       id,
       name: gangMap.get(id)?.name || 'Unknown',
     }));
-    const claimerId =
-      parsedParticipants?.find((p: any) => p?.claimed_territory === true)?.gang_id
-      ?? battle.winner_id
-      ?? null;
+    const claimerId = getClaimerGangId(battle);
     const territory_claimer = claimerId
       ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
       : null;

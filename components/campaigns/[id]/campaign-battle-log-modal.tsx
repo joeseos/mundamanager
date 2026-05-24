@@ -13,6 +13,7 @@ import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
+import { useWinnerSelection } from '@/utils/hooks/use-winner-selection';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;
@@ -57,25 +58,36 @@ const CampaignBattleLogModal = ({
     { id: 1, gangId: "", role: 'none' },
     { id: 2, gangId: "", role: 'none' },
   ]);
-  // Multi-winner state. `winners` holds the selected winning gang ids in slot
-  // order; `isDraw` is the mutually-exclusive "Draw" sentinel.
-  const [winners, setWinners] = useState<string[]>([""]);
-  const [isDraw, setIsDraw] = useState(false);
-  // When more than one winner is selected and a territory is claimed, the user
-  // must pick exactly one winner as the claimer.
-  const [claimedByGangId, setClaimedByGangId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<BattleLogTerritory[]>([]);
 
-  // Active winner ids (filtering out empty slots) — used everywhere downstream.
-  const activeWinners = useMemo(
-    () => winners.filter((w) => !!w),
-    [winners]
+  const selectedGangs = useMemo(
+    () => gangsInBattle.filter((entry) => !!entry.gangId),
+    [gangsInBattle]
   );
-  const hasAnyWinnerSelected = activeWinners.length > 0 || isDraw;
+
+  const {
+    winners,
+    setWinners,
+    isDraw,
+    setIsDraw,
+    claimedByGangId,
+    setClaimedByGangId,
+    activeWinners,
+    hasAnyWinnerSelected,
+    slotsToRender,
+    canAddAnotherWinner,
+    handleWinnerChange,
+    addWinnerSlot,
+    removeWinnerSlot,
+    resetWinnerSelection,
+  } = useWinnerSelection({
+    maxParticipants: selectedGangs.length,
+    selectedTerritory,
+  });
   
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
@@ -507,27 +519,6 @@ const CampaignBattleLogModal = ({
     }
   }, [hasAnyWinnerSelected, gangsInBattle, territories]); // Don't include availableTerritories or selectedTerritory here
 
-  // When the selected winners change, ensure the chosen claimer is still valid:
-  // it must be a current winner. Clear it otherwise (the UI will require the
-  // user to pick again when winners.length > 1 and a territory is claimed).
-  useEffect(() => {
-    if (!claimedByGangId) return;
-    if (!activeWinners.includes(claimedByGangId)) {
-      setClaimedByGangId('');
-    }
-  }, [activeWinners, claimedByGangId]);
-
-  // When there's exactly one winner and a territory is selected, auto-set the
-  // claimer to that winner so single-winner battles "just work" — kept here so
-  // both the form state and the persisted flag mirror the user's intent.
-  useEffect(() => {
-    if (activeWinners.length === 1 && selectedTerritory) {
-      setClaimedByGangId(activeWinners[0]);
-    } else if (activeWinners.length === 0 || !selectedTerritory) {
-      setClaimedByGangId('');
-    }
-  }, [activeWinners, selectedTerritory]);
-
   const handleGangRoleChange = (gangEntryId: number, newRole: GangRole) => {
     setGangsInBattle(gangsInBattle.map(entry => 
       entry.id === gangEntryId 
@@ -562,37 +553,6 @@ const CampaignBattleLogModal = ({
     if (removedGangId) {
       setWinners((current) => current.filter((w) => w !== removedGangId));
     }
-  };
-
-  // ===========================================================================
-  // Winner slot helpers
-  // ===========================================================================
-
-  const handleWinnerChange = (slotIndex: number, value: string) => {
-    if (value === 'draw') {
-      setIsDraw(true);
-      setWinners([""]);
-      return;
-    }
-    setIsDraw(false);
-    setWinners((current) => {
-      const next = [...current];
-      // Ensure the array has enough slots
-      while (next.length <= slotIndex) next.push("");
-      next[slotIndex] = value;
-      return next;
-    });
-  };
-
-  const addWinnerSlot = () => {
-    setWinners((current) => [...current, ""]);
-  };
-
-  const removeWinnerSlot = (slotIndex: number) => {
-    setWinners((current) => {
-      if (current.length <= 1) return current;
-      return current.filter((_, i) => i !== slotIndex);
-    });
   };
 
   // Get the list of gangs that are already selected in other entries
@@ -751,9 +711,7 @@ const CampaignBattleLogModal = ({
       { id: 1, gangId: "", role: 'none' },
       { id: 2, gangId: "", role: 'none' },
     ]);
-    setWinners(['']);
-    setIsDraw(false);
-    setClaimedByGangId('');
+    resetWinnerSelection();
     setNotes('');
     setSelectedTerritory('');
     setCycle('');
@@ -1026,109 +984,88 @@ const CampaignBattleLogModal = ({
             </Button>
           </div>
 
-          {(() => {
-            // Build the per-slot Combobox options once: exclude already-selected
-            // winners from later slots so the same gang can't be picked twice.
-            const selectedGangs = gangsInBattle.filter((entry) => !!entry.gangId);
-            const buildGangOption = (entry: GangEntry) => {
-              const gang = availableGangs.find((g) => g.id === entry.gangId);
-              const gangName = getGangName(entry.gangId);
-              const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
-              const displayValue = `${gangName}${owner}`;
-              return {
-                value: entry.gangId,
-                label: owner ? (
-                  <span>
-                    <span>{gangName}</span>
-                    <span className="text-xs text-muted-foreground">{owner}</span>
-                  </span>
-                ) : gangName,
-                displayValue,
-              };
-            };
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Winner *
+            </label>
+            <div className="space-y-2">
+              {Array.from({ length: slotsToRender }).map((_, slotIndex) => {
+                const slotValue = isDraw && slotIndex === 0 ? 'draw' : (winners[slotIndex] ?? '');
+                const isFirstSlot = slotIndex === 0;
+                const excludedGangIds = new Set(
+                  winners.filter((_, i) => i !== slotIndex && !!winners[i])
+                );
+                // Build per-slot options including the campaign-specific owner label.
+                const gangOptions = selectedGangs
+                  .filter((entry) => !excludedGangIds.has(entry.gangId))
+                  .map((entry) => {
+                    const gang = availableGangs.find((g) => g.id === entry.gangId);
+                    const gangName = getGangName(entry.gangId);
+                    const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
+                    return {
+                      value: entry.gangId,
+                      label: owner ? (
+                        <span>
+                          <span>{gangName}</span>
+                          <span className="text-xs text-muted-foreground">{owner}</span>
+                        </span>
+                      ) : gangName,
+                      displayValue: `${gangName}${owner}`,
+                    };
+                  });
 
-            // Render either: a single Combobox showing the "Draw" sentinel and
-            // every selectable gang (first slot), or — once at least one winner
-            // is picked — that Combobox plus one slot per additional winner.
-            const slotsToRender = isDraw ? 1 : Math.max(1, winners.length);
-            const canAddAnotherWinner =
-              !isDraw &&
-              activeWinners.length === winners.length &&
-              activeWinners.length > 0 &&
-              activeWinners.length < selectedGangs.length;
+                const baseOptions = isFirstSlot
+                  ? [
+                      { value: "", label: "No winner selected" },
+                      { value: "draw", label: "Draw" },
+                      ...gangOptions,
+                    ]
+                  : [
+                      { value: "", label: "Select winner" },
+                      ...gangOptions,
+                    ];
 
-            return (
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Winner *
-                </label>
-                <div className="space-y-2">
-                  {Array.from({ length: slotsToRender }).map((_, slotIndex) => {
-                    const slotValue = isDraw && slotIndex === 0 ? 'draw' : (winners[slotIndex] ?? '');
-                    // First slot keeps the "Draw" option. Additional slots are
-                    // pure gang pickers — drop the no-selection / draw entries.
-                    const isFirstSlot = slotIndex === 0;
-                    const excludedGangIds = new Set(
-                      winners.filter((_, i) => i !== slotIndex && !!winners[i])
-                    );
-                    const gangOptions = selectedGangs
-                      .filter((entry) => !excludedGangIds.has(entry.gangId))
-                      .map(buildGangOption);
-
-                    const baseOptions = isFirstSlot
-                      ? [
-                          { value: "", label: "No winner selected" },
-                          { value: "draw", label: "Draw" },
-                          ...gangOptions,
-                        ]
-                      : [
-                          { value: "", label: "Select winner" },
-                          ...gangOptions,
-                        ];
-
-                    return (
-                      <div key={`winner-slot-${slotIndex}`} className="flex items-start gap-2">
-                        <div className="flex-1">
-                          <Combobox
-                            value={slotValue}
-                            onValueChange={(value) => handleWinnerChange(slotIndex, value)}
-                            disabled={isLoadingBattleData}
-                            placeholder={isFirstSlot ? "Select winner" : "Select another winner"}
-                            options={baseOptions}
-                          />
-                        </div>
-                        {slotIndex > 0 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Remove winner"
-                            onClick={() => removeWinnerSlot(slotIndex)}
-                            disabled={isLoadingBattleData}
-                          >
-                            <HiX className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {canAddAnotherWinner && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-1"
-                      onClick={addWinnerSlot}
-                      disabled={isLoadingBattleData}
-                    >
-                      <LuPlus className="h-4 w-4" />
-                      Add Winner
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+                return (
+                  <div key={`winner-slot-${slotIndex}`} className="flex items-start gap-2">
+                    <div className="flex-1">
+                      <Combobox
+                        value={slotValue}
+                        onValueChange={(value) => handleWinnerChange(slotIndex, value)}
+                        disabled={isLoadingBattleData}
+                        placeholder={isFirstSlot ? "Select winner" : "Select another winner"}
+                        options={baseOptions}
+                      />
+                    </div>
+                    {slotIndex > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove winner"
+                        onClick={() => removeWinnerSlot(slotIndex)}
+                        disabled={isLoadingBattleData}
+                      >
+                        <HiX className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+              {canAddAnotherWinner && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={addWinnerSlot}
+                  disabled={isLoadingBattleData}
+                >
+                  <LuPlus className="h-4 w-4" />
+                  Add Winner
+                </Button>
+              )}
+            </div>
+          </div>
 
           {hasAnyWinnerSelected && availableTerritories.length > 0 && (
             <div>

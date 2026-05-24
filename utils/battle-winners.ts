@@ -48,6 +48,24 @@ export function getWinnerIds(battle: CampaignBattleLike): string[] {
 }
 
 /**
+ * Returns the gang_id of the first participant flagged with
+ * `claimed_territory: true`, or `null`.
+ *
+ * Unlike `getClaimerGangId` this does NOT fall back to `winner_id`. Use this
+ * when you only want to carry forward an existing explicit claim flag (e.g.
+ * inside `normaliseParticipants`) and must not accidentally inherit a legacy
+ * winner as a claimer when no participant flag is present.
+ */
+export function getExplicitClaimerGangId(
+  participants: BattleParticipant[] | string | null | undefined
+): string | null {
+  const claimer = parseParticipants(participants).find(
+    (p) => p?.claimed_territory === true && !!p.gang_id
+  );
+  return claimer ? claimer.gang_id : null;
+}
+
+/**
  * Returns the gang_id that claimed the territory on a campaign battle, or
  * `null` when no claim was made. Prefers the participant flagged with
  * `claimed_territory: true`; falls back to the legacy `winner_id` column.
