@@ -274,9 +274,6 @@ export async function setSessionWinners(
       return { success: false, error: 'Only one winner can claim a territory' };
     }
     const claimerGangId = claimers[0]?.gang_id ?? null;
-    if (claimerGangId && !winners.some((w) => w.gang_id === claimerGangId)) {
-      return { success: false, error: 'The territory claimer must be one of the winners' };
-    }
 
     const { data: sessionParticipants } = await supabase
       .from('battle_session_participants')
@@ -298,7 +295,7 @@ export async function setSessionWinners(
     // Update each participant row. Doing this row-by-row keeps things simple
     // and avoids the awkward CASE statement that a single SQL update would need
     // to write different values for is_winner / claimed_territory per row.
-    await Promise.all(
+    const updateResults = await Promise.all(
       sessionParticipants.map((p) =>
         supabase
           .from('battle_session_participants')
@@ -309,6 +306,13 @@ export async function setSessionWinners(
           .eq('id', p.id)
       )
     );
+    const failedUpdate = updateResults.find((r) => r.error);
+    if (failedUpdate) {
+      return {
+        success: false,
+        error: `Failed to update participant flags: ${failedUpdate.error!.message}`,
+      };
+    }
 
     // Legacy winner_gang_id: prefer the territory claimer; otherwise the first
     // winner; NULL for draws. Mirrors the campaign battle action.
@@ -1114,8 +1118,8 @@ export async function completeBattleSession(
     // the legacy winner_gang_id so historical sessions still produce a sane log.
     const flaggedWinnerIds: string[] =
       (allParticipants ?? [])
-        .filter((p: any) => p.is_winner === true)
-        .map((p: any) => p.gang_id as string);
+        .filter((p) => p.is_winner === true)
+        .map((p) => p.gang_id);
     const effectiveWinnerIds: string[] =
       flaggedWinnerIds.length > 0
         ? flaggedWinnerIds
@@ -1124,7 +1128,7 @@ export async function completeBattleSession(
           : [];
     const winnerGangSet = new Set(effectiveWinnerIds);
     const claimerGangId: string | null =
-      (allParticipants ?? []).find((p: any) => p.claimed_territory === true)?.gang_id
+      (allParticipants ?? []).find((p) => p.claimed_territory === true)?.gang_id
       ?? session.winner_gang_id
       ?? null;
 

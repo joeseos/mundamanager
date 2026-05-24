@@ -6,6 +6,7 @@ import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getWinnerIds } from '@/utils/battle-winners';
 
 /**
  * Type definition for battle participant.
@@ -63,8 +64,11 @@ export interface BattleLogParams {
  *
  * Returns the normalised array along with the derived `effectiveWinnerIds` and
  * `claimerGangId` for use by callers.
+ *
+ * Exported so the API route can call the same logic and the two paths can't
+ * drift.
  */
-function normaliseParticipants(
+export function normaliseParticipants(
   participants: BattleParticipant[],
   winnerIdFromCaller: string | null,
   territoryClaimerFromCaller: string | null | undefined
@@ -378,8 +382,10 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
  * When the caller didn't pass an explicit override and there is no claim being
  * made (no territory selected), we suppress any stale `claimed_territory` flags
  * on the input.
+ *
+ * Exported alongside `normaliseParticipants` so the API route can reuse it.
  */
-function territoryClaimerFor(
+export function territoryClaimerFor(
   newTerritoryId: string | null,
   callerOverride: string | null | undefined,
   existingClaimer: string | null
@@ -419,10 +425,12 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       ? claimed_territories[0].campaign_territory_id
       : null;
 
-    // First, verify the battle exists and belongs to the campaign
+    // First, verify the battle exists and belongs to the campaign.
+    // Fetch winner_id and participants too so we can invalidate old winners'
+    // caches when the winner list changes on an edit.
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
-      .select('id, campaign_territory_id')
+      .select('id, campaign_territory_id, winner_id, participants')
       .eq('id', battleId)
       .eq('campaign_id', campaignId)
       .single();
@@ -430,6 +438,9 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     if (checkError || !existingBattle) {
       throw new Error('Battle not found or access denied');
     }
+
+    // Derive the old winners so we can bust their caches after the update.
+    const oldWinnerIds = getWinnerIds(existingBattle as any);
 
     // Look up the gang currently holding the old territory so we can invalidate their cache.
     // This covers both cases: territory changes (old owner loses it) and same territory with
@@ -584,6 +595,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       if (oldTerritoryGangId) {
         revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(oldTerritoryGangId));
       }
+    }
+    // Invalidate old winners so a removed gang's stats don't serve stale data.
+    for (const oldId of oldWinnerIds) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(oldId));
     }
     // Invalidate every (new) winner's campaign cache so their stats refresh.
     for (const winnerId of effectiveWinnerIds) {

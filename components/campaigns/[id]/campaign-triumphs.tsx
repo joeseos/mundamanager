@@ -125,13 +125,17 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
   const victoriesByAllegiance = useMemo(() => {
     const counts = new Map<string, number>();
     battles.forEach(battle => {
-      // One victory is counted per flagged winner — single-winner battles still
-      // contribute exactly one tally to the winner's allegiance.
-      const winnerIds = getWinnerIds(battle);
-      winnerIds.forEach((winnerId) => {
+      // Score +1 per battle per allegiance, regardless of how many co-winners
+      // share that allegiance. A battle is one event — two gangs from the same
+      // allegiance co-winning shouldn't inflate the allegiance's tally.
+      const allegiancesThisBattle = new Set<string>();
+      getWinnerIds(battle).forEach((winnerId) => {
         const gang = gangMap.get(winnerId);
         const allegiance = gang?.allegianceName || '';
         if (!allegiance) return;
+        allegiancesThisBattle.add(allegiance);
+      });
+      allegiancesThisBattle.forEach((allegiance) => {
         counts.set(allegiance, (counts.get(allegiance) || 0) + 1);
       });
     });

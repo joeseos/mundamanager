@@ -480,10 +480,6 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
           parsedParticipantsMap.set(b.id, parsed);
           parsed.forEach((p: any) => {
             if (p.gang_id) gangIdSet.add(p.gang_id);
-            // Multi-winner support: flagged winners are already in the list
-            // via the gang_id check above; we don't need to add them again.
-            // But explicitly listed to make the intent obvious.
-            if (p.is_winner === true && p.gang_id) gangIdSet.add(p.gang_id);
           });
         }
       } catch { /* ignore */ }

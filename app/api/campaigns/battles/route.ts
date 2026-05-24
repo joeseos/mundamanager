@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { normaliseParticipants, territoryClaimerFor } from "@/app/actions/campaigns/[id]/battle-logs";
 
 export async function GET(
   request: Request
@@ -79,46 +80,21 @@ export async function POST(
       );
     }
 
-    // Normalise the participants array exactly like the server action does:
-    // every winner flag becomes explicit, an optional territory claimer is
-    // attached, and the legacy winner_id is derived from the flags.
-    const normalisedParticipants = rawParticipants.map((p: any) => ({
-      role: p.role,
-      gang_id: p.gang_id,
-      is_winner: p.is_winner === true,
-      claimed_territory: false,
-    }));
+    // Normalise the participants array using the shared helper so this path and
+    // the server action can never drift.
+    const newTerritoryId = claimed_territories.length > 0
+      ? claimed_territories[0].campaign_territory_id ?? null
+      : null;
+    const existingClaimer = (rawParticipants as any[]).find(
+      (p) => p.claimed_territory === true
+    )?.gang_id ?? null;
+    const { participants: normalisedParticipants, effectiveWinnerIds, claimerGangId } =
+      normaliseParticipants(
+        rawParticipants,
+        callerWinnerId,
+        territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, existingClaimer)
+      );
 
-    const anyFlagged = normalisedParticipants.some((p: any) => p.is_winner);
-    if (!anyFlagged && callerWinnerId) {
-      const target = normalisedParticipants.find((p: any) => p.gang_id === callerWinnerId);
-      if (target) target.is_winner = true;
-    }
-
-    let claimerGangId: string | null = null;
-    if (territory_claimed_by_gang_id) {
-      claimerGangId = territory_claimed_by_gang_id;
-    } else {
-      const existingClaimer = rawParticipants.find((p: any) => p.claimed_territory === true);
-      if (existingClaimer) {
-        claimerGangId = existingClaimer.gang_id;
-      } else {
-        const flaggedWinners = normalisedParticipants.filter((p: any) => p.is_winner);
-        if (flaggedWinners.length === 1) claimerGangId = flaggedWinners[0].gang_id;
-      }
-    }
-    if (claimerGangId) {
-      const claimer = normalisedParticipants.find((p: any) => p.gang_id === claimerGangId);
-      if (claimer && claimer.is_winner) {
-        claimer.claimed_territory = true;
-      } else {
-        claimerGangId = null;
-      }
-    }
-
-    const effectiveWinnerIds = normalisedParticipants
-      .filter((p: any) => p.is_winner)
-      .map((p: any) => p.gang_id);
     const legacyWinnerId: string | null = claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
     // First, create the battle record
