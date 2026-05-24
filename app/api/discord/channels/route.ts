@@ -67,10 +67,13 @@ export async function GET(request: NextRequest) {
 
     const channels = await discordResponse.json()
 
-    // Filter to text channels only (type 0) and return id + name
+    const DISCORD_TEXT_CHANNEL = 0
+    const DISCORD_FORUM_CHANNEL = 15
+
+    // Filter to text and forum channels and return id, name, type
     const textChannels = channels
-      .filter((ch: { type: number }) => ch.type === 0)
-      .map((ch: { id: string; name: string }) => ({ id: ch.id, name: ch.name }))
+      .filter((ch: { type: number }) => ch.type === DISCORD_TEXT_CHANNEL || ch.type === DISCORD_FORUM_CHANNEL)
+      .map((ch: { id: string; name: string; type: number }) => ({ id: ch.id, name: ch.name, type: ch.type }))
       .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
 
     return Response.json(textChannels)

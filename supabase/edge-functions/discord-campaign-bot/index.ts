@@ -7,7 +7,9 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!;
+const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!
+
+const DISCORD_CHANNEL_TYPES = { TEXT: 0, FORUM: 15 } as const;
 
 Deno.serve(async (req) => {
   try {
@@ -16,7 +18,7 @@ Deno.serve(async (req) => {
 
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("campaign_name, discord_channel_id")
+      .select("campaign_name, discord_channel_id, discord_channel_type")
       .eq("id", battle.campaign_id)
       .single();
 
@@ -31,27 +33,12 @@ Deno.serve(async (req) => {
         : battle.participants ?? [];
 
     const gangIds = participants.map((p: { gang_id: string }) => p.gang_id);
-    if (battle.winner_id && !gangIds.includes(battle.winner_id)) {
-      gangIds.push(battle.winner_id);
-    }
 
-    // Multi-winner support: collect every gang flagged as a winner on the
-    // participants JSONB. Fall back to the legacy winner_id when no flags are
-    // present (covers historical single-winner rows).
-    const flaggedWinnerIds: string[] = Array.isArray(participants)
+    const winnerIds: string[] = Array.isArray(participants)
       ? participants
           .filter((p: any) => p?.is_winner === true && !!p?.gang_id)
           .map((p: any) => p.gang_id as string)
       : [];
-    const winnerIds: string[] =
-      flaggedWinnerIds.length > 0
-        ? flaggedWinnerIds
-        : battle.winner_id
-          ? [battle.winner_id]
-          : [];
-    for (const wid of winnerIds) {
-      if (!gangIds.includes(wid)) gangIds.push(wid);
-    }
 
     const { data: gangs } = await supabase
       .from("gangs")
@@ -213,18 +200,38 @@ Deno.serve(async (req) => {
       footer: { text: "MundaManager" },
     };
 
-    // Send via Bot API instead of webhook
-    const discordRes = await fetch(
-      `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ embeds: [embed] }),
-      }
-    );
+    let discordRes: Response
+
+    if (campaign.discord_channel_type === DISCORD_CHANNEL_TYPES.FORUM) {
+      const date = new Date().toISOString().slice(0, 10)
+      discordRes = await fetch(
+        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/threads`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: `${campaign.campaign_name} — Battle Report (${date})`,
+            auto_archive_duration: 10080,
+            message: { embeds: [embed] },
+          }),
+        }
+      )
+    } else {
+      discordRes = await fetch(
+        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ embeds: [embed] }),
+        }
+      )
+    }
 
     if (!discordRes.ok) {
       const error = await discordRes.text();

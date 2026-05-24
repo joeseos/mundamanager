@@ -122,6 +122,7 @@ interface CampaignPageContentProps {
     trading_posts: string[];
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
+    discord_channel_type?: number | null;
     battles: Battle[];
     battleSessions?: BattleSession[];
     triumphs: {
@@ -313,6 +314,7 @@ export default function CampaignPageContent({
     trading_posts: string[];
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
+    discord_channel_type?: number | null;
   }) => {
     try {
       const result = await updateCampaignSettings({
@@ -323,6 +325,7 @@ export default function CampaignPageContent({
         status: formValues.status,
         ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
         ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
+        ...(formValues.discord_channel_type !== undefined && { discord_channel_type: formValues.discord_channel_type }),
       });
 
       if (!result.success) {
@@ -341,6 +344,7 @@ export default function CampaignPageContent({
         updated_at: now,
         ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
         ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
+        ...(formValues.discord_channel_type !== undefined && { discord_channel_type: formValues.discord_channel_type }),
       }));
       
       toast.success("Campaign settings updated successfully");
@@ -971,6 +975,7 @@ export default function CampaignPageContent({
             campaign_type_id: campaignData.campaign_type_id,
             discord_guild_id: campaignData.discord_guild_id,
             discord_channel_id: campaignData.discord_channel_id,
+            discord_channel_type: campaignData.discord_channel_type,
           }}
           tradingPostTypes={tradingPostTypes || []}
           onClose={() => setShowEditModal(false)}
