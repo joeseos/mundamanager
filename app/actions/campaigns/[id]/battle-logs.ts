@@ -6,14 +6,8 @@ import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getWinnerIds } from '@/utils/battle-winners';
-import { normaliseParticipants, territoryClaimerFor } from '@/utils/battle-participants';
-
-/** Returns the gang_id of the first participant already carrying claimed_territory: true, or null. */
-function effectiveClaimerFallback(rawParticipants: BattleParticipant[]): string | null {
-  const existing = rawParticipants.find((p) => p.claimed_territory === true);
-  return existing ? existing.gang_id : null;
-}
+import { getWinnerIds, getExplicitClaimerGangId } from '@/utils/battle-winners';
+import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds, enrichWinners } from '@/utils/battle-participants';
 
 /**
  * Type definition for battle participant.
@@ -186,7 +180,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     const { participants, effectiveWinnerIds, claimerGangId } = normaliseParticipants(
       rawParticipants,
       callerWinnerId,
-      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, effectiveClaimerFallback(rawParticipants))
+      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
 
     // Legacy winner_id is populated as the claimer (if any), else the first winner.
@@ -195,10 +189,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
     // Derive attacker/defender from the (normalised) participants for return enrichment.
-    const attackerParticipant = participants.find((p) => p.role === 'attacker');
-    const defenderParticipant = participants.find((p) => p.role === 'defender');
-    const attacker_id = attackerParticipant?.gang_id ?? null;
-    const defender_id = defenderParticipant?.gang_id ?? null;
+    const { attacker_id, defender_id } = getAttackerDefenderIds(participants);
 
     const { data: battle, error: battleError } = await supabase
       .from('campaign_battles')
@@ -234,7 +225,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       }
     }
 
-    // Then fetch the related data for display and logging
+    // Fetch gang names needed for return enrichment and activity logging.
     const winnerNameLookupIds = Array.from(new Set(effectiveWinnerIds));
     const [
       { data: attacker },
@@ -254,21 +245,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
     ]);
 
-    const winnerNameMap = new Map(
-      (winnerGangs ?? []).map((g: any) => [g.id, g.name as string])
-    );
-    const winnersEnriched = effectiveWinnerIds.map((id) => ({
-      id,
-      name: winnerNameMap.get(id) ?? 'Unknown',
-    }));
-    const claimerEnriched =
-      claimerGangId
-        ? { id: claimerGangId, name: winnerNameMap.get(claimerGangId) ?? 'Unknown' }
-        : null;
-    const primaryWinner =
+    const { winnersEnriched, claimerEnriched, primaryWinner } = enrichWinners(
+      winnerGangs as { id: string; name: string }[] | null,
+      effectiveWinnerIds,
+      claimerGangId,
       legacyWinnerId
-        ? { id: legacyWinnerId, name: winnerNameMap.get(legacyWinnerId) ?? 'Unknown' }
-        : null;
+    );
 
     // Log battle results for all participating gangs
     if (campaign) {
@@ -374,7 +356,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const { participants, effectiveWinnerIds, claimerGangId } = normaliseParticipants(
       rawParticipants,
       callerWinnerId,
-      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, effectiveClaimerFallback(rawParticipants))
+      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
 
     const legacyWinnerId: string | null =
@@ -412,10 +394,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     }
 
     // Derive attacker/defender from the normalised participants for return enrichment.
-    const attackerParticipant = participants.find((p) => p.role === 'attacker');
-    const defenderParticipant = participants.find((p) => p.role === 'defender');
-    const attacker_id = attackerParticipant?.gang_id ?? null;
-    const defender_id = defenderParticipant?.gang_id ?? null;
+    const { attacker_id, defender_id } = getAttackerDefenderIds(participants);
 
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
@@ -441,7 +420,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     if (battleError) throw battleError;
 
-    // Then fetch the related data for display and logging
+    // Fetch gang names needed for return enrichment and activity logging.
     const winnerNameLookupIds = Array.from(new Set(effectiveWinnerIds));
     const [
       { data: attacker },
@@ -461,21 +440,12 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       supabase.from('campaigns').select('campaign_name').eq('id', campaignId).maybeSingle(),
     ]);
 
-    const winnerNameMap = new Map(
-      (winnerGangs ?? []).map((g: any) => [g.id, g.name as string])
-    );
-    const winnersEnriched = effectiveWinnerIds.map((id) => ({
-      id,
-      name: winnerNameMap.get(id) ?? 'Unknown',
-    }));
-    const claimerEnriched =
-      claimerGangId
-        ? { id: claimerGangId, name: winnerNameMap.get(claimerGangId) ?? 'Unknown' }
-        : null;
-    const primaryWinner =
+    const { winnersEnriched, claimerEnriched, primaryWinner } = enrichWinners(
+      winnerGangs as { id: string; name: string }[] | null,
+      effectiveWinnerIds,
+      claimerGangId,
       legacyWinnerId
-        ? { id: legacyWinnerId, name: winnerNameMap.get(legacyWinnerId) ?? 'Unknown' }
-        : null;
+    );
 
     // Log battle results for all participating gangs
     if (campaign) {
