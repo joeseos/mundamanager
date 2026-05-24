@@ -221,7 +221,22 @@ interface DataBattle {
   territory_name?: string;
   attacker?: { id: string; name: string };
   defender?: { id: string; name: string };
+  /**
+   * Legacy single-winner field. For multi-winner battles this contains the
+   * territory claimer (or the first listed winner when there is no claim).
+   * `null`/absent for draws. Prefer `winners` for new consumers.
+   */
   winner?: { id: string; name: string };
+  /**
+   * Multi-winner support. Every flagged winner is listed here; single-winner
+   * battles emit a one-element array. Empty / absent for draws.
+   */
+  winners?: { id: string; name: string }[];
+  /**
+   * The gang that claimed the territory in this battle (if any). Always one of
+   * `winners` when present.
+   */
+  territory_claimer?: { id: string; name: string } | null;
 }
 
 // Transformation functions to clean up data field names
@@ -318,6 +333,24 @@ function transformBattleForData(battle: any): DataBattle {
       id: battle.winner.id,
       name: battle.winner.name
     };
+  }
+
+  // Multi-winner support — surface every winner and (optionally) the territory
+  // claimer from the data-layer enrichment.
+  if (Array.isArray(battle.winners) && battle.winners.length > 0) {
+    transformed.winners = battle.winners.map((w: any) => ({
+      id: w.id,
+      name: w.name,
+    }));
+  }
+
+  if (battle.territory_claimer) {
+    transformed.territory_claimer = {
+      id: battle.territory_claimer.id,
+      name: battle.territory_claimer.name,
+    };
+  } else if (battle.territory_claimer === null) {
+    transformed.territory_claimer = null;
   }
 
   return transformed;

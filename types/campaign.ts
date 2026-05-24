@@ -12,11 +12,17 @@ export interface GangReference {
 }
 
 /**
- * Battle participant with role and gang association
+ * Battle participant with role and gang association.
+ * `is_winner` and `claimed_territory` are optional flags stored on the
+ * `campaign_battles.participants` JSONB to support multi-winner battles.
+ * Both default to `false` when omitted. At most one participant may have
+ * `claimed_territory: true`, and only if `is_winner` is also true.
  */
 export interface BattleParticipant {
   role: 'attacker' | 'defender' | 'none';
   gang_id: string;
+  is_winner?: boolean;
+  claimed_territory?: boolean;
 }
 
 /**
@@ -38,6 +44,17 @@ export interface Battle {
   attacker?: GangReference;
   defender?: GangReference;
   winner?: GangReference;
+  /**
+   * Full list of winning gangs for the battle. For single-winner battles this
+   * mirrors `winner` as a one-element array. Multi-winner battles populate every
+   * winning gang here. Empty / undefined means a draw.
+   */
+  winners?: GangReference[];
+  /**
+   * The gang that claimed the battle's territory (if any). Always one of
+   * `winners` when present.
+   */
+  territory_claimer?: GangReference | null;
 }
 
 /**

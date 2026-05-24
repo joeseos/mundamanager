@@ -17,6 +17,7 @@ import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member, Scenario } from '@/types/campaign';
+import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -170,12 +171,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (battle.attacker?.id) participatingGangIds.add(battle.attacker.id);
       if (battle.defender?.id) participatingGangIds.add(battle.defender.id);
 
-      // Winning gangs
-      if (battle.winner_id === null) {
+      // Winning gangs (multi-winner aware via helper)
+      const winnerIds = getWinnerIds(battle);
+      if (winnerIds.length === 0) {
         hasDraws = true;
-      } else if (battle.winner_id || battle.winner?.id) {
-        const gangId = battle.winner?.id || battle.winner_id;
-        if (gangId) winningGangIds.add(gangId);
+      } else {
+        winnerIds.forEach((id) => winningGangIds.add(id));
       }
     });
 
@@ -223,14 +224,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     }
 
     if (filterWinningGang) {
-      filtered = filtered.filter(battle => {
-        const winnerId = battle.winner?.id || battle.winner_id;
-        return winnerId === filterWinningGang;
-      });
+      filtered = filtered.filter(battle => getWinnerIds(battle).includes(filterWinningGang));
     }
 
     if (filterDraws) {
-      filtered = filtered.filter(battle => battle.winner_id === null);
+      filtered = filtered.filter(battle => getWinnerIds(battle).length === 0);
     }
 
     // Sort based on selected field and direction
@@ -255,13 +253,32 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           aValue = (a.territory_name || '').toLowerCase();
           bValue = (b.territory_name || '').toLowerCase();
           break;
-        case 'winner':
-          aValue = (a.winner?.name || '').toLowerCase();
-          bValue = (b.winner?.name || '').toLowerCase();
-          // Handle draws (null winner_id)
-          if (a.winner_id === null) aValue = 'draw';
-          if (b.winner_id === null) bValue = 'draw';
+        case 'winner': {
+          // Sort by the alphabetically-first winner name (consistent with the
+          // stacked badge rendering). Draws sort as 'draw'.
+          const aWinnerIds = getWinnerIds(a);
+          const bWinnerIds = getWinnerIds(b);
+          const namesFor = (battle: Battle, ids: string[]) => {
+            const fromWinners = (battle.winners ?? [])
+              .filter((w) => ids.includes(w.id))
+              .map((w) => w.name);
+            if (fromWinners.length === ids.length) return fromWinners;
+            // Fallback to single-winner enrichment / placeholder
+            return ids.map(
+              (id) =>
+                (battle.winners?.find((w) => w.id === id)?.name) ??
+                (battle.winner?.id === id ? battle.winner.name : null) ??
+                id
+            );
+          };
+          aValue = aWinnerIds.length === 0
+            ? 'draw'
+            : namesFor(a, aWinnerIds).map((n) => n.toLowerCase()).sort()[0];
+          bValue = bWinnerIds.length === 0
+            ? 'draw'
+            : namesFor(b, bWinnerIds).map((n) => n.toLowerCase()).sort()[0];
           break;
+        }
         default:
           aValue = new Date(a.created_at).getTime();
           bValue = new Date(b.created_at).getTime();
@@ -499,9 +516,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         localBattles.forEach(battle => {
           if (!gangParticipatedIn(battle, gangId)) return;
           battles++;
-          if (battle.winner_id === null) {
+          const winnerIds = getWinnerIds(battle);
+          if (winnerIds.length === 0) {
             draws++;
-          } else if (battle.winner_id === gangId) {
+          } else if (winnerIds.includes(gangId)) {
             victories++;
           } else {
             defeats++;
@@ -1040,7 +1058,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 </div>
               </th>
               <th className="px-7 py-2 text-left font-medium">Gangs</th>
-              <th className="px-2 py-2 text-left font-medium">Winner</th>
+              <th className="px-2 py-2 text-left font-medium">Winner(s)</th>
               <th className="p-1 md:p-2 text-left font-medium">Report</th>
               {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
             </tr>
@@ -1078,24 +1096,38 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                   </td>
 
                   <td className="p-1 md:p-2 align-top">
-                    {battle.winner?.id ? (
-                      <span
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                        style={{ color: getGangColour(battle.winner.id) }}
-                      >
-                        <a
-                          href={`/gang/${battle.winner.id}`}
-                          className="hover:text-muted-foreground transition-colors"
-                          onClick={(e) => handleGangClick(e, battle.winner!.id)}
-                        >
-                          {battle.winner.name || 'Unknown'}
-                        </a>
-                      </span>
-                    ) : battle.winner_id === null ? (
-                      <span className="ml-2 text-xs">Draw</span>
-                    ) : (
-                      <span className="ml-2 text-xs">{battle.winner?.name || 'Unknown'}</span>
-                    )}
+                    {(() => {
+                      const winnerIds = getWinnerIds(battle);
+                      if (winnerIds.length === 0) {
+                        return <span className="ml-2 text-xs">Draw</span>;
+                      }
+                      // Resolve names from the enriched winners array first,
+                      // fall back to the legacy single-winner enrichment for
+                      // historical rows where only `winner` is populated.
+                      const lookupName = (id: string): string =>
+                        battle.winners?.find((w) => w.id === id)?.name
+                        ?? (battle.winner?.id === id ? battle.winner.name : null)
+                        ?? 'Unknown';
+                      return (
+                        <div className="flex flex-col items-start gap-1">
+                          {winnerIds.map((id) => (
+                            <span
+                              key={id}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+                              style={{ color: getGangColour(id) }}
+                            >
+                              <a
+                                href={`/gang/${id}`}
+                                className="hover:text-muted-foreground transition-colors"
+                                onClick={(e) => handleGangClick(e, id)}
+                              >
+                                {lookupName(id)}
+                              </a>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   <td className="p-1 md:p-2 align-top">

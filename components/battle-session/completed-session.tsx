@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { BattleSessionFull } from '@/types/battle-session';
+import { getSessionWinnerIds } from '@/utils/battle-winners';
 
 interface CompletedSessionProps {
   session: BattleSessionFull;
@@ -12,8 +13,12 @@ export default function CompletedSession({
   session,
   userId,
 }: CompletedSessionProps) {
-  const winner = session.participants.find(
-    (p) => p.gang_id === session.winner_gang_id
+  // Multi-winner aware: derive every flagged winner from the participants list,
+  // falling back to the legacy winner_gang_id for historical sessions.
+  const winnerIds = getSessionWinnerIds(session);
+  const winnerSet = new Set(winnerIds);
+  const winnerParticipants = session.participants.filter((p) =>
+    winnerSet.has(p.gang_id)
   );
 
   return (
@@ -28,15 +33,24 @@ export default function CompletedSession({
         )}
       </div>
 
-      {/* Winner */}
+      {/* Winner / Winners */}
       <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-center dark:border-neutral-700 dark:bg-neutral-800">
-        {winner ? (
+        {winnerParticipants.length === 0 ? (
+          <p className="text-lg font-medium text-neutral-500">Draw</p>
+        ) : winnerParticipants.length === 1 ? (
           <p className="text-lg font-medium">
             <span className="text-neutral-500">Winner </span>
-            {winner.gang?.name}
+            {winnerParticipants[0].gang?.name}
           </p>
         ) : (
-          <p className="text-lg font-medium text-neutral-500">Draw</p>
+          <div className="text-lg font-medium">
+            <p className="text-neutral-500">Winners</p>
+            <ul className="mt-1 space-y-0.5">
+              {winnerParticipants.map((w) => (
+                <li key={w.id}>{w.gang?.name}</li>
+              ))}
+            </ul>
+          </div>
         )}
         {session.claimed_territory && (
           <p className="mt-1 text-sm text-neutral-500">
@@ -53,7 +67,7 @@ export default function CompletedSession({
             className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-700"
           >
             <div className="mb-2 flex items-center gap-2">
-              {p.gang_id === session.winner_gang_id && (
+              {winnerSet.has(p.gang_id) && (
                 <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
                   Winner
                 </span>

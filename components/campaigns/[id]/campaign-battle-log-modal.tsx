@@ -12,6 +12,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
+import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;
@@ -56,12 +57,25 @@ const CampaignBattleLogModal = ({
     { id: 1, gangId: "", role: 'none' },
     { id: 2, gangId: "", role: 'none' },
   ]);
-  const [winner, setWinner] = useState('');
+  // Multi-winner state. `winners` holds the selected winning gang ids in slot
+  // order; `isDraw` is the mutually-exclusive "Draw" sentinel.
+  const [winners, setWinners] = useState<string[]>([""]);
+  const [isDraw, setIsDraw] = useState(false);
+  // When more than one winner is selected and a territory is claimed, the user
+  // must pick exactly one winner as the claimer.
+  const [claimedByGangId, setClaimedByGangId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const [availableTerritories, setAvailableTerritories] = useState<BattleLogTerritory[]>([]);
+
+  // Active winner ids (filtering out empty slots) — used everywhere downstream.
+  const activeWinners = useMemo(
+    () => winners.filter((w) => !!w),
+    [winners]
+  );
+  const hasAnyWinnerSelected = activeWinners.length > 0 || isDraw;
   
   const [battleDate, setBattleDate] = useState<string>(() => {
     const now = new Date();
@@ -107,13 +121,21 @@ const CampaignBattleLogModal = ({
       const attackerParticipant = battleData.participants.find(p => p.role === 'attacker');
       const defenderParticipant = battleData.participants.find(p => p.role === 'defender');
 
+      // Derive winners + claimer from the flags we just attached to participants.
+      const winnerIds = battleData.participants
+        .filter((p) => p.is_winner === true)
+        .map((p) => p.gang_id);
+      const claimerId =
+        battleData.participants.find((p) => p.claimed_territory === true)?.gang_id ?? null;
+      const legacyWinnerId = claimerId ?? winnerIds[0] ?? null;
+
       // Create optimistic battle entry with full gang data
       const optimisticBattle: Battle = {
         id: `optimistic-battle-${Date.now()}`,
         created_at: battleData.created_at || new Date().toISOString(),
         scenario: battleData.scenario,
         scenario_name: battleData.scenario,
-        winner_id: battleData.winner_id,
+        winner_id: legacyWinnerId,
         note: battleData.note,
         participants: battleData.participants,
         campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -129,10 +151,14 @@ const CampaignBattleLogModal = ({
           id: defenderParticipant.gang_id,
           name: getGangName(defenderParticipant.gang_id)
         } : undefined,
-        winner: battleData.winner_id ? {
-          id: battleData.winner_id,
-          name: getGangName(battleData.winner_id)
-        } : undefined
+        winner: legacyWinnerId ? {
+          id: legacyWinnerId,
+          name: getGangName(legacyWinnerId)
+        } : undefined,
+        winners: winnerIds.map((id) => ({ id, name: getGangName(id) })),
+        territory_claimer: claimerId
+          ? { id: claimerId, name: getGangName(claimerId) }
+          : null,
       };
 
       // Store the optimistic ID for replacement later
@@ -190,6 +216,14 @@ const CampaignBattleLogModal = ({
       const attackerP = battleData.participants.find(p => p.role === 'attacker');
       const defenderP = battleData.participants.find(p => p.role === 'defender');
 
+      // Derive winners + claimer from the flags.
+      const winnerIds = battleData.participants
+        .filter((p) => p.is_winner === true)
+        .map((p) => p.gang_id);
+      const claimerId =
+        battleData.participants.find((p) => p.claimed_territory === true)?.gang_id ?? null;
+      const legacyWinnerId = claimerId ?? winnerIds[0] ?? null;
+
       // Find and update the battle optimistically using functional update
       onBattleUpdate((currentBattles) =>
         currentBattles.map(battle => {
@@ -198,7 +232,7 @@ const CampaignBattleLogModal = ({
               ...battle,
               scenario: battleData.scenario,
               scenario_name: battleData.scenario,
-              winner_id: battleData.winner_id,
+              winner_id: legacyWinnerId,
               note: battleData.note,
               participants: battleData.participants,
               campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -215,10 +249,14 @@ const CampaignBattleLogModal = ({
                 id: defenderP.gang_id,
                 name: getGangName(defenderP.gang_id)
               } : undefined,
-              winner: battleData.winner_id ? {
-                id: battleData.winner_id,
-                name: getGangName(battleData.winner_id)
-              } : undefined
+              winner: legacyWinnerId ? {
+                id: legacyWinnerId,
+                name: getGangName(legacyWinnerId)
+              } : undefined,
+              winners: winnerIds.map((id) => ({ id, name: getGangName(id) })),
+              territory_claimer: claimerId
+                ? { id: claimerId, name: getGangName(claimerId) }
+                : null,
             };
           }
           return battle;
@@ -404,17 +442,25 @@ const CampaignBattleLogModal = ({
       setGangsInBattle(newGangsInBattle);
     }
     
-    // Set winner
-    if (battleToEdit.winner_id === null) {
-      setWinner("draw");
-    } else if (battleToEdit.winner_id) {
-      setWinner(battleToEdit.winner_id);
-    } else if (battleToEdit.winner?.id) {
-      setWinner(battleToEdit.winner.id);
+    // Set winners + draw state from the multi-winner flags (fallback winner_id)
+    const winnerIds = getWinnerIds(battleToEdit);
+    const explicitDraw =
+      battleToEdit.winner_id === null && winnerIds.length === 0;
+    if (explicitDraw) {
+      setIsDraw(true);
+      setWinners([""]);
+    } else if (winnerIds.length > 0) {
+      setIsDraw(false);
+      setWinners(winnerIds);
     } else {
-      setWinner("");
+      setIsDraw(false);
+      setWinners([""]);
     }
-    
+
+    // Prefill the territory claimer from the participants flag (fallback winner_id)
+    const claimerFromBattle = getClaimerGangId(battleToEdit);
+    setClaimedByGangId(claimerFromBattle ?? "");
+
     // Set notes
     setNotes(battleToEdit.note || "");
 
@@ -431,7 +477,7 @@ const CampaignBattleLogModal = ({
     }
   }, [isOpen, battleToEdit, scenarios, populateFormWithBattleData]);
 
-  // Update available territories when winner changes
+  // Update available territories when the winner state changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Skip the effect if territories aren't loaded yet or gangsInBattle doesn't have valid entries
@@ -442,15 +488,15 @@ const CampaignBattleLogModal = ({
     // Define what the new available territories should be
     let newAvailableTerritories: BattleLogTerritory[] = [];
 
-    if (winner) {
+    if (hasAnyWinnerSelected) {
       // Show ALL territories - players can challenge over any territory
       newAvailableTerritories = territories;
     }
-    
+
     // Compare by value using JSON.stringify to avoid infinite loops
     const currentTerritoriesJSON = JSON.stringify(availableTerritories.map(t => t.id).sort());
     const newTerritoriesJSON = JSON.stringify(newAvailableTerritories.map(t => t.id).sort());
-    
+
     if (currentTerritoriesJSON !== newTerritoriesJSON) {
       setAvailableTerritories(newAvailableTerritories);
 
@@ -459,7 +505,28 @@ const CampaignBattleLogModal = ({
         setSelectedTerritory('');
       }
     }
-  }, [winner, gangsInBattle, territories]); // Don't include availableTerritories or selectedTerritory here
+  }, [hasAnyWinnerSelected, gangsInBattle, territories]); // Don't include availableTerritories or selectedTerritory here
+
+  // When the selected winners change, ensure the chosen claimer is still valid:
+  // it must be a current winner. Clear it otherwise (the UI will require the
+  // user to pick again when winners.length > 1 and a territory is claimed).
+  useEffect(() => {
+    if (!claimedByGangId) return;
+    if (!activeWinners.includes(claimedByGangId)) {
+      setClaimedByGangId('');
+    }
+  }, [activeWinners, claimedByGangId]);
+
+  // When there's exactly one winner and a territory is selected, auto-set the
+  // claimer to that winner so single-winner battles "just work" — kept here so
+  // both the form state and the persisted flag mirror the user's intent.
+  useEffect(() => {
+    if (activeWinners.length === 1 && selectedTerritory) {
+      setClaimedByGangId(activeWinners[0]);
+    } else if (activeWinners.length === 0 || !selectedTerritory) {
+      setClaimedByGangId('');
+    }
+  }, [activeWinners, selectedTerritory]);
 
   const handleGangRoleChange = (gangEntryId: number, newRole: GangRole) => {
     setGangsInBattle(gangsInBattle.map(entry => 
@@ -470,9 +537,17 @@ const CampaignBattleLogModal = ({
   };
 
   const handleGangChange = (gangEntryId: number, gangId: string) => {
-    setGangsInBattle(gangsInBattle.map((entry) => (
-      entry.id === gangEntryId ? { ...entry, gangId, role: 'none' } : entry
-    )));
+    setGangsInBattle((current) =>
+      current.map((entry) => (
+        entry.id === gangEntryId ? { ...entry, gangId, role: 'none' } : entry
+      ))
+    );
+    // If the user changed away from a previously-selected gang, remove it from
+    // the winners list so we don't keep dangling references.
+    const previousGangId = gangsInBattle.find((g) => g.id === gangEntryId)?.gangId;
+    if (previousGangId && previousGangId !== gangId) {
+      setWinners((current) => current.filter((w) => w !== previousGangId));
+    }
   };
 
   const addGang = () => {
@@ -482,7 +557,42 @@ const CampaignBattleLogModal = ({
 
   const removeGang = (gangEntryId: number) => {
     if (gangsInBattle.length <= 2) return; // Keep at least 2 gangs
-    setGangsInBattle(gangsInBattle.filter((entry) => entry.id !== gangEntryId));
+    const removedGangId = gangsInBattle.find((g) => g.id === gangEntryId)?.gangId;
+    setGangsInBattle((current) => current.filter((entry) => entry.id !== gangEntryId));
+    if (removedGangId) {
+      setWinners((current) => current.filter((w) => w !== removedGangId));
+    }
+  };
+
+  // ===========================================================================
+  // Winner slot helpers
+  // ===========================================================================
+
+  const handleWinnerChange = (slotIndex: number, value: string) => {
+    if (value === 'draw') {
+      setIsDraw(true);
+      setWinners([""]);
+      return;
+    }
+    setIsDraw(false);
+    setWinners((current) => {
+      const next = [...current];
+      // Ensure the array has enough slots
+      while (next.length <= slotIndex) next.push("");
+      next[slotIndex] = value;
+      return next;
+    });
+  };
+
+  const addWinnerSlot = () => {
+    setWinners((current) => [...current, ""]);
+  };
+
+  const removeWinnerSlot = (slotIndex: number) => {
+    setWinners((current) => {
+      if (current.length <= 1) return current;
+      return current.filter((_, i) => i !== slotIndex);
+    });
   };
 
   // Get the list of gangs that are already selected in other entries
@@ -527,17 +637,59 @@ const CampaignBattleLogModal = ({
       return false;
     }
 
-    if (!winner) {
+    if (!hasAnyWinnerSelected) {
       toast.error("Please select a winner");
       return false;
     }
 
-    // Create a participants array for the new API structure
+    // Validate every active winner is one of the participating gangs
+    const participantGangIds = new Set(
+      gangsInBattle.filter((g) => g.gangId).map((g) => g.gangId)
+    );
+    if (!isDraw) {
+      const invalidWinner = activeWinners.find((w) => !participantGangIds.has(w));
+      if (invalidWinner) {
+        toast.error("Each winner must be one of the selected gangs");
+        return false;
+      }
+      // Defensive: detect duplicate winner slots
+      const uniqueWinners = new Set(activeWinners);
+      if (uniqueWinners.size !== activeWinners.length) {
+        toast.error("The same gang cannot be selected as winner twice");
+        return false;
+      }
+    }
+
+    // Validate claimer when multi-winner + territory selected
+    if (!isDraw && selectedTerritory && activeWinners.length > 1) {
+      if (!claimedByGangId) {
+        toast.error("Please select which winner claims the Territory");
+        return false;
+      }
+      if (!activeWinners.includes(claimedByGangId)) {
+        toast.error("The territory claimer must be one of the selected winners");
+        return false;
+      }
+    }
+
+    // Create a participants array for the new API structure, attaching
+    // is_winner / claimed_territory flags. The server normaliser will treat
+    // anything else as `false`.
+    const claimerForPayload = isDraw
+      ? null
+      : selectedTerritory
+        ? activeWinners.length > 1
+          ? claimedByGangId
+          : activeWinners[0] ?? null
+        : null;
+    const winnerSet = new Set(isDraw ? [] : activeWinners);
     const participants = gangsInBattle
       .filter(gang => gang.gangId)
       .map(gang => ({
         role: gang.role,
-        gang_id: gang.gangId
+        gang_id: gang.gangId,
+        is_winner: winnerSet.has(gang.gangId),
+        claimed_territory: !!claimerForPayload && gang.gangId === claimerForPayload,
       }));
 
     // Get the scenario name for the selected scenario
@@ -560,10 +712,12 @@ const CampaignBattleLogModal = ({
       }
     }
 
-    // Prepare battle data for API
+    // Prepare battle data for API.
+    // The server derives `winner_id` from participants[].is_winner /
+    // claimed_territory so we don't need to send it. `null` means "draw".
     const battleData: BattleLogParams = {
       scenario: scenarioName,
-      winner_id: winner === "draw" ? null : winner,
+      winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),
       note: notes || null,
       participants: participants,
       claimed_territories: selectedTerritory
@@ -571,6 +725,7 @@ const CampaignBattleLogModal = ({
             campaign_territory_id: selectedTerritory
           }]
         : [],
+      territory_claimed_by_gang_id: claimerForPayload,
       created_at: new Date(battleDate + 'T00:00:00').toISOString(),
       cycle: cycleValue
     };
@@ -596,7 +751,9 @@ const CampaignBattleLogModal = ({
       { id: 1, gangId: "", role: 'none' },
       { id: 2, gangId: "", role: 'none' },
     ]);
-    setWinner('');
+    setWinners(['']);
+    setIsDraw(false);
+    setClaimedByGangId('');
     setNotes('');
     setSelectedTerritory('');
     setCycle('');
@@ -631,14 +788,27 @@ const CampaignBattleLogModal = ({
     const rolesValid = gangsWithRole.length === 0 ||
       (gangsWithRole.length > 0 && attackers.length > 0 && defenders.length > 0);
 
-    // Check if a winner is selected
-    const winnerValid = !!winner;
+    // Check the winner state: either Draw, or at least one valid winner.
+    // Multi-winner battles with a claimed territory must also pick a claimer.
+    const winnerValid = isDraw || activeWinners.length > 0;
+    const claimerRequired = !isDraw && activeWinners.length > 1 && !!selectedTerritory;
+    const claimerValid =
+      !claimerRequired || (!!claimedByGangId && activeWinners.includes(claimedByGangId));
 
     // Check if cycle is valid (either empty or a positive number)
     const cycleValid = !cycle || (!isNaN(parseInt(cycle, 10)) && parseInt(cycle, 10) > 0);
 
-    return scenarioValid && customScenarioValid && anyGangSelected && rolesValid && winnerValid && cycleValid;
-  }, [selectedScenario, customScenario, gangsInBattle, winner, cycle]);
+    return scenarioValid && customScenarioValid && anyGangSelected && rolesValid && winnerValid && claimerValid && cycleValid;
+  }, [
+    selectedScenario,
+    customScenario,
+    gangsInBattle,
+    isDraw,
+    activeWinners,
+    selectedTerritory,
+    claimedByGangId,
+    cycle,
+  ]);
 
   if (!isOpen) return null;
 
@@ -856,44 +1026,114 @@ const CampaignBattleLogModal = ({
             </Button>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Winner *
-            </label>
-            <Combobox
-              value={winner}
-              onValueChange={setWinner}
-              disabled={isLoadingBattleData}
-              placeholder="Select winner"
-              options={[
-                { value: "", label: "No winner selected" },
-                { value: "draw", label: "Draw" },
-                ...gangsInBattle
-                  .filter((entry) => !!entry.gangId)
-                  .map((entry) => {
-                    const gang = availableGangs.find(g => g.id === entry.gangId);
-                    const gangName = getGangName(entry.gangId);
-                    const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
-                    const displayValue = `${gangName}${owner}`;
-                    return {
-                      value: entry.gangId,
-                      label: owner ? (
-                        <span>
-                          <span>{gangName}</span>
-                          <span className="text-xs text-muted-foreground">{owner}</span>
-                        </span>
-                      ) : gangName,
-                      displayValue,
-                    };
-                  }),
-              ]}
-            />
-          </div>
+          {(() => {
+            // Build the per-slot Combobox options once: exclude already-selected
+            // winners from later slots so the same gang can't be picked twice.
+            const selectedGangs = gangsInBattle.filter((entry) => !!entry.gangId);
+            const buildGangOption = (entry: GangEntry) => {
+              const gang = availableGangs.find((g) => g.id === entry.gangId);
+              const gangName = getGangName(entry.gangId);
+              const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
+              const displayValue = `${gangName}${owner}`;
+              return {
+                value: entry.gangId,
+                label: owner ? (
+                  <span>
+                    <span>{gangName}</span>
+                    <span className="text-xs text-muted-foreground">{owner}</span>
+                  </span>
+                ) : gangName,
+                displayValue,
+              };
+            };
 
-          {winner && availableTerritories.length > 0 && (
+            // Render either: a single Combobox showing the "Draw" sentinel and
+            // every selectable gang (first slot), or — once at least one winner
+            // is picked — that Combobox plus one slot per additional winner.
+            const slotsToRender = isDraw ? 1 : Math.max(1, winners.length);
+            const canAddAnotherWinner =
+              !isDraw &&
+              activeWinners.length === winners.length &&
+              activeWinners.length > 0 &&
+              activeWinners.length < selectedGangs.length;
+
+            return (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Winner *
+                </label>
+                <div className="space-y-2">
+                  {Array.from({ length: slotsToRender }).map((_, slotIndex) => {
+                    const slotValue = isDraw && slotIndex === 0 ? 'draw' : (winners[slotIndex] ?? '');
+                    // First slot keeps the "Draw" option. Additional slots are
+                    // pure gang pickers — drop the no-selection / draw entries.
+                    const isFirstSlot = slotIndex === 0;
+                    const excludedGangIds = new Set(
+                      winners.filter((_, i) => i !== slotIndex && !!winners[i])
+                    );
+                    const gangOptions = selectedGangs
+                      .filter((entry) => !excludedGangIds.has(entry.gangId))
+                      .map(buildGangOption);
+
+                    const baseOptions = isFirstSlot
+                      ? [
+                          { value: "", label: "No winner selected" },
+                          { value: "draw", label: "Draw" },
+                          ...gangOptions,
+                        ]
+                      : [
+                          { value: "", label: "Select winner" },
+                          ...gangOptions,
+                        ];
+
+                    return (
+                      <div key={`winner-slot-${slotIndex}`} className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <Combobox
+                            value={slotValue}
+                            onValueChange={(value) => handleWinnerChange(slotIndex, value)}
+                            disabled={isLoadingBattleData}
+                            placeholder={isFirstSlot ? "Select winner" : "Select another winner"}
+                            options={baseOptions}
+                          />
+                        </div>
+                        {slotIndex > 0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Remove winner"
+                            onClick={() => removeWinnerSlot(slotIndex)}
+                            disabled={isLoadingBattleData}
+                          >
+                            <HiX className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {canAddAnotherWinner && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1"
+                      onClick={addWinnerSlot}
+                      disabled={isLoadingBattleData}
+                    >
+                      <LuPlus className="h-4 w-4" />
+                      Add Winner
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {hasAnyWinnerSelected && availableTerritories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                {winner === "draw" ? "Contested Territory" : "Claimed Territory"}
+                {isDraw ? "Contested Territory" : "Claimed Territory"}
               </label>
               <Combobox
                 value={selectedTerritory}
@@ -927,6 +1167,43 @@ const CampaignBattleLogModal = ({
                     }),
                 ]}
               />
+
+              {!isDraw && activeWinners.length > 1 && selectedTerritory && (
+                <>
+                  <p className="mt-2 text-sm text-amber-600">
+                    Only one winner can claim a Territory.
+                  </p>
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Territory claimed by *
+                    </label>
+                    <Combobox
+                      value={claimedByGangId}
+                      onValueChange={setClaimedByGangId}
+                      disabled={isLoadingBattleData}
+                      placeholder="Select the claiming winner"
+                      options={[
+                        { value: "", label: "Select the claiming winner" },
+                        ...activeWinners.map((gangId) => {
+                          const gang = availableGangs.find((g) => g.id === gangId);
+                          const gangName = getGangName(gangId);
+                          const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
+                          return {
+                            value: gangId,
+                            label: owner ? (
+                              <span>
+                                <span>{gangName}</span>
+                                <span className="text-xs text-muted-foreground">{owner}</span>
+                              </span>
+                            ) : gangName,
+                            displayValue: `${gangName}${owner}`,
+                          };
+                        }),
+                      ]}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 

@@ -470,13 +470,17 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
   const gangIdSet = new Set<string>();
   const parsedParticipantsMap = new Map<string, any[]>();
   data?.forEach(b => {
+    // Legacy winner_id is still added for back-compat (single-winner rows
+    // where no participant carries the is_winner flag).
     if (b.winner_id) gangIdSet.add(b.winner_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
         if (Array.isArray(parsed)) {
           parsedParticipantsMap.set(b.id, parsed);
-          parsed.forEach((p: any) => { if (p.gang_id) gangIdSet.add(p.gang_id); });
+          parsed.forEach((p: any) => {
+            if (p.gang_id) gangIdSet.add(p.gang_id);
+          });
         }
       } catch { /* ignore */ }
     }
@@ -520,6 +524,28 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
+    // Multi-winner enrichment: derive every winner from participants[*].is_winner
+    // with fallback to the legacy winner_id (covers historical single-winner rows).
+    const flaggedWinnerIds: string[] = (parsedParticipants ?? [])
+      .filter((p: any) => p?.is_winner === true && !!p.gang_id)
+      .map((p: any) => p.gang_id as string);
+    const effectiveWinnerIds = flaggedWinnerIds.length > 0
+      ? flaggedWinnerIds
+      : battle.winner_id
+        ? [battle.winner_id]
+        : [];
+    const winners = effectiveWinnerIds.map((id) => ({
+      id,
+      name: gangMap.get(id)?.name || 'Unknown',
+    }));
+    const claimerId =
+      parsedParticipants?.find((p: any) => p?.claimed_territory === true)?.gang_id
+      ?? battle.winner_id
+      ?? null;
+    const territory_claimer = claimerId
+      ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
+      : null;
+
     return {
       id: battle.id,
       created_at: battle.created_at,
@@ -544,7 +570,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       winner: battle.winner_id ? {
         id: battle.winner_id,
         name: gangMap.get(battle.winner_id)?.name || 'Unknown'
-      } : undefined
+      } : undefined,
+      winners,
+      territory_claimer,
     };
   }) || [];
 }

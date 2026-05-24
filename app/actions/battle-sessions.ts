@@ -250,16 +250,106 @@ export async function setSessionScenario(
   }
 }
 
+/**
+ * Multi-winner support: persist `is_winner` and `claimed_territory` flags on
+ * each `battle_session_participants` row, and keep `battle_sessions.winner_gang_id`
+ * in sync with the territory claimer (or the first winner) as a legacy fallback.
+ *
+ * Pass an empty array (or omit `winners`) to record a draw — every flag is cleared
+ * and `winner_gang_id` is set to NULL.
+ */
+export async function setSessionWinners(
+  sessionId: string,
+  winners: Array<{ gang_id: string; claimed_territory?: boolean }>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const claimers = winners.filter((w) => w.claimed_territory === true);
+    if (claimers.length > 1) {
+      return { success: false, error: 'Only one winner can claim a territory' };
+    }
+    const claimerGangId = claimers[0]?.gang_id ?? null;
+
+    const { data: sessionParticipants } = await supabase
+      .from('battle_session_participants')
+      .select('id, gang_id')
+      .eq('battle_session_id', sessionId);
+
+    if (!sessionParticipants) {
+      return { success: false, error: 'Session has no participants' };
+    }
+
+    const winnerGangSet = new Set(winners.map((w) => w.gang_id));
+    const invalidWinner = winners.find(
+      (w) => !sessionParticipants.some((p) => p.gang_id === w.gang_id)
+    );
+    if (invalidWinner) {
+      return { success: false, error: 'A selected winner is not a session participant' };
+    }
+
+    // Update each participant row. Doing this row-by-row keeps things simple
+    // and avoids the awkward CASE statement that a single SQL update would need
+    // to write different values for is_winner / claimed_territory per row.
+    const updateResults = await Promise.all(
+      sessionParticipants.map((p) =>
+        supabase
+          .from('battle_session_participants')
+          .update({
+            is_winner: winnerGangSet.has(p.gang_id),
+            claimed_territory: claimerGangId !== null && p.gang_id === claimerGangId,
+          })
+          .eq('id', p.id)
+      )
+    );
+    const failedUpdate = updateResults.find((r) => r.error);
+    if (failedUpdate) {
+      return {
+        success: false,
+        error: `Failed to update participant flags: ${failedUpdate.error!.message}`,
+      };
+    }
+
+    // Legacy winner_gang_id: prefer the territory claimer; otherwise the first
+    // winner; NULL for draws. Mirrors the campaign battle action.
+    const legacyWinnerGangId: string | null =
+      claimerGangId ?? winners[0]?.gang_id ?? null;
+    const { error: sessionUpdateError } = await supabase
+      .from('battle_sessions')
+      .update({
+        winner_gang_id: legacyWinnerGangId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId);
+    if (sessionUpdateError) {
+      return { success: false, error: `Failed to update session: ${sessionUpdateError.message}` };
+    }
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+    return { success: true };
+  } catch (err) {
+    console.error('Error setting session winners:', err);
+    return { success: false, error: 'Failed to set winners' };
+  }
+}
+
+/**
+ * @deprecated Use `setSessionWinners` to support multi-winner battles. This
+ * thin shim is kept so existing callers that only know about a single winner
+ * (or want to record a draw via `null`) continue to work.
+ */
 export async function setSessionWinner(
   sessionId: string,
   winnerGangId: string | null
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    return await updateSessionAsCreator(sessionId, { winner_gang_id: winnerGangId });
-  } catch (err) {
-    console.error('Error setting winner:', err);
-    return { success: false, error: 'Failed to set winner' };
-  }
+  return setSessionWinners(
+    sessionId,
+    winnerGangId ? [{ gang_id: winnerGangId, claimed_territory: false }] : []
+  );
 }
 
 export async function advanceRound(
@@ -1020,21 +1110,50 @@ export async function completeBattleSession(
 
     let campaign_battle_id: string | undefined;
 
+    // Pull the multi-winner flags so we can forward them to the campaign
+    // battle log and the per-gang logger below.
     const { data: allParticipants } = await supabase
       .from('battle_session_participants')
-      .select('id, gang_id, user_id, role')
+      .select('id, gang_id, user_id, role, is_winner, claimed_territory')
       .eq('battle_session_id', sessionId);
+
+    // Derive the effective winner set: prefer participant flags, fall back to
+    // the legacy winner_gang_id so historical sessions still produce a sane log.
+    const flaggedWinnerIds: string[] =
+      (allParticipants ?? [])
+        .filter((p) => p.is_winner === true)
+        .map((p) => p.gang_id);
+    const effectiveWinnerIds: string[] =
+      flaggedWinnerIds.length > 0
+        ? flaggedWinnerIds
+        : session.winner_gang_id
+          ? [session.winner_gang_id]
+          : [];
+    const winnerGangSet = new Set(effectiveWinnerIds);
+    const claimerGangId: string | null =
+      (allParticipants ?? []).find((p) => p.claimed_territory === true)?.gang_id
+      ?? session.winner_gang_id
+      ?? null;
 
     if (session.campaign_id && allParticipants) {
       try {
         const battleLog = await createBattleLog(session.campaign_id, {
           scenario: session.scenario || '',
-          winner_id: session.winner_gang_id,
+          // The server action derives `winner_id` from participants[].is_winner /
+          // claimed_territory, but we still pass it as a defensive fallback for
+          // sessions that never received the new flags.
+          winner_id: claimerGangId ?? effectiveWinnerIds[0] ?? null,
           note: options?.note || null,
-          participants: allParticipants.map((p) => ({ gang_id: p.gang_id, role: p.role as 'attacker' | 'defender' | 'none' })),
+          participants: allParticipants.map((p) => ({
+            gang_id: p.gang_id,
+            role: p.role as 'attacker' | 'defender' | 'none',
+            is_winner: winnerGangSet.has(p.gang_id),
+            claimed_territory: claimerGangId !== null && p.gang_id === claimerGangId,
+          })),
           claimed_territories: options?.campaign_territory_id
             ? [{ campaign_territory_id: options.campaign_territory_id }]
             : [],
+          territory_claimed_by_gang_id: claimerGangId,
           created_at: session.created_at,
           cycle: options?.cycle ?? null,
         });
@@ -1094,10 +1213,11 @@ export async function completeBattleSession(
           const gangName = gangNameMap.get(p.gang_id);
           if (!gangName) continue;
 
+          // Multi-winner aware: every flagged winner is logged as 'won'.
           let battleResult: 'won' | 'lost' | 'draw';
-          if (session.winner_gang_id === null) {
+          if (winnerGangSet.size === 0) {
             battleResult = 'draw';
-          } else if (session.winner_gang_id === p.gang_id) {
+          } else if (winnerGangSet.has(p.gang_id)) {
             battleResult = 'won';
           } else {
             battleResult = 'lost';
