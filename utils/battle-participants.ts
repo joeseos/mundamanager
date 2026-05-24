@@ -19,44 +19,6 @@ export function getAttackerDefenderIds(participants: BattleParticipant[]): {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Winner-name enrichment
-// ---------------------------------------------------------------------------
-
-/**
- * Builds the three enriched winner objects shared by `createBattleLog` and
- * `updateBattleLog`.
- *
- * @param winnerGangs   Rows returned by the `gangs` name-lookup query.
- * @param effectiveWinnerIds  All flagged winner IDs in slot order.
- * @param claimerGangId The single territory claimer, or `null`.
- * @param legacyWinnerId  The `winner_id` written to the battle row (claimer ??
- *                        first winner ?? null).
- */
-export function enrichWinners(
-  winnerGangs: { id: string; name: string }[] | null,
-  effectiveWinnerIds: string[],
-  claimerGangId: string | null,
-  legacyWinnerId: string | null
-): {
-  winnersEnriched: { id: string; name: string }[];
-  claimerEnriched: { id: string; name: string } | null;
-  primaryWinner: { id: string; name: string } | null;
-} {
-  const nameMap = new Map((winnerGangs ?? []).map((g) => [g.id, g.name]));
-  const winnersEnriched = effectiveWinnerIds.map((id) => ({
-    id,
-    name: nameMap.get(id) ?? 'Unknown',
-  }));
-  const claimerEnriched = claimerGangId
-    ? { id: claimerGangId, name: nameMap.get(claimerGangId) ?? 'Unknown' }
-    : null;
-  const primaryWinner = legacyWinnerId
-    ? { id: legacyWinnerId, name: nameMap.get(legacyWinnerId) ?? 'Unknown' }
-    : null;
-  return { winnersEnriched, claimerEnriched, primaryWinner };
-}
-
 /**
  * Normalise the participants array so that:
  *   - every entry has explicit (potentially false) is_winner / claimed_territory flags;

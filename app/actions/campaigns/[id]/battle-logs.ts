@@ -6,8 +6,8 @@ import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getWinnerIds, getExplicitClaimerGangId } from '@/utils/battle-winners';
-import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds, enrichWinners } from '@/utils/battle-participants';
+import { getWinnerIds, getExplicitClaimerGangId, enrichWinners } from '@/utils/battle-winners';
+import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds } from '@/utils/battle-participants';
 
 /**
  * Type definition for battle participant.

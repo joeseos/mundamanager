@@ -71,9 +71,7 @@ const CampaignBattleLogModal = ({
 
   const {
     winners,
-    setWinners,
     isDraw,
-    setIsDraw,
     claimedByGangId,
     setClaimedByGangId,
     activeWinners,
@@ -83,6 +81,8 @@ const CampaignBattleLogModal = ({
     handleWinnerChange,
     addWinnerSlot,
     removeWinnerSlot,
+    loadExistingWinners,
+    removeGangFromWinners,
     resetWinnerSelection,
   } = useWinnerSelection({
     maxParticipants: selectedGangs.length,
@@ -454,24 +454,14 @@ const CampaignBattleLogModal = ({
       setGangsInBattle(newGangsInBattle);
     }
     
-    // Set winners + draw state from the multi-winner flags (fallback winner_id)
+    // Pre-fill all three winner fields atomically via the hook method so the
+    // draw/winner invariants are always maintained.
     const winnerIds = getWinnerIds(battleToEdit);
-    const explicitDraw =
-      battleToEdit.winner_id === null && winnerIds.length === 0;
-    if (explicitDraw) {
-      setIsDraw(true);
-      setWinners([""]);
-    } else if (winnerIds.length > 0) {
-      setIsDraw(false);
-      setWinners(winnerIds);
-    } else {
-      setIsDraw(false);
-      setWinners([""]);
-    }
-
-    // Prefill the territory claimer from the participants flag (fallback winner_id)
-    const claimerFromBattle = getClaimerGangId(battleToEdit);
-    setClaimedByGangId(claimerFromBattle ?? "");
+    loadExistingWinners({
+      winnerIds,
+      claimerId: getClaimerGangId(battleToEdit),
+      isDraw: battleToEdit.winner_id === null && winnerIds.length === 0,
+    });
 
     // Set notes
     setNotes(battleToEdit.note || "");
@@ -537,7 +527,7 @@ const CampaignBattleLogModal = ({
     // the winners list so we don't keep dangling references.
     const previousGangId = gangsInBattle.find((g) => g.id === gangEntryId)?.gangId;
     if (previousGangId && previousGangId !== gangId) {
-      setWinners((current) => current.filter((w) => w !== previousGangId));
+      removeGangFromWinners(previousGangId);
     }
   };
 
@@ -551,7 +541,7 @@ const CampaignBattleLogModal = ({
     const removedGangId = gangsInBattle.find((g) => g.id === gangEntryId)?.gangId;
     setGangsInBattle((current) => current.filter((entry) => entry.id !== gangEntryId));
     if (removedGangId) {
-      setWinners((current) => current.filter((w) => w !== removedGangId));
+      removeGangFromWinners(removedGangId);
     }
   };
 
