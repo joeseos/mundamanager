@@ -33,6 +33,7 @@ interface EditCampaignModalProps {
     campaign_type_id?: string;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
+    discord_channel_type?: number | null;
   };
   onClose: () => void;
   onSave: (updatedData: {
@@ -42,6 +43,7 @@ interface EditCampaignModalProps {
     status: string;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
+    discord_channel_type?: number | null;
   }) => Promise<boolean>;
   isOwner: boolean;
   isArbitrator?: boolean;
@@ -88,7 +90,7 @@ export default function CampaignEditModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [confirmText, setConfirmText] = useState('');
-  const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
 
@@ -142,9 +144,11 @@ export default function CampaignEditModal({
       status: formValues.status,
     };
 
-    // Include discord_channel_id if guild is connected
+    // Include discord fields if guild is connected
     if (campaignData.discord_guild_id) {
       saveData.discord_channel_id = selectedChannelId || null;
+      const selectedChannel = discordChannels.find(ch => ch.id === selectedChannelId);
+      saveData.discord_channel_type = selectedChannel?.type ?? 0;
     }
 
     const result = await onSave(saveData);
@@ -180,6 +184,7 @@ export default function CampaignEditModal({
       status: formValues.status,
       discord_guild_id: null,
       discord_channel_id: null,
+      discord_channel_type: 0,
     });
     if (result) {
       setDiscordChannels([]);
@@ -444,7 +449,7 @@ export default function CampaignEditModal({
                         <p className="text-xs text-muted-foreground">Loading channels...</p>
                       ) : (
                         <Combobox
-                          options={discordChannels.map(ch => ({ value: ch.id, label: `#${ch.name}` }))}
+                          options={discordChannels.map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
                           value={selectedChannelId}
                           onValueChange={setSelectedChannelId}
                           placeholder="Select a channel"

@@ -20,6 +20,7 @@ export interface UpdateCampaignSettingsParams {
   status?: string;
   discord_guild_id?: string | null;
   discord_channel_id?: string | null;
+  discord_channel_type?: number | null;
 }
 
 /**
@@ -45,7 +46,8 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       note,
       status,
       discord_guild_id,
-      discord_channel_id
+      discord_channel_id,
+      discord_channel_type
     } = params;
 
     // Only include provided fields in the update
@@ -63,6 +65,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (status !== undefined) updateData.status = status;
     if (discord_guild_id !== undefined) updateData.discord_guild_id = discord_guild_id;
     if (discord_channel_id !== undefined) updateData.discord_channel_id = discord_channel_id;
+    if (discord_channel_type !== undefined) updateData.discord_channel_type = discord_channel_type;
 
     const { error } = await supabase
       .from('campaigns')
