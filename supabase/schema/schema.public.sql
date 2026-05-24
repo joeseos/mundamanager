@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3BiWT0fdzYEyuHYMQwSgT4QtnVv5hDMVkNSZgObP2NrmhXY2lqeOo2ID0ea2R51
+\restrict Doklum2Q6btcgGd0xH19mjYeyKr830kQ6a2ImbSjnfCbVxiAA6xVbgO74gOlgx8
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -3807,6 +3807,8 @@ CREATE TABLE public.battle_session_participants (
     reputation_change integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     ready boolean DEFAULT false,
+    is_winner boolean DEFAULT false NOT NULL,
+    claimed_territory boolean DEFAULT false NOT NULL,
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
 
@@ -4156,7 +4158,8 @@ CREATE TABLE public.campaigns (
     has_salvage boolean DEFAULT false,
     trading_posts jsonb,
     discord_channel_id text,
-    discord_guild_id text
+    discord_guild_id text,
+    discord_channel_type integer DEFAULT 0 NOT NULL
 );
 
 
@@ -10958,5 +10961,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 3BiWT0fdzYEyuHYMQwSgT4QtnVv5hDMVkNSZgObP2NrmhXY2lqeOo2ID0ea2R51
+\unrestrict Doklum2Q6btcgGd0xH19mjYeyKr830kQ6a2ImbSjnfCbVxiAA6xVbgO74gOlgx8
 
