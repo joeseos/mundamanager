@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
-import { getWinnerIds, getClaimerGangId } from '@/utils/battle-winners';
+import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
 
 // No TTL - infinite cache with server action invalidation only
@@ -525,19 +525,15 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
-    // Multi-winner enrichment: pass the already-parsed participants array so
-    // getWinnerIds / getClaimerGangId don't re-parse battle.participants (which
-    // is the raw JSON column value). The helpers accept an array directly.
-    const parsedForWinners = {
-      participants: parsedParticipants ?? [],
-      winner_id: battle.winner_id,
-    };
-    const effectiveWinnerIds = getWinnerIds(parsedForWinners);
+    // Multi-winner enrichment: use the FromParsed overloads so the already-parsed
+    // participants array is passed directly — no re-parse of the raw JSON column.
+    const parsed = parsedParticipants ?? [];
+    const effectiveWinnerIds = getWinnerIdsFromParsed(parsed, battle.winner_id);
     const winners = effectiveWinnerIds.map((id) => ({
       id,
       name: gangMap.get(id)?.name || 'Unknown',
     }));
-    const claimerId = getClaimerGangId(parsedForWinners);
+    const claimerId = getClaimerGangIdFromParsed(parsed, battle.winner_id);
     const territory_claimer = claimerId
       ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
       : null;

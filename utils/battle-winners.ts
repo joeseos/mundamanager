@@ -47,6 +47,22 @@ export function getWinnerIds(battle: CampaignBattleLike): string[] {
   return battle.winner_id ? [battle.winner_id] : [];
 }
 
+/**
+ * Same as `getWinnerIds` but takes an already-parsed participants array and
+ * the legacy `winner_id` as separate arguments. Use this when the participants
+ * column has already been parsed to avoid re-parsing the JSON.
+ */
+export function getWinnerIdsFromParsed(
+  participants: BattleParticipant[],
+  winnerId: string | null | undefined
+): string[] {
+  const flagged = participants
+    .filter((p) => p?.is_winner === true && !!p.gang_id)
+    .map((p) => p.gang_id);
+  if (flagged.length > 0) return flagged;
+  return winnerId ? [winnerId] : [];
+}
+
 // ---------------------------------------------------------------------------
 // Winner-name enrichment
 // ---------------------------------------------------------------------------
@@ -120,6 +136,22 @@ export function getClaimerGangId(battle: CampaignBattleLike): string | null {
   );
   if (claimer) return claimer.gang_id;
   return battle.winner_id ?? null;
+}
+
+/**
+ * Same as `getClaimerGangId` but takes an already-parsed participants array
+ * and the legacy `winner_id` as separate arguments. Use this when the
+ * participants column has already been parsed to avoid re-parsing the JSON.
+ */
+export function getClaimerGangIdFromParsed(
+  participants: BattleParticipant[],
+  winnerId: string | null | undefined
+): string | null {
+  const claimer = participants.find(
+    (p) => p?.claimed_territory === true && !!p.gang_id
+  );
+  if (claimer) return claimer.gang_id;
+  return winnerId ?? null;
 }
 
 /**
