@@ -8,6 +8,7 @@ import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { createClient } from "@/utils/supabase/client";
 import { Battle } from '@/types/campaign';
+import { getWinnerIds } from '@/utils/battle-winners';
 import Modal from "@/components/ui/modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { GiAncientRuins } from "react-icons/gi";
@@ -137,9 +138,12 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
 
         if (error) throw error;
 
-        // Filter battles where the gang is involved
+        // Filter battles where the gang is involved. Multi-winner battles may
+        // flag this gang via participants[*].is_winner even when the legacy
+        // winner_id points to a different (claimer) gang, so we check both
+        // sides via the helper.
         const gangBattles = (battles || []).filter(battle => {
-          if (battle.winner_id === gangId) return true;
+          if (getWinnerIds(battle as any).includes(gangId)) return true;
 
           if (battle.participants) {
             try {
@@ -158,10 +162,11 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
           return false;
         });
 
-        // Extract all gang IDs from participants and winner
+        // Extract all gang IDs from participants and every flagged winner
+        // (covers both multi-winner battles and legacy winner_id-only rows).
         const allGangIds = new Set<string>();
         gangBattles.forEach(battle => {
-          if (battle.winner_id) allGangIds.add(battle.winner_id);
+          getWinnerIds(battle as any).forEach((id) => allGangIds.add(id));
 
           if (battle.participants) {
             try {
@@ -242,6 +247,13 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             defenderId = participantsWithNames.find((p: any) => p.role === 'defender')?.gang_id;
           }
 
+          const winnerIds = getWinnerIds(battle as any);
+          const winnersEnriched = winnerIds.map((id) => ({
+            id,
+            name: gangMap.get(id)?.name || 'Unknown',
+            gang_colour: gangColourMap.get(id) || '#000000',
+          }));
+
           return {
             ...battle,
             campaign_id: battle.campaign_id,
@@ -262,7 +274,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
               id: battle.winner_id,
               name: gangMap.get(battle.winner_id)?.name || 'Unknown',
               gang_colour: gangColourMap.get(battle.winner_id) || '#000000'
-            } : undefined
+            } : undefined,
+            winners: winnersEnriched,
           };
         });
 
@@ -544,10 +557,15 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
 
       {/* Battle Logs Section */}
       {campaigns.length > 0 && (() => {
-        // Calculate overall stats across all campaigns
-        const wins = battleLogs.filter(b => b.winner_id === gangId).length;
-        const losses = battleLogs.filter(b => b.winner_id && b.winner_id !== gangId).length;
-        const draws = battleLogs.filter(b => !b.winner_id).length;
+        // Calculate overall stats across all campaigns using the multi-winner
+        // helper so this gang counts as a victor whenever it is flagged among
+        // the winners (even on shared victories).
+        const wins = battleLogs.filter(b => getWinnerIds(b).includes(gangId)).length;
+        const losses = battleLogs.filter(b => {
+          const winners = getWinnerIds(b);
+          return winners.length > 0 && !winners.includes(gangId);
+        }).length;
+        const draws = battleLogs.filter(b => getWinnerIds(b).length === 0).length;
         const totalBattles = battleLogs.length;
         
         return (
@@ -606,20 +624,17 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                 </thead>
                 <tbody>
                   {battleLogs.map((battle) => {
-                    // Determine result
-                    const isWinner = battle.winner_id === gangId;
-                    
-                    let result: string = '-';
-                    if (battle.winner_id) {
-                      if (isWinner) {
-                        result = 'Victory';
-                      } else {
-                        // If there's a winner and it's not the user's gang, it's a defeat
-                        result = 'Defeat';
-                      }
-                    } else {
-                      // No winner means it's a draw
+                    // Determine result via the multi-winner helper.
+                    const battleWinnerIds = getWinnerIds(battle);
+                    const isWinner = battleWinnerIds.includes(gangId);
+
+                    let result: string;
+                    if (battleWinnerIds.length === 0) {
                       result = 'Draw';
+                    } else if (isWinner) {
+                      result = 'Victory';
+                    } else {
+                      result = 'Defeat';
                     }
 
                     // Get all participating gangs with roles - mirror campaign-battle-logs-list logic:

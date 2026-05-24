@@ -1,17 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import { LuPlus } from 'react-icons/lu';
+import { HiX } from 'react-icons/hi';
 import Modal from '@/components/ui/modal';
+import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  setSessionWinner,
+  setSessionWinners,
   completeBattleSession,
 } from '@/app/actions/battle-sessions';
 import type { BattleSessionFull } from '@/types/battle-session';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
+import {
+  getSessionClaimerGangId,
+  getSessionWinnerIds,
+} from '@/utils/battle-winners';
 
 interface CompleteBattleTerritory {
   id: string;
@@ -33,30 +40,107 @@ export default function CompleteBattleModal({
   territories = [],
   onClose,
 }: CompleteBattleModalProps) {
-  const [winner, setWinner] = useState(session.winner_gang_id ?? '');
+  // Multi-winner state. Prefill from the persisted is_winner / claimed_territory
+  // flags (with fallback to the legacy winner_gang_id for older sessions).
+  const initialWinnerIds = useMemo(() => getSessionWinnerIds(session), [session]);
+  const initialClaimerId = useMemo(() => getSessionClaimerGangId(session), [session]);
+  const initialIsDraw =
+    initialWinnerIds.length === 0 && session.winner_gang_id === null;
+
+  const [winners, setWinners] = useState<string[]>(
+    initialWinnerIds.length > 0 ? initialWinnerIds : ['']
+  );
+  const [isDraw, setIsDraw] = useState<boolean>(initialIsDraw);
+  const [claimedByGangId, setClaimedByGangId] = useState<string>(
+    initialClaimerId ?? ''
+  );
   const [selectedTerritory, setSelectedTerritory] = useState('');
   const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const gangNameMap = new Map(
-    session.participants.map((p) => [p.gang_id, p.gang?.name || 'Unknown'])
+  const gangNameMap = useMemo(
+    () => new Map(session.participants.map((p) => [p.gang_id, p.gang?.name || 'Unknown'])),
+    [session.participants]
   );
 
+  const activeWinners = useMemo(() => winners.filter((w) => !!w), [winners]);
+  const hasAnyWinnerSelected = activeWinners.length > 0 || isDraw;
+
+  // Keep the claimer in sync with the selected winners — clear it if it is no
+  // longer a winner, and auto-fill it for the single-winner case so the user
+  // doesn't have to do anything special for the common path.
+  useEffect(() => {
+    if (claimedByGangId && !activeWinners.includes(claimedByGangId)) {
+      setClaimedByGangId('');
+    }
+  }, [activeWinners, claimedByGangId]);
+
+  useEffect(() => {
+    if (activeWinners.length === 1 && selectedTerritory) {
+      setClaimedByGangId(activeWinners[0]);
+    } else if (activeWinners.length === 0 || !selectedTerritory) {
+      setClaimedByGangId('');
+    }
+  }, [activeWinners, selectedTerritory]);
+
+  const handleWinnerChange = (slotIndex: number, value: string) => {
+    if (value === 'draw') {
+      setIsDraw(true);
+      setWinners(['']);
+      return;
+    }
+    setIsDraw(false);
+    setWinners((current) => {
+      const next = [...current];
+      while (next.length <= slotIndex) next.push('');
+      next[slotIndex] = value;
+      return next;
+    });
+  };
+
+  const addWinnerSlot = () => setWinners((current) => [...current, '']);
+  const removeWinnerSlot = (slotIndex: number) =>
+    setWinners((current) =>
+      current.length <= 1 ? current : current.filter((_, i) => i !== slotIndex)
+    );
+
   const handleConfirm = async () => {
-    if (!winner) {
+    if (!hasAnyWinnerSelected) {
       toast.error('Please select a winner or draw');
+      return false;
+    }
+
+    if (!isDraw) {
+      const uniqueWinners = new Set(activeWinners);
+      if (uniqueWinners.size !== activeWinners.length) {
+        toast.error('The same gang cannot be selected as winner twice');
+        return false;
+      }
+    }
+
+    const territoryClaimed = !isDraw && selectedTerritory;
+    if (territoryClaimed && activeWinners.length > 1 && !claimedByGangId) {
+      toast.error('Please select which winner claims the Territory');
       return false;
     }
 
     setSubmitting(true);
 
-    const winnerResult = await setSessionWinner(
-      session.id,
-      winner === 'draw' ? null : winner
-    );
+    const winnerPayload = isDraw
+      ? []
+      : activeWinners.map((id) => ({
+          gang_id: id,
+          claimed_territory:
+            !!territoryClaimed &&
+            (activeWinners.length === 1
+              ? id === activeWinners[0]
+              : id === claimedByGangId),
+        }));
+
+    const winnerResult = await setSessionWinners(session.id, winnerPayload);
     if (!winnerResult.success) {
-      toast.error(winnerResult.error || 'Failed to set winner');
+      toast.error(winnerResult.error || 'Failed to set winners');
       setSubmitting(false);
       return false;
     }
@@ -87,13 +171,25 @@ export default function CompleteBattleModal({
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const buildGangOption = (gangId: string) => ({
+    value: gangId,
+    label: gangNameMap.get(gangId) ?? 'Unknown Gang',
+  });
+
+  const slotsToRender = isDraw ? 1 : Math.max(1, winners.length);
+  const canAddAnotherWinner =
+    !isDraw &&
+    activeWinners.length === winners.length &&
+    activeWinners.length > 0 &&
+    activeWinners.length < session.participants.length;
+
   return createPortal(
     <Modal
       title="Complete Battle"
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Complete Battle"
-      confirmDisabled={!winner || submitting}
+      confirmDisabled={!hasAnyWinnerSelected || submitting}
     >
       <div className="space-y-4">
         {session.scenario && (
@@ -175,24 +271,81 @@ export default function CompleteBattleModal({
           <label className="mb-1 block text-sm font-medium text-muted-foreground">
             Winner *
           </label>
-          <Combobox
-            value={winner}
-            onValueChange={setWinner}
-            placeholder="Select winner"
-            options={[
-              { value: 'draw', label: 'Draw' },
-              ...session.participants.map((p) => ({
-                value: p.gang_id,
-                label: p.gang?.name || 'Unknown Gang',
-              })),
-            ]}
-          />
+          <div className="space-y-2">
+            {Array.from({ length: slotsToRender }).map((_, slotIndex) => {
+              const slotValue =
+                isDraw && slotIndex === 0
+                  ? 'draw'
+                  : (winners[slotIndex] ?? '');
+              const isFirstSlot = slotIndex === 0;
+              const excludedGangIds = new Set(
+                winners.filter((_, i) => i !== slotIndex && !!winners[i])
+              );
+              const gangOptions = session.participants
+                .filter((p) => !excludedGangIds.has(p.gang_id))
+                .map((p) => buildGangOption(p.gang_id));
+
+              const baseOptions = isFirstSlot
+                ? [
+                    { value: '', label: 'No winner selected' },
+                    { value: 'draw', label: 'Draw' },
+                    ...gangOptions,
+                  ]
+                : [
+                    { value: '', label: 'Select winner' },
+                    ...gangOptions,
+                  ];
+
+              return (
+                <div
+                  key={`winner-slot-${slotIndex}`}
+                  className="flex items-start gap-2"
+                >
+                  <div className="flex-1">
+                    <Combobox
+                      value={slotValue}
+                      onValueChange={(value) =>
+                        handleWinnerChange(slotIndex, value)
+                      }
+                      placeholder={
+                        isFirstSlot ? 'Select winner' : 'Select another winner'
+                      }
+                      options={baseOptions}
+                    />
+                  </div>
+                  {slotIndex > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remove winner"
+                      onClick={() => removeWinnerSlot(slotIndex)}
+                    >
+                      <HiX className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {canAddAnotherWinner && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={addWinnerSlot}
+              >
+                <LuPlus className="h-4 w-4" />
+                Add Winner
+              </Button>
+            )}
+          </div>
         </div>
 
-        {winner && sortedTerritories.length > 0 && (
+        {hasAnyWinnerSelected && sortedTerritories.length > 0 && (
           <div>
             <label className="mb-1 block text-sm font-medium text-muted-foreground">
-              {winner === 'draw' ? 'Contested Territory' : 'Claimed Territory'}
+              {isDraw ? 'Contested Territory' : 'Claimed Territory'}
             </label>
             <Combobox
               value={selectedTerritory}
@@ -224,6 +377,28 @@ export default function CompleteBattleModal({
                 }),
               ]}
             />
+
+            {!isDraw && activeWinners.length > 1 && selectedTerritory && (
+              <>
+                <p className="mt-2 text-sm text-amber-600">
+                  Only one winner can claim a Territory.
+                </p>
+                <div className="mt-2">
+                  <label className="mb-1 block text-sm font-medium text-muted-foreground">
+                    Territory claimed by *
+                  </label>
+                  <Combobox
+                    value={claimedByGangId}
+                    onValueChange={setClaimedByGangId}
+                    placeholder="Select the claiming winner"
+                    options={[
+                      { value: '', label: 'Select the claiming winner' },
+                      ...activeWinners.map((gangId) => buildGangOption(gangId)),
+                    ]}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 

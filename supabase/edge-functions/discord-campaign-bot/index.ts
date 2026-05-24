@@ -35,6 +35,24 @@ Deno.serve(async (req) => {
       gangIds.push(battle.winner_id);
     }
 
+    // Multi-winner support: collect every gang flagged as a winner on the
+    // participants JSONB. Fall back to the legacy winner_id when no flags are
+    // present (covers historical single-winner rows).
+    const flaggedWinnerIds: string[] = Array.isArray(participants)
+      ? participants
+          .filter((p: any) => p?.is_winner === true && !!p?.gang_id)
+          .map((p: any) => p.gang_id as string)
+      : [];
+    const winnerIds: string[] =
+      flaggedWinnerIds.length > 0
+        ? flaggedWinnerIds
+        : battle.winner_id
+          ? [battle.winner_id]
+          : [];
+    for (const wid of winnerIds) {
+      if (!gangIds.includes(wid)) gangIds.push(wid);
+    }
+
     const { data: gangs } = await supabase
       .from("gangs")
       .select("id, name, gang_type, rating, reputation")
@@ -42,9 +60,7 @@ Deno.serve(async (req) => {
 
     const gangMap = new Map(gangs?.map((g) => [g.id, g]) ?? []);
 
-    const winnerGang = battle.winner_id ? gangMap.get(battle.winner_id) : null;
-
-    type BattleParticipantRow = { gang_id: string; role?: string };
+    type BattleParticipantRow = { gang_id: string; role?: string; is_winner?: boolean };
     const participantRows: BattleParticipantRow[] = Array.isArray(participants)
       ? participants
       : [];
@@ -153,9 +169,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (winnerGang) {
-      fields.push({ name: "🏆 Winner", value: winnerGang.name, inline: false });
-    } else if (battle.winner_id == null || battle.winner_id === "") {
+    const winnerNames = winnerIds
+      .map((id) => gangMap.get(id)?.name)
+      .filter(Boolean) as string[];
+
+    if (winnerNames.length === 1) {
+      fields.push({ name: "🏆 Winner", value: winnerNames[0], inline: false });
+    } else if (winnerNames.length > 1) {
+      fields.push({
+        name: "🏆 Winners",
+        value: winnerNames.join("\n"),
+        inline: false,
+      });
+    } else {
       fields.push({
         name: "🏆 Winner",
         value: "This battle ended in a draw.",

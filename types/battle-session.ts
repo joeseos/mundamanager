@@ -48,6 +48,18 @@ export interface BattleSessionParticipant {
   credits_earned: number;
   reputation_change: number;
   ready: boolean;
+  /**
+   * Multi-winner support: any number of participants in a session may be flagged
+   * as a winner. Defaults to `false`. Draws have no participants with
+   * `is_winner = true`.
+   */
+  is_winner?: boolean;
+  /**
+   * The single winner that claimed the battle's territory (if any). Only one
+   * participant per session may have `claimed_territory = true`, and they must
+   * also be flagged as `is_winner`.
+   */
+  claimed_territory?: boolean;
   created_at: string;
   gang?: {
     id: string;

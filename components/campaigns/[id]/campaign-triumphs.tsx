@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import type { Battle, BattleParticipant } from '@/types/campaign';
+import { getWinnerIds } from '@/utils/battle-winners';
 
 interface CampaignTriumph {
   id: string;
@@ -124,11 +125,15 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
   const victoriesByAllegiance = useMemo(() => {
     const counts = new Map<string, number>();
     battles.forEach(battle => {
-      if (battle.winner_id == null) return;
-      const gang = gangMap.get(battle.winner_id);
-      const allegiance = gang?.allegianceName || '';
-      if (!allegiance) return;
-      counts.set(allegiance, (counts.get(allegiance) || 0) + 1);
+      // One victory is counted per flagged winner — single-winner battles still
+      // contribute exactly one tally to the winner's allegiance.
+      const winnerIds = getWinnerIds(battle);
+      winnerIds.forEach((winnerId) => {
+        const gang = gangMap.get(winnerId);
+        const allegiance = gang?.allegianceName || '';
+        if (!allegiance) return;
+        counts.set(allegiance, (counts.get(allegiance) || 0) + 1);
+      });
     });
     const sorted = Array.from(counts.entries())
       .map(([name, victories]) => ({ name, victories }))
@@ -177,8 +182,10 @@ export default function CampaignTriumphs({ triumphs, battles = [], members = [],
   const topByVictories = useMemo(() => {
     const counts = new Map<string, number>();
     battles.forEach(battle => {
-      if (battle.winner_id == null) return;
-      counts.set(battle.winner_id, (counts.get(battle.winner_id) || 0) + 1);
+      // Each flagged winner gets one victory per battle.
+      getWinnerIds(battle).forEach((winnerId) => {
+        counts.set(winnerId, (counts.get(winnerId) || 0) + 1);
+      });
     });
     const sorted = Array.from(counts.entries())
       .map(([gangId, value]) => {
