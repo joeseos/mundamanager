@@ -318,13 +318,16 @@ export async function setSessionWinners(
     // winner; NULL for draws. Mirrors the campaign battle action.
     const legacyWinnerGangId: string | null =
       claimerGangId ?? winners[0]?.gang_id ?? null;
-    await supabase
+    const { error: sessionUpdateError } = await supabase
       .from('battle_sessions')
       .update({
         winner_gang_id: legacyWinnerGangId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', sessionId);
+    if (sessionUpdateError) {
+      return { success: false, error: `Failed to update session: ${sessionUpdateError.message}` };
+    }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
     return { success: true };

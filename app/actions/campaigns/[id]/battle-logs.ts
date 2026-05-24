@@ -355,6 +355,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     }
 
     // Derive the old winners so we can bust their caches after the update.
+    // Supabase types participants as Json; parseParticipants handles string|array|null at runtime.
     const oldWinnerIds = getWinnerIds(existingBattle as any);
 
     // Look up the gang currently holding the old territory so we can invalidate their cache.
