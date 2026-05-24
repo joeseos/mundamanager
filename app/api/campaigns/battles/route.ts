@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { normaliseParticipants, territoryClaimerFor } from "@/app/actions/campaigns/[id]/battle-logs";
+import { normaliseParticipants, territoryClaimerFor } from "@/utils/battle-participants";
 
 export async function GET(
   request: Request
