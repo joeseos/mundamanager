@@ -525,14 +525,19 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
-    // Multi-winner enrichment: delegate to the shared helpers so this path
-    // stays in sync with everywhere else that reads winner data.
-    const effectiveWinnerIds = getWinnerIds(battle);
+    // Multi-winner enrichment: pass the already-parsed participants array so
+    // getWinnerIds / getClaimerGangId don't re-parse battle.participants (which
+    // is the raw JSON column value). The helpers accept an array directly.
+    const parsedForWinners = {
+      participants: parsedParticipants ?? [],
+      winner_id: battle.winner_id,
+    };
+    const effectiveWinnerIds = getWinnerIds(parsedForWinners);
     const winners = effectiveWinnerIds.map((id) => ({
       id,
       name: gangMap.get(id)?.name || 'Unknown',
     }));
-    const claimerId = getClaimerGangId(battle);
+    const claimerId = getClaimerGangId(parsedForWinners);
     const territory_claimer = claimerId
       ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
       : null;

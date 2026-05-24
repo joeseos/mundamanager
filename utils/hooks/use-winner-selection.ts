@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 
 interface UseWinnerSelectionParams {
   initialWinnerIds?: string[];
@@ -20,9 +20,7 @@ interface UseWinnerSelectionParams {
 
 export interface UseWinnerSelectionResult {
   winners: string[];
-  setWinners: React.Dispatch<React.SetStateAction<string[]>>;
   isDraw: boolean;
-  setIsDraw: React.Dispatch<React.SetStateAction<boolean>>;
   claimedByGangId: string;
   setClaimedByGangId: React.Dispatch<React.SetStateAction<string>>;
   /** Filtered winner slots — empty strings (unset slots) are excluded. */
@@ -35,6 +33,21 @@ export interface UseWinnerSelectionResult {
   handleWinnerChange: (slotIndex: number, value: string) => void;
   addWinnerSlot: () => void;
   removeWinnerSlot: (slotIndex: number) => void;
+  /**
+   * Atomically pre-fills all three winner fields from an existing battle.
+   * Use this instead of calling raw setters so the draw/winner invariants
+   * are always satisfied.
+   */
+  loadExistingWinners: (opts: {
+    winnerIds: string[];
+    claimerId: string | null;
+    isDraw: boolean;
+  }) => void;
+  /**
+   * Removes a specific gang ID from the winner slots. Use when a gang is
+   * removed from or swapped out of the participants list.
+   */
+  removeGangFromWinners: (gangId: string) => void;
   /** Resets winners/isDraw/claimedByGangId back to empty defaults. */
   resetWinnerSelection: () => void;
 }
@@ -89,7 +102,7 @@ export function useWinnerSelection({
     }
   }, [activeWinners, selectedTerritory]);
 
-  const handleWinnerChange = (slotIndex: number, value: string) => {
+  const handleWinnerChange = useCallback((slotIndex: number, value: string) => {
     if (value === 'draw') {
       setIsDraw(true);
       setWinners(['']);
@@ -102,25 +115,61 @@ export function useWinnerSelection({
       next[slotIndex] = value;
       return next;
     });
-  };
+  }, []);
 
-  const addWinnerSlot = () => setWinners((current) => [...current, '']);
-  const removeWinnerSlot = (slotIndex: number) =>
-    setWinners((current) =>
-      current.length <= 1 ? current : current.filter((_, i) => i !== slotIndex)
-    );
+  const addWinnerSlot = useCallback(
+    () => setWinners((current) => [...current, '']),
+    []
+  );
 
-  const resetWinnerSelection = () => {
+  const removeWinnerSlot = useCallback(
+    (slotIndex: number) =>
+      setWinners((current) =>
+        current.length <= 1 ? current : current.filter((_, i) => i !== slotIndex)
+      ),
+    []
+  );
+
+  const loadExistingWinners = useCallback(
+    ({
+      winnerIds,
+      claimerId,
+      isDraw: draw,
+    }: {
+      winnerIds: string[];
+      claimerId: string | null;
+      isDraw: boolean;
+    }) => {
+      if (draw) {
+        setIsDraw(true);
+        setWinners(['']);
+      } else if (winnerIds.length > 0) {
+        setIsDraw(false);
+        setWinners(winnerIds);
+      } else {
+        setIsDraw(false);
+        setWinners(['']);
+      }
+      setClaimedByGangId(claimerId ?? '');
+    },
+    []
+  );
+
+  const removeGangFromWinners = useCallback(
+    (gangId: string) =>
+      setWinners((current) => current.filter((w) => w !== gangId)),
+    []
+  );
+
+  const resetWinnerSelection = useCallback(() => {
     setWinners(['']);
     setIsDraw(false);
     setClaimedByGangId('');
-  };
+  }, []);
 
   return {
     winners,
-    setWinners,
     isDraw,
-    setIsDraw,
     claimedByGangId,
     setClaimedByGangId,
     activeWinners,
@@ -130,6 +179,8 @@ export function useWinnerSelection({
     handleWinnerChange,
     addWinnerSlot,
     removeWinnerSlot,
+    loadExistingWinners,
+    removeGangFromWinners,
     resetWinnerSelection,
   };
 }
