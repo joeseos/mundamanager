@@ -560,16 +560,12 @@ export async function clearRigGlitchesDowntime(params: {
 
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select('id, gang_id, fighter_name, is_spyrer')
+      .select('id, gang_id, fighter_name')
       .eq('id', params.fighter_id)
       .single();
 
     if (fighterError || !fighter) {
       return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Fighter not found' };
-    }
-
-    if (!fighter.is_spyrer) {
-      return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Fighter is not a Spyrer' };
     }
 
     if (params.glitch_ids.length === 0) {
