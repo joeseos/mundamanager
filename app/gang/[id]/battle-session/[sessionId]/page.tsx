@@ -25,11 +25,9 @@ export async function renderBattleSessionPage(sessionId: string) {
 
   if (session.status === 'completed') {
     return (
-      <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-5xl w-full space-y-4">
-          <CompletedSession session={session} userId={user.id} />
-        </div>
-      </main>
+      <div className="space-y-4">
+        <CompletedSession session={session} userId={user.id} />
+      </div>
     );
   }
 
@@ -55,23 +53,21 @@ export async function renderBattleSessionPage(sessionId: string) {
   });
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-5xl w-full space-y-4">
-        <ActiveSession
-          session={session}
-          userId={user.id}
-          scenarios={scenarios || []}
-          gangFightersMap={gangFightersMap}
-          gangPositioningMap={gangPositioningMap}
-          territories={(campaignTerritories || []).map((t: any) => ({
-            id: t.id,
-            name: t.territory_name,
-            controlled_by: t.gang_id || undefined,
-            default_gang_territory: t.default_gang_territory,
-          }))}
-        />
-      </div>
-    </main>
+    <div className="space-y-4">
+      <ActiveSession
+        session={session}
+        userId={user.id}
+        scenarios={scenarios || []}
+        gangFightersMap={gangFightersMap}
+        gangPositioningMap={gangPositioningMap}
+        territories={(campaignTerritories || []).map((t: any) => ({
+          id: t.id,
+          name: t.territory_name,
+          controlled_by: t.gang_id || undefined,
+          default_gang_territory: t.default_gang_territory,
+        }))}
+      />
+    </div>
   );
 }
 
