@@ -505,7 +505,7 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
             <Button
               onClick={() => handleSubmitEffect(OperationType.POST)}
               disabled={!effectName || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
             >
               {isLoading ? 'Creating...' : 'Create Effect'}
             </Button>
@@ -516,14 +516,14 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
               <Button
                 onClick={() => handleSubmitEffect(OperationType.UPDATE)}
                 disabled={!effectName || isLoading}
-                className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+                className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
               >
                 {isLoading ? 'Updating...' : 'Update Effect'}
               </Button>
               <Button
                 onClick={() => handleSubmitEffect(OperationType.DELETE)}
                 disabled={isLoading}
-                className="flex-1 bg-red-600 text-white rounded hover:bg-red-700"
+                className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
               >
                 {isLoading ? 'Deleting...' : 'Delete Effect'}
               </Button>

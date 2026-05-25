@@ -49,7 +49,7 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
           sizes="80px, 80px"
         />
       </div>
-      <div className="flex-grow min-w-0">
+      <div className="grow min-w-0">
         <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{campaign.campaign_name}</h3>
         <div className="text-sm md:text-base text-muted-foreground">
           <span className="truncate block">{campaign.campaign_type}</span>
@@ -77,11 +77,11 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
       {...(dragAttributes || {})}
     >
       {disableLink ? (
-        <div className="flex items-center flex-grow min-w-0">
+        <div className="flex items-center grow min-w-0">
           {innerContent}
         </div>
       ) : (
-        <a href={`/campaigns/${campaign.id}`} className="flex items-center flex-grow min-w-0">
+        <a href={`/campaigns/${campaign.id}`} className="flex items-center grow min-w-0">
           {innerContent}
         </a>
       )}

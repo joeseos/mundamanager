@@ -534,7 +534,7 @@ export default function CampaignPageContent({
             </div>
 
             {/* Right Section: Content */}
-            <div className="flex-grow w-full">
+            <div className="grow w-full">
                              <div className="flex justify-between items-start mb-1">
                  <h2 className="text-xl md:text-2xl font-bold">{campaignData.campaign_name}</h2>
                  <div className="flex gap-2 print:hidden">
@@ -702,7 +702,7 @@ export default function CampaignPageContent({
                 <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
                 <div className="relative group">
                   <ImInfo className="text-muted-foreground cursor-help" />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
                     To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
                     <br /><br />
                     You can also change the role of a player from Member to Arbitrator by clicking on their role icon.

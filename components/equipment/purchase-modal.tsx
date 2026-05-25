@@ -431,7 +431,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 </label>
                 <div className="relative group">
                   <ImInfo />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-48 -left-24 z-50">
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-48 -left-24 z-50">
                     Master-crafted weapons are Rare (10).
                   </div>
                 </div>
@@ -452,7 +452,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               </label>
               <div className="relative group">
                 <ImInfo />
-                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
                 When enabled, the Fighter Rating is calculated using the item's listed cost (from the fighter's Equipment List or the Trading Post), even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
                 </div>
               </div>

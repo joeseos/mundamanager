@@ -283,14 +283,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           <Button
             onClick={handleSubmit}
             disabled={!skillName || !skillType || skillTypeName !== '' || isLoading}
-            className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Skill'}
           </Button>
           <Button
             onClick={handleSubmitType}
             disabled={!skillTypeName || skillType !== '' || isLoading}
-            className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Skill Set'}
           </Button>

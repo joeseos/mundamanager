@@ -46,13 +46,13 @@ export function RangeSlider({
 
         {/* First thumb (minimum value) */}
         <SliderPrimitive.Thumb
-          className="block h-4 w-4 rounded-full border border-border bg-card shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="block h-4 w-4 rounded-full border border-border bg-card shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           aria-label="Set minimum value"
         />
 
         {/* Second thumb (maximum value) */}
         <SliderPrimitive.Thumb
-          className="block h-4 w-4 rounded-full border border-border bg-card shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          className="block h-4 w-4 rounded-full border border-border bg-card shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           aria-label="Set maximum value"
         />
       </SliderPrimitive.Root>

@@ -404,7 +404,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       <div className="flex items-center mb-20">
         <div className="flex w-full items-center">
           <div
-            className="absolute inset-0 bg-no-repeat bg-cover print:!bg-none"
+            className="absolute inset-0 bg-no-repeat bg-cover print:bg-none!"
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
@@ -417,7 +417,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             }}>
             <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
               {label && (
-                <div className="inline-flex items-center rounded-sm bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
+                <div className="inline-flex items-center rounded-xs bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}
@@ -434,7 +434,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           </div>
         </div>
         <div className="absolute right-0 md:top-[-10px] top-0 flex items-center z-20">
-          <div className="relative flex flex-col flex-shrink z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+          <div className="relative flex flex-col shrink z-11 mr-1 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-muted-foreground" />}
             {enslaved && <GiImprisoned className="text-red-600" />}
@@ -455,8 +455,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
           )}
           </div>
           <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] shrink-0 relative z-10 print:bg-card print:shadow-none">
-            <span className="leading-6 font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
-            <span className="leading-3 md:font-bold text-xs">Credits</span>
+            <span className="leading-none font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
+            <span className="leading-none md:font-bold text-xs">Credits</span>
           </div>
         </div>
       </div>

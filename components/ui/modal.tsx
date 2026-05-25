@@ -106,7 +106,7 @@ export default function Modal({
               <Button
                 variant="destructive"
                 onClick={onDelete}
-                className="mr-auto text-left px-4 py-2 border rounded"
+                className="mr-auto text-left px-4 py-2 border rounded-sm"
               >
                 {deleteLabel}
               </Button>
@@ -116,7 +116,7 @@ export default function Modal({
                 variant="outline"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className={`px-4 py-2 border rounded hover:bg-muted ${
+                className={`px-4 py-2 border rounded-sm hover:bg-muted ${
                   isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -126,7 +126,7 @@ export default function Modal({
             <Button
               onClick={(e) => handleConfirm(e)}
               disabled={confirmDisabled || isSubmitting}
-              className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
+              className={`px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 ${
                 (confirmDisabled || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >

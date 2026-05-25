@@ -248,7 +248,7 @@ export default function Page(props: { searchParams: Promise<Message> }) {
 
             <button 
               type="submit" 
-              className="bg-neutral-900 text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-neutral-900 text-white px-4 py-2 rounded-sm hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Signing Up...' : 'Sign Up'}

@@ -276,7 +276,7 @@ export function Combobox({
             selectedOption && typeof selectedOption.label === 'string' && !open
               ? "placeholder:text-foreground"
               : "placeholder:text-muted-foreground",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
+            "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
             "disabled:cursor-not-allowed disabled:opacity-50",
             // Reserve space for chevron (~48px) and optional clear (~48px) so text does not sit under icons
             clearable && value ? "pr-[5.5rem]" : "pr-12",
@@ -373,7 +373,7 @@ export function Combobox({
                     "w-full px-3 py-2 text-left text-sm flex items-center justify-between",
                     option.disabled 
                       ? "cursor-default" 
-                      : "hover:bg-muted focus:bg-muted focus:outline-none cursor-pointer",
+                      : "hover:bg-muted focus:bg-muted focus:outline-hidden cursor-pointer",
                     value === option.value && !option.disabled && "bg-muted"
                   )}
                   onClick={() => handleSelect(option.value, option.disabled)}
@@ -395,7 +395,7 @@ export function Combobox({
             <div className="border-t border-border">
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none flex items-center"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-hidden flex items-center"
                 onClick={handleCustomValue}
               >
                 <span className="text-blue-600">Custom: "{searchValue}"</span>

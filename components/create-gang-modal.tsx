@@ -366,7 +366,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               id="gang-type"
               value={gangType}
               onChange={(e) => setGangType(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select gang type</option>
               {/* System gang types */}
@@ -431,7 +431,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   id="gang-affiliation"
                   value={selectedAffiliation}
                   onChange={(e) => setSelectedAffiliation(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Select gang affiliation</option>
                   {selectedGangType.available_affiliations.map((affiliation) => (
@@ -456,7 +456,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
                   id="gang-origin"
                   value={selectedOrigin}
                   onChange={(e) => setSelectedOrigin(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">None</option>
                   {selectedGangType.available_origins

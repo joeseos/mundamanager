@@ -449,7 +449,7 @@ const FighterCard = memo(function FighterCard({
       <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
         <div className="flex w-full">
           <div
-            className={`absolute inset-0 bg-no-repeat bg-cover print:!bg-none fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
+            className={`absolute inset-0 bg-no-repeat bg-cover print:bg-none! fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
@@ -460,7 +460,7 @@ const FighterCard = memo(function FighterCard({
             }}>
             <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
               {label && (
-                <div className="inline-flex items-center rounded-sm bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
+                <div className="inline-flex items-center rounded-xs bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}
@@ -477,7 +477,7 @@ const FighterCard = memo(function FighterCard({
           </div>
         </div>
         <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-[10px]'}`}>
-          <div className="relative flex flex-col flex-shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
+          <div className="relative flex flex-col shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-muted-foreground" />}
             {enslaved && <GiImprisoned className="text-red-600" />}
@@ -493,14 +493,14 @@ const FighterCard = memo(function FighterCard({
           )}
           {!isInactive ? (
             <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] shrink-0 relative z-10 print:bg-card print:shadow-none">
-              <span className="leading-6 font-bold md:text-3xl text-2xl">
+              <span className="leading-none font-bold md:text-3xl text-2xl">
                 {(() => {
                   // Use loadout cost when active loadout is set, otherwise use total credits
                   const displayCost = active_loadout_id && loadout_cost !== undefined ? loadout_cost : credits;
                   return displayCost === 0 ? '*' : displayCost;
                 })()}
               </span>
-              <span className="leading-3 md:font-bold text-xs">Credits</span>
+              <span className="leading-none md:font-bold text-xs">Credits</span>
             </div>
           ) : (
             <div className="md:h-[85px] h-[64px] w-0 shrink-0 relative z-10" /> // Empty space to allow centering the status icons
@@ -567,7 +567,7 @@ const FighterCard = memo(function FighterCard({
             </div>
           )}
 
-          <div className={`grid gap-y-2 mt-3 print:gap-y-0 print:mt-1 ${viewMode === 'small' ? 'gap-y-[2px]' : ''} ${isMultiline ? 'grid-cols-[4.5rem,1fr]' : 'grid-cols-[6rem,1fr]'}`}>
+          <div className={`grid gap-y-2 mt-3 print:gap-y-0 print:mt-1 ${viewMode === 'small' ? 'gap-y-[2px]' : ''} ${isMultiline ? 'grid-cols-[4.5rem_1fr]' : 'grid-cols-[6rem_1fr]'}`}>
             {isCrew && vehicle && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>

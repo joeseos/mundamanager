@@ -593,7 +593,7 @@ export function FighterActions({
       <Tooltip
         id="delete-owned-beast-tooltip"
         place="top"
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{

@@ -96,7 +96,7 @@ export default function PasswordChange() {
       {isEditing ? (
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
-            <div className="relative flex-grow">
+            <div className="relative grow">
               <Input
                 type={showPassword ? "text" : "password"}
                 value={newPassword}
@@ -177,7 +177,7 @@ export default function PasswordChange() {
         </div>
       ) : (
         <div className="flex items-center space-x-2">
-          <div className="text-foreground bg-muted rounded-md px-3 py-2 flex-grow">
+          <div className="text-foreground bg-muted rounded-md px-3 py-2 grow">
             ••••••••
           </div>
           <Button 

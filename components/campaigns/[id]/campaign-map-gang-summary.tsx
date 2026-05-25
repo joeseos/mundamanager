@@ -152,7 +152,7 @@ export default function CampaignMapGangSummary({ territories, allGangs }: Campai
       id="gang-summary-territory-tooltip"
       place="top"
       offset={16}
-      className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+      className="bg-neutral-900! text-white! text-xs! z-[2000]!"
       delayHide={100}
       style={{ padding: '8px', maxWidth: '22rem' }}
     />

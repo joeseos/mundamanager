@@ -950,7 +950,7 @@ export default function Gang({
 			      </div>
           </div>
 
-          <div className="flex-grow w-full">
+          <div className="grow w-full">
             <div className="flex justify-between items-center sm:items-start mb-1 gap-2">
               <div className="sm:hidden relative size-[72px] shrink-0 items-center justify-center print:hidden flex">
                 {getDefaultImageUrl() ? (
@@ -1392,7 +1392,7 @@ export default function Gang({
           <Tooltip
             id="gang-composition-tooltip"
             place="top"
-            className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+            className="bg-neutral-900! text-white! text-xs! z-[2000]!"
             delayHide={100}
             clickable={true}
             style={{
@@ -1403,7 +1403,7 @@ export default function Gang({
           <Tooltip
             id="wealth-breakdown-tooltip"
             place="top"
-            className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+            className="bg-neutral-900! text-white! text-xs! z-[2000]!"
             delayHide={100}
             clickable={true}
             style={{
@@ -1415,7 +1415,7 @@ export default function Gang({
                   <Tooltip
                   id={`share-hidden-tooltip-${id}`}
                   place="top"
-                  className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+                  className="bg-neutral-900! text-white! text-xs! z-[2000]!"
                   delayHide={100}
                   clickable={true}
                   style={{
@@ -1427,7 +1427,7 @@ export default function Gang({
         </div>
 
         <div id="gang_card_additional_details" className="hidden print:block bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black truncate">
-          <div className="flex-grow w-full">
+          <div className="grow w-full">
             <div className="flex justify-between items-start mb-1">
               <h2 className="text-xl font-bold">Additional Details</h2>
             </div>
@@ -1538,7 +1538,7 @@ function StatItem({
           <select
             value={editedValue}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full p-2 border rounded font-semibold"
+            className="w-full p-2 border rounded-sm font-semibold"
           >
             {options.map((option) => (
               <option key={option} value={option}>

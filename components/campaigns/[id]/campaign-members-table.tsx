@@ -677,7 +677,7 @@ export default function MembersTable({
         <div className="space-y-2 pt-2 border-t">
           <label className="text-sm font-medium">Allegiance (optional):</label>
           <select
-            className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background focus:outline-hidden focus:ring-2 focus:ring-black"
             value={selectedAllegiance?.id || ''}
             onChange={(e) => {
               const selectedId = e.target.value || null;
@@ -1091,7 +1091,7 @@ export default function MembersTable({
                     {member.gangs[0]?.id ? (
                       editingAllegiance?.gangId === member.gangs[0].id ? (
                         <select
-                          className="w-full px-2 py-1 text-xs rounded-md border border-border bg-muted focus:outline-none focus:ring-2 focus:ring-black"
+                          className="w-full px-2 py-1 text-xs rounded-md border border-border bg-muted focus:outline-hidden focus:ring-2 focus:ring-black"
                           value={member.gangs[0]?.allegiance?.id || ''}
                           onChange={(e) => {
                             const selectedId = e.target.value || null;

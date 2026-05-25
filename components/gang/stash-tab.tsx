@@ -734,7 +734,7 @@ export default function GangInventory({
               <div className="mb-2">
                 <div className="flex items-center text-sm font-medium text-muted-foreground px-0 py-2">
                   <div className="w-4 mr-5" />
-                  <div className="flex-grow">Name</div>
+                  <div className="grow">Name</div>
                   <div className="w-56 text-right">Category</div>
                   <div className="w-40 text-right">Actions</div>
                   <div className="w-20 text-right">Value</div>
@@ -750,7 +750,7 @@ export default function GangInventory({
                         onCheckedChange={(checked) => handleItemToggle(index, checked as boolean)}
                         className="mr-3"
                       />
-                      <span className="flex-grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
+                      <span className="grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
                       <span className="w-56 overflow-hidden text-ellipsis text-muted-foreground whitespace-nowrap text-right">
                         {item.type === 'vehicle' 
                           ? 'Vehicle' 
@@ -1045,7 +1045,7 @@ export default function GangInventory({
                     setSellManualCost(final);
                     toast(`Roll ${r}: -${r * 10} → ${final} credits`);
                   }}
-                  className="px-3 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800"
+                  className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
                 >
                   Roll D6
                 </button>
@@ -1060,7 +1060,7 @@ export default function GangInventory({
                   min={0}
                   value={sellManualCost}
                   onChange={(e) => setSellManualCost(Number(e.target.value))}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border rounded-sm"
                 />
                 <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
               </div>

@@ -1,6 +1,7 @@
 /* TipTac Rich Text Editor CSS */
 /* Prose - Override prose for reading content */
 /* ProseMirror - Override prose for editor content */
+@reference "../../app/globals.css";
 
 /* Text Rendering - Override prose for read-only content */
 .prose {

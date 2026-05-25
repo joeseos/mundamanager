@@ -410,7 +410,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                 const selected = skillTypes.find(t => t.id === e.target.value);
                 setForm({ ...form, skill_type_id: e.target.value, is_custom_type: selected?.is_custom ?? false });
               }}
-              className="flex-1 p-1 border rounded"
+              className="flex-1 p-1 border rounded-sm"
             >
               <option value="">Select a skill set</option>
               {renderSkillTypeOptions()}

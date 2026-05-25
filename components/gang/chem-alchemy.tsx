@@ -201,7 +201,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
             value={chemName}
             onChange={(e) => setChemName(e.target.value)}
             placeholder="Enter a name for your elixir..."
-            className="w-full px-3 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-3 py-2.5 border border-border rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
           
           <div className="mt-0">
@@ -323,7 +323,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
                 }
               }
             }}
-            className="w-full px-3 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-3 py-2.5 border border-border rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             min="0"
           />
           <p className="text-sm text-muted-foreground mt-1">
@@ -349,7 +349,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
           </label>
           <div className="relative group">
             <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
               When enabled, the elixir's rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>

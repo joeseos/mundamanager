@@ -114,7 +114,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
             <button
               type="button"
               onClick={handleRoll}
-              className="px-3 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 disabled:opacity-50"
+              className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
             >
               Roll D6
             </button>
@@ -1095,7 +1095,7 @@ export function WeaponList({
       <Tooltip
         id="exotic-beast-cost-tooltip"
         place="top"
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{

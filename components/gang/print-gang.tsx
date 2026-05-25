@@ -250,7 +250,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
           <div className="flex flex-col gap-4">
             {/* View Mode Toggle */}
             <div className="space-y-2">
-              <span className="text-sm font-medium text-muted-foreground">View Mode</span>
+              <p className="text-sm font-medium text-muted-foreground">View Mode</p>
               <div className="flex gap-2">
                 <Button
                   variant={viewMode === "cards" ? "default" : "outline"}
@@ -326,7 +326,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       <select
                         value={cardsGangCardsPosition}
                         onChange={(e) => setCardsGangCardsPosition(e.target.value as "before" | "after")}
-                        className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                       >
                         <option value="before">Gang cards before fighters</option>
                         <option value="after">Gang cards after fighters</option>
@@ -979,7 +979,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               ["--ring" as any]: "var(--light-ring)",
             }} // Enforce light theme colors for Cards View
           >
-            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:!w-[630px] [&_.fighter-card-bg]:!h-[435px] [&_.fighter-card-bg]:!shadow-none [&_.fighter-card-bg]:!border-[3px] [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:!text-base [&_.fighter-card-bg]:!bg-[#faf9f7] [&_.fighter-card-bg]:!text-black [&_.fighter-card-bg:hover]:!scale-100 [&_.fighter-card-bg:hover]:!shadow-none [&_.fighter-card-bg]:!transition-none [&_.fighter-card-bg_.grid]:!gap-y-0 [&_.fighter-card-bg_.grid]:!mt-1 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-2 [&_.fighter-card-bg_.inline-flex.rounded-sm]:!border-black [&_.fighter-card-bg_.bg-secondary]:!shadow-none [&_.fighter-card-bg]:!bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')] ${printStyle === 'eco' ? '[&_.fighter-card-bg]:!bg-none [&_.fighter-card-bg]:!bg-transparent [&_.fancy-print-top-bar]:!bg-none [&_.fancy-print-keep-color-heading]:!text-inherit [&_.fancy-print-keep-color-subtitle]:!text-inherit' : '[&_.fancy-print-keep-color-heading]:!text-white [&_.fancy-print-keep-color-subtitle]:!text-gray-300'}`}>
+            <div className={`print-gang-cards justify-center print:justify-start flex flex-wrap items-start content-start gap-[6px] [&_.fighter-card-bg]:w-[630px]! [&_.fighter-card-bg]:h-[435px]! [&_.fighter-card-bg]:shadow-none! [&_.fighter-card-bg]:border-[3px]! [&_.fighter-card-bg]:break-inside-avoid [&_.fighter-card-bg]:rounded-lg [&_.fighter-card-bg]:text-base! [&_.fighter-card-bg]:bg-[#faf9f7]! [&_.fighter-card-bg]:text-black! [&_.fighter-card-bg:hover]:scale-100! [&_.fighter-card-bg:hover]:shadow-none! [&_.fighter-card-bg]:transition-none! [&_.fighter-card-bg_.grid]:gap-y-0! [&_.fighter-card-bg_.grid]:mt-1! [&_.fighter-card-bg_.inline-flex.rounded-xs]:border-2! [&_.fighter-card-bg_.inline-flex.rounded-xs]:border-black! [&_.fighter-card-bg_.bg-secondary]:shadow-none! [&_.fighter-card-bg]:bg-[url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/fighter-card-background-5-light_web_ynpbac.webp')]! ${printStyle === 'eco' ? '[&_.fighter-card-bg]:bg-none! [&_.fighter-card-bg]:bg-transparent! [&_.fancy-print-top-bar]:bg-none! [&_.fancy-print-keep-color-heading]:text-inherit! [&_.fancy-print-keep-color-subtitle]:text-inherit!' : '[&_.fancy-print-keep-color-heading]:text-white! [&_.fancy-print-keep-color-subtitle]:text-gray-300!'}`}>
               {cardsGangCardsPosition === "before" && (
                 <>
                   {/* Gang Card */}
@@ -1019,7 +1019,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       </div>
                     )}
 
-                    <div className="relative flex-grow w-full">
+                    <div className="relative grow w-full">
                       <div className="flex flex-col gap-2 mb-4">
                         {/* Owner */}
                         {username && (
@@ -1191,7 +1191,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="relative flex-grow w-full">
+                      <div className="relative grow w-full">
                         <div className="text-muted-foreground mb-4">
                           <div className="flex flex-wrap gap-4">
                             {campaigns && campaigns[0]?.territories?.length > 0 && (
@@ -1450,7 +1450,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   </div>
                 )}
 
-                <div className="relative flex-grow w-full">
+                <div className="relative grow w-full">
                   <div className="flex flex-col gap-2 mb-4">
                     {/* Owner */}
                     {username && (
@@ -1622,7 +1622,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       </div>
                     </div>
                   </div>
-                  <div className="relative flex-grow w-full">
+                  <div className="relative grow w-full">
                     <div className="text-muted-foreground mb-4">
                       <div className="flex flex-wrap gap-4">
                         {campaigns && campaigns[0]?.territories?.length > 0 && (

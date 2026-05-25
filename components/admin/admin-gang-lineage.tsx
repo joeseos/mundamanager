@@ -480,7 +480,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                   <button
                     type="button"
                     onClick={() => removeFighterTypeAccess(fighterTypeId)}
-                    className="hover:text-red-500 focus:outline-none"
+                    className="hover:text-red-500 focus:outline-hidden"
                   >
                                 <HiX className="h-4 w-4" />
                   </button>
@@ -511,7 +511,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           </button>
         </div>
 
-        <div className="px-[10px] py-4 overflow-y-auto flex-grow">
+        <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-6">
             {/* Type and Gang Lineage Selection */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -730,7 +730,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                               <button
                                 type="button"
                                 onClick={() => removeFighterTypeAccess(fighterTypeId)}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                                 disabled={isLoading}
                               >
                                 <HiX className="h-4 w-4" />
@@ -759,7 +759,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
           <Button
             onClick={handleUpdateGangLineage}
             disabled={isLoading || !selectedGangLineage || !gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType}
-            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update'}
           </Button>

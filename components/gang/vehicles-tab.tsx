@@ -795,7 +795,7 @@ export default function GangVehicles({
                     id="fighter-select"
                     value={selectedFighter}
                     onChange={(e) => setSelectedFighter(e.target.value)}
-                    className="w-full p-2 border rounded-md border-border focus:outline-none focus:ring-2 focus:ring-black mb-4"
+                    className="w-full p-2 border rounded-md border-border focus:outline-hidden focus:ring-2 focus:ring-black mb-4"
                   >
                     <option value="">Select a Crew</option>
                     {crewFighters.map((fighter) => (

@@ -316,7 +316,7 @@ export default function CampaignResourcesActions({
           onChange={(e) => setNewResourceName(e.target.value)}
           placeholder="Add a Resource (max 50 characters)"
           maxLength={50}
-          className="flex-grow text-sm"
+          className="grow text-sm"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
@@ -352,7 +352,7 @@ export default function CampaignResourcesActions({
                       onChange={(e) => setEditResourceName(e.target.value)}
                       placeholder="Enter resource name (max 50 characters)"
                       maxLength={50}
-                      className="flex-grow mr-2 h-7 text-sm"
+                      className="grow mr-2 h-7 text-sm"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {

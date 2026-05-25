@@ -171,7 +171,7 @@ export function EquipmentTooltip() {
     <Tooltip
       id={EQUIPMENT_TOOLTIP_ID}
       place="top-start"
-      className="!bg-neutral-900 !text-white !text-xs !z-[60]"
+      className="bg-neutral-900! text-white! text-xs! z-[60]!"
       style={{
         padding: '6px',
         maxWidth: '97vw',

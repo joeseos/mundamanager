@@ -861,7 +861,7 @@ export function VehicleDamagesList({
                       min="0"
                       value={repairCost}
                       onChange={e => setRepairCost(Number(e.target.value))}
-                      className="w-24 p-2 border rounded focus:ring-2 focus:ring-black focus:border-black text-base"
+                      className="w-24 p-2 border rounded-sm focus:ring-2 focus:ring-black focus:border-black text-base"
                     />
                   </div>
                   {selectedRepairTypeId && (
