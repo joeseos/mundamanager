@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Doklum2Q6btcgGd0xH19mjYeyKr830kQ6a2ImbSjnfCbVxiAA6xVbgO74gOlgx8
+\restrict gQmothyYwi8ZQzHMxRM3dDE9ju2LDdjYAZQR6OzfBkLwhVSulM0yV79u0kRUaub
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -3611,6 +3611,25 @@ COMMENT ON FUNCTION public.get_gang_permissions(p_user_id uuid, p_gang_id uuid) 
 
 
 --
+-- Name: handle_new_user(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.handle_new_user() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data ->> 'username'
+  );
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: notify_campaign_member_added(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3809,6 +3828,7 @@ CREATE TABLE public.battle_session_participants (
     ready boolean DEFAULT false,
     is_winner boolean DEFAULT false NOT NULL,
     claimed_territory boolean DEFAULT false NOT NULL,
+    resource_changes jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
 
@@ -7962,7 +7982,7 @@ ALTER TABLE ONLY public.gangs
 --
 
 ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_receiver_id_fkey FOREIGN KEY (receiver_id) REFERENCES auth.users(id);
+    ADD CONSTRAINT notifications_receiver_id_fkey FOREIGN KEY (receiver_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -7970,7 +7990,7 @@ ALTER TABLE ONLY public.notifications
 --
 
 ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id);
+    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -10961,5 +10981,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Doklum2Q6btcgGd0xH19mjYeyKr830kQ6a2ImbSjnfCbVxiAA6xVbgO74gOlgx8
+\unrestrict gQmothyYwi8ZQzHMxRM3dDE9ju2LDdjYAZQR6OzfBkLwhVSulM0yV79u0kRUaub
 
