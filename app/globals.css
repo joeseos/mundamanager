@@ -1,12 +1,6 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
-@layer base {
-  button:not(:disabled),
-  [role="button"]:not(:disabled) {
-    cursor: pointer;
-  }
-}
 
 @layer base {
   :root {
@@ -80,6 +74,15 @@
   .dark select option {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+  }
+}
+
+/* Tailwind 4. In v4, Buttons now use `cursor: default` instead of `cursor: pointer`.
+Enforcing `cursor: pointer` has the default value. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 }
 
