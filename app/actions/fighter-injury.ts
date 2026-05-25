@@ -543,6 +543,7 @@ export async function deleteFighterInjury(
 export interface ClearRigGlitchesDowntimeResult {
   success: boolean;
   clearedCount: number;
+  creditCost: number;
   killedStatus?: boolean;
   gangFinancials?: { credits: number; rating: number; wealth: number };
   error?: string;
@@ -551,6 +552,7 @@ export interface ClearRigGlitchesDowntimeResult {
 export async function clearRigGlitchesDowntime(params: {
   fighter_id: string;
   glitch_ids: string[];
+  credit_cost: number;
 }): Promise<ClearRigGlitchesDowntimeResult> {
   try {
     const supabase = await createClient();
@@ -563,15 +565,19 @@ export async function clearRigGlitchesDowntime(params: {
       .single();
 
     if (fighterError || !fighter) {
-      return { success: false, clearedCount: 0, error: 'Fighter not found' };
+      return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Fighter not found' };
     }
 
     if (!fighter.is_spyrer) {
-      return { success: false, clearedCount: 0, error: 'Fighter is not a Spyrer' };
+      return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Fighter is not a Spyrer' };
     }
 
     if (params.glitch_ids.length === 0) {
-      return { success: false, clearedCount: 0, error: 'No glitches to clear' };
+      return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'No glitches to clear' };
+    }
+
+    if (params.credit_cost < 0) {
+      return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Credit cost cannot be negative' };
     }
 
     const { data: gang, error: gangError } = await supabase
@@ -580,8 +586,8 @@ export async function clearRigGlitchesDowntime(params: {
       .eq('id', fighter.gang_id)
       .single();
 
-    if (gangError || !gang || gang.credits < 100) {
-      return { success: false, clearedCount: 0, error: 'Insufficient credits' };
+    if (gangError || !gang || gang.credits < params.credit_cost) {
+      return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: 'Insufficient credits' };
     }
 
     let deletedCount = 0;
@@ -596,7 +602,7 @@ export async function clearRigGlitchesDowntime(params: {
 
     const financialResult = await updateGangFinancials(supabase, {
       gangId: fighter.gang_id,
-      creditsDelta: -100,
+      creditsDelta: -params.credit_cost,
       applyToRating: false,
     });
 
@@ -619,11 +625,12 @@ export async function clearRigGlitchesDowntime(params: {
     return {
       success: true,
       clearedCount: deletedCount,
+      creditCost: params.credit_cost,
       killedStatus,
       gangFinancials: financialResult.newValues,
     };
   } catch (error) {
     console.error('Error clearing rig glitches via downtime:', error);
-    return { success: false, clearedCount: 0, error: error instanceof Error ? error.message : 'Failed to clear rig glitches' };
+    return { success: false, clearedCount: 0, creditCost: params.credit_cost, error: error instanceof Error ? error.message : 'Failed to clear rig glitches' };
   }
 }
