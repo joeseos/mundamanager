@@ -1073,6 +1073,84 @@ export async function updateGangOutcome(params: {
 }
 
 // =============================================================================
+// Resource Outcomes — Campaign Resources
+// =============================================================================
+
+export async function updateParticipantResources(params: {
+  participant_id: string;
+  gang_id: string;
+  campaign_gang_id: string;
+  resource: {
+    resource_id: string;
+    resource_name: string;
+    is_custom: boolean;
+    quantity_delta: number;
+  };
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: participant, error: fetchError } = await supabase
+      .from('battle_session_participants')
+      .select('battle_session_id, resource_changes')
+      .eq('id', params.participant_id)
+      .single();
+
+    if (fetchError || !participant)
+      return { success: false, error: 'Participant not found' };
+
+    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id, params.participant_id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const gangResult = await updateGang({
+      gang_id: params.gang_id,
+      campaign_gang_id: params.campaign_gang_id,
+      resources: [params.resource],
+    });
+    if (!gangResult.success) return { success: false, error: gangResult.error };
+
+    const existing: Array<{
+      resource_id: string;
+      resource_name: string;
+      is_custom: boolean;
+      quantity_delta: number;
+    }> = participant.resource_changes ?? [];
+
+    const idx = existing.findIndex((r) => r.resource_id === params.resource.resource_id);
+    if (idx >= 0) {
+      existing[idx] = {
+        ...existing[idx],
+        quantity_delta: existing[idx].quantity_delta + params.resource.quantity_delta,
+      };
+    } else {
+      existing.push({
+        resource_id: params.resource.resource_id,
+        resource_name: params.resource.resource_name,
+        is_custom: params.resource.is_custom,
+        quantity_delta: params.resource.quantity_delta,
+      });
+    }
+
+    await supabase
+      .from('battle_session_participants')
+      .update({ resource_changes: existing })
+      .eq('id', params.participant_id);
+
+    await supabase
+      .from('battle_sessions')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', participant.battle_session_id);
+
+    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(participant.battle_session_id));
+    return { success: true };
+  } catch (err) {
+    console.error('Error updating participant resources:', err);
+    return { success: false, error: 'Failed to update resources' };
+  }
+}
+
+// =============================================================================
 // Complete Battle Session
 // =============================================================================
 

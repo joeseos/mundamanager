@@ -30,6 +30,7 @@ import {
   removeParticipant,
   updateParticipantRole,
   updateGangOutcome,
+  updateParticipantResources,
   bulkAddFightersToSession,
   removeFighterFromSession,
   updateFighterLoadout,
@@ -810,6 +811,8 @@ export default function ParticipantCard({
   const [repDelta, setRepDelta] = useState('');
   const [localCreditsEarned, setLocalCreditsEarned] = useState(participant.credits_earned);
   const [localRepChange, setLocalRepChange] = useState(participant.reputation_change);
+  const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
+  const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
@@ -943,6 +946,52 @@ export default function ParticipantCard({
     onError: (_err, _vars, context) => {
       if (context) setLocalRepChange(context.prev);
       toast.error('Failed to update reputation');
+    },
+  });
+
+  const campaignGangId = session.campaign_gang_ids?.[participant.gang_id];
+
+  const resourceOutcomeMutation = useMutation({
+    mutationFn: (params: { resource_id: string; resource_name: string; is_custom: boolean; deltaStr: string }) => {
+      const delta = parseInt(params.deltaStr) || 0;
+      if (delta === 0 || !campaignGangId) return Promise.resolve({ success: true });
+      return updateParticipantResources({
+        participant_id: participant.id,
+        gang_id: participant.gang_id,
+        campaign_gang_id: campaignGangId,
+        resource: {
+          resource_id: params.resource_id,
+          resource_name: params.resource_name,
+          is_custom: params.is_custom,
+          quantity_delta: delta,
+        },
+      });
+    },
+    onMutate: (params) => {
+      const delta = parseInt(params.deltaStr) || 0;
+      const prev = [...localResourceChanges];
+      setLocalResourceChanges((cur) => {
+        const updated = [...cur];
+        const idx = updated.findIndex((r) => r.resource_id === params.resource_id);
+        if (idx >= 0) {
+          updated[idx] = { ...updated[idx], quantity_delta: updated[idx].quantity_delta + delta };
+        } else {
+          updated.push({
+            resource_id: params.resource_id,
+            resource_name: params.resource_name,
+            is_custom: params.is_custom,
+            quantity_delta: delta,
+          });
+        }
+        return updated;
+      });
+      setResourceDeltas((cur) => ({ ...cur, [params.resource_id]: '' }));
+      return { prev };
+    },
+    onSuccess: () => onBroadcast?.(),
+    onError: (_err, _vars, context) => {
+      if (context) setLocalResourceChanges(context.prev);
+      toast.error('Failed to update resource');
     },
   });
 
@@ -1482,17 +1531,61 @@ export default function ParticipantCard({
                   </Button>
                 </div>
               </div>
+              {session.campaign_resources && campaignGangId && session.campaign_resources.map((res) => {
+                const current = localResourceChanges.find((r) => r.resource_id === res.id);
+                const currentDelta = current?.quantity_delta ?? 0;
+                return (
+                  <div key={res.id}>
+                    <label className="mb-1 block text-sm text-neutral-500">
+                      {res.resource_name}
+                      <span className="text-xs text-muted-foreground"> (Current: {currentDelta})</span>
+                    </label>
+                    <div className="flex items-center gap-2 max-w-[250px]">
+                      <input
+                        type="tel"
+                        inputMode="url"
+                        pattern="-?[0-9]+"
+                        value={resourceDeltas[res.id] ?? ''}
+                        onChange={(e) => setResourceDeltas((cur) => ({ ...cur, [res.id]: e.target.value }))}
+                        placeholder="+/-"
+                        className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => resourceOutcomeMutation.mutate({
+                          resource_id: res.id,
+                          resource_name: res.resource_name,
+                          is_custom: res.is_custom,
+                          deltaStr: resourceDeltas[res.id] ?? '',
+                        })}
+                        disabled={
+                          !resourceDeltas[res.id] ||
+                          (parseInt(resourceDeltas[res.id]) || 0) === 0 ||
+                          resourceOutcomeMutation.isPending
+                        }
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {isPostBattle && !isMyGang && (localRepChange !== 0 || localCreditsEarned !== 0) && (
-            <div className="border-t border-neutral-100 pt-3 text-sm dark:border-neutral-700 flex gap-4">
+          {isPostBattle && !isMyGang && (localRepChange !== 0 || localCreditsEarned !== 0 || localResourceChanges.some((r) => r.quantity_delta !== 0)) && (
+            <div className="border-t border-neutral-100 pt-3 text-sm dark:border-neutral-700 flex gap-4 flex-wrap">
               {localRepChange !== 0 && (
                 <span>Reputation: {localRepChange > 0 ? '+' : ''}{localRepChange}</span>
               )}
               {localCreditsEarned !== 0 && (
                 <span>Credits: {localCreditsEarned > 0 ? '+' : ''}{localCreditsEarned}</span>
               )}
+              {localResourceChanges.filter((r) => r.quantity_delta !== 0).map((r) => (
+                <span key={r.resource_id}>
+                  {r.resource_name}: {r.quantity_delta > 0 ? '+' : ''}{r.quantity_delta}
+                </span>
+              ))}
             </div>
           )}
     </div>

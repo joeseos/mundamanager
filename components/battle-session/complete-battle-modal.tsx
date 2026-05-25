@@ -217,14 +217,19 @@ export default function CompleteBattleModal({
                       <span className="text-red-500">{totalInjuries} injuries</span>
                     )}
                   </div>
-                  {(p.reputation_change !== 0 || p.credits_earned !== 0) && (
-                    <div className="mt-1 flex gap-3 text-xs text-neutral-500">
+                  {(p.reputation_change !== 0 || p.credits_earned !== 0 || (p.resource_changes ?? []).some((r) => r.quantity_delta !== 0)) && (
+                    <div className="mt-1 flex gap-3 flex-wrap text-xs text-neutral-500">
                       {p.reputation_change !== 0 && (
                         <span>Rep: {p.reputation_change > 0 ? '+' : ''}{p.reputation_change}</span>
                       )}
                       {p.credits_earned !== 0 && (
                         <span>Credits: {p.credits_earned > 0 ? '+' : ''}{p.credits_earned}</span>
                       )}
+                      {(p.resource_changes ?? []).filter((r) => r.quantity_delta !== 0).map((r) => (
+                        <span key={r.resource_id}>
+                          {r.resource_name}: {r.quantity_delta > 0 ? '+' : ''}{r.quantity_delta}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
