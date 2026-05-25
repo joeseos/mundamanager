@@ -17,9 +17,6 @@ interface ModalProps {
   width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
   onDelete?: () => void;
   deleteLabel?: string;
-  onSecondaryConfirm?: () => void | Promise<void>;
-  secondaryConfirmText?: string;
-  secondaryConfirmDisabled?: boolean;
 }
 
 export default function Modal({ 
@@ -36,12 +33,8 @@ export default function Modal({
   width = 'md',
   onDelete,
   deleteLabel,
-  onSecondaryConfirm,
-  secondaryConfirmText,
-  secondaryConfirmDisabled = false,
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSecondarySubmitting, setIsSecondarySubmitting] = useState(false);
 
   const handleConfirm = async (e?: React.MouseEvent) => {
     if (!onConfirm) return;
@@ -130,20 +123,6 @@ export default function Modal({
                 Cancel
               </Button>
               )}
-            {onSecondaryConfirm && (
-              <Button
-                onClick={async () => {
-                  setIsSecondarySubmitting(true);
-                  try { await onSecondaryConfirm(); } finally { setIsSecondarySubmitting(false); }
-                }}
-                disabled={secondaryConfirmDisabled || isSecondarySubmitting || isSubmitting}
-                className={`px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800 ${
-                  (secondaryConfirmDisabled || isSecondarySubmitting || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {isSecondarySubmitting ? 'Processing...' : (secondaryConfirmText ?? 'Secondary')}
-              </Button>
-            )}
             <Button
               onClick={(e) => handleConfirm(e)}
               disabled={confirmDisabled || isSubmitting}

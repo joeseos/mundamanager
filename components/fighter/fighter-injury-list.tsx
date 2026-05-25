@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { UserPermissions } from '@/types/user-permissions';
 import {
   addFighterInjury,
@@ -89,7 +90,9 @@ export function InjuriesList({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
-  const [clearMethod, setClearMethod] = useState<'kills' | 'downtime' | null>(null);
+  const [clearMethod, setClearMethod] = useState<'kills' | 'downtime'>('kills');
+  const [clearAllKillCost, setClearAllKillCost] = useState<number>(4);
+  const [clearDowntimeCreditCost, setClearDowntimeCreditCost] = useState<number>(100);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
@@ -496,18 +499,19 @@ export function InjuriesList({
   });
 
   const clearGlitchesDowntimeMutation = useMutation({
-    mutationFn: async (glitches: FighterEffect[]) => {
+    mutationFn: async (params: { glitches: FighterEffect[]; creditCost: number }) => {
       const result = await clearRigGlitchesDowntime({
         fighter_id: fighterId,
-        glitch_ids: glitches.map(g => g.id),
+        glitch_ids: params.glitches.map(g => g.id),
+        credit_cost: params.creditCost,
       });
       if (!result.success) throw new Error(result.error || 'Failed to clear rig glitches');
       return result;
     },
-    onMutate: async (glitches) => {
+    onMutate: async (params) => {
       const previousInjuries = [...injuries];
       const previousKilled = fighterKilled;
-      const shouldClearKilled = glitches.some(g => hasKilledStatusFlag(g.type_specific_data));
+      const shouldClearKilled = params.glitches.some(g => hasKilledStatusFlag(g.type_specific_data));
       if (onInjuryUpdate) {
         onInjuryUpdate([], undefined, undefined, undefined, shouldClearKilled ? false : undefined);
       }
@@ -520,10 +524,10 @@ export function InjuriesList({
       if (result.gangFinancials && onGangFinancialsUpdate) {
         onGangFinancialsUpdate(result.gangFinancials);
       }
-      toast.success(`Cleared ${result.clearedCount} rig glitch${result.clearedCount !== 1 ? 'es' : ''} via Downtime (-100 credits)`);
+      toast.success(`Cleared ${result.clearedCount} rig glitch${result.clearedCount !== 1 ? 'es' : ''} via Downtime (-${result.creditCost} credits)`);
       setIsClearAllModalOpen(false);
     },
-    onError: (error, _glitches, context) => {
+    onError: (error, _params, context) => {
       if (context?.previousInjuries && onInjuryUpdate) {
         onInjuryUpdate(context.previousInjuries, undefined, undefined, undefined, context.previousKilled);
       }
@@ -900,25 +904,26 @@ export function InjuriesList({
       )
     : "Lasting Injuries";
 
-  const killCost = 4;
-  const canAffordKills = kill_count >= killCost;
-  const canAffordDowntime = gangCredits >= 100;
+  const canAffordKills = kill_count >= clearAllKillCost;
+  const canAffordDowntime = gangCredits >= clearDowntimeCreditCost;
 
   const handleClearAllConfirm = () => {
     if (clearMethod === 'kills') {
       clearAllGlitchesMutation.mutate({
         currentKillCount: kill_count,
         glitches: injuries,
-        costInKills: killCost,
+        costInKills: clearAllKillCost,
       });
     } else if (clearMethod === 'downtime') {
-      clearGlitchesDowntimeMutation.mutate(injuries);
+      clearGlitchesDowntimeMutation.mutate({ glitches: injuries, creditCost: clearDowntimeCreditCost });
     }
     return true;
   };
 
   const handleOpenClearAllModal = () => {
-    setClearMethod(canAffordKills ? 'kills' : canAffordDowntime ? 'downtime' : null);
+    setClearAllKillCost(4);
+    setClearDowntimeCreditCost(100);
+    setClearMethod('kills');
     setIsClearAllModalOpen(true);
   };
 
@@ -1471,76 +1476,102 @@ export function InjuriesList({
           title="Clear all rig glitches"
           content={
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => setClearMethod('kills')}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    clearMethod === 'kills'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Spend kills
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClearMethod('downtime')}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    clearMethod === 'downtime'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Downtime
+                </button>
+              </div>
+
               <p className="text-sm text-muted-foreground">
                 This will clear all {injuries.length} rig glitch{injuries.length !== 1 ? 'es' : ''} from this fighter.
               </p>
-              <div className="space-y-2">
-                <label
-                  className={`flex flex-col gap-1 rounded-md border p-3 cursor-pointer transition-colors ${
-                    clearMethod === 'kills'
-                      ? 'border-neutral-900 bg-muted/40'
-                      : 'border-border'
-                  } ${!canAffordKills ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="clear-method"
-                    value="kills"
-                    checked={clearMethod === 'kills'}
-                    disabled={!canAffordKills}
-                    onChange={() => setClearMethod('kills')}
-                    className="sr-only"
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Spend kills</span>
-                    <span className="text-sm tabular-nums">&minus;{killCost} kills</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    Kills: {kill_count} &rarr; {kill_count - killCost}
-                  </span>
-                  {!canAffordKills && (
-                    <span className="text-xs text-red-500">
-                      Need {killCost} kills, has {kill_count}.
-                    </span>
-                  )}
-                </label>
 
-                <label
-                  className={`flex flex-col gap-1 rounded-md border p-3 cursor-pointer transition-colors ${
-                    clearMethod === 'downtime'
-                      ? 'border-neutral-900 bg-muted/40'
-                      : 'border-border'
-                  } ${!canAffordDowntime ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="clear-method"
-                    value="downtime"
-                    checked={clearMethod === 'downtime'}
-                    disabled={!canAffordDowntime}
-                    onChange={() => setClearMethod('downtime')}
-                    className="sr-only"
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Downtime</span>
-                    <span className="text-sm tabular-nums">&minus;100 credits</span>
+              {clearMethod === 'kills' && (
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="killCost" className="text-sm font-medium block mb-2">
+                      Kill cost
+                    </label>
+                    <Input
+                      id="killCost"
+                      type="tel"
+                      inputMode="url"
+                      pattern="-?[0-9]+"
+                      value={clearAllKillCost}
+                      onChange={(e) => setClearAllKillCost(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-32"
+                    />
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    Credits: {gangCredits} &rarr; {gangCredits - 100}
-                  </span>
-                  {!canAffordDowntime && (
-                    <span className="text-xs text-red-500">
-                      Gang has fewer than 100 credits.
+                  <p className="text-sm tabular-nums">
+                    Kills: {kill_count} &rarr;{' '}
+                    <span className={!canAffordKills ? 'text-red-500' : ''}>
+                      {kill_count - clearAllKillCost}
                     </span>
+                  </p>
+                  {!canAffordKills && (
+                    <p className="text-xs text-red-500">Not enough kills available.</p>
                   )}
-                </label>
-              </div>
+                </div>
+              )}
+
+              {clearMethod === 'downtime' && (
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="creditCost" className="text-sm font-medium block mb-2">
+                      Credit cost
+                    </label>
+                    <Input
+                      id="creditCost"
+                      type="tel"
+                      inputMode="url"
+                      pattern="-?[0-9]+"
+                      value={clearDowntimeCreditCost}
+                      onChange={(e) => setClearDowntimeCreditCost(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-32"
+                    />
+                  </div>
+                  <p className="text-sm tabular-nums">
+                    Credits: {gangCredits} &rarr;{' '}
+                    <span className={!canAffordDowntime ? 'text-red-500' : ''}>
+                      {gangCredits - clearDowntimeCreditCost}
+                    </span>
+                  </p>
+                  {!canAffordDowntime && (
+                    <p className="text-xs text-red-500">Not enough credits available.</p>
+                  )}
+                </div>
+              )}
             </div>
           }
           onClose={() => setIsClearAllModalOpen(false)}
           onConfirm={handleClearAllConfirm}
           confirmText="Confirm"
-          confirmDisabled={injuries.length === 0 || !clearMethod || clearAllGlitchesMutation.isPending || clearGlitchesDowntimeMutation.isPending}
+          confirmDisabled={
+            injuries.length === 0 ||
+            clearAllGlitchesMutation.isPending ||
+            clearGlitchesDowntimeMutation.isPending ||
+            (clearMethod === 'kills' && !canAffordKills) ||
+            (clearMethod === 'downtime' && !canAffordDowntime)
+          }
         />
       )}
     </>
