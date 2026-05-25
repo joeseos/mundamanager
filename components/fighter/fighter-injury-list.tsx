@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { List } from "@/components/ui/list";
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { UserPermissions } from '@/types/user-permissions';
 import {
   addFighterInjury,
@@ -90,7 +89,7 @@ export function InjuriesList({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
-  const [clearAllKillCost, setClearAllKillCost] = useState<number>(4);
+  const [clearMethod, setClearMethod] = useState<'kills' | 'downtime' | null>(null);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
   const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
@@ -901,19 +900,25 @@ export function InjuriesList({
       )
     : "Lasting Injuries";
 
-  // Handler for clearing all glitches
-  const handleClearAllGlitches = () => {
-    clearAllGlitchesMutation.mutate({
-      currentKillCount: kill_count,
-      glitches: injuries,
-      costInKills: clearAllKillCost
-    });
+  const killCost = 4;
+  const canAffordKills = kill_count >= killCost;
+  const canAffordDowntime = gangCredits >= 100;
+
+  const handleClearAllConfirm = () => {
+    if (clearMethod === 'kills') {
+      clearAllGlitchesMutation.mutate({
+        currentKillCount: kill_count,
+        glitches: injuries,
+        costInKills: killCost,
+      });
+    } else if (clearMethod === 'downtime') {
+      clearGlitchesDowntimeMutation.mutate(injuries);
+    }
     return true;
   };
 
-  // Reset cost when modal opens
   const handleOpenClearAllModal = () => {
-    setClearAllKillCost(4);
+    setClearMethod(canAffordKills ? 'kills' : canAffordDowntime ? 'downtime' : null);
     setIsClearAllModalOpen(true);
   };
 
@@ -1463,60 +1468,79 @@ export function InjuriesList({
 
       {isClearAllModalOpen && (
         <Modal
-          title="Clear Rig Glitches"
+          title="Clear all rig glitches"
           content={
             <div className="space-y-4">
-              <div>
-                <p className="mb-4">The following rig glitches will be cleared:</p>
-                <ul className="divide-y divide-gray-200 mb-4">
-                  {injuries.map((injury: FighterEffect) => (
-                    <li key={injury.id} className="flex items-center justify-between py-2">
-                      <div>
-                        <span className="text-base">{injury.effect_name}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="pt-3 border-t space-y-3">
-                <div>
-                  <label htmlFor="killCost" className="text-sm font-medium block mb-2">
-                    Kill Cost
-                  </label>
-                  <Input
-                    id="killCost"
-                    type="number"
-                    min="1"
-                    max={kill_count}
-                    value={clearAllKillCost}
-                    onChange={(e) => setClearAllKillCost(Math.max(1, Math.min(kill_count, parseInt(e.target.value) || 4)))}
-                    className="w-32"
+              <p className="text-sm text-muted-foreground">
+                This will clear all {injuries.length} rig glitch{injuries.length !== 1 ? 'es' : ''} from this fighter.
+              </p>
+              <div className="space-y-2">
+                <label
+                  className={`flex flex-col gap-1 rounded-md border p-3 cursor-pointer transition-colors ${
+                    clearMethod === 'kills'
+                      ? 'border-neutral-900 bg-muted/40'
+                      : 'border-border'
+                  } ${!canAffordKills ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="clear-method"
+                    value="kills"
+                    checked={clearMethod === 'kills'}
+                    disabled={!canAffordKills}
+                    onChange={() => setClearMethod('kills')}
+                    className="sr-only"
                   />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Current kills: <strong>{kill_count}</strong> → New kills: <strong>{Math.max(0, kill_count - clearAllKillCost)}</strong>
-                </p>
-              </div>
-              <div className="pt-3 border-t space-y-1">
-                <p className="text-sm font-medium">Downtime</p>
-                <p className="text-sm text-muted-foreground">
-                  Cost: <strong>100 credits</strong> (kills unchanged)
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Gang credits: <strong>{gangCredits}</strong>
-                  {gangCredits >= 100 && <> → <strong>{gangCredits - 100}</strong></>}
-                  {gangCredits < 100 && <span className="text-red-500"> — insufficient credits</span>}
-                </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Spend kills</span>
+                    <span className="text-sm tabular-nums">&minus;{killCost} kills</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Kills: {kill_count} &rarr; {kill_count - killCost}
+                  </span>
+                  {!canAffordKills && (
+                    <span className="text-xs text-red-500">
+                      Need {killCost} kills, has {kill_count}.
+                    </span>
+                  )}
+                </label>
+
+                <label
+                  className={`flex flex-col gap-1 rounded-md border p-3 cursor-pointer transition-colors ${
+                    clearMethod === 'downtime'
+                      ? 'border-neutral-900 bg-muted/40'
+                      : 'border-border'
+                  } ${!canAffordDowntime ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="clear-method"
+                    value="downtime"
+                    checked={clearMethod === 'downtime'}
+                    disabled={!canAffordDowntime}
+                    onChange={() => setClearMethod('downtime')}
+                    className="sr-only"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Downtime</span>
+                    <span className="text-sm tabular-nums">&minus;100 credits</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Credits: {gangCredits} &rarr; {gangCredits - 100}
+                  </span>
+                  {!canAffordDowntime && (
+                    <span className="text-xs text-red-500">
+                      Gang has fewer than 100 credits.
+                    </span>
+                  )}
+                </label>
               </div>
             </div>
           }
           onClose={() => setIsClearAllModalOpen(false)}
-          onConfirm={handleClearAllGlitches}
-          confirmText="Clear All"
-          confirmDisabled={injuries.length === 0 || clearAllGlitchesMutation.isPending || clearAllKillCost < 1 || clearAllKillCost > kill_count || clearGlitchesDowntimeMutation.isPending}
-          onSecondaryConfirm={() => clearGlitchesDowntimeMutation.mutate(injuries)}
-          secondaryConfirmText="Downtime"
-          secondaryConfirmDisabled={injuries.length === 0 || gangCredits < 100 || !userPermissions.canEdit || clearGlitchesDowntimeMutation.isPending || clearAllGlitchesMutation.isPending}
+          onConfirm={handleClearAllConfirm}
+          confirmText="Confirm"
+          confirmDisabled={injuries.length === 0 || !clearMethod || clearAllGlitchesMutation.isPending || clearGlitchesDowntimeMutation.isPending}
         />
       )}
     </>
