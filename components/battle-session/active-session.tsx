@@ -97,9 +97,11 @@ export default function ActiveSession({
     mutationFn: () => cancelBattleSession(session.id),
     onSuccess: (result) => {
       if (result.success) {
+        queryClient.removeQueries({ queryKey: ['battle-session', session.id] });
+        setShowCancelModal(false);
         toast.success('Battle cancelled');
         broadcast();
-        router.back();
+        router.push(`/gang/${session.participants.find(p => p.user_id === userId)?.gang_id}`);
       } else {
         toast.error(result.error);
       }
