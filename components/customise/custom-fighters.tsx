@@ -1102,7 +1102,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value={newSpecialRule}
                   onChange={(e) => setNewSpecialRule(e.target.value)}
                   placeholder="Add a Special Rule"
-                  className="flex-grow"
+                  className="grow"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -1129,7 +1129,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                     <button
                       type="button"
                       onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-muted-foreground focus:outline-none"
+                      className="ml-2 text-gray-500 hover:text-muted-foreground focus:outline-hidden"
                     >
                       <HiX size={14} />
                     </button>
@@ -1201,7 +1201,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 <select
                   value={skillTypeToAdd}
                   onChange={e => setSkillTypeToAdd(e.target.value)}
-                  className="p-1 border rounded"
+                  className="p-1 border rounded-sm"
                 >
                   <option value="">Add Skill Set</option>
                   <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} />
@@ -1280,7 +1280,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                         <button
                           type="button"
                           onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX className="h-4 w-4" />
                         </button>
@@ -1348,7 +1348,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                         <button
                           type="button"
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX className="h-4 w-4" />
                         </button>
@@ -1483,7 +1483,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value={newSpecialRule}
                   onChange={(e) => setNewSpecialRule(e.target.value)}
                   placeholder="Add a Special Rule"
-                  className="flex-grow"
+                  className="grow"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -1509,7 +1509,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                     <button
                       type="button"
                       onClick={() => handleRemoveSpecialRule(rule)}
-                      className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                      className="ml-2 text-gray-500 hover:text-red-500 focus:outline-hidden"
                     >
                       <HiX size={14} />
                     </button>
@@ -1581,7 +1581,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 <select
                   value={skillTypeToAdd}
                   onChange={e => setSkillTypeToAdd(e.target.value)}
-                  className="p-1 border rounded"
+                  className="p-1 border rounded-sm"
                 >
                   <option value="">Add Skill Set</option>
                   <SkillSetOptions skillTypes={skillTypes} excludeIds={new Set(skillAccess.map(sa => sa.skill_type_id))} />
@@ -1660,7 +1660,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                         <button
                           type="button"
                           onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX size={14} />
                         </button>
@@ -1728,7 +1728,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                         <button
                           type="button"
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-none"
+                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX size={14} />
                         </button>
@@ -1931,7 +1931,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                     <div key={index} className="p-2 border rounded-md bg-muted">
                       <div className="flex justify-between items-center">
                         <span>{access.skill_type_name}</span>
-                        <span className={`text-xs px-2 py-1 rounded ${
+                        <span className={`text-xs px-2 py-1 rounded-sm ${
                           access.access_level === 'primary' ? 'bg-blue-100 text-blue-800' :
                           access.access_level === 'secondary' ? 'bg-green-100 text-green-800' :
                           'bg-gray-100 text-gray-800'

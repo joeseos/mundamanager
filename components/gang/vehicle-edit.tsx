@@ -455,7 +455,7 @@ export default function VehicleEdit({
                 value={newSpecialRule}
                 onChange={(e) => setNewSpecialRule(e.target.value)}
                 placeholder="Add a special rule"
-                className="flex-grow"
+                className="grow"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -481,7 +481,7 @@ export default function VehicleEdit({
                   <button
                     type="button"
                     onClick={() => handleRemoveSpecialRule(rule)}
-                    className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
+                    className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
                   >
                     <HiX size={14} />
                   </button>

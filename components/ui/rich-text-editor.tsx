@@ -201,7 +201,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     },
     editorProps: {
       attributes: {
-        class: 'focus:outline-none min-h-[200px] ProseMirror',
+        class: 'focus:outline-hidden min-h-[200px] ProseMirror',
       },
     },
     immediatelyRender: false,
@@ -517,7 +517,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           : stickyWithinScrollContainer
             ? 'sticky top-[-20px]'
             : 'sticky top-[90px]'
-      } ${isToolbarFloating ? 'shadow-md' : 'shadow-sm'}`}
+      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}
       style={useViewportFixedToolbar ? { 
         top: `${toolbarTop}px`,
         position: 'fixed'
@@ -662,7 +662,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                   <button
                     key={color.value}
                     onClick={() => setColor(color.value)}
-                    className="w-8 h-8 rounded border-2 border-border hover:border-gray-400 hover:scale-110 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    className="w-8 h-8 rounded-sm border-2 border-border hover:border-gray-400 hover:scale-110 transition-all duration-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                     style={{ 
                       backgroundColor: color.value === 'inherit' ? 'transparent' : color.value,
                       borderColor: color.value === 'inherit' ? '#d1d5db' : color.value
@@ -776,7 +776,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 placeholder="Enter URL..."
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
-                className="flex-1 px-3 py-1 border rounded text-sm"
+                className="flex-1 px-3 py-1 border rounded-sm text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     addLink();
@@ -875,7 +875,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     placeholder="Image URL (hotlink)..."
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    className="flex-1 px-3 py-1 border rounded text-sm"
+                    className="flex-1 px-3 py-1 border rounded-sm text-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         addImage();

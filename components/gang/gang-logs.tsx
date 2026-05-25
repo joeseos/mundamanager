@@ -134,7 +134,7 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
     >
       <div className="max-h-[70vh] min-h-[400px] overflow-y-auto">
         <table className="w-full table-auto">
-          <thead className="sticky top-0 bg-card z-10 shadow-sm">
+          <thead className="sticky top-0 bg-card z-10 shadow-xs">
             <tr className="bg-muted">
               {columns.map((column) => (
                 <th

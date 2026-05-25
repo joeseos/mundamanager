@@ -209,7 +209,7 @@ export function FighterPromotionModal({
                 value={newRuleInput}
                 onChange={(e) => setNewRuleInput(e.target.value)}
                 placeholder="Add a Special Rule"
-                className="flex-grow"
+                className="grow"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -232,7 +232,7 @@ export function FighterPromotionModal({
                   <button
                     type="button"
                     onClick={() => handleRemoveRule(rule)}
-                    className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-none"
+                    className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
                   >
                     <HiX size={14} />
                   </button>

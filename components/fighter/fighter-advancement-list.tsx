@@ -1735,7 +1735,7 @@ export function AdvancementModal({
           </div>
         </div>
 
-        <div className="p-2 overflow-y-auto flex-grow">
+        <div className="p-2 overflow-y-auto grow">
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
               XP cost and rating increase are automatically calculated based on the type and number of advancements.
@@ -2186,7 +2186,7 @@ export function AdvancementModal({
             <button
                 onClick={onClose}
                 disabled={purchaseBlockingBusy || gangerBuyUi.pending}
-                className={`px-4 py-2 border rounded hover:bg-muted ${
+                className={`px-4 py-2 border rounded-sm hover:bg-muted ${
                   purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -2194,7 +2194,7 @@ export function AdvancementModal({
               </button>
               <Button
                 onClick={() => void handleAdvancementPurchase()}
-                className={`px-4 py-2 bg-black text-white rounded hover:bg-gray-800 ${
+                className={`px-4 py-2 bg-black text-white rounded-sm hover:bg-gray-800 ${
                 purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
               }`}
                 disabled={buyAdvancementDisabled}

@@ -223,7 +223,7 @@ export default function TerritoryList({
               onChange={(e) => setNewTerritoryName(e.target.value)}
               placeholder="Add a custom Territory (max 70 characters)"
               maxLength={70}
-              className="flex-grow text-sm"
+              className="grow text-sm"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -303,7 +303,7 @@ export default function TerritoryList({
       <Tooltip
         id="territories-types-tooltip"
         place="top"
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{

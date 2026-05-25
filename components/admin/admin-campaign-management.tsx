@@ -767,7 +767,7 @@ export function AdminCampaignManagementModal({
                               onClick={() => {
                                 setRelatedTerritories(relatedTerritories.filter(t => t.id !== territory.id));
                               }}
-                              className="hover:text-red-500 focus:outline-none"
+                              className="hover:text-red-500 focus:outline-hidden"
                             >
                               <HiX className="h-4 w-4" />
                             </button>
@@ -804,7 +804,7 @@ export function AdminCampaignManagementModal({
                               onClick={() => {
                                 setRelatedTriumphs(relatedTriumphs.filter(t => t.id !== triumph.id));
                               }}
-                              className="hover:text-red-500 focus:outline-none"
+                              className="hover:text-red-500 focus:outline-hidden"
                             >
                               <HiX className="h-4 w-4" />
                             </button>
@@ -842,7 +842,7 @@ export function AdminCampaignManagementModal({
                               <span>{tradingPost?.trading_post_name ?? id}</span>
                               <button
                                 onClick={() => setRelatedTradingPostIds(relatedTradingPostIds.filter(tid => tid !== id))}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                               >
                                 <HiX className="h-4 w-4" />
                               </button>
@@ -1034,7 +1034,7 @@ export function AdminCampaignManagementModal({
             <Button
               onClick={() => activeForm.handleSubmit(OperationType.POST)}
               disabled={!activeForm.canSubmit || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
             >
               {isLoading ? 'Creating...' : `Create ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
             </Button>
@@ -1044,7 +1044,7 @@ export function AdminCampaignManagementModal({
             <Button
               onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
               disabled={!activeForm.canSubmit || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
             >
               {isLoading ? 'Updating...' : `Update ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
             </Button>

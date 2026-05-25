@@ -219,7 +219,7 @@ export default function CrewSelectionModal({
               onCheckedChange={toggleAll}
               className="mr-3"
             />
-            <div className="flex-grow">Name</div>
+            <div className="grow">Name</div>
             <div className="text-right">Value</div>
           </div>
           {sortedFighters.map((entry, idx) => {
@@ -239,7 +239,7 @@ export default function CrewSelectionModal({
                   className="mr-3"
                   disabled={beast}
                 />
-                <span className="flex-grow overflow-hidden text-ellipsis flex items-center gap-1">
+                <span className="grow overflow-hidden text-ellipsis flex items-center gap-1">
                   {f.fighter_name}
                   {f.loadout_name && (
                     <span className="text-muted-foreground"> ({f.loadout_name})</span>

@@ -163,7 +163,7 @@ export default function CopyFighterModal({
             </label>
             <div className="relative group">
               <ImInfo />
-              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+              <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
                 Includes XP, advancements, and lasting injuries
               </div>
             </div>
@@ -207,7 +207,7 @@ export default function CopyFighterModal({
                 </label>
                 <div className="relative group">
                   <ImInfo />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
                     Includes vehicle base cost and all equipment
                   </div>
                 </div>

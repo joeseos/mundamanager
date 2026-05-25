@@ -1691,7 +1691,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           </label>
           <div className="relative group">
             <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded w-72 -left-36 z-50">
+            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
               When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>

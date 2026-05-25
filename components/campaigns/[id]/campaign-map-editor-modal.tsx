@@ -151,7 +151,7 @@ const MarkerPaletteButton = React.memo(function MarkerPaletteButton({
       type="button"
       title={label}
       onClick={() => onToggle(iconKey)}
-      className={`w-8 h-8 flex items-end justify-center rounded border-2 transition-colors ${
+      className={`w-8 h-8 flex items-end justify-center rounded-sm border-2 transition-colors ${
         isActive
           ? 'border-foreground bg-foreground/10'
           : 'border-transparent hover:border-muted-foreground/50'
@@ -1746,7 +1746,7 @@ export default function CampaignMapEditorModal({
             </div>
 
             {selectedObjectTempId ? (
-              <div className="bg-primary/10 border border-primary/30 rounded px-2 py-1.5 text-xs mb-2 space-y-2">
+              <div className="bg-primary/10 border border-primary/30 rounded-sm px-2 py-1.5 text-xs mb-2 space-y-2">
                 <div>
                   <span className="font-semibold">Selected:</span>{' '}
                   {(() => {
@@ -1774,7 +1774,7 @@ export default function CampaignMapEditorModal({
                         <div className="flex gap-1">
                           <button
                             onClick={() => handleUpdateLineStyle(selectedObjectTempId, 'full')}
-                            className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+                            className={`flex-1 px-2 py-1 rounded-sm text-xs transition-colors ${
                               currentStyle === 'full'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted hover:bg-muted/80'
@@ -1790,7 +1790,7 @@ export default function CampaignMapEditorModal({
                           </button>
                           <button
                             onClick={() => handleUpdateLineStyle(selectedObjectTempId, 'dashed')}
-                            className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+                            className={`flex-1 px-2 py-1 rounded-sm text-xs transition-colors ${
                               currentStyle === 'dashed'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted hover:bg-muted/80'
@@ -1806,7 +1806,7 @@ export default function CampaignMapEditorModal({
                           </button>
                           <button
                             onClick={() => handleUpdateLineStyle(selectedObjectTempId, 'dotted')}
-                            className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+                            className={`flex-1 px-2 py-1 rounded-sm text-xs transition-colors ${
                               currentStyle === 'dotted'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted hover:bg-muted/80'
@@ -1896,12 +1896,12 @@ export default function CampaignMapEditorModal({
                 })()}
               </div>
             ) : selectedHexCoord ? (
-              <div className="bg-primary/10 border border-primary/30 rounded px-2 py-1.5 text-xs mb-2">
+              <div className="bg-primary/10 border border-primary/30 rounded-sm px-2 py-1.5 text-xs mb-2">
                 <span className="font-semibold">Selected:</span>{' '}
                 Hex <span className="opacity-60">({selectedHexCoord.x}, {selectedHexCoord.y}, {selectedHexCoord.z})</span>
               </div>
             ) : (
-              <div className="bg-muted rounded px-2 py-1.5 text-xs mb-2 text-muted-foreground italic">
+              <div className="bg-muted rounded-sm px-2 py-1.5 text-xs mb-2 text-muted-foreground italic">
                 No object selected. Click a shape or hex on the map.
               </div>
             )}
@@ -1916,7 +1916,7 @@ export default function CampaignMapEditorModal({
               return (
                 <div
                   key={territory.id}
-                  className={`rounded border p-2 text-xs space-y-1 ${
+                  className={`rounded-sm border p-2 text-xs space-y-1 ${
                     isLinked
                       ? `${isLinkedToSelection ? 'border-2 border-foreground' : 'border-foreground/30'} bg-muted/50`
                       : 'border-border'

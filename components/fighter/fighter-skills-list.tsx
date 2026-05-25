@@ -429,7 +429,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
                   }
                 }}
                 placeholder="0"
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded-sm"
               />
             </div>
           )}

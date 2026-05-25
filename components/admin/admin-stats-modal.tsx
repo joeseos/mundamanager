@@ -46,7 +46,7 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
           </button>
         </div>
 
-        <div className="px-[10px] py-4 overflow-y-auto flex-grow">
+        <div className="px-[10px] py-4 overflow-y-auto grow">
           {isLoading ? (
             <div className="flex justify-center items-center py-8">
               <p className="text-muted-foreground">Loading stats...</p>

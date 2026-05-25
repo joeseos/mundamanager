@@ -672,7 +672,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                       <button
                         type="button"
                         onClick={() => setEquipmentListSelections(equipmentListSelections.filter((_, i) => i !== index))}
-                        className="hover:text-red-500 focus:outline-none"
+                        className="hover:text-red-500 focus:outline-hidden"
                       >
                         <HiX className="h-4 w-4" />
                       </button>
@@ -717,7 +717,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                             return idx !== index;
                           })
                         )}
-                        className="hover:text-red-500 focus:outline-none"
+                        className="hover:text-red-500 focus:outline-hidden"
                       >
                         <HiX className="h-4 w-4" />
                       </button>
@@ -764,7 +764,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                             return idx !== index;
                           })
                         )}
-                        className="hover:text-red-500 focus:outline-none"
+                        className="hover:text-red-500 focus:outline-hidden"
                       >
                         <HiX className="h-4 w-4" />
                       </button>

@@ -977,7 +977,7 @@ export default function GangEditModal({
                       setFormState(prev => ({ ...prev, gangColour: val }));
                     }
                   }}
-                  className="w-32 text-center font-mono border rounded p-1 text-sm"
+                  className="w-32 text-center font-mono border rounded-sm p-1 text-sm"
                   maxLength={7}
                   placeholder="#ffffff"
                 />
@@ -985,7 +985,7 @@ export default function GangEditModal({
               <div className="space-y-1">
                 {/* Light theme preview */}
                 <div className="flex justify-center">
-                  <div className="p-3 bg-white rounded-lg border border-neutral-200 shadow-sm">
+                  <div className="p-3 bg-white rounded-lg border border-neutral-200 shadow-xs">
                     <span
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100"
                       style={{ color: formState.gangColour }}
@@ -998,7 +998,7 @@ export default function GangEditModal({
 
                 {/* Dark theme preview */}
                 <div className="flex justify-center">
-                  <div className="p-3 bg-black rounded-lg border border-neutral-800 shadow-sm">
+                  <div className="p-3 bg-black rounded-lg border border-neutral-800 shadow-xs">
                     <span
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-neutral-800"
                       style={{ color: formState.gangColour }}

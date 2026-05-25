@@ -1291,19 +1291,19 @@ export function InjuriesList({
                   setSelectedInjury(null);
                   setTargetEquipmentId(null);
                 }}
-                className="px-4 py-2 border rounded hover:bg-muted"
+                className="px-4 py-2 border rounded-sm hover:bg-muted"
               >
                 Cancel
               </button>
               <button
                 onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(false, false); }}
-                className="px-4 py-2 border rounded hover:bg-muted"
+                className="px-4 py-2 border rounded-sm hover:bg-muted"
               >
                 No
               </button>
               <button
                 onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(true, false); }}
-                className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                className="px-4 py-2 bg-black text-white rounded-sm hover:bg-gray-800"
               >
                 Yes
               </button>

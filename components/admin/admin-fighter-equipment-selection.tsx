@@ -87,7 +87,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
   setEquipmentSelection: AdminFighterEquipmentSelectionProps['setEquipmentSelection']
 }) {
   return (
-    <div className="flex items-center gap-2 bg-muted p-2 rounded">
+    <div className="flex items-center gap-2 bg-muted p-2 rounded-sm">
       <span>{equip?.equipment_name || 'Unknown Equipment'}</span>
       <div className="ml-auto flex items-center gap-4">
         <div>
@@ -108,7 +108,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
               }));
             }}
             placeholder="Cost"
-            className="w-20 p-1 border rounded"
+            className="w-20 p-1 border rounded-sm"
             disabled={disabled}
           />
         </div>
@@ -131,7 +131,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
             }}
             placeholder="Max"
             min="1"
-            className="w-16 p-1 border rounded"
+            className="w-16 p-1 border rounded-sm"
             disabled={disabled}
           />
         </div>
@@ -145,7 +145,7 @@ const EquipmentOptionRow = memo(function EquipmentOptionRow({
               }
             }));
           }}
-          className="hover:bg-muted p-1 rounded self-end"
+          className="hover:bg-muted p-1 rounded-sm self-end"
           disabled={disabled}
         >
                               <HiX className="h-4 w-4" />
@@ -254,7 +254,7 @@ export function AdminFighterEquipmentSelection({
                       return updated;
                     });
                   }}
-                  className="w-[200px] h-8 border rounded p-1"
+                  className="w-[200px] h-8 border rounded-sm p-1"
                   disabled={disabled}
                 >
                   <option value="">Select category</option>
@@ -351,7 +351,7 @@ export function AdminFighterEquipmentSelection({
                       category.default?.map((item, index) => {
                         const equip = equipment.find(e => e.id === item.id);
                         return (
-                          <div key={index} className="flex items-center gap-2 bg-muted p-2 rounded">
+                          <div key={index} className="flex items-center gap-2 bg-muted p-2 rounded-sm">
                             <div className="flex items-center gap-2">
                               <div>
                                 <label className="block text-xs text-muted-foreground">Number</label>
@@ -371,7 +371,7 @@ export function AdminFighterEquipmentSelection({
                                     }));
                                   }}
                                   min="1"
-                                  className="w-16 p-1 border rounded"
+                                  className="w-16 p-1 border rounded-sm"
                                 />
                               </div>
                               <span>x {equip?.equipment_name || 'Unknown Equipment'}</span>
@@ -386,7 +386,7 @@ export function AdminFighterEquipmentSelection({
                                   }
                                 }));
                               }}
-                              className="ml-auto hover:bg-muted p-1 rounded"
+                              className="ml-auto hover:bg-muted p-1 rounded-sm"
                               disabled={disabled}
                             >
                               <HiX className="h-4 w-4" />
@@ -492,7 +492,7 @@ export function AdminFighterEquipmentSelection({
                           {category.default[0].replacements.map((item, index) => {
                             const equipmentItem = equipment.find(e => e.id === item.id);
                         return (
-                              <div key={item.id} className="flex items-center gap-2 bg-muted p-2 rounded">
+                              <div key={item.id} className="flex items-center gap-2 bg-muted p-2 rounded-sm">
                                 <span>{equipmentItem?.equipment_name || 'Unknown Equipment'}</span>
                                 <div className="ml-auto flex items-center gap-4">
                                   <div>
@@ -524,7 +524,7 @@ export function AdminFighterEquipmentSelection({
                                           };
                                         });
                                       }}
-                                      className="w-20 p-1 border rounded"
+                                      className="w-20 p-1 border rounded-sm"
                                     />
                                   </div>
                                   <div>
@@ -556,7 +556,7 @@ export function AdminFighterEquipmentSelection({
                                           };
                                         });
                                       }}
-                                      className="w-16 p-1 border rounded"
+                                      className="w-16 p-1 border rounded-sm"
                                     />
                                   </div>
                                   <button
@@ -581,7 +581,7 @@ export function AdminFighterEquipmentSelection({
                                         };
                                       });
                                     }}
-                                    className="hover:bg-muted p-1 rounded self-end"
+                                    className="hover:bg-muted p-1 rounded-sm self-end"
                             disabled={disabled}
                                   >
                                     <HiX className="h-4 w-4" />
@@ -604,7 +604,7 @@ export function AdminFighterEquipmentSelection({
                           {category.options.map((item, index) => {
                             const equipmentItem = equipment.find(e => e.id === item.id);
                             return (
-                              <div key={item.id} className="flex items-center gap-2 bg-muted p-2 rounded">
+                              <div key={item.id} className="flex items-center gap-2 bg-muted p-2 rounded-sm">
                                 <span>{equipmentItem?.equipment_name || 'Unknown Equipment'}</span>
                                 <div className="ml-auto flex items-center gap-4">
                                   <div>
@@ -624,7 +624,7 @@ export function AdminFighterEquipmentSelection({
                                           }
                                         }));
                                       }}
-                                      className="w-20 p-1 border rounded"
+                                      className="w-20 p-1 border rounded-sm"
                                     />
                                   </div>
                                   <div>
@@ -644,7 +644,7 @@ export function AdminFighterEquipmentSelection({
                                           }
                                         }));
                                       }}
-                                      className="w-16 p-1 border rounded"
+                                      className="w-16 p-1 border rounded-sm"
                                     />
                                   </div>
                                   <button
@@ -657,7 +657,7 @@ export function AdminFighterEquipmentSelection({
                                         }
                                       }));
                                     }}
-                                    className="hover:bg-muted p-1 rounded self-end"
+                                    className="hover:bg-muted p-1 rounded-sm self-end"
                                     disabled={disabled}
                                   >
                                     <HiX className="h-4 w-4" />

@@ -204,7 +204,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               id="campaign-type"
               value={campaignType}
               onChange={(e) => setCampaignType(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select campaign type</option>
               {campaignTypes
@@ -315,7 +315,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       <Tooltip
         id="trading-posts-tooltip"
         place="top"
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{

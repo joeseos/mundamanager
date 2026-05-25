@@ -396,7 +396,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
           </button>
         </div>
 
-        <div className="px-[10px] py-4 overflow-y-auto flex-grow">
+        <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -716,7 +716,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                       <button
                         type="button"
                         onClick={() => setSelectedEquipment(selectedEquipment.filter(id => id !== item.id))}
-                        className="hover:text-red-500 focus:outline-none"
+                        className="hover:text-red-500 focus:outline-hidden"
                       >
                           <HiX className="h-4 w-4" />
                       </button>
@@ -809,7 +809,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         <button
                           type="button"
                           onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
-                          className="hover:text-red-500 focus:outline-none"
+                          className="hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX className="h-4 w-4" />
                         </button>
@@ -936,7 +936,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                             <button
                               type="button"
                               onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
-                              className="hover:text-red-500 focus:outline-none"
+                              className="hover:text-red-500 focus:outline-hidden"
                             >
                               <HiX className="h-4 w-4" />
                             </button>
@@ -979,7 +979,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                           onClick={() => setEquipmentDiscounts(prev => 
                             prev.filter(d => d.equipment_id !== adjusted_cost.equipment_id)
                           )}
-                          className="hover:text-red-500 focus:outline-none"
+                          className="hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX className="h-4 w-4" />
                         </button>
@@ -1071,7 +1071,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                             }
                           }}
                           disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
-                          className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+                          className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
                         >
                           Save Adjusted Cost
                         </Button>
@@ -1249,7 +1249,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                         // Trading post options are already saved in state
                         toast.success("Trading Post options saved. Remember to create the fighter type to apply changes.");
                       }}
-                      className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+                      className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
                     >
                       Save Options
                     </Button>
@@ -1291,7 +1291,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               ) ||
               isLoading
             }
-            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Fighter Type'}
           </Button>

@@ -1317,7 +1317,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           </button>
         </div>
 
-        <div className="px-[10px] py-4 overflow-y-auto flex-grow">
+        <div className="px-[10px] py-4 overflow-y-auto grow">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -1788,7 +1788,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                           <button
                             type="button"
                             onClick={() => setSelectedSkills(selectedSkills.filter(id => id !== skill.id))}
-                            className="hover:text-red-500 focus:outline-none"
+                            className="hover:text-red-500 focus:outline-hidden"
                             disabled={!selectedFighterTypeId}
                           >
                             <HiX className="h-4 w-4" />
@@ -1861,7 +1861,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   <select
                     value={skillTypeToAdd}
                     onChange={e => setSkillTypeToAdd(e.target.value)}
-                    className="p-1 border rounded"
+                    className="p-1 border rounded-sm"
                   >
                     <option value="">Add Skill Set</option>
                     {skillTypes
@@ -1935,7 +1935,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                         <button
                           type="button"
                           onClick={() => setSelectedEquipment(selectedEquipment.filter((_, i) => i !== index))}
-                          className="hover:text-red-500 focus:outline-none"
+                          className="hover:text-red-500 focus:outline-hidden"
                           disabled={!selectedFighterTypeId}
                         >
                           <HiX className="h-4 w-4" />
@@ -2021,7 +2021,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                               <button
                                 type="button"
                                 onClick={() => setEquipmentListSelections(equipmentListSelections.filter(id => id !== item!.id))}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                               >
                                 <HiX className="h-4 w-4" />
                               </button>
@@ -2069,7 +2069,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             onClick={() => setEquipmentDiscounts(prev =>
                               prev.filter(d => d.equipment_id !== adjusted_cost.equipment_id)
                             )}
-                            className="hover:text-red-500 focus:outline-none"
+                            className="hover:text-red-500 focus:outline-hidden"
                           >
                             <HiX className="h-4 w-4" />
                           </button>
@@ -2161,7 +2161,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                               }
                             }}
                             disabled={!selectedAdjustedCostEquipment || !adjustedCostAmount || parseInt(adjustedCostAmount) < 0}
-                            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+                            className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
                           >
                             Save Adjusted Cost
                           </Button>
@@ -2225,7 +2225,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                             onClick={() => {
                               setGangTypeCosts(gangTypeCosts.filter((_, i) => i !== index));
                             }}
-                            className="hover:text-red-500 focus:outline-none"
+                            className="hover:text-red-500 focus:outline-hidden"
                           >
                             <HiX className="h-4 w-4" />
                           </button>
@@ -2290,7 +2290,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
           <Button
             onClick={handleSubmit}
             disabled={!selectedSubTypeId || isLoading}
-            className="px-4 py-2 bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Fighter Type'}
           </Button>

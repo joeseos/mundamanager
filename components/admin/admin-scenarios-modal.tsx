@@ -240,7 +240,7 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
             <Button
               onClick={() => handleSubmitScenario(OperationType.POST)}
               disabled={!scenarioName || scenarioNumber === '' || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
             >
               {isLoading ? 'Creating...' : 'Create Scenario'}
             </Button>
@@ -251,14 +251,14 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
               <Button
                 onClick={() => handleSubmitScenario(OperationType.UPDATE)}
                 disabled={!scenarioName || scenarioNumber === '' || isLoading}
-                className="flex-1 bg-neutral-900 text-white rounded hover:bg-gray-800"
+                className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
               >
                 {isLoading ? 'Updating...' : 'Update Scenario'}
               </Button>
               <Button
                 onClick={() => handleSubmitScenario(OperationType.DELETE)}
                 disabled={isLoading}
-                className="flex-1 bg-red-600 text-white rounded hover:bg-red-700"
+                className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
               >
                 {isLoading ? 'Deleting...' : 'Delete Scenario'}
               </Button>

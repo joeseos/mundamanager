@@ -482,7 +482,7 @@ export default function FighterLoadoutsModal({
                   onChange={(e) => setNewLoadoutName(e.target.value)}
                   placeholder="Add a Loadout (max 50 characters)"
                   maxLength={50}
-                  className="flex-grow text-sm"
+                  className="grow text-sm"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -509,7 +509,7 @@ export default function FighterLoadoutsModal({
                         onChange={(e) => setEditingName(e.target.value)}
                         placeholder="Enter loadout name (max 50 characters)"
                         maxLength={50}
-                        className="flex-grow mr-2 h-7 text-sm"
+                        className="grow mr-2 h-7 text-sm"
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {

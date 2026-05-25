@@ -823,7 +823,7 @@ export default function CampaignTerritoryList({
       <Tooltip 
         id="ruined-tooltip" 
         place="top" 
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{
@@ -834,7 +834,7 @@ export default function CampaignTerritoryList({
       <Tooltip 
         id="default-territory-tooltip" 
         place="top" 
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{
@@ -845,7 +845,7 @@ export default function CampaignTerritoryList({
       <Tooltip
         id="territory-description-tooltip"
         place="top"
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{

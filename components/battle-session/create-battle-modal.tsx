@@ -313,7 +313,7 @@ export default function CreateBattleModal({
                       <button
                         type="button"
                         onClick={() => removeCampaignGang(id)}
-                        className="ml-2 text-muted-foreground hover:text-foreground focus:outline-none"
+                        className="ml-2 text-muted-foreground hover:text-foreground focus:outline-hidden"
                       >
                         <HiX size={14} />
                       </button>
@@ -417,7 +417,7 @@ export default function CreateBattleModal({
                     <button
                       type="button"
                       onClick={() => removeOpponent(opponent.gangId)}
-                      className="ml-2 text-muted-foreground hover:text-foreground focus:outline-none"
+                      className="ml-2 text-muted-foreground hover:text-foreground focus:outline-hidden"
                     >
                       <HiX size={14} />
                     </button>

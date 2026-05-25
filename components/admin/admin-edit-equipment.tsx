@@ -787,7 +787,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                       )}
 
                       {grantsEquipment.options.map((option, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 bg-card rounded border">
+                        <div key={index} className="flex items-center gap-2 p-2 bg-card rounded-sm border">
                           <select
                             value={option.equipment_id}
                             onChange={(e) => {
@@ -832,7 +832,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               const newOptions = grantsEquipment.options.filter((_, i) => i !== index);
                               setGrantsEquipment({ ...grantsEquipment, options: newOptions });
                             }}
-                            className="hover:text-red-500 focus:outline-none p-1"
+                            className="hover:text-red-500 focus:outline-hidden p-1"
                             disabled={!selectedEquipmentId}
                           >
                             <HiX className="h-4 w-4" />
@@ -874,7 +874,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 onClick={() => setGangAdjustedCosts(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                               >
                                 <HiX className="h-4 w-4" />
                               </button>
@@ -995,7 +995,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 onClick={() => setEquipmentAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                                 disabled={!selectedEquipmentId}
                               >
                                 <HiX className="h-4 w-4" />
@@ -1107,7 +1107,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 onClick={() => setGangOriginAdjustedCosts(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                               >
                                 <HiX className="h-4 w-4" />
                               </button>
@@ -1245,7 +1245,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 onClick={() => setEquipmentOriginAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                                 disabled={!selectedEquipmentId}
                               >
                                 <HiX className="h-4 w-4" />
@@ -1374,7 +1374,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                 onClick={() => setEquipmentVariantAvailabilities(prev =>
                                   prev.filter((_, i) => i !== index)
                                 )}
-                                className="hover:text-red-500 focus:outline-none"
+                                className="hover:text-red-500 focus:outline-hidden"
                                 disabled={!selectedEquipmentId}
                               >
                                 <HiX className="h-4 w-4" />
@@ -1528,7 +1528,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           <button
                             type="button"
                             onClick={() => setSelectedFighterTypes(selectedFighterTypes.filter(id => id !== ft.id))}
-                            className="hover:text-red-500 focus:outline-none"
+                            className="hover:text-red-500 focus:outline-hidden"
                             disabled={!selectedEquipmentId}
                           >
                             <HiX className="h-4 w-4" />
@@ -1797,7 +1797,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           <Button
             onClick={handleSubmit}
             disabled={!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
-            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Equipment'}
           </Button>

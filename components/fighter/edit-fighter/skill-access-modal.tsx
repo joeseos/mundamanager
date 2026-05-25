@@ -335,7 +335,7 @@ export function SkillAccessModal({
                                     <select
                                       value={sa.selected_access_level}
                                       onChange={(e) => handleSkillAccessChange(sa.skill_type_id, e.target.value as AccessLevel)}
-                                      className="w-full p-1 border rounded text-sm bg-background"
+                                      className="w-full p-1 border rounded-sm text-sm bg-background"
                                       disabled={saveMutation.isPending}
                                     >
                                       <option value="default">Default</option>
@@ -379,7 +379,7 @@ export function SkillAccessModal({
                     return (
                       <span
                         key={sa.skill_type_id}
-                        className={`px-2 py-1 rounded text-xs font-medium ${
+                        className={`px-2 py-1 rounded-sm text-xs font-medium ${
                           isPrimary
                             ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'

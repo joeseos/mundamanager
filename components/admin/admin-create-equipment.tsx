@@ -361,7 +361,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           onClick={() => setGangAdjustedCosts(prev =>
                             prev.filter((_, i) => i !== index)
                           )}
-                          className="hover:text-red-500 focus:outline-none"
+                          className="hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX className="h-4 w-4" />
                         </button>
@@ -495,7 +495,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           onClick={() => setEquipmentAvailabilities(prev => 
                             prev.filter((_, i) => i !== index)
                           )}
-                          className="hover:text-red-500 focus:outline-none"
+                          className="hover:text-red-500 focus:outline-hidden"
                         >
                           <HiX className="h-4 w-4" />
                         </button>
@@ -801,7 +801,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           <Button
             onClick={handleSubmit}
             disabled={!equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
-            className="bg-neutral-900 text-white rounded hover:bg-gray-800"
+            className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Equipment'}
           </Button>

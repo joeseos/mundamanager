@@ -253,7 +253,7 @@ export default function CampaignEditModal({
                   ...prev,
                   campaignName: e.target.value
                 }))}
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border rounded-sm"
               />
             </div>
 
@@ -509,7 +509,7 @@ export default function CampaignEditModal({
                   }));
                   setCharCount(value.length);
                 }}
-                className="w-full p-2 border rounded min-h-[200px]"
+                className="w-full p-2 border rounded-sm min-h-[200px]"
                 placeholder="Enter campaign description..."
               />
             </div>
@@ -562,7 +562,7 @@ export default function CampaignEditModal({
       <Tooltip
         id="resources-tooltip"
         place="top"
-        className="!bg-neutral-900 !text-white !text-xs !z-[2000]"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
         style={{

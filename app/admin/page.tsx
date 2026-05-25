@@ -137,7 +137,7 @@ export default function AdminPage() {
                 <button
                   key={section.title}
                   onClick={section.action}
-                  className="p-4 bg-muted rounded-lg shadow hover:shadow-md transition-shadow text-left"
+                  className="p-4 bg-muted rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
                 >
                   <div className="flex items-start space-x-3">
                     <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />
@@ -159,7 +159,7 @@ export default function AdminPage() {
                 <button
                   key={section.title}
                   onClick={section.action}
-                  className="p-4 bg-muted rounded-lg shadow hover:shadow-md transition-shadow text-left"
+                  className="p-4 bg-muted rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
                 >
                   <div className="flex items-start space-x-3">
                     <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />

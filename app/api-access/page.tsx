@@ -129,7 +129,7 @@ export default function ApiAccessPage() {
                 Below are a few examples showing how to use campaign data in Google Sheets.
               </p>
               <p className="text-muted-foreground mb-4">
-                For all examples, we use the campaign ID <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded text-sm break-all">4a2ab55f-ec68-44ab-9572-e0f68e2450d0</code>
+                For all examples, we use the campaign ID <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">4a2ab55f-ec68-44ab-9572-e0f68e2450d0</code>
               </p>
               <p className="text-muted-foreground mb-6">
                 <a 
@@ -152,7 +152,7 @@ export default function ApiAccessPage() {
 )`}</code></pre>
                 </div>
                 <p className="text-muted-foreground">
-                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded">Live from Rust Town</code>
+                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">Live from Rust Town</code>
                 </p>
               </div>
 
@@ -197,7 +197,7 @@ Bryen's pet experiments`}</code></pre>
               <div id="get-gang-rating" className="scroll-mt-24 mb-8">
                 <h3 className="text-lg font-semibold text-foreground mb-2">Get the Rating of a Gang by ID</h3>
                 <p className="text-muted-foreground mb-2">
-                  Get the rating of the gang with ID <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded text-sm break-all">1a18a45f-b1db-42c2-a212-3af060219b78</code>
+                  Get the rating of the gang with ID <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">1a18a45f-b1db-42c2-a212-3af060219b78</code>
                 </p>
                 <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
                   <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
@@ -206,7 +206,7 @@ Bryen's pet experiments`}</code></pre>
 )`}</code></pre>
                 </div>
                 <p className="text-muted-foreground">
-                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded">1355</code>
+                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">1355</code>
                 </p>
               </div>
 
@@ -232,7 +232,7 @@ Gang Sympathisers`}</code></pre>
               <div id="get-gang-wealth-dynamic" className="scroll-mt-24 mb-8">
                 <h3 className="text-lg font-semibold text-foreground mb-2">Get the Wealth of a Gang Using a Cell Reference</h3>
                 <p className="text-muted-foreground mb-2">
-                  You can use a cell reference to dynamically specify the gang ID. In this example, cell <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded">A1</code> contains the gang ID:
+                  You can use a cell reference to dynamically specify the gang ID. In this example, cell <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">A1</code> contains the gang ID:
                 </p>
                 <div className="bg-neutral-900 rounded-lg p-4 my-2 overflow-x-auto">
                   <code className="text-sm text-gray-400">A1 = "1a18a45f-b1db-42c2-a212-3af060219b78"</code>
@@ -244,7 +244,7 @@ Gang Sympathisers`}</code></pre>
 )`}</code></pre>
                 </div>
                 <p className="text-muted-foreground">
-                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded">1355</code>
+                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">1355</code>
                 </p>
               </div>
             </section>

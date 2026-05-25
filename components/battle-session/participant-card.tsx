@@ -691,7 +691,7 @@ function FighterRow({
             >
               ×
             </button>
-            <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:!scale-100 [&>.fighter-card-bg]:hover:!shadow-none [&>.fighter-card-bg]:!shadow-none [&>.fighter-card-bg]:!transition-none">
+            <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:scale-100! [&>.fighter-card-bg]:hover:shadow-none! [&>.fighter-card-bg]:shadow-none! [&>.fighter-card-bg]:transition-none!">
               <FighterCard
                 {...gangFighter}
                 name={gangFighter.fighter_name}
@@ -749,7 +749,7 @@ function FighterRow({
           {canInteract ? (
             <div>
               <textarea
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
                 value={noteDraft}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 placeholder="Add a note here..."
@@ -1371,7 +1371,7 @@ export default function ParticipantCard({
                   value={creditsDelta}
                   onChange={(e) => setCreditsDelta(e.target.value)}
                   placeholder="0"
-                  className="w-full rounded border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                  className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
                 />
                 <Button
                   size="sm"
@@ -1407,7 +1407,7 @@ export default function ParticipantCard({
                     value={repDelta}
                     onChange={(e) => setRepDelta(e.target.value)}
                     placeholder="+/-"
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                    className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
                   />
                   <Button
                     size="sm"
@@ -1431,7 +1431,7 @@ export default function ParticipantCard({
                     value={creditsDelta}
                     onChange={(e) => setCreditsDelta(e.target.value)}
                     placeholder="+/-"
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                    className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
                   />
                   <Button
                     size="sm"
