@@ -67,11 +67,26 @@
     --border: 0 0% 11.9%;
     --input: 0 0% 11.9%;
     --ring: 0 0% 83.1%;
+    color-scheme: dark;
   }
 
   /* Fix select option styling for dark mode */
-  .dark select option {
+  select {
     background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .dark select {
+    background-color: hsl(var(--secondary));
+  }
+
+  .dark select option {
+    background-color: hsl(var(--secondary));
     color: hsl(var(--foreground));
   }
 }
@@ -258,6 +273,6 @@ Enforcing `cursor: pointer` has the default value. */
     font-size: 100%;
     font-weight: 400;
     line-height: normal;
-    color: #0a0a0a;
+    color: hsl(var(--foreground));
   }
 }
