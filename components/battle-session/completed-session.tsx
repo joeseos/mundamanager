@@ -79,7 +79,7 @@ export default function CompletedSession({
             </div>
 
             {/* Gang-level results */}
-            <div className="mb-2 flex gap-4 text-sm">
+            <div className="mb-2 flex gap-4 flex-wrap text-sm">
               {p.credits_earned !== 0 && (
                 <span>
                   Credits: {p.credits_earned > 0 ? '+' : ''}
@@ -92,6 +92,11 @@ export default function CompletedSession({
                   {p.reputation_change}
                 </span>
               )}
+              {(p.resource_changes ?? []).filter((r) => r.quantity_delta !== 0).map((r) => (
+                <span key={r.resource_id}>
+                  {r.resource_name}: {r.quantity_delta > 0 ? '+' : ''}{r.quantity_delta}
+                </span>
+              ))}
             </div>
 
             {/* Fighter results */}

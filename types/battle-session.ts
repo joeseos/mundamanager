@@ -1,3 +1,5 @@
+import type { CampaignResource } from '@/utils/campaigns/resources';
+
 export type BattleSessionStatus = 'pre_battle' | 'active' | 'post_battle' | 'completed';
 
 export const statusLabels: Record<BattleSessionStatus, string> = {
@@ -60,6 +62,12 @@ export interface BattleSessionParticipant {
    * also be flagged as `is_winner`.
    */
   claimed_territory?: boolean;
+  resource_changes: Array<{
+    resource_id: string;
+    resource_name: string;
+    is_custom: boolean;
+    quantity_delta: number;
+  }>;
   created_at: string;
   gang?: {
     id: string;
@@ -119,4 +127,6 @@ export interface BattleSessionFull extends BattleSession {
     fighters: BattleSessionFighter[];
   })[];
   campaign_name?: string;
+  campaign_resources?: CampaignResource[];
+  campaign_gang_ids?: Record<string, string>;
 }

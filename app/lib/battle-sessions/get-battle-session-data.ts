@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
+import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
 
 export const getBattleSessionCached = async (
   sessionId: string,
@@ -44,7 +45,12 @@ export const getBattleSessionCached = async (
       const gangIds = participants.map((p: any) => p.gang_id);
       const userIds = participants.map((p: any) => p.user_id);
 
-      const [{ data: gangs }, { data: profiles }] = await Promise.all([
+      const parallelQueries: [
+        Promise<{ data: any }>,
+        Promise<{ data: any }>,
+        Promise<CampaignResource[]>,
+        Promise<{ data: any }>,
+      ] = [
         supabase
           .from('gangs')
           .select('id, name, gang_colour, rating')
@@ -53,7 +59,25 @@ export const getBattleSessionCached = async (
           .from('profiles')
           .select('id, username, patreon_tier_id, patreon_tier_title')
           .in('id', userIds),
-      ]);
+        session.campaign_id
+          ? fetchCampaignResources(session.campaign_id, supabase)
+          : Promise.resolve([]),
+        session.campaign_id
+          ? supabase
+              .from('campaign_gangs')
+              .select('id, gang_id')
+              .eq('campaign_id', session.campaign_id)
+              .in('gang_id', gangIds)
+          : Promise.resolve({ data: [] }),
+      ];
+
+      const [{ data: gangs }, { data: profiles }, campaignResources, { data: campaignGangs }] =
+        await Promise.all(parallelQueries);
+
+      const campaignGangIds: Record<string, string> = {};
+      for (const cg of campaignGangs || []) {
+        campaignGangIds[cg.gang_id] = cg.id;
+      }
 
       const gangMap = new Map(gangs?.map((g: any) => [g.id, g]) || []);
       const profileMap = new Map<string, { id: string; username: string; patreon_tier_id?: string; patreon_tier_title?: string }>(
@@ -113,6 +137,8 @@ export const getBattleSessionCached = async (
         ...session,
         participants: fullParticipants,
         campaign_name,
+        campaign_resources: campaignResources.length > 0 ? campaignResources : undefined,
+        campaign_gang_ids: Object.keys(campaignGangIds).length > 0 ? campaignGangIds : undefined,
       };
     },
     [`battle-session-${sessionId}`],
