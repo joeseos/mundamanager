@@ -70,6 +70,8 @@ export interface BattleSessionParticipant {
   };
   profile?: {
     username: string;
+    patreon_tier_id?: string;
+    patreon_tier_title?: string;
   };
 }
 

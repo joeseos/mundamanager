@@ -7,6 +7,9 @@ import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/app/lib/shared/gang-data';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
+import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
@@ -587,7 +590,13 @@ function FighterRow({
             onClick={() => setShowInfoModal(true)}
           />
           <div>
-            <div>{cost !== undefined ? `${name} - ${cost === 0 ? '*' : cost}` : name}</div>
+            <div>
+              {name}
+              {gangFighter?.fighter_class && (
+                <span className="text-muted-foreground"> ({gangFighter.fighter_class})</span>
+              )}
+              {cost !== undefined && ` - ${cost === 0 ? '*' : cost}`}
+            </div>
             {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
@@ -687,7 +696,7 @@ function FighterRow({
             <button
               type="button"
               onClick={() => setShowInfoModal(false)}
-              className="absolute -top-3 -right-3 z-10 bg-black hover:bg-neutral-800 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
+              className="absolute -top-3 -right-3 z-10 bg-neutral-700 hover:bg-neutral-500 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
             >
               ×
             </button>
@@ -1133,8 +1142,8 @@ export default function ParticipantCard({
     <div>
       {/* Gang Header */}
       <div className="py-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-[24rem] flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="font-semibold">
                 {participant.gang?.name || 'Unknown Gang'}
@@ -1159,16 +1168,47 @@ export default function ParticipantCard({
               )}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-neutral-500">
-              <span>Player: {participant.profile?.username || 'Unknown'}</span>
+              <span className="flex items-center gap-1">
+                Player:
+                {participant.profile?.username ? (
+                  <Link href={`/user/${participant.user_id}`}>
+                    <Badge variant="outline" className="flex items-center gap-1 hover:bg-accent transition-colors">
+                      {participant.profile.patreon_tier_id && (
+                        <PatreonSupporterIcon
+                          patreonTierId={participant.profile.patreon_tier_id}
+                          patreonTierTitle={participant.profile.patreon_tier_title}
+                        />
+                      )}
+                      {participant.profile.username}
+                    </Badge>
+                  </Link>
+                ) : (
+                  ' Unknown'
+                )}
+              </span>
               <span>Crew Rating: {crewRating}</span>
-              <span>Fighters: {localFighters.length}</span>
+              {(() => {
+                const exoticBeastCount = localFighters.filter((f) => {
+                  const fc = gangFightersList.find((gf) => gf.id === f.fighter_id)?.fighter_class?.toLowerCase() ?? '';
+                  return fc === 'exotic beast' || fc === 'exotic beast specialist';
+                }).length;
+                const crewCount = localFighters.length - exoticBeastCount;
+                return (
+                  <span>
+                    Crew Size: {crewCount}
+                    {exoticBeastCount > 0 && (
+                      <span className="text-neutral-400"> (Excluding {exoticBeastCount} Exotic Beast{exoticBeastCount !== 1 ? 's' : ''})</span>
+                    )}
+                  </span>
+                );
+              })()}
               {totalInjuries > 0 && (
                 <span className="text-red-500">{totalInjuries} injuries</span>
               )}
             </div>
           </div>
           {(canEdit || canPostBattle || ((isOwner || isMyGang) && editable && !isPostBattle)) && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 self-end sm:self-auto">
               {(canEdit || canPostBattle) && (
                 <>
                   <Button

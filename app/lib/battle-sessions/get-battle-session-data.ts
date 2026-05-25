@@ -51,12 +51,12 @@ export const getBattleSessionCached = async (
           .in('id', gangIds),
         supabase
           .from('profiles')
-          .select('id, username')
+          .select('id, username, patreon_tier_id, patreon_tier_title')
           .in('id', userIds),
       ]);
 
       const gangMap = new Map(gangs?.map((g: any) => [g.id, g]) || []);
-      const profileMap = new Map<string, { id: string; username: string }>(
+      const profileMap = new Map<string, { id: string; username: string; patreon_tier_id?: string; patreon_tier_title?: string }>(
         profiles?.map((p: any) => [p.id, p]) || []
       );
 
@@ -100,7 +100,11 @@ export const getBattleSessionCached = async (
         ...p,
         gang: gangMap.get(p.gang_id) || undefined,
         profile: profileMap.get(p.user_id)
-          ? { username: profileMap.get(p.user_id)!.username }
+          ? {
+              username: profileMap.get(p.user_id)!.username,
+              patreon_tier_id: profileMap.get(p.user_id)!.patreon_tier_id,
+              patreon_tier_title: profileMap.get(p.user_id)!.patreon_tier_title,
+            }
           : undefined,
         fighters: fightersByParticipant.get(p.id) || [],
       }));

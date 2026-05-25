@@ -301,8 +301,8 @@ export default function ActiveSession({
           <h2 className="text-xl md:text-2xl font-bold">
             Gangs
             {session.participants.length >= 2 && ratingDiff > 0 && (
-              <span className="ml-2 text-base font-normal text-neutral-500 dark:text-neutral-400">
-                ({ratingDiff} rating difference)
+              <span className="ml-2 text-sm font-normal text-neutral-500 dark:text-neutral-400">
+                (Rating Difference: {ratingDiff})
               </span>
             )}
           </h2>
