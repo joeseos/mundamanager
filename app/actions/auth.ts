@@ -1,7 +1,6 @@
 "use server";
 
-import { encodedRedirect } from "@/utils/utils";
-import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
@@ -26,9 +25,6 @@ export const signUpAction = async (formData: FormData) => {
     if (existingUser) {
       return { error: "Username already taken" };
     }
-
-    // Create service role client early so it can be reused
-    const serviceRoleClient = createServiceRoleClient();
 
     // Check if email is already registered before signUp to prevent confirmation email.
     // We use a direct GoTrue API call with the filter param since the JS client
@@ -84,52 +80,7 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Failed to create account. Please try again" };
     }
 
-    // Create profile using service role (bypasses RLS)
-    try {
-      const { error: profileError } = await serviceRoleClient
-        .from('profiles')
-        .insert({
-          id: signUpData.user.id,
-          username: username,
-          user_role: 'user'
-        })
-        .single();
-
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        // FK violation: signUp() returned a fake user ID (email enumeration protection) —
-        // the email is already registered
-        if (profileError.code === '23503') {
-          return { error: "This email is already registered. Please sign in instead" };
-        }
-        // Check if this is a duplicate key error (code 23505)
-        if (profileError.code === '23505') {
-          const errorDetail = profileError.message?.toLowerCase() || '';
-          const errorConstraint = (profileError as { constraint?: string }).constraint?.toLowerCase() || '';
-
-          // Duplicate on primary key (id) = user already registered
-          if (errorDetail.includes('profiles_pkey') || errorConstraint.includes('pkey') || errorDetail.includes('"id"')) {
-            // Don't delete auth user - they already exist!
-            return { error: "This email is already registered. Please sign in instead." };
-          }
-
-          // Otherwise it's a username conflict
-          await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
-          return { error: "Username already taken. Please try again with a different username." };
-        }
-
-        // For other errors, clean up and show generic message
-        await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
-        return { error: "Failed to create your account. Please try again." };
-      }
-
-      // Invalidate user count cache when a new user is successfully created
-      invalidateUserCount();
-    } catch (error) {
-      console.error('Unexpected error during profile creation:', error);
-      await serviceRoleClient.auth.admin.deleteUser(signUpData.user.id);
-      return { error: "Something went wrong during sign up. Please try again." };
-    }
+    invalidateUserCount();
 
     return { message: `We've sent a verification email to ${email}. Please check your inbox and spam folder.` };
 
