@@ -97,6 +97,7 @@ export default function GangInventory({
   const [targetModalEffectTypeId, setTargetModalEffectTypeId] = useState<string | null>(null);
   const [targetModalEffectName, setTargetModalEffectName] = useState<string | null>(null);
   const [targetModalStashIdx, setTargetModalStashIdx] = useState<number | null>(null);
+  const [targetModalFighterWeapons, setTargetModalFighterWeapons] = useState<{ id: string; name: string; equipment_category?: string; effect_names?: string[] }[]>([]);
   const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
@@ -214,10 +215,11 @@ export default function GangInventory({
   };
 
   // Prompt user to select target weapon; returns target equipment ID or null on cancel
-  const promptTargetSelection = (effectTypeId: string, effectName: string | undefined, stashIdx: number) => {
+  const promptTargetSelection = (effectTypeId: string, effectName: string | undefined, stashIdx: number, fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[]) => {
     setTargetModalEffectTypeId(effectTypeId);
     setTargetModalEffectName(effectName || null);
     setTargetModalStashIdx(stashIdx);
+    setTargetModalFighterWeapons(fighterWeapons);
     setIsTargetSelectionValid(false);
     setTargetModalOpen(true);
     return new Promise<string | null>((resolve) => {
@@ -277,10 +279,19 @@ export default function GangInventory({
 
               // Priority 1: Handle equipment upgrade (applies_to=equipment)
               if (equipmentUpgrade && !isVehicleTarget) {
-                const targetId = await promptTargetSelection(equipmentUpgrade.id, equipmentUpgrade.effect_name, itemIndex);
-                if (targetId) {
+                // Use updatedFighter (optimistic state from earlier items in this batch) if available,
+                // otherwise fall back to the current fighters state.
+                const currentFighterForTarget = updatedFighter || fighters.find(f => f.id === targetId);
+                const currentWeapons = currentFighterForTarget?.weapons?.map(weapon => ({
+                  id: weapon.fighter_weapon_id,
+                  name: weapon.weapon_name,
+                  equipment_category: weapon.equipment_category,
+                  effect_names: weapon.effect_names
+                })) || [];
+                const selectedWeaponTargetId = await promptTargetSelection(equipmentUpgrade.id, equipmentUpgrade.effect_name, itemIndex, currentWeapons);
+                if (selectedWeaponTargetId) {
                   equipmentTarget = {
-                    target_equipment_id: targetId,
+                    target_equipment_id: selectedWeaponTargetId,
                     effect_type_id: equipmentUpgrade.id
                   };
                 } else {
@@ -559,8 +570,17 @@ export default function GangInventory({
       const newStash = stash.filter((_, index) => !successfullyMovedIndices.includes(index));
       setStash(newStash);
 
-      // Reset selection states - clear only successfully moved items from selection
-      setSelectedItems(prev => prev.filter(index => !successfullyMovedIndices.includes(index)));
+      // Reset selection states - remap remaining selected indices to their positions in the new stash.
+      // Items that were not moved may have shifted indices because earlier items were removed, so we
+      // resolve by item ID rather than by index to avoid out-of-bounds access on the next render.
+      const remainingSelectedItems = selectedItems
+        .filter(index => !successfullyMovedIndices.includes(index))
+        .map(index => stash[index])
+        .filter(Boolean);
+      const newSelectedIndices = remainingSelectedItems
+        .map(item => newStash.findIndex(s => s.id === item.id))
+        .filter(idx => idx !== -1);
+      setSelectedItems(newSelectedIndices);
 
       // Only clear fighter selection if all items were processed (moved or cancelled)
       if (errorCount === 0 && cancelledCount === 0) {
@@ -923,70 +943,58 @@ export default function GangInventory({
       )}
 
       {/* Target weapon selection modal (for equipment upgrades) */}
-      {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (() => {
-        // Get the selected fighter and extract weapons
-        const selectedFighterObj = selectedFighter && !selectedFighter.startsWith('vehicle-') 
-          ? fighters.find(f => f.id === selectedFighter)
-          : null;
-        
-        const fighterWeapons = selectedFighterObj?.weapons?.map(weapon => ({
-          id: weapon.fighter_weapon_id,
-          name: weapon.weapon_name,
-          equipment_category: weapon.equipment_category,
-          effect_names: weapon.effect_names
-        })) || [];
-
-        return (
-          <Modal
-            title="Select Weapon"
-            content={
-              <FighterEffectSelection
-                equipmentId=""
-                effectTypes={[]}
-                targetSelectionOnly
-                fighterId={selectedFighter?.startsWith('vehicle-') ? undefined : selectedFighter}
-                modifierEquipmentId=""
-                effectTypeId={targetModalEffectTypeId}
-                effectName={targetModalEffectName || undefined}
-                fighterWeapons={fighterWeapons}
-                onApplyToTarget={async (targetEquipmentId) => {
-                  // Resolve promise with target ID
-                  targetResolveRef.current?.(targetEquipmentId);
-                  setTargetModalOpen(false);
-                  setTargetModalEffectTypeId(null);
-                  setTargetModalEffectName(null);
-                  setTargetModalStashIdx(null);
-                }}
-                onSelectionComplete={() => {
-                  // No-op; handled by onApplyToTarget
-                }}
-                onCancel={() => {
-                  targetResolveRef.current?.(null);
-                  setTargetModalOpen(false);
-                  setTargetModalEffectTypeId(null);
-                  setTargetModalEffectName(null);
-                  setTargetModalStashIdx(null);
-                }}
-                onValidityChange={setIsTargetSelectionValid}
-                ref={targetSelectionRef}
-              />
-            }
-            onClose={() => {
-              targetResolveRef.current?.(null);
-              setTargetModalOpen(false);
-              setTargetModalEffectTypeId(null);
-              setTargetModalEffectName(null);
-              setTargetModalStashIdx(null);
-            }}
-            onConfirm={async () => {
-              return await targetSelectionRef.current?.handleConfirm() || false;
-            }}
-            confirmText="Confirm"
-            confirmDisabled={!isTargetSelectionValid}
-            width="lg"
-          />
-        );
-      })()}
+      {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (
+        <Modal
+          title="Select Weapon"
+          content={
+            <FighterEffectSelection
+              equipmentId=""
+              effectTypes={[]}
+              targetSelectionOnly
+              fighterId={selectedFighter?.startsWith('vehicle-') ? undefined : selectedFighter}
+              modifierEquipmentId=""
+              effectTypeId={targetModalEffectTypeId}
+              effectName={targetModalEffectName || undefined}
+              fighterWeapons={targetModalFighterWeapons}
+              onApplyToTarget={async (targetEquipmentId) => {
+                targetResolveRef.current?.(targetEquipmentId);
+                setTargetModalOpen(false);
+                setTargetModalEffectTypeId(null);
+                setTargetModalEffectName(null);
+                setTargetModalStashIdx(null);
+                setTargetModalFighterWeapons([]);
+              }}
+              onSelectionComplete={() => {
+                // No-op; handled by onApplyToTarget
+              }}
+              onCancel={() => {
+                targetResolveRef.current?.(null);
+                setTargetModalOpen(false);
+                setTargetModalEffectTypeId(null);
+                setTargetModalEffectName(null);
+                setTargetModalStashIdx(null);
+                setTargetModalFighterWeapons([]);
+              }}
+              onValidityChange={setIsTargetSelectionValid}
+              ref={targetSelectionRef}
+            />
+          }
+          onClose={() => {
+            targetResolveRef.current?.(null);
+            setTargetModalOpen(false);
+            setTargetModalEffectTypeId(null);
+            setTargetModalEffectName(null);
+            setTargetModalStashIdx(null);
+            setTargetModalFighterWeapons([]);
+          }}
+          onConfirm={async () => {
+            return await targetSelectionRef.current?.handleConfirm() || false;
+          }}
+          confirmText="Confirm"
+          confirmDisabled={!isTargetSelectionValid}
+          width="lg"
+        />
+      )}
 
       {/* Fighter effect selection modal */}
       {effectModalOpen && effectModalStashIdx !== null && (
