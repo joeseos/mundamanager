@@ -129,7 +129,7 @@ export default function CrewSelectionModal({
     gangFighters.filter((f) => isBeast(f) && f.owner_id === ownerId);
 
   const availableNonBeasts = useMemo(
-    () => gangFighters.filter((f) => isAvailable(f) && !isBeast(f)),
+    () => gangFighters.filter((f) => countsTowardRating(f) && !f.recovery && !isBeast(f)),
     [gangFighters]
   );
 
@@ -181,7 +181,11 @@ export default function CrewSelectionModal({
   const handleRoll = async () => {
     handleReset();
 
-    const pool = availableNonBeasts.filter((f) => !selected.has(f.id));
+    const manualIds = new Set<string>();
+    selected.forEach((_, id) => {
+      if (!randomlySelected.has(id)) manualIds.add(id);
+    });
+    const pool = availableNonBeasts.filter((f) => !manualIds.has(f.id));
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = rollInRange(0, i);
@@ -194,6 +198,12 @@ export default function CrewSelectionModal({
 
     setSelected((prev) => {
       const next = new Map(prev);
+      Array.from(randomlySelected).forEach((id) => {
+        next.delete(id);
+        for (const beast of getBeastsForOwner(id)) {
+          next.delete(beast.id);
+        }
+      });
       for (const f of picked) {
         next.set(f.id, f.loadout_id);
         for (const beast of getBeastsForOwner(f.id)) {
@@ -210,7 +220,7 @@ export default function CrewSelectionModal({
       gang_id: gangId,
       action_type: 'crew_roll',
       description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
-    });
+    }).catch(() => {});
   };
 
   const isCheckboxDisabled = (fighter: GangFighterOption, beast: boolean) => {
@@ -320,30 +330,31 @@ export default function CrewSelectionModal({
         <p className="text-center text-muted-foreground py-8">No fighters in this gang.</p>
       ) : (
         <div className="space-y-2">
-          <div className="flex items-center gap-4 p-2 bg-muted rounded-md">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Pick</span>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)}>
-                <LuMinus className="h-4 w-4" />
-              </Button>
-              <span className="w-6 text-center text-sm font-medium">{pickCount}</span>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)}>
-                <LuPlus className="h-4 w-4" />
-              </Button>
+          <div className="p-2 bg-muted rounded-md flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex items-center justify-between sm:justify-start sm:gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Pick</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)}>
+                  <LuMinus className="h-4 w-4" />
+                </Button>
+                <span className="w-6 text-center text-sm font-medium">{pickCount}</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)}>
+                  <LuPlus className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Random</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)}>
+                  <LuMinus className="h-4 w-4" />
+                </Button>
+                <span className="w-6 text-center text-sm font-medium">{randomCount}</span>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)}>
+                  <LuPlus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Random</span>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)}>
-                <LuMinus className="h-4 w-4" />
-              </Button>
-              <span className="w-6 text-center text-sm font-medium">{randomCount}</span>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)}>
-                <LuPlus className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="grow" />
             <button
-              className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              className="w-full sm:w-auto sm:ml-auto px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
               onClick={handleRoll}
               disabled={randomCount === 0}
               type="button"
