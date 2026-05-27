@@ -152,7 +152,6 @@ export default function CrewSelectionModal({
     return count;
   }, [selected, randomlySelected, gangFighters]);
 
-
   const handleReset = () => {
     setRandomlySelected((prevRandom) => {
       if (prevRandom.size > 0) {
@@ -236,11 +235,8 @@ export default function CrewSelectionModal({
     }
   };
 
-  const isCheckboxDisabled = (fighter: GangFighterOption, beast: boolean) => {
-    if (beast) return true;
-    if (!isAvailable(fighter)) return true;
-    return false;
-  };
+  const isDisabled = (f: GangFighterOption) =>
+    isBeast(f) || !isAvailable(f);
 
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
@@ -397,13 +393,13 @@ export default function CrewSelectionModal({
             return (
               <label
                 key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
-                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : isCheckboxDisabled(f, beast) ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : isDisabled(f) ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
               >
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggle(f)}
                   className="mr-3"
-                  disabled={isCheckboxDisabled(f, beast)}
+                  disabled={isDisabled(f)}
                 />
                 <span className="grow overflow-hidden text-ellipsis flex items-center gap-1">
                   {f.fighter_name}
