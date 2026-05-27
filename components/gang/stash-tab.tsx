@@ -763,11 +763,12 @@ export default function GangInventory({
                   {stash.map((item, index) => (
                     <label
                       key={index}
-                      className="flex items-center p-2 bg-muted rounded-md cursor-pointer hover:bg-muted"
+                      className={`flex items-center p-2 bg-muted rounded-md ${isLoading ? 'cursor-default' : 'cursor-pointer hover:bg-muted'}`}
                     >
                       <Checkbox
                         checked={selectedItems.includes(index)}
                         onCheckedChange={(checked) => handleItemToggle(index, checked as boolean)}
+                        disabled={isLoading}
                         className="mr-3"
                       />
                       <span className="grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
@@ -992,6 +993,7 @@ export default function GangInventory({
           }}
           confirmText="Confirm"
           confirmDisabled={!isTargetSelectionValid}
+          hideCancel
           width="lg"
         />
       )}
