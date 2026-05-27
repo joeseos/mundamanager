@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict gkbM7fEDngRL37I5tLChmN5HxZWY5YdJpPMza2djfnQn5HKbdRlDvobcMqg3i4u
+\restrict uS7ehRMP0zvs459mGfW8vX8gNtBlIwaFmSdao9A6cjUb3WtqVFZFEf0MVcVXOJn
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -6235,6 +6235,13 @@ CREATE INDEX campaign_territories_territory_id_idx ON public.campaign_territorie
 
 
 --
+-- Name: campaigns_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaigns_created_at_idx ON public.campaigns USING btree (created_at);
+
+
+--
 -- Name: campaigns_discord_guild_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10981,5 +10988,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict gkbM7fEDngRL37I5tLChmN5HxZWY5YdJpPMza2djfnQn5HKbdRlDvobcMqg3i4u
+\unrestrict uS7ehRMP0zvs459mGfW8vX8gNtBlIwaFmSdao9A6cjUb3WtqVFZFEf0MVcVXOJn
 
