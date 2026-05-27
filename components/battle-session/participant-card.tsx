@@ -1317,6 +1317,7 @@ export default function ParticipantCard({
         )}
         {showCrewModal && (
           <CrewSelectionModal
+            gangId={participant.gang_id}
             gangFighters={gangFighters}
             selectedFighters={selectedFighters}
             loading={false}

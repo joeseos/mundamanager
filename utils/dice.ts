@@ -4,6 +4,10 @@ import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 
 export const roll = (sides: number): number => Math.floor(Math.random() * sides) + 1;
 
+/** Roll a random integer in [min, max] (inclusive). */
+export const rollInRange = (min: number, max: number): number =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
+
 /** Three-sided die — not a multiple of D6; keep separate from `rollNd6`. */
 export const rollD3 = (): number => roll(3);
 

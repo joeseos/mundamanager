@@ -1,14 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
+import { LuMinus, LuPlus } from 'react-icons/lu';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { rollInRange } from '@/utils/dice';
+import { createGangLog } from '@/app/actions/logs/gang-logs';
 
 interface GangFighterOption {
   id: string;
@@ -81,6 +85,7 @@ export interface FighterEntry {
 }
 
 interface CrewSelectionModalProps {
+  gangId: string;
   gangFighters: GangFighterOption[];
   selectedFighters: Map<string, string | undefined>;
   loading: boolean;
@@ -89,6 +94,7 @@ interface CrewSelectionModalProps {
 }
 
 export default function CrewSelectionModal({
+  gangId,
   gangFighters,
   selectedFighters,
   loading,
@@ -110,6 +116,10 @@ export default function CrewSelectionModal({
     }
   );
 
+  const [pickCount, setPickCount] = useState(0);
+  const [randomCount, setRandomCount] = useState(0);
+  const [randomlySelected, setRandomlySelected] = useState<Set<string>>(new Set());
+
   const isAvailable = (f: GangFighterOption) =>
     countsTowardRating(f) && !f.recovery;
 
@@ -118,8 +128,104 @@ export default function CrewSelectionModal({
   const getBeastsForOwner = (ownerId: string) =>
     gangFighters.filter((f) => isBeast(f) && f.owner_id === ownerId);
 
+  const availableNonBeasts = useMemo(
+    () => gangFighters.filter((f) => isAvailable(f) && !isBeast(f)),
+    [gangFighters]
+  );
+
+  const totalTarget = pickCount + randomCount;
+  const inQuotaMode = totalTarget > 0;
+
+  const manuallySelectedCount = useMemo(() => {
+    let count = 0;
+    selected.forEach((_, fighterId) => {
+      if (randomlySelected.has(fighterId)) return;
+      const f = gangFighters.find((gf) => gf.id === fighterId);
+      if (f && !isBeast(f)) count++;
+    });
+    return count;
+  }, [selected, randomlySelected, gangFighters]);
+
+  const pickQuotaMet = inQuotaMode && manuallySelectedCount >= pickCount;
+
+  const handleReset = () => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      Array.from(randomlySelected).forEach((id) => {
+        next.delete(id);
+        for (const beast of getBeastsForOwner(id)) {
+          next.delete(beast.id);
+        }
+      });
+      return next;
+    });
+    setRandomlySelected(new Set());
+  };
+
+  const handlePickChange = (value: number) => {
+    const clamped = Math.max(0, Math.min(value, availableNonBeasts.length));
+    setPickCount(clamped);
+    if (randomCount > availableNonBeasts.length - clamped) {
+      setRandomCount(Math.max(0, availableNonBeasts.length - clamped));
+    }
+    handleReset();
+  };
+
+  const handleRandomChange = (value: number) => {
+    const max = availableNonBeasts.length - pickCount;
+    const clamped = Math.max(0, Math.min(value, max));
+    setRandomCount(clamped);
+    handleReset();
+  };
+
+  const handleRoll = async () => {
+    handleReset();
+
+    const pool = availableNonBeasts.filter((f) => !selected.has(f.id));
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = rollInRange(0, i);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const picked = shuffled.slice(0, Math.min(randomCount, shuffled.length));
+
+    const newRandomIds = new Set(picked.map((f) => f.id));
+    setRandomlySelected(newRandomIds);
+
+    setSelected((prev) => {
+      const next = new Map(prev);
+      for (const f of picked) {
+        next.set(f.id, f.loadout_id);
+        for (const beast of getBeastsForOwner(f.id)) {
+          if (isAvailable(beast)) {
+            next.set(beast.id, beast.loadout_id);
+          }
+        }
+      }
+      return next;
+    });
+
+    const pickedNames = picked.map((f) => f.fighter_name).join(', ');
+    createGangLog({
+      gang_id: gangId,
+      action_type: 'crew_roll',
+      description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
+    });
+  };
+
+  const isCheckboxDisabled = (fighter: GangFighterOption, beast: boolean) => {
+    if (beast) return true;
+    if (!isAvailable(fighter)) return true;
+    if (!inQuotaMode) return false;
+    if (randomlySelected.has(fighter.id)) return true;
+    const isCurrentlySelected = selected.has(fighter.id) && selected.get(fighter.id) === fighter.loadout_id;
+    if (pickQuotaMet && !isCurrentlySelected && (randomlySelected.size > 0 || randomCount === 0)) return true;
+    return false;
+  };
+
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
+    if (inQuotaMode && randomlySelected.has(fighter.id)) return;
     setSelected((prev) => {
       const next = new Map(prev);
       const currentLoadout = next.get(fighter.id);
@@ -131,6 +237,7 @@ export default function CrewSelectionModal({
           next.delete(beast.id);
         }
       } else {
+        if (inQuotaMode && pickQuotaMet && (randomlySelected.size > 0 || randomCount === 0)) return prev;
         next.set(fighter.id, fighter.loadout_id);
         for (const beast of getBeastsForOwner(fighter.id)) {
           if (isAvailable(beast)) {
@@ -213,12 +320,53 @@ export default function CrewSelectionModal({
         <p className="text-center text-muted-foreground py-8">No fighters in this gang.</p>
       ) : (
         <div className="space-y-2">
+          <div className="flex items-center gap-4 p-2 bg-muted rounded-md">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Pick</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)}>
+                <LuMinus className="h-4 w-4" />
+              </Button>
+              <span className="w-6 text-center text-sm font-medium">{pickCount}</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)}>
+                <LuPlus className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Random</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)}>
+                <LuMinus className="h-4 w-4" />
+              </Button>
+              <span className="w-6 text-center text-sm font-medium">{randomCount}</span>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)}>
+                <LuPlus className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grow" />
+            <button
+              className="px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              onClick={handleRoll}
+              disabled={randomCount === 0}
+              type="button"
+            >
+              Roll
+            </button>
+          </div>
+          {inQuotaMode && (
+            <div className="px-2">
+              <span className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{manuallySelectedCount + randomlySelected.size}</span> of {totalTarget} selected
+              </span>
+            </div>
+          )}
           <div className="flex items-center text-sm font-medium text-muted-foreground px-2">
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={toggleAll}
-              className="mr-3"
-            />
+            {!inQuotaMode && (
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleAll}
+                className="mr-3"
+              />
+            )}
+            {inQuotaMode && <div className="mr-3 w-4" />}
             <div className="grow">Name</div>
             <div className="text-right">Value</div>
           </div>
@@ -231,13 +379,13 @@ export default function CrewSelectionModal({
             return (
               <label
                 key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
-                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : 'cursor-pointer'}`}
+                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : isCheckboxDisabled(f, beast) ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
               >
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggle(f)}
                   className="mr-3"
-                  disabled={beast}
+                  disabled={isCheckboxDisabled(f, beast)}
                 />
                 <span className="grow overflow-hidden text-ellipsis flex items-center gap-1">
                   {f.fighter_name}

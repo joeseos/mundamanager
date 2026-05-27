@@ -86,6 +86,7 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'stash_update': 'Stash updated',
   'alignment_change': 'Alignment changed',
   'gang_created': 'Gang created',
+  'crew_roll': 'Crew roll',
   'gang_deleted': 'Gang deleted',
   'name_change': 'Name changed',
   'name_changed': 'Name changed',
