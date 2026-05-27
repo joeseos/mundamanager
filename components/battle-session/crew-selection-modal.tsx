@@ -152,8 +152,6 @@ export default function CrewSelectionModal({
     return count;
   }, [selected, randomlySelected, gangFighters]);
 
-  const pickQuotaMet = inQuotaMode && manuallySelectedCount >= pickCount;
-
   const handleReset = () => {
     setRandomlySelected((prevRandom) => {
       if (prevRandom.size > 0) {
@@ -176,9 +174,10 @@ export default function CrewSelectionModal({
     const clamped = Math.max(0, Math.min(value, availableNonBeasts.length));
     setPickCount(clamped);
     if (randomCount > availableNonBeasts.length - clamped) {
-      setRandomCount(Math.max(0, availableNonBeasts.length - clamped));
+      const newRandom = Math.max(0, availableNonBeasts.length - clamped);
+      setRandomCount(newRandom);
+      if (newRandom < randomCount) handleReset();
     }
-    handleReset();
   };
 
   const handleRandomChange = (value: number) => {
@@ -236,19 +235,11 @@ export default function CrewSelectionModal({
     }
   };
 
-  const isCheckboxDisabled = (fighter: GangFighterOption, beast: boolean) => {
-    if (beast) return true;
-    if (!isAvailable(fighter)) return true;
-    if (!inQuotaMode) return false;
-    if (randomlySelected.has(fighter.id)) return true;
-    const isCurrentlySelected = selected.has(fighter.id) && selected.get(fighter.id) === fighter.loadout_id;
-    if (pickQuotaMet && !isCurrentlySelected && (randomlySelected.size > 0 || randomCount === 0)) return true;
-    return false;
-  };
+  const isDisabled = (f: GangFighterOption) =>
+    isBeast(f) || !isAvailable(f);
 
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
-    if (inQuotaMode && randomlySelected.has(fighter.id)) return;
     setSelected((prev) => {
       const next = new Map(prev);
       const currentLoadout = next.get(fighter.id);
@@ -260,7 +251,6 @@ export default function CrewSelectionModal({
           next.delete(beast.id);
         }
       } else {
-        if (inQuotaMode && pickQuotaMet && (randomlySelected.size > 0 || randomCount === 0)) return prev;
         next.set(fighter.id, fighter.loadout_id);
         for (const beast of getBeastsForOwner(fighter.id)) {
           if (isAvailable(beast)) {
@@ -403,13 +393,13 @@ export default function CrewSelectionModal({
             return (
               <label
                 key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
-                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : isCheckboxDisabled(f, beast) ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : isDisabled(f) ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
               >
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggle(f)}
                   className="mr-3"
-                  disabled={isCheckboxDisabled(f, beast)}
+                  disabled={isDisabled(f)}
                 />
                 <span className="grow overflow-hidden text-ellipsis flex items-center gap-1">
                   {f.fighter_name}
