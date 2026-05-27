@@ -155,17 +155,21 @@ export default function CrewSelectionModal({
   const pickQuotaMet = inQuotaMode && manuallySelectedCount >= pickCount;
 
   const handleReset = () => {
-    setSelected((prev) => {
-      const next = new Map(prev);
-      Array.from(randomlySelected).forEach((id) => {
-        next.delete(id);
-        for (const beast of getBeastsForOwner(id)) {
-          next.delete(beast.id);
-        }
-      });
-      return next;
+    setRandomlySelected((prevRandom) => {
+      if (prevRandom.size > 0) {
+        setSelected((prev) => {
+          const next = new Map(prev);
+          Array.from(prevRandom).forEach((id) => {
+            next.delete(id);
+            for (const beast of getBeastsForOwner(id)) {
+              next.delete(beast.id);
+            }
+          });
+          return next;
+        });
+      }
+      return new Set();
     });
-    setRandomlySelected(new Set());
   };
 
   const handlePickChange = (value: number) => {
@@ -186,51 +190,50 @@ export default function CrewSelectionModal({
 
   const handleRoll = async () => {
     setRolling(true);
-    const manualOnly = new Map<string, string | undefined>();
-    selected.forEach((loadoutId, id) => {
-      if (randomlySelected.has(id)) return;
-      const f = gangFighters.find((gf) => gf.id === id);
-      if (f && isBeast(f)) return;
-      manualOnly.set(id, loadoutId);
-    });
+    try {
+      const manualOnly = new Map<string, string | undefined>();
+      selected.forEach((loadoutId, id) => {
+        if (randomlySelected.has(id)) return;
+        const f = gangFighters.find((gf) => gf.id === id);
+        if (f && isBeast(f)) return;
+        manualOnly.set(id, loadoutId);
+      });
 
-    const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
-    const shuffled = [...pool];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = rollInRange(0, i);
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    const picked = shuffled.slice(0, Math.min(randomCount, shuffled.length));
-
-    const newRandomIds = new Set(picked.map((f) => f.id));
-    setRandomlySelected(newRandomIds);
-
-    const next = new Map<string, string | undefined>();
-    manualOnly.forEach((loadoutId, id) => {
-      next.set(id, loadoutId);
-      for (const beast of getBeastsForOwner(id)) {
-        if (isAvailable(beast)) {
-          next.set(beast.id, beast.loadout_id);
-        }
+      const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
+      const shuffled = [...pool];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = rollInRange(0, i);
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-    });
-    for (const f of picked) {
-      next.set(f.id, f.loadout_id);
-      for (const beast of getBeastsForOwner(f.id)) {
-        if (isAvailable(beast)) {
-          next.set(beast.id, beast.loadout_id);
-        }
-      }
-    }
-    setSelected(next);
+      const picked = shuffled.slice(0, Math.min(randomCount, shuffled.length));
 
-    const pickedNames = picked.map((f) => f.fighter_name).join(', ');
-    await createGangLog({
-      gang_id: gangId,
-      action_type: 'crew_roll',
-      description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
-    }).catch(() => {});
-    setRolling(false);
+      const newRandomIds = new Set(picked.map((f) => f.id));
+      setRandomlySelected(newRandomIds);
+
+      const next = new Map<string, string | undefined>();
+      const addWithBeasts = (id: string, loadoutId: string | undefined) => {
+        next.set(id, loadoutId);
+        for (const beast of getBeastsForOwner(id)) {
+          if (isAvailable(beast)) {
+            next.set(beast.id, beast.loadout_id);
+          }
+        }
+      };
+      manualOnly.forEach((loadoutId, id) => addWithBeasts(id, loadoutId));
+      for (const f of picked) {
+        addWithBeasts(f.id, f.loadout_id);
+      }
+      setSelected(next);
+
+      const pickedNames = picked.map((f) => f.fighter_name).join(', ');
+      await createGangLog({
+        gang_id: gangId,
+        action_type: 'crew_roll',
+        description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
+      }).catch(() => {});
+    } finally {
+      setRolling(false);
+    }
   };
 
   const isCheckboxDisabled = (fighter: GangFighterOption, beast: boolean) => {
