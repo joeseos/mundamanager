@@ -119,6 +119,7 @@ export default function CrewSelectionModal({
   const [pickCount, setPickCount] = useState(0);
   const [randomCount, setRandomCount] = useState(0);
   const [randomlySelected, setRandomlySelected] = useState<Set<string>>(new Set());
+  const [rolling, setRolling] = useState(false);
 
   const isAvailable = (f: GangFighterOption) =>
     countsTowardRating(f) && !f.recovery;
@@ -128,10 +129,15 @@ export default function CrewSelectionModal({
   const getBeastsForOwner = (ownerId: string) =>
     gangFighters.filter((f) => isBeast(f) && f.owner_id === ownerId);
 
-  const availableNonBeasts = useMemo(
-    () => gangFighters.filter((f) => countsTowardRating(f) && !f.recovery && !isBeast(f)),
-    [gangFighters]
-  );
+  const availableNonBeasts = useMemo(() => {
+    const seen = new Set<string>();
+    return gangFighters.filter((f) => {
+      if (!countsTowardRating(f) || f.recovery || isBeast(f)) return false;
+      if (seen.has(f.id)) return false;
+      seen.add(f.id);
+      return true;
+    });
+  }, [gangFighters]);
 
   const totalTarget = pickCount + randomCount;
   const inQuotaMode = totalTarget > 0;
@@ -179,13 +185,16 @@ export default function CrewSelectionModal({
   };
 
   const handleRoll = async () => {
-    handleReset();
-
-    const manualIds = new Set<string>();
-    selected.forEach((_, id) => {
-      if (!randomlySelected.has(id)) manualIds.add(id);
+    setRolling(true);
+    const manualOnly = new Map<string, string | undefined>();
+    selected.forEach((loadoutId, id) => {
+      if (randomlySelected.has(id)) return;
+      const f = gangFighters.find((gf) => gf.id === id);
+      if (f && isBeast(f)) return;
+      manualOnly.set(id, loadoutId);
     });
-    const pool = availableNonBeasts.filter((f) => !manualIds.has(f.id));
+
+    const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = rollInRange(0, i);
@@ -196,31 +205,32 @@ export default function CrewSelectionModal({
     const newRandomIds = new Set(picked.map((f) => f.id));
     setRandomlySelected(newRandomIds);
 
-    setSelected((prev) => {
-      const next = new Map(prev);
-      Array.from(randomlySelected).forEach((id) => {
-        next.delete(id);
-        for (const beast of getBeastsForOwner(id)) {
-          next.delete(beast.id);
-        }
-      });
-      for (const f of picked) {
-        next.set(f.id, f.loadout_id);
-        for (const beast of getBeastsForOwner(f.id)) {
-          if (isAvailable(beast)) {
-            next.set(beast.id, beast.loadout_id);
-          }
+    const next = new Map<string, string | undefined>();
+    manualOnly.forEach((loadoutId, id) => {
+      next.set(id, loadoutId);
+      for (const beast of getBeastsForOwner(id)) {
+        if (isAvailable(beast)) {
+          next.set(beast.id, beast.loadout_id);
         }
       }
-      return next;
     });
+    for (const f of picked) {
+      next.set(f.id, f.loadout_id);
+      for (const beast of getBeastsForOwner(f.id)) {
+        if (isAvailable(beast)) {
+          next.set(beast.id, beast.loadout_id);
+        }
+      }
+    }
+    setSelected(next);
 
     const pickedNames = picked.map((f) => f.fighter_name).join(', ');
-    createGangLog({
+    await createGangLog({
       gang_id: gangId,
       action_type: 'crew_roll',
       description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
     }).catch(() => {});
+    setRolling(false);
   };
 
   const isCheckboxDisabled = (fighter: GangFighterOption, beast: boolean) => {
@@ -356,7 +366,7 @@ export default function CrewSelectionModal({
             <button
               className="w-full sm:w-auto sm:ml-auto px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
               onClick={handleRoll}
-              disabled={randomCount === 0}
+              disabled={randomCount === 0 || rolling}
               type="button"
             >
               Roll
