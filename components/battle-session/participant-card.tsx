@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuPlus, LuMinus, LuClipboard } from 'react-icons/lu';
+import { LuPlus, LuMinus, LuClipboard, LuSlash } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
@@ -20,14 +20,12 @@ import { rollD66, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
-import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthDecrease, GiWaterDrop, GiSpill } from 'react-icons/gi';
+import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill } from 'react-icons/gi';
 import { IoFlashOutline, IoInformationCircleOutline } from 'react-icons/io5';
-import { LuSlash } from "react-icons/lu";
-import { GiHealthNormal } from 'react-icons/gi';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
 import { PiBeerBottleFill } from 'react-icons/pi';
 import { WiStars } from 'react-icons/wi';
-import { FaUserCheck, FaBan } from 'react-icons/fa';
+import { FaUserCheck } from 'react-icons/fa';
 import {
   removeParticipant,
   updateParticipantRole,
