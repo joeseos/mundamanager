@@ -533,6 +533,7 @@ function InjuryPickerModal({
 function FighterRow({
   fighter,
   name,
+  loadoutName,
   cost,
   xp,
   injuryCount,
@@ -549,6 +550,7 @@ function FighterRow({
 }: {
   fighter: BattleSessionFighter;
   name: string;
+  loadoutName: string | undefined;
   cost: number | undefined;
   xp: number;
   injuryCount: number;
@@ -580,6 +582,13 @@ function FighterRow({
   };
 
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
+  const fighterType = gangFighter?.fighter_type;
+  const fighterClass = gangFighter?.fighter_class;
+  // Second row format: type - selected profile/loadout (class)
+  const fighterDetails = [
+    [fighterType, loadoutName].filter(Boolean).join(' - '),
+    fighterClass ? `(${fighterClass})` : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <tr className={`border-b last:border-b-0 ${!isReady ? 'opacity-40' : ''}`}>
@@ -591,13 +600,14 @@ function FighterRow({
             onClick={() => setShowInfoModal(true)}
           />
           <div>
+            {/* First row format: fighter name - cost */}
             <div>
               {name}
-              {gangFighter?.fighter_class && (
-                <span className="text-muted-foreground"> ({gangFighter.fighter_class})</span>
-              )}
               {cost !== undefined && ` - ${cost === 0 ? '*' : cost}`}
             </div>
+            {fighterDetails && (
+              <div className="text-xs text-muted-foreground">{fighterDetails}</div>
+            )}
             {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
@@ -1394,7 +1404,12 @@ export default function ParticipantCard({
                     const fullMatch = gangFightersList.find(
                       (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
                     ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
-                    const name = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
+                    const rawName = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
+                    const fighterClass = (fullMatch?.fighter_class ?? '').toLowerCase();
+                    const isAssociatedExoticBeast =
+                      (fighterClass === 'exotic beast' || fighterClass === 'exotic beast specialist') &&
+                      Boolean(fullMatch?.owner_id);
+                    const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
                     const cost = match?.credits ?? f.fighter?.credits;
                     const xp = f.session_record?.xp_earned ?? 0;
                     const injuryCount = f.session_record?.injuries?.length ?? 0;
@@ -1403,6 +1418,7 @@ export default function ParticipantCard({
                         key={f.id}
                         fighter={f}
                         name={name}
+                        loadoutName={match?.loadout_name}
                         cost={cost}
                         xp={xp}
                         injuryCount={injuryCount}
