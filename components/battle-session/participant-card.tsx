@@ -22,6 +22,8 @@ import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
 import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthDecrease, GiWaterDrop, GiSpill } from 'react-icons/gi';
 import { IoFlashOutline, IoInformationCircleOutline } from 'react-icons/io5';
+import { LuSlash } from "react-icons/lu";
+import { GiHealthNormal } from 'react-icons/gi';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
 import { PiBeerBottleFill } from 'react-icons/pi';
 import { WiStars } from 'react-icons/wi';
@@ -54,24 +56,25 @@ interface ConditionDefinition {
   icon: ReactNode;
 }
 
+// Condition tokens that are displayed in the fighter row of the participant card
 const SESSION_CONDITIONS: ConditionDefinition[] = [
-  { key: 'blaze', name: 'Blaze', colorClass: 'text-orange-600', icon: <BsFire /> },
+  { key: 'blaze', name: 'Blaze', colorClass: 'text-orange-500', icon: <BsFire /> },
   { key: 'insane', name: 'Insane', colorClass: 'text-purple-700', icon: <GiPieceSkull /> },
-  { key: 'webbed', name: 'Webbed', colorClass: 'text-neutral-200', icon: <GiSpiderWeb /> },
-  { key: 'blind', name: 'Blind', colorClass: 'text-neutral-200', icon: <IoFlashOutline /> },
+  { key: 'webbed', name: 'Webbed', colorClass: 'text-neutral-400', icon: <GiSpiderWeb /> },
+  { key: 'blind', name: 'Blind', colorClass: 'text-neutral-400', icon: <IoFlashOutline /> },
   { key: 'broken', name: 'Broken', colorClass: 'text-red-700', icon: <BsFillExclamationCircleFill /> },
   { key: 'intoxicated', name: 'Intoxicated', colorClass: 'text-emerald-500', icon: <PiBeerBottleFill /> },
   { key: 'hidden', name: 'Hidden', colorClass: 'text-red-700', icon: <IoMdEyeOff /> },
-  { key: 'revealed', name: 'Revealed', colorClass: 'text-neutral-200', icon: <IoMdEye /> },
+  { key: 'revealed', name: 'Revealed', colorClass: 'text-neutral-400', icon: <IoMdEye /> },
   { key: 'concussion', name: 'Concussion', colorClass: 'text-red-400', icon: <WiStars /> },
   {
     key: 'out_of_ammo',
     name: 'Out of Ammo',
     colorClass: 'text-neutral-700',
     icon: (
-      <span className="relative inline-flex size-4 items-center justify-center">
-        <GiHeavyBullets className="size-4" />
-        <FaBan className="absolute -right-1 -top-1 size-2.5" />
+      <span className="relative inline-flex items-center justify-center align-[-3px]">
+        <GiHeavyBullets />
+        <LuSlash className="absolute inset-0 m-auto" />
       </span>
     ),
   },
@@ -79,7 +82,17 @@ const SESSION_CONDITIONS: ConditionDefinition[] = [
 ];
 
 const NUMERIC_CONDITIONS: ConditionDefinition[] = [
-  { key: 'flesh_wound', name: 'Flesh Wounds', colorClass: 'text-neutral-200', icon: <GiHealthDecrease /> },
+  {
+    key: 'flesh_wound',
+    name: 'Flesh Wounds',
+    colorClass: 'text-neutral-400',
+    icon: (
+      <span className="relative inline-flex items-center justify-center align-[-3px]">
+        <GiHealthNormal />
+        <GiWaterDrop className="absolute inset-0 m-auto text-red-800 size-2" />
+      </span>
+    ),
+  },
   { key: 'wounds', name: 'Wounds', colorClass: 'text-red-800', icon: <GiWaterDrop /> },
 ];
 
@@ -89,22 +102,45 @@ const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 const hasDualActivation = (rules?: string[]) =>
   rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
-function ConditionBadge({ condition }: { condition: SessionCondition }) {
+function ConditionBadge({
+  condition,
+  iconOnly = false,
+}: {
+  condition: SessionCondition;
+  iconOnly?: boolean;
+}) {
   const config = CONDITION_BY_KEY.get(condition.key);
+  const conditionLabel = condition.value != null && condition.value > 0
+    ? `${condition.value} ${condition.name}`
+    : condition.name;
   if (!config) {
     return (
-      <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+      <span className="rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
         {condition.name}
       </span>
     );
   }
 
+  if (iconOnly) {
+    return (
+      <span
+        className="relative inline-flex size-7 md:size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+        title={conditionLabel}
+      >
+        <span className={`${config.colorClass} text-xl md:text-2xl`}>{config.icon}</span>
+        {condition.value != null && condition.value > 0 && (
+          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-[10px] font-bold leading-none text-white dark:bg-neutral-200 dark:text-neutral-900">
+            {condition.value}
+          </span>
+        )}
+      </span>
+    );
+  }
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-      <span className={config.colorClass}>{config.icon}</span>
-      {condition.value != null && condition.value > 0
-        ? `${condition.value} ${condition.name}`
-        : condition.name}
+    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+      <span className={`${config.colorClass} text-base`}>{config.icon}</span>
+      {conditionLabel}
     </span>
   );
 }
@@ -216,7 +252,7 @@ function FighterActionModal({
               variant="outline"
               className="flex-1"
             >
-              Add Injury
+              Add Lasting Injury
             </Button>
           </div>
           <div className="space-y-2 border-t pt-3 text-left">
@@ -227,7 +263,7 @@ function FighterActionModal({
                 return (
                   <div key={nc.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`${nc.colorClass} text-base`}>{nc.icon}</span>
+                      <span className={`${nc.colorClass} text-2xl`}>{nc.icon}</span>
                       <span className="text-sm">{nc.name}</span>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -265,9 +301,9 @@ function FighterActionModal({
                     key={condition.key}
                     onClick={() => toggleCondition(condition)}
                     variant={isActive ? "default" : "outline"}
-                    className="flex-1 min-w-[140px] justify-center text-xs"
+                    className="flex-1 min-w-[140px] justify-center text-xs md:text-sm"
                   >
-                    <span className={`${condition.colorClass} mr-1.5 text-base`}>{condition.icon}</span>
+                    <span className={`${condition.colorClass} mr-1.5 text-xl`}>{condition.icon}</span>
                     {condition.name}
                   </Button>
                 );
@@ -618,12 +654,12 @@ function FighterRow({
                 {canInteract || battleActive ? (
                   <>
                     {injuryCount > 0 && (
-                      <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
                         {injuryCount} {injuryCount === 1 ? 'injury' : 'injuries'}
                       </span>
                     )}
                     {conditions.map((condition) => (
-                      <ConditionBadge key={condition.key} condition={condition} />
+                      <ConditionBadge key={condition.key} condition={condition} iconOnly />
                     ))}
                   </>
                 ) : (
@@ -637,7 +673,7 @@ function FighterRow({
                       </span>
                     ))}
                     {conditions.map((condition) => (
-                      <ConditionBadge key={condition.key} condition={condition} />
+                      <ConditionBadge key={condition.key} condition={condition} iconOnly />
                     ))}
                   </>
                 )}
