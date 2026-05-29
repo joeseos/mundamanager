@@ -279,7 +279,13 @@ export default function GangInventory({
       }
 
       const configurations: ItemConfig[] = [];
-      const pendingBatchWeapons: { id: string; name: string; equipment_category?: string }[] = [];
+      const pendingBatchWeapons = items
+        .filter(item => item.equipment_type === 'weapon')
+        .map(item => ({
+          id: item.id,
+          name: item.equipment_name || '',
+          equipment_category: item.equipment_category
+        }));
       let cancelledByUser = false;
 
       for (const item of items) {
@@ -327,14 +333,6 @@ export default function GangInventory({
               break;
             }
           }
-        }
-
-        if (item.equipment_type === 'weapon') {
-          pendingBatchWeapons.push({
-            id: item.id,
-            name: item.equipment_name || '',
-            equipment_category: item.equipment_category
-          });
         }
 
         configurations.push({ stashItem: item, selectedEffectIds, equipmentTarget });
