@@ -17,7 +17,7 @@ import ItemModal from '@/components/equipment/equipment';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
-import { moveEquipmentFromStash } from '@/app/actions/move-from-stash';
+import { moveEquipmentFromStash, type MoveFromStashItem, type MoveFromStashItemResult } from '@/app/actions/move-from-stash';
 import { deleteEquipmentFromStash } from '@/app/actions/equipment';
 import { sellEquipmentFromStash } from '@/app/actions/sell-equipment';
 import { MdCurrencyExchange, MdChair } from 'react-icons/md';
@@ -100,6 +100,7 @@ export default function GangInventory({
   const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
+  const pendingBatchWeaponsRef = useRef<{ id: string; name: string; equipment_category?: string }[]>([]);
   const stashRef = useRef<StashItem[]>(stash);
   stashRef.current = stash;
 
@@ -214,7 +215,13 @@ export default function GangInventory({
   };
 
   // Prompt user to select target weapon; returns target equipment ID or null on cancel
-  const promptTargetSelection = (effectTypeId: string, effectName: string | undefined, stashIdx: number) => {
+  const promptTargetSelection = (
+    effectTypeId: string,
+    effectName: string | undefined,
+    stashIdx: number,
+    batchWeapons?: { id: string; name: string; equipment_category?: string }[]
+  ) => {
+    pendingBatchWeaponsRef.current = batchWeapons || [];
     setTargetModalEffectTypeId(effectTypeId);
     setTargetModalEffectName(effectName || null);
     setTargetModalStashIdx(stashIdx);
@@ -237,168 +244,321 @@ export default function GangInventory({
     if (selectedItems.length === 0 || !selectedFighter || !session) return;
 
     setIsLoading(true);
+    let rollbackStash: StashItem[] | null = null;
+    let rollbackFighters: FighterProps[] | null = null;
+    let rollbackTargetId: string | null = null;
     try {
       const isVehicleTarget = selectedFighter.startsWith('vehicle-');
       const targetId = isVehicleTarget ? selectedFighter.replace('vehicle-', '') : selectedFighter;
-      
-      let successCount = 0;
-      let errorCount = 0;
-      let cancelledCount = 0;
 
-      // Track fighter updates for optimistic updates
-      let updatedFighter: FighterProps | null = null;
-      let updatedVehicles: VehicleProps[] = vehicles;
+      // Phase 1: Snapshot items by value and prefetch effects in parallel
+      const items = selectedItems.map(i => ({ ...stash[i], originalIndex: i }));
 
-      // Track which items were successfully moved (by index)
-      const successfullyMovedIndices: number[] = [];
-
-      // Move items one by one
-      for (const itemIndex of selectedItems) {
-        const stashItem = stash[itemIndex];
-        
-        // Check for all effect types (both equipment upgrades and fighter effects)
-        let selectedEffectIds: string[] | undefined = undefined;
-        let equipmentTarget: { target_equipment_id: string; effect_type_id: string } | undefined = undefined;
-
-        if (stashItem.type === 'equipment' && stashItem.equipment_id && !stashItem.custom_equipment_id) {
-          try {
-            const resp = await fetch(`/api/fighter-effects?equipmentId=${stashItem.equipment_id}`);
-            if (resp.ok) {
-              const effectTypes = await resp.json();
-
-              // Separate equipment upgrades from fighter effects
-              const equipmentUpgrade = effectTypes?.find((e: any) =>
-                e?.type_specific_data?.applies_to === 'equipment'
-              );
-
-              const fighterEffects = effectTypes?.filter((e: any) =>
-                e?.type_specific_data?.applies_to !== 'equipment'
-              );
-
-              // Priority 1: Handle equipment upgrade (applies_to=equipment)
-              if (equipmentUpgrade && !isVehicleTarget) {
-                const targetId = await promptTargetSelection(equipmentUpgrade.id, equipmentUpgrade.effect_name, itemIndex);
-                if (targetId) {
-                  equipmentTarget = {
-                    target_equipment_id: targetId,
-                    effect_type_id: equipmentUpgrade.id
-                  };
-                } else {
-                  // User cancelled; skip this item
-                  cancelledCount++;
-                  continue;
-                }
+      const effectsMap = new Map<string, any[]>();
+      await Promise.all(
+        items
+          .filter(item => item.type === 'equipment' && item.equipment_id && !item.custom_equipment_id)
+          .map(async (item) => {
+            try {
+              const resp = await fetch(`/api/fighter-effects?equipmentId=${item.equipment_id}`);
+              if (resp.ok) {
+                effectsMap.set(item.id, await resp.json());
               }
-
-              // Priority 2: Handle selectable fighter effects
-              const hasSelectableFighterEffects = fighterEffects?.some((e: any) =>
-                e?.type_specific_data?.effect_selection === 'single_select' ||
-                e?.type_specific_data?.effect_selection === 'multiple_select'
-              );
-
-              if (hasSelectableFighterEffects) {
-                const chosen = await promptEffectSelection(stashItem.equipment_id, fighterEffects, itemIndex);
-                if (chosen && chosen.length > 0) {
-                  selectedEffectIds = chosen;
-                } else {
-                  // User cancelled; skip this item
-                  cancelledCount++;
-                  continue;
-                }
-              }
+            } catch (e) {
+              // If fetch fails, item proceeds without effects
             }
-          } catch (e) {
-            // If effect fetch fails, proceed without selection (fixed effects still apply)
+          })
+      );
+
+      // Phase 2: Collect user configurations via modals (no server writes)
+      interface ItemConfig {
+        stashItem: StashItem & { originalIndex: number };
+        selectedEffectIds?: string[];
+        equipmentTarget?: { target_equipment_id: string; effect_type_id: string };
+      }
+
+      const configurations: ItemConfig[] = [];
+      const pendingBatchWeapons: { id: string; name: string; equipment_category?: string }[] = [];
+      let cancelledByUser = false;
+
+      for (const item of items) {
+        const effectTypes = effectsMap.get(item.id);
+        let selectedEffectIds: string[] | undefined;
+        let equipmentTarget: { target_equipment_id: string; effect_type_id: string } | undefined;
+
+        if (effectTypes && effectTypes.length > 0) {
+          const equipmentUpgrade = effectTypes.find((e: any) =>
+            e?.type_specific_data?.applies_to === 'equipment'
+          );
+          const fighterEffects = effectTypes.filter((e: any) =>
+            e?.type_specific_data?.applies_to !== 'equipment'
+          );
+
+          if (equipmentUpgrade && !isVehicleTarget) {
+            const targetWeaponId = await promptTargetSelection(
+              equipmentUpgrade.id,
+              equipmentUpgrade.effect_name,
+              item.originalIndex,
+              pendingBatchWeapons
+            );
+            if (targetWeaponId) {
+              equipmentTarget = {
+                target_equipment_id: targetWeaponId,
+                effect_type_id: equipmentUpgrade.id
+              };
+            } else {
+              cancelledByUser = true;
+              break;
+            }
+          }
+
+          const hasSelectableFighterEffects = fighterEffects?.some((e: any) =>
+            e?.type_specific_data?.effect_selection === 'single_select' ||
+            e?.type_specific_data?.effect_selection === 'multiple_select'
+          );
+
+          if (hasSelectableFighterEffects) {
+            const chosen = await promptEffectSelection(item.equipment_id!, fighterEffects, item.originalIndex);
+            if (chosen && chosen.length > 0) {
+              selectedEffectIds = chosen;
+            } else {
+              cancelledByUser = true;
+              break;
+            }
           }
         }
-        
-        // Use server action instead of direct API call
-        const result = await moveEquipmentFromStash({
-          stash_id: stashItem.id,
-          ...(isVehicleTarget
-            ? { vehicle_id: targetId }
-            : { fighter_id: targetId }
-          ),
-          ...(selectedEffectIds ? { selected_effect_ids: selectedEffectIds } : {}),
-          ...(equipmentTarget ? { equipment_target: equipmentTarget } : {})
-        });
 
-        if (!result.success) {
-          console.error(`Failed to move item ${stashItem.equipment_name || stashItem.vehicle_name}: ${result.error}`);
-          errorCount++;
-          continue;
+        if (item.equipment_type === 'weapon') {
+          pendingBatchWeapons.push({
+            id: item.id,
+            name: item.equipment_name || '',
+            equipment_category: item.equipment_category
+          });
         }
 
-        successCount++;
-        successfullyMovedIndices.push(itemIndex);
+        configurations.push({ stashItem: item, selectedEffectIds, equipmentTarget });
+      }
 
-        // Get the response data
-        const responseData = result.data;
-        
-        // Update gang rating if provided
-        if (responseData?.updated_gang_rating !== undefined && onGangRatingUpdate) {
-          onGangRatingUpdate(responseData.updated_gang_rating);
+      if (cancelledByUser) {
+        return;
+      }
+
+      // Phase 3: Apply optimistic UI immediately, then fire server call
+      rollbackStash = [...stash];
+      rollbackFighters = [...fighters];
+      rollbackTargetId = targetId;
+
+      // Optimistically remove items from stash and add to fighter/vehicle
+      const movedIndices = configurations.map(c => c.stashItem.originalIndex);
+      const newStash = stash.filter((_, index) => !movedIndices.includes(index));
+      setStash(newStash);
+      onStashUpdate?.(newStash);
+      setSelectedItems([]);
+      setSelectedFighter('');
+
+      // Build optimistic fighter/vehicle update (using stash IDs as temp equipment IDs)
+      if (!isVehicleTarget) {
+        const currentFighter = fighters.find(f => f.id === targetId);
+        if (currentFighter) {
+          let optimisticFighter = { ...currentFighter };
+          for (const config of configurations) {
+            const item = config.stashItem;
+            optimisticFighter = {
+              ...optimisticFighter,
+              credits: optimisticFighter.credits + (item.cost || 0),
+              weapons: item.equipment_type === 'weapon'
+                ? [
+                    ...(optimisticFighter.weapons || []),
+                    {
+                      weapon_name: item.equipment_name || '',
+                      weapon_id: item.equipment_id || item.id,
+                      cost: item.cost || 0,
+                      fighter_weapon_id: item.id,
+                      weapon_profiles: [],
+                      is_master_crafted: false
+                    }
+                  ]
+                : optimisticFighter.weapons || [],
+              wargear: item.equipment_type === 'wargear'
+                ? [
+                    ...(optimisticFighter.wargear || []),
+                    {
+                      wargear_name: item.equipment_name || '',
+                      wargear_id: item.equipment_id || item.id,
+                      cost: item.cost || 0,
+                      fighter_weapon_id: item.id,
+                      is_master_crafted: false
+                    }
+                  ]
+                : optimisticFighter.wargear || []
+            };
+          }
+          setFighters(prev => prev.map(f => f.id === targetId ? optimisticFighter : f));
+          onFighterUpdate?.(optimisticFighter, true);
         }
-        
-        // Update gang wealth if provided
-        if (responseData?.updated_gang_wealth !== undefined && onGangWealthUpdate) {
-          onGangWealthUpdate(responseData.updated_gang_wealth);
+      }
+
+      // Fire server call
+      const result = await moveEquipmentFromStash({
+        items: configurations.map(c => ({
+          stash_id: c.stashItem.id,
+          ...(c.selectedEffectIds ? { selected_effect_ids: c.selectedEffectIds } : {}),
+          ...(c.equipmentTarget ? { equipment_target: c.equipmentTarget } : {})
+        })),
+        ...(isVehicleTarget ? { vehicle_id: targetId } : { fighter_id: targetId })
+      });
+
+      // Handle failure: roll back
+      if (!result.success && result.item_results.length === 0) {
+        setStash(rollbackStash!);
+        onStashUpdate?.(rollbackStash!);
+        setFighters(rollbackFighters!);
+        const rolledBackFighter = rollbackFighters!.find(f => f.id === targetId);
+        if (rolledBackFighter) onFighterUpdate?.(rolledBackFighter, true);
+        toast.error("Error", { description: result.error || "Failed to move items from stash" });
+        return;
+      }
+
+      // Handle partial failures: roll back failed items
+      const resultMap = new Map<string, MoveFromStashItemResult>(
+        result.item_results.map(r => [r.stash_id, r])
+      );
+
+      const failedConfigs = configurations.filter(c => !resultMap.get(c.stashItem.id)?.success);
+      const successConfigs = configurations.filter(c => resultMap.get(c.stashItem.id)?.success);
+
+      if (failedConfigs.length > 0) {
+        // Re-add failed items to stash
+        const failedItems = failedConfigs.map(c => c.stashItem as StashItem);
+        const correctedStash = [...newStash, ...failedItems];
+        setStash(correctedStash);
+        onStashUpdate?.(correctedStash);
+      }
+
+      // Apply real data from server (replace temp IDs with real equipment IDs, add weapon profiles, effects)
+      if (!isVehicleTarget) {
+        const currentFighter = fighters.find(f => f.id === targetId);
+        if (currentFighter) {
+          let finalFighter = { ...currentFighter };
+
+          for (const config of successConfigs) {
+            const itemResult = resultMap.get(config.stashItem.id)!;
+            const item = config.stashItem;
+
+            const hasMasterCrafted = (itemResult.weapon_profiles || []).some(
+              (profile: any) => profile.is_master_crafted
+            );
+
+            let modifiedWeapons: typeof finalFighter.weapons = finalFighter.weapons || [];
+            if (itemResult.applied_effects && itemResult.applied_effects.length > 0) {
+              const equipmentEffects = itemResult.applied_effects.filter((e: any) => e.target_equipment_id);
+              if (equipmentEffects.length > 0) {
+                modifiedWeapons = modifiedWeapons.map((weapon: any) => {
+                  const targetingEffects = equipmentEffects.filter(
+                    (e: any) => e.target_equipment_id === weapon.fighter_weapon_id
+                  );
+                  if (targetingEffects.length > 0 && weapon.weapon_profiles) {
+                    return {
+                      ...weapon,
+                      weapon_profiles: applyWeaponModifiers(weapon.weapon_profiles, targetingEffects)
+                    };
+                  }
+                  return weapon;
+                });
+              }
+            }
+
+            finalFighter = {
+              ...finalFighter,
+              credits: finalFighter.credits + (item.cost || 0),
+              weapons: item.equipment_type === 'weapon'
+                ? [
+                    ...modifiedWeapons,
+                    {
+                      weapon_name: item.equipment_name || '',
+                      weapon_id: item.equipment_id || item.id,
+                      cost: item.cost || 0,
+                      fighter_weapon_id: itemResult.equipment_id || item.id,
+                      weapon_profiles: itemResult.weapon_profiles || [],
+                      is_master_crafted: hasMasterCrafted
+                    }
+                  ]
+                : modifiedWeapons,
+              wargear: item.equipment_type === 'wargear'
+                ? [
+                    ...(finalFighter.wargear || []),
+                    {
+                      wargear_name: item.equipment_name || '',
+                      wargear_id: item.equipment_id || item.id,
+                      cost: item.cost || 0,
+                      fighter_weapon_id: itemResult.equipment_id || item.id,
+                      is_master_crafted: hasMasterCrafted
+                    }
+                  ]
+                : finalFighter.wargear || [],
+              effects: itemResult.applied_effects && itemResult.applied_effects.length > 0
+                ? {
+                    ...finalFighter.effects,
+                    equipment: [
+                      ...(finalFighter.effects?.equipment || []),
+                      ...itemResult.applied_effects
+                    ]
+                  }
+                : finalFighter.effects
+            };
+          }
+
+          setFighters(prev => prev.map(f => f.id === targetId ? finalFighter : f));
+          onFighterUpdate?.(finalFighter, true);
         }
-        
-        if (isVehicleTarget) {
-          // Handle vehicle equipment update
+      } else {
+        // Vehicle target: apply real data
+        let updatedVehicles: VehicleProps[] = vehicles;
+        for (const config of successConfigs) {
+          const itemResult = resultMap.get(config.stashItem.id)!;
+          const item = config.stashItem;
+
           const targetVehicle = getAllVehicles().find(v => v.id === targetId);
           if (targetVehicle) {
-            // Create new equipment item for the vehicle with proper typing
             const newEquipment: Equipment & Partial<VehicleEquipment> = {
-              fighter_equipment_id: responseData?.equipment_id || stashItem.id,
-              equipment_id: stashItem.equipment_id || '',
-              equipment_name: stashItem.equipment_name || '',
-              equipment_type: (stashItem.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
-              cost: stashItem.cost || 0,
+              fighter_equipment_id: itemResult.equipment_id || item.id,
+              equipment_id: item.equipment_id || '',
+              equipment_name: item.equipment_name || '',
+              equipment_type: (item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
+              cost: item.cost || 0,
               core_equipment: false,
               is_master_crafted: false,
               master_crafted: false,
-              // Vehicle-specific fields
               vehicle_id: targetId,
-              vehicle_equipment_id: responseData?.equipment_id || stashItem.id,
-              vehicle_weapon_id: stashItem.equipment_type === 'weapon' ? responseData?.equipment_id || stashItem.id : undefined,
-              // Add weapon profiles if this is a weapon
-              weapon_profiles: responseData?.weapon_profiles || undefined
+              vehicle_equipment_id: itemResult.equipment_id || item.id,
+              vehicle_weapon_id: item.equipment_type === 'weapon' ? itemResult.equipment_id || item.id : undefined,
+              weapon_profiles: itemResult.weapon_profiles || undefined
             };
 
-            // Apply equipment effects to vehicle effects structure
             let vehicleEffectsUpdates: any = {};
-            if (responseData?.applied_effects && responseData.applied_effects.length > 0) {
-              // Add effects to the vehicle's effects structure (for fighter-card calculations)
-              vehicleEffectsUpdates = responseData.applied_effects;
+            if (itemResult.applied_effects && itemResult.applied_effects.length > 0) {
+              vehicleEffectsUpdates = itemResult.applied_effects;
             }
 
-            // Update the target vehicle's equipment
             const updatedVehicle: VehicleProps = {
               ...targetVehicle,
               equipment: [...(targetVehicle.equipment || []), newEquipment]
             };
 
-            // Find if this vehicle belongs to a crew member and update that fighter
-            const crewFighter = fighters.find(f => 
+            const crewFighter = fighters.find(f =>
               f.vehicles?.some(v => v.id === targetId)
             );
 
             if (crewFighter) {
-              // Update the crew fighter's vehicle with equipment and effects
               const updatedCrewFighter: FighterProps = {
                 ...crewFighter,
                 vehicles: crewFighter.vehicles?.map(v => {
                   if (v.id === targetId) {
-                    // Get existing vehicle upgrades effects
                     const existingVehicleUpgrades = v.effects?.["vehicle upgrades"] || [];
-                    
                     return {
-                      ...v, 
+                      ...v,
                       equipment: updatedVehicle.equipment,
-                      // Update effects with new vehicle upgrades
-                      effects: vehicleEffectsUpdates.length > 0 
+                      effects: vehicleEffectsUpdates.length > 0
                         ? {
                             ...v.effects,
                             "vehicle upgrades": [
@@ -413,181 +573,67 @@ export default function GangInventory({
                 })
               };
 
-              setFighters(prev => 
+              setFighters(prev =>
                 prev.map(f => f.id === crewFighter.id ? updatedCrewFighter : f)
               );
-
-              if (onFighterUpdate) {
-                onFighterUpdate(updatedCrewFighter);
-              }
+              onFighterUpdate?.(updatedCrewFighter);
             }
 
-            // Update vehicles array if this vehicle is in the main vehicles list
-            updatedVehicles = updatedVehicles.map(v => 
+            updatedVehicles = updatedVehicles.map(v =>
               v.id === targetId ? updatedVehicle : v
             );
           }
-        } else {
-          // Handle fighter equipment update
-          const currentFighter: FighterProps | undefined = updatedFighter || fighters.find(f => f.id === targetId);
-          if (currentFighter) {
-            // Check if any weapon profile has master-crafted flag
-            const hasMasterCrafted = (responseData?.weapon_profiles || []).some(
-              (profile: any) => profile.is_master_crafted
-            );
-            
-            // Apply equipment→equipment effect modifiers to existing weapons
-            let modifiedWeapons: typeof currentFighter.weapons = currentFighter.weapons || [];
-            if (responseData?.applied_effects && responseData.applied_effects.length > 0) {
-              const equipmentEffects = responseData.applied_effects.filter((e: any) => e.target_equipment_id);
-
-              if (equipmentEffects.length > 0) {
-                modifiedWeapons = modifiedWeapons.map((weapon: any) => {
-                  // Find effects targeting this weapon
-                  const targetingEffects = equipmentEffects.filter(
-                    (e: any) => e.target_equipment_id === weapon.fighter_weapon_id
-                  );
-
-                  if (targetingEffects.length > 0 && weapon.weapon_profiles) {
-                    // Apply modifiers to weapon profiles
-                    return {
-                      ...weapon,
-                      weapon_profiles: applyWeaponModifiers(weapon.weapon_profiles, targetingEffects)
-                    };
-                  }
-                  return weapon;
-                });
-              }
-            }
-
-            // Update the fighter with the new equipment
-            updatedFighter = {
-              ...currentFighter,
-              credits: currentFighter.credits + (stashItem.cost || 0),
-              weapons: stashItem.equipment_type === 'weapon'
-                ? [
-                    ...modifiedWeapons,
-                    {
-                      weapon_name: stashItem.equipment_name || '',
-                      weapon_id: stashItem.equipment_id || stashItem.id,
-                      cost: stashItem.cost || 0,
-                      fighter_weapon_id: responseData?.equipment_id || stashItem.id,
-                      weapon_profiles: responseData?.weapon_profiles || [],
-                      is_master_crafted: hasMasterCrafted
-                    }
-                  ]
-                : modifiedWeapons,
-              wargear: stashItem.equipment_type === 'wargear'
-                ? [
-                    ...(currentFighter.wargear || []),
-                    {
-                      wargear_name: stashItem.equipment_name || '',
-                      wargear_id: stashItem.equipment_id || stashItem.id,
-                      cost: stashItem.cost || 0,
-                      fighter_weapon_id: responseData?.equipment_id || stashItem.id,
-                      is_master_crafted: hasMasterCrafted
-                    }
-                  ]
-                : currentFighter.wargear || [],
-              // Add applied effects to fighter's effects object
-              effects: responseData?.applied_effects && responseData.applied_effects.length > 0
-                ? {
-                    ...currentFighter.effects,
-                    equipment: [
-                      ...(currentFighter.effects?.equipment || []),
-                      ...responseData.applied_effects
-                    ]
-                  }
-                : currentFighter.effects
-            };
-          }
         }
-
-        // Handle complete fighter updates from server (for reactivated beasts)
-        if (responseData?.updated_fighters && responseData.updated_fighters.length > 0) {
-          // Update parent component with complete fighter data
-          if (onFighterUpdate) {
-            responseData.updated_fighters.forEach((completeFighter: any) => {
-              onFighterUpdate(completeFighter, true); // Skip rating update
-            });
-          }
+        if (onVehicleUpdate && updatedVehicles !== vehicles) {
+          onVehicleUpdate(updatedVehicles);
         }
-        // Handle affected beast visibility updates (fallback for cases without complete data)
-        else if (responseData?.affected_beast_ids && responseData.affected_beast_ids.length > 0) {
-          // Update beast visibility - these beasts are no longer stashed since equipment was moved
-          const updatedBeasts: FighterProps[] = [];
-          
-          setFighters(prev => prev.map(f => {
-            if (responseData.affected_beast_ids!.includes(f.id) && f.fighter_class === 'exotic beast') {
-              const updatedBeast = { ...f, beast_equipment_stashed: false };
-              updatedBeasts.push(updatedBeast);
-              return updatedBeast;
-            }
-            return f;
-          }));
-
-          // Update parent component for each affected beast (outside of render cycle)
-          if (onFighterUpdate && updatedBeasts.length > 0) {
-            updatedBeasts.forEach(updatedBeast => {
-              onFighterUpdate(updatedBeast, true); // Skip rating update
-            });
-          }
-        }
-
-        // Note: Beast creation is handled during equipment purchase, not during moves from stash
-        // Existing beasts are just made visible/hidden based on equipment location
       }
 
-      // Apply all fighter updates at once
-      if (updatedFighter) {
-        setFighters(prev => 
-          prev.map(f => f.id === targetId ? updatedFighter! : f)
-        );
-
-        // Call the parent update function if provided
+      // Handle beast updates from batch result
+      if (result.updated_fighters && result.updated_fighters.length > 0) {
         if (onFighterUpdate) {
-          onFighterUpdate(updatedFighter, true); // Skip rating update since server provided correct rating
+          result.updated_fighters.forEach((completeFighter: any) => {
+            onFighterUpdate(completeFighter, true);
+          });
+        }
+      } else if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
+        const updatedBeasts: FighterProps[] = [];
+        setFighters(prev => prev.map(f => {
+          if (result.affected_beast_ids!.includes(f.id) && f.fighter_class === 'exotic beast') {
+            const updatedBeast = { ...f, beast_equipment_stashed: false };
+            updatedBeasts.push(updatedBeast);
+            return updatedBeast;
+          }
+          return f;
+        }));
+        if (onFighterUpdate && updatedBeasts.length > 0) {
+          updatedBeasts.forEach(updatedBeast => onFighterUpdate(updatedBeast, true));
         }
       }
 
-      // Apply vehicle updates if any
-      if (onVehicleUpdate && updatedVehicles !== vehicles) {
-        onVehicleUpdate(updatedVehicles);
+      if (result.updated_gang_rating !== undefined) onGangRatingUpdate?.(result.updated_gang_rating);
+      if (result.updated_gang_wealth !== undefined) onGangWealthUpdate?.(result.updated_gang_wealth);
+
+      if (successConfigs.length > 0 && failedConfigs.length === 0) {
+        toast.success("Success", { description: `${successConfigs.length} item${successConfigs.length > 1 ? 's' : ''} moved to ${isVehicleTarget ? 'vehicle' : 'fighter'}` });
+      } else if (successConfigs.length > 0 && failedConfigs.length > 0) {
+        toast.error("Partial Success", { description: `${successConfigs.length} item${successConfigs.length > 1 ? 's' : ''} moved, ${failedConfigs.length} failed` });
+      } else if (failedConfigs.length > 0) {
+        toast.error("Error", { description: `Failed to move ${failedConfigs.length} item${failedConfigs.length > 1 ? 's' : ''}` });
       }
-
-      // Update local stash state by removing only successfully moved items
-      const newStash = stash.filter((_, index) => !successfullyMovedIndices.includes(index));
-      setStash(newStash);
-
-      // Reset selection states - clear only successfully moved items from selection
-      setSelectedItems(prev => prev.filter(index => !successfullyMovedIndices.includes(index)));
-
-      // Only clear fighter selection if all items were processed (moved or cancelled)
-      if (errorCount === 0 && cancelledCount === 0) {
-        setSelectedFighter('');
-      }
-
-      // Update parent component state
-      if (onStashUpdate) {
-        onStashUpdate(newStash);
-      }
-
-      // Show appropriate toast message (only for successes and actual errors, not cancellations)
-      if (successCount > 0 && errorCount === 0) {
-        toast.success("Success", { description: `${successCount} item${successCount > 1 ? 's' : ''} moved to ${isVehicleTarget ? 'vehicle' : 'fighter'}` });
-      } else if (successCount > 0 && errorCount > 0) {
-        toast.error("Partial Success", { description: `${successCount} item${successCount > 1 ? 's' : ''} moved, ${errorCount} failed` });
-      } else if (errorCount > 0) {
-        // Only show error if there were actual errors (not just cancellations)
-        toast.error("Error", { description: `Failed to move ${errorCount} item${errorCount > 1 ? 's' : ''}` });
-      }
-      // Note: No toast shown if user only cancelled (successCount === 0 && errorCount === 0)
-
-      // Beast visibility is now handled entirely through the affected_beast_ids mechanism above
-      // No need to create or manage beast fighters locally - the cache invalidation will
-      // trigger a refresh of the gang data with complete beast information
     } catch (error) {
       console.error('Error moving items from stash:', error);
+      if (rollbackStash) {
+        setStash(rollbackStash);
+        onStashUpdate?.(rollbackStash);
+      }
+      if (rollbackFighters) {
+        setFighters(rollbackFighters);
+        if (rollbackTargetId) {
+          const rolledBackFighter = rollbackFighters.find(f => f.id === rollbackTargetId);
+          if (rolledBackFighter) onFighterUpdate?.(rolledBackFighter, true);
+        }
+      }
       toast.error("Error", { description: error instanceof Error ? error.message : "Failed to move items from stash" });
     } finally {
       setIsLoading(false);
@@ -929,16 +975,23 @@ export default function GangInventory({
           ? fighters.find(f => f.id === selectedFighter)
           : null;
         
-        const fighterWeapons = selectedFighterObj?.weapons?.map(weapon => ({
+        const existingWeapons = selectedFighterObj?.weapons?.map(weapon => ({
           id: weapon.fighter_weapon_id,
           name: weapon.weapon_name,
           equipment_category: weapon.equipment_category,
           effect_names: weapon.effect_names
         })) || [];
+        const batchWeapons = pendingBatchWeaponsRef.current;
+        const existingIds = new Set(existingWeapons.map(w => w.id));
+        const fighterWeapons = [
+          ...existingWeapons,
+          ...batchWeapons.filter(w => !existingIds.has(w.id))
+        ];
 
         return (
           <Modal
             title="Select Weapon"
+            hideCancel
             content={
               <FighterEffectSelection
                 equipmentId=""
