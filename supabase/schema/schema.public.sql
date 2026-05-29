@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict iStUUrGkvX7wX6EyeQ6BmBjpQ7bK4RNsMebUMIJTltmsePZMmigcDwOtOXOrHM1
+\restrict VOyIYABiazwuxwSUzzqEI05TNRGuBEagjqntvG24F7sDRrpGMN5tPk0dquanj0o
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -4179,7 +4179,8 @@ CREATE TABLE public.campaigns (
     trading_posts jsonb,
     discord_channel_id text,
     discord_guild_id text,
-    discord_channel_type integer DEFAULT 0 NOT NULL
+    discord_channel_type integer DEFAULT 0 NOT NULL,
+    created_by uuid DEFAULT auth.uid()
 );
 
 
@@ -6837,6 +6838,13 @@ CREATE INDEX notifications_receiver_id_idx ON public.notifications USING btree (
 
 
 --
+-- Name: notifications_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_type_idx ON public.notifications USING btree (type);
+
+
+--
 -- Name: scenarios_scenario_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7166,6 +7174,14 @@ ALTER TABLE ONLY public.campaign_type_allegiances
 
 ALTER TABLE ONLY public.campaign_type_resources
     ADD CONSTRAINT campaign_type_resources_campaign_type_id_fkey FOREIGN KEY (campaign_type_id) REFERENCES public.campaign_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaigns campaigns_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaigns
+    ADD CONSTRAINT campaigns_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
 
 
 --
@@ -8564,6 +8580,13 @@ CREATE POLICY "Allow authenticated users to view gangs" ON public.gangs FOR SELE
 
 
 --
+-- Name: fighter_loadout_equipment Allow authenticated users to view loadout equipment; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view loadout equipment" ON public.fighter_loadout_equipment FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: scenarios Allow authenticated users to view scenarios; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8677,13 +8700,6 @@ CREATE POLICY "Anyone can view campaign type resources" ON public.campaign_type_
 --
 
 CREATE POLICY "Authenticated users can create battle sessions" ON public.battle_sessions FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR private.is_arb(campaign_id) OR (created_by = auth.uid())));
-
-
---
--- Name: fighter_loadout_equipment Authenticated users can manage loadout equipment; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Authenticated users can manage loadout equipment" ON public.fighter_loadout_equipment TO authenticated USING (true) WITH CHECK (true);
 
 
 --
@@ -9390,13 +9406,6 @@ CREATE POLICY "Only admins or campaign arbs can update campaign maps" ON public.
 
 
 --
--- Name: campaigns Only authenticated users can create campaigns; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only authenticated users can create campaigns" ON public.campaigns FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
 -- Name: campaigns Only campaign ADMIN/OWNER or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9775,6 +9784,19 @@ CREATE POLICY "Users can create friendship requests" ON public.friends FOR INSER
 
 
 --
+-- Name: fighter_loadout_equipment Users can create loadout equipment for their fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create loadout equipment for their fighters" ON public.fighter_loadout_equipment FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+   FROM public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
+   FROM ((public.fighter_loadouts fl
+     JOIN public.fighters f ON ((f.id = fl.fighter_id)))
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+
+
+--
 -- Name: fighter_loadouts Users can create loadouts for their gang fighters; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9788,7 +9810,7 @@ CREATE POLICY "Users can create loadouts for their gang fighters" ON public.figh
 -- Name: notifications Users can create notifications; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK ((sender_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -9823,6 +9845,19 @@ CREATE POLICY "Users can delete equipment from their gang" ON public.fighter_equ
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+
+
+--
+-- Name: fighter_loadout_equipment Users can delete loadout equipment for their fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.fighter_loadout_equipment FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+   FROM public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
+   FROM ((public.fighter_loadouts fl
+     JOIN public.fighters f ON ((f.id = fl.fighter_id)))
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
   WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
 
@@ -9888,6 +9923,13 @@ CREATE POLICY "Users can only create stash items for gangs they own" ON public.g
 
 
 --
+-- Name: campaigns Users can only create their own campaigns; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can only create their own campaigns" ON public.campaigns FOR INSERT TO authenticated WITH CHECK ((created_by = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: fighter_effects Users can only create their own fighter effects; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9934,6 +9976,25 @@ CREATE POLICY "Users can update equipment in their gang" ON public.fighter_equip
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
+
+
+--
+-- Name: fighter_loadout_equipment Users can update loadout equipment for their fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update loadout equipment for their fighters" ON public.fighter_loadout_equipment FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+   FROM public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
+   FROM ((public.fighter_loadouts fl
+     JOIN public.fighters f ON ((f.id = fl.fighter_id)))
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+   FROM public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
+   FROM ((public.fighter_loadouts fl
+     JOIN public.fighters f ON ((f.id = fl.fighter_id)))
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
   WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
 
@@ -10988,5 +11049,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict iStUUrGkvX7wX6EyeQ6BmBjpQ7bK4RNsMebUMIJTltmsePZMmigcDwOtOXOrHM1
+\unrestrict VOyIYABiazwuxwSUzzqEI05TNRGuBEagjqntvG24F7sDRrpGMN5tPk0dquanj0o
 
