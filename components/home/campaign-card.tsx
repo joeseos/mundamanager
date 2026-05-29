@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -81,9 +82,9 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
           {innerContent}
         </div>
       ) : (
-        <a href={`/campaigns/${campaign.id}`} className="flex items-center grow min-w-0">
+        <Link href={`/campaigns/${campaign.id}`} prefetch={false} className="flex items-center grow min-w-0">
           {innerContent}
-        </a>
+        </Link>
       )}
       <button
         type="button"

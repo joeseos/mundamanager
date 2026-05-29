@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -93,9 +94,9 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
           {innerContent}
         </div>
       ) : (
-        <a href={`/gang/${gang.id}`} className="flex items-center grow min-w-0">
+        <Link href={`/gang/${gang.id}`} prefetch={false} className="flex items-center grow min-w-0">
           {innerContent}
-        </a>
+        </Link>
       )}
       <button
         type="button"
