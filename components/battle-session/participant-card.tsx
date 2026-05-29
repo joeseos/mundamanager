@@ -673,17 +673,18 @@ function FighterRow({
               </div>
             )}
           </div>
-          {!canInteract && !battleActive}
         </div>
       </td>
       {canInteract ? (
         <td className="p-1 md:p-2 align-top">
           <div className="grid grid-cols-2 gap-2.5 items-start justify-items-center w-fit ml-auto md:flex md:items-start md:justify-end md:w-auto">
-            <FaRegAddressCard
-              className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
-              title="View fighter card"
-              onClick={() => setShowInfoModal(true)}
-            />
+            {gangFighter && (
+              <FaRegAddressCard
+                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
+                title="View fighter card"
+                onClick={() => setShowInfoModal(true)}
+              />
+            )}
             <LuClipboard
               className={`size-6 transition-colors duration-200 cursor-pointer hover:text-muted-foreground ${note ? 'text-amber-500' : 'text-muted-foreground/30'}`}
               title={note || 'Add note'}
@@ -715,6 +716,13 @@ function FighterRow({
       ) : battleActive ? (
         <td className="p-1 md:p-2 text-right align-top max-md:whitespace-normal md:whitespace-nowrap">
           <div className="grid grid-cols-2 gap-2 items-start justify-items-center w-fit ml-auto md:flex md:items-start md:justify-end md:gap-4 md:w-auto">
+            {gangFighter && (
+              <FaRegAddressCard
+                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
+                title="View fighter card"
+                onClick={() => setShowInfoModal(true)}
+              />
+            )}
             {note && (
               <LuClipboard
                 className="size-6 text-amber-500 cursor-pointer hover:text-amber-400 transition-colors duration-200"
