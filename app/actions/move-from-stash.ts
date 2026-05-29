@@ -590,36 +590,47 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       });
     }
 
-    // Log each item individually for audit trail
-    for (const item of params.items) {
-      const result = itemResults.find(r => r.stash_id === item.stash_id);
-      if (!result?.success) continue;
-
-      const stashData = stashDataMap.get(item.stash_id)!;
+    // Log batch move as a single entry
+    const successItems = params.items.filter(i => itemResults.find(r => r.stash_id === i.stash_id)?.success);
+    if (successItems.length > 0) {
       try {
-        let equipmentName = 'Unknown Equipment';
-        if (stashData.equipment_id) {
+        const equipmentNames: string[] = [];
+        let totalPurchaseCost = 0;
+
+        const standardIds = successItems.map(i => stashDataMap.get(i.stash_id)!).filter(s => s.equipment_id).map(s => s.equipment_id);
+        const customIds = successItems.map(i => stashDataMap.get(i.stash_id)!).filter(s => !s.equipment_id && s.custom_equipment_id).map(s => s.custom_equipment_id);
+
+        const nameMap = new Map<string, string>();
+
+        if (standardIds.length > 0) {
           const { data: equipment } = await supabase
             .from('equipment')
-            .select('equipment_name')
-            .eq('id', stashData.equipment_id)
-            .single();
-          if (equipment) equipmentName = equipment.equipment_name;
-        } else if (stashData.custom_equipment_id) {
+            .select('id, equipment_name')
+            .in('id', standardIds);
+          equipment?.forEach(e => nameMap.set(e.id, e.equipment_name));
+        }
+
+        if (customIds.length > 0) {
           const { data: customEquipment } = await supabase
             .from('custom_equipment')
-            .select('equipment_name')
-            .eq('id', stashData.custom_equipment_id)
-            .single();
-          if (customEquipment) equipmentName = customEquipment.equipment_name;
+            .select('id, equipment_name')
+            .in('id', customIds);
+          customEquipment?.forEach(e => nameMap.set(e.id, e.equipment_name));
+        }
+
+        for (const item of successItems) {
+          const stashData = stashDataMap.get(item.stash_id)!;
+          const lookupId = stashData.equipment_id || stashData.custom_equipment_id;
+          equipmentNames.push(nameMap.get(lookupId) || 'Unknown Equipment');
+          totalPurchaseCost += stashData.purchase_cost || 0;
         }
 
         await logEquipmentAction({
           gang_id: gangId,
           fighter_id: params.fighter_id,
           vehicle_id: params.vehicle_id,
-          equipment_name: equipmentName,
-          purchase_cost: stashData.purchase_cost || 0,
+          equipment_name: equipmentNames.join(', '),
+          purchase_cost: totalPurchaseCost,
           action_type: 'moved_from_stash',
           user_id: user.id,
           oldCredits: financialResult.oldValues?.credits,
