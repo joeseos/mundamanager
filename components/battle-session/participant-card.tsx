@@ -21,11 +21,11 @@ import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
 import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill } from 'react-icons/gi';
-import { IoFlashOutline, IoInformationCircleOutline } from 'react-icons/io5';
+import { IoFlashOutline } from 'react-icons/io5';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
 import { PiBeerBottleFill } from 'react-icons/pi';
 import { WiStars } from 'react-icons/wi';
-import { FaUserCheck } from 'react-icons/fa';
+import { FaRegAddressCard, FaUserCheck } from 'react-icons/fa';
 import {
   removeParticipant,
   updateParticipantRole,
@@ -626,14 +626,9 @@ function FighterRow({
 
   return (
     <tr className={`border-b last:border-b-0 ${!isReady ? 'opacity-40' : ''}`}>
-      <td className="p-1 md:p-2 w-full">
-        <div className="flex items-center gap-2">
-          <IoInformationCircleOutline
-            className="text-2xl size-7 shrink-0 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200 self-center"
-            title="View fighter card"
-            onClick={() => setShowInfoModal(true)}
-          />
-          <div>
+      <td className="p-1 md:p-2 w-full align-top">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
             {/* First row format: fighter name - cost */}
             <div>
               {name}
@@ -645,7 +640,7 @@ function FighterRow({
             {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
               <div className="flex flex-wrap gap-1 mt-0.5">
                 {xp > 0 && (
-                  <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     +{xp} XP
                   </span>
                 )}
@@ -681,20 +676,27 @@ function FighterRow({
         </div>
       </td>
       {canInteract ? (
-        <td className="p-1 md:p-2 text-right whitespace-nowrap">
-          <div className="flex items-center justify-end gap-4">
+        <td className="p-1 md:p-2 align-top">
+          <div className="grid grid-cols-2 gap-2.5 items-start justify-items-center w-fit ml-auto md:flex md:items-start md:justify-end md:w-auto">
+            {gangFighter && (
+              <FaRegAddressCard
+                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
+                title="View fighter card"
+                onClick={() => setShowInfoModal(true)}
+              />
+            )}
             <LuClipboard
-              className={`size-5 transition-colors duration-200 cursor-pointer hover:text-muted-foreground ${note ? 'text-amber-500' : 'text-muted-foreground/30'}`}
+              className={`size-6 transition-colors duration-200 cursor-pointer hover:text-muted-foreground ${note ? 'text-amber-500' : 'text-muted-foreground/30'}`}
               title={note || 'Add note'}
               onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
             />
             <FaUserCheck
-              className={`size-5 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
+              className={`size-6 transition-colors duration-200 ${iconColor} cursor-pointer hover:text-muted-foreground`}
               title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
               onClick={toggleReady}
             />
             <CgMoreVerticalO
-              className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
+              className="size-6 text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 cursor-pointer"
               title="Click to open action menu"
               onClick={() => setShowActionModal(true)}
             />
@@ -712,18 +714,25 @@ function FighterRow({
           )}
         </td>
       ) : battleActive ? (
-        <td className="p-1 md:p-2 text-right whitespace-nowrap">
-          <div className="flex items-center justify-end gap-4">
+        <td className="p-1 md:p-2 text-right align-top max-md:whitespace-normal md:whitespace-nowrap">
+          <div className="grid grid-cols-2 gap-2 items-start justify-items-center w-fit ml-auto md:flex md:items-start md:justify-end md:gap-4 md:w-auto">
+            {gangFighter && (
+              <FaRegAddressCard
+                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
+                title="View fighter card"
+                onClick={() => setShowInfoModal(true)}
+              />
+            )}
             {note && (
               <LuClipboard
-                className="size-5 text-amber-500 cursor-pointer hover:text-amber-400 transition-colors duration-200"
+                className="size-6 text-amber-500 cursor-pointer hover:text-amber-400 transition-colors duration-200"
                 title={note}
                 onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
               />
             )}
             {battleActive && (
               <FaUserCheck
-                className={`size-5 ${iconColor}`}
+                className={`size-6 ${iconColor}`}
                 title={activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated'}
               />
             )}
@@ -1420,7 +1429,7 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
-                  {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">{canInteract ? 'Action' : 'Status'}</th>}
+                  {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
                 </tr>
               </thead>
               <tbody>
