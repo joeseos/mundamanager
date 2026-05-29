@@ -246,6 +246,7 @@ export default function GangInventory({
     setIsLoading(true);
     let rollbackStash: StashItem[] | null = null;
     let rollbackFighters: FighterProps[] | null = null;
+    let rollbackVehicles: VehicleProps[] | null = null;
     let rollbackTargetId: string | null = null;
     try {
       const isVehicleTarget = selectedFighter.startsWith('vehicle-');
@@ -346,6 +347,7 @@ export default function GangInventory({
       // Phase 3: Apply optimistic UI immediately, then fire server call
       rollbackStash = [...stash];
       rollbackFighters = [...fighters];
+      rollbackVehicles = vehicles ? [...vehicles] : null;
       rollbackTargetId = targetId;
 
       // Optimistically remove items from stash and add to fighter/vehicle
@@ -396,6 +398,45 @@ export default function GangInventory({
           setFighters(prev => prev.map(f => f.id === targetId ? optimisticFighter : f));
           onFighterUpdate?.(optimisticFighter, true);
         }
+      } else {
+        const targetVehicle = getAllVehicles().find(v => v.id === targetId);
+        if (targetVehicle) {
+          let optimisticEquipment = [...(targetVehicle.equipment || [])];
+          for (const config of configurations) {
+            const item = config.stashItem;
+            optimisticEquipment.push({
+              fighter_equipment_id: item.id,
+              equipment_id: item.equipment_id || '',
+              equipment_name: item.equipment_name || '',
+              equipment_type: (item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade') || 'vehicle_upgrade',
+              cost: item.cost || 0,
+              core_equipment: false,
+              is_master_crafted: false,
+              master_crafted: false,
+              vehicle_id: targetId,
+              vehicle_equipment_id: item.id,
+              vehicle_weapon_id: item.equipment_type === 'weapon' ? item.id : undefined,
+            } as Equipment & Partial<VehicleEquipment>);
+          }
+
+          const optimisticVehicle: VehicleProps = { ...targetVehicle, equipment: optimisticEquipment };
+
+          const crewFighter = fighters.find(f => f.vehicles?.some(v => v.id === targetId));
+          if (crewFighter) {
+            const optimisticCrewFighter: FighterProps = {
+              ...crewFighter,
+              vehicles: crewFighter.vehicles?.map(v =>
+                v.id === targetId ? { ...v, equipment: optimisticEquipment } as Vehicle : v
+              )
+            };
+            setFighters(prev => prev.map(f => f.id === crewFighter.id ? optimisticCrewFighter : f));
+            onFighterUpdate?.(optimisticCrewFighter, true);
+          }
+
+          if (onVehicleUpdate) {
+            onVehicleUpdate(vehicles.map(v => v.id === targetId ? optimisticVehicle : v));
+          }
+        }
       }
 
       // Fire server call
@@ -415,6 +456,7 @@ export default function GangInventory({
         setFighters(rollbackFighters!);
         const rolledBackFighter = rollbackFighters!.find(f => f.id === targetId);
         if (rolledBackFighter) onFighterUpdate?.(rolledBackFighter, true);
+        if (rollbackVehicles && onVehicleUpdate) onVehicleUpdate(rollbackVehicles);
         toast.error("Error", { description: result.error || "Failed to move items from stash" });
         return;
       }
@@ -589,14 +631,8 @@ export default function GangInventory({
         }
       }
 
-      // Handle beast updates from batch result
-      if (result.updated_fighters && result.updated_fighters.length > 0) {
-        if (onFighterUpdate) {
-          result.updated_fighters.forEach((completeFighter: any) => {
-            onFighterUpdate(completeFighter, true);
-          });
-        }
-      } else if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
+      // Handle beast visibility updates
+      if (result.affected_beast_ids && result.affected_beast_ids.length > 0) {
         const updatedBeasts: FighterProps[] = [];
         setFighters(prev => prev.map(f => {
           if (result.affected_beast_ids!.includes(f.id) && f.fighter_class === 'exotic beast') {
@@ -633,6 +669,9 @@ export default function GangInventory({
           const rolledBackFighter = rollbackFighters.find(f => f.id === rollbackTargetId);
           if (rolledBackFighter) onFighterUpdate?.(rolledBackFighter, true);
         }
+      }
+      if (rollbackVehicles && onVehicleUpdate) {
+        onVehicleUpdate(rollbackVehicles);
       }
       toast.error("Error", { description: error instanceof Error ? error.message : "Failed to move items from stash" });
     } finally {

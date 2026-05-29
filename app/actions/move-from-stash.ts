@@ -59,7 +59,6 @@ export interface MoveFromStashResult {
   updated_gang_rating?: number;
   updated_gang_wealth?: number;
   affected_beast_ids?: string[];
-  updated_fighters?: any[];
   error?: string;
 }
 
