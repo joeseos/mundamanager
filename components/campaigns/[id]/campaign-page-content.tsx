@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
-import html2canvas from 'html2canvas';
+import { toJpeg } from 'html-to-image';
 import Image from 'next/image';
 import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
@@ -388,17 +388,16 @@ export default function CampaignPageContent({
     setShowExportModal(false);
   };
 
-  // Screenshot with html2canvas
+  // Screenshot with html-to-image
   const handleScreenshot = async () => {
     if (!campaignContentRef.current) return;
 
     await document.fonts.ready;
 
-    const canvas = await html2canvas(campaignContentRef.current, {
-      scale: 1.3,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#000000', // for JPEG
+    const dataUrl = await toJpeg(campaignContentRef.current, {
+      quality: 0.85,
+      pixelRatio: 1.3,
+      backgroundColor: '#000000',
     });
 
     const now = new Date();
@@ -408,7 +407,7 @@ export default function CampaignPageContent({
 
     const link = document.createElement('a');
     link.download = filename;
-    link.href = canvas.toDataURL('image/jpeg', 0.85); // quality (0–1)
+    link.href = dataUrl;
     link.click();
   };
 
