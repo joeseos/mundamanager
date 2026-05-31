@@ -22,7 +22,6 @@ RETURNS TABLE (
     equipment_name text,
     availability text,
     base_cost numeric,
-    discounted_cost numeric,
     adjusted_cost numeric,
     equipment_category text,
     equipment_type text,
@@ -163,14 +162,12 @@ AS $$
     ),
 
     -- =======================================================================
-    -- 6. BEST DISCOUNT — computed once per equipment_id
-    --    Replaces 4 correlated subqueries (2× discounted_cost, 2× adjusted_cost).
+    -- 6. BEST ADJUSTED COST — computed once per equipment_id
+    --    Replaces 2 correlated subqueries for adjusted_cost.
     -- =======================================================================
-    best_discount AS (
+    best_adjusted_cost AS (
         SELECT
             ed.equipment_id,
-            MAX(GREATEST(0, ed.discount::numeric))
-                FILTER (WHERE ed.discount IS NOT NULL) AS best_discount,
             MIN(ed.adjusted_cost::numeric)
                 FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
         FROM equipment_discounts ed
@@ -220,20 +217,10 @@ AS $$
 
         e.cost::numeric AS base_cost,
 
-        -- Discount (0 in trading post mode)
-        CASE
-            WHEN $5 = true THEN 0::numeric
-            ELSE COALESCE(bd.best_discount, 0)
-        END AS discounted_cost,
-
         -- Adjusted cost (base cost in trading post mode)
         CASE
             WHEN $5 = true THEN e.cost::numeric
-            ELSE COALESCE(
-                bd.best_adjusted_cost,
-                e.cost::numeric - COALESCE(bd.best_discount, 0),
-                e.cost::numeric
-            )
+            ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
         e.equipment_category,
@@ -355,7 +342,7 @@ AS $$
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
 
     -- Pre-computed CTEs via simple LEFT JOINs
-    LEFT JOIN best_discount bd ON bd.equipment_id = e.id
+    LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
 
     WHERE
@@ -416,7 +403,6 @@ AS $$
         ce.equipment_name,
         ce.availability,
         ce.cost::numeric AS base_cost,
-        ce.cost::numeric AS discounted_cost,
         ce.cost::numeric AS adjusted_cost,
         ce.equipment_category,
         ce.equipment_type,
