@@ -58,7 +58,12 @@ AS $$
             ga.fighter_type_id  AS affiliation_ft_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
-        LEFT JOIN campaign_gangs cg ON cg.gang_id = $8
+        LEFT JOIN LATERAL (
+            SELECT cg2.campaign_type_allegiance_id
+            FROM campaign_gangs cg2
+            WHERE cg2.gang_id = $8
+            LIMIT 1
+        ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
         LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
