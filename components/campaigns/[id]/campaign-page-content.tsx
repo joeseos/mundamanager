@@ -392,23 +392,29 @@ export default function CampaignPageContent({
   const handleScreenshot = async () => {
     if (!campaignContentRef.current) return;
 
-    await document.fonts.ready;
+    try {
+      await document.fonts.ready;
 
-    const dataUrl = await toJpeg(campaignContentRef.current, {
-      quality: 0.85,
-      pixelRatio: 1.3,
-      backgroundColor: '#000000',
-    });
+      const dataUrl = await toJpeg(campaignContentRef.current, {
+        quality: 0.85,
+        pixelRatio: 1.3,
+        backgroundColor: '#000000',
+      });
 
-    const now = new Date();
-    const datePart = formatDate(now.toISOString());
-    const timePart = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-    const filename = `${datePart}_${timePart}_${campaignData.campaign_name.replace(/\s+/g, '_')}-MundaManager.jpg`;
+      const now = new Date();
+      const datePart = formatDate(now.toISOString());
+      const timePart = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+      const filename = `${datePart}_${timePart}_${campaignData.campaign_name.replace(/\s+/g, '_')}-MundaManager.jpg`;
 
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = dataUrl;
-    link.click();
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+      toast.success('Screenshot saved', { description: 'Check your Downloads folder.' });
+    } catch (error) {
+      console.error('Screenshot failed:', error);
+      toast.error('Screenshot failed', { description: error instanceof Error ? error.message : 'An unexpected error occurred' });
+    }
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
