@@ -19,7 +19,7 @@ import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
-import html2canvas from 'html2canvas';
+import { toJpeg } from 'html-to-image';
 import GangLogs from './gang-logs';
 import { ViewModeDropdown } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
@@ -462,28 +462,33 @@ export default function Gang({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
 
-  // Screenshot with html2canvas
+  // Screenshot with html-to-image
   const handleScreenshot = async () => {
     if (!gangContentRef.current) return;
 
-    await document.fonts.ready;
+    try {
+      await document.fonts.ready;
 
-    const canvas = await html2canvas(gangContentRef.current, {
-      scale: 1.3,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#000000', // for JPEG
-    });
+      const dataUrl = await toJpeg(gangContentRef.current, {
+        quality: 0.85,
+        pixelRatio: 1.3,
+        backgroundColor: '#000000',
+      });
 
-    const now = new Date();
-    const datePart = formatDate(now);
-    const timePart = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-    const filename = `${datePart}_${timePart}_${name.replace(/\s+/g, '_')}-MundaManager.jpg`;
+      const now = new Date();
+      const datePart = formatDate(now);
+      const timePart = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+      const filename = `${datePart}_${timePart}_${name.replace(/\s+/g, '_')}-MundaManager.jpg`;
 
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/jpeg', 0.85); // quality (0–1)
-    link.click();
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+      toast.success('Screenshot saved', { description: 'Check your Downloads folder.' });
+    } catch (error) {
+      console.error('Screenshot failed:', error);
+      toast.error('Screenshot failed', { description: error instanceof Error ? error.message : 'An unexpected error occurred' });
+    }
   };
 
 
