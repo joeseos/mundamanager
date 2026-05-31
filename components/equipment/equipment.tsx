@@ -49,7 +49,6 @@ interface RawEquipmentData {
   equipment_name: string;
   availability: string | null;
   base_cost: number;
-  discounted_cost: number;
   adjusted_cost: number;
   equipment_category: string;
   equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';

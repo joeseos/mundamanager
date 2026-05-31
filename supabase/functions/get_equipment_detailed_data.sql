@@ -22,7 +22,6 @@ RETURNS TABLE (
     equipment_name text,
     availability text,
     base_cost numeric,
-    discounted_cost numeric,
     adjusted_cost numeric,
     equipment_category text,
     equipment_type text,
@@ -218,10 +217,6 @@ AS $$
 
         e.cost::numeric AS base_cost,
 
-        -- Discount column removed (legacy, always 0); kept in the result for
-        -- backwards compatibility with callers that still select it.
-        0::numeric AS discounted_cost,
-
         -- Adjusted cost (base cost in trading post mode)
         CASE
             WHEN $5 = true THEN e.cost::numeric
@@ -408,7 +403,6 @@ AS $$
         ce.equipment_name,
         ce.availability,
         ce.cost::numeric AS base_cost,
-        ce.cost::numeric AS discounted_cost,
         ce.cost::numeric AS adjusted_cost,
         ce.equipment_category,
         ce.equipment_type,
