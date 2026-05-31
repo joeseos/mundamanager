@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict RYbFG6gKv3RLpnwWmo3sfueiygkoP81amUyvpQgZDFSBfmgR5GKTs3TbEgGriJC
+\restrict xpbvbM4iArzfibZDzTxAn9uKIaURuJbWOcdhWbaqWKXckTSyCh6LNVyoXdSSUYe
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -1340,26 +1340,34 @@ $$;
 
 
 --
--- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, boolean, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, boolean, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, fighters_tradingpost_only boolean DEFAULT NULL::boolean, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, discounted_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[])
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, fighters_tradingpost_only boolean DEFAULT NULL::boolean, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
 
     -- =======================================================================
     -- 1. GANG CONTEXT (always exactly 1 row)
-    --    Moved from LATERAL join to CTE so downstream CTEs can reference it.
     -- =======================================================================
     WITH gang_data AS (
         SELECT
             g.gang_origin_id,
             g.gang_variants,
+            g.alignment,
+            g.custom_gang_type_id,
+            cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN LATERAL (
+            SELECT cg2.campaign_type_allegiance_id
+            FROM campaign_gangs cg2
+            WHERE cg2.gang_id = $8
+            LIMIT 1
+        ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
         LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
@@ -1433,6 +1441,29 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         CROSS JOIN gang_data gd
         WHERE ff.fighter_type_id = $3
            OR (gd.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gd.affiliation_ft_id)
+
+        UNION
+
+        -- Custom trading post equipment (official equipment only)
+        SELECT ctpe.equipment_id, ctp.custom_trading_post_name
+        FROM custom_trading_post_equipment ctpe
+        JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
+        CROSS JOIN gang_data gd
+        WHERE ctpe.equipment_id IS NOT NULL
+          AND $11 IS NOT NULL AND array_length($11, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($11)
+          AND (
+            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
+            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                       WHERE a.custom_trading_post_equipment_id = ctpe.id
+                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
+          )
     ),
 
     tp_summary AS (
@@ -1469,14 +1500,12 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     ),
 
     -- =======================================================================
-    -- 6. BEST DISCOUNT — computed once per equipment_id
-    --    Replaces 4 correlated subqueries (2× discounted_cost, 2× adjusted_cost).
+    -- 6. BEST ADJUSTED COST — computed once per equipment_id
+    --    Replaces 2 correlated subqueries for adjusted_cost.
     -- =======================================================================
-    best_discount AS (
+    best_adjusted_cost AS (
         SELECT
             ed.equipment_id,
-            MAX(GREATEST(0, ed.discount::numeric))
-                FILTER (WHERE ed.discount IS NOT NULL) AS best_discount,
             MIN(ed.adjusted_cost::numeric)
                 FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost
         FROM equipment_discounts ed
@@ -1504,6 +1533,45 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                 )
             )
         GROUP BY ed.equipment_id
+    ),
+
+    -- =======================================================================
+    -- 7. CUSTOM TP OVERRIDES — per official equipment_id
+    --    Resolves cost/availability overrides and adjusted cost from active
+    --    custom TPs. Custom TP values take precedence over official values.
+    --    Tiebreak: lowest sort_order, then earliest created_at.
+    -- =======================================================================
+    custom_tp_override AS (
+        SELECT
+            ctpe.equipment_id,
+            MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
+            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.availability_override ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.availability_override IS NOT NULL))[1] AS availability_override,
+            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
+        FROM custom_trading_post_equipment ctpe
+        CROSS JOIN gang_data gd
+        LEFT JOIN custom_trading_post_pricing p
+            ON p.custom_trading_post_equipment_id = ctpe.id
+            AND (p.gang_type_id IS NULL OR p.gang_type_id = $1)
+            AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
+            AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
+            AND (p.fighter_type_id IS NULL)
+        WHERE ctpe.equipment_id IS NOT NULL
+          AND $11 IS NOT NULL AND array_length($11, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($11)
+          AND (
+            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
+            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                       WHERE a.custom_trading_post_equipment_id = ctpe.id
+                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
+          )
+        GROUP BY ctpe.equipment_id
     )
 
     -- =======================================================================
@@ -1514,8 +1582,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         e.equipment_name,
         -- Availability: trading post mode uses base, fighter list uses overrides
         CASE
-            WHEN $5 = true THEN e.availability
+            WHEN $5 = true THEN COALESCE(cto.availability_override, e.availability)
             ELSE COALESCE(
+                cto.availability_override,
                 (SELECT availability FROM equipment_availability
                  WHERE gang_origin_id = gd.gang_origin_id AND equipment_id = e.id LIMIT 1),
                 ea_var.availability,
@@ -1524,22 +1593,14 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             )
         END AS availability,
 
-        e.cost::numeric AS base_cost,
+        COALESCE(cto.cost_override, e.cost::numeric) AS base_cost,
 
-        -- Discount (0 in trading post mode)
+        -- Adjusted cost: custom TP override wins, then official discounts, then base
         CASE
-            WHEN $5 = true THEN 0::numeric
-            ELSE COALESCE(bd.best_discount, 0)
-        END AS discounted_cost,
-
-        -- Adjusted cost (base cost in trading post mode)
-        CASE
+            WHEN cto.adjusted_cost IS NOT NULL THEN cto.adjusted_cost
+            WHEN cto.cost_override IS NOT NULL THEN cto.cost_override
             WHEN $5 = true THEN e.cost::numeric
-            ELSE COALESCE(
-                bd.best_adjusted_cost,
-                e.cost::numeric - COALESCE(bd.best_discount, 0),
-                e.cost::numeric
-            )
+            ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
 
         e.equipment_category,
@@ -1630,7 +1691,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         COALESCE(e.is_editable, false) AS is_editable,
 
         -- Trading post names (already aggregated in tp_summary)
-        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names
+        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
+
+        cto.cost_resource_name
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -1661,8 +1724,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
 
     -- Pre-computed CTEs via simple LEFT JOINs
-    LEFT JOIN best_discount bd ON bd.equipment_id = e.id
+    LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
+    LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -1715,15 +1779,14 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     UNION ALL
 
     -- =======================================================================
-    -- CUSTOM EQUIPMENT (unchanged logic)
+    -- CUSTOM EQUIPMENT
     -- =======================================================================
     SELECT
         ce.id,
         ce.equipment_name,
-        ce.availability,
-        ce.cost::numeric AS base_cost,
-        ce.cost::numeric AS discounted_cost,
-        ce.cost::numeric AS adjusted_cost,
+        COALESCE(custom_tp.availability_override, ce.availability) AS availability,
+        COALESCE(custom_tp.cost_override, ce.cost::numeric) AS base_cost,
+        COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric) AS adjusted_cost,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -1752,7 +1815,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         NULL AS vehicle_upgrade_slot,
         NULL::jsonb AS grants_equipment,
         COALESCE(ce.is_editable, false) AS is_editable,
-        '{}'::text[] AS trading_post_names
+        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
+        custom_tp.cost_resource_name
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -1760,8 +1824,45 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
         WHERE cg.gang_id = $8
     ) shared ON shared.custom_equipment_id = ce.id
+    LEFT JOIN (
+        SELECT
+            ctpe.custom_equipment_id,
+            MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
+            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.availability_override ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.availability_override IS NOT NULL))[1] AS availability_override,
+            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
+            COALESCE(
+                array_agg(DISTINCT ctp.custom_trading_post_name) FILTER (WHERE ctp.custom_trading_post_name IS NOT NULL),
+                '{}'::text[]
+            ) AS tp_names
+        FROM custom_trading_post_equipment ctpe
+        JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
+        CROSS JOIN gang_data gd
+        LEFT JOIN custom_trading_post_pricing p
+            ON p.custom_trading_post_equipment_id = ctpe.id
+            AND (p.gang_type_id IS NULL OR p.gang_type_id = $1)
+            AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
+            AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
+            AND (p.fighter_type_id IS NULL)
+        WHERE ctpe.custom_equipment_id IS NOT NULL
+          AND $11 IS NOT NULL AND array_length($11, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($11)
+          AND (
+            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
+            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                       WHERE a.custom_trading_post_equipment_id = ctpe.id
+                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
+          )
+        GROUP BY ctpe.custom_equipment_id
+    ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     WHERE
-        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL)
+        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
         AND NOT ($4 IS NULL AND $5 IS NOT NULL AND $5 = true AND $9 IS NOT NULL AND $9 = true)
@@ -4180,7 +4281,8 @@ CREATE TABLE public.campaigns (
     discord_channel_id text,
     discord_guild_id text,
     discord_channel_type integer DEFAULT 0 NOT NULL,
-    created_by uuid DEFAULT auth.uid()
+    created_by uuid DEFAULT auth.uid(),
+    custom_trading_posts jsonb
 );
 
 
@@ -4298,7 +4400,8 @@ CREATE TABLE public.custom_shared (
     custom_territory_id uuid,
     user_id uuid,
     custom_skill_id uuid,
-    custom_gang_type_id uuid
+    custom_gang_type_id uuid,
+    custom_trading_post_id uuid
 );
 
 
@@ -4341,6 +4444,78 @@ CREATE TABLE public.custom_territories (
     territory_name text,
     user_id uuid NOT NULL,
     updated_at timestamp with time zone
+);
+
+
+--
+-- Name: custom_trading_post_availability; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_trading_post_availability (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    user_id uuid NOT NULL,
+    custom_trading_post_equipment_id uuid NOT NULL,
+    gang_type_id uuid,
+    custom_gang_type_id uuid,
+    gang_origin_id uuid,
+    gang_variant_id uuid,
+    campaign_type_allegiance_id uuid,
+    alignment public.alignment,
+    availability text
+);
+
+
+--
+-- Name: custom_trading_post_equipment; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_trading_post_equipment (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    user_id uuid NOT NULL,
+    custom_trading_post_id uuid NOT NULL,
+    equipment_id uuid,
+    custom_equipment_id uuid,
+    cost_override numeric,
+    cost_resource_name text,
+    availability_override text,
+    sort_order integer,
+    CONSTRAINT chk_equipment_exclusive CHECK ((num_nonnulls(equipment_id, custom_equipment_id) = 1))
+);
+
+
+--
+-- Name: custom_trading_post_pricing; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_trading_post_pricing (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    user_id uuid NOT NULL,
+    custom_trading_post_equipment_id uuid NOT NULL,
+    gang_type_id uuid,
+    custom_gang_type_id uuid,
+    gang_origin_id uuid,
+    fighter_type_id uuid,
+    adjusted_cost numeric
+);
+
+
+--
+-- Name: custom_trading_posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.custom_trading_posts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    user_id uuid NOT NULL,
+    custom_trading_post_name text NOT NULL,
+    description text
 );
 
 
@@ -4443,7 +4618,7 @@ CREATE TABLE public.equipment_discounts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     equipment_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    discount numeric DEFAULT '0'::numeric NOT NULL,
+    "OLDdiscount" numeric DEFAULT '0'::numeric NOT NULL,
     gang_type_id uuid,
     fighter_type_id uuid,
     adjusted_cost numeric,
@@ -5638,6 +5813,38 @@ ALTER TABLE ONLY public.custom_territories
 
 
 --
+-- Name: custom_trading_post_availability custom_trading_post_availability_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availability_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_trading_post_pricing custom_trading_post_pricing_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_pricing
+    ADD CONSTRAINT custom_trading_post_pricing_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: custom_trading_posts custom_trading_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_posts
+    ADD CONSTRAINT custom_trading_posts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: custom_weapon_profiles custom_weapon_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6572,6 +6779,41 @@ CREATE INDEX idx_campaign_type_resources_campaign_type_id ON public.campaign_typ
 
 
 --
+-- Name: idx_ctp_availability_equipment_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_availability_equipment_id ON public.custom_trading_post_availability USING btree (custom_trading_post_equipment_id);
+
+
+--
+-- Name: idx_ctp_equipment_trading_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_equipment_trading_post_id ON public.custom_trading_post_equipment USING btree (custom_trading_post_id);
+
+
+--
+-- Name: idx_ctp_equipment_unique_custom_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ctp_equipment_unique_custom_equipment ON public.custom_trading_post_equipment USING btree (custom_trading_post_id, custom_equipment_id) WHERE (custom_equipment_id IS NOT NULL);
+
+
+--
+-- Name: idx_ctp_equipment_unique_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ctp_equipment_unique_equipment ON public.custom_trading_post_equipment USING btree (custom_trading_post_id, equipment_id) WHERE (equipment_id IS NOT NULL);
+
+
+--
+-- Name: idx_ctp_pricing_equipment_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_pricing_equipment_id ON public.custom_trading_post_pricing USING btree (custom_trading_post_equipment_id);
+
+
+--
 -- Name: idx_custom_gang_types_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6583,6 +6825,20 @@ CREATE INDEX idx_custom_gang_types_user_id ON public.custom_gang_types USING btr
 --
 
 CREATE INDEX idx_custom_shared_custom_gang_type_id ON public.custom_shared USING btree (custom_gang_type_id);
+
+
+--
+-- Name: idx_custom_shared_custom_trading_post_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_shared_custom_trading_post_id ON public.custom_shared USING btree (custom_trading_post_id);
+
+
+--
+-- Name: idx_custom_trading_posts_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_custom_trading_posts_user_id ON public.custom_trading_posts USING btree (user_id);
 
 
 --
@@ -7289,6 +7545,14 @@ ALTER TABLE ONLY public.custom_shared
 
 
 --
+-- Name: custom_shared custom_shared_custom_trading_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_shared
+    ADD CONSTRAINT custom_shared_custom_trading_post_id_fkey FOREIGN KEY (custom_trading_post_id) REFERENCES public.custom_trading_posts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: custom_shared custom_shared_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7310,6 +7574,134 @@ ALTER TABLE ONLY public.custom_skills
 
 ALTER TABLE ONLY public.custom_skills
     ADD CONSTRAINT custom_skills_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_availability custom_trading_post_availabil_custom_trading_post_equipmen_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availabil_custom_trading_post_equipmen_fkey FOREIGN KEY (custom_trading_post_equipment_id) REFERENCES public.custom_trading_post_equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_availability custom_trading_post_availabili_campaign_type_allegiance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availabili_campaign_type_allegiance_id_fkey FOREIGN KEY (campaign_type_allegiance_id) REFERENCES public.campaign_type_allegiances(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_availability custom_trading_post_availability_custom_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availability_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_availability custom_trading_post_availability_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availability_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_availability custom_trading_post_availability_gang_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availability_gang_variant_id_fkey FOREIGN KEY (gang_variant_id) REFERENCES public.gang_variant_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_availability custom_trading_post_availability_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_availability
+    ADD CONSTRAINT custom_trading_post_availability_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_custom_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_custom_equipment_id_fkey FOREIGN KEY (custom_equipment_id) REFERENCES public.custom_equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_custom_trading_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_custom_trading_post_id_fkey FOREIGN KEY (custom_trading_post_id) REFERENCES public.custom_trading_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_pricing custom_trading_post_pricing_custom_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_pricing
+    ADD CONSTRAINT custom_trading_post_pricing_custom_gang_type_id_fkey FOREIGN KEY (custom_gang_type_id) REFERENCES public.custom_gang_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_pricing custom_trading_post_pricing_custom_trading_post_equipment__fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_pricing
+    ADD CONSTRAINT custom_trading_post_pricing_custom_trading_post_equipment__fkey FOREIGN KEY (custom_trading_post_equipment_id) REFERENCES public.custom_trading_post_equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_pricing custom_trading_post_pricing_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_pricing
+    ADD CONSTRAINT custom_trading_post_pricing_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_pricing custom_trading_post_pricing_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_pricing
+    ADD CONSTRAINT custom_trading_post_pricing_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_pricing custom_trading_post_pricing_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_pricing
+    ADD CONSTRAINT custom_trading_post_pricing_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_posts custom_trading_posts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_posts
+    ADD CONSTRAINT custom_trading_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -8230,6 +8622,34 @@ CREATE POLICY "Allow authenticated users to create custom territories" ON public
 
 
 --
+-- Name: custom_trading_post_availability Allow authenticated users to create custom trading post availab; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom trading post availab" ON public.custom_trading_post_availability FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_equipment Allow authenticated users to create custom trading post equipme; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom trading post equipme" ON public.custom_trading_post_equipment FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_pricing Allow authenticated users to create custom trading post pricing; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom trading post pricing" ON public.custom_trading_post_pricing FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_posts Allow authenticated users to create custom trading posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom trading posts" ON public.custom_trading_posts FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_weapon_profiles Allow authenticated users to create custom weapon profiles; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8353,6 +8773,34 @@ CREATE POLICY "Allow authenticated users to view custom skills" ON public.custom
 --
 
 CREATE POLICY "Allow authenticated users to view custom territories" ON public.custom_territories FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_trading_post_availability Allow authenticated users to view custom trading post availabil; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom trading post availabil" ON public.custom_trading_post_availability FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_trading_post_equipment Allow authenticated users to view custom trading post equipment; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom trading post equipment" ON public.custom_trading_post_equipment FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_trading_post_pricing Allow authenticated users to view custom trading post pricing; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom trading post pricing" ON public.custom_trading_post_pricing FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_trading_posts Allow authenticated users to view custom trading posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom trading posts" ON public.custom_trading_posts FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9562,6 +10010,62 @@ CREATE POLICY "Only custom territory owner or admin can update" ON public.custom
 
 
 --
+-- Name: custom_trading_post_availability Only custom trading post availability owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post availability owner or admin can delete" ON public.custom_trading_post_availability FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_availability Only custom trading post availability owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post availability owner or admin can update" ON public.custom_trading_post_availability FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_equipment Only custom trading post equipment owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post equipment owner or admin can delete" ON public.custom_trading_post_equipment FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_equipment Only custom trading post equipment owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post equipment owner or admin can update" ON public.custom_trading_post_equipment FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_posts Only custom trading post owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post owner or admin can delete" ON public.custom_trading_posts FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_posts Only custom trading post owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post owner or admin can update" ON public.custom_trading_posts FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_pricing Only custom trading post pricing owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post pricing owner or admin can delete" ON public.custom_trading_post_pricing FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_trading_post_pricing Only custom trading post pricing owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom trading post pricing owner or admin can update" ON public.custom_trading_post_pricing FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_weapon_profiles Only custom weapon profile owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10254,6 +10758,30 @@ ALTER TABLE public.custom_skills ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_territories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_trading_post_availability; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_trading_post_availability ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_trading_post_equipment; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_trading_post_equipment ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_trading_post_pricing; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_trading_post_pricing ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: custom_trading_posts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.custom_trading_posts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: custom_weapon_profiles; Type: ROW SECURITY; Schema: public; Owner: -
@@ -11049,5 +11577,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict RYbFG6gKv3RLpnwWmo3sfueiygkoP81amUyvpQgZDFSBfmgR5GKTs3TbEgGriJC
+\unrestrict xpbvbM4iArzfibZDzTxAn9uKIaURuJbWOcdhWbaqWKXckTSyCh6LNVyoXdSSUYe
 
