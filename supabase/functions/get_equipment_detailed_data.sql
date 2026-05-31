@@ -4,6 +4,7 @@ DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boole
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[]);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[],uuid[]);
 
 CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     gang_type_id uuid DEFAULT NULL,          -- $1
@@ -15,7 +16,8 @@ CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     only_equipment_id uuid DEFAULT NULL,      -- $7
     gang_id uuid DEFAULT NULL,               -- $8
     fighters_tradingpost_only boolean DEFAULT NULL, -- $9
-    campaign_trading_post_type_ids uuid[] DEFAULT NULL -- $10
+    campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $10
+    campaign_custom_trading_post_ids uuid[] DEFAULT NULL -- $11
 )
 RETURNS TABLE (
     id uuid,
@@ -33,7 +35,8 @@ RETURNS TABLE (
     vehicle_upgrade_slot text,
     grants_equipment jsonb,
     is_editable boolean,
-    trading_post_names text[]
+    trading_post_names text[],
+    cost_resource_name text
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -43,16 +46,24 @@ AS $$
 
     -- =======================================================================
     -- 1. GANG CONTEXT (always exactly 1 row)
-    --    Moved from LATERAL join to CTE so downstream CTEs can reference it.
     -- =======================================================================
     WITH gang_data AS (
         SELECT
             g.gang_origin_id,
             g.gang_variants,
+            g.alignment,
+            g.custom_gang_type_id,
+            cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
+        LEFT JOIN LATERAL (
+            SELECT cg2.campaign_type_allegiance_id
+            FROM campaign_gangs cg2
+            WHERE cg2.gang_id = $8
+            LIMIT 1
+        ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
         LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
@@ -126,6 +137,29 @@ AS $$
         CROSS JOIN gang_data gd
         WHERE ff.fighter_type_id = $3
            OR (gd.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gd.affiliation_ft_id)
+
+        UNION
+
+        -- Custom trading post equipment (official equipment only)
+        SELECT ctpe.equipment_id, ctp.custom_trading_post_name
+        FROM custom_trading_post_equipment ctpe
+        JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
+        CROSS JOIN gang_data gd
+        WHERE ctpe.equipment_id IS NOT NULL
+          AND $11 IS NOT NULL AND array_length($11, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($11)
+          AND (
+            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
+            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                       WHERE a.custom_trading_post_equipment_id = ctpe.id
+                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
+          )
     ),
 
     tp_summary AS (
@@ -195,6 +229,45 @@ AS $$
                 )
             )
         GROUP BY ed.equipment_id
+    ),
+
+    -- =======================================================================
+    -- 7. CUSTOM TP OVERRIDES — per official equipment_id
+    --    Resolves cost/availability overrides and adjusted cost from active
+    --    custom TPs. Custom TP values take precedence over official values.
+    --    Tiebreak: lowest sort_order, then earliest created_at.
+    -- =======================================================================
+    custom_tp_override AS (
+        SELECT
+            ctpe.equipment_id,
+            MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
+            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.availability_override ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.availability_override IS NOT NULL))[1] AS availability_override,
+            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
+        FROM custom_trading_post_equipment ctpe
+        CROSS JOIN gang_data gd
+        LEFT JOIN custom_trading_post_pricing p
+            ON p.custom_trading_post_equipment_id = ctpe.id
+            AND (p.gang_type_id IS NULL OR p.gang_type_id = $1)
+            AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
+            AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
+            AND (p.fighter_type_id IS NULL)
+        WHERE ctpe.equipment_id IS NOT NULL
+          AND $11 IS NOT NULL AND array_length($11, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($11)
+          AND (
+            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
+            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                       WHERE a.custom_trading_post_equipment_id = ctpe.id
+                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
+          )
+        GROUP BY ctpe.equipment_id
     )
 
     -- =======================================================================
@@ -205,8 +278,9 @@ AS $$
         e.equipment_name,
         -- Availability: trading post mode uses base, fighter list uses overrides
         CASE
-            WHEN $5 = true THEN e.availability
+            WHEN $5 = true THEN COALESCE(cto.availability_override, e.availability)
             ELSE COALESCE(
+                cto.availability_override,
                 (SELECT availability FROM equipment_availability
                  WHERE gang_origin_id = gd.gang_origin_id AND equipment_id = e.id LIMIT 1),
                 ea_var.availability,
@@ -215,10 +289,12 @@ AS $$
             )
         END AS availability,
 
-        e.cost::numeric AS base_cost,
+        COALESCE(cto.cost_override, e.cost::numeric) AS base_cost,
 
-        -- Adjusted cost (base cost in trading post mode)
+        -- Adjusted cost: custom TP override wins, then official discounts, then base
         CASE
+            WHEN cto.adjusted_cost IS NOT NULL THEN cto.adjusted_cost
+            WHEN cto.cost_override IS NOT NULL THEN cto.cost_override
             WHEN $5 = true THEN e.cost::numeric
             ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
         END AS adjusted_cost,
@@ -311,7 +387,9 @@ AS $$
         COALESCE(e.is_editable, false) AS is_editable,
 
         -- Trading post names (already aggregated in tp_summary)
-        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names
+        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
+
+        cto.cost_resource_name
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -344,6 +422,7 @@ AS $$
     -- Pre-computed CTEs via simple LEFT JOINs
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
+    LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -396,14 +475,14 @@ AS $$
     UNION ALL
 
     -- =======================================================================
-    -- CUSTOM EQUIPMENT (unchanged logic)
+    -- CUSTOM EQUIPMENT
     -- =======================================================================
     SELECT
         ce.id,
         ce.equipment_name,
-        ce.availability,
-        ce.cost::numeric AS base_cost,
-        ce.cost::numeric AS adjusted_cost,
+        COALESCE(custom_tp.availability_override, ce.availability) AS availability,
+        COALESCE(custom_tp.cost_override, ce.cost::numeric) AS base_cost,
+        COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric) AS adjusted_cost,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -432,7 +511,8 @@ AS $$
         NULL AS vehicle_upgrade_slot,
         NULL::jsonb AS grants_equipment,
         COALESCE(ce.is_editable, false) AS is_editable,
-        '{}'::text[] AS trading_post_names
+        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
+        custom_tp.cost_resource_name
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -440,14 +520,51 @@ AS $$
         JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
         WHERE cg.gang_id = $8
     ) shared ON shared.custom_equipment_id = ce.id
+    LEFT JOIN (
+        SELECT
+            ctpe.custom_equipment_id,
+            MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
+            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.availability_override ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.availability_override IS NOT NULL))[1] AS availability_override,
+            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
+            COALESCE(
+                array_agg(DISTINCT ctp.custom_trading_post_name) FILTER (WHERE ctp.custom_trading_post_name IS NOT NULL),
+                '{}'::text[]
+            ) AS tp_names
+        FROM custom_trading_post_equipment ctpe
+        JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
+        CROSS JOIN gang_data gd
+        LEFT JOIN custom_trading_post_pricing p
+            ON p.custom_trading_post_equipment_id = ctpe.id
+            AND (p.gang_type_id IS NULL OR p.gang_type_id = $1)
+            AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
+            AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
+            AND (p.fighter_type_id IS NULL)
+        WHERE ctpe.custom_equipment_id IS NOT NULL
+          AND $11 IS NOT NULL AND array_length($11, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($11)
+          AND (
+            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
+            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
+                       WHERE a.custom_trading_post_equipment_id = ctpe.id
+                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
+          )
+        GROUP BY ctpe.custom_equipment_id
+    ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     WHERE
-        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL)
+        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
         AND NOT ($4 IS NULL AND $5 IS NOT NULL AND $5 = true AND $9 IS NOT NULL AND $9 = true)
 $$;
 
-REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[]) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[]) TO service_role;
+REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) TO service_role;
