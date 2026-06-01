@@ -9,8 +9,10 @@ import type { CustomTerritory } from '@/app/lib/customise/custom-territories'
 import type { CustomSkill } from '@/app/lib/customise/custom-skills'
 import type { CustomFighterType } from '@/types/fighter'
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
+import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts'
 import type { UserCampaign } from '@/types/campaign'
 import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
+import { CustomiseTradingPosts } from '@/components/customise/custom-trading-posts'
 import { CustomiseEquipment } from '@/components/customise/custom-equipment'
 import { CustomiseTerritories } from '@/components/customise/custom-territories'
 import { CustomiseFighters } from '@/components/customise/custom-fighters'
@@ -30,6 +32,7 @@ interface HomeTabsProps {
   customFighterTypes: CustomFighterType[];
   customSkills: CustomSkill[];
   customGangTypes: CustomGangType[];
+  customTradingPosts: CustomTradingPost[];
   userCampaigns: UserCampaign[];
 }
 
@@ -42,6 +45,7 @@ export default function HomeTabs({
   customFighterTypes,
   customSkills,
   customGangTypes,
+  customTradingPosts,
   userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
@@ -139,7 +143,7 @@ export default function HomeTabs({
             <div>
               <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
               <p className="text-muted-foreground">
-                Create your own Gang Types, Fighters, Equipment, Skills and Skill sets and share them to campaigns you're an Arbitrator of. Custom Territories and Scenarios are created in the campaign pages.
+                Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you're an Arbitrator of. Custom Territories and Scenarios are created in the campaign pages.
               </p>
             </div>
 
@@ -167,6 +171,12 @@ export default function HomeTabs({
               userCampaigns={userCampaigns}
               onGangTypeUpdated={handleGangTypeUpdated}
               onGangTypeUpdateRollback={handleGangTypeUpdateRollback}
+            />
+
+            <CustomiseTradingPosts
+              initialTradingPosts={customTradingPosts}
+              userId={userId}
+              userCampaigns={userCampaigns}
             />
 
             <CustomiseTerritories initialTerritories={customTerritories} readOnly />

@@ -1,0 +1,1578 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { List, ListColumn, ListAction } from '@/components/ui/list';
+import Modal from '@/components/ui/modal';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { Combobox } from '@/components/ui/combobox';
+import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
+import { FiShare2 } from 'react-icons/fi';
+import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  createCustomTradingPost,
+  updateCustomTradingPost,
+  deleteCustomTradingPost,
+  type CustomTradingPost,
+  type CustomTradingPostData,
+} from '@/app/actions/customise/custom-trading-posts';
+import {
+  getTPEquipment,
+  addTPEquipment,
+  addTPEquipmentBatch,
+  updateTPEquipment,
+  removeTPEquipment,
+  getAvailabilityRules,
+  getPricingRules,
+  saveEquipmentRules,
+  type CustomTPEquipment,
+  type CustomTPAvailabilityRule,
+  type CustomTPPricingRule,
+} from '@/app/actions/customise/custom-trading-post-equipment';
+import type { UserCampaign } from '@/types/campaign';
+
+interface CustomiseTradingPostsProps {
+  className?: string;
+  initialTradingPosts: CustomTradingPost[];
+  userId?: string;
+  userCampaigns?: UserCampaign[];
+  readOnly?: boolean;
+}
+
+export function CustomiseTradingPosts({
+  className,
+  initialTradingPosts,
+  userId,
+  userCampaigns = [],
+  readOnly = false,
+}: CustomiseTradingPostsProps) {
+  const [tradingPosts, setTradingPosts] = useState<CustomTradingPost[]>(initialTradingPosts);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editModalData, setEditModalData] = useState<CustomTradingPost | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<CustomTradingPost | null>(null);
+  const [viewModalData, setViewModalData] = useState<CustomTradingPost | null>(null);
+  const [pendingEquipment, setPendingEquipment] = useState<EquipmentOption[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [shareModalData, setShareModalData] = useState<CustomTradingPost | null>(null);
+
+  const [formData, setFormData] = useState<CustomTradingPostData>({
+    custom_trading_post_name: '',
+    description: null,
+  });
+
+  const queryClient = useQueryClient();
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CustomTradingPostData }) =>
+      updateCustomTradingPost(id, data),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['customTradingPosts'] });
+      const previous = tradingPosts;
+      setTradingPosts(prev =>
+        prev.map(tp =>
+          tp.id === id
+            ? { ...tp, ...data, updated_at: new Date().toISOString() }
+            : tp
+        )
+      );
+      return { previous };
+    },
+    onSuccess: (result, { id }, context) => {
+      if (result.success && result.data) {
+        setTradingPosts(prev => prev.map(tp => (tp.id === id ? result.data! : tp)));
+        setEditModalData(null);
+        resetForm();
+        toast.success('Custom trading post updated successfully');
+      } else {
+        if (context?.previous) setTradingPosts(context.previous);
+        toast.error(result.error || 'Failed to update custom trading post');
+      }
+    },
+    onError: (error: Error, _, context) => {
+      if (context?.previous) setTradingPosts(context.previous);
+      toast.error(error.message || 'Failed to update custom trading post');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteCustomTradingPost,
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: ['customTradingPosts'] });
+      const previous = tradingPosts;
+      setTradingPosts(prev => prev.filter(tp => tp.id !== deletedId));
+      return { previous };
+    },
+    onSuccess: (result, _, context) => {
+      if (result.success) {
+        toast.success('Custom trading post deleted successfully');
+      } else {
+        if (context?.previous) setTradingPosts(context.previous);
+        toast.error(result.error || 'Failed to delete custom trading post');
+      }
+    },
+    onError: (error: Error, _, context) => {
+      if (context?.previous) setTradingPosts(context.previous);
+      toast.error(error.message || 'Failed to delete custom trading post');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      custom_trading_post_name: '',
+      description: null,
+    });
+    setPendingEquipment([]);
+  };
+
+  const handleEdit = (tradingPost: CustomTradingPost) => {
+    setEditModalData(tradingPost);
+    setFormData({
+      custom_trading_post_name: tradingPost.custom_trading_post_name,
+      description: tradingPost.description || null,
+    });
+  };
+
+  const handleView = (tradingPost: CustomTradingPost) => {
+    setViewModalData(tradingPost);
+  };
+
+  const handleDelete = (tradingPost: CustomTradingPost) => {
+    setDeleteModalData(tradingPost);
+  };
+
+  const handleAddModalOpen = () => {
+    resetForm();
+    setIsAddModalOpen(true);
+  };
+
+  const isFormValid = () => {
+    return formData.custom_trading_post_name.trim() !== '';
+  };
+
+  const handleCreateConfirm = async () => {
+    if (!isFormValid()) return false;
+    setIsCreating(true);
+    try {
+      const result = await createCustomTradingPost(formData);
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to create custom trading post');
+        return false;
+      }
+
+      if (pendingEquipment.length > 0) {
+        const batchResult = await addTPEquipmentBatch(
+          result.data.id,
+          pendingEquipment.map(equip => ({
+            equipmentId: equip.is_custom ? equip.original_id! : equip.id,
+            isCustom: equip.is_custom,
+          }))
+        );
+        if (!batchResult.success) {
+          toast.warning(`Trading post created, but equipment failed to save: ${batchResult.error}`);
+          setTradingPosts(prev => [...prev, result.data!]);
+          setIsAddModalOpen(false);
+          resetForm();
+          queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
+          return true;
+        }
+      }
+
+      setTradingPosts(prev => [...prev, result.data!]);
+      setIsAddModalOpen(false);
+      resetForm();
+      toast.success('Custom trading post created successfully');
+      queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create custom trading post');
+      return false;
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleEditConfirm = async () => {
+    if (!editModalData || !isFormValid()) return false;
+    updateMutation.mutate({ id: editModalData.id, data: formData });
+    return true;
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteModalData) return false;
+    deleteMutation.mutate(deleteModalData.id);
+    setDeleteModalData(null);
+    return true;
+  };
+
+  const columns: ListColumn[] = [
+    {
+      key: 'custom_trading_post_name',
+      label: 'Trading Post',
+      align: 'left',
+      width: '50%',
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      align: 'left',
+      width: '40%',
+      cellClassName: 'text-sm text-muted-foreground',
+      render: (value) => value || '-',
+    },
+  ];
+
+  const actions: ListAction[] = readOnly
+    ? [
+        {
+          icon: <LuEye className="h-4 w-4" />,
+          onClick: (item: CustomTradingPost) => handleView(item),
+          variant: 'outline',
+          size: 'sm',
+          className: 'text-xs px-1.5 h-6',
+        },
+      ]
+    : [
+        {
+          icon: <FiShare2 className="h-4 w-4" />,
+          onClick: (item: CustomTradingPost) => setShareModalData(item),
+          variant: 'outline',
+          size: 'sm',
+          className: 'text-xs px-1.5 h-6',
+        },
+        {
+          icon: <LuSquarePen className="h-4 w-4" />,
+          onClick: (item: CustomTradingPost) => handleEdit(item),
+          variant: 'outline',
+          size: 'sm',
+          className: 'text-xs px-1.5 h-6',
+        },
+        {
+          icon: <LuTrash2 className="h-4 w-4" />,
+          onClick: (item: CustomTradingPost) => handleDelete(item),
+          variant: 'outline_remove',
+          size: 'sm',
+          className: 'text-xs px-1.5 h-6',
+        },
+      ];
+
+  const renderForm = (isReadOnly = false) => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-1">Trading Post Name *</label>
+        <Input
+          value={formData.custom_trading_post_name}
+          onChange={(e) => setFormData({ ...formData, custom_trading_post_name: e.target.value })}
+          placeholder="Enter trading post name"
+          disabled={isReadOnly}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Description</label>
+        <textarea
+          className="w-full border rounded-md p-2 bg-background min-h-[80px] resize-y"
+          value={formData.description || ''}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value || null })}
+          placeholder="Enter description (optional)"
+          disabled={isReadOnly}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={className}>
+      <List
+        title="Trading Posts"
+        items={tradingPosts}
+        columns={columns}
+        actions={actions}
+        onAdd={readOnly ? undefined : handleAddModalOpen}
+        addButtonText="Add"
+        emptyMessage="No custom trading posts created yet."
+      />
+
+      {isAddModalOpen && (
+        <Modal
+          title="Add Custom Trading Post"
+          onClose={() => {
+            setIsAddModalOpen(false);
+            resetForm();
+          }}
+          onConfirm={handleCreateConfirm}
+          confirmText="Create"
+          confirmDisabled={!isFormValid() || isCreating}
+          width="2xl"
+        >
+          <div className="space-y-6">
+            {renderForm()}
+            <div className="border-t pt-4">
+              <PendingEquipmentSection
+                pendingEquipment={pendingEquipment}
+                setPendingEquipment={setPendingEquipment}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {editModalData && (
+        <EditTradingPostModal
+          tradingPost={editModalData}
+          formData={formData}
+          setFormData={setFormData}
+          isFormValid={isFormValid}
+          onClose={() => {
+            setEditModalData(null);
+            resetForm();
+          }}
+          onConfirm={handleEditConfirm}
+          isPending={updateMutation.isPending}
+        />
+      )}
+
+      {viewModalData && (
+        <ViewTradingPostModal
+          tradingPost={viewModalData}
+          onClose={() => setViewModalData(null)}
+        />
+      )}
+
+      {shareModalData && userId && (
+        <ShareCustomTradingPostModal
+          tradingPost={shareModalData}
+          userCampaigns={userCampaigns}
+          onClose={() => setShareModalData(null)}
+        />
+      )}
+
+      {deleteModalData && (
+        <Modal
+          title="Delete Custom Trading Post"
+          onClose={() => setDeleteModalData(null)}
+          onConfirm={handleDeleteConfirm}
+          confirmText="Delete"
+        >
+          <p>
+            Are you sure you want to delete <strong>{deleteModalData.custom_trading_post_name}</strong>?
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            This will also delete all equipment items, availability rules, and pricing in this trading post, and remove any campaign shares.
+          </p>
+        </Modal>
+      )}
+
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Equipment Items Section — shared between edit and view modals
+// ---------------------------------------------------------------------------
+
+interface EquipmentOption {
+  id: string;
+  equipment_name: string;
+  equipment_category: string;
+  is_custom: boolean;
+  original_id?: string;
+}
+
+function EquipmentItemsSection({
+  tradingPostId,
+  readOnly = false,
+}: {
+  tradingPostId: string;
+  readOnly?: boolean;
+}) {
+  const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
+  const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
+  const [removeConfirmItem, setRemoveConfirmItem] = useState<CustomTPEquipment | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
+    queryKey: ['tpEquipment', tradingPostId],
+    queryFn: async () => {
+      const result = await getTPEquipment(tradingPostId);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (equipmentError) toast.error('Failed to load equipment items');
+  }, [equipmentError]);
+
+  const removeMutation = useMutation({
+    mutationFn: removeTPEquipment,
+    onSuccess: (result) => {
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+        toast.success('Equipment removed');
+      } else {
+        toast.error(result.error || 'Failed to remove equipment');
+      }
+      setRemoveConfirmItem(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+      setRemoveConfirmItem(null);
+    },
+  });
+
+  return (
+    <>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold">Equipment Items</h4>
+          {!readOnly && (
+            <Button size="sm" className="text-xs" onClick={() => setIsAddEquipOpen(true)}>
+              Add Equipment
+            </Button>
+          )}
+        </div>
+
+        {isLoadingItems ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
+        ) : equipmentItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No equipment items added yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2 pr-2 font-medium">Equipment</th>
+                  <th className="py-2 pr-2 font-medium">Category</th>
+                  <th className="py-2 pr-2 font-medium">Cost</th>
+                  <th className="py-2 pr-2 font-medium">Avail.</th>
+                  {!readOnly && <th className="py-2 font-medium text-right">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {equipmentItems.map((item) => (
+                  <tr key={item.id} className="border-b last:border-0">
+                    <td className="py-2 pr-2">
+                      {item.equipment_name}
+                      {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
+                    </td>
+                    <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
+                    <td className="py-2 pr-2">
+                      {item.cost_override != null ? item.cost_override : '-'}
+                      {item.cost_resource_name && (
+                        <span className="text-xs text-muted-foreground ml-1">({item.cost_resource_name})</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-2">{item.availability_override || '-'}</td>
+                    {!readOnly && (
+                      <td className="py-2 text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button variant="outline" size="sm" className="text-xs px-1.5 h-6" onClick={() => setEditOverridesItem(item)}>
+                            <LuSquarePen className="h-3 w-3" />
+                          </Button>
+                          <Button variant="outline_remove" size="sm" className="text-xs px-1.5 h-6" onClick={() => setRemoveConfirmItem(item)}>
+                            <LuTrash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {isAddEquipOpen && (
+        <AddEquipmentModal
+          tradingPostId={tradingPostId}
+          existingItems={equipmentItems}
+          onClose={() => setIsAddEquipOpen(false)}
+          onAdded={() => {
+            queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+            setIsAddEquipOpen(false);
+          }}
+        />
+      )}
+
+      {editOverridesItem && (
+        <EditEquipmentModal
+          item={editOverridesItem}
+          onClose={() => setEditOverridesItem(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+            setEditOverridesItem(null);
+          }}
+        />
+      )}
+
+      {removeConfirmItem && (
+        <Modal
+          title="Remove Equipment"
+          onClose={() => setRemoveConfirmItem(null)}
+          onConfirm={async () => {
+            removeMutation.mutate(removeConfirmItem.id);
+            return true;
+          }}
+          confirmText="Remove"
+          confirmDisabled={removeMutation.isPending}
+        >
+          <p>Remove <strong>{removeConfirmItem.equipment_name}</strong> from this trading post?</p>
+          <p className="text-sm text-muted-foreground mt-2">This will also delete any availability and pricing rules for this item.</p>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Edit Trading Post Modal — form + equipment items
+// ---------------------------------------------------------------------------
+
+function EditTradingPostModal({
+  tradingPost,
+  formData,
+  setFormData,
+  isFormValid,
+  onClose,
+  onConfirm,
+  isPending,
+}: {
+  tradingPost: CustomTradingPost;
+  formData: CustomTradingPostData;
+  setFormData: React.Dispatch<React.SetStateAction<CustomTradingPostData>>;
+  isFormValid: () => boolean;
+  onClose: () => void;
+  onConfirm: () => Promise<boolean | undefined>;
+  isPending: boolean;
+}) {
+  return (
+    <Modal
+      title="Edit Custom Trading Post"
+      onClose={onClose}
+      onConfirm={onConfirm}
+      confirmText="Save"
+      confirmDisabled={!isFormValid() || isPending}
+      width="2xl"
+    >
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Trading Post Name *</label>
+            <Input
+              value={formData.custom_trading_post_name}
+              onChange={(e) => setFormData(prev => ({ ...prev, custom_trading_post_name: e.target.value }))}
+              placeholder="Enter trading post name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              className="w-full border rounded-md p-2 bg-background min-h-[80px] resize-y"
+              value={formData.description || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value || null }))}
+              placeholder="Enter description (optional)"
+            />
+          </div>
+        </div>
+
+        <div className="border-t pt-4">
+          <EquipmentItemsSection tradingPostId={tradingPost.id} />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// View Trading Post Modal (readOnly) — form + equipment items
+// ---------------------------------------------------------------------------
+
+function ViewTradingPostModal({
+  tradingPost,
+  onClose,
+}: {
+  tradingPost: CustomTradingPost;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      title="View Custom Trading Post"
+      onClose={onClose}
+      width="2xl"
+    >
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Trading Post Name</label>
+            <Input
+              value={tradingPost.custom_trading_post_name}
+              disabled
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              className="w-full border rounded-md p-2 bg-background min-h-[80px] resize-y"
+              value={tradingPost.description || ''}
+              disabled
+            />
+          </div>
+        </div>
+
+        <div className="border-t pt-4">
+          <EquipmentItemsSection tradingPostId={tradingPost.id} readOnly />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pending Equipment Section — inline picker for Add Trading Post modal
+// ---------------------------------------------------------------------------
+
+function PendingEquipmentSection({
+  pendingEquipment,
+  setPendingEquipment,
+}: {
+  pendingEquipment: EquipmentOption[];
+  setPendingEquipment: React.Dispatch<React.SetStateAction<EquipmentOption[]>>;
+}) {
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
+
+  const { data: categories = [], error: categoriesError } = useQuery({
+    queryKey: ['equipmentCategories'],
+    queryFn: async () => {
+      const res = await fetch('/api/equipment/categories');
+      if (!res.ok) throw new Error('Failed to fetch categories');
+      return res.json() as Promise<Array<{ id: string; category_name: string }>>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: allEquipment = [], error: equipmentError } = useQuery({
+    queryKey: ['equipment'],
+    queryFn: async () => {
+      const res = await fetch('/api/equipment');
+      if (!res.ok) throw new Error('Failed to fetch equipment');
+      return res.json() as Promise<EquipmentOption[]>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (categoriesError) toast.error('Failed to load equipment categories');
+  }, [categoriesError]);
+
+  useEffect(() => {
+    if (equipmentError) toast.error('Failed to load equipment');
+  }, [equipmentError]);
+
+  const pendingIds = new Set(pendingEquipment.map(e => e.id));
+
+  const filteredEquipment = allEquipment
+    .filter(e => e.equipment_category === selectedCategory)
+    .filter(e => !pendingIds.has(e.id));
+
+  const handleAdd = () => {
+    const selected = allEquipment.find(e => e.id === selectedEquipmentId);
+    if (!selected) return;
+    setPendingEquipment(prev => [...prev, selected]);
+    setSelectedEquipmentId('');
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold">Equipment Items</h4>
+      </div>
+
+      {pendingEquipment.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-2 pr-2 font-medium">Equipment</th>
+                <th className="py-2 pr-2 font-medium">Category</th>
+                <th className="py-2 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingEquipment.map((equip) => (
+                <tr key={equip.id} className="border-b last:border-0">
+                  <td className="py-2 pr-2">
+                    {equip.equipment_name}
+                    {equip.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
+                  </td>
+                  <td className="py-2 pr-2 text-muted-foreground">{equip.equipment_category || '-'}</td>
+                  <td className="py-2 text-right">
+                    <Button
+                      variant="outline_remove"
+                      size="sm"
+                      className="text-xs px-1.5 h-6"
+                      onClick={() => setPendingEquipment(prev => prev.filter(e => e.id !== equip.id))}
+                    >
+                      <LuTrash2 className="h-3 w-3" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <label className="block text-sm font-medium mb-1">Category</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={selectedCategory}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setSelectedEquipmentId('');
+            }}
+          >
+            <option value="">Select a category...</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.category_name}>{c.category_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedCategory && (
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1">Equipment</label>
+            <select
+              className="w-full border rounded-md p-2 bg-background text-sm"
+              value={selectedEquipmentId}
+              onChange={(e) => setSelectedEquipmentId(e.target.value)}
+            >
+              <option value="">Select equipment...</option>
+              {filteredEquipment.map(e => (
+                <option key={e.id} value={e.id}>{e.equipment_name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <Button
+          size="sm"
+          className="text-xs"
+          disabled={!selectedEquipmentId}
+          onClick={handleAdd}
+        >
+          Add Equipment
+        </Button>
+      </div>
+
+      {selectedCategory && filteredEquipment.length === 0 && (
+        <p className="text-xs text-muted-foreground">No available equipment in this category.</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Equipment Modal — category → equipment cascading dropdowns
+// ---------------------------------------------------------------------------
+
+function AddEquipmentModal({
+  tradingPostId,
+  existingItems,
+  onClose,
+  onAdded,
+}: {
+  tradingPostId: string;
+  existingItems: CustomTPEquipment[];
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
+
+  const { data: categories = [], error: categoriesError } = useQuery({
+    queryKey: ['equipmentCategories'],
+    queryFn: async () => {
+      const res = await fetch('/api/equipment/categories');
+      if (!res.ok) throw new Error('Failed to fetch categories');
+      return res.json() as Promise<Array<{ id: string; category_name: string }>>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: allEquipment = [], error: equipmentError } = useQuery({
+    queryKey: ['equipment'],
+    queryFn: async () => {
+      const res = await fetch('/api/equipment');
+      if (!res.ok) throw new Error('Failed to fetch equipment');
+      return res.json() as Promise<EquipmentOption[]>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (categoriesError) toast.error('Failed to load equipment categories');
+  }, [categoriesError]);
+
+  useEffect(() => {
+    if (equipmentError) toast.error('Failed to load equipment');
+  }, [equipmentError]);
+
+  const existingIds = new Set(
+    existingItems.map(i => i.equipment_id || `custom_${i.custom_equipment_id}`)
+  );
+
+  const filteredEquipment = allEquipment
+    .filter(e => e.equipment_category === selectedCategory)
+    .filter(e => !existingIds.has(e.id));
+
+  const addMutation = useMutation({
+    mutationFn: async () => {
+      const selected = allEquipment.find(e => e.id === selectedEquipmentId);
+      if (!selected) throw new Error('Equipment not found');
+      const realId = selected.is_custom ? selected.original_id! : selected.id;
+      return addTPEquipment(tradingPostId, realId, selected.is_custom);
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success('Equipment added');
+        onAdded();
+      } else {
+        toast.error(result.error || 'Failed to add equipment');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  return (
+    <Modal
+      title="Add Equipment"
+      onClose={onClose}
+      onConfirm={async () => {
+        addMutation.mutate();
+        return true;
+      }}
+      confirmText={addMutation.isPending ? 'Adding...' : 'Add'}
+      confirmDisabled={!selectedEquipmentId || addMutation.isPending}
+    >
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Equipment Category</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background"
+            value={selectedCategory}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setSelectedEquipmentId('');
+            }}
+          >
+            <option value="">Select a category...</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.category_name}>{c.category_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedCategory && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Equipment</label>
+            <select
+              className="w-full border rounded-md p-2 bg-background"
+              value={selectedEquipmentId}
+              onChange={(e) => setSelectedEquipmentId(e.target.value)}
+            >
+              <option value="">Select equipment...</option>
+              {filteredEquipment.map(e => (
+                <option key={e.id} value={e.id}>{e.equipment_name}</option>
+              ))}
+            </select>
+            {filteredEquipment.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">No available equipment in this category.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Edit Overrides Modal
+// ---------------------------------------------------------------------------
+
+const ALIGNMENT_OPTIONS = ['Outlaw', 'Law Abiding', 'Unaligned'] as const;
+
+function EditEquipmentModal({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: CustomTPEquipment;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [costOverride, setCostOverride] = useState(item.cost_override?.toString() ?? '');
+  const [costResourceName, setCostResourceName] = useState(item.cost_resource_name ?? '');
+  const [availabilityOverride, setAvailabilityOverride] = useState(item.availability_override ?? '');
+  const [localAvailRules, setLocalAvailRules] = useState<CustomTPAvailabilityRule[] | null>(null);
+  const [localPricingRules, setLocalPricingRules] = useState<CustomTPPricingRule[] | null>(null);
+  const [isAddAvailOpen, setIsAddAvailOpen] = useState(false);
+  const [isAddPricingOpen, setIsAddPricingOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  const { data: fetchedAvailRules = [], isLoading: isLoadingAvail } = useQuery({
+    queryKey: ['tpAvailabilityRules', item.id],
+    queryFn: async () => {
+      const result = await getAvailabilityRules(item.id);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: fetchedPricingRules = [], isLoading: isLoadingPricing } = useQuery({
+    queryKey: ['tpPricingRules', item.id],
+    queryFn: async () => {
+      const result = await getPricingRules(item.id);
+      if (!result.success) throw new Error(result.error);
+      return result.data!;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const availRules = localAvailRules ?? fetchedAvailRules;
+  const pricingRules = localPricingRules ?? fetchedPricingRules;
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const overridesResult = await updateTPEquipment(item.id, {
+        cost_override: costOverride.trim() ? Number(costOverride) : null,
+        cost_resource_name: costResourceName.trim() || null,
+        availability_override: availabilityOverride.trim() || null,
+      });
+      if (!overridesResult.success) {
+        toast.error(overridesResult.error || 'Failed to save overrides');
+        return false;
+      }
+
+      if (localAvailRules !== null || localPricingRules !== null) {
+        const rulesResult = await saveEquipmentRules(
+          item.id,
+          (localAvailRules ?? fetchedAvailRules).map(r => ({
+            gang_type_id: r.gang_type_id,
+            custom_gang_type_id: r.custom_gang_type_id,
+            gang_origin_id: r.gang_origin_id,
+            gang_variant_id: r.gang_variant_id,
+            campaign_type_allegiance_id: r.campaign_type_allegiance_id,
+            alignment: r.alignment,
+            availability: r.availability,
+          })),
+          (localPricingRules ?? fetchedPricingRules).map(r => ({
+            gang_type_id: r.gang_type_id,
+            custom_gang_type_id: r.custom_gang_type_id,
+            gang_origin_id: r.gang_origin_id,
+            fighter_type_id: r.fighter_type_id,
+            adjusted_cost: r.adjusted_cost,
+          }))
+        );
+        if (!rulesResult.success) {
+          toast.error(rulesResult.error || 'Failed to save rules');
+          return false;
+        }
+        queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', item.id] });
+        queryClient.invalidateQueries({ queryKey: ['tpPricingRules', item.id] });
+      }
+
+      toast.success('Equipment saved');
+      onSaved();
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save');
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddAvailRule = (rule: CustomTPAvailabilityRule) => {
+    setLocalAvailRules(prev => [...(prev ?? fetchedAvailRules), rule]);
+    setIsAddAvailOpen(false);
+  };
+
+  const handleRemoveAvailRule = (index: number) => {
+    setLocalAvailRules(prev => (prev ?? fetchedAvailRules).filter((_, i) => i !== index));
+  };
+
+  const handleAddPricingRule = (rule: CustomTPPricingRule) => {
+    setLocalPricingRules(prev => [...(prev ?? fetchedPricingRules), rule]);
+    setIsAddPricingOpen(false);
+  };
+
+  const handleRemovePricingRule = (index: number) => {
+    setLocalPricingRules(prev => (prev ?? fetchedPricingRules).filter((_, i) => i !== index));
+  };
+
+  return (
+    <>
+      <Modal
+        title={`Edit: ${item.equipment_name}`}
+        onClose={onClose}
+        onConfirm={handleSave}
+        confirmText={isSaving ? 'Saving...' : 'Save'}
+        confirmDisabled={isSaving}
+        width="2xl"
+      >
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Cost Override</label>
+              <Input
+                type="number"
+                value={costOverride}
+                onChange={(e) => setCostOverride(e.target.value)}
+                placeholder="Leave empty for default cost"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Cost Resource Name</label>
+              <Input
+                value={costResourceName}
+                onChange={(e) => setCostResourceName(e.target.value)}
+                placeholder="e.g. Reputation, Meat (leave empty for credits)"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Availability Override</label>
+              <Input
+                value={availabilityOverride}
+                onChange={(e) => setAvailabilityOverride(e.target.value)}
+                placeholder="e.g. R12, C, E (leave empty for default)"
+              />
+            </div>
+          </div>
+
+          {/* Availability Rules */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold">Availability Rules</h4>
+              <Button size="sm" className="text-xs" onClick={() => setIsAddAvailOpen(true)}>
+                Add
+              </Button>
+            </div>
+            {isLoadingAvail ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : availRules.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No rules — available to all gangs.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-1 pr-2 font-medium">Gang Type</th>
+                      <th className="py-1 pr-2 font-medium">Origin</th>
+                      <th className="py-1 pr-2 font-medium">Variant</th>
+                      <th className="py-1 pr-2 font-medium">Allegiance</th>
+                      <th className="py-1 pr-2 font-medium">Alignment</th>
+                      <th className="py-1 pr-2 font-medium">Avail.</th>
+                      <th className="py-1 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availRules.map((rule, index) => (
+                      <tr key={rule.id || `new_${index}`} className="border-b last:border-0">
+                        <td className="py-1 pr-2">{rule.gang_type_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.gang_origin_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.gang_variant_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.allegiance_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.alignment || '-'}</td>
+                        <td className="py-1 pr-2">{rule.availability || '-'}</td>
+                        <td className="py-1 text-right">
+                          <Button
+                            variant="outline_remove"
+                            size="sm"
+                            className="text-xs px-1 h-5"
+                            onClick={() => handleRemoveAvailRule(index)}
+                          >
+                            <LuTrash2 className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Pricing Rules */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold">Pricing Rules</h4>
+              <Button size="sm" className="text-xs" onClick={() => setIsAddPricingOpen(true)}>
+                Add
+              </Button>
+            </div>
+            {isLoadingPricing ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : pricingRules.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No pricing rules — default cost applies.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-left">
+                      <th className="py-1 pr-2 font-medium">Gang Type</th>
+                      <th className="py-1 pr-2 font-medium">Origin</th>
+                      <th className="py-1 pr-2 font-medium">Fighter Type</th>
+                      <th className="py-1 pr-2 font-medium">Adjusted Cost</th>
+                      <th className="py-1 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pricingRules.map((rule, index) => (
+                      <tr key={rule.id || `new_${index}`} className="border-b last:border-0">
+                        <td className="py-1 pr-2">{rule.gang_type_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.gang_origin_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.fighter_type_name || '-'}</td>
+                        <td className="py-1 pr-2">{rule.adjusted_cost != null ? rule.adjusted_cost : '-'}</td>
+                        <td className="py-1 text-right">
+                          <Button
+                            variant="outline_remove"
+                            size="sm"
+                            className="text-xs px-1 h-5"
+                            onClick={() => handleRemovePricingRule(index)}
+                          >
+                            <LuTrash2 className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {isAddAvailOpen && (
+        <AddAvailabilityRuleModal
+          equipmentItemId={item.id}
+          onClose={() => setIsAddAvailOpen(false)}
+          onAdded={handleAddAvailRule}
+        />
+      )}
+
+      {isAddPricingOpen && (
+        <AddPricingRuleModal
+          equipmentItemId={item.id}
+          onClose={() => setIsAddPricingOpen(false)}
+          onAdded={handleAddPricingRule}
+        />
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Availability Rule Modal
+// ---------------------------------------------------------------------------
+
+interface GangTypeOption {
+  gang_type_id?: string;
+  id?: string;
+  gang_type: string;
+  is_custom?: boolean;
+  available_origins?: Array<{ id: string; origin_name: string }>;
+}
+
+function AddAvailabilityRuleModal({
+  equipmentItemId,
+  onClose,
+  onAdded,
+}: {
+  equipmentItemId: string;
+  onClose: () => void;
+  onAdded: (rule: CustomTPAvailabilityRule) => void;
+}) {
+  const [gangTypeId, setGangTypeId] = useState('');
+  const [isCustomGangType, setIsCustomGangType] = useState(false);
+  const [gangOriginId, setGangOriginId] = useState('');
+  const [gangVariantId, setGangVariantId] = useState('');
+  const [allegiance, setAllegiance] = useState('');
+  const [alignment, setAlignment] = useState('');
+  const [availability, setAvailability] = useState('');
+
+  const { data: gangTypes = [] } = useQuery({
+    queryKey: ['gangTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/gang-types?includeAll=true');
+      if (!res.ok) throw new Error('Failed to fetch gang types');
+      return res.json() as Promise<GangTypeOption[]>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: variants = [] } = useQuery({
+    queryKey: ['gangVariantTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/gang-variant-types');
+      if (!res.ok) throw new Error('Failed to fetch variants');
+      return res.json() as Promise<Array<{ id: string; variant: string }>>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: allegiances = [] } = useQuery({
+    queryKey: ['campaignTypeAllegiances'],
+    queryFn: async () => {
+      const res = await fetch('/api/campaign-type-allegiances');
+      if (!res.ok) throw new Error('Failed to fetch allegiances');
+      return res.json() as Promise<Array<{ id: string; allegiance_name: string; campaign_type_name: string }>>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const selectedGangType = gangTypes.find(
+    gt => (gt.gang_type_id || gt.id) === gangTypeId
+  );
+  const origins = selectedGangType?.available_origins || [];
+
+  const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
+  const customGangTypes = gangTypes.filter(gt => gt.is_custom);
+
+  const selectedGangTypeName = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId)?.gang_type || null;
+  const selectedOriginName = origins.find(o => o.id === gangOriginId)?.origin_name || null;
+  const selectedVariantName = variants.find(v => v.id === gangVariantId)?.variant || null;
+  const selectedAllegianceName = allegiances.find(a => a.id === allegiance)?.allegiance_name || null;
+
+  const handleAdd = () => {
+    const rule: CustomTPAvailabilityRule = {
+      id: `local_${Date.now()}`,
+      custom_trading_post_equipment_id: equipmentItemId,
+      gang_type_id: !isCustomGangType && gangTypeId ? gangTypeId : null,
+      custom_gang_type_id: isCustomGangType && gangTypeId ? gangTypeId : null,
+      gang_origin_id: gangOriginId || null,
+      gang_variant_id: gangVariantId || null,
+      campaign_type_allegiance_id: allegiance || null,
+      alignment: alignment || null,
+      availability: availability || null,
+      gang_type_name: selectedGangTypeName,
+      gang_origin_name: selectedOriginName,
+      gang_variant_name: selectedVariantName,
+      allegiance_name: selectedAllegianceName,
+    };
+    onAdded(rule);
+  };
+
+  const hasAnyField = gangTypeId || gangOriginId || gangVariantId || allegiance || alignment;
+
+  return (
+    <Modal
+      title="Add Availability Rule"
+      onClose={onClose}
+      onConfirm={async () => {
+        handleAdd();
+        return true;
+      }}
+      confirmText="Add Rule"
+      confirmDisabled={!hasAnyField}
+    >
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Gang Type</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={gangTypeId}
+            onChange={(e) => {
+              const val = e.target.value;
+              setGangTypeId(val);
+              setGangOriginId('');
+              const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
+              setIsCustomGangType(!!gt?.is_custom);
+            }}
+          >
+            <option value="">Any gang type</option>
+            {systemGangTypes.length > 0 && (
+              <optgroup label="System Gang Types">
+                {systemGangTypes.map(gt => (
+                  <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
+                    {gt.gang_type}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {customGangTypes.length > 0 && (
+              <optgroup label="Custom Gang Types">
+                {customGangTypes.map(gt => (
+                  <option key={`custom_${gt.id}`} value={gt.id}>
+                    {gt.gang_type}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+
+        {origins.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Gang Origin</label>
+            <select
+              className="w-full border rounded-md p-2 bg-background text-sm"
+              value={gangOriginId}
+              onChange={(e) => setGangOriginId(e.target.value)}
+            >
+              <option value="">Any origin</option>
+              {origins.map(o => (
+                <option key={o.id} value={o.id}>{o.origin_name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Gang Variant</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={gangVariantId}
+            onChange={(e) => setGangVariantId(e.target.value)}
+          >
+            <option value="">Any variant</option>
+            {variants.map(v => (
+              <option key={v.id} value={v.id}>{v.variant}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Allegiance</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={allegiance}
+            onChange={(e) => setAllegiance(e.target.value)}
+          >
+            <option value="">Any allegiance</option>
+            {allegiances.map(a => (
+              <option key={a.id} value={a.id}>{a.allegiance_name} ({a.campaign_type_name})</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Alignment</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={alignment}
+            onChange={(e) => setAlignment(e.target.value)}
+          >
+            <option value="">Any alignment</option>
+            {ALIGNMENT_OPTIONS.map(a => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Availability</label>
+          <Input
+            value={availability}
+            onChange={(e) => setAvailability(e.target.value)}
+            placeholder="e.g. R12, C, E"
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Pricing Rule Modal
+// ---------------------------------------------------------------------------
+
+function AddPricingRuleModal({
+  equipmentItemId,
+  onClose,
+  onAdded,
+}: {
+  equipmentItemId: string;
+  onClose: () => void;
+  onAdded: (rule: CustomTPPricingRule) => void;
+}) {
+  const [gangTypeId, setGangTypeId] = useState('');
+  const [isCustomGangType, setIsCustomGangType] = useState(false);
+  const [gangOriginId, setGangOriginId] = useState('');
+  const [fighterTypeId, setFighterTypeId] = useState('');
+  const [adjustedCost, setAdjustedCost] = useState('');
+
+  const { data: gangTypes = [] } = useQuery({
+    queryKey: ['gangTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/gang-types?includeAll=true');
+      if (!res.ok) throw new Error('Failed to fetch gang types');
+      return res.json() as Promise<GangTypeOption[]>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: fighterTypes = [] } = useQuery({
+    queryKey: ['fighterTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/fighter-types?include_all_types=true');
+      if (!res.ok) throw new Error('Failed to fetch fighter types');
+      return res.json() as Promise<Array<{ id: string; fighter_type: string; gang_type?: string }>>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const fighterTypeOptions = React.useMemo(() => {
+    const grouped: Record<string, Array<{ id: string; fighter_type: string }>> = {};
+    for (const ft of fighterTypes) {
+      const group = ft.gang_type || 'Other';
+      if (!grouped[group]) grouped[group] = [];
+      grouped[group].push(ft);
+    }
+    const options: Array<{ value: string; label: string; displayValue?: string; disabled?: boolean }> = [];
+    for (const gangType of Object.keys(grouped)) {
+      options.push({ value: `header_${gangType}`, label: gangType, disabled: true });
+      for (const ft of grouped[gangType]) {
+        options.push({ value: ft.id, label: ft.fighter_type, displayValue: ft.fighter_type });
+      }
+    }
+    return options;
+  }, [fighterTypes]);
+
+  const selectedGangType = gangTypes.find(
+    gt => (gt.gang_type_id || gt.id) === gangTypeId
+  );
+  const origins = selectedGangType?.available_origins || [];
+
+  const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
+  const customGangTypes = gangTypes.filter(gt => gt.is_custom);
+
+  const selectedGangTypeName = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId)?.gang_type || null;
+  const selectedOriginName = selectedGangType?.available_origins?.find((o: { id: string; origin_name: string }) => o.id === gangOriginId)?.origin_name || null;
+  const selectedFighterTypeName = fighterTypes.find(ft => ft.id === fighterTypeId)?.fighter_type || null;
+
+  const handleAdd = () => {
+    const rule: CustomTPPricingRule = {
+      id: `local_${Date.now()}`,
+      custom_trading_post_equipment_id: equipmentItemId,
+      gang_type_id: !isCustomGangType && gangTypeId ? gangTypeId : null,
+      custom_gang_type_id: isCustomGangType && gangTypeId ? gangTypeId : null,
+      gang_origin_id: gangOriginId || null,
+      fighter_type_id: fighterTypeId || null,
+      adjusted_cost: adjustedCost.trim() ? Number(adjustedCost) : null,
+      gang_type_name: selectedGangTypeName,
+      gang_origin_name: selectedOriginName,
+      fighter_type_name: selectedFighterTypeName,
+    };
+    onAdded(rule);
+  };
+
+  const isValid = adjustedCost.trim() !== '' && (gangTypeId || gangOriginId || fighterTypeId);
+
+  return (
+    <Modal
+      title="Add Pricing Rule"
+      onClose={onClose}
+      onConfirm={async () => {
+        handleAdd();
+        return true;
+      }}
+      confirmText="Add Rule"
+      confirmDisabled={!isValid}
+    >
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Gang Type</label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={gangTypeId}
+            onChange={(e) => {
+              const val = e.target.value;
+              setGangTypeId(val);
+              setGangOriginId('');
+              const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
+              setIsCustomGangType(!!gt?.is_custom);
+            }}
+          >
+            <option value="">Any gang type</option>
+            {systemGangTypes.length > 0 && (
+              <optgroup label="System Gang Types">
+                {systemGangTypes.map(gt => (
+                  <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
+                    {gt.gang_type}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {customGangTypes.length > 0 && (
+              <optgroup label="Custom Gang Types">
+                {customGangTypes.map(gt => (
+                  <option key={`custom_${gt.id}`} value={gt.id}>
+                    {gt.gang_type}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+
+        {origins.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-1">Gang Origin</label>
+            <select
+              className="w-full border rounded-md p-2 bg-background text-sm"
+              value={gangOriginId}
+              onChange={(e) => setGangOriginId(e.target.value)}
+            >
+              <option value="">Any origin</option>
+              {origins.map(o => (
+                <option key={o.id} value={o.id}>{o.origin_name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Fighter Type</label>
+          <Combobox
+            options={fighterTypeOptions}
+            value={fighterTypeId}
+            onValueChange={setFighterTypeId}
+            placeholder="Any fighter type"
+            clearable
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Adjusted Cost *</label>
+          <Input
+            type="number"
+            value={adjustedCost}
+            onChange={(e) => setAdjustedCost(e.target.value)}
+            placeholder="Enter adjusted cost"
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}

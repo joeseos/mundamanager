@@ -120,6 +120,7 @@ interface CampaignPageContentProps {
     has_sustenance: boolean;
     has_salvage: boolean;
     trading_posts: string[];
+    custom_trading_posts?: string[];
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
@@ -144,6 +145,7 @@ interface CampaignPageContentProps {
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
+  customTradingPostTypes?: Array<{ id: string; trading_post_name: string }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
   mapData?: {
@@ -179,6 +181,7 @@ export default function CampaignPageContent({
   campaignTypes, 
   allTerritories,
   tradingPostTypes,
+  customTradingPostTypes = [],
   campaignAllegiances = [],
   campaignResources = [],
   mapData: initialMapData,
@@ -312,6 +315,7 @@ export default function CampaignPageContent({
     description: string;
     status: string;
     trading_posts: string[];
+    custom_trading_posts: string[];
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
@@ -322,6 +326,7 @@ export default function CampaignPageContent({
         campaign_name: formValues.campaign_name,
         description: formValues.description,
         trading_posts: formValues.trading_posts,
+        custom_trading_posts: formValues.custom_trading_posts,
         status: formValues.status,
         ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
         ...(formValues.discord_channel_id !== undefined && { discord_channel_id: formValues.discord_channel_id }),
@@ -340,6 +345,7 @@ export default function CampaignPageContent({
         campaign_name: formValues.campaign_name,
         description: formValues.description,
         trading_posts: formValues.trading_posts,
+        custom_trading_posts: formValues.custom_trading_posts,
         status: formValues.status,
         updated_at: now,
         ...(formValues.discord_guild_id !== undefined && { discord_guild_id: formValues.discord_guild_id }),
@@ -975,6 +981,7 @@ export default function CampaignPageContent({
             campaign_name: campaignData.campaign_name,
             description: campaignData.description,
             trading_posts: campaignData.trading_posts || [],
+            custom_trading_posts: campaignData.custom_trading_posts || [],
             status: campaignData.status,
             campaign_type_name: campaignData.campaign_type_name,
             campaign_type_id: campaignData.campaign_type_id,
@@ -983,6 +990,7 @@ export default function CampaignPageContent({
             discord_channel_type: campaignData.discord_channel_type,
           }}
           tradingPostTypes={tradingPostTypes || []}
+          customTradingPostTypes={customTradingPostTypes}
           onClose={() => setShowEditModal(false)}
           isArbitrator={!!safePermissions.isArbitrator}
           isAdmin={isAdmin}

@@ -102,7 +102,7 @@ export async function GET(
     const dedupedCampaigns = Array.from(dedupedCampaignsMap.values())
 
     // Fetch custom assets data - get full data for the components
-    const [customEquipmentResult, customFightersResult, customTerritoriesResult, customSkillsResult, customGangTypesResult] = await Promise.all([
+    const [customEquipmentResult, customFightersResult, customTerritoriesResult, customSkillsResult, customGangTypesResult, customTradingPostsResult] = await Promise.all([
       supabase
         .from('custom_equipment')
         .select('*')
@@ -137,7 +137,12 @@ export async function GET(
         .from('custom_gang_types')
         .select('*')
         .eq('user_id', userId)
-        .order('gang_type')
+        .order('gang_type'),
+      supabase
+        .from('custom_trading_posts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('custom_trading_post_name')
     ])
 
     // Map custom skills to include skill_type_name
@@ -157,6 +162,7 @@ export async function GET(
       territories: customTerritoriesResult.data?.length || 0,
       skills: customSkillsData.length,
       gangTypes: customGangTypesResult.data?.length || 0,
+      tradingPosts: customTradingPostsResult.data?.length || 0,
     }
 
     // Fetch related data for fighters (default skills and equipment)
@@ -294,6 +300,7 @@ export async function GET(
       territories: customTerritoriesResult.data || [],
       skills: customSkillsData,
       gangTypes: customGangTypesResult.data || [],
+      tradingPosts: customTradingPostsResult.data || [],
     }
 
     return Response.json({

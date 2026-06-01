@@ -6,8 +6,9 @@ import { CustomEquipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
-import { shareCustomFighter, shareCustomEquipment, shareCustomGangType } from '@/app/actions/customise/custom-share';
+import { shareCustomFighter, shareCustomEquipment, shareCustomGangType, shareCustomTradingPost } from '@/app/actions/customise/custom-share';
 import { CustomGangType } from '@/app/actions/customise/custom-gang-types';
+import { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import type { UserCampaign } from '@/types/campaign';
@@ -410,6 +411,140 @@ export function ShareCustomGangTypeModal({
                 />
                 <label
                   htmlFor={`gangtype-campaign-${campaign.id}`}
+                  className="flex-1 cursor-pointer"
+                >
+                  <div className="font-medium">{campaign.campaign_name}</div>
+                  {campaign.status && (
+                    <div className="text-sm text-muted-foreground">
+                      Status: {campaign.status}
+                    </div>
+                  )}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+interface ShareCustomTradingPostModalProps {
+  tradingPost: CustomTradingPost;
+  userCampaigns: UserCampaign[];
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export function ShareCustomTradingPostModal({
+  tradingPost,
+  userCampaigns,
+  onClose,
+  onSuccess
+}: ShareCustomTradingPostModalProps) {
+  const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
+
+  const queryClient = useQueryClient();
+
+  const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
+    queryKey: ['customSharedCampaigns', 'tradingPost', tradingPost.id],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('custom_shared')
+        .select('campaign_id')
+        .eq('custom_trading_post_id', tradingPost.id);
+
+      if (error) throw error;
+      return data?.map(share => share.campaign_id) || [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (isSuccess) {
+      setSelectedCampaigns(sharedCampaignIds);
+    }
+  }, [isSuccess, sharedCampaignIds]);
+
+  useEffect(() => {
+    if (fetchError) {
+      toast.error('Failed to load shared campaigns');
+    }
+  }, [fetchError]);
+
+  const shareTradingPostMutation = useMutation({
+    mutationFn: (campaignIds: string[]) => shareCustomTradingPost(tradingPost.id, campaignIds),
+    onSuccess: (result, campaignIds) => {
+      if (result.success) {
+        toast.success(campaignIds.length > 0
+            ? `Custom trading post shared to ${campaignIds.length} campaign${campaignIds.length !== 1 ? 's' : ''}`
+            : 'Custom trading post unshared from all campaigns');
+        queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
+        queryClient.invalidateQueries({ queryKey: ['customSharedCampaigns', 'tradingPost', tradingPost.id] });
+        onSuccess?.();
+        onClose();
+      } else {
+        toast.error(result.error || 'Failed to share custom trading post');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to share custom trading post');
+    }
+  });
+
+  const handleToggleCampaign = (campaignId: string) => {
+    setSelectedCampaigns(prev =>
+      prev.includes(campaignId)
+        ? prev.filter(id => id !== campaignId)
+        : [...prev, campaignId]
+    );
+  };
+
+  const handleSubmit = () => {
+    shareTradingPostMutation.mutate(selectedCampaigns);
+    return true;
+  };
+
+  return (
+    <Modal
+      title="Share Custom Trading Post"
+      helper="Select campaigns to share this custom trading post with"
+      onClose={onClose}
+      onConfirm={handleSubmit}
+      confirmText={shareTradingPostMutation.isPending ? 'Sharing...' : 'Share Trading Post'}
+      confirmDisabled={shareTradingPostMutation.isPending || isLoading}
+      width="md"
+    >
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Loading...
+          </div>
+        ) : userCampaigns.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>You're not part of any campaigns yet.</p>
+            <p className="text-sm mt-2">You need to be an arbitrator of a campaign to share custom trading posts to it.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground mb-4">
+              Sharing <strong>{tradingPost.custom_trading_post_name}</strong> to campaigns:
+            </p>
+            {userCampaigns.map((campaign) => (
+              <div
+                key={campaign.id}
+                className="flex items-start space-x-3 p-3 border rounded-md hover:bg-muted/50 transition-colors"
+              >
+                <Checkbox
+                  id={`tradingpost-campaign-${campaign.id}`}
+                  checked={selectedCampaigns.includes(campaign.id)}
+                  onCheckedChange={() => handleToggleCampaign(campaign.id)}
+                  className="mt-0.5"
+                />
+                <label
+                  htmlFor={`tradingpost-campaign-${campaign.id}`}
                   className="flex-1 cursor-pointer"
                 >
                   <div className="font-medium">{campaign.campaign_name}</div>
