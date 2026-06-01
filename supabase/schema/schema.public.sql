@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xpbvbM4iArzfibZDzTxAn9uKIaURuJbWOcdhWbaqWKXckTSyCh6LNVyoXdSSUYe
+\restrict btuzxtb09VLTd82XZIhCCxRbmHdVfpwTLfJffVmXmOZWEGmGAhX4fqbYG6L8tm6
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -4468,6 +4468,13 @@ CREATE TABLE public.custom_trading_post_availability (
 
 
 --
+-- Name: TABLE custom_trading_post_availability; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.custom_trading_post_availability IS 'Per-item access restrictions and availability ratings by gang type, origin, variant, allegiance, and/or alignment. No rows means available to everyone; one or more rows act as an allowlist.';
+
+
+--
 -- Name: custom_trading_post_equipment; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4503,6 +4510,13 @@ CREATE TABLE public.custom_trading_post_pricing (
     fighter_type_id uuid,
     adjusted_cost numeric
 );
+
+
+--
+-- Name: TABLE custom_trading_post_pricing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.custom_trading_post_pricing IS 'Per-item adjusted cost by gang type, origin, and/or fighter type. Overrides the equipment-level cost_override for matching contexts.';
 
 
 --
@@ -11577,5 +11591,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xpbvbM4iArzfibZDzTxAn9uKIaURuJbWOcdhWbaqWKXckTSyCh6LNVyoXdSSUYe
+\unrestrict btuzxtb09VLTd82XZIhCCxRbmHdVfpwTLfJffVmXmOZWEGmGAhX4fqbYG6L8tm6
 
