@@ -44,11 +44,11 @@ function ActivitySection({
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {periods.map(({ label, value }) => (
-          <div key={label} className="p-6 bg-muted/50 rounded-lg border">
-            <p className="text-sm text-muted-foreground mb-2">{label}</p>
-            <p className="text-3xl font-bold">{formatStatValue(value)}</p>
+          <div key={label} className="p-2 bg-muted/50 rounded-lg border">
+            <p className="text-center text-xs text-muted-foreground mb-2">{label}</p>
+            <p className="text-center text-lg md:text-xl font-bold">{formatStatValue(value)}</p>
           </div>
         ))}
       </div>
@@ -95,22 +95,25 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
             </div>
           ) : stats ? (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="p-6 bg-muted/50 rounded-lg border">
-                  <p className="text-sm text-muted-foreground mb-2">Total Users</p>
-                  <p className="text-3xl font-bold">{stats.userCount.toLocaleString()}</p>
-                </div>
-                <div className="p-6 bg-muted/50 rounded-lg border">
-                  <p className="text-sm text-muted-foreground mb-2">Total Gangs</p>
-                  <p className="text-3xl font-bold">
-                    {formatStatValue(stats.gangCount)}
-                  </p>
-                </div>
-                <div className="p-6 bg-muted/50 rounded-lg border">
-                  <p className="text-sm text-muted-foreground mb-2">Total Campaigns</p>
-                  <p className="text-3xl font-bold">
-                    {formatStatValue(stats.campaignCount)}
-                  </p>
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-foreground">Total Counts</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <p className="text-center text-sm text-muted-foreground mb-2">Users</p>
+                    <p className="text-center text-lg md:text-xl font-bold">{stats.userCount.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <p className="text-center text-sm text-muted-foreground mb-2">Gangs</p>
+                    <p className="text-center text-lg md:text-xl font-bold">
+                      {formatStatValue(stats.gangCount)}
+                    </p>
+                  </div>
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <p className="text-center text-sm text-muted-foreground mb-2">Campaigns</p>
+                    <p className="text-center text-lg md:text-xl font-bold">
+                      {formatStatValue(stats.campaignCount)}
+                    </p>
+                  </div>
                 </div>
               </div>
 
