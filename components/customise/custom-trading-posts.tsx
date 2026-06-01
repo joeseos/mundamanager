@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Combobox } from '@/components/ui/combobox';
@@ -142,6 +144,10 @@ export function CustomiseTradingPosts({
 
   const handleView = (tradingPost: CustomTradingPost) => {
     setViewModalData(tradingPost);
+    setFormData({
+      custom_trading_post_name: tradingPost.custom_trading_post_name,
+      description: tradingPost.description || null,
+    });
   };
 
   const handleDelete = (tradingPost: CustomTradingPost) => {
@@ -266,7 +272,7 @@ export function CustomiseTradingPosts({
   const renderForm = (isReadOnly = false) => (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium mb-1">Trading Post Name *</label>
+        <Label className="mb-1">Trading Post Name *</Label>
         <Input
           value={formData.custom_trading_post_name}
           onChange={(e) => setFormData({ ...formData, custom_trading_post_name: e.target.value })}
@@ -276,9 +282,9 @@ export function CustomiseTradingPosts({
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Description</label>
-        <textarea
-          className="w-full border rounded-md p-2 bg-background min-h-[80px] resize-y"
+        <Label className="mb-1">Description</Label>
+        <Textarea
+          className="min-h-20 resize-y"
           value={formData.description || ''}
           onChange={(e) => setFormData({ ...formData, description: e.target.value || null })}
           placeholder="Enter description (optional)"
@@ -336,6 +342,7 @@ export function CustomiseTradingPosts({
           }}
           onConfirm={handleEditConfirm}
           isPending={updateMutation.isPending}
+          renderForm={renderForm}
         />
       )}
 
@@ -343,6 +350,7 @@ export function CustomiseTradingPosts({
         <ViewTradingPostModal
           tradingPost={viewModalData}
           onClose={() => setViewModalData(null)}
+          renderForm={renderForm}
         />
       )}
 
@@ -547,6 +555,7 @@ function EditTradingPostModal({
   onClose,
   onConfirm,
   isPending,
+  renderForm,
 }: {
   tradingPost: CustomTradingPost;
   formData: CustomTradingPostData;
@@ -555,6 +564,7 @@ function EditTradingPostModal({
   onClose: () => void;
   onConfirm: () => Promise<boolean | undefined>;
   isPending: boolean;
+  renderForm: (isReadOnly?: boolean) => React.ReactNode;
 }) {
   return (
     <Modal
@@ -566,25 +576,7 @@ function EditTradingPostModal({
       width="2xl"
     >
       <div className="space-y-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Trading Post Name *</label>
-            <Input
-              value={formData.custom_trading_post_name}
-              onChange={(e) => setFormData(prev => ({ ...prev, custom_trading_post_name: e.target.value }))}
-              placeholder="Enter trading post name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <textarea
-              className="w-full border rounded-md p-2 bg-background min-h-[80px] resize-y"
-              value={formData.description || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value || null }))}
-              placeholder="Enter description (optional)"
-            />
-          </div>
-        </div>
+        {renderForm()}
 
         <div className="border-t pt-4">
           <EquipmentItemsSection tradingPostId={tradingPost.id} />
@@ -601,9 +593,11 @@ function EditTradingPostModal({
 function ViewTradingPostModal({
   tradingPost,
   onClose,
+  renderForm,
 }: {
   tradingPost: CustomTradingPost;
   onClose: () => void;
+  renderForm: (isReadOnly?: boolean) => React.ReactNode;
 }) {
   return (
     <Modal
@@ -612,23 +606,7 @@ function ViewTradingPostModal({
       width="2xl"
     >
       <div className="space-y-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Trading Post Name</label>
-            <Input
-              value={tradingPost.custom_trading_post_name}
-              disabled
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
-            <textarea
-              className="w-full border rounded-md p-2 bg-background min-h-[80px] resize-y"
-              value={tradingPost.description || ''}
-              disabled
-            />
-          </div>
-        </div>
+        {renderForm(true)}
 
         <div className="border-t pt-4">
           <EquipmentItemsSection tradingPostId={tradingPost.id} readOnly />
@@ -642,16 +620,7 @@ function ViewTradingPostModal({
 // Pending Equipment Section — inline picker for Add Trading Post modal
 // ---------------------------------------------------------------------------
 
-function PendingEquipmentSection({
-  pendingEquipment,
-  setPendingEquipment,
-}: {
-  pendingEquipment: EquipmentOption[];
-  setPendingEquipment: React.Dispatch<React.SetStateAction<EquipmentOption[]>>;
-}) {
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
-
+function useEquipmentData() {
   const { data: categories = [], error: categoriesError } = useQuery({
     queryKey: ['equipmentCategories'],
     queryFn: async () => {
@@ -679,6 +648,21 @@ function PendingEquipmentSection({
   useEffect(() => {
     if (equipmentError) toast.error('Failed to load equipment');
   }, [equipmentError]);
+
+  return { categories, allEquipment };
+}
+
+function PendingEquipmentSection({
+  pendingEquipment,
+  setPendingEquipment,
+}: {
+  pendingEquipment: EquipmentOption[];
+  setPendingEquipment: React.Dispatch<React.SetStateAction<EquipmentOption[]>>;
+}) {
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
+
+  const { categories, allEquipment } = useEquipmentData();
 
   const pendingIds = new Set(pendingEquipment.map(e => e.id));
 
@@ -736,7 +720,7 @@ function PendingEquipmentSection({
 
       <div className="flex gap-2 items-end">
         <div className="flex-1">
-          <label className="block text-sm font-medium mb-1">Category</label>
+          <Label className="mb-1">Category</Label>
           <select
             className="w-full border rounded-md p-2 bg-background text-sm"
             value={selectedCategory}
@@ -754,7 +738,7 @@ function PendingEquipmentSection({
 
         {selectedCategory && (
           <div className="flex-1">
-            <label className="block text-sm font-medium mb-1">Equipment</label>
+            <Label className="mb-1">Equipment</Label>
             <select
               className="w-full border rounded-md p-2 bg-background text-sm"
               value={selectedEquipmentId}
@@ -803,33 +787,7 @@ function AddEquipmentModal({
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
 
-  const { data: categories = [], error: categoriesError } = useQuery({
-    queryKey: ['equipmentCategories'],
-    queryFn: async () => {
-      const res = await fetch('/api/equipment/categories');
-      if (!res.ok) throw new Error('Failed to fetch categories');
-      return res.json() as Promise<Array<{ id: string; category_name: string }>>;
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-
-  const { data: allEquipment = [], error: equipmentError } = useQuery({
-    queryKey: ['equipment'],
-    queryFn: async () => {
-      const res = await fetch('/api/equipment');
-      if (!res.ok) throw new Error('Failed to fetch equipment');
-      return res.json() as Promise<EquipmentOption[]>;
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-
-  useEffect(() => {
-    if (categoriesError) toast.error('Failed to load equipment categories');
-  }, [categoriesError]);
-
-  useEffect(() => {
-    if (equipmentError) toast.error('Failed to load equipment');
-  }, [equipmentError]);
+  const { categories, allEquipment } = useEquipmentData();
 
   const existingIds = new Set(
     existingItems.map(i => i.equipment_id || `custom_${i.custom_equipment_id}`)
@@ -872,7 +830,7 @@ function AddEquipmentModal({
     >
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Equipment Category</label>
+          <Label className="mb-1">Equipment Category</Label>
           <select
             className="w-full border rounded-md p-2 bg-background"
             value={selectedCategory}
@@ -890,7 +848,7 @@ function AddEquipmentModal({
 
         {selectedCategory && (
           <div>
-            <label className="block text-sm font-medium mb-1">Equipment</label>
+            <Label className="mb-1">Equipment</Label>
             <select
               className="w-full border rounded-md p-2 bg-background"
               value={selectedEquipmentId}
@@ -1043,7 +1001,7 @@ function EditEquipmentModal({
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Cost Override</label>
+              <Label className="mb-1">Cost Override</Label>
               <Input
                 type="number"
                 value={costOverride}
@@ -1052,7 +1010,7 @@ function EditEquipmentModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Cost Resource Name</label>
+              <Label className="mb-1">Cost Resource Name</Label>
               <Input
                 value={costResourceName}
                 onChange={(e) => setCostResourceName(e.target.value)}
@@ -1060,7 +1018,7 @@ function EditEquipmentModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Availability Override</label>
+              <Label className="mb-1">Availability Override</Label>
               <Input
                 value={availabilityOverride}
                 onChange={(e) => setAvailabilityOverride(e.target.value)}
@@ -1204,6 +1162,90 @@ interface GangTypeOption {
   available_origins?: Array<{ id: string; origin_name: string }>;
 }
 
+function GangScopeFields({
+  gangTypeId,
+  gangOriginId,
+  onGangTypeChange,
+  onGangOriginChange,
+}: {
+  gangTypeId: string;
+  gangOriginId: string;
+  onGangTypeChange: (id: string, isCustom: boolean, name: string | null) => void;
+  onGangOriginChange: (id: string, name: string | null) => void;
+}) {
+  const { data: gangTypes = [] } = useQuery({
+    queryKey: ['gangTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/gang-types?includeAll=true');
+      if (!res.ok) throw new Error('Failed to fetch gang types');
+      return res.json() as Promise<GangTypeOption[]>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const selectedGangType = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId);
+  const origins = selectedGangType?.available_origins || [];
+  const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
+  const customGangTypes = gangTypes.filter(gt => gt.is_custom);
+
+  return (
+    <>
+      <div>
+        <Label className="mb-1">Gang Type</Label>
+        <select
+          className="w-full border rounded-md p-2 bg-background text-sm"
+          value={gangTypeId}
+          onChange={(e) => {
+            const val = e.target.value;
+            const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
+            onGangTypeChange(val, !!gt?.is_custom, gt?.gang_type || null);
+          }}
+        >
+          <option value="">Any gang type</option>
+          {systemGangTypes.length > 0 && (
+            <optgroup label="System Gang Types">
+              {systemGangTypes.map(gt => (
+                <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
+                  {gt.gang_type}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {customGangTypes.length > 0 && (
+            <optgroup label="Custom Gang Types">
+              {customGangTypes.map(gt => (
+                <option key={`custom_${gt.id}`} value={gt.id}>
+                  {gt.gang_type}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
+
+      {origins.length > 0 && (
+        <div>
+          <Label className="mb-1">Gang Origin</Label>
+          <select
+            className="w-full border rounded-md p-2 bg-background text-sm"
+            value={gangOriginId}
+            onChange={(e) => {
+              const val = e.target.value;
+              const origin = origins.find(o => o.id === val);
+              onGangOriginChange(val, origin?.origin_name || null);
+            }}
+          >
+            <option value="">Any origin</option>
+            {origins.map(o => (
+              <option key={o.id} value={o.id}>{o.origin_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </>
+  );
+}
+
 function AddAvailabilityRuleModal({
   equipmentItemId,
   onClose,
@@ -1216,20 +1258,12 @@ function AddAvailabilityRuleModal({
   const [gangTypeId, setGangTypeId] = useState('');
   const [isCustomGangType, setIsCustomGangType] = useState(false);
   const [gangOriginId, setGangOriginId] = useState('');
+  const [gangTypeName, setGangTypeName] = useState<string | null>(null);
+  const [gangOriginName, setGangOriginName] = useState<string | null>(null);
   const [gangVariantId, setGangVariantId] = useState('');
   const [allegiance, setAllegiance] = useState('');
   const [alignment, setAlignment] = useState('');
   const [availability, setAvailability] = useState('');
-
-  const { data: gangTypes = [] } = useQuery({
-    queryKey: ['gangTypes'],
-    queryFn: async () => {
-      const res = await fetch('/api/gang-types?includeAll=true');
-      if (!res.ok) throw new Error('Failed to fetch gang types');
-      return res.json() as Promise<GangTypeOption[]>;
-    },
-    staleTime: 10 * 60 * 1000,
-  });
 
   const { data: variants = [] } = useQuery({
     queryKey: ['gangVariantTypes'],
@@ -1251,16 +1285,6 @@ function AddAvailabilityRuleModal({
     staleTime: 10 * 60 * 1000,
   });
 
-  const selectedGangType = gangTypes.find(
-    gt => (gt.gang_type_id || gt.id) === gangTypeId
-  );
-  const origins = selectedGangType?.available_origins || [];
-
-  const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
-  const customGangTypes = gangTypes.filter(gt => gt.is_custom);
-
-  const selectedGangTypeName = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId)?.gang_type || null;
-  const selectedOriginName = origins.find(o => o.id === gangOriginId)?.origin_name || null;
   const selectedVariantName = variants.find(v => v.id === gangVariantId)?.variant || null;
   const selectedAllegianceName = allegiances.find(a => a.id === allegiance)?.allegiance_name || null;
 
@@ -1275,8 +1299,8 @@ function AddAvailabilityRuleModal({
       campaign_type_allegiance_id: allegiance || null,
       alignment: alignment || null,
       availability: availability || null,
-      gang_type_name: selectedGangTypeName,
-      gang_origin_name: selectedOriginName,
+      gang_type_name: gangTypeName,
+      gang_origin_name: gangOriginName,
       gang_variant_name: selectedVariantName,
       allegiance_name: selectedAllegianceName,
     };
@@ -1297,59 +1321,24 @@ function AddAvailabilityRuleModal({
       confirmDisabled={!hasAnyField}
     >
       <div className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Gang Type</label>
-          <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
-            value={gangTypeId}
-            onChange={(e) => {
-              const val = e.target.value;
-              setGangTypeId(val);
-              setGangOriginId('');
-              const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
-              setIsCustomGangType(!!gt?.is_custom);
-            }}
-          >
-            <option value="">Any gang type</option>
-            {systemGangTypes.length > 0 && (
-              <optgroup label="System Gang Types">
-                {systemGangTypes.map(gt => (
-                  <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
-                    {gt.gang_type}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {customGangTypes.length > 0 && (
-              <optgroup label="Custom Gang Types">
-                {customGangTypes.map(gt => (
-                  <option key={`custom_${gt.id}`} value={gt.id}>
-                    {gt.gang_type}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
-
-        {origins.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Gang Origin</label>
-            <select
-              className="w-full border rounded-md p-2 bg-background text-sm"
-              value={gangOriginId}
-              onChange={(e) => setGangOriginId(e.target.value)}
-            >
-              <option value="">Any origin</option>
-              {origins.map(o => (
-                <option key={o.id} value={o.id}>{o.origin_name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <GangScopeFields
+          gangTypeId={gangTypeId}
+          gangOriginId={gangOriginId}
+          onGangTypeChange={(id, isCustom, name) => {
+            setGangTypeId(id);
+            setIsCustomGangType(isCustom);
+            setGangTypeName(name);
+            setGangOriginId('');
+            setGangOriginName(null);
+          }}
+          onGangOriginChange={(id, name) => {
+            setGangOriginId(id);
+            setGangOriginName(name);
+          }}
+        />
 
         <div>
-          <label className="block text-sm font-medium mb-1">Gang Variant</label>
+          <Label className="mb-1">Gang Variant</Label>
           <select
             className="w-full border rounded-md p-2 bg-background text-sm"
             value={gangVariantId}
@@ -1363,7 +1352,7 @@ function AddAvailabilityRuleModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Allegiance</label>
+          <Label className="mb-1">Allegiance</Label>
           <select
             className="w-full border rounded-md p-2 bg-background text-sm"
             value={allegiance}
@@ -1377,7 +1366,7 @@ function AddAvailabilityRuleModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Alignment</label>
+          <Label className="mb-1">Alignment</Label>
           <select
             className="w-full border rounded-md p-2 bg-background text-sm"
             value={alignment}
@@ -1391,7 +1380,7 @@ function AddAvailabilityRuleModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Availability</label>
+          <Label className="mb-1">Availability</Label>
           <Input
             value={availability}
             onChange={(e) => setAvailability(e.target.value)}
@@ -1419,18 +1408,10 @@ function AddPricingRuleModal({
   const [gangTypeId, setGangTypeId] = useState('');
   const [isCustomGangType, setIsCustomGangType] = useState(false);
   const [gangOriginId, setGangOriginId] = useState('');
+  const [gangTypeName, setGangTypeName] = useState<string | null>(null);
+  const [gangOriginName, setGangOriginName] = useState<string | null>(null);
   const [fighterTypeId, setFighterTypeId] = useState('');
   const [adjustedCost, setAdjustedCost] = useState('');
-
-  const { data: gangTypes = [] } = useQuery({
-    queryKey: ['gangTypes'],
-    queryFn: async () => {
-      const res = await fetch('/api/gang-types?includeAll=true');
-      if (!res.ok) throw new Error('Failed to fetch gang types');
-      return res.json() as Promise<GangTypeOption[]>;
-    },
-    staleTime: 10 * 60 * 1000,
-  });
 
   const { data: fighterTypes = [] } = useQuery({
     queryKey: ['fighterTypes'],
@@ -1459,16 +1440,6 @@ function AddPricingRuleModal({
     return options;
   }, [fighterTypes]);
 
-  const selectedGangType = gangTypes.find(
-    gt => (gt.gang_type_id || gt.id) === gangTypeId
-  );
-  const origins = selectedGangType?.available_origins || [];
-
-  const systemGangTypes = gangTypes.filter(gt => !gt.is_custom);
-  const customGangTypes = gangTypes.filter(gt => gt.is_custom);
-
-  const selectedGangTypeName = gangTypes.find(gt => (gt.gang_type_id || gt.id) === gangTypeId)?.gang_type || null;
-  const selectedOriginName = selectedGangType?.available_origins?.find((o: { id: string; origin_name: string }) => o.id === gangOriginId)?.origin_name || null;
   const selectedFighterTypeName = fighterTypes.find(ft => ft.id === fighterTypeId)?.fighter_type || null;
 
   const handleAdd = () => {
@@ -1480,8 +1451,8 @@ function AddPricingRuleModal({
       gang_origin_id: gangOriginId || null,
       fighter_type_id: fighterTypeId || null,
       adjusted_cost: adjustedCost.trim() ? Number(adjustedCost) : null,
-      gang_type_name: selectedGangTypeName,
-      gang_origin_name: selectedOriginName,
+      gang_type_name: gangTypeName,
+      gang_origin_name: gangOriginName,
       fighter_type_name: selectedFighterTypeName,
     };
     onAdded(rule);
@@ -1501,59 +1472,24 @@ function AddPricingRuleModal({
       confirmDisabled={!isValid}
     >
       <div className="space-y-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Gang Type</label>
-          <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
-            value={gangTypeId}
-            onChange={(e) => {
-              const val = e.target.value;
-              setGangTypeId(val);
-              setGangOriginId('');
-              const gt = gangTypes.find(g => (g.gang_type_id || g.id) === val);
-              setIsCustomGangType(!!gt?.is_custom);
-            }}
-          >
-            <option value="">Any gang type</option>
-            {systemGangTypes.length > 0 && (
-              <optgroup label="System Gang Types">
-                {systemGangTypes.map(gt => (
-                  <option key={`system_${gt.gang_type_id || gt.id}`} value={gt.gang_type_id || gt.id}>
-                    {gt.gang_type}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {customGangTypes.length > 0 && (
-              <optgroup label="Custom Gang Types">
-                {customGangTypes.map(gt => (
-                  <option key={`custom_${gt.id}`} value={gt.id}>
-                    {gt.gang_type}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
-
-        {origins.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Gang Origin</label>
-            <select
-              className="w-full border rounded-md p-2 bg-background text-sm"
-              value={gangOriginId}
-              onChange={(e) => setGangOriginId(e.target.value)}
-            >
-              <option value="">Any origin</option>
-              {origins.map(o => (
-                <option key={o.id} value={o.id}>{o.origin_name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <GangScopeFields
+          gangTypeId={gangTypeId}
+          gangOriginId={gangOriginId}
+          onGangTypeChange={(id, isCustom, name) => {
+            setGangTypeId(id);
+            setIsCustomGangType(isCustom);
+            setGangTypeName(name);
+            setGangOriginId('');
+            setGangOriginName(null);
+          }}
+          onGangOriginChange={(id, name) => {
+            setGangOriginId(id);
+            setGangOriginName(name);
+          }}
+        />
 
         <div>
-          <label className="block text-sm font-medium mb-1">Fighter Type</label>
+          <Label className="mb-1">Fighter Type</Label>
           <Combobox
             options={fighterTypeOptions}
             value={fighterTypeId}
@@ -1564,7 +1500,7 @@ function AddPricingRuleModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Adjusted Cost *</label>
+          <Label className="mb-1">Adjusted Cost *</Label>
           <Input
             type="number"
             value={adjustedCost}
