@@ -127,6 +127,8 @@ export const CACHE_TAGS = {
   GLOBAL_USER_COUNT: () => `global-user-count`,                       // total user count for homepage
   GLOBAL_GANG_COUNT: () => `global-gang-count`,                       // total gang count for homepage
   GLOBAL_CAMPAIGN_COUNT: () => `global-campaign-count`,               // total campaign count for homepage
+  GLOBAL_GANG_ACTIVITY: () => `global-gang-activity`,                 // gang activity counts by period
+  GLOBAL_CAMPAIGN_ACTIVITY: () => `global-campaign-activity`,         // campaign activity counts by period
   
   // Battle session data
   BASE_BATTLE_SESSION: (id: string) => `base-battle-session-${id}`,
