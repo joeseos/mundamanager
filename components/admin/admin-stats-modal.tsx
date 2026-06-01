@@ -3,15 +3,57 @@
 import { useQuery } from '@tanstack/react-query';
 import { LuChartColumn } from "react-icons/lu";
 
+interface ActivityStats {
+  last2Weeks: number | null;
+  last1Month: number | null;
+  last3Months: number | null;
+  last6Months: number | null;
+}
+
 interface Stats {
   userCount: number;
   gangCount: number | null;
   campaignCount: number | null;
+  gangActivity: ActivityStats | null;
+  campaignActivity: ActivityStats | null;
 }
 
 interface AdminStatsModalProps {
   onClose: () => void;
   onSubmit?: () => void;
+}
+
+function formatStatValue(value: number | null | undefined): string {
+  return value !== null && value !== undefined ? value.toLocaleString() : 'N/A';
+}
+
+function ActivitySection({
+  title,
+  activity,
+}: {
+  title: string;
+  activity: ActivityStats | null;
+}) {
+  const periods = [
+    { label: 'Last 2 weeks', value: activity?.last2Weeks },
+    { label: 'Last 1 month', value: activity?.last1Month },
+    { label: 'Last 3 months', value: activity?.last3Months },
+    { label: 'Last 6 months', value: activity?.last6Months },
+  ] as const;
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {periods.map(({ label, value }) => (
+          <div key={label} className="p-2 bg-muted/50 rounded-lg border">
+            <p className="text-center text-xs text-muted-foreground mb-2">{label}</p>
+            <p className="text-center text-lg md:text-xl font-bold">{formatStatValue(value)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
@@ -52,23 +94,31 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
               <p className="text-muted-foreground">Loading stats...</p>
             </div>
           ) : stats ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-6 bg-muted/50 rounded-lg border">
-                <p className="text-sm text-muted-foreground mb-2">Total Users</p>
-                <p className="text-3xl font-bold">{stats.userCount.toLocaleString()}</p>
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-foreground">Total Counts</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <p className="text-center text-sm text-muted-foreground mb-2">Users</p>
+                    <p className="text-center text-lg md:text-xl font-bold">{stats.userCount.toLocaleString()}</p>
+                  </div>
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <p className="text-center text-sm text-muted-foreground mb-2">Gangs</p>
+                    <p className="text-center text-lg md:text-xl font-bold">
+                      {formatStatValue(stats.gangCount)}
+                    </p>
+                  </div>
+                  <div className="p-2 bg-muted/50 rounded-lg border">
+                    <p className="text-center text-sm text-muted-foreground mb-2">Campaigns</p>
+                    <p className="text-center text-lg md:text-xl font-bold">
+                      {formatStatValue(stats.campaignCount)}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="p-6 bg-muted/50 rounded-lg border">
-                <p className="text-sm text-muted-foreground mb-2">Total Gangs</p>
-                <p className="text-3xl font-bold">
-                  {stats.gangCount !== null ? stats.gangCount.toLocaleString() : 'N/A'}
-                </p>
-              </div>
-              <div className="p-6 bg-muted/50 rounded-lg border">
-                <p className="text-sm text-muted-foreground mb-2">Total Campaigns</p>
-                <p className="text-3xl font-bold">
-                  {stats.campaignCount !== null ? stats.campaignCount.toLocaleString() : 'N/A'}
-                </p>
-              </div>
+
+              <ActivitySection title="Gang Activity" activity={stats.gangActivity} />
+              <ActivitySection title="Campaign Activity" activity={stats.campaignActivity} />
             </div>
           ) : (
             <div className="flex justify-center items-center py-8">
@@ -80,4 +130,3 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
     </div>
   );
 }
-

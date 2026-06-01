@@ -4,6 +4,8 @@ import { checkAdmin } from "@/utils/auth";
 import { getUserCount } from '@/app/lib/get-stats-user';
 import { getGangCount } from '@/app/lib/get-stats-gang';
 import { getCampaignCount } from '@/app/lib/get-stats-campaign';
+import { getGangActivityStats } from '@/app/lib/get-stats-gang-activity';
+import { getCampaignActivityStats } from '@/app/lib/get-stats-campaign-activity';
 
 export async function GET() {
   const supabase = await createClient();
@@ -16,16 +18,21 @@ export async function GET() {
 
     // Use cached count functions instead of direct database queries
     // These are cached for 24 hours and automatically invalidated on create/delete
-    const [userCount, gangCount, campaignCount] = await Promise.all([
-      getUserCount(),
-      getGangCount(),
-      getCampaignCount()
-    ]);
+    const [userCount, gangCount, campaignCount, gangActivity, campaignActivity] =
+      await Promise.all([
+        getUserCount(),
+        getGangCount(),
+        getCampaignCount(),
+        getGangActivityStats(),
+        getCampaignActivityStats(),
+      ]);
 
     return NextResponse.json({
       userCount,
       gangCount,
-      campaignCount
+      campaignCount,
+      gangActivity,
+      campaignActivity,
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
