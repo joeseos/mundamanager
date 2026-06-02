@@ -50,9 +50,9 @@ interface BuyEquipmentParams {
   buy_for_gang_stash?: boolean;
   selected_effect_ids?: string[];
   equipment_target?: { target_equipment_id: string; effect_type_id: string };
-  target_equipment_id?: string; // existing purchase flow carries the chosen target
-  listed_cost?: number; // the adjusted cost as displayed in UI, includes all discounts
-  selected_grant_equipment_ids?: string[]; // IDs of selected granted equipment options
+  target_equipment_id?: string;
+  listed_cost?: number;
+  selected_grant_equipment_ids?: string[];
 }
 
 interface DeleteEquipmentParams {

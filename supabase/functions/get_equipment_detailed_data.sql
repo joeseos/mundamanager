@@ -35,8 +35,7 @@ RETURNS TABLE (
     vehicle_upgrade_slot text,
     grants_equipment jsonb,
     is_editable boolean,
-    trading_post_names text[],
-    cost_resource_name text
+    trading_post_names text[]
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -272,10 +271,15 @@ AS $$
             )
         END AS availability,
 
-        COALESCE(cto.cost_override, e.cost::numeric) AS base_cost,
+        CASE
+            WHEN cto.cost_resource_name IS NOT NULL THEN e.cost::numeric
+            ELSE COALESCE(cto.cost_override, e.cost::numeric)
+        END AS base_cost,
 
         -- Adjusted cost: custom TP override wins, then official discounts, then base
+        -- When paying with a resource, use original equipment cost for rating
         CASE
+            WHEN cto.cost_resource_name IS NOT NULL THEN e.cost::numeric
             WHEN cto.adjusted_cost IS NOT NULL THEN cto.adjusted_cost
             WHEN cto.cost_override IS NOT NULL THEN cto.cost_override
             WHEN $5 = true THEN e.cost::numeric
@@ -370,9 +374,7 @@ AS $$
         COALESCE(e.is_editable, false) AS is_editable,
 
         -- Trading post names (already aggregated in tp_summary)
-        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
-
-        cto.cost_resource_name
+        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -431,7 +433,7 @@ AS $$
                 OR
                 (
                     CASE
-                        WHEN $9 = true THEN EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id)
+                        WHEN $9 = true THEN (EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id) OR cto.equipment_id IS NOT NULL)
                         ELSE COALESCE(tp.has_access, false)
                     END
                 ) = $5
@@ -449,7 +451,7 @@ AS $$
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND (
                 CASE
-                    WHEN $9 = true THEN EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id)
+                    WHEN $9 = true THEN (EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id) OR cto.equipment_id IS NOT NULL)
                     ELSE COALESCE(tp.has_access, false)
                 END
             ) = $5)
@@ -464,8 +466,14 @@ AS $$
         ce.id,
         ce.equipment_name,
         COALESCE(custom_tp.availability_override, ce.availability) AS availability,
-        COALESCE(custom_tp.cost_override, ce.cost::numeric) AS base_cost,
-        COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric) AS adjusted_cost,
+        CASE
+            WHEN custom_tp.cost_resource_name IS NOT NULL THEN ce.cost::numeric
+            ELSE COALESCE(custom_tp.cost_override, ce.cost::numeric)
+        END AS base_cost,
+        CASE
+            WHEN custom_tp.cost_resource_name IS NOT NULL THEN ce.cost::numeric
+            ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
+        END AS adjusted_cost,
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
@@ -494,8 +502,7 @@ AS $$
         NULL AS vehicle_upgrade_slot,
         NULL::jsonb AS grants_equipment,
         COALESCE(ce.is_editable, false) AS is_editable,
-        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
-        custom_tp.cost_resource_name
+        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id

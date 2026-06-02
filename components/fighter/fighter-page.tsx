@@ -1397,4 +1397,4 @@ export default function FighterPage({
       </div>
     </main>
   );
-} 
+}
