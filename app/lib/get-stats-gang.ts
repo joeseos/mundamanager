@@ -3,47 +3,40 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 
 /**
- * Get cached gang count for public display
- * 
- * This function uses unstable_cache to avoid hitting the database on every request.
- * The count is cached and revalidated every 24 hours (86400 seconds).
- * 
+ * Get cached gang count for public display.
+ *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
  * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT()) after gang creation/deletion
- * 
+ *
  * @returns The total number of gangs in the database, or null if service role key is not available
  */
-export async function getGangCount(): Promise<number | null> {
-  const getCachedGangCount = unstable_cache(
-    async () => {
-      // Check if service role key is available
-      if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        return null;
-      }
-
-      // Use service role key to bypass RLS for public stats
-      const supabase = createServiceRoleClient();
-      
-      // Count all gangs
-      const { count, error } = await supabase
-        .from('gangs')
-        .select('*', { count: 'exact', head: true });
-      
-      if (error) {
-        console.error('Error fetching gang count:', error);
-        return null;
-      }
-      
-      return count || 0;
-    },
-    ['global-gang-count'], // Cache key
-    {
-      tags: [CACHE_TAGS.GLOBAL_GANG_COUNT()],
-      revalidate: 86400, // Revalidate every 24 hours (86400 seconds)
+const getCachedGangCount = unstable_cache(
+  async () => {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return null;
     }
-  );
 
-  return await getCachedGangCount();
+    const supabase = createServiceRoleClient();
+
+    const { count, error } = await supabase
+      .from('gangs')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      console.error('Error fetching gang count:', error);
+      return null;
+    }
+
+    return count || 0;
+  },
+  ['global-gang-count'],
+  {
+    tags: [CACHE_TAGS.GLOBAL_GANG_COUNT()],
+    revalidate: 86400,
+  }
+);
+
+export async function getGangCount(): Promise<number | null> {
+  return getCachedGangCount();
 }
-
