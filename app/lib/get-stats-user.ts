@@ -37,5 +37,5 @@ const getCachedUserCount = unstable_cache(
 );
 
 export async function getUserCount(): Promise<number> {
-  return await getCachedUserCount();
+  return getCachedUserCount();
 }

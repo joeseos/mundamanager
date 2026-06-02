@@ -54,5 +54,5 @@ const getCachedCampaignActivityStats = unstable_cache(
 );
 
 export async function getCampaignActivityStats(): Promise<ActivityStats | null> {
-  return await getCachedCampaignActivityStats();
+  return getCachedCampaignActivityStats();
 }

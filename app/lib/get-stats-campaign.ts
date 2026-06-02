@@ -38,5 +38,5 @@ const getCachedCampaignCount = unstable_cache(
 );
 
 export async function getCampaignCount(): Promise<number | null> {
-  return await getCachedCampaignCount();
+  return getCachedCampaignCount();
 }

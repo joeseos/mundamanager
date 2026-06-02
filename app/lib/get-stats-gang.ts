@@ -38,5 +38,5 @@ const getCachedGangCount = unstable_cache(
 );
 
 export async function getGangCount(): Promise<number | null> {
-  return await getCachedGangCount();
+  return getCachedGangCount();
 }

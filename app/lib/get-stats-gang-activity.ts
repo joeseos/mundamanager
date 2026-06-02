@@ -54,5 +54,5 @@ const getCachedGangActivityStats = unstable_cache(
 );
 
 export async function getGangActivityStats(): Promise<ActivityStats | null> {
-  return await getCachedGangActivityStats();
+  return getCachedGangActivityStats();
 }
