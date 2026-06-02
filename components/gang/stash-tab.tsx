@@ -48,6 +48,8 @@ interface GangInventoryProps {
   userPermissions?: UserPermissions;
   campaignTradingPostIds?: string[];
   campaignTradingPostNames?: string[];
+  campaignCustomTradingPostIds?: string[];
+  campaignCustomTradingPostNames?: string[];
   positioning?: Record<number, string>;
 }
 
@@ -68,6 +70,8 @@ export default function GangInventory({
   userPermissions,
   campaignTradingPostIds,
   campaignTradingPostNames,
+  campaignCustomTradingPostIds,
+  campaignCustomTradingPostNames,
   positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -961,6 +965,8 @@ export default function GangInventory({
           isStashMode={true}
           campaignTradingPostIds={campaignTradingPostIds}
           campaignTradingPostNames={campaignTradingPostNames}
+          campaignCustomTradingPostIds={campaignCustomTradingPostIds}
+          campaignCustomTradingPostNames={campaignCustomTradingPostNames}
           onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
             // Handle equipment bought for stash - perform optimistic updates
 

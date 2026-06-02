@@ -38,6 +38,8 @@ interface ItemModalProps {
   isCustomFighter?: boolean;
   campaignTradingPostIds?: string[];
   campaignTradingPostNames?: string[];
+  campaignCustomTradingPostIds?: string[];
+  campaignCustomTradingPostNames?: string[];
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
@@ -92,6 +94,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   isCustomFighter = false,
   campaignTradingPostIds,
   campaignTradingPostNames,
+  campaignCustomTradingPostIds,
+  campaignCustomTradingPostNames,
   onEquipmentBought,
   onPurchaseRequest,
   fighterWeapons
@@ -267,6 +271,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
         // When gang is in a campaign, restrict trading post to campaign's authorised TPs only
         if (campaignTradingPostIds !== undefined) {
           requestBody.campaign_trading_post_type_ids = campaignTradingPostIds;
+        }
+        if (campaignCustomTradingPostIds !== undefined && campaignCustomTradingPostIds.length > 0) {
+          requestBody.campaign_custom_trading_post_ids = campaignCustomTradingPostIds;
         }
       }
 
@@ -467,7 +474,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     if (!session || isLoadingAllEquipment) return;
 
     // Build context key for this fetch (used for campaign-filtered results that bypass cache)
-    const contextKey = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}`;
+    const contextKey = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}:${(campaignCustomTradingPostIds || []).join(',')}`;
 
     // Check cache first before making any API calls
     // If we have cached data for this equipment list type, use it
@@ -501,7 +508,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   // Calculate min/max values from equipment data
   useEffect(() => {
     // Build a context key that represents the current filter state
-    const currentContext = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}`;
+    const currentContext = `${equipmentListType}:${(campaignTradingPostIds || []).join(',')}:${(campaignCustomTradingPostIds || []).join(',')}`;
     const prevContext = prevEquipmentContextRef.current;
     const contextChanged = prevContext !== currentContext;
     
@@ -728,10 +735,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
             </div>
             
             {/* Display trading post names when Trading Post is selected and gang is in a campaign */}
-            {equipmentListType === 'fighters-tradingpost' && campaignTradingPostIds !== undefined && (
+            {equipmentListType === 'fighters-tradingpost' && (campaignTradingPostIds !== undefined || campaignCustomTradingPostIds !== undefined) && (
               <div className="mt-2 px-4">
                 <p className="text-xs text-muted-foreground text-center">
-                  Authorised: {(campaignTradingPostNames && campaignTradingPostNames.length > 0) ? [...campaignTradingPostNames].sort((a, b) => a.localeCompare(b)).join(', ') : 'None'}
+                  Authorised: {(() => {
+                    const allNames = [...(campaignTradingPostNames || []), ...(campaignCustomTradingPostNames || [])];
+                    return allNames.length > 0 ? allNames.sort((a, b) => a.localeCompare(b)).join(', ') : 'None';
+                  })()}
                 </p>
               </div>
             )}

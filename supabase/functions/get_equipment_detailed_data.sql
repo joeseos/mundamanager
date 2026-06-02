@@ -144,22 +144,9 @@ AS $$
         SELECT ctpe.equipment_id, ctp.custom_trading_post_name
         FROM custom_trading_post_equipment ctpe
         JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
-        CROSS JOIN gang_data gd
         WHERE ctpe.equipment_id IS NOT NULL
           AND $11 IS NOT NULL AND array_length($11, 1) > 0
           AND ctpe.custom_trading_post_id = ANY($11)
-          AND (
-            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
-                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
-            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
-                       WHERE a.custom_trading_post_equipment_id = ctpe.id
-                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
-                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
-                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
-                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
-                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
-          )
     ),
 
     tp_summary AS (
@@ -242,7 +229,7 @@ AS $$
             ctpe.equipment_id,
             MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
             (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
-            (array_agg(ctpe.availability_override ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.availability_override IS NOT NULL))[1] AS availability_override,
+            (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
         FROM custom_trading_post_equipment ctpe
         CROSS JOIN gang_data gd
@@ -252,21 +239,17 @@ AS $$
             AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
             AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
             AND (p.fighter_type_id IS NULL)
+        LEFT JOIN custom_trading_post_availability a
+            ON a.custom_trading_post_equipment_id = ctpe.id
+            AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+            AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+            AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+            AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.equipment_id IS NOT NULL
           AND $11 IS NOT NULL AND array_length($11, 1) > 0
           AND ctpe.custom_trading_post_id = ANY($11)
-          AND (
-            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
-                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
-            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
-                       WHERE a.custom_trading_post_equipment_id = ctpe.id
-                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
-                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
-                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
-                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
-                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
-          )
         GROUP BY ctpe.equipment_id
     )
 
@@ -525,7 +508,7 @@ AS $$
             ctpe.custom_equipment_id,
             MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
             (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
-            (array_agg(ctpe.availability_override ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.availability_override IS NOT NULL))[1] AS availability_override,
+            (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
             COALESCE(
                 array_agg(DISTINCT ctp.custom_trading_post_name) FILTER (WHERE ctp.custom_trading_post_name IS NOT NULL),
@@ -540,21 +523,17 @@ AS $$
             AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
             AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
             AND (p.fighter_type_id IS NULL)
+        LEFT JOIN custom_trading_post_availability a
+            ON a.custom_trading_post_equipment_id = ctpe.id
+            AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
+            AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
+            AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
+            AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
+            AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
+            AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.custom_equipment_id IS NOT NULL
           AND $11 IS NOT NULL AND array_length($11, 1) > 0
           AND ctpe.custom_trading_post_id = ANY($11)
-          AND (
-            NOT EXISTS (SELECT 1 FROM custom_trading_post_availability a
-                        WHERE a.custom_trading_post_equipment_id = ctpe.id)
-            OR EXISTS (SELECT 1 FROM custom_trading_post_availability a
-                       WHERE a.custom_trading_post_equipment_id = ctpe.id
-                         AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
-                         AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
-                         AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-                         AND (a.gang_variant_id IS NULL OR gd.gang_variants ? a.gang_variant_id::text)
-                         AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
-                         AND (a.alignment IS NULL OR a.alignment = gd.alignment))
-          )
         GROUP BY ctpe.custom_equipment_id
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     WHERE
