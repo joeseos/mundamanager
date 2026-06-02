@@ -2,13 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { LuChartColumn } from "react-icons/lu";
-
-interface ActivityStats {
-  last2Weeks: number | null;
-  last1Month: number | null;
-  last3Months: number | null;
-  last6Months: number | null;
-}
+import type { ActivityStats } from '@/types/stats';
 
 interface Stats {
   userCount: number;
