@@ -61,7 +61,6 @@ export function CustomiseTradingPosts({
   const [deleteModalData, setDeleteModalData] = useState<CustomTradingPost | null>(null);
   const [viewModalData, setViewModalData] = useState<CustomTradingPost | null>(null);
   const [pendingEquipment, setPendingEquipment] = useState<EquipmentOption[]>([]);
-  const [isCreating, setIsCreating] = useState(false);
   const [shareModalData, setShareModalData] = useState<CustomTradingPost | null>(null);
   const [pendingOverrides, setPendingOverrides] = useState<Map<string, EquipmentPendingChanges>>(new Map());
   const [pendingAdditions, setPendingAdditions] = useState<EquipmentOption[]>([]);
@@ -177,46 +176,59 @@ export function CustomiseTradingPosts({
     return formData.custom_trading_post_name.trim() !== '';
   };
 
-  const handleCreateConfirm = async () => {
-    if (!isFormValid()) return false;
-    setIsCreating(true);
-    try {
-      const result = await createCustomTradingPost(formData);
-      if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to create custom trading post');
-        return false;
-      }
+  const createMutation = useMutation({
+    mutationFn: async ({ data, equipment }: { data: CustomTradingPostData; equipment: EquipmentOption[] }) => {
+      const result = await createCustomTradingPost(data);
+      if (!result.success || !result.data) throw new Error(result.error || 'Failed to create custom trading post');
 
-      if (pendingEquipment.length > 0) {
+      if (equipment.length > 0) {
         const batchResult = await addTPEquipmentBatch(
           result.data.id,
-          pendingEquipment.map(equip => ({
+          equipment.map(equip => ({
             equipmentId: equip.is_custom ? equip.original_id! : equip.id,
             isCustom: equip.is_custom,
           }))
         );
         if (!batchResult.success) {
           toast.warning(`Trading post created, but equipment failed to save: ${batchResult.error}`);
-          setTradingPosts(prev => [...prev, result.data!]);
-          setIsAddModalOpen(false);
-          resetForm();
-          queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
-          return true;
         }
       }
-
-      setTradingPosts(prev => [...prev, result.data!]);
-      setIsAddModalOpen(false);
-      resetForm();
+      return result.data;
+    },
+    onMutate: async ({ data }) => {
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: CustomTradingPost = {
+        id: tempId,
+        user_id: userId || '',
+        custom_trading_post_name: data.custom_trading_post_name,
+        description: data.description,
+        created_at: new Date().toISOString(),
+      };
+      const previous = tradingPosts;
+      setTradingPosts(prev => [...prev, optimistic]);
+      return { previous, tempId };
+    },
+    onSuccess: (serverData, _, context) => {
+      if (context) {
+        setTradingPosts(prev => prev.map(tp => tp.id === context.tempId ? serverData : tp));
+      }
       toast.success('Custom trading post created successfully');
+    },
+    onError: (error: Error, _, context) => {
+      if (context?.previous) setTradingPosts(context.previous);
+      toast.error(error.message || 'Failed to create custom trading post');
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['customTradingPosts'] });
-      return true;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create custom trading post');
-      return false;
-    } finally {
-      setIsCreating(false);
-    }
+    },
+  });
+
+  const handleCreateConfirm = async () => {
+    if (!isFormValid()) return false;
+    createMutation.mutate({ data: formData, equipment: pendingEquipment });
+    setIsAddModalOpen(false);
+    resetForm();
+    return true;
   };
 
   const handleEditConfirm = async () => {
@@ -408,7 +420,7 @@ export function CustomiseTradingPosts({
           }}
           onConfirm={handleCreateConfirm}
           confirmText="Create"
-          confirmDisabled={!isFormValid() || isCreating}
+          confirmDisabled={!isFormValid()}
           width="2xl"
         >
           <div className="space-y-6">
