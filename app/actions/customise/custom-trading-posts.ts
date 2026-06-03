@@ -5,6 +5,8 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
+import { DESCRIPTION_MAX_LENGTH } from './custom-trading-posts-constants';
+
 export interface CustomTradingPostData {
   custom_trading_post_name: string;
   description?: string | null;
@@ -22,6 +24,9 @@ export interface CustomTradingPost {
 export async function createCustomTradingPost(
   data: CustomTradingPostData
 ): Promise<{ success: boolean; data?: CustomTradingPost; error?: string }> {
+  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
+    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  }
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -56,6 +61,9 @@ export async function updateCustomTradingPost(
   id: string,
   data: CustomTradingPostData
 ): Promise<{ success: boolean; data?: CustomTradingPost; error?: string }> {
+  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
+    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  }
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -276,8 +284,8 @@ export async function getTPEquipment(
 
 export async function addTPEquipmentBatch(
   tradingPostId: string,
-  items: Array<{ equipmentId: string; isCustom: boolean }>
-): Promise<{ success: boolean; error?: string }> {
+  items: Array<{ equipmentId: string; isCustom: boolean; costOverride?: number | null; availabilityOverride?: string | null }>
+): Promise<{ success: boolean; data?: Array<{ id: string; equipment_id: string | null; custom_equipment_id: string | null }>; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -310,16 +318,26 @@ export async function addTPEquipmentBatch(
       ...(item.isCustom
         ? { custom_equipment_id: item.equipmentId }
         : { equipment_id: item.equipmentId }),
+      ...(item.costOverride != null ? { cost_override: item.costOverride } : {}),
+      ...(item.availabilityOverride != null ? { availability_override: item.availabilityOverride } : {}),
     }));
 
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('custom_trading_post_equipment')
-      .insert(rows);
+      .insert(rows)
+      .select('id, equipment_id, custom_equipment_id');
 
     if (insertError) throw insertError;
 
     revalidatePath('/');
-    return { success: true };
+    return {
+      success: true,
+      data: (inserted ?? []).map(r => ({
+        id: r.id,
+        equipment_id: r.equipment_id ?? null,
+        custom_equipment_id: r.custom_equipment_id ?? null,
+      })),
+    };
   } catch (error) {
     console.error('Error in addTPEquipmentBatch:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };

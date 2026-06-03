@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { Combobox } from '@/components/ui/combobox';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
+import { ImInfo } from 'react-icons/im';
+import { Tooltip } from 'react-tooltip';
 import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -30,6 +32,7 @@ import {
   type CustomTPAvailabilityRule,
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-trading-posts-constants';
 import type { UserCampaign } from '@/types/campaign';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
@@ -61,7 +64,6 @@ export function CustomiseTradingPosts({
   const [editModalData, setEditModalData] = useState<CustomTradingPost | null>(null);
   const [deleteModalData, setDeleteModalData] = useState<CustomTradingPost | null>(null);
   const [viewModalData, setViewModalData] = useState<CustomTradingPost | null>(null);
-  const [pendingEquipment, setPendingEquipment] = useState<EquipmentOption[]>([]);
   const [shareModalData, setShareModalData] = useState<CustomTradingPost | null>(null);
   const [pendingOverrides, setPendingOverrides] = useState<Map<string, EquipmentPendingChanges>>(new Map());
   const [pendingAdditions, setPendingAdditions] = useState<EquipmentOption[]>([]);
@@ -71,6 +73,7 @@ export function CustomiseTradingPosts({
     custom_trading_post_name: '',
     description: null,
   });
+  const descCharCount = formData.description?.length ?? 0;
 
   const queryClient = useQueryClient();
 
@@ -139,7 +142,6 @@ export function CustomiseTradingPosts({
       custom_trading_post_name: '',
       description: null,
     });
-    setPendingEquipment([]);
     setPendingOverrides(new Map());
     setPendingAdditions([]);
     setPendingRemovals(new Set());
@@ -174,26 +176,13 @@ export function CustomiseTradingPosts({
   };
 
   const isFormValid = () => {
-    return formData.custom_trading_post_name.trim() !== '';
+    return formData.custom_trading_post_name.trim() !== '' && descCharCount <= DESCRIPTION_MAX_LENGTH;
   };
 
   const createMutation = useMutation({
-    mutationFn: async ({ data, equipment }: { data: CustomTradingPostData; equipment: EquipmentOption[] }) => {
+    mutationFn: async ({ data }: { data: CustomTradingPostData }) => {
       const result = await createCustomTradingPost(data);
       if (!result.success || !result.data) throw new Error(result.error || 'Failed to create custom trading post');
-
-      if (equipment.length > 0) {
-        const batchResult = await addTPEquipmentBatch(
-          result.data.id,
-          equipment.map(equip => ({
-            equipmentId: equip.is_custom ? equip.original_id! : equip.id,
-            isCustom: equip.is_custom,
-          }))
-        );
-        if (!batchResult.success) {
-          toast.warning(`Trading post created, but equipment failed to save: ${batchResult.error}`);
-        }
-      }
       return result.data;
     },
     onMutate: async ({ data }) => {
@@ -226,7 +215,7 @@ export function CustomiseTradingPosts({
 
   const handleCreateConfirm = async () => {
     if (!isFormValid()) return false;
-    createMutation.mutate({ data: formData, equipment: pendingEquipment });
+    createMutation.mutate({ data: formData });
     setIsAddModalOpen(false);
     resetForm();
     return true;
@@ -246,16 +235,60 @@ export function CustomiseTradingPosts({
           const hasChanges = overridesToSave.size > 0 || additionsToSave.length > 0 || removalsToSave.size > 0;
           if (!hasChanges) return;
 
+          const pendingAdditionTempIds = new Set(additionsToSave.map(e => e.id));
+
           if (additionsToSave.length > 0) {
             const batchResult = await addTPEquipmentBatch(
               editModalData.id,
-              additionsToSave.map(equip => ({
-                equipmentId: equip.is_custom ? equip.original_id! : equip.id,
-                isCustom: equip.is_custom,
-              }))
+              additionsToSave.map(equip => {
+                const override = overridesToSave.get(equip.id);
+                return {
+                  equipmentId: equip.is_custom ? equip.original_id! : equip.id,
+                  isCustom: equip.is_custom,
+                  costOverride: override?.costOverride,
+                  availabilityOverride: override?.availabilityOverride,
+                };
+              })
             );
             if (!batchResult.success) {
               toast.error(batchResult.error || 'Failed to add equipment');
+            } else if (batchResult.data) {
+              const pendingRulesSaves = additionsToSave
+                .map((equip) => {
+                  const realRow = batchResult.data!.find(r =>
+                    equip.is_custom
+                      ? r.custom_equipment_id === equip.original_id
+                      : r.equipment_id === equip.id
+                  );
+                  return { tempId: equip.id, realId: realRow?.id };
+                })
+                .filter(({ tempId, realId }) => !!realId && overridesToSave.get(tempId)?.rulesModified)
+                .map(async ({ tempId, realId }) => {
+                  const changes = overridesToSave.get(tempId)!;
+                  const rulesResult = await saveEquipmentRules(
+                    realId!,
+                    changes.availRules.map(r => ({
+                      gang_type_id: r.gang_type_id,
+                      custom_gang_type_id: r.custom_gang_type_id,
+                      gang_origin_id: r.gang_origin_id,
+                      gang_variant_id: r.gang_variant_id,
+                      campaign_type_allegiance_id: r.campaign_type_allegiance_id,
+                      alignment: r.alignment,
+                      availability: r.availability,
+                    })),
+                    changes.pricingRules.map(r => ({
+                      gang_type_id: r.gang_type_id,
+                      custom_gang_type_id: r.custom_gang_type_id,
+                      gang_origin_id: r.gang_origin_id,
+                      fighter_type_id: r.fighter_type_id,
+                      adjusted_cost: r.adjusted_cost,
+                    }))
+                  );
+                  if (!rulesResult.success) {
+                    toast.error(rulesResult.error || 'Failed to save equipment rules');
+                  }
+                });
+              await Promise.all(pendingRulesSaves);
             }
           }
 
@@ -268,7 +301,9 @@ export function CustomiseTradingPosts({
             );
           }
 
-          const equipmentSaves = Array.from(overridesToSave.entries()).map(
+          const equipmentSaves = Array.from(overridesToSave.entries())
+            .filter(([itemId]) => !pendingAdditionTempIds.has(itemId))
+            .map(
             async ([itemId, changes]) => {
               const overridesResult = await updateTPEquipment(itemId, {
                 cost_override: changes.costOverride,
@@ -329,13 +364,13 @@ export function CustomiseTradingPosts({
       key: 'custom_trading_post_name',
       label: 'Trading Post',
       align: 'left',
-      width: '50%',
+      width: '30%',
     },
     {
       key: 'description',
       label: 'Description',
       align: 'left',
-      width: '40%',
+      width: '60%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value || '-',
     },
@@ -378,7 +413,7 @@ export function CustomiseTradingPosts({
   const renderForm = (isReadOnly = false) => (
     <div className="space-y-4">
       <div>
-        <Label className="mb-1">Trading Post Name *</Label>
+        <Label className="block mb-2">Trading Post Name *</Label>
         <Input
           value={formData.custom_trading_post_name}
           onChange={(e) => setFormData({ ...formData, custom_trading_post_name: e.target.value })}
@@ -388,11 +423,22 @@ export function CustomiseTradingPosts({
       </div>
 
       <div>
-        <Label className="mb-1">Description</Label>
+        <label htmlFor="tp-description" className="flex justify-between items-center text-sm font-medium mb-1">
+          <span>Description</span>
+          {!isReadOnly && (
+            <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {descCharCount}/{DESCRIPTION_MAX_LENGTH} characters
+            </span>
+          )}
+        </label>
         <Textarea
+          id="tp-description"
           className="min-h-20 resize-y"
           value={formData.description || ''}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value || null })}
+          onChange={(e) => {
+            const value = e.target.value;
+            setFormData({ ...formData, description: value || null });
+          }}
           placeholder="Enter description (optional)"
           disabled={isReadOnly}
         />
@@ -408,13 +454,13 @@ export function CustomiseTradingPosts({
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : handleAddModalOpen}
-        addButtonText="Add"
+        addButtonText="Create"
         emptyMessage="No custom trading posts created yet."
       />
 
       {isAddModalOpen && (
         <Modal
-          title="Add Custom Trading Post"
+          title="Create Custom Trading Post"
           onClose={() => {
             setIsAddModalOpen(false);
             resetForm();
@@ -424,14 +470,11 @@ export function CustomiseTradingPosts({
           confirmDisabled={!isFormValid()}
           width="2xl"
         >
-          <div className="space-y-6">
+          <div className="space-y-4">
             {renderForm()}
-            <div className="border-t pt-4">
-              <PendingEquipmentSection
-                pendingEquipment={pendingEquipment}
-                setPendingEquipment={setPendingEquipment}
-              />
-            </div>
+            <p className="text-sm text-amber-600 dark:text-amber-500">
+              Once the Trading Post has been created, you will be able to add equipment items to it and set their custom cost and availability rules.
+            </p>
           </div>
         </Modal>
       )}
@@ -543,6 +586,7 @@ function EquipmentItemsSection({
 }) {
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
+  const tooltipId = useId();
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
 
   const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
@@ -559,8 +603,6 @@ function EquipmentItemsSection({
     if (equipmentError) toast.error('Failed to load equipment items');
   }, [equipmentError]);
 
-  const pendingAdditionIds = new Set(pendingAdditions?.map(e => e.id) ?? []);
-
   const displayItems: CustomTPEquipment[] = [
     ...equipmentItems
       .filter(item => !pendingRemovals?.has(item.id))
@@ -569,28 +611,42 @@ function EquipmentItemsSection({
         if (!pending) return item;
         return { ...item, cost_override: pending.costOverride, availability_override: pending.availabilityOverride };
       }),
-    ...(pendingAdditions ?? []).map(equip => ({
-      id: equip.id,
-      custom_trading_post_id: tradingPostId,
-      equipment_id: equip.is_custom ? null : equip.id,
-      custom_equipment_id: equip.is_custom ? (equip.original_id ?? null) : null,
-      equipment_name: equip.equipment_name,
-      equipment_category: equip.equipment_category,
-      is_custom: equip.is_custom,
-      cost_override: null,
-      availability_override: null,
-      sort_order: null,
-    })),
+    ...(pendingAdditions ?? []).map(equip => {
+      const pending = pendingOverrides?.get(equip.id);
+      return {
+        id: equip.id,
+        custom_trading_post_id: tradingPostId,
+        equipment_id: equip.is_custom ? null : equip.id,
+        custom_equipment_id: equip.is_custom ? (equip.original_id ?? null) : null,
+        equipment_name: equip.equipment_name,
+        equipment_category: equip.equipment_category,
+        is_custom: equip.is_custom,
+        cost_override: pending?.costOverride ?? null,
+        availability_override: pending?.availabilityOverride ?? null,
+        sort_order: null,
+      };
+    }),
   ];
 
   return (
     <>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold">Equipment Items</h4>
+          <div className="flex items-center space-x-2">
+            <h4 className="text-lg font-semibold">Equipment Items</h4>
+            <span
+              className="relative cursor-pointer text-muted-foreground hover:text-foreground"
+              data-tooltip-id={tooltipId}
+              data-tooltip-html={
+                'To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.<br/><br/>Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang variant</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.'
+              }
+            >
+              <ImInfo />
+            </span>
+          </div>
           {isEditable && (
-            <Button size="sm" className="text-xs" onClick={() => setIsAddEquipOpen(true)}>
-              Add Equipment
+            <Button onClick={() => setIsAddEquipOpen(true)}>
+              Add
             </Button>
           )}
         </div>
@@ -606,44 +662,41 @@ function EquipmentItemsSection({
                 <tr className="border-b text-left">
                   <th className="py-2 pr-2 font-medium">Equipment</th>
                   <th className="py-2 pr-2 font-medium">Category</th>
-                  <th className="py-2 pr-2 font-medium">Cost</th>
-                  <th className="py-2 pr-2 font-medium">Avail.</th>
+                  <th className="py-2 pr-2 font-medium text-center">Cost</th>
+                  <th className="py-2 pr-2 font-medium text-center">Avail.</th>
                   {isEditable && <th className="py-2 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {displayItems.map((item) => {
-                  const isPendingAdd = pendingAdditionIds.has(item.id);
-                  return (
-                    <tr key={item.id} className="border-b last:border-0">
-                      <td className="py-2 pr-2">
-                        {item.equipment_name}
-                        {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
+                {displayItems.map((item) => (
+                  <tr key={item.id} className="border-b last:border-0">
+                    <td className="py-2 pr-2">
+                      {item.equipment_name}
+                      {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
+                    </td>
+                    <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
+                    <td className="py-2 pr-2 text-center">
+                      {item.cost_override != null ? item.cost_override : '-'}
+                    </td>
+                    <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>
+                    {isEditable && (
+                      <td className="py-2 text-right">
+                        <div className="flex gap-1 justify-end">
+                          {onEquipmentOverrideChange && (
+                            <Button variant="outline" size="sm" className="text-xs px-1.5 h-6" onClick={() => setEditOverridesItem(item)}>
+                              <LuSquarePen className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {onRemoveEquipment && (
+                            <Button variant="outline_remove" size="sm" className="text-xs px-1.5 h-6" onClick={() => onRemoveEquipment(item.id)}>
+                              <LuTrash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
-                      <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
-                      <td className="py-2 pr-2">
-                        {item.cost_override != null ? item.cost_override : '-'}
-                      </td>
-                      <td className="py-2 pr-2">{item.availability_override || '-'}</td>
-                      {isEditable && (
-                        <td className="py-2 text-right">
-                          <div className="flex gap-1 justify-end">
-                            {!isPendingAdd && onEquipmentOverrideChange && (
-                              <Button variant="outline" size="sm" className="text-xs px-1.5 h-6" onClick={() => setEditOverridesItem(item)}>
-                                <LuSquarePen className="h-3 w-3" />
-                              </Button>
-                            )}
-                            {onRemoveEquipment && (
-                              <Button variant="outline_remove" size="sm" className="text-xs px-1.5 h-6" onClick={() => onRemoveEquipment(item.id)}>
-                                <LuTrash2 className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                    )}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -673,6 +726,18 @@ function EquipmentItemsSection({
           }}
         />
       )}
+
+      <Tooltip
+        id={tooltipId}
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '20rem'
+        }}
+      />
 
     </>
   );
@@ -805,123 +870,6 @@ function useEquipmentData() {
   }, [equipmentError]);
 
   return { categories, allEquipment };
-}
-
-function PendingEquipmentSection({
-  pendingEquipment,
-  setPendingEquipment,
-}: {
-  pendingEquipment: EquipmentOption[];
-  setPendingEquipment: React.Dispatch<React.SetStateAction<EquipmentOption[]>>;
-}) {
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
-
-  const { categories, allEquipment } = useEquipmentData();
-
-  const pendingIds = new Set(pendingEquipment.map(e => e.id));
-
-  const filteredEquipment = allEquipment
-    .filter(e => e.equipment_category === selectedCategory)
-    .filter(e => !pendingIds.has(e.id));
-
-  const handleAdd = () => {
-    const selected = allEquipment.find(e => e.id === selectedEquipmentId);
-    if (!selected) return;
-    setPendingEquipment(prev => [...prev, selected]);
-    setSelectedEquipmentId('');
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Equipment Items</h4>
-      </div>
-
-      {pendingEquipment.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="py-2 pr-2 font-medium">Equipment</th>
-                <th className="py-2 pr-2 font-medium">Category</th>
-                <th className="py-2 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingEquipment.map((equip) => (
-                <tr key={equip.id} className="border-b last:border-0">
-                  <td className="py-2 pr-2">
-                    {equip.equipment_name}
-                    {equip.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
-                  </td>
-                  <td className="py-2 pr-2 text-muted-foreground">{equip.equipment_category || '-'}</td>
-                  <td className="py-2 text-right">
-                    <Button
-                      variant="outline_remove"
-                      size="sm"
-                      className="text-xs px-1.5 h-6"
-                      onClick={() => setPendingEquipment(prev => prev.filter(e => e.id !== equip.id))}
-                    >
-                      <LuTrash2 className="h-3 w-3" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
-          <Label className="mb-1">Category</Label>
-          <select
-            className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
-            value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategory(e.target.value);
-              setSelectedEquipmentId('');
-            }}
-          >
-            <option value="">Select a category...</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.category_name}>{c.category_name}</option>
-            ))}
-          </select>
-        </div>
-
-        {selectedCategory && (
-          <div className="flex-1">
-            <Label className="mb-1">Equipment</Label>
-            <select
-              className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
-              value={selectedEquipmentId}
-              onChange={(e) => setSelectedEquipmentId(e.target.value)}
-            >
-              <option value="">Select equipment...</option>
-              {filteredEquipment.map(e => (
-                <option key={e.id} value={e.id}>{e.equipment_name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <Button
-          size="sm"
-          className="text-xs"
-          disabled={!selectedEquipmentId}
-          onClick={handleAdd}
-        >
-          Add Equipment
-        </Button>
-      </div>
-
-      {selectedCategory && filteredEquipment.length === 0 && (
-        <p className="text-xs text-muted-foreground">No available equipment in this category.</p>
-      )}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1127,7 +1075,7 @@ function EditEquipmentModal({
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold">Availability Rules</h4>
-              <Button size="sm" className="text-xs" onClick={() => setIsAddAvailOpen(true)}>
+              <Button onClick={() => setIsAddAvailOpen(true)}>
                 Add
               </Button>
             </div>
@@ -1178,7 +1126,7 @@ function EditEquipmentModal({
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold">Pricing Rules</h4>
-              <Button size="sm" className="text-xs" onClick={() => setIsAddPricingOpen(true)}>
+              <Button onClick={() => setIsAddPricingOpen(true)}>
                 Add
               </Button>
             </div>
