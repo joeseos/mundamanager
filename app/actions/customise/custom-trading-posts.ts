@@ -32,7 +32,6 @@ export async function createCustomTradingPost(
         user_id: user.id,
         custom_trading_post_name: data.custom_trading_post_name.trimEnd(),
         description: data.description || null,
-        created_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -170,6 +169,43 @@ export async function deleteCustomTradingPost(
 // Equipment
 // ---------------------------------------------------------------------------
 
+const TP_EQUIPMENT_SELECT = `
+  id, custom_trading_post_id, equipment_id, custom_equipment_id,
+  cost_override, availability_override, sort_order,
+  equipment:equipment_id (equipment_name, equipment_category),
+  custom_equipment:custom_equipment_id (equipment_name, equipment_category)
+`;
+
+function mapTPEquipmentRow(row: any): CustomTPEquipment {
+  return {
+    id: row.id,
+    custom_trading_post_id: row.custom_trading_post_id,
+    equipment_id: row.equipment_id,
+    custom_equipment_id: row.custom_equipment_id,
+    equipment_name: row.equipment?.equipment_name ?? row.custom_equipment?.equipment_name ?? 'Unknown',
+    equipment_category: row.equipment?.equipment_category ?? row.custom_equipment?.equipment_category ?? '',
+    is_custom: !!row.custom_equipment_id,
+    cost_override: row.cost_override,
+    availability_override: row.availability_override,
+    sort_order: row.sort_order,
+  };
+}
+
+async function resolveGangTypeNames(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ids: string[]
+): Promise<Record<string, string>> {
+  if (ids.length === 0) return {};
+  const { data } = await supabase
+    .from('gang_types')
+    .select('gang_type_id, gang_type')
+    .in('gang_type_id', ids);
+  return (data || []).reduce<Record<string, string>>((acc, gt: any) => {
+    acc[gt.gang_type_id] = gt.gang_type;
+    return acc;
+  }, {});
+}
+
 export interface CustomTPEquipment {
   id: string;
   custom_trading_post_id: string;
@@ -221,17 +257,7 @@ export async function getTPEquipment(
 
     const { data, error } = await supabase
       .from('custom_trading_post_equipment')
-      .select(`
-        id,
-        custom_trading_post_id,
-        equipment_id,
-        custom_equipment_id,
-        cost_override,
-        availability_override,
-        sort_order,
-        equipment:equipment_id (equipment_name, equipment_category),
-        custom_equipment:custom_equipment_id (equipment_name, equipment_category)
-      `)
+      .select(TP_EQUIPMENT_SELECT)
       .eq('custom_trading_post_id', tradingPostId)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true });
@@ -241,20 +267,7 @@ export async function getTPEquipment(
       return { success: false, error: error.message };
     }
 
-    const items: CustomTPEquipment[] = (data || []).map((row: any) => ({
-      id: row.id,
-      custom_trading_post_id: row.custom_trading_post_id,
-      equipment_id: row.equipment_id,
-      custom_equipment_id: row.custom_equipment_id,
-      equipment_name: row.equipment?.equipment_name || row.custom_equipment?.equipment_name || 'Unknown',
-      equipment_category: row.equipment?.equipment_category || row.custom_equipment?.equipment_category || '',
-      is_custom: !!row.custom_equipment_id,
-      cost_override: row.cost_override,
-      availability_override: row.availability_override,
-      sort_order: row.sort_order,
-    }));
-
-    return { success: true, data: items };
+    return { success: true, data: (data || []).map(mapTPEquipmentRow) };
   } catch (error) {
     console.error('Error in getTPEquipment:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -306,17 +319,7 @@ export async function addTPEquipment(
     const { data: inserted, error: insertError } = await supabase
       .from('custom_trading_post_equipment')
       .insert(insertData)
-      .select(`
-        id,
-        custom_trading_post_id,
-        equipment_id,
-        custom_equipment_id,
-        cost_override,
-        availability_override,
-        sort_order,
-        equipment:equipment_id (equipment_name, equipment_category),
-        custom_equipment:custom_equipment_id (equipment_name, equipment_category)
-      `)
+      .select(TP_EQUIPMENT_SELECT)
       .single();
 
     if (insertError) {
@@ -327,21 +330,8 @@ export async function addTPEquipment(
       return { success: false, error: insertError.message };
     }
 
-    const item: CustomTPEquipment = {
-      id: inserted.id,
-      custom_trading_post_id: inserted.custom_trading_post_id,
-      equipment_id: inserted.equipment_id,
-      custom_equipment_id: inserted.custom_equipment_id,
-      equipment_name: (inserted as any).equipment?.equipment_name || (inserted as any).custom_equipment?.equipment_name || 'Unknown',
-      equipment_category: (inserted as any).equipment?.equipment_category || (inserted as any).custom_equipment?.equipment_category || '',
-      is_custom: !!(inserted as any).custom_equipment_id,
-      cost_override: inserted.cost_override,
-      availability_override: inserted.availability_override,
-      sort_order: inserted.sort_order,
-    };
-
     revalidatePath('/');
-    return { success: true, data: item };
+    return { success: true, data: mapTPEquipmentRow(inserted) };
   } catch (error) {
     console.error('Error in addTPEquipment:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -496,21 +486,8 @@ export async function getAvailabilityRules(
       return { success: false, error: error.message };
     }
 
-    const gangTypeIds = (data || [])
-      .map((r: any) => r.gang_type_id)
-      .filter(Boolean);
-
-    let gangTypeNames: Record<string, string> = {};
-    if (gangTypeIds.length > 0) {
-      const { data: gangTypes } = await supabase
-        .from('gang_types')
-        .select('gang_type_id, gang_type')
-        .in('gang_type_id', gangTypeIds);
-      gangTypeNames = (gangTypes || []).reduce((acc: any, gt: any) => {
-        acc[gt.gang_type_id] = gt.gang_type;
-        return acc;
-      }, {});
-    }
+    const gangTypeIds = (data || []).map((r: any) => r.gang_type_id).filter(Boolean);
+    const gangTypeNames = await resolveGangTypeNames(supabase, gangTypeIds);
 
     const rules: CustomTPAvailabilityRule[] = (data || []).map((row: any) => ({
       id: row.id,
@@ -639,21 +616,8 @@ export async function getPricingRules(
       return { success: false, error: error.message };
     }
 
-    const gangTypeIds = (data || [])
-      .map((r: any) => r.gang_type_id)
-      .filter(Boolean);
-
-    let gangTypeNames: Record<string, string> = {};
-    if (gangTypeIds.length > 0) {
-      const { data: gangTypes } = await supabase
-        .from('gang_types')
-        .select('gang_type_id, gang_type')
-        .in('gang_type_id', gangTypeIds);
-      gangTypeNames = (gangTypes || []).reduce((acc: any, gt: any) => {
-        acc[gt.gang_type_id] = gt.gang_type;
-        return acc;
-      }, {});
-    }
+    const gangTypeIds = (data || []).map((r: any) => r.gang_type_id).filter(Boolean);
+    const gangTypeNames = await resolveGangTypeNames(supabase, gangTypeIds);
 
     const rules: CustomTPPricingRule[] = (data || []).map((row: any) => ({
       id: row.id,
