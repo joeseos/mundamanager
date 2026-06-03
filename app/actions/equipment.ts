@@ -23,7 +23,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { deductGangResource } from '@/utils/campaigns/resources';
+import { deductGangResource, deductGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -360,12 +360,25 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Resource-based purchase: deduct resource instead of credits
-    const isResourcePurchase = Boolean(params.cost_resource_name && params.cost_resource_amount != null);
+    const isResourcePurchase = Boolean(params.cost_resource_name && params.cost_resource_amount != null && params.cost_resource_amount > 0);
     if (isResourcePurchase) {
-      if (!params.campaign_gang_id) {
-        throw new Error('campaign_gang_id is required for resource-based purchases');
+      if (params.cost_resource_name === REPUTATION_RESOURCE_NAME) {
+        await deductGangReputation(supabase, params.gang_id, params.cost_resource_amount!);
+      } else {
+        if (!params.campaign_gang_id) {
+          throw new Error('campaign_gang_id is required for resource-based purchases');
+        }
+        const { data: campaignGang } = await supabase
+          .from('campaign_gangs')
+          .select('id')
+          .eq('id', params.campaign_gang_id)
+          .eq('gang_id', params.gang_id)
+          .single();
+        if (!campaignGang) {
+          throw new Error('Invalid campaign_gang_id for this gang');
+        }
+        await deductGangResource(supabase, params.campaign_gang_id, params.cost_resource_name!, params.cost_resource_amount!);
       }
-      await deductGangResource(supabase, params.campaign_gang_id, params.cost_resource_name!, params.cost_resource_amount!);
     } else {
       // Check gang credits (only for non-resource purchases)
       if (finalPurchaseCost > 0 && gang.credits < finalPurchaseCost) {
@@ -391,7 +404,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
           is_editable: equipmentDetails.is_editable || false,
-          ...(isResourcePurchase && { cost_resource: { name: params.cost_resource_name, amount: params.cost_resource_amount } })
+          ...(isResourcePurchase && { cost_resource: { name: params.cost_resource_name, amount: params.cost_resource_amount, ...(params.campaign_gang_id && { campaign_gang_id: params.campaign_gang_id }) } })
         })
         .select('id')
         .single();
@@ -414,7 +427,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
           is_editable: equipmentDetails.is_editable || false,
-          ...(isResourcePurchase && { cost_resource: { name: params.cost_resource_name, amount: params.cost_resource_amount } })
+          ...(isResourcePurchase && { cost_resource: { name: params.cost_resource_name, amount: params.cost_resource_amount, ...(params.campaign_gang_id && { campaign_gang_id: params.campaign_gang_id }) } })
         })
         .select('id')
         .single();

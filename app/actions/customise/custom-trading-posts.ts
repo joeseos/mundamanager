@@ -179,7 +179,7 @@ export async function deleteCustomTradingPost(
 
 const TP_EQUIPMENT_SELECT = `
   id, custom_trading_post_id, equipment_id, custom_equipment_id,
-  cost_override, availability_override, sort_order,
+  cost_override, cost_resource_name, availability_override, sort_order,
   equipment:equipment_id (equipment_name, equipment_category),
   custom_equipment:custom_equipment_id (equipment_name, equipment_category)
 `;
@@ -194,6 +194,7 @@ function mapTPEquipmentRow(row: any): CustomTPEquipment {
     equipment_category: row.equipment?.equipment_category ?? row.custom_equipment?.equipment_category ?? '',
     is_custom: !!row.custom_equipment_id,
     cost_override: row.cost_override,
+    cost_resource_name: row.cost_resource_name ?? null,
     availability_override: row.availability_override,
     sort_order: row.sort_order,
   };
@@ -223,6 +224,7 @@ export interface CustomTPEquipment {
   equipment_category: string;
   is_custom: boolean;
   cost_override: number | null;
+  cost_resource_name: string | null;
   availability_override: string | null;
   sort_order: number | null;
 }
@@ -348,6 +350,7 @@ export async function updateTPEquipment(
   id: string,
   data: {
     cost_override?: number | null;
+    cost_resource_name?: string | null;
     availability_override?: string | null;
     sort_order?: number | null;
   }
@@ -400,6 +403,32 @@ export async function removeTPEquipment(
     return { success: true };
   } catch (error) {
     console.error('Error in removeTPEquipment:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared campaigns
+// ---------------------------------------------------------------------------
+
+export async function getTPSharedCampaignIds(
+  tradingPostId: string
+): Promise<{ success: boolean; data?: string[]; error?: string }> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data, error } = await supabase
+      .from('custom_shared')
+      .select('campaign_id')
+      .eq('custom_trading_post_id', tradingPostId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: (data || []).map(r => r.campaign_id).filter(Boolean) };
+  } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

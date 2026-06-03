@@ -8,7 +8,7 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { returnGangResource } from '@/utils/campaigns/resources';
+import { returnGangResource, returnGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -228,7 +228,21 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    // Start transaction-like sequence: Delete equipment and update gang credits
+    // Return resource before deleting equipment (so resource isn't lost if return fails)
+    if (isResourcePurchase) {
+      const costResource = equipmentData.cost_resource as { name: string; amount: number; campaign_gang_id?: string };
+      try {
+        if (costResource.name === REPUTATION_RESOURCE_NAME) {
+          await returnGangReputation(supabase, gangId, costResource.amount);
+        } else {
+          await returnGangResource(supabase, gangId, costResource.name, costResource.amount, costResource.campaign_gang_id);
+        }
+      } catch (resourceError) {
+        console.error('Failed to return resource on sell:', resourceError);
+      }
+    }
+
+    // Delete equipment and update gang credits
     const { error: deleteError } = await supabase
       .from('fighter_equipment')
       .delete()
@@ -236,15 +250,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
-    }
-
-    if (isResourcePurchase) {
-      const costResource = equipmentData.cost_resource as { name: string; amount: number };
-      try {
-        await returnGangResource(supabase, gangId, costResource.name, costResource.amount);
-      } catch (resourceError) {
-        console.error('Failed to return resource on sell:', resourceError);
-      }
     }
 
     // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
@@ -423,9 +428,13 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     }
 
     if (isResourcePurchaseStash) {
-      const costResource = row.cost_resource as { name: string; amount: number };
+      const costResource = row.cost_resource as { name: string; amount: number; campaign_gang_id?: string };
       try {
-        await returnGangResource(supabase, row.gang_id, costResource.name, costResource.amount);
+        if (costResource.name === REPUTATION_RESOURCE_NAME) {
+          await returnGangReputation(supabase, row.gang_id, costResource.amount);
+        } else {
+          await returnGangResource(supabase, row.gang_id, costResource.name, costResource.amount, costResource.campaign_gang_id);
+        }
       } catch (resourceError) {
         console.error('Failed to return resource on stash sell:', resourceError);
       }

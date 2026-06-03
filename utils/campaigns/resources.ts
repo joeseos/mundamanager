@@ -117,6 +117,8 @@ export async function deductGangResource(
   resourceName: string,
   amount: number
 ): Promise<void> {
+  if (amount <= 0) throw new Error('Resource amount must be greater than 0');
+
   const resource = await findGangResourceByName(supabase, campaignGangId, resourceName);
 
   if (!resource) {
@@ -126,30 +128,40 @@ export async function deductGangResource(
     throw new Error(`Insufficient ${resourceName}. Required: ${amount}, Available: ${resource.quantity}`);
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('campaign_gang_resources')
     .update({ quantity: resource.quantity - amount })
-    .eq('id', resource.id);
+    .eq('id', resource.id)
+    .gte('quantity', amount)
+    .select('id');
 
   if (error) throw new Error(`Failed to deduct resource: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error(`Insufficient ${resourceName} (concurrent modification)`);
+  }
 }
 
 export async function returnGangResource(
   supabase: SupabaseClient,
   gangId: string,
   resourceName: string,
-  amount: number
+  amount: number,
+  campaignGangId?: string
 ): Promise<boolean> {
-  const { data: campaignGang } = await supabase
-    .from('campaign_gangs')
-    .select('id')
-    .eq('gang_id', gangId)
-    .limit(1)
-    .single();
+  let resolvedCampaignGangId = campaignGangId;
+  if (!resolvedCampaignGangId) {
+    const { data: campaignGang } = await supabase
+      .from('campaign_gangs')
+      .select('id')
+      .eq('gang_id', gangId)
+      .limit(1)
+      .single();
 
-  if (!campaignGang) return false;
+    if (!campaignGang) return false;
+    resolvedCampaignGangId = campaignGang.id;
+  }
 
-  const resource = await findGangResourceByName(supabase, campaignGang.id, resourceName);
+  const resource = await findGangResourceByName(supabase, resolvedCampaignGangId!, resourceName);
   if (!resource) return false;
 
   const { error } = await supabase
@@ -159,6 +171,67 @@ export async function returnGangResource(
 
   if (error) {
     console.error('Failed to return resource:', error);
+    return false;
+  }
+  return true;
+}
+
+export const REPUTATION_RESOURCE_NAME = 'Reputation';
+
+export async function deductGangReputation(
+  supabase: SupabaseClient,
+  gangId: string,
+  amount: number
+): Promise<void> {
+  if (amount <= 0) throw new Error('Reputation amount must be greater than 0');
+
+  const { data: gang, error: fetchError } = await supabase
+    .from('gangs')
+    .select('reputation')
+    .eq('gang_id', gangId)
+    .single();
+
+  if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
+  if (!gang) throw new Error('Gang not found');
+
+  const current = gang.reputation ?? 0;
+  if (current < amount) {
+    throw new Error(`Insufficient Reputation. Required: ${amount}, Available: ${current}`);
+  }
+
+  const { data, error } = await supabase
+    .from('gangs')
+    .update({ reputation: current - amount })
+    .eq('gang_id', gangId)
+    .gte('reputation', amount)
+    .select('gang_id');
+
+  if (error) throw new Error(`Failed to deduct reputation: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error('Insufficient Reputation (concurrent modification)');
+  }
+}
+
+export async function returnGangReputation(
+  supabase: SupabaseClient,
+  gangId: string,
+  amount: number
+): Promise<boolean> {
+  const { data: gang, error: fetchError } = await supabase
+    .from('gangs')
+    .select('reputation')
+    .eq('gang_id', gangId)
+    .single();
+
+  if (fetchError || !gang) return false;
+
+  const { error } = await supabase
+    .from('gangs')
+    .update({ reputation: (gang.reputation ?? 0) + amount })
+    .eq('gang_id', gangId);
+
+  if (error) {
+    console.error('Failed to return reputation:', error);
     return false;
   }
   return true;
