@@ -21,6 +21,7 @@ export interface UpdateCampaignSettingsParams {
   discord_guild_id?: string | null;
   discord_channel_id?: string | null;
   discord_channel_type?: number | null;
+  custom_trading_posts?: string[];
 }
 
 /**
@@ -47,7 +48,8 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       status,
       discord_guild_id,
       discord_channel_id,
-      discord_channel_type
+      discord_channel_type,
+      custom_trading_posts
     } = params;
 
     // Only include provided fields in the update
@@ -61,6 +63,7 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (has_sustenance !== undefined) updateData.has_sustenance = has_sustenance;
     if (has_salvage !== undefined) updateData.has_salvage = has_salvage;
     if (trading_posts !== undefined) updateData.trading_posts = trading_posts;
+    if (custom_trading_posts !== undefined) updateData.custom_trading_posts = custom_trading_posts;
     if (note !== undefined) updateData.note = note;
     if (status !== undefined) updateData.status = status;
     if (discord_guild_id !== undefined) updateData.discord_guild_id = discord_guild_id;

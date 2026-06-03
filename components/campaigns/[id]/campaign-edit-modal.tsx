@@ -29,6 +29,7 @@ interface EditCampaignModalProps {
     description: string;
     status: string | null;
     trading_posts: string[];
+    custom_trading_posts: string[];
     campaign_type_name?: string;
     campaign_type_id?: string;
     discord_guild_id?: string | null;
@@ -40,6 +41,7 @@ interface EditCampaignModalProps {
     campaign_name: string;
     description: string;
     trading_posts: string[];
+    custom_trading_posts: string[];
     status: string;
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
@@ -49,6 +51,7 @@ interface EditCampaignModalProps {
   isArbitrator?: boolean;
   isAdmin?: boolean;
   tradingPostTypes?: TradingPostType[];
+  customTradingPostTypes?: TradingPostType[];
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   onAllegiancesChange?: () => void;
   onMembersUpdate?: (allegianceId: string) => void;
@@ -69,6 +72,7 @@ export default function CampaignEditModal({
   isArbitrator = false,
   isAdmin = false,
   tradingPostTypes = [],
+  customTradingPostTypes = [],
   campaignAllegiances = [],
   onAllegiancesChange,
   onMembersUpdate,
@@ -85,6 +89,7 @@ export default function CampaignEditModal({
     description: campaignData.description ?? '',
     status: campaignData.status || 'Active',
     tradingPosts: campaignData.trading_posts || [],
+    customTradingPosts: campaignData.custom_trading_posts || [],
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -103,6 +108,7 @@ export default function CampaignEditModal({
       description: campaignData.description ?? '',
       status: campaignData.status || 'Active',
       tradingPosts: campaignData.trading_posts || [],
+      customTradingPosts: campaignData.custom_trading_posts || [],
     });
     setCharCount((campaignData.description ?? '').length);
     setSelectedChannelId(campaignData.discord_channel_id || '');
@@ -141,6 +147,7 @@ export default function CampaignEditModal({
       campaign_name: formValues.campaignName,
       description: formValues.description,
       trading_posts: formValues.tradingPosts,
+      custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
     };
 
@@ -181,6 +188,7 @@ export default function CampaignEditModal({
       campaign_name: formValues.campaignName,
       description: formValues.description,
       trading_posts: formValues.tradingPosts,
+      custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       discord_guild_id: null,
       discord_channel_id: null,
@@ -205,6 +213,23 @@ export default function CampaignEditModal({
       return {
         ...prev,
         tradingPosts: current.filter(id => id !== tradingPostId)
+      };
+    });
+  };
+
+  const handleCustomTradingPostToggle = (tradingPostId: string, enabled: boolean) => {
+    setFormValues(prev => {
+      const current = prev.customTradingPosts || [];
+      if (enabled) {
+        if (current.includes(tradingPostId)) return prev;
+        return {
+          ...prev,
+          customTradingPosts: [...current, tradingPostId]
+        };
+      }
+      return {
+        ...prev,
+        customTradingPosts: current.filter(id => id !== tradingPostId)
       };
     });
   };
@@ -331,7 +356,7 @@ export default function CampaignEditModal({
                   </span>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {formValues.tradingPosts.length} selected
+                  {formValues.tradingPosts.length + formValues.customTradingPosts.length} selected
                 </span>
               </label>
               {tradingPostTypes.length === 0 ? (
@@ -374,6 +399,22 @@ export default function CampaignEditModal({
                         </React.Fragment>
                       );
                     })}
+
+                  {/* Custom Trading Posts */}
+                  {customTradingPostTypes.map((type) => (
+                    <label
+                      key={`custom-${type.id}`}
+                      htmlFor={`custom-trading-post-${type.id}`}
+                      className="flex items-center space-x-2 cursor-pointer"
+                    >
+                      <Checkbox
+                        id={`custom-trading-post-${type.id}`}
+                        checked={formValues.customTradingPosts.includes(type.id)}
+                        onCheckedChange={(checked) => handleCustomTradingPostToggle(type.id, checked === true)}
+                      />
+                      <span className="text-xs">{type.trading_post_name}</span>
+                    </label>
+                  ))}
                 </div>
               )}
             </div>

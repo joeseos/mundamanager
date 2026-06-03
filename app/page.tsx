@@ -17,6 +17,7 @@ import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
 import { getUserCustomSkills } from "@/app/lib/customise/custom-skills";
 import { getUserCustomGangTypes } from "@/app/lib/customise/custom-gang-types";
+import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-posts";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -38,7 +39,8 @@ export default async function Home() {
     customTerritories,
     customFighterTypes,
     customSkills,
-    customGangTypes
+    customGangTypes,
+    customTradingPosts
   ] = await Promise.all([
     getUserGangs(user.id, supabase),
     getUserCampaigns(user.id, supabase),
@@ -46,7 +48,8 @@ export default async function Home() {
     getUserCustomTerritories(),
     getUserCustomFighterTypes(user.id),
     getUserCustomSkills(user.id),
-    getUserCustomGangTypes(user.id)
+    getUserCustomGangTypes(user.id),
+    getUserCustomTradingPosts(user.id)
   ]);
   
   // Fetch campaign types and trading post types for the create campaign modal
@@ -139,6 +142,7 @@ export default async function Home() {
           customFighterTypes={customFighterTypes}
           customSkills={customSkills}
           customGangTypes={customGangTypes}
+          customTradingPosts={customTradingPosts}
           userCampaigns={userCampaigns}
         />
       </div>

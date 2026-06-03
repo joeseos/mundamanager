@@ -2,7 +2,8 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
+import { CACHE_TAGS } from '@/utils/cache-tags';
 
 /**
  * Share a custom fighter to selected campaigns
@@ -400,6 +401,93 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomSkill:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function shareCustomTradingPost(customTradingPostId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: customTradingPost, error: tpError } = await supabase
+      .from('custom_trading_posts')
+      .select('id, user_id')
+      .eq('id', customTradingPostId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (tpError || !customTradingPost) {
+      return { success: false, error: 'Custom trading post not found or not owned by user' };
+    }
+
+    const { data: existingShares } = await supabase
+      .from('custom_shared')
+      .select('campaign_id')
+      .eq('custom_trading_post_id', customTradingPostId)
+      .eq('user_id', user.id);
+
+    const oldCampaignIds = (existingShares || []).map(s => s.campaign_id);
+
+    const { error: deleteError } = await supabase
+      .from('custom_shared')
+      .delete()
+      .eq('custom_trading_post_id', customTradingPostId)
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      console.error('Error deleting existing shares:', deleteError);
+      return { success: false, error: `Failed to update shares: ${deleteError.message}` };
+    }
+
+    if (campaignIds.length > 0) {
+      const shareRows = campaignIds.map(campaignId => ({
+        custom_trading_post_id: customTradingPostId,
+        campaign_id: campaignId,
+        user_id: user.id
+      }));
+
+      const { error: insertError } = await supabase
+        .from('custom_shared')
+        .insert(shareRows);
+
+      if (insertError) {
+        console.error('Error inserting shares:', insertError);
+        return { success: false, error: `Failed to share trading post: ${insertError.message}` };
+      }
+    }
+
+    for (const cid of campaignIds) {
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(cid));
+    }
+
+    const removedCampaignIds = oldCampaignIds.filter(id => !campaignIds.includes(id));
+    if (removedCampaignIds.length > 0) {
+      const { data: affectedCampaigns } = await supabase
+        .from('campaigns')
+        .select('id, custom_trading_posts')
+        .in('id', removedCampaignIds);
+
+      for (const campaign of affectedCampaigns || []) {
+        const currentPosts = (campaign.custom_trading_posts as string[]) || [];
+        if (currentPosts.includes(customTradingPostId)) {
+          const updated = currentPosts.filter((id: string) => id !== customTradingPostId);
+          await supabase
+            .from('campaigns')
+            .update({ custom_trading_posts: updated })
+            .eq('id', campaign.id);
+          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id));
+        }
+      }
+    }
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Error in shareCustomTradingPost:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

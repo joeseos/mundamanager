@@ -52,10 +52,10 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
   useEffect(() => {
     const baseCost = item.adjusted_cost ?? item.cost;
-    const newCost = isMasterCrafted && item.equipment_type === 'weapon' 
+    const newCost = isMasterCrafted && item.equipment_type === 'weapon'
       ? calculateMasterCraftedCost(baseCost)
       : baseCost;
-    
+
     setManualCost(String(newCost));
   }, [isMasterCrafted, item]);
 
@@ -415,10 +415,10 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 />
               </div>
             </div>
-            
+
             {item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
               <div className="flex items-center space-x-2 mt-2">
-                <Checkbox 
+                <Checkbox
                   id="master-crafted"
                   checked={isMasterCrafted}
                   onCheckedChange={(checked) => setIsMasterCrafted(checked as boolean)}
@@ -439,13 +439,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             )}
 
             <div className="flex items-center space-x-2 mb-2 mt-2">
-              <Checkbox 
+              <Checkbox
                 id="use-base-cost-for-rating"
                 checked={useBaseCostForRating}
                 onCheckedChange={(checked) => setUseBaseCostForRating(checked as boolean)}
               />
-              <label 
-                htmlFor="use-base-cost-for-rating" 
+              <label
+                htmlFor="use-base-cost-for-rating"
                 className="text-sm font-medium text-muted-foreground cursor-pointer"
               >
                 Use Listed Cost for Rating
@@ -469,4 +469,3 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     />
   );
 }
-

@@ -1353,6 +1353,12 @@ export default function FighterPage({
               campaignTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
                 ? ((fighterData.fighter.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
                 : undefined}
+              campaignCustomTradingPostIds={(fighterData.fighter.campaigns || []).length > 0
+                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [])
+                : undefined}
+              campaignCustomTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
+                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
+                : undefined}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
@@ -1378,6 +1384,12 @@ export default function FighterPage({
               campaignTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
                 ? ((fighterData.fighter.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
                 : undefined}
+              campaignCustomTradingPostIds={(fighterData.fighter.campaigns || []).length > 0
+                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [])
+                : undefined}
+              campaignCustomTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
+                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
+                : undefined}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />
           )}
@@ -1385,4 +1397,4 @@ export default function FighterPage({
       </div>
     </main>
   );
-} 
+}

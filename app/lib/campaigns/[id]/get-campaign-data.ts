@@ -28,6 +28,7 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       has_sustenance,
       has_salvage,
       trading_posts,
+      custom_trading_posts,
       note,
       image_url,
       discord_guild_id,

@@ -109,6 +109,8 @@ export interface GangCampaign {
   has_salvage: boolean;
   trading_posts?: string[] | null;
   trading_post_names?: string[];
+  custom_trading_posts?: string[] | null;
+  custom_trading_post_names?: string[];
   territories: any[];
   allegiance?: {
     id: string;
@@ -543,7 +545,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_power,
             has_sustenance,
             has_salvage,
-            trading_posts
+            trading_posts,
+            custom_trading_posts
           )
         `)
         .eq('gang_id', gangId);
@@ -602,6 +605,28 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         if (tradingPostTypes) {
           tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
             acc[tp.id] = tp.trading_post_name;
+            return acc;
+          }, {});
+        }
+      }
+
+      // Collect all custom trading post IDs across all campaigns for batch fetch
+      const allCustomTradingPostIds = (data || [])
+        .map((cg: any) => (cg.campaigns as any)?.custom_trading_posts)
+        .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
+        .flat();
+
+      let customTradingPostNamesMap: Record<string, string> = {};
+      if (allCustomTradingPostIds.length > 0) {
+        const uniqueIds = Array.from(new Set(allCustomTradingPostIds));
+        const { data: customTradingPosts } = await supabase
+          .from('custom_trading_posts')
+          .select('id, custom_trading_post_name')
+          .in('id', uniqueIds);
+
+        if (customTradingPosts) {
+          customTradingPostNamesMap = customTradingPosts.reduce((acc: Record<string, string>, tp: any) => {
+            acc[tp.id] = tp.custom_trading_post_name;
             return acc;
           }, {});
         }
@@ -770,6 +795,11 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             .map((id: string) => tradingPostNamesMap[id])
             .filter(Boolean);
 
+          const customTradingPosts = (cg.campaigns as any).custom_trading_posts || [];
+          const custom_trading_post_names = customTradingPosts
+            .map((id: string) => customTradingPostNamesMap[id])
+            .filter(Boolean);
+
           // Get allegiance (custom takes precedence over type)
           const allegianceId = (cg as any).campaign_allegiance_id || (cg as any).campaign_type_allegiance_id;
           const allegiance = allegianceId && allegianceNamesMap[allegianceId]
@@ -792,6 +822,8 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             has_salvage: (cg.campaigns as any).has_salvage,
             trading_posts: tradingPosts,
             trading_post_names,
+            custom_trading_posts: customTradingPosts,
+            custom_trading_post_names,
             territories: territoriesByCampaign[(cg.campaigns as any).id] || [],
             allegiance,
             resources: resourcesByCampaignGang[cg.id] || []

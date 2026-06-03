@@ -103,7 +103,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       tradingPostTypesResult,
       campaignAllegiances,
       campaignResources,
-      campaignCaptives
+      campaignCaptives,
+      customTradingPostsResult
     ] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
       getCampaignTypes(),
@@ -114,10 +115,19 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         .order('trading_post_name'),
       getCampaignAllegiances(params.id, supabase),
       getCampaignResources(params.id, supabase),
-      getCampaignCaptives(params.id, supabase)
+      getCampaignCaptives(params.id, supabase),
+      supabase
+        .from('custom_shared')
+        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name)')
+        .eq('campaign_id', params.id)
+        .not('custom_trading_post_id', 'is', null)
     ]);
 
     const tradingPostTypes = tradingPostTypesResult.data || [];
+    const customTradingPostTypes = (customTradingPostsResult.data || []).map((row: any) => ({
+      id: row.custom_trading_posts.id,
+      trading_post_name: row.custom_trading_posts.custom_trading_post_name,
+    }));
 
     // Combine the data
     const campaignData = {
@@ -138,6 +148,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       has_sustenance: campaignBasic.has_sustenance,
       has_salvage: campaignBasic.has_salvage,
       trading_posts: campaignBasic.trading_posts || [],
+      custom_trading_posts: campaignBasic.custom_trading_posts || [],
       discord_guild_id: campaignBasic.discord_guild_id || null,
       discord_channel_id: campaignBasic.discord_channel_id || null,
       note: campaignBasic.note,
@@ -162,6 +173,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
           campaignTypes={campaignTypes}
           allTerritories={allTerritories}
           tradingPostTypes={tradingPostTypes}
+          customTradingPostTypes={customTradingPostTypes}
           campaignAllegiances={campaignAllegiances}
           campaignResources={campaignResources}
           mapData={campaignMap}
