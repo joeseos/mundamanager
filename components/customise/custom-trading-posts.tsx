@@ -31,6 +31,7 @@ import {
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
+import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/customise/custom-equipment';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -876,7 +877,7 @@ function PendingEquipmentSection({
         <div className="flex-1">
           <Label className="mb-1">Category</Label>
           <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
+            className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
             value={selectedCategory}
             onChange={(e) => {
               setSelectedCategory(e.target.value);
@@ -894,7 +895,7 @@ function PendingEquipmentSection({
           <div className="flex-1">
             <Label className="mb-1">Equipment</Label>
             <select
-              className="w-full border rounded-md p-2 bg-background text-sm"
+              className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
               value={selectedEquipmentId}
               onChange={(e) => setSelectedEquipmentId(e.target.value)}
             >
@@ -1026,9 +1027,11 @@ function EditEquipmentModal({
   const [costOverride, setCostOverride] = useState(
     pendingChanges ? (pendingChanges.costOverride?.toString() ?? '') : (item.cost_override?.toString() ?? '')
   );
-  const [availabilityOverride, setAvailabilityOverride] = useState(
-    pendingChanges ? (pendingChanges.availabilityOverride ?? '') : (item.availability_override ?? '')
+  const parsedAvail = parseAvailability(
+    pendingChanges ? pendingChanges.availabilityOverride : item.availability_override
   );
+  const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
+  const [availNumber, setAvailNumber] = useState(parsedAvail.number);
   const [localAvailRules, setLocalAvailRules] = useState<CustomTPAvailabilityRule[] | null>(
     pendingChanges ? pendingChanges.availRules : null
   );
@@ -1064,7 +1067,7 @@ function EditEquipmentModal({
   const handleSave = async () => {
     onSaveLocal({
       costOverride: costOverride.trim() ? Number(costOverride) : null,
-      availabilityOverride: availabilityOverride.trim() || null,
+      availabilityOverride: combineAvailability(availLetter, availNumber),
       availRules,
       pricingRules,
       rulesModified: localAvailRules !== null || localPricingRules !== null,
@@ -1110,14 +1113,14 @@ function EditEquipmentModal({
                 placeholder="Leave empty for default cost"
               />
             </div>
-            <div>
-              <Label className="mb-1">Availability Override</Label>
-              <Input
-                value={availabilityOverride}
-                onChange={(e) => setAvailabilityOverride(e.target.value)}
-                placeholder="e.g. R12, C, E (leave empty for default)"
-              />
-            </div>
+            <AvailabilityPicker
+              label="Availability Override"
+              letter={availLetter}
+              number={availNumber}
+              onLetterChange={setAvailLetter}
+              onNumberChange={setAvailNumber}
+              allowEmpty
+            />
           </div>
 
           {/* Availability Rules */}
@@ -1282,7 +1285,7 @@ function GangScopeFields({
       <div>
         <Label className="mb-1">Gang Type</Label>
         <select
-          className="w-full border rounded-md p-2 bg-background text-sm"
+          className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
           value={gangTypeId}
           onChange={(e) => {
             const val = e.target.value;
@@ -1316,7 +1319,7 @@ function GangScopeFields({
         <div>
           <Label className="mb-1">Gang Origin</Label>
           <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
+            className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
             value={gangOriginId}
             onChange={(e) => {
               const val = e.target.value;
@@ -1352,7 +1355,8 @@ function AddAvailabilityRuleModal({
   const [gangVariantId, setGangVariantId] = useState('');
   const [allegiance, setAllegiance] = useState('');
   const [alignment, setAlignment] = useState('');
-  const [availability, setAvailability] = useState('');
+  const [availLetter, setAvailLetter] = useState('');
+  const [availNumber, setAvailNumber] = useState(6);
 
   const { data: variants = [] } = useQuery({
     queryKey: ['gangVariantTypes'],
@@ -1387,7 +1391,7 @@ function AddAvailabilityRuleModal({
       gang_variant_id: gangVariantId || null,
       campaign_type_allegiance_id: allegiance || null,
       alignment: alignment || null,
-      availability: availability || null,
+      availability: combineAvailability(availLetter, availNumber),
       gang_type_name: gangTypeName,
       gang_origin_name: gangOriginName,
       gang_variant_name: selectedVariantName,
@@ -1429,7 +1433,7 @@ function AddAvailabilityRuleModal({
         <div>
           <Label className="mb-1">Gang Variant</Label>
           <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
+            className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
             value={gangVariantId}
             onChange={(e) => setGangVariantId(e.target.value)}
           >
@@ -1443,7 +1447,7 @@ function AddAvailabilityRuleModal({
         <div>
           <Label className="mb-1">Allegiance</Label>
           <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
+            className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
             value={allegiance}
             onChange={(e) => setAllegiance(e.target.value)}
           >
@@ -1457,7 +1461,7 @@ function AddAvailabilityRuleModal({
         <div>
           <Label className="mb-1">Alignment</Label>
           <select
-            className="w-full border rounded-md p-2 bg-background text-sm"
+            className="w-full border rounded-md p-2 bg-background text-base md:text-sm"
             value={alignment}
             onChange={(e) => setAlignment(e.target.value)}
           >
@@ -1468,14 +1472,14 @@ function AddAvailabilityRuleModal({
           </select>
         </div>
 
-        <div>
-          <Label className="mb-1">Availability</Label>
-          <Input
-            value={availability}
-            onChange={(e) => setAvailability(e.target.value)}
-            placeholder="e.g. R12, C, E"
-          />
-        </div>
+        <AvailabilityPicker
+          label="Availability"
+          letter={availLetter}
+          number={availNumber}
+          onLetterChange={setAvailLetter}
+          onNumberChange={setAvailNumber}
+          allowEmpty
+        />
       </div>
     </Modal>
   );
