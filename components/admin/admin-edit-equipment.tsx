@@ -75,7 +75,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const queryClient = useQueryClient();
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
   const [equipmentName, setEquipmentName] = useState('');
-  const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I'>('C');
+  const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
   const [variants, setVariants] = useState('');
@@ -207,7 +207,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
     setEquipmentName(equipmentDetails.equipment_name);
     const parsed = parseAvailability(equipmentDetails.availability);
-    setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I');
+    setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S');
     setAvailNumber(parsed.number);
     setCost(equipmentDetails.cost?.toString() || '');
     setVariants(equipmentDetails.variants || '');
@@ -644,7 +644,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 label="Availability (TP default) *"
                 letter={availLetter}
                 number={availNumber}
-                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I')}
+                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
                 onNumberChange={setAvailNumber}
                 disabled={!selectedEquipmentId}
               />
