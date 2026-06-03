@@ -40,6 +40,7 @@ interface ItemModalProps {
   campaignTradingPostNames?: string[];
   campaignCustomTradingPostIds?: string[];
   campaignCustomTradingPostNames?: string[];
+  campaignGangId?: string;
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
@@ -66,6 +67,8 @@ interface RawEquipmentData {
   grants_equipment?: EquipmentGrants;
   equipment_tradingpost?: boolean;
   trading_post_names?: string[];
+  cost_resource_name?: string | null;
+  cost_resource_amount?: number | null;
 }
 
 interface Category {
@@ -96,6 +99,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   campaignTradingPostNames,
   campaignCustomTradingPostIds,
   campaignCustomTradingPostNames,
+  campaignGangId,
   onEquipmentBought,
   onPurchaseRequest,
   fighterWeapons
@@ -139,6 +143,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     isVehicleEquipment,
     isStashMode,
     fighterCredits,
+    campaignGangId,
     onEquipmentBought,
     onPurchaseRequest,
     closePurchaseModal: () => setBuyModalData(null),
@@ -841,6 +846,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                         <span className="text-[10px] font-medium">{item.cost}</span>
                                       </div>
                                     )}
+                                    {item.cost_resource_name && item.cost_resource_amount != null && (
+                                      <div className="h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5" title={item.cost_resource_name}>
+                                        <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
+                                      </div>
+                                    )}
                                     {equipmentListType !== 'fighters-list' && (
                                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
                                         item.availability?.startsWith('R') ? 'bg-sky-500' :
@@ -885,7 +895,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds) => {
+                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, costResourceName, costResourceAmount) => {
                   purchaseEquipment({
                     item: buyModalData,
                     manualCost: cost,
@@ -894,6 +904,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     selectedEffectIds: selectedEffectIds || [],
                     equipmentTarget,
                     selectedGrantEquipmentIds: selectedGrantEquipmentIds || [],
+                    costResourceName,
+                    costResourceAmount,
                   })
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}

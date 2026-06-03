@@ -13,6 +13,7 @@ export interface PurchaseEquipmentContext {
   isVehicleEquipment?: boolean;
   isStashMode?: boolean;
   fighterCredits: number;
+  campaignGangId?: string;
   onEquipmentBought?: (
     newFighterCredits: number,
     newGangCredits: number,
@@ -34,6 +35,8 @@ export interface PurchaseEquipmentInput {
   selectedEffectIds?: string[];
   equipmentTarget?: EquipmentTarget;
   selectedGrantEquipmentIds?: string[];
+  costResourceName?: string;
+  costResourceAmount?: number;
 }
 
 export interface BuyEquipmentPayload {
@@ -50,6 +53,9 @@ export interface BuyEquipmentPayload {
   equipment_target?: EquipmentTarget;
   listed_cost?: number;
   selected_grant_equipment_ids?: string[];
+  cost_resource_name?: string;
+  cost_resource_amount?: number;
+  campaign_gang_id?: string;
 }
 
 export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
@@ -63,6 +69,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
     selectedEffectIds = [],
     equipmentTarget,
     selectedGrantEquipmentIds = [],
+    costResourceName,
+    costResourceAmount,
   }: PurchaseEquipmentInput) => {
     const {
       session,
@@ -75,6 +83,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       onEquipmentBought,
       onPurchaseRequest,
       closePurchaseModal,
+      campaignGangId,
     } = deps;
 
     if (!session) return;
@@ -103,6 +112,12 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
 
       ...(selectedGrantEquipmentIds.length > 0 && {
         selected_grant_equipment_ids: selectedGrantEquipmentIds,
+      }),
+
+      ...(costResourceName && costResourceAmount != null && {
+        cost_resource_name: costResourceName,
+        cost_resource_amount: costResourceAmount,
+        campaign_gang_id: campaignGangId,
       }),
     };
 
@@ -147,12 +162,14 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         newGangWealth
       );
 
+      const displayName = equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
+        ? `${item.equipment_name} (Master-crafted)`
+        : item.equipment_name;
+      const costDescription = costResourceName
+        ? `${costResourceAmount} ${costResourceName}`
+        : `${serverPurchaseCost} credits`;
       toast.success('Equipment purchased', {
-        description: `Successfully bought ${
-          equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
-            ? `${item.equipment_name} (Master-crafted)`
-            : item.equipment_name
-        } for ${serverPurchaseCost} credits`,
+        description: `Successfully bought ${displayName} for ${costDescription}`,
       });
 
       closePurchaseModal?.();

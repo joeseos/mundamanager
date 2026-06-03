@@ -1359,6 +1359,9 @@ export default function FighterPage({
               campaignCustomTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
                 ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
                 : undefined}
+              campaignGangId={(fighterData.fighter.campaigns || []).length > 0
+                ? (fighterData.fighter.campaigns || [])[0]?.campaign_gang_id
+                : undefined}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
@@ -1389,6 +1392,9 @@ export default function FighterPage({
                 : undefined}
               campaignCustomTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
                 ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
+                : undefined}
+              campaignGangId={(fighterData.fighter.campaigns || []).length > 0
+                ? (fighterData.fighter.campaigns || [])[0]?.campaign_gang_id
                 : undefined}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />

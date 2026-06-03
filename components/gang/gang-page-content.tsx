@@ -910,6 +910,9 @@ export default function GangPageContent({
           campaignCustomTradingPostNames={(gangData.processedData.campaigns || []).length > 0
             ? ((gangData.processedData.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
             : undefined}
+          campaignGangId={(gangData.processedData.campaigns || []).length > 0
+            ? (gangData.processedData.campaigns || [])[0]?.campaign_gang_id
+            : undefined}
           positioning={gangData.processedData.positioning}
         />
         <GangVehicles

@@ -17,7 +17,9 @@ interface PurchaseModalProps {
     useBaseCostForRating: boolean,
     selectedEffectIds?: string[],
     equipmentTarget?: { target_equipment_id: string; effect_type_id: string },
-    selectedGrantEquipmentIds?: string[]
+    selectedGrantEquipmentIds?: string[],
+    costResourceName?: string,
+    costResourceAmount?: number
   ) => void;
   isStashPurchase?: boolean;
   fighterId?: string;
@@ -43,6 +45,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [selectedGrantIds, setSelectedGrantIds] = useState<string[]>([]);
   const [grantOptions, setGrantOptions] = useState<Array<{ id: string; name: string; cost: number; additional_cost: number }>>([]);
   const [grantsConfig, setGrantsConfig] = useState<EquipmentGrants | null>(null);
+
+  const hasResourceCost = Boolean(item.cost_resource_name && item.cost_resource_amount != null);
+  const [manualResourceAmount, setManualResourceAmount] = useState<string>(
+    String(item.cost_resource_amount ?? 0)
+  );
+  const resourceArgs = (): [string | undefined, number | undefined] =>
+    hasResourceCost ? [item.cost_resource_name!, Number(manualResourceAmount)] : [undefined, undefined];
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -83,13 +92,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         return false; // Don't close modal, show grants selection
       } else if (grants.selection_type === 'fixed') {
         // Fixed grants are handled server-side, proceed with purchase
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, []);
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], ...resourceArgs());
         return true;
       }
     }
 
     // No grants selection needed
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, []);
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], ...resourceArgs());
     return true;
   };
 
@@ -98,17 +107,17 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
     if (isNaN(parsedCost)) {
       setCreditError(`Incorrect input, please update the input value`);
-      return false; // Explicitly return false to prevent modal closure
-    } else if (parsedCost > 0 && parsedCost > gangCredits) {
+      return false;
+    } else if (!hasResourceCost && parsedCost > 0 && parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
-      return false; // Explicitly return false to prevent modal closure
+      return false;
     }
 
     setCreditError(null);
 
     // If buying to stash, skip effect and grants selection entirely
     if (isStashPurchase) {
-      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, [], undefined, []);
+      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, [], undefined, [], ...resourceArgs());
       return true;
     }
 
@@ -176,7 +185,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
       } catch (error) {
         console.error('Error checking effects:', error);
         // On error, proceed with purchase to avoid blocking the user
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds);
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, ...resourceArgs());
         return true;
       }
     }
@@ -184,7 +193,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     // Note: showTargetSelection, showEffectSelection, and showGrantsSelection are handled by separate modal render paths
     // If we reach here, it means no additional selection is needed
     // Just proceed with purchase
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds);
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, ...resourceArgs());
     return true; // Allow modal to close
   };
 
@@ -227,7 +236,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
-              onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData);
+              onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData, [], ...resourceArgs());
             }}
             onSelectionComplete={() => {
               // No-op; parent onConfirm is triggered by onApplyToTarget
@@ -370,7 +379,8 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             useBaseCostForRating,
             selectedEffectIds,
             undefined,
-            selectedGrantIds
+            selectedGrantIds,
+            ...resourceArgs()
           );
           return true;
         }}
@@ -415,6 +425,30 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 />
               </div>
             </div>
+
+            {hasResourceCost && (
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    {item.cost_resource_name}
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={manualResourceAmount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^\d*$/.test(val)) {
+                        setManualResourceAmount(val);
+                      }
+                    }}
+                    className="w-full p-2 border rounded-md"
+                    min="0"
+                  />
+                </div>
+              </div>
+            )}
 
             {item.equipment_type === 'weapon' && equipmentListType !== 'fighters-list' && (
               <div className="flex items-center space-x-2 mt-2">

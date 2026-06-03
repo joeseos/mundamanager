@@ -35,7 +35,9 @@ RETURNS TABLE (
     vehicle_upgrade_slot text,
     grants_equipment jsonb,
     is_editable boolean,
-    trading_post_names text[]
+    trading_post_names text[],
+    cost_resource_name text,
+    cost_resource_amount numeric
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -374,7 +376,10 @@ AS $$
         COALESCE(e.is_editable, false) AS is_editable,
 
         -- Trading post names (already aggregated in tp_summary)
-        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names
+        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
+
+        cto.cost_resource_name,
+        CASE WHEN cto.cost_resource_name IS NOT NULL THEN cto.cost_override END AS cost_resource_amount
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -502,7 +507,9 @@ AS $$
         NULL AS vehicle_upgrade_slot,
         NULL::jsonb AS grants_equipment,
         COALESCE(ce.is_editable, false) AS is_editable,
-        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names
+        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
+        custom_tp.cost_resource_name,
+        CASE WHEN custom_tp.cost_resource_name IS NOT NULL THEN custom_tp.cost_override END AS cost_resource_amount
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
