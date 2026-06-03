@@ -113,6 +113,14 @@ export default function UserGuidePage() {
                 </ul>
               </li>
               <li>
+                <a href="#vehicles" className="underline hover:text-red-800">Vehicles</a>
+                <ul className="list-disc marker:text-red-800 pl-6 mt-2 space-y-1">
+                  <li><a href="#adding-a-vehicle" className="underline hover:text-red-800">Adding a vehicle to a gang</a></li>
+                  <li><a href="#crew-and-locomotion" className="underline hover:text-red-800">Crew &amp; Locomotion</a></li>
+                  <li><a href="#vehicle-equipment" className="underline hover:text-red-800">Vehicle Equipment</a></li>
+                </ul>
+              </li>
+              <li>
                 <a href="#campaigns" className="underline hover:text-red-800">Campaigns</a>
                 <ul className="list-disc marker:text-red-800 pl-6 mt-2 space-y-1">
                   <li><a href="#add-a-new-gang-player-to-a-campaign" className="underline hover:text-red-800">Add a new Gang/Player to a campaign</a></li>
@@ -368,6 +376,76 @@ export default function UserGuidePage() {
                     alt="Promotion dialog showing step two of promotion to Specialist"
                     className="rounded-lg"
                     style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
+            </section>
+
+            <section id="vehicles" className="scroll-mt-24">
+              <h2 className="text-2xl font-semibold text-foreground mb-1">
+                <a href="#vehicles" className="hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Vehicles
+                </a>
+              </h2>
+
+              <h3 id="adding-a-vehicle" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#adding-a-vehicle" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Adding a vehicle to a gang
+                </a>
+              </h3>
+                <p className="text-muted-foreground mb-2">
+                  The first step to adding a Vehicle is adding a Crew so you can later assign it to them. When you&apos;ve created a crew you can add the Vehicle by navigating to the vehicle icon on your tabs.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/add-vehicle-to-gang.webp"
+                    alt="Gang page showing the Vehicles tab and the Add Vehicle button used to add a vehicle to a gang"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+
+              <h3 id="crew-and-locomotion" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#crew-and-locomotion" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Crew &amp; Locomotion
+                </a>
+              </h3>
+                <p className="text-muted-foreground mb-2">
+                  Crew can be assigned to a vehicle on this tab by selecting a crewless Vehicle and picking a Crew from the dropdown then choosing Assign.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/vehicle-assign-crew.webp"
+                    alt="Vehicle tab showing how to assign a crew to a crewless vehicle by picking a crew from the dropdown and choosing Assign"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  Vehicle Locomotion special rules can be altered via editing the Vehicle in the Vehicle tab. This is where you can also adjust the Vehicle Characteristics.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/vehicle-general-edit.webp"
+                    alt="Editing a vehicle in the Vehicle tab, showing where to alter Locomotion special rules and adjust vehicle characteristics"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+
+              <h3 id="vehicle-equipment" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#vehicle-equipment" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  Vehicle Equipment
+                </a>
+              </h3>
+                <p className="text-muted-foreground mb-2">
+                  After a Vehicle has been assigned to a Crew you can navigate back to the Crew and find there is now an additional <strong className="text-foreground">Vehicle Equipment</strong>, <strong className="text-foreground">Hardpoints</strong> and <strong className="text-foreground">Lasting Damages</strong> available.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/vehicle-hardpoints.webp"
+                    alt="Crew view showing the additional Vehicle Equipment, Hardpoints and Lasting Damages options available after assigning a vehicle"
+                    className="rounded-lg"
+                    style={{ maxWidth: '100%', height: 'auto' }}
                   />
                 </div>
             </section>
