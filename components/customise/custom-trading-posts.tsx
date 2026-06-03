@@ -663,7 +663,7 @@ function EquipmentItemsSection({
                   <th className="py-2 pr-2 font-medium">Equipment</th>
                   <th className="py-2 pr-2 font-medium">Category</th>
                   <th className="py-2 pr-2 font-medium text-center">Cost</th>
-                  <th className="py-2 pr-2 font-medium text-center">Avail.</th>
+                  <th className="py-2 pr-2 font-medium text-center">AL</th>
                   {isEditable && <th className="py-2 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
@@ -1091,7 +1091,7 @@ function EditEquipmentModal({
                       <th className="py-1 pr-2 font-medium">Variant</th>
                       <th className="py-1 pr-2 font-medium">Allegiance</th>
                       <th className="py-1 pr-2 font-medium">Alignment</th>
-                      <th className="py-1 pr-2 font-medium">Avail.</th>
+                      <th className="py-1 pr-2 font-medium text-center">AL</th>
                       <th className="py-1 font-medium"></th>
                     </tr>
                   </thead>
@@ -1103,7 +1103,7 @@ function EditEquipmentModal({
                         <td className="py-1 pr-2">{rule.gang_variant_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.allegiance_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.alignment || '-'}</td>
-                        <td className="py-1 pr-2">{rule.availability || '-'}</td>
+                        <td className="py-1 pr-2 text-center">{rule.availability || '-'}</td>
                         <td className="py-1 text-right">
                           <Button
                             variant="outline_remove"
@@ -1111,7 +1111,7 @@ function EditEquipmentModal({
                             className="text-xs px-1 h-5"
                             onClick={() => handleRemoveAvailRule(index)}
                           >
-                            <LuTrash2 className="h-3 w-3" />
+                            <LuTrash2 className="h-4 w-4" />
                           </Button>
                         </td>
                       </tr>
@@ -1122,10 +1122,10 @@ function EditEquipmentModal({
             )}
           </div>
 
-          {/* Pricing Rules */}
+          {/* Cost Rules */}
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold">Pricing Rules</h4>
+              <h4 className="text-sm font-semibold">Cost Rules</h4>
               <Button onClick={() => setIsAddPricingOpen(true)}>
                 Add
               </Button>
@@ -1140,7 +1140,7 @@ function EditEquipmentModal({
                       <th className="py-1 pr-2 font-medium">Gang Type</th>
                       <th className="py-1 pr-2 font-medium">Origin</th>
                       <th className="py-1 pr-2 font-medium">Fighter Type</th>
-                      <th className="py-1 pr-2 font-medium">Adjusted Cost</th>
+                      <th className="py-1 pr-2 font-medium text-center">Cost</th>
                       <th className="py-1 font-medium"></th>
                     </tr>
                   </thead>
@@ -1150,7 +1150,7 @@ function EditEquipmentModal({
                         <td className="py-1 pr-2">{rule.gang_type_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.gang_origin_name || '-'}</td>
                         <td className="py-1 pr-2">{rule.fighter_type_name || '-'}</td>
-                        <td className="py-1 pr-2">{rule.adjusted_cost != null ? rule.adjusted_cost : '-'}</td>
+                        <td className="py-1 pr-2 text-center">{rule.adjusted_cost != null ? rule.adjusted_cost : '-'}</td>
                         <td className="py-1 text-right">
                           <Button
                             variant="outline_remove"
@@ -1158,7 +1158,7 @@ function EditEquipmentModal({
                             className="text-xs px-1 h-5"
                             onClick={() => handleRemovePricingRule(index)}
                           >
-                            <LuTrash2 className="h-3 w-3" />
+                            <LuTrash2 className="h-4 w-4" />
                           </Button>
                         </td>
                       </tr>
@@ -1503,7 +1503,7 @@ function AddPricingRuleModal({
 
   return (
     <Modal
-      title="Add Pricing Rule"
+      title="Add Cost Rule"
       onClose={onClose}
       onConfirm={async () => {
         handleAdd();
@@ -1541,7 +1541,7 @@ function AddPricingRuleModal({
         </div>
 
         <div>
-          <Label className="mb-1">Adjusted Cost *</Label>
+          <Label className="mb-1">Cost *</Label>
           <Input
             type="number"
             value={adjustedCost}

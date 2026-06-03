@@ -46,13 +46,13 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     cost: '',
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
-    availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
+    availability_letter: 'C' as 'C' | 'R' | 'E' | 'I' | 'S',
     availability_number: 6,
     is_consumable: false
   });
   const [createForm, setCreateForm] = useState({
     equipment_name: '',
-    availability_letter: 'C' as 'C' | 'R' | 'E' | 'I',
+    availability_letter: 'C' as 'C' | 'R' | 'E' | 'I' | 'S',
     availability_number: 6,
     cost: '',
     equipment_category: '',
@@ -238,7 +238,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       cost: equipment.cost?.toString() || '',
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
-      availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I',
+      availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S',
       availability_number: parsed.number,
       is_consumable: equipment.is_consumable ?? false
     });
@@ -289,7 +289,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       cost: equipment.cost?.toString() || '',
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
-      availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I',
+      availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S',
       availability_number: parsed.number,
       is_consumable: equipment.is_consumable ?? false
     });

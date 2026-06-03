@@ -34,7 +34,7 @@ interface EquipmentAvailability {
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
   const queryClient = useQueryClient();
   const [equipmentName, setEquipmentName] = useState('');
-  const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I'>('C');
+  const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
   const [variants, setVariants] = useState('');
@@ -307,7 +307,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               label="Availability (TP default) *"
               letter={availLetter}
               number={availNumber}
-              onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I')}
+              onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
               onNumberChange={setAvailNumber}
             />
 
