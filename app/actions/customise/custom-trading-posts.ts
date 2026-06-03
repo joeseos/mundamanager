@@ -276,8 +276,8 @@ export async function getTPEquipment(
 
 export async function addTPEquipmentBatch(
   tradingPostId: string,
-  items: Array<{ equipmentId: string; isCustom: boolean }>
-): Promise<{ success: boolean; error?: string }> {
+  items: Array<{ equipmentId: string; isCustom: boolean; costOverride?: number | null; availabilityOverride?: string | null }>
+): Promise<{ success: boolean; data?: string[]; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -310,16 +310,19 @@ export async function addTPEquipmentBatch(
       ...(item.isCustom
         ? { custom_equipment_id: item.equipmentId }
         : { equipment_id: item.equipmentId }),
+      ...(item.costOverride != null ? { cost_override: item.costOverride } : {}),
+      ...(item.availabilityOverride != null ? { availability_override: item.availabilityOverride } : {}),
     }));
 
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('custom_trading_post_equipment')
-      .insert(rows);
+      .insert(rows)
+      .select('id');
 
     if (insertError) throw insertError;
 
     revalidatePath('/');
-    return { success: true };
+    return { success: true, data: inserted.map(r => r.id) };
   } catch (error) {
     console.error('Error in addTPEquipmentBatch:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
