@@ -987,7 +987,7 @@ function EditEquipmentModal({
         title={`Edit: ${item.equipment_name}`}
         onClose={onClose}
         onConfirm={handleSave}
-        confirmText={isSaving ? 'Saving...' : 'Save'}
+        confirmText="Save"
         confirmDisabled={isSaving}
         width="2xl"
       >
