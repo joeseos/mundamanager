@@ -1061,6 +1061,10 @@ function EditEquipmentModal({
   const pricingRules = localPricingRules ?? fetchedPricingRules;
 
   const handleSave = async () => {
+    if (costResourceName && (!costOverride.trim() || Number(costOverride) <= 0)) {
+      toast.error('A resource cost requires a resource amount greater than 0');
+      return false;
+    }
     onSaveLocal({
       costOverride: costOverride.trim() ? Number(costOverride) : null,
       costResourceName: costResourceName || null,

@@ -188,7 +188,7 @@ export async function deductGangReputation(
   const { data: gang, error: fetchError } = await supabase
     .from('gangs')
     .select('reputation')
-    .eq('gang_id', gangId)
+    .eq('id', gangId)
     .single();
 
   if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
@@ -202,7 +202,7 @@ export async function deductGangReputation(
   const { data, error } = await supabase
     .from('gangs')
     .update({ reputation: current - amount })
-    .eq('gang_id', gangId)
+    .eq('id', gangId)
     .gte('reputation', amount)
     .select('gang_id');
 
@@ -220,7 +220,7 @@ export async function returnGangReputation(
   const { data: gang, error: fetchError } = await supabase
     .from('gangs')
     .select('reputation')
-    .eq('gang_id', gangId)
+    .eq('id', gangId)
     .single();
 
   if (fetchError || !gang) return false;
@@ -228,7 +228,7 @@ export async function returnGangReputation(
   const { error } = await supabase
     .from('gangs')
     .update({ reputation: (gang.reputation ?? 0) + amount })
-    .eq('gang_id', gangId);
+    .eq('id', gangId);
 
   if (error) {
     console.error('Failed to return reputation:', error);

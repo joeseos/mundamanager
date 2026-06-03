@@ -108,6 +108,9 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     if (isNaN(parsedCost)) {
       setCreditError(`Incorrect input, please update the input value`);
       return false;
+    } else if (hasResourceCost && (!manualResourceAmount.trim() || Number(manualResourceAmount) <= 0)) {
+      setCreditError('Resource amount must be greater than 0');
+      return false;
     } else if (!hasResourceCost && parsedCost > 0 && parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
       return false;
