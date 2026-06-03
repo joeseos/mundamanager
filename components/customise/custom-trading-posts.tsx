@@ -17,10 +17,6 @@ import {
   createCustomTradingPost,
   updateCustomTradingPost,
   deleteCustomTradingPost,
-  type CustomTradingPost,
-  type CustomTradingPostData,
-} from '@/app/actions/customise/custom-trading-posts';
-import {
   getTPEquipment,
   addTPEquipment,
   addTPEquipmentBatch,
@@ -29,10 +25,12 @@ import {
   getAvailabilityRules,
   getPricingRules,
   saveEquipmentRules,
+  type CustomTradingPost,
+  type CustomTradingPostData,
   type CustomTPEquipment,
   type CustomTPAvailabilityRule,
   type CustomTPPricingRule,
-} from '@/app/actions/customise/custom-trading-post-equipment';
+} from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseTradingPostsProps {
@@ -476,9 +474,6 @@ function EquipmentItemsSection({
                     <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
                     <td className="py-2 pr-2">
                       {item.cost_override != null ? item.cost_override : '-'}
-                      {item.cost_resource_name && (
-                        <span className="text-xs text-muted-foreground ml-1">({item.cost_resource_name})</span>
-                      )}
                     </td>
                     <td className="py-2 pr-2">{item.availability_override || '-'}</td>
                     {!readOnly && (
@@ -885,7 +880,6 @@ function EditEquipmentModal({
   onSaved: () => void;
 }) {
   const [costOverride, setCostOverride] = useState(item.cost_override?.toString() ?? '');
-  const [costResourceName, setCostResourceName] = useState(item.cost_resource_name ?? '');
   const [availabilityOverride, setAvailabilityOverride] = useState(item.availability_override ?? '');
   const [localAvailRules, setLocalAvailRules] = useState<CustomTPAvailabilityRule[] | null>(null);
   const [localPricingRules, setLocalPricingRules] = useState<CustomTPPricingRule[] | null>(null);
@@ -923,7 +917,6 @@ function EditEquipmentModal({
     try {
       const overridesResult = await updateTPEquipment(item.id, {
         cost_override: costOverride.trim() ? Number(costOverride) : null,
-        cost_resource_name: costResourceName.trim() || null,
         availability_override: availabilityOverride.trim() || null,
       });
       if (!overridesResult.success) {
@@ -1010,14 +1003,6 @@ function EditEquipmentModal({
               />
             </div>
             <div>
-              <Label className="mb-1">Cost Resource Name</Label>
-              <Input
-                value={costResourceName}
-                onChange={(e) => setCostResourceName(e.target.value)}
-                placeholder="e.g. Reputation, Meat (leave empty for credits)"
-              />
-            </div>
-            <div>
               <Label className="mb-1">Availability Override</Label>
               <Input
                 value={availabilityOverride}
@@ -1035,9 +1020,7 @@ function EditEquipmentModal({
                 Add
               </Button>
             </div>
-            {isLoadingAvail ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : availRules.length === 0 ? (
+            {availRules.length === 0 ? (
               <p className="text-xs text-muted-foreground">No rules — available to all gangs.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -1088,9 +1071,7 @@ function EditEquipmentModal({
                 Add
               </Button>
             </div>
-            {isLoadingPricing ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : pricingRules.length === 0 ? (
+            {pricingRules.length === 0 ? (
               <p className="text-xs text-muted-foreground">No pricing rules — default cost applies.</p>
             ) : (
               <div className="overflow-x-auto">
