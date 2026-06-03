@@ -18,7 +18,6 @@ import {
   updateCustomTradingPost,
   deleteCustomTradingPost,
   getTPEquipment,
-  addTPEquipment,
   addTPEquipmentBatch,
   updateTPEquipment,
   removeTPEquipment,
@@ -32,6 +31,14 @@ import {
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
+
+interface EquipmentPendingChanges {
+  costOverride: number | null;
+  availabilityOverride: string | null;
+  availRules: CustomTPAvailabilityRule[];
+  pricingRules: CustomTPPricingRule[];
+  rulesModified: boolean;
+}
 
 interface CustomiseTradingPostsProps {
   className?: string;
@@ -56,6 +63,9 @@ export function CustomiseTradingPosts({
   const [pendingEquipment, setPendingEquipment] = useState<EquipmentOption[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [shareModalData, setShareModalData] = useState<CustomTradingPost | null>(null);
+  const [pendingOverrides, setPendingOverrides] = useState<Map<string, EquipmentPendingChanges>>(new Map());
+  const [pendingAdditions, setPendingAdditions] = useState<EquipmentOption[]>([]);
+  const [pendingRemovals, setPendingRemovals] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState<CustomTradingPostData>({
     custom_trading_post_name: '',
@@ -130,10 +140,16 @@ export function CustomiseTradingPosts({
       description: null,
     });
     setPendingEquipment([]);
+    setPendingOverrides(new Map());
+    setPendingAdditions([]);
+    setPendingRemovals(new Set());
   };
 
   const handleEdit = (tradingPost: CustomTradingPost) => {
     setEditModalData(tradingPost);
+    setPendingOverrides(new Map());
+    setPendingAdditions([]);
+    setPendingRemovals(new Set());
     setFormData({
       custom_trading_post_name: tradingPost.custom_trading_post_name,
       description: tradingPost.description || null,
@@ -205,7 +221,86 @@ export function CustomiseTradingPosts({
 
   const handleEditConfirm = async () => {
     if (!editModalData || !isFormValid()) return false;
-    updateMutation.mutate({ id: editModalData.id, data: formData });
+
+    const overridesToSave = new Map(pendingOverrides);
+    const additionsToSave = [...pendingAdditions];
+    const removalsToSave = new Set(pendingRemovals);
+    updateMutation.mutate(
+      { id: editModalData.id, data: formData },
+      {
+        onSuccess: async (result) => {
+          if (!result.success) return;
+          const hasChanges = overridesToSave.size > 0 || additionsToSave.length > 0 || removalsToSave.size > 0;
+          if (!hasChanges) return;
+
+          if (additionsToSave.length > 0) {
+            const batchResult = await addTPEquipmentBatch(
+              editModalData.id,
+              additionsToSave.map(equip => ({
+                equipmentId: equip.is_custom ? equip.original_id! : equip.id,
+                isCustom: equip.is_custom,
+              }))
+            );
+            if (!batchResult.success) {
+              toast.error(batchResult.error || 'Failed to add equipment');
+            }
+          }
+
+          if (removalsToSave.size > 0) {
+            await Promise.all(
+              Array.from(removalsToSave).map(async (id) => {
+                const res = await removeTPEquipment(id);
+                if (!res.success) toast.error(res.error || 'Failed to remove equipment');
+              })
+            );
+          }
+
+          const equipmentSaves = Array.from(overridesToSave.entries()).map(
+            async ([itemId, changes]) => {
+              const overridesResult = await updateTPEquipment(itemId, {
+                cost_override: changes.costOverride,
+                availability_override: changes.availabilityOverride,
+              });
+              if (!overridesResult.success) {
+                toast.error(overridesResult.error || 'Failed to save equipment overrides');
+                return;
+              }
+              if (changes.rulesModified) {
+                const rulesResult = await saveEquipmentRules(
+                  itemId,
+                  changes.availRules.map(r => ({
+                    gang_type_id: r.gang_type_id,
+                    custom_gang_type_id: r.custom_gang_type_id,
+                    gang_origin_id: r.gang_origin_id,
+                    gang_variant_id: r.gang_variant_id,
+                    campaign_type_allegiance_id: r.campaign_type_allegiance_id,
+                    alignment: r.alignment,
+                    availability: r.availability,
+                  })),
+                  changes.pricingRules.map(r => ({
+                    gang_type_id: r.gang_type_id,
+                    custom_gang_type_id: r.custom_gang_type_id,
+                    gang_origin_id: r.gang_origin_id,
+                    fighter_type_id: r.fighter_type_id,
+                    adjusted_cost: r.adjusted_cost,
+                  }))
+                );
+                if (!rulesResult.success) {
+                  toast.error(rulesResult.error || 'Failed to save equipment rules');
+                }
+              }
+            }
+          );
+          await Promise.all(equipmentSaves);
+
+          queryClient.invalidateQueries({ queryKey: ['tpEquipment', editModalData.id] });
+          overridesToSave.forEach((_, itemId) => {
+            queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] });
+            queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] });
+          });
+        },
+      }
+    );
     return true;
   };
 
@@ -341,6 +436,30 @@ export function CustomiseTradingPosts({
           onConfirm={handleEditConfirm}
           isPending={updateMutation.isPending}
           renderForm={renderForm}
+          pendingOverrides={pendingOverrides}
+          pendingAdditions={pendingAdditions}
+          pendingRemovals={pendingRemovals}
+          onEquipmentOverrideChange={(itemId, changes) => {
+            setPendingOverrides(prev => {
+              const next = new Map(prev);
+              next.set(itemId, changes);
+              return next;
+            });
+          }}
+          onAddEquipment={(equip) => setPendingAdditions(prev => [...prev, equip])}
+          onRemoveEquipment={(itemId) => {
+            const isPendingAdd = pendingAdditions.some(e => e.id === itemId);
+            if (isPendingAdd) {
+              setPendingAdditions(prev => prev.filter(e => e.id !== itemId));
+            } else {
+              setPendingRemovals(prev => new Set(prev).add(itemId));
+            }
+            setPendingOverrides(prev => {
+              const next = new Map(prev);
+              next.delete(itemId);
+              return next;
+            });
+          }}
         />
       )}
 
@@ -394,16 +513,24 @@ interface EquipmentOption {
 
 function EquipmentItemsSection({
   tradingPostId,
-  readOnly = false,
+  pendingOverrides,
+  pendingAdditions,
+  pendingRemovals,
+  onEquipmentOverrideChange,
+  onAddEquipment,
+  onRemoveEquipment,
 }: {
   tradingPostId: string;
-  readOnly?: boolean;
+  pendingOverrides?: Map<string, EquipmentPendingChanges>;
+  pendingAdditions?: EquipmentOption[];
+  pendingRemovals?: Set<string>;
+  onEquipmentOverrideChange?: (itemId: string, changes: EquipmentPendingChanges) => void;
+  onAddEquipment?: (equip: EquipmentOption) => void;
+  onRemoveEquipment?: (itemId: string) => void;
 }) {
+  const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
-  const [removeConfirmItem, setRemoveConfirmItem] = useState<CustomTPEquipment | null>(null);
-
-  const queryClient = useQueryClient();
 
   const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
     queryKey: ['tpEquipment', tradingPostId],
@@ -419,29 +546,36 @@ function EquipmentItemsSection({
     if (equipmentError) toast.error('Failed to load equipment items');
   }, [equipmentError]);
 
-  const removeMutation = useMutation({
-    mutationFn: removeTPEquipment,
-    onSuccess: (result) => {
-      if (result.success) {
-        queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
-        toast.success('Equipment removed');
-      } else {
-        toast.error(result.error || 'Failed to remove equipment');
-      }
-      setRemoveConfirmItem(null);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-      setRemoveConfirmItem(null);
-    },
-  });
+  const pendingAdditionIds = new Set(pendingAdditions?.map(e => e.id) ?? []);
+
+  const displayItems: CustomTPEquipment[] = [
+    ...equipmentItems
+      .filter(item => !pendingRemovals?.has(item.id))
+      .map(item => {
+        const pending = pendingOverrides?.get(item.id);
+        if (!pending) return item;
+        return { ...item, cost_override: pending.costOverride, availability_override: pending.availabilityOverride };
+      }),
+    ...(pendingAdditions ?? []).map(equip => ({
+      id: equip.id,
+      custom_trading_post_id: tradingPostId,
+      equipment_id: equip.is_custom ? null : equip.id,
+      custom_equipment_id: equip.is_custom ? (equip.original_id ?? null) : null,
+      equipment_name: equip.equipment_name,
+      equipment_category: equip.equipment_category,
+      is_custom: equip.is_custom,
+      cost_override: null,
+      availability_override: null,
+      sort_order: null,
+    })),
+  ];
 
   return (
     <>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold">Equipment Items</h4>
-          {!readOnly && (
+          {isEditable && (
             <Button size="sm" className="text-xs" onClick={() => setIsAddEquipOpen(true)}>
               Add Equipment
             </Button>
@@ -450,7 +584,7 @@ function EquipmentItemsSection({
 
         {isLoadingItems ? (
           <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
-        ) : equipmentItems.length === 0 ? (
+        ) : displayItems.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No equipment items added yet.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -461,79 +595,72 @@ function EquipmentItemsSection({
                   <th className="py-2 pr-2 font-medium">Category</th>
                   <th className="py-2 pr-2 font-medium">Cost</th>
                   <th className="py-2 pr-2 font-medium">Avail.</th>
-                  {!readOnly && <th className="py-2 font-medium text-right">Actions</th>}
+                  {isEditable && <th className="py-2 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {equipmentItems.map((item) => (
-                  <tr key={item.id} className="border-b last:border-0">
-                    <td className="py-2 pr-2">
-                      {item.equipment_name}
-                      {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
-                    </td>
-                    <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
-                    <td className="py-2 pr-2">
-                      {item.cost_override != null ? item.cost_override : '-'}
-                    </td>
-                    <td className="py-2 pr-2">{item.availability_override || '-'}</td>
-                    {!readOnly && (
-                      <td className="py-2 text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button variant="outline" size="sm" className="text-xs px-1.5 h-6" onClick={() => setEditOverridesItem(item)}>
-                            <LuSquarePen className="h-3 w-3" />
-                          </Button>
-                          <Button variant="outline_remove" size="sm" className="text-xs px-1.5 h-6" onClick={() => setRemoveConfirmItem(item)}>
-                            <LuTrash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                {displayItems.map((item) => {
+                  const isPendingAdd = pendingAdditionIds.has(item.id);
+                  return (
+                    <tr key={item.id} className="border-b last:border-0">
+                      <td className="py-2 pr-2">
+                        {item.equipment_name}
+                        {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
+                      <td className="py-2 pr-2">
+                        {item.cost_override != null ? item.cost_override : '-'}
+                      </td>
+                      <td className="py-2 pr-2">{item.availability_override || '-'}</td>
+                      {isEditable && (
+                        <td className="py-2 text-right">
+                          <div className="flex gap-1 justify-end">
+                            {!isPendingAdd && onEquipmentOverrideChange && (
+                              <Button variant="outline" size="sm" className="text-xs px-1.5 h-6" onClick={() => setEditOverridesItem(item)}>
+                                <LuSquarePen className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {onRemoveEquipment && (
+                              <Button variant="outline_remove" size="sm" className="text-xs px-1.5 h-6" onClick={() => onRemoveEquipment(item.id)}>
+                                <LuTrash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {isAddEquipOpen && (
+      {isAddEquipOpen && onAddEquipment && (
         <AddEquipmentModal
-          tradingPostId={tradingPostId}
           existingItems={equipmentItems}
+          pendingAdditions={pendingAdditions}
           onClose={() => setIsAddEquipOpen(false)}
-          onAdded={() => {
-            queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+          onAddLocal={(equip) => {
+            onAddEquipment(equip);
             setIsAddEquipOpen(false);
           }}
         />
       )}
 
-      {editOverridesItem && (
+      {editOverridesItem && onEquipmentOverrideChange && (
         <EditEquipmentModal
           item={editOverridesItem}
+          pendingChanges={pendingOverrides?.get(editOverridesItem.id)}
           onClose={() => setEditOverridesItem(null)}
-          onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+          onSaveLocal={(changes) => {
+            onEquipmentOverrideChange(editOverridesItem.id, changes);
             setEditOverridesItem(null);
           }}
         />
       )}
 
-      {removeConfirmItem && (
-        <Modal
-          title="Remove Equipment"
-          onClose={() => setRemoveConfirmItem(null)}
-          onConfirm={async () => {
-            removeMutation.mutate(removeConfirmItem.id);
-            return true;
-          }}
-          confirmText="Remove"
-          confirmDisabled={removeMutation.isPending}
-        >
-          <p>Remove <strong>{removeConfirmItem.equipment_name}</strong> from this trading post?</p>
-          <p className="text-sm text-muted-foreground mt-2">This will also delete any availability and pricing rules for this item.</p>
-        </Modal>
-      )}
     </>
   );
 }
@@ -551,6 +678,12 @@ function EditTradingPostModal({
   onConfirm,
   isPending,
   renderForm,
+  pendingOverrides,
+  pendingAdditions,
+  pendingRemovals,
+  onEquipmentOverrideChange,
+  onAddEquipment,
+  onRemoveEquipment,
 }: {
   tradingPost: CustomTradingPost;
   formData: CustomTradingPostData;
@@ -560,6 +693,12 @@ function EditTradingPostModal({
   onConfirm: () => Promise<boolean | undefined>;
   isPending: boolean;
   renderForm: (isReadOnly?: boolean) => React.ReactNode;
+  pendingOverrides: Map<string, EquipmentPendingChanges>;
+  pendingAdditions: EquipmentOption[];
+  pendingRemovals: Set<string>;
+  onEquipmentOverrideChange: (itemId: string, changes: EquipmentPendingChanges) => void;
+  onAddEquipment: (equip: EquipmentOption) => void;
+  onRemoveEquipment: (itemId: string) => void;
 }) {
   return (
     <Modal
@@ -574,7 +713,15 @@ function EditTradingPostModal({
         {renderForm()}
 
         <div className="border-t pt-4">
-          <EquipmentItemsSection tradingPostId={tradingPost.id} />
+          <EquipmentItemsSection
+            tradingPostId={tradingPost.id}
+            pendingOverrides={pendingOverrides}
+            pendingAdditions={pendingAdditions}
+            pendingRemovals={pendingRemovals}
+            onEquipmentOverrideChange={onEquipmentOverrideChange}
+            onAddEquipment={onAddEquipment}
+            onRemoveEquipment={onRemoveEquipment}
+          />
         </div>
       </div>
     </Modal>
@@ -604,7 +751,7 @@ function ViewTradingPostModal({
         {renderForm(true)}
 
         <div className="border-t pt-4">
-          <EquipmentItemsSection tradingPostId={tradingPost.id} readOnly />
+          <EquipmentItemsSection tradingPostId={tradingPost.id} />
         </div>
       </div>
     </Modal>
@@ -769,15 +916,15 @@ function PendingEquipmentSection({
 // ---------------------------------------------------------------------------
 
 function AddEquipmentModal({
-  tradingPostId,
   existingItems,
+  pendingAdditions,
   onClose,
-  onAdded,
+  onAddLocal,
 }: {
-  tradingPostId: string;
   existingItems: CustomTPEquipment[];
+  pendingAdditions?: EquipmentOption[];
   onClose: () => void;
-  onAdded: () => void;
+  onAddLocal: (equip: EquipmentOption) => void;
 }) {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
@@ -787,41 +934,24 @@ function AddEquipmentModal({
   const existingIds = new Set(
     existingItems.map(i => i.equipment_id || `custom_${i.custom_equipment_id}`)
   );
+  const pendingIds = new Set(pendingAdditions?.map(e => e.id) ?? []);
 
   const filteredEquipment = allEquipment
     .filter(e => e.equipment_category === selectedCategory)
-    .filter(e => !existingIds.has(e.id));
-
-  const addMutation = useMutation({
-    mutationFn: async () => {
-      const selected = allEquipment.find(e => e.id === selectedEquipmentId);
-      if (!selected) throw new Error('Equipment not found');
-      const realId = selected.is_custom ? selected.original_id! : selected.id;
-      return addTPEquipment(tradingPostId, realId, selected.is_custom);
-    },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success('Equipment added');
-        onAdded();
-      } else {
-        toast.error(result.error || 'Failed to add equipment');
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+    .filter(e => !existingIds.has(e.id) && !pendingIds.has(e.id));
 
   return (
     <Modal
       title="Add Equipment"
       onClose={onClose}
       onConfirm={async () => {
-        addMutation.mutate();
+        const selected = allEquipment.find(e => e.id === selectedEquipmentId);
+        if (!selected) return false;
+        onAddLocal(selected);
         return true;
       }}
-      confirmText={addMutation.isPending ? 'Adding...' : 'Add'}
-      confirmDisabled={!selectedEquipmentId || addMutation.isPending}
+      confirmText="Add"
+      confirmDisabled={!selectedEquipmentId}
     >
       <div className="space-y-4">
         <div>
@@ -872,24 +1002,31 @@ const ALIGNMENT_OPTIONS = ['Outlaw', 'Law Abiding', 'Unaligned'] as const;
 
 function EditEquipmentModal({
   item,
+  pendingChanges,
   onClose,
-  onSaved,
+  onSaveLocal,
 }: {
   item: CustomTPEquipment;
+  pendingChanges?: EquipmentPendingChanges;
   onClose: () => void;
-  onSaved: () => void;
+  onSaveLocal: (changes: EquipmentPendingChanges) => void;
 }) {
-  const [costOverride, setCostOverride] = useState(item.cost_override?.toString() ?? '');
-  const [availabilityOverride, setAvailabilityOverride] = useState(item.availability_override ?? '');
-  const [localAvailRules, setLocalAvailRules] = useState<CustomTPAvailabilityRule[] | null>(null);
-  const [localPricingRules, setLocalPricingRules] = useState<CustomTPPricingRule[] | null>(null);
+  const [costOverride, setCostOverride] = useState(
+    pendingChanges ? (pendingChanges.costOverride?.toString() ?? '') : (item.cost_override?.toString() ?? '')
+  );
+  const [availabilityOverride, setAvailabilityOverride] = useState(
+    pendingChanges ? (pendingChanges.availabilityOverride ?? '') : (item.availability_override ?? '')
+  );
+  const [localAvailRules, setLocalAvailRules] = useState<CustomTPAvailabilityRule[] | null>(
+    pendingChanges ? pendingChanges.availRules : null
+  );
+  const [localPricingRules, setLocalPricingRules] = useState<CustomTPPricingRule[] | null>(
+    pendingChanges ? pendingChanges.pricingRules : null
+  );
   const [isAddAvailOpen, setIsAddAvailOpen] = useState(false);
   const [isAddPricingOpen, setIsAddPricingOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
-  const queryClient = useQueryClient();
-
-  const { data: fetchedAvailRules = [], isLoading: isLoadingAvail } = useQuery({
+  const { data: fetchedAvailRules = [] } = useQuery({
     queryKey: ['tpAvailabilityRules', item.id],
     queryFn: async () => {
       const result = await getAvailabilityRules(item.id);
@@ -899,7 +1036,7 @@ function EditEquipmentModal({
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: fetchedPricingRules = [], isLoading: isLoadingPricing } = useQuery({
+  const { data: fetchedPricingRules = [] } = useQuery({
     queryKey: ['tpPricingRules', item.id],
     queryFn: async () => {
       const result = await getPricingRules(item.id);
@@ -913,54 +1050,14 @@ function EditEquipmentModal({
   const pricingRules = localPricingRules ?? fetchedPricingRules;
 
   const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const overridesResult = await updateTPEquipment(item.id, {
-        cost_override: costOverride.trim() ? Number(costOverride) : null,
-        availability_override: availabilityOverride.trim() || null,
-      });
-      if (!overridesResult.success) {
-        toast.error(overridesResult.error || 'Failed to save overrides');
-        return false;
-      }
-
-      if (localAvailRules !== null || localPricingRules !== null) {
-        const rulesResult = await saveEquipmentRules(
-          item.id,
-          (localAvailRules ?? fetchedAvailRules).map(r => ({
-            gang_type_id: r.gang_type_id,
-            custom_gang_type_id: r.custom_gang_type_id,
-            gang_origin_id: r.gang_origin_id,
-            gang_variant_id: r.gang_variant_id,
-            campaign_type_allegiance_id: r.campaign_type_allegiance_id,
-            alignment: r.alignment,
-            availability: r.availability,
-          })),
-          (localPricingRules ?? fetchedPricingRules).map(r => ({
-            gang_type_id: r.gang_type_id,
-            custom_gang_type_id: r.custom_gang_type_id,
-            gang_origin_id: r.gang_origin_id,
-            fighter_type_id: r.fighter_type_id,
-            adjusted_cost: r.adjusted_cost,
-          }))
-        );
-        if (!rulesResult.success) {
-          toast.error(rulesResult.error || 'Failed to save rules');
-          return false;
-        }
-        queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', item.id] });
-        queryClient.invalidateQueries({ queryKey: ['tpPricingRules', item.id] });
-      }
-
-      toast.success('Equipment saved');
-      onSaved();
-      return true;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save');
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
+    onSaveLocal({
+      costOverride: costOverride.trim() ? Number(costOverride) : null,
+      availabilityOverride: availabilityOverride.trim() || null,
+      availRules,
+      pricingRules,
+      rulesModified: localAvailRules !== null || localPricingRules !== null,
+    });
+    return true;
   };
 
   const handleAddAvailRule = (rule: CustomTPAvailabilityRule) => {
@@ -988,7 +1085,6 @@ function EditEquipmentModal({
         onClose={onClose}
         onConfirm={handleSave}
         confirmText="Save"
-        confirmDisabled={isSaving}
         width="2xl"
       >
         <div className="space-y-6">
