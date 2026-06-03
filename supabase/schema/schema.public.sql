@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict dDqeOooFLJMaLMu9bczBtnFMigcZMfOvckJJp1O8fAfSJ6KgbJNru4agNcG4FuW
+\restrict DmfsWQa1NR4SqscF3iK41gIGet83HimQ2PKfjMb4kMYEhwLedzxMQA8duV0RrRX
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -4786,8 +4786,16 @@ CREATE TABLE public.fighter_equipment (
     gang_id uuid,
     loadout_id integer,
     is_editable boolean DEFAULT false,
-    granted_by_equipment_id uuid
+    granted_by_equipment_id uuid,
+    cost_resource jsonb
 );
+
+
+--
+-- Name: COLUMN fighter_equipment.cost_resource; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_equipment.cost_resource IS 'Resource used to pay, e.g. {"name": "Exploration Points", "amount": 3}. Null = credits.';
 
 
 --
@@ -11583,5 +11591,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dDqeOooFLJMaLMu9bczBtnFMigcZMfOvckJJp1O8fAfSJ6KgbJNru4agNcG4FuW
+\unrestrict DmfsWQa1NR4SqscF3iK41gIGet83HimQ2PKfjMb4kMYEhwLedzxMQA8duV0RrRX
 
