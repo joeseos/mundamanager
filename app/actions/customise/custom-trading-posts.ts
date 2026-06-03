@@ -125,6 +125,17 @@ export async function deleteCustomTradingPost(
 
     const affectedCampaignIds = (sharedCampaigns || []).map(s => s.campaign_id);
 
+    const { error: deleteError } = await supabase
+      .from('custom_trading_posts')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      console.error('Error deleting custom trading post:', deleteError);
+      return { success: false, error: `Failed to delete custom trading post: ${deleteError.message}` };
+    }
+
     if (affectedCampaignIds.length > 0) {
       const { data: campaigns } = await supabase
         .from('campaigns')
@@ -142,17 +153,6 @@ export async function deleteCustomTradingPost(
           revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id));
         }
       }
-    }
-
-    const { error: deleteError } = await supabase
-      .from('custom_trading_posts')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
-
-    if (deleteError) {
-      console.error('Error deleting custom trading post:', deleteError);
-      return { success: false, error: `Failed to delete custom trading post: ${deleteError.message}` };
     }
 
     revalidatePath('/');
