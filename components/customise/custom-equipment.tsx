@@ -15,6 +15,7 @@ import { FiShare2 } from 'react-icons/fi';
 import { createClient } from '@/utils/supabase/client';
 import { ShareCustomEquipmentModal } from './custom-shared';
 import type { UserCampaign } from '@/types/campaign';
+import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
 interface CustomiseEquipmentProps {
   className?: string;
@@ -63,32 +64,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [originalEditWeaponProfiles, setOriginalEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [weaponProfilesModified, setWeaponProfilesModified] = useState(false);
   
-
-  // Helper functions for availability
-  const combineAvailability = (letter: 'C' | 'R' | 'E' | 'I', number: number): string => {
-    if (letter === 'C' || letter === 'E') {
-      return letter;
-    }
-    return `${letter}${number}`;
-  };
-
-  const parseAvailability = (availability: string): { letter: 'C' | 'R' | 'E' | 'I', number: number } => {
-    if (availability === 'C' || availability === 'E') {
-      return { letter: availability, number: 6 };
-    }
-    if (availability === 'I') {
-      return { letter: 'I', number: 6 };
-    }
-    // Parse R12, R6, etc.
-    const match = availability.match(/^([CREI])(\d+)$/);
-    if (match) {
-      const letter = match[1] as 'C' | 'R' | 'E' | 'I';
-      const number = parseInt(match[2]);
-      return { letter, number: Math.min(Math.max(number, 6), 20) }; // Clamp between 6-20
-    }
-    // Default fallback
-    return { letter: 'C', number: 6 };
-  };
 
   // Handle opening the add equipment modal
   const handleAddEquipment = () => {
@@ -263,14 +238,14 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       cost: equipment.cost?.toString() || '',
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
-      availability_letter: parsed.letter,
+      availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I',
       availability_number: parsed.number,
       is_consumable: equipment.is_consumable ?? false
     });
-    
+
     // Reset weapon profiles modification flag
     setWeaponProfilesModified(false);
-    
+
     // Load weapon profiles if it's a weapon
     if (equipment.equipment_type === 'weapon') {
       try {
@@ -314,7 +289,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       cost: equipment.cost?.toString() || '',
       equipment_category: equipment.equipment_category || '',
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
-      availability_letter: parsed.letter,
+      availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I',
       availability_number: parsed.number,
       is_consumable: equipment.is_consumable ?? false
     });
@@ -609,7 +584,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     type="text"
                     value={editForm.equipment_name}
                     onChange={(e) => handleFormChange('equipment_name', e.target.value)}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-base md:text-sm"
                     placeholder="Enter equipment name"
                   />
                 </div>
@@ -621,7 +596,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   <select
                     value={editForm.equipment_type}
                     onChange={(e) => handleFormChange('equipment_type', e.target.value as 'wargear' | 'weapon')}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-base md:text-sm"
                   >
                     <option value="wargear">Wargear</option>
                     <option value="weapon">Weapon</option>
@@ -635,7 +610,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   <select
                     value={editForm.equipment_category}
                     onChange={(e) => handleFormChange('equipment_category', e.target.value)}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-base md:text-sm"
                   >
                     <option value="">Select category</option>
                     {categories.map((category) => (
@@ -646,33 +621,13 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Availability *
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={editForm.availability_letter}
-                      onChange={(e) => handleFormChange('availability_letter', e.target.value as 'C' | 'R' | 'E' | 'I')}
-                      className="p-2 border rounded-md"
-                    >
-                      <option value="C">C</option>
-                      <option value="R">R</option>
-                      <option value="E">E</option>
-                      <option value="I">I</option>
-                    </select>
-                    <select
-                      value={editForm.availability_number}
-                      onChange={(e) => handleFormChange('availability_number', parseInt(e.target.value))}
-                      disabled={editForm.availability_letter === 'C' || editForm.availability_letter === 'E'}
-                      className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
-                    >
-                      {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
-                        <option key={num} value={num}>{num}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                <AvailabilityPicker
+                  label="Availability *"
+                  letter={editForm.availability_letter}
+                  number={editForm.availability_number}
+                  onLetterChange={(v) => handleFormChange('availability_letter', v)}
+                  onNumberChange={(v) => handleFormChange('availability_number', v)}
+                />
 
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -882,7 +837,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     type="text"
                     value={createForm.equipment_name}
                     onChange={(e) => handleCreateFormChange('equipment_name', e.target.value)}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-base md:text-sm"
                     placeholder="Enter equipment name"
                   />
                 </div>
@@ -894,7 +849,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   <select
                     value={createForm.equipment_type}
                     onChange={(e) => handleCreateFormChange('equipment_type', e.target.value as 'wargear' | 'weapon')}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-base md:text-sm"
                   >
                     <option value="wargear">Wargear</option>
                     <option value="weapon">Weapon</option>
@@ -908,7 +863,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   <select
                     value={createForm.equipment_category}
                     onChange={(e) => handleCreateFormChange('equipment_category', e.target.value)}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-base md:text-sm"
                   >
                     <option value="">Select category</option>
                     {categories.map((category) => (
@@ -919,33 +874,13 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-muted-foreground mb-1">
-                    Availability *
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={createForm.availability_letter}
-                      onChange={(e) => handleCreateFormChange('availability_letter', e.target.value as 'C' | 'R' | 'E' | 'I')}
-                      className="p-2 border rounded-md"
-                    >
-                      <option value="C">C</option>
-                      <option value="R">R</option>
-                      <option value="E">E</option>
-                      <option value="I">I</option>
-                    </select>
-                    <select
-                      value={createForm.availability_number}
-                      onChange={(e) => handleCreateFormChange('availability_number', parseInt(e.target.value))}
-                      disabled={createForm.availability_letter === 'C' || createForm.availability_letter === 'E'}
-                      className="flex-1 p-2 border rounded-md disabled:bg-muted disabled:text-gray-400"
-                    >
-                      {[6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(num => (
-                        <option key={num} value={num}>{num}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                <AvailabilityPicker
+                  label="Availability *"
+                  letter={createForm.availability_letter}
+                  number={createForm.availability_number}
+                  onLetterChange={(v) => handleCreateFormChange('availability_letter', v)}
+                  onNumberChange={(v) => handleCreateFormChange('availability_number', v)}
+                />
 
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
