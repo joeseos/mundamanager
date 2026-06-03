@@ -423,7 +423,7 @@ export function CustomiseTradingPosts({
       </div>
 
       <div>
-        <label className="flex justify-between items-center text-sm font-medium mb-1">
+        <label htmlFor="tp-description" className="flex justify-between items-center text-sm font-medium mb-1">
           <span>Description</span>
           {!isReadOnly && (
             <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -432,6 +432,7 @@ export function CustomiseTradingPosts({
           )}
         </label>
         <Textarea
+          id="tp-description"
           className="min-h-20 resize-y"
           value={formData.description || ''}
           onChange={(e) => {
