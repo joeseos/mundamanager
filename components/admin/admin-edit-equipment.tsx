@@ -646,6 +646,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 number={availNumber}
                 onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I')}
                 onNumberChange={setAvailNumber}
+                disabled={!selectedEquipmentId}
               />
 
               {equipmentType !== 'vehicle_upgrade' && (

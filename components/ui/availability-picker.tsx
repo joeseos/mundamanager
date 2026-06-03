@@ -6,7 +6,7 @@ export function combineAvailability(letter: 'C' | 'R' | 'E' | 'I', number: numbe
 export function combineAvailability(letter: string, number: number): string | null;
 export function combineAvailability(letter: string, number: number): string | null {
   if (!letter) return null;
-  if (letter === 'C' || letter === 'E') return letter;
+  if (letter === 'C' || letter === 'E' || letter === 'I') return letter;
   return `${letter}${number}`;
 }
 
@@ -25,6 +25,7 @@ export function AvailabilityPicker({
   onLetterChange,
   onNumberChange,
   allowEmpty = false,
+  disabled = false,
   label,
 }: {
   letter: string;
@@ -32,6 +33,7 @@ export function AvailabilityPicker({
   onLetterChange: (letter: string) => void;
   onNumberChange: (number: number) => void;
   allowEmpty?: boolean;
+  disabled?: boolean;
   label?: string;
 }) {
   return (
@@ -46,7 +48,8 @@ export function AvailabilityPicker({
             onLetterChange(e.target.value);
             if (!e.target.value) onNumberChange(6);
           }}
-          className="p-2 border rounded-md bg-background text-base md:text-sm"
+          disabled={disabled}
+          className="p-2 border rounded-md bg-background text-base md:text-sm disabled:bg-muted disabled:text-gray-400"
         >
           {allowEmpty && <option value="">None</option>}
           <option value="C">C</option>
@@ -57,7 +60,7 @@ export function AvailabilityPicker({
         <select
           value={number}
           onChange={(e) => onNumberChange(parseInt(e.target.value))}
-          disabled={!letter || letter === 'C' || letter === 'E' || letter === 'I'}
+          disabled={disabled || !letter || letter === 'C' || letter === 'E' || letter === 'I'}
           className="flex-1 p-2 border rounded-md bg-background text-base md:text-sm disabled:bg-muted disabled:text-gray-400"
         >
           {AVAILABILITY_NUMBERS.map(num => (
