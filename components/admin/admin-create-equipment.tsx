@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AvailabilityPicker, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { WeaponProfileInput } from "@/types/equipment";
 import { HiX } from "react-icons/hi";
@@ -33,7 +34,8 @@ interface EquipmentAvailability {
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
   const queryClient = useQueryClient();
   const [equipmentName, setEquipmentName] = useState('');
-  const [availability, setAvailability] = useState('');
+  const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I'>('C');
+  const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
@@ -61,7 +63,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
 
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
-  const [availabilityValue, setAvailabilityValue] = useState("");
+  const [availValueLetter, setAvailValueLetter] = useState('');
+  const [availValueNumber, setAvailValueNumber] = useState(6);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   
   
@@ -164,7 +167,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         },
         body: JSON.stringify({
           equipment_name: equipmentName,
-          availability: availability || null,
+          availability: combineAvailability(availLetter, availNumber),
           cost: parseInt(cost),
           variants: variants || null,
           equipment_category_id: equipmentCategory,
@@ -300,18 +303,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Availability (TP default) *
-              </label>
-              <Input
-                type="text"
-                value={availability}
-                onChange={(e) => setAvailability(e.target.value)}
-                placeholder="E.g. E, C, R9, I13"
-                className="w-full"
-              />
-            </div>
+            <AvailabilityPicker
+              label="Availability (TP default) *"
+              letter={availLetter}
+              number={availNumber}
+              onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I')}
+              onNumberChange={setAvailNumber}
+            />
 
             {equipmentType && equipmentType !== 'vehicle_upgrade' ? (
               <div className="col-span-1">
@@ -512,7 +510,8 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       if (e.target === e.currentTarget) {
                         setShowAvailabilityDialog(false);
                         setSelectedAvailabilityGangType("");
-                        setAvailabilityValue("");
+                        setAvailValueLetter('');
+                        setAvailValueNumber(6);
                       }
                     }}
                   >
@@ -542,15 +541,14 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           </select>
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Availability</label>
-                          <Input
-                            type="text"
-                            value={availabilityValue}
-                            onChange={(e) => setAvailabilityValue(e.target.value)}
-                            placeholder="Enter availability (e.g. R9, C, E)"
-                          />
-                        </div>
+                        <AvailabilityPicker
+                          label="Availability"
+                          letter={availValueLetter}
+                          number={availValueNumber}
+                          onLetterChange={setAvailValueLetter}
+                          onNumberChange={setAvailValueNumber}
+                          allowEmpty
+                        />
 
                         <div className="flex gap-2 justify-end mt-6">
                           <Button
@@ -558,14 +556,16 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             onClick={() => {
                               setShowAvailabilityDialog(false);
                               setSelectedAvailabilityGangType("");
-                              setAvailabilityValue("");
+                              setAvailValueLetter('');
+                              setAvailValueNumber(6);
                             }}
                           >
                             Cancel
                           </Button>
                           <Button
                             onClick={() => {
-                              if (selectedAvailabilityGangType && availabilityValue) {
+                              const combined = combineAvailability(availValueLetter, availValueNumber);
+                              if (selectedAvailabilityGangType && combined) {
                                 const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
                                 if (selectedGang) {
                                   setEquipmentAvailabilities(prev => [
@@ -573,16 +573,17 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                                     {
                                       gang_type: selectedGang.gang_type,
                                       gang_type_id: selectedGang.gang_type_id,
-                                      availability: availabilityValue
+                                      availability: combined
                                     }
                                   ]);
                                   setShowAvailabilityDialog(false);
                                   setSelectedAvailabilityGangType("");
-                                  setAvailabilityValue("");
+                                  setAvailValueLetter('');
+                                  setAvailValueNumber(6);
                                 }
                               }
                             }}
-                            disabled={!selectedAvailabilityGangType || !availabilityValue}
+                            disabled={!selectedAvailabilityGangType || !availValueLetter}
                           >
                             Save Availability
                           </Button>
@@ -800,7 +801,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
+            disabled={!equipmentName || !cost || !availLetter || !equipmentCategory || !equipmentType || isLoading}
             className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Creating...' : 'Create Equipment'}

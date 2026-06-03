@@ -31,7 +31,7 @@ import {
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
-import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/customise/custom-equipment';
+import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;

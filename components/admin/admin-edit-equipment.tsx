@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
 import { WeaponProfileInput, EquipmentGrants } from "@/types/equipment";
@@ -74,7 +75,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const queryClient = useQueryClient();
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
   const [equipmentName, setEquipmentName] = useState('');
-  const [availability, setAvailability] = useState('');
+  const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I'>('C');
+  const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
   const [variants, setVariants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
@@ -112,15 +114,18 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   const [gangOriginAdjustedCosts, setGangOriginAdjustedCosts] = useState<GangOriginAdjustedCost[]>([]);
   const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
-  const [availabilityValue, setAvailabilityValue] = useState("");
+  const [availValueLetter, setAvailValueLetter] = useState('');
+  const [availValueNumber, setAvailValueNumber] = useState(6);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
   const [showOriginAvailabilityDialog, setShowOriginAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangOrigin, setSelectedAvailabilityGangOrigin] = useState("");
-  const [originAvailabilityValue, setOriginAvailabilityValue] = useState("");
+  const [originAvailValueLetter, setOriginAvailValueLetter] = useState('');
+  const [originAvailValueNumber, setOriginAvailValueNumber] = useState(6);
   const [equipmentOriginAvailabilities, setEquipmentOriginAvailabilities] = useState<EquipmentOriginAvailability[]>([]);
   const [showVariantAvailabilityDialog, setShowVariantAvailabilityDialog] = useState(false);
   const [selectedAvailabilityGangVariant, setSelectedAvailabilityGangVariant] = useState("");
-  const [variantAvailabilityValue, setVariantAvailabilityValue] = useState("");
+  const [variantAvailValueLetter, setVariantAvailValueLetter] = useState('');
+  const [variantAvailValueNumber, setVariantAvailValueNumber] = useState(6);
   const [equipmentVariantAvailabilities, setEquipmentVariantAvailabilities] = useState<EquipmentVariantAvailability[]>([]);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
   const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
@@ -166,7 +171,8 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
   useEffect(() => {
     if (!selectedEquipmentId) {
       setEquipmentName('');
-      setAvailability('');
+      setAvailLetter('C');
+      setAvailNumber(6);
       setCost('');
       setVariants('');
       setEquipmentType('');
@@ -200,7 +206,9 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     if (!equipmentDetails) return;
 
     setEquipmentName(equipmentDetails.equipment_name);
-    setAvailability(equipmentDetails.availability || '');
+    const parsed = parseAvailability(equipmentDetails.availability);
+    setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I');
+    setAvailNumber(parsed.number);
     setCost(equipmentDetails.cost?.toString() || '');
     setVariants(equipmentDetails.variants || '');
     setEquipmentCategory(equipmentDetails.equipment_category_id);
@@ -403,7 +411,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
       const requestBody = {
         equipment_name: equipmentName,
-        availability,
+        availability: combineAvailability(availLetter, availNumber),
         cost: parseInt(cost),
         variants,
         equipment_category: selectedCategory.category_name,
@@ -632,18 +640,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Availability (TP default) *
-                </label>
-                <Input
-                  type="text"
-                  value={availability}
-                  onChange={(e) => setAvailability(e.target.value)}
-                  placeholder="E.g. E, C, R9, I13"
-                  disabled={!selectedEquipmentId}
-                />
-              </div>
+              <AvailabilityPicker
+                label="Availability (TP default) *"
+                letter={availLetter}
+                number={availNumber}
+                onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I')}
+                onNumberChange={setAvailNumber}
+              />
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-1">
@@ -1012,10 +1015,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           onClose={() => {
                             setShowAvailabilityDialog(false);
                             setSelectedAvailabilityGangType("");
-                            setAvailabilityValue("");
+                            setAvailValueLetter('');
+                            setAvailValueNumber(6);
                           }}
                           onConfirm={() => {
-                            if (selectedAvailabilityGangType && availabilityValue) {
+                            const combined = combineAvailability(availValueLetter, availValueNumber);
+                            if (selectedAvailabilityGangType && combined) {
                               const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
                               if (selectedGang) {
                                 setEquipmentAvailabilities(prev => [
@@ -1023,12 +1028,13 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   {
                                     gang_type: selectedGang.gang_type,
                                     gang_type_id: selectedGang.gang_type_id,
-                                    availability: availabilityValue
+                                    availability: combined
                                   }
                                 ]);
                                 setShowAvailabilityDialog(false);
                                 setSelectedAvailabilityGangType("");
-                                setAvailabilityValue("");
+                                setAvailValueLetter('');
+                                setAvailValueNumber(6);
                               }
                             }
                           }}
@@ -1036,7 +1042,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           confirmDisabled={
                             isGangTypesLoading ||
                             !selectedAvailabilityGangType ||
-                            !availabilityValue
+                            !availValueLetter
                           }
                           width="sm"
                         >
@@ -1067,15 +1073,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               </select>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Availability</label>
-                              <Input
-                                type="text"
-                                value={availabilityValue}
-                                onChange={(e) => setAvailabilityValue(e.target.value)}
-                                placeholder="E.g. R9, C, E"
-                              />
-                            </div>
+                            <AvailabilityPicker
+                              label="Availability"
+                              letter={availValueLetter}
+                              number={availValueNumber}
+                              onLetterChange={setAvailValueLetter}
+                              onNumberChange={setAvailValueNumber}
+                              allowEmpty
+                            />
                           </div>
                         </Modal>
                       )}
@@ -1262,10 +1267,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           onClose={() => {
                             setShowOriginAvailabilityDialog(false);
                             setSelectedAvailabilityGangOrigin("");
-                            setOriginAvailabilityValue("");
+                            setOriginAvailValueLetter('');
+                            setOriginAvailValueNumber(6);
                           }}
                           onConfirm={() => {
-                            if (selectedAvailabilityGangOrigin && originAvailabilityValue) {
+                            const combined = combineAvailability(originAvailValueLetter, originAvailValueNumber);
+                            if (selectedAvailabilityGangOrigin && combined) {
                               const selectedOrigin = gangOriginList.find(g => g.id === selectedAvailabilityGangOrigin);
                               if (selectedOrigin) {
                                 setEquipmentOriginAvailabilities(prev => [
@@ -1273,19 +1280,20 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   {
                                     origin_name: selectedOrigin.origin_name,
                                     gang_origin_id: selectedOrigin.id,
-                                    availability: originAvailabilityValue
+                                    availability: combined
                                   }
                                 ]);
                                 setShowOriginAvailabilityDialog(false);
                                 setSelectedAvailabilityGangOrigin("");
-                                setOriginAvailabilityValue("");
+                                setOriginAvailValueLetter('');
+                                setOriginAvailValueNumber(6);
                               }
                             }
                           }}
                           confirmText="Save"
                           confirmDisabled={
                             !selectedAvailabilityGangOrigin ||
-                            !originAvailabilityValue
+                            !originAvailValueLetter
                           }
                           width="sm"
                         >
@@ -1334,15 +1342,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               </select>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Availability</label>
-                              <Input
-                                type="text"
-                                value={originAvailabilityValue}
-                                onChange={(e) => setOriginAvailabilityValue(e.target.value)}
-                                placeholder="E.g. R9, C, E"
-                              />
-                            </div>
+                            <AvailabilityPicker
+                              label="Availability"
+                              letter={originAvailValueLetter}
+                              number={originAvailValueNumber}
+                              onLetterChange={setOriginAvailValueLetter}
+                              onNumberChange={setOriginAvailValueNumber}
+                              allowEmpty
+                            />
                           </div>
                         </Modal>
                       )}
@@ -1391,11 +1398,12 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                           onClose={() => {
                             setShowVariantAvailabilityDialog(false);
                             setSelectedAvailabilityGangVariant("");
-                            setVariantAvailabilityValue("");
+                            setVariantAvailValueLetter('');
+                            setVariantAvailValueNumber(6);
                           }}
                           onConfirm={() => {
-                            if (selectedAvailabilityGangVariant && variantAvailabilityValue) {
-                              // Check for duplicates
+                            const combined = combineAvailability(variantAvailValueLetter, variantAvailValueNumber);
+                            if (selectedAvailabilityGangVariant && combined) {
                               const alreadyExists = equipmentVariantAvailabilities.some(
                                 a => a.gang_variant_id === selectedAvailabilityGangVariant
                               );
@@ -1411,19 +1419,20 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                                   {
                                     variant: selectedVariant.variant,
                                     gang_variant_id: selectedVariant.id,
-                                    availability: variantAvailabilityValue
+                                    availability: combined
                                   }
                                 ]);
                                 setShowVariantAvailabilityDialog(false);
                                 setSelectedAvailabilityGangVariant("");
-                                setVariantAvailabilityValue("");
+                                setVariantAvailValueLetter('');
+                                setVariantAvailValueNumber(6);
                               }
                             }
                           }}
                           confirmText="Save"
                           confirmDisabled={
                             !selectedAvailabilityGangVariant ||
-                            !variantAvailabilityValue
+                            !variantAvailValueLetter
                           }
                           width="sm"
                         >
@@ -1455,15 +1464,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                               </select>
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Availability</label>
-                              <Input
-                                type="text"
-                                value={variantAvailabilityValue}
-                                onChange={(e) => setVariantAvailabilityValue(e.target.value)}
-                                placeholder="E.g. R9, C, E"
-                              />
-                            </div>
+                            <AvailabilityPicker
+                              label="Availability"
+                              letter={variantAvailValueLetter}
+                              number={variantAvailValueNumber}
+                              onLetterChange={setVariantAvailValueLetter}
+                              onNumberChange={setVariantAvailValueNumber}
+                              allowEmpty
+                            />
                           </div>
                         </Modal>
                       )}
@@ -1796,7 +1804,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !availability || !equipmentCategory || !equipmentType || isLoading}
+            disabled={!categoryFilter || !selectedEquipmentId || !equipmentName || !cost || !availLetter || !equipmentCategory || !equipmentType || isLoading}
             className="bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
           >
             {isLoading ? 'Updating...' : 'Update Equipment'}
