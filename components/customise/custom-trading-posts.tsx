@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -32,11 +32,9 @@ import {
   type CustomTPAvailabilityRule,
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-trading-posts-constants';
 import type { UserCampaign } from '@/types/campaign';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
-
-
-const DESCRIPTION_MAX_LENGTH = 600;
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
@@ -75,7 +73,7 @@ export function CustomiseTradingPosts({
     custom_trading_post_name: '',
     description: null,
   });
-  const [descCharCount, setDescCharCount] = useState(0);
+  const descCharCount = formData.description?.length ?? 0;
 
   const queryClient = useQueryClient();
 
@@ -144,7 +142,6 @@ export function CustomiseTradingPosts({
       custom_trading_post_name: '',
       description: null,
     });
-    setDescCharCount(0);
     setPendingOverrides(new Map());
     setPendingAdditions([]);
     setPendingRemovals(new Set());
@@ -159,7 +156,6 @@ export function CustomiseTradingPosts({
       custom_trading_post_name: tradingPost.custom_trading_post_name,
       description: tradingPost.description || null,
     });
-    setDescCharCount(tradingPost.description?.length ?? 0);
   };
 
   const handleView = (tradingPost: CustomTradingPost) => {
@@ -168,7 +164,6 @@ export function CustomiseTradingPosts({
       custom_trading_post_name: tradingPost.custom_trading_post_name,
       description: tradingPost.description || null,
     });
-    setDescCharCount(tradingPost.description?.length ?? 0);
   };
 
   const handleDelete = (tradingPost: CustomTradingPost) => {
@@ -259,12 +254,19 @@ export function CustomiseTradingPosts({
               toast.error(batchResult.error || 'Failed to add equipment');
             } else if (batchResult.data) {
               const pendingRulesSaves = additionsToSave
-                .map((equip, i) => ({ tempId: equip.id, realId: batchResult.data![i] }))
-                .filter(({ tempId }) => overridesToSave.get(tempId)?.rulesModified)
+                .map((equip) => {
+                  const realRow = batchResult.data!.find(r =>
+                    equip.is_custom
+                      ? r.custom_equipment_id === equip.original_id
+                      : r.equipment_id === equip.id
+                  );
+                  return { tempId: equip.id, realId: realRow?.id };
+                })
+                .filter(({ tempId, realId }) => !!realId && overridesToSave.get(tempId)?.rulesModified)
                 .map(async ({ tempId, realId }) => {
                   const changes = overridesToSave.get(tempId)!;
                   const rulesResult = await saveEquipmentRules(
-                    realId,
+                    realId!,
                     changes.availRules.map(r => ({
                       gang_type_id: r.gang_type_id,
                       custom_gang_type_id: r.custom_gang_type_id,
@@ -435,7 +437,6 @@ export function CustomiseTradingPosts({
           onChange={(e) => {
             const value = e.target.value;
             setFormData({ ...formData, description: value || null });
-            setDescCharCount(value.length);
           }}
           placeholder="Enter description (optional)"
           disabled={isReadOnly}
@@ -584,6 +585,7 @@ function EquipmentItemsSection({
 }) {
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
+  const tooltipId = useId();
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
 
   const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
@@ -633,7 +635,7 @@ function EquipmentItemsSection({
             <h4 className="text-lg font-semibold">Equipment Items</h4>
             <span
               className="relative cursor-pointer text-muted-foreground hover:text-foreground"
-              data-tooltip-id="equipment-items-tooltip"
+              data-tooltip-id={tooltipId}
               data-tooltip-html={
                 'To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.<br/><br/>Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang variant</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.'
               }
@@ -725,7 +727,7 @@ function EquipmentItemsSection({
       )}
 
       <Tooltip
-        id="equipment-items-tooltip"
+        id={tooltipId}
         place="top"
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
