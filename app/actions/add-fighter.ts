@@ -25,6 +25,7 @@ interface AddFighterParams {
   use_base_cost_for_rating?: boolean;
   use_delegation_cost?: boolean;
   fighter_gang_legacy_id?: string;
+  selected_archetype_id?: string;
 }
 
 interface FighterStats {
@@ -445,6 +446,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       kills: 0,
       special_rules: effectiveFighterData.special_rules,
       fighter_gang_legacy_id: params.fighter_gang_legacy_id || null,
+      selected_archetype_id: params.selected_archetype_id || null,
       user_id: gangData.user_id
     };
 
@@ -473,6 +475,43 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     }
 
     const fighterId = insertedFighter.id;
+
+    // Apply archetype skill-access overrides when an archetype is selected
+    if (params.selected_archetype_id) {
+      try {
+        const { data: archetypeData } = await supabase
+          .from('skill_access_archetypes')
+          .select('skill_access')
+          .eq('id', params.selected_archetype_id)
+          .single();
+
+        if (archetypeData?.skill_access && Array.isArray(archetypeData.skill_access)) {
+          const overrideRows = (archetypeData.skill_access as Array<{
+            skill_type_id: string;
+            access_level: 'primary' | 'secondary';
+          }>)
+            .filter(sa => sa.access_level === 'primary' || sa.access_level === 'secondary')
+            .map(sa => ({
+              fighter_id: fighterId,
+              skill_type_id: sa.skill_type_id,
+              access_level: sa.access_level,
+              user_id: gangData.user_id,
+            }));
+
+          if (overrideRows.length > 0) {
+            const { error: overrideError } = await supabase
+              .from('fighter_skill_access_override')
+              .insert(overrideRows);
+
+            if (overrideError) {
+              console.error('Failed to insert archetype skill-access overrides:', overrideError);
+            }
+          }
+        }
+      } catch (archetypeError) {
+        console.error('Error applying archetype skill-access overrides:', archetypeError);
+      }
+    }
 
     // Get default skills and equipment from fighter_defaults table
     let fighterDefaultsData: any[] = [];

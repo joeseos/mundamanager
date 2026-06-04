@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption, DefaultEquipment, EquipmentSelectionCategory, NormalizedEquipmentSelection } from '@/types/fighter-type';
-import { FighterProps } from '@/types/fighter';
+import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { fighterClassRank } from "@/utils/fighterClassRank";
 import { fighterTypeRank } from "@/utils/fighterTypeRank";
@@ -15,7 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { addFighterToGang } from '@/app/actions/add-fighter';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { isArchetypeEligible } from '@/utils/archetypeEligibility';
 import {
   buildFighterFromServerData,
   buildBeastFromServerData,
@@ -244,6 +245,7 @@ export default function AddFighter({
   const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [selectedLegacyId, setSelectedLegacyId] = useState<string>('');
   const [isLoadingFighterTypes, setIsLoadingFighterTypes] = useState<boolean>(false);
+  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>('');
   
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<Array<{
@@ -252,6 +254,31 @@ export default function AddFighter({
     quantity: number;
     is_editable?: boolean;
   }>>([]);
+
+  // Derive the currently effective fighter type (sub-type takes precedence)
+  const currentFighterTypeId = selectedSubTypeId || selectedFighterTypeId;
+  const currentFighterType = fighterTypes.find(t => t.id === currentFighterTypeId);
+
+  // Determine whether the selected fighter is eligible for archetype selection
+  const canUseArchetypes = isArchetypeEligible({
+    gangTypeId,
+    fighterClass: currentFighterType?.fighter_class,
+  });
+
+  // Fetch archetypes when eligible (filtered by fighter class)
+  const { data: archetypesData } = useQuery({
+    queryKey: ['skill-archetypes', (currentFighterType as any)?.fighter_class_id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      const classId = (currentFighterType as any)?.fighter_class_id;
+      if (classId) params.set('fighter_class_id', classId);
+      const response = await fetch(`/api/fighters/skill-archetypes?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch archetypes');
+      return response.json();
+    },
+    enabled: showModal && canUseArchetypes,
+    staleTime: 10 * 60 * 1000,
+  });
 
   // Check if optimistic updates are enabled (both callbacks must be provided)
   const optimisticUpdatesEnabled = !!(onFighterRollback && onFighterReconcile);
@@ -347,6 +374,7 @@ export default function AddFighter({
       default_equipment: Array<{ equipment_id: string; cost: number; quantity: number; is_editable?: boolean }>;
       use_base_cost_for_rating: boolean;
       fighter_gang_legacy_id?: string;
+      selected_archetype_id?: string;
     }) => {
       const result = await addFighterToGang(params);
       if (!result.success) {
@@ -456,6 +484,7 @@ export default function AddFighter({
         fighter_type_id: type.id, // Map id to fighter_type_id for compatibility
         fighter_type: type.fighter_type,
         fighter_class: type.fighter_class,
+        fighter_class_id: type.fighter_class_id,
         gang_type: type.gang_type,
         cost: type.cost,
         gang_type_id: type.gang_type_id,
@@ -1173,7 +1202,8 @@ export default function AddFighter({
       selected_equipment: selectedEquipment,
       default_equipment: defaultEquipment,
       use_base_cost_for_rating: useBaseCostForRating,
-      fighter_gang_legacy_id: selectedLegacyId || undefined
+      fighter_gang_legacy_id: selectedLegacyId || undefined,
+      selected_archetype_id: selectedArchetypeId || undefined,
     });
 
     return true;
@@ -1189,6 +1219,7 @@ export default function AddFighter({
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);  // Reset equipment with costs
     setSelectedLegacyId(''); // Reset legacy selection
+    setSelectedArchetypeId(''); // Reset archetype selection
     setUseBaseCostForRating(true);
     setIncludeCustomFighters(false); // Reset custom fighters checkbox
     setIncludeAllFighterTypes(false); // Reset all fighter types checkbox
@@ -1211,6 +1242,7 @@ export default function AddFighter({
             setSelectedFighterTypeId(typeId);
             setSelectedSubTypeId(''); // Reset sub-type selection
             setSelectedLegacyId(''); // Reset legacy selection
+            setSelectedArchetypeId(''); // Reset archetype selection
             setSelectedEquipmentIds([]); // Reset equipment selections when type changes
             setSelectedEquipment([]); // Reset equipment with costs
             
@@ -1474,6 +1506,7 @@ export default function AddFighter({
               const subTypeId = value;
               setSelectedSubTypeId(subTypeId);
               setSelectedLegacyId(''); // Reset legacy selection
+              setSelectedArchetypeId(''); // Reset archetype selection
               setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
               setSelectedEquipment([]); // Reset equipment with costs
               
@@ -1560,6 +1593,31 @@ export default function AddFighter({
           </div>
         ) : null;
       })()}
+
+      {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
+      {canUseArchetypes && (
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-muted-foreground">
+            Archetype
+          </label>
+          <Combobox
+            value={selectedArchetypeId}
+            onValueChange={setSelectedArchetypeId}
+            placeholder="None"
+            clearable
+            options={[
+              { value: '', label: 'None' },
+              ...(archetypesData?.archetypes?.map((archetype: Archetype) => ({
+                value: archetype.id,
+                label: archetype.name,
+              })) || []),
+            ]}
+          />
+          <p className="text-xs text-muted-foreground">
+            Selecting an archetype will set the fighter&apos;s skill access.
+          </p>
+        </div>
+      )}
 
       {/* Fighter Cost */}
       <div className="space-y-2">

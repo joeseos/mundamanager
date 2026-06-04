@@ -6,17 +6,15 @@ import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { FighterProps as Fighter, Archetype } from '@/types/fighter';
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { isArchetypeEligible } from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterPromotionModal } from './fighter-promotion-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
-
-// Constants for archetype eligibility
-const UNDERHIVE_OUTCASTS_GANG_TYPE_ID = '77fc520f-b453-46ef-9ef0-6a12872934f8';
-const ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES = ['Leader', 'Champion'];
 
 
 
@@ -228,8 +226,10 @@ export function EditFighterModal({
   );
 
   // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
-  const canUseArchetypes = gangTypeId === UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
-    ARCHETYPE_ELIGIBLE_FIGHTER_CLASSES.includes(effectiveFighterClass || formValues.fighter_class || fighter.fighter_class || '');
+  const canUseArchetypes = isArchetypeEligible({
+    gangTypeId,
+    fighterClass: effectiveFighterClass || formValues.fighter_class || fighter.fighter_class,
+  });
 
   // Fetch archetypes using TanStack Query (only if eligible and modal is open)
   const { data: archetypesData } = useQuery({
@@ -1195,22 +1195,22 @@ export function EditFighterModal({
             {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
             {canUseArchetypes && (
               <div>
-                <label htmlFor="archetype" className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-medium mb-1">
                   Archetype
                 </label>
-                <select
-                  id="archetype"
+                <Combobox
                   value={selectedArchetypeId}
-                  onChange={(e) => setSelectedArchetypeId(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">None</option>
-                  {archetypesData?.archetypes?.map((archetype: Archetype) => (
-                    <option key={archetype.id} value={archetype.id}>
-                      {archetype.name}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={setSelectedArchetypeId}
+                  placeholder="None"
+                  clearable
+                  options={[
+                    { value: '', label: 'None' },
+                    ...(archetypesData?.archetypes?.map((archetype: Archetype) => ({
+                      value: archetype.id,
+                      label: archetype.name,
+                    })) || []),
+                  ]}
+                />
                 <p className="text-xs text-muted-foreground mt-1">
                   Selecting an archetype will change the fighter&apos;s skill access.
                 </p>
