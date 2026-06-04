@@ -1133,13 +1133,17 @@ export default function Gang({
               <div className="text-muted-foreground">
                 <div className="text-muted-foreground text-sm mb-1">
                   <div className="flex flex-wrap gap-x-2 gap-y-1">
+
                     {/* Gang Type */}
                     <div className="flex items-center gap-1">
                       Type: <Badge variant="secondary">{gang_type}</Badge>
                     </div>
+
+                    {/* Gang Origin, ie. Prefecture, Path of Faith */}
                     {gang_type_has_origin && gang_origin_name && (<div className="flex items-center gap-1">
                       {gangOriginCategoryName}: <Badge variant="secondary">{gang_origin_name}</Badge>
                     </div>)}
+                    
                     {/* Gang Variants */}
                     {gangVariants.length > 0 && gangIsVariant && !(gangVariants.length === 1 && gangVariants[0].variant === 'Outlaw') && (
                       <div className="flex items-center gap-1">

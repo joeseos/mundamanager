@@ -95,6 +95,8 @@ export default async function PrintGangPage(props: {
     const fightersActiveLoadoutOnly = (fighters as { id: string; active_loadout_id?: string; isActiveLoadoutForPrint?: boolean }[])
       .filter((f) => f.isActiveLoadoutForPrint === true);
 
+    const gangTypeConfig = getGangTypeConfig(gangBasic);
+
     // Assemble the gang data structure for the roster view
     const gangDataForClient = {
       id: gangBasic.id,
@@ -117,6 +119,9 @@ export default async function PrintGangPage(props: {
       alignment: gangBasic.alignment,
       alliance_name: alliance?.alliance_name || "",
       gang_affiliation_name: gangBasic.gang_affiliation?.name || "",
+      gang_origin_name: gangBasic.gang_origin?.origin_name || "",
+      gang_origin_category_name: gangTypeConfig?.gang_origin_categories?.category_name || "",
+      gang_type_has_origin: !!gangTypeConfig?.gang_origin_category_id,
       created_at: gangBasic.created_at,
       last_updated: gangBasic.last_updated,
       // Cast fighters so they satisfy the FighterProps-based shape expected by PrintGang/calculateAdjustedStats
