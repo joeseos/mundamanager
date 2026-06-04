@@ -418,32 +418,6 @@ export async function removeTPEquipment(
 }
 
 // ---------------------------------------------------------------------------
-// Shared campaigns
-// ---------------------------------------------------------------------------
-
-export async function getTPSharedCampaignIds(
-  tradingPostId: string
-): Promise<{ success: boolean; data?: string[]; error?: string }> {
-  try {
-    const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
-
-    const { data, error } = await supabase
-      .from('custom_shared')
-      .select('campaign_id')
-      .eq('custom_trading_post_id', tradingPostId);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, data: (data || []).map(r => r.campaign_id).filter(Boolean) };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Availability rules
 // ---------------------------------------------------------------------------
 

@@ -153,7 +153,7 @@ export async function returnGangResource(
   campaignGangId?: string,
   campaignTypeResourceId?: string,
   campaignResourceId?: string
-): Promise<boolean> {
+): Promise<void> {
   let resolvedCampaignGangId = campaignGangId;
   if (!resolvedCampaignGangId) {
     const { data: campaignGang } = await supabase
@@ -163,23 +163,19 @@ export async function returnGangResource(
       .limit(1)
       .single();
 
-    if (!campaignGang) return false;
+    if (!campaignGang) throw new Error(`Campaign gang not found for gang ${gangId}`);
     resolvedCampaignGangId = campaignGang.id;
   }
 
   const resource = await findGangResourceById(supabase, resolvedCampaignGangId!, campaignTypeResourceId, campaignResourceId);
-  if (!resource) return false;
+  if (!resource) throw new Error(`Resource "${resourceName}" not found for this gang`);
 
   const { error } = await supabase
     .from('campaign_gang_resources')
     .update({ quantity: resource.quantity + amount })
     .eq('id', resource.id);
 
-  if (error) {
-    console.error('Failed to return resource:', error);
-    return false;
-  }
-  return true;
+  if (error) throw new Error(`Failed to return resource: ${error.message}`);
 }
 
 export const REPUTATION_RESOURCE_NAME = 'Reputation';
@@ -222,23 +218,20 @@ export async function returnGangReputation(
   supabase: SupabaseClient,
   gangId: string,
   amount: number
-): Promise<boolean> {
+): Promise<void> {
   const { data: gang, error: fetchError } = await supabase
     .from('gangs')
     .select('reputation')
     .eq('id', gangId)
     .single();
 
-  if (fetchError || !gang) return false;
+  if (fetchError) throw new Error(`Failed to fetch gang: ${fetchError.message}`);
+  if (!gang) throw new Error('Gang not found');
 
   const { error } = await supabase
     .from('gangs')
     .update({ reputation: (gang.reputation ?? 0) + amount })
     .eq('id', gangId);
 
-  if (error) {
-    console.error('Failed to return reputation:', error);
-    return false;
-  }
-  return true;
+  if (error) throw new Error(`Failed to return reputation: ${error.message}`);
 }

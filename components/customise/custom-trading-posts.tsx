@@ -26,7 +26,6 @@ import {
   getAvailabilityRules,
   getPricingRules,
   saveEquipmentRules,
-  getTPSharedCampaignIds,
   type CustomTradingPost,
   type CustomTradingPostData,
   type CustomTPEquipment,
@@ -526,7 +525,6 @@ export function CustomiseTradingPosts({
               return next;
             });
           }}
-          userCampaigns={userCampaigns}
         />
       )}
 
@@ -586,7 +584,6 @@ function EquipmentItemsSection({
   onEquipmentOverrideChange,
   onAddEquipment,
   onRemoveEquipment,
-  userCampaigns,
 }: {
   tradingPostId: string;
   pendingOverrides?: Map<string, EquipmentPendingChanges>;
@@ -595,7 +592,6 @@ function EquipmentItemsSection({
   onEquipmentOverrideChange?: (itemId: string, changes: EquipmentPendingChanges) => void;
   onAddEquipment?: (equip: EquipmentOption) => void;
   onRemoveEquipment?: (itemId: string) => void;
-  userCampaigns?: UserCampaign[];
 }) {
   const isEditable = !!(onAddEquipment || onRemoveEquipment || onEquipmentOverrideChange);
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
@@ -751,7 +747,6 @@ function EquipmentItemsSection({
             onEquipmentOverrideChange(editOverridesItem.id, changes);
             setEditOverridesItem(null);
           }}
-          userCampaigns={userCampaigns}
           tradingPostId={tradingPostId}
         />
       )}
@@ -791,7 +786,6 @@ function EditTradingPostModal({
   onEquipmentOverrideChange,
   onAddEquipment,
   onRemoveEquipment,
-  userCampaigns,
 }: {
   tradingPost: CustomTradingPost;
   formData: CustomTradingPostData;
@@ -807,7 +801,6 @@ function EditTradingPostModal({
   onEquipmentOverrideChange: (itemId: string, changes: EquipmentPendingChanges) => void;
   onAddEquipment: (equip: EquipmentOption) => void;
   onRemoveEquipment: (itemId: string) => void;
-  userCampaigns?: UserCampaign[];
 }) {
   return (
     <Modal
@@ -830,7 +823,6 @@ function EditTradingPostModal({
             onEquipmentOverrideChange={onEquipmentOverrideChange}
             onAddEquipment={onAddEquipment}
             onRemoveEquipment={onRemoveEquipment}
-            userCampaigns={userCampaigns}
           />
         </div>
       </div>
@@ -998,14 +990,12 @@ function EditEquipmentModal({
   pendingChanges,
   onClose,
   onSaveLocal,
-  userCampaigns,
   tradingPostId,
 }: {
   item: CustomTPEquipment;
   pendingChanges?: EquipmentPendingChanges;
   onClose: () => void;
   onSaveLocal: (changes: EquipmentPendingChanges) => void;
-  userCampaigns?: UserCampaign[];
   tradingPostId: string;
 }) {
   type ResourceOption = { id: string; name: string; type: 'campaign_type' | 'campaign' | 'reputation' };
@@ -1044,20 +1034,18 @@ function EditEquipmentModal({
   const [isAddAvailOpen, setIsAddAvailOpen] = useState(false);
   const [isAddPricingOpen, setIsAddPricingOpen] = useState(false);
 
-  const campaignIds = (userCampaigns || []).map(c => c.id);
   const { data: availableResources = [] } = useQuery<ResourceOption[]>({
-    queryKey: ['tpAvailableResources', tradingPostId, ...campaignIds],
+    queryKey: ['tpAvailableResources', tradingPostId],
     queryFn: async () => {
-      const sharedResult = await getTPSharedCampaignIds(tradingPostId);
-      const sharedIds = sharedResult.success ? sharedResult.data! : [];
-      const relevantIds = sharedIds.filter(id => campaignIds.includes(id));
+      const sharedRes = await fetch(`/api/custom-trading-posts/${tradingPostId}/shared-campaigns`);
+      const sharedIds: string[] = sharedRes.ok ? await sharedRes.json() : [];
 
       const reputationOption: ResourceOption = { id: 'reputation', name: 'Reputation', type: 'reputation' };
 
-      if (relevantIds.length === 0) return [reputationOption];
+      if (sharedIds.length === 0) return [reputationOption];
 
       const allResources = await Promise.all(
-        relevantIds.map(async (id) => {
+        sharedIds.map(async (id) => {
           const res = await fetch(`/api/campaigns/${id}/resources`);
           if (!res.ok) return [] as CampaignResource[];
           return res.json() as Promise<CampaignResource[]>;
