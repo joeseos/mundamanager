@@ -52,6 +52,9 @@ interface PrintGangProps {
     alignment: string;
     alliance_name: string | null;
     gang_affiliation_name: string | null;
+    gang_origin_name?: string;
+    gang_origin_category_name?: string;
+    gang_type_has_origin?: boolean;
     created_at: string | Date | null;
     last_updated: string | Date | null;
     fighters: FighterProps[];
@@ -140,6 +143,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
     alignment,
     alliance_name,
     gang_affiliation_name,
+    gang_origin_name,
+    gang_origin_category_name,
+    gang_type_has_origin,
     fighters,
     positioning,
     gang_variants,
@@ -433,6 +439,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 <h1 className="text-xl font-bold leading-tight">{name}</h1>
                 <span className="text-xs uppercase tracking-wide">
                   {gang_type}
+                  {gang_type_has_origin && gang_origin_name && (
+                    <> — {gang_origin_name}</>
+                  )}
                   {gang_variants && gang_variants.length > 0
                     ? ` (${gang_variants.map((v) => v.variant).join(", ")})`
                     : ""}
@@ -1047,6 +1056,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                               <div className="flex items-center gap-1">
                                 Type: <Badge variant="secondary">{gang_type}</Badge>
                               </div>
+                              {/* Gang Origin */}
+                              {gang_type_has_origin && gang_origin_name && (
+                                <div className="flex items-center gap-1">
+                                  {gang_origin_category_name}: <Badge variant="secondary">{gang_origin_name}</Badge>
+                                </div>
+                              )}
                               {/* Gang Variants */}
                               {gang_variants && gang_variants.length > 0 && !(gang_variants.length === 1 && gang_variants[0].variant === 'Outlaw') && (
                                 <div className="flex items-center gap-1">
@@ -1478,6 +1493,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           <div className="flex items-center gap-1">
                             Type: <Badge variant="secondary">{gang_type}</Badge>
                           </div>
+                          {/* Gang Origin */}
+                          {gang_type_has_origin && gang_origin_name && (
+                            <div className="flex items-center gap-1">
+                              {gang_origin_category_name}: <Badge variant="secondary">{gang_origin_name}</Badge>
+                            </div>
+                          )}
                           {/* Gang Variants */}
                           {gang_variants && gang_variants.length > 0 && !(gang_variants.length === 1 && gang_variants[0].variant === 'Outlaw') && (
                             <div className="flex items-center gap-1">
@@ -1493,7 +1514,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           )}
                         </div>
                       </div>
-    
+
                       {/* Affiliation */}
                       {gang_affiliation_name && (
                         <div className="text-muted-foreground text-sm mb-1">
