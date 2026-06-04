@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict DmfsWQa1NR4SqscF3iK41gIGet83HimQ2PKfjMb4kMYEhwLedzxMQA8duV0RrRX
+\restrict fnxqP06hCORPkViNAbicqvTPqm9Otft4spFt9nuLOxdrnLY8XuQg8BxWhcwzkm4
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -1343,7 +1343,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, boolean, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, fighters_tradingpost_only boolean DEFAULT NULL::boolean, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, fighters_tradingpost_only boolean DEFAULT NULL::boolean, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1532,7 +1532,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT
             ctpe.equipment_id,
             MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
-            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
+            (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
+            (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
+            bool_or(ctpe.cost_reputation) AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
         FROM custom_trading_post_equipment ctpe
@@ -1577,14 +1580,18 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         END AS availability,
 
         CASE
-            WHEN cto.cost_resource_name IS NOT NULL THEN e.cost::numeric
+            WHEN cto.cost_type_resource_id IS NOT NULL
+              OR cto.cost_campaign_resource_id IS NOT NULL
+              OR cto.cost_reputation THEN e.cost::numeric
             ELSE COALESCE(cto.cost_override, e.cost::numeric)
         END AS base_cost,
 
         -- Adjusted cost: custom TP override wins, then official discounts, then base
         -- When paying with a resource, use original equipment cost for rating
         CASE
-            WHEN cto.cost_resource_name IS NOT NULL THEN e.cost::numeric
+            WHEN cto.cost_type_resource_id IS NOT NULL
+              OR cto.cost_campaign_resource_id IS NOT NULL
+              OR cto.cost_reputation THEN e.cost::numeric
             WHEN cto.adjusted_cost IS NOT NULL THEN cto.adjusted_cost
             WHEN cto.cost_override IS NOT NULL THEN cto.cost_override
             WHEN $5 = true THEN e.cost::numeric
@@ -1681,8 +1688,16 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         -- Trading post names (already aggregated in tp_summary)
         COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
 
-        cto.cost_resource_name,
-        CASE WHEN cto.cost_resource_name IS NOT NULL THEN cto.cost_override END AS cost_resource_amount
+        CASE WHEN cto.cost_reputation THEN 'Reputation'
+             ELSE COALESCE(ctr_res.resource_name, cr_res.resource_name)
+        END AS cost_resource_name,
+        CASE WHEN cto.cost_type_resource_id IS NOT NULL
+               OR cto.cost_campaign_resource_id IS NOT NULL
+               OR cto.cost_reputation
+             THEN cto.cost_resource_amount
+        END AS cost_resource_amount,
+        cto.cost_type_resource_id,
+        cto.cost_campaign_resource_id
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -1716,6 +1731,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
     LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
+    LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
+    LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -1775,11 +1792,15 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         ce.equipment_name,
         COALESCE(custom_tp.availability_override, ce.availability) AS availability,
         CASE
-            WHEN custom_tp.cost_resource_name IS NOT NULL THEN ce.cost::numeric
+            WHEN custom_tp.cost_type_resource_id IS NOT NULL
+              OR custom_tp.cost_campaign_resource_id IS NOT NULL
+              OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.cost_override, ce.cost::numeric)
         END AS base_cost,
         CASE
-            WHEN custom_tp.cost_resource_name IS NOT NULL THEN ce.cost::numeric
+            WHEN custom_tp.cost_type_resource_id IS NOT NULL
+              OR custom_tp.cost_campaign_resource_id IS NOT NULL
+              OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
         ce.equipment_category,
@@ -1811,8 +1832,16 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         NULL::jsonb AS grants_equipment,
         COALESCE(ce.is_editable, false) AS is_editable,
         COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
-        custom_tp.cost_resource_name,
-        CASE WHEN custom_tp.cost_resource_name IS NOT NULL THEN custom_tp.cost_override END AS cost_resource_amount
+        CASE WHEN custom_tp.cost_reputation THEN 'Reputation'
+             ELSE COALESCE(ctr_res2.resource_name, cr_res2.resource_name)
+        END AS cost_resource_name,
+        CASE WHEN custom_tp.cost_type_resource_id IS NOT NULL
+               OR custom_tp.cost_campaign_resource_id IS NOT NULL
+               OR custom_tp.cost_reputation
+             THEN custom_tp.cost_resource_amount
+        END AS cost_resource_amount,
+        custom_tp.cost_type_resource_id,
+        custom_tp.cost_campaign_resource_id
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -1824,7 +1853,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT
             ctpe.custom_equipment_id,
             MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
-            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
+            (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
+            (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
+            bool_or(ctpe.cost_reputation) AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
             COALESCE(
@@ -1853,6 +1885,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
           AND ctpe.custom_trading_post_id = ANY($11)
         GROUP BY ctpe.custom_equipment_id
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
+    LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
+    LEFT JOIN campaign_resources cr_res2 ON cr_res2.id = custom_tp.cost_campaign_resource_id
     WHERE
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
@@ -4479,9 +4513,13 @@ CREATE TABLE public.custom_trading_post_equipment (
     equipment_id uuid,
     custom_equipment_id uuid,
     cost_override numeric,
-    cost_resource_name text,
     availability_override text,
     sort_order integer,
+    cost_type_resource_id uuid,
+    cost_campaign_resource_id uuid,
+    cost_reputation boolean DEFAULT false NOT NULL,
+    cost_resource_amount numeric,
+    CONSTRAINT chk_cost_resource_exclusive CHECK ((num_nonnulls(cost_type_resource_id, cost_campaign_resource_id, NULLIF(cost_reputation, false)) <= 1)),
     CONSTRAINT chk_equipment_exclusive CHECK ((num_nonnulls(equipment_id, custom_equipment_id) = 1))
 );
 
@@ -7636,6 +7674,22 @@ ALTER TABLE ONLY public.custom_trading_post_availability
 
 ALTER TABLE ONLY public.custom_trading_post_availability
     ADD CONSTRAINT custom_trading_post_availability_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_cost_campaign_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_cost_campaign_resource_id_fkey FOREIGN KEY (cost_campaign_resource_id) REFERENCES public.campaign_resources(id) ON DELETE SET NULL;
+
+
+--
+-- Name: custom_trading_post_equipment custom_trading_post_equipment_cost_type_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_trading_post_equipment
+    ADD CONSTRAINT custom_trading_post_equipment_cost_type_resource_id_fkey FOREIGN KEY (cost_type_resource_id) REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL;
 
 
 --
@@ -11591,5 +11645,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict DmfsWQa1NR4SqscF3iK41gIGet83HimQ2PKfjMb4kMYEhwLedzxMQA8duV0RrRX
+\unrestrict fnxqP06hCORPkViNAbicqvTPqm9Otft4spFt9nuLOxdrnLY8XuQg8BxWhcwzkm4
 
