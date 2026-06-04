@@ -298,6 +298,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Don't fail the main operation for logging errors
     }
 
+    if (isResourcePurchase) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId));
+    }
+
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
     if (equipmentData.fighter_id) {
       // Use equipment deletion invalidation since selling is essentially deletion with credit refund
@@ -472,6 +476,10 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .delete()
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
+
+    if (isResourcePurchaseStash) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(row.gang_id));
+    }
 
     // Invalidate stash cache so UI refreshes
     invalidateGangStash({ gangId: row.gang_id, userId: user.id });

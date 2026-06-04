@@ -108,9 +108,9 @@ async function findGangResourceById(
     throw new Error('Either campaignTypeResourceId or campaignResourceId is required');
   }
 
-  const { data, error } = await query.single();
+  const { data, error } = await query.maybeSingle();
   if (error) throw new Error(`Failed to look up gang resource: ${error.message}`);
-  return data ?? null;
+  return data;
 }
 
 export async function deductGangResource(
@@ -129,7 +129,7 @@ export async function deductGangResource(
     throw new Error(`Resource "${resourceName}" not found for this gang`);
   }
   if (resource.quantity < amount) {
-    throw new Error(`Insufficient ${resourceName}. Required: ${amount}, Available: ${resource.quantity}`);
+    throw new Error(`Not enough ${resourceName}. Required: ${amount}, Available: ${resource.quantity}`);
   }
 
   const { data, error } = await supabase
@@ -141,7 +141,7 @@ export async function deductGangResource(
 
   if (error) throw new Error(`Failed to deduct resource: ${error.message}`);
   if (!data || data.length === 0) {
-    throw new Error(`Insufficient ${resourceName} (concurrent modification)`);
+    throw new Error(`Not enough ${resourceName} (concurrent modification)`);
   }
 }
 
@@ -198,7 +198,7 @@ export async function deductGangReputation(
 
   const current = gang.reputation ?? 0;
   if (current < amount) {
-    throw new Error(`Insufficient Reputation. Required: ${amount}, Available: ${current}`);
+    throw new Error(`Not enough Reputation. Required: ${amount}, Available: ${current}`);
   }
 
   const { data, error } = await supabase
@@ -210,7 +210,7 @@ export async function deductGangReputation(
 
   if (error) throw new Error(`Failed to deduct reputation: ${error.message}`);
   if (!data || data.length === 0) {
-    throw new Error('Insufficient Reputation (concurrent modification)');
+    throw new Error('Not enough Reputation (concurrent modification)');
   }
 }
 

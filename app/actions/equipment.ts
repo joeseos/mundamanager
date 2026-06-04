@@ -726,6 +726,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
+    if (isResourcePurchase) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id));
+    }
+
     // Optimized cache invalidation - use granular approach
     if (params.fighter_id) {
       // Always invalidate fighter equipment/credits/rating for a purchase on a fighter

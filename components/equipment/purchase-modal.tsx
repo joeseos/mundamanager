@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ImInfo } from "react-icons/im";
 import { Equipment, EquipmentGrants } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
+import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 
 interface PurchaseModalProps {
   item: Equipment;
@@ -28,9 +29,11 @@ interface PurchaseModalProps {
   fighterId?: string;
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   equipmentListType?: "fighters-list" | "fighters-tradingpost" | "unrestricted";
+  gangCampaignResources?: GangCampaignResource[];
+  gangReputation?: number;
 }
 
-export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, fighterWeapons, equipmentListType }: PurchaseModalProps) {
+export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPurchase, fighterId, fighterWeapons, equipmentListType, gangCampaignResources, gangReputation }: PurchaseModalProps) {
   const [manualCost, setManualCost] = useState<string>(String(item.adjusted_cost ?? item.cost));
   const [creditError, setCreditError] = useState<string | null>(null);
   const [isMasterCrafted, setIsMasterCrafted] = useState(false);
@@ -57,6 +60,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const costResourceAmount = hasResourceCost ? Number(manualResourceAmount) : undefined;
   const costTypeResourceId = hasResourceCost ? item.cost_type_resource_id ?? undefined : undefined;
   const costCampaignResourceId = hasResourceCost ? item.cost_campaign_resource_id ?? undefined : undefined;
+
+  const availableResourceQuantity = hasResourceCost
+    ? item.cost_resource_name === 'Reputation'
+      ? gangReputation ?? 0
+      : gangCampaignResources?.find(r =>
+          (item.cost_type_resource_id && r.resource_id === item.cost_type_resource_id) ||
+          (item.cost_campaign_resource_id && r.resource_id === item.cost_campaign_resource_id)
+        )?.quantity ?? 0
+    : undefined;
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -115,6 +127,9 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
       return false;
     } else if (hasResourceCost && (!manualResourceAmount.trim() || Number(manualResourceAmount) <= 0)) {
       setCreditError('Resource amount must be greater than 0');
+      return false;
+    } else if (hasResourceCost && availableResourceQuantity != null && Number(manualResourceAmount) > availableResourceQuantity) {
+      setCreditError(`Not enough ${item.cost_resource_name}. Available: ${availableResourceQuantity}`);
       return false;
     } else if (!hasResourceCost && parsedCost > 0 && parsedCost > gangCredits) {
       setCreditError(`Not enough credits. Gang Credits: ${gangCredits}`);
@@ -405,40 +420,44 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         <div className="space-y-4">
           <p>Are you sure you want to buy <strong>{item.equipment_name}</strong>?</p>
           <div className="space-y-2">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Cost
-                </label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="-?[0-9]*"
-                  value={manualCost}
-                  onChange={(e) => {
-                    const val = e.target.value;
+            {!hasResourceCost && (
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Cost
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    pattern="-?[0-9]*"
+                    value={manualCost}
+                    onChange={(e) => {
+                      const val = e.target.value;
 
-                    // Allow only empty (0), "-", or digits (optionally starting with "-")
-                    if (/^-?\d*$/.test(val)) {
-                      setManualCost(val);
+                      if (/^-?\d*$/.test(val)) {
+                        setManualCost(val);
 
-                      const parsed = Number(val);
-                      if (!Number.isNaN(parsed) && parsed <= gangCredits) {
-                        setCreditError(null);
+                        const parsed = Number(val);
+                        if (!Number.isNaN(parsed) && parsed <= gangCredits) {
+                          setCreditError(null);
+                        }
                       }
-                    }
-                  }}
-                  className="w-full p-2 border rounded-md"
-                  min="0"
-                />
+                    }}
+                    className="w-full p-2 border rounded-md"
+                    min="0"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {hasResourceCost && (
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     {item.cost_resource_name}
+                    {availableResourceQuantity != null && (
+                      <span className="ml-2 font-normal">(Available: {availableResourceQuantity})</span>
+                    )}
                   </label>
                   <Input
                     type="number"

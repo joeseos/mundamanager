@@ -913,6 +913,10 @@ export default function GangPageContent({
           campaignGangId={(gangData.processedData.campaigns || []).length > 0
             ? (gangData.processedData.campaigns || [])[0]?.campaign_gang_id
             : undefined}
+          gangCampaignResources={(gangData.processedData.campaigns || []).length > 0
+            ? (gangData.processedData.campaigns || [])[0]?.resources
+            : undefined}
+          gangReputation={gangData.processedData.reputation}
           positioning={gangData.processedData.positioning}
         />
         <GangVehicles

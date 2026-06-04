@@ -14,6 +14,7 @@ import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment/equipment';
+import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
@@ -51,6 +52,8 @@ interface GangInventoryProps {
   campaignCustomTradingPostIds?: string[];
   campaignCustomTradingPostNames?: string[];
   campaignGangId?: string;
+  gangCampaignResources?: GangCampaignResource[];
+  gangReputation?: number;
   positioning?: Record<number, string>;
 }
 
@@ -74,6 +77,8 @@ export default function GangInventory({
   campaignCustomTradingPostIds,
   campaignCustomTradingPostNames,
   campaignGangId,
+  gangCampaignResources,
+  gangReputation,
   positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -970,6 +975,8 @@ export default function GangInventory({
           campaignCustomTradingPostIds={campaignCustomTradingPostIds}
           campaignCustomTradingPostNames={campaignCustomTradingPostNames}
           campaignGangId={campaignGangId}
+          gangCampaignResources={gangCampaignResources}
+          gangReputation={gangReputation}
           onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
             // Handle equipment bought for stash - perform optimistic updates
 

@@ -16,6 +16,7 @@ import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger, EquipmentTooltip } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
 import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
+import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 
 interface ItemModalProps {
   title: string;
@@ -41,6 +42,8 @@ interface ItemModalProps {
   campaignCustomTradingPostIds?: string[];
   campaignCustomTradingPostNames?: string[];
   campaignGangId?: string;
+  gangCampaignResources?: GangCampaignResource[];
+  gangReputation?: number;
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
@@ -102,6 +105,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
   campaignCustomTradingPostIds,
   campaignCustomTradingPostNames,
   campaignGangId,
+  gangCampaignResources,
+  gangReputation,
   onEquipmentBought,
   onPurchaseRequest,
   fighterWeapons
@@ -832,7 +837,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     </div>
                                   </EquipmentTooltipTrigger>
                                   <div className="flex items-center gap-1">
-                                    {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
+                                    {item.cost_resource_name && item.cost_resource_amount != null ? (
+                                      <div className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5" title={item.cost_resource_name}>
+                                        <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
+                                      </div>
+                                    ) : item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
                                       <div className="flex items-center gap-1">
                                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
                                           item.adjusted_cost < (item.base_cost ?? item.cost) ? 'bg-green-500' : 'bg-red-500'
@@ -846,11 +855,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     ) : (
                                       <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary text-primary-foreground">
                                         <span className="text-[10px] font-medium">{item.cost}</span>
-                                      </div>
-                                    )}
-                                    {item.cost_resource_name && item.cost_resource_amount != null && (
-                                      <div className="h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5" title={item.cost_resource_name}>
-                                        <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
                                       </div>
                                     )}
                                     {equipmentListType !== 'fighters-list' && (
@@ -916,6 +920,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 fighterId={fighterId}
                 fighterWeapons={fighterWeapons}
                 equipmentListType={equipmentListType}
+                gangCampaignResources={gangCampaignResources}
+                gangReputation={gangReputation}
               />
             )}
           </div>

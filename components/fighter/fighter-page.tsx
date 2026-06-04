@@ -129,6 +129,7 @@ interface Fighter {
 interface Gang {
   id: string;
   credits: number;
+  reputation?: number;
   positioning?: Record<number, string>;
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
@@ -1362,6 +1363,10 @@ export default function FighterPage({
               campaignGangId={(fighterData.fighter.campaigns || []).length > 0
                 ? (fighterData.fighter.campaigns || [])[0]?.campaign_gang_id
                 : undefined}
+              gangCampaignResources={(fighterData.fighter.campaigns || []).length > 0
+                ? (fighterData.fighter.campaigns || [])[0]?.resources
+                : undefined}
+              gangReputation={fighterData.gang?.reputation}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
@@ -1396,6 +1401,10 @@ export default function FighterPage({
               campaignGangId={(fighterData.fighter.campaigns || []).length > 0
                 ? (fighterData.fighter.campaigns || [])[0]?.campaign_gang_id
                 : undefined}
+              gangCampaignResources={(fighterData.fighter.campaigns || []).length > 0
+                ? (fighterData.fighter.campaigns || [])[0]?.resources
+                : undefined}
+              gangReputation={fighterData.gang?.reputation}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />
           )}
