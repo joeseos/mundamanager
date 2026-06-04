@@ -34,6 +34,7 @@ interface ComboboxProps {
   value?: string
   onValueChange?: (value: string) => void
   placeholder?: string
+  id?: string
   disabled?: boolean
   className?: string
   allowCustom?: boolean
@@ -53,6 +54,7 @@ export function Combobox({
   value,
   onValueChange,
   placeholder = "Select option...",
+  id,
   disabled = false,
   className,
   allowCustom = false,
@@ -270,6 +272,7 @@ export function Combobox({
       <div className="relative">
         <input
           ref={inputRef}
+          id={id}
           type="text"
           className={cn(
             "flex h-10 w-full min-w-0 rounded-md border border-border bg-muted px-3 py-2 text-base md:text-sm",

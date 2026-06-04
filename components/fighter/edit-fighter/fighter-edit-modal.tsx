@@ -10,7 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { fighterClassRank } from '@/utils/fighterClassRank';
-import { isArchetypeEligible } from '@/utils/archetypeEligibility';
+import { isArchetypeEligible, mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
 import { FighterPromotionModal } from './fighter-promotion-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
@@ -360,11 +360,7 @@ export function EditFighterModal({
               (a: Archetype) => a.id === submit.selected_archetype_id
             );
             if (archetype) {
-              // Only save primary and secondary access levels from the archetype
-              const overrides = archetype.skill_access.map(sa => ({
-                skill_type_id: sa.skill_type_id,
-                access_level: sa.access_level as 'primary' | 'secondary' | 'allowed'
-              }));
+              const overrides = mapArchetypeSkillAccessToOverrides(archetype.skill_access);
 
               await saveFighterSkillAccessOverrides({ fighter_id: fighter.id, overrides });
             }
@@ -1195,10 +1191,11 @@ export function EditFighterModal({
             {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
             {canUseArchetypes && (
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label htmlFor="archetype" className="block text-sm font-medium mb-1">
                   Archetype
                 </label>
                 <Combobox
+                  id="archetype"
                   value={selectedArchetypeId}
                   onValueChange={setSelectedArchetypeId}
                   placeholder="None"

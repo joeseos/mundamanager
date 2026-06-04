@@ -267,10 +267,10 @@ export default function AddFighter({
 
   // Fetch archetypes when eligible (filtered by fighter class)
   const { data: archetypesData } = useQuery({
-    queryKey: ['skill-archetypes', (currentFighterType as any)?.fighter_class_id],
+    queryKey: ['skill-archetypes', currentFighterType?.fighter_class_id],
     queryFn: async () => {
       const params = new URLSearchParams();
-      const classId = (currentFighterType as any)?.fighter_class_id;
+      const classId = currentFighterType?.fighter_class_id;
       if (classId) params.set('fighter_class_id', classId);
       const response = await fetch(`/api/fighters/skill-archetypes?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch archetypes');
@@ -380,7 +380,7 @@ export default function AddFighter({
       if (!result.success) {
         throw new Error(result.error || 'Failed to add fighter');
       }
-      return result.data!;
+      return result;
     },
     onMutate: async (variables) => {
       // Close modal immediately regardless of optimistic updates
@@ -419,8 +419,10 @@ export default function AddFighter({
 
       toast.error(error instanceof Error ? error.message : 'Failed to add fighter');
     },
-    onSuccess: (data, variables, context) => {
-      if (!context) return;
+    onSuccess: (result, variables, context) => {
+      if (!context || !result.data) return;
+
+      const data = result.data;
 
       // Build real fighter from server response using utility
       const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
@@ -444,6 +446,11 @@ export default function AddFighter({
           const beastFighter = buildBeastFromServerData(beast);
           onFighterAdded(beastFighter, 0); // 0 cost since already paid
         });
+      }
+
+      if (result.warning) {
+        toast.error(result.warning);
+        return;
       }
 
       toast.success(`${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} exotic beast(s)` : ''}`);
@@ -1597,10 +1604,11 @@ export default function AddFighter({
       {/* Archetype Selection (only for Underhive Outcasts Leader/Champion) */}
       {canUseArchetypes && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-muted-foreground">
+          <label htmlFor="add-fighter-archetype" className="block text-sm font-medium text-muted-foreground">
             Archetype
           </label>
           <Combobox
+            id="add-fighter-archetype"
             value={selectedArchetypeId}
             onValueChange={setSelectedArchetypeId}
             placeholder="None"

@@ -6,6 +6,10 @@ import { invalidateFighterAddition, invalidateUserGangsList } from '@/utils/cach
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
+import {
+  isArchetypeEligible,
+  mapArchetypeSkillAccessToOverrides,
+} from '@/utils/archetypeEligibility';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -156,6 +160,8 @@ interface AddFighterResult {
     }>;
   };
   error?: string;
+  /** Set when the fighter was created but archetype skill-access overrides failed */
+  warning?: string;
 }
 
 
@@ -422,6 +428,23 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       throw new Error('Not enough credits to add this fighter with equipment');
     }
 
+    // Server-side archetype eligibility (UI check is not sufficient)
+    let archetypeIdToPersist: string | null = null;
+    if (params.selected_archetype_id) {
+      if (!isArchetypeEligible({
+        gangTypeId: gangData.gang_type_id,
+        fighterClass: effectiveFighterData.fighter_class,
+      })) {
+        return {
+          success: false,
+          error: 'This fighter type cannot be assigned an archetype for this gang.',
+        };
+      }
+      archetypeIdToPersist = params.selected_archetype_id;
+    }
+
+    let archetypeSkillAccessWarning: string | undefined;
+
     // Prepare fighter insertion data
     const fighterInsertData: any = {
       fighter_name: params.fighter_name.trimEnd(),
@@ -446,7 +469,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       kills: 0,
       special_rules: effectiveFighterData.special_rules,
       fighter_gang_legacy_id: params.fighter_gang_legacy_id || null,
-      selected_archetype_id: params.selected_archetype_id || null,
+      selected_archetype_id: archetypeIdToPersist,
       user_id: gangData.user_id
     };
 
@@ -477,39 +500,44 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     const fighterId = insertedFighter.id;
 
     // Apply archetype skill-access overrides when an archetype is selected
-    if (params.selected_archetype_id) {
+    if (archetypeIdToPersist) {
       try {
-        const { data: archetypeData } = await supabase
+        const { data: archetypeData, error: archetypeFetchError } = await supabase
           .from('skill_access_archetypes')
           .select('skill_access')
-          .eq('id', params.selected_archetype_id)
+          .eq('id', archetypeIdToPersist)
           .single();
 
-        if (archetypeData?.skill_access && Array.isArray(archetypeData.skill_access)) {
-          const overrideRows = (archetypeData.skill_access as Array<{
-            skill_type_id: string;
-            access_level: 'primary' | 'secondary';
-          }>)
-            .filter(sa => sa.access_level === 'primary' || sa.access_level === 'secondary')
-            .map(sa => ({
+        if (archetypeFetchError || !archetypeData) {
+          console.error('Failed to fetch archetype for skill-access overrides:', archetypeFetchError);
+          archetypeSkillAccessWarning =
+            'Fighter added but skill access save failed. Please try again via Customise Skill Set Access.';
+        } else if (archetypeData.skill_access && Array.isArray(archetypeData.skill_access)) {
+          const overrides = mapArchetypeSkillAccessToOverrides(archetypeData.skill_access);
+
+          if (overrides.length > 0) {
+            const overrideRows = overrides.map(sa => ({
               fighter_id: fighterId,
               skill_type_id: sa.skill_type_id,
               access_level: sa.access_level,
               user_id: gangData.user_id,
             }));
 
-          if (overrideRows.length > 0) {
             const { error: overrideError } = await supabase
               .from('fighter_skill_access_override')
               .insert(overrideRows);
 
             if (overrideError) {
               console.error('Failed to insert archetype skill-access overrides:', overrideError);
+              archetypeSkillAccessWarning =
+                'Fighter added but skill access save failed. Please try again via Customise Skill Set Access.';
             }
           }
         }
       } catch (archetypeError) {
         console.error('Error applying archetype skill-access overrides:', archetypeError);
+        archetypeSkillAccessWarning =
+          'Fighter added but skill access save failed. Please try again via Customise Skill Set Access.';
       }
     }
 
@@ -1166,6 +1194,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
 
     return {
       success: true,
+      warning: archetypeSkillAccessWarning,
       data: {
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
