@@ -107,6 +107,8 @@ export interface Equipment {
   from_fighters_list?: boolean;
   cost_resource_name?: string | null;
   cost_resource_amount?: number | null;
+  cost_type_resource_id?: string | null;
+  cost_campaign_resource_id?: string | null;
   is_consumable?: boolean;
   // Cost breakdown for Exotic Beast equipment (base + advancements + equipment)
   beast_cost_breakdown?: {

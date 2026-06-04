@@ -37,6 +37,8 @@ export interface PurchaseEquipmentInput {
   selectedGrantEquipmentIds?: string[];
   costResourceName?: string;
   costResourceAmount?: number;
+  costTypeResourceId?: string;
+  costCampaignResourceId?: string;
 }
 
 export interface BuyEquipmentPayload {
@@ -56,6 +58,8 @@ export interface BuyEquipmentPayload {
   cost_resource_name?: string;
   cost_resource_amount?: number;
   campaign_gang_id?: string;
+  cost_type_resource_id?: string;
+  cost_campaign_resource_id?: string;
 }
 
 export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
@@ -71,6 +75,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
     selectedGrantEquipmentIds = [],
     costResourceName,
     costResourceAmount,
+    costTypeResourceId,
+    costCampaignResourceId,
   }: PurchaseEquipmentInput) => {
     const {
       session,
@@ -118,6 +124,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         cost_resource_name: costResourceName,
         cost_resource_amount: costResourceAmount,
         campaign_gang_id: campaignGangId,
+        ...(costTypeResourceId && { cost_type_resource_id: costTypeResourceId }),
+        ...(costCampaignResourceId && { cost_campaign_resource_id: costCampaignResourceId }),
       }),
     };
 

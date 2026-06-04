@@ -37,7 +37,9 @@ RETURNS TABLE (
     is_editable boolean,
     trading_post_names text[],
     cost_resource_name text,
-    cost_resource_amount numeric
+    cost_resource_amount numeric,
+    cost_type_resource_id uuid,
+    cost_campaign_resource_id uuid
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -229,7 +231,10 @@ AS $$
         SELECT
             ctpe.equipment_id,
             MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
-            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
+            (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
+            (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
+            bool_or(ctpe.cost_reputation) AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
         FROM custom_trading_post_equipment ctpe
@@ -274,14 +279,18 @@ AS $$
         END AS availability,
 
         CASE
-            WHEN cto.cost_resource_name IS NOT NULL THEN e.cost::numeric
+            WHEN cto.cost_type_resource_id IS NOT NULL
+              OR cto.cost_campaign_resource_id IS NOT NULL
+              OR cto.cost_reputation THEN e.cost::numeric
             ELSE COALESCE(cto.cost_override, e.cost::numeric)
         END AS base_cost,
 
         -- Adjusted cost: custom TP override wins, then official discounts, then base
         -- When paying with a resource, use original equipment cost for rating
         CASE
-            WHEN cto.cost_resource_name IS NOT NULL THEN e.cost::numeric
+            WHEN cto.cost_type_resource_id IS NOT NULL
+              OR cto.cost_campaign_resource_id IS NOT NULL
+              OR cto.cost_reputation THEN e.cost::numeric
             WHEN cto.adjusted_cost IS NOT NULL THEN cto.adjusted_cost
             WHEN cto.cost_override IS NOT NULL THEN cto.cost_override
             WHEN $5 = true THEN e.cost::numeric
@@ -378,8 +387,16 @@ AS $$
         -- Trading post names (already aggregated in tp_summary)
         COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
 
-        cto.cost_resource_name,
-        CASE WHEN cto.cost_resource_name IS NOT NULL THEN cto.cost_override END AS cost_resource_amount
+        CASE WHEN cto.cost_reputation THEN 'Reputation'
+             ELSE COALESCE(ctr_res.resource_name, cr_res.resource_name)
+        END AS cost_resource_name,
+        CASE WHEN cto.cost_type_resource_id IS NOT NULL
+               OR cto.cost_campaign_resource_id IS NOT NULL
+               OR cto.cost_reputation
+             THEN cto.cost_resource_amount
+        END AS cost_resource_amount,
+        cto.cost_type_resource_id,
+        cto.cost_campaign_resource_id
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -413,6 +430,8 @@ AS $$
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
     LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
+    LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
+    LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -472,11 +491,15 @@ AS $$
         ce.equipment_name,
         COALESCE(custom_tp.availability_override, ce.availability) AS availability,
         CASE
-            WHEN custom_tp.cost_resource_name IS NOT NULL THEN ce.cost::numeric
+            WHEN custom_tp.cost_type_resource_id IS NOT NULL
+              OR custom_tp.cost_campaign_resource_id IS NOT NULL
+              OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.cost_override, ce.cost::numeric)
         END AS base_cost,
         CASE
-            WHEN custom_tp.cost_resource_name IS NOT NULL THEN ce.cost::numeric
+            WHEN custom_tp.cost_type_resource_id IS NOT NULL
+              OR custom_tp.cost_campaign_resource_id IS NOT NULL
+              OR custom_tp.cost_reputation THEN ce.cost::numeric
             ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
         END AS adjusted_cost,
         ce.equipment_category,
@@ -508,8 +531,16 @@ AS $$
         NULL::jsonb AS grants_equipment,
         COALESCE(ce.is_editable, false) AS is_editable,
         COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
-        custom_tp.cost_resource_name,
-        CASE WHEN custom_tp.cost_resource_name IS NOT NULL THEN custom_tp.cost_override END AS cost_resource_amount
+        CASE WHEN custom_tp.cost_reputation THEN 'Reputation'
+             ELSE COALESCE(ctr_res2.resource_name, cr_res2.resource_name)
+        END AS cost_resource_name,
+        CASE WHEN custom_tp.cost_type_resource_id IS NOT NULL
+               OR custom_tp.cost_campaign_resource_id IS NOT NULL
+               OR custom_tp.cost_reputation
+             THEN custom_tp.cost_resource_amount
+        END AS cost_resource_amount,
+        custom_tp.cost_type_resource_id,
+        custom_tp.cost_campaign_resource_id
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -521,7 +552,10 @@ AS $$
         SELECT
             ctpe.custom_equipment_id,
             MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
-            (array_agg(ctpe.cost_resource_name ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_name IS NOT NULL))[1] AS cost_resource_name,
+            (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
+            (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
+            (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
+            bool_or(ctpe.cost_reputation) AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
             COALESCE(
@@ -550,6 +584,8 @@ AS $$
           AND ctpe.custom_trading_post_id = ANY($11)
         GROUP BY ctpe.custom_equipment_id
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
+    LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
+    LEFT JOIN campaign_resources cr_res2 ON cr_res2.id = custom_tp.cost_campaign_resource_id
     WHERE
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))

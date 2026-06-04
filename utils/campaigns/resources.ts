@@ -89,37 +89,41 @@ export async function fetchCampaignResources(
   return [...resources, ...customResourcesList];
 }
 
-async function findGangResourceByName(
+async function findGangResourceById(
   supabase: SupabaseClient,
   campaignGangId: string,
-  resourceName: string
+  campaignTypeResourceId?: string,
+  campaignResourceId?: string
 ) {
-  const { data, error } = await supabase
+  let query = supabase
     .from('campaign_gang_resources')
-    .select(`
-      id, quantity,
-      campaign_type_resources!campaign_gang_resources_campaign_type_resource_id_fkey(resource_name),
-      campaign_resources!campaign_gang_resources_campaign_resource_id_fkey(resource_name)
-    `)
+    .select('id, quantity')
     .eq('campaign_gang_id', campaignGangId);
 
-  if (error) throw new Error(`Failed to look up gang resources: ${error.message}`);
+  if (campaignTypeResourceId) {
+    query = query.eq('campaign_type_resource_id', campaignTypeResourceId);
+  } else if (campaignResourceId) {
+    query = query.eq('campaign_resource_id', campaignResourceId);
+  } else {
+    throw new Error('Either campaignTypeResourceId or campaignResourceId is required');
+  }
 
-  return data?.find((r: any) => {
-    const name = r.campaign_type_resources?.resource_name ?? r.campaign_resources?.resource_name;
-    return name === resourceName;
-  }) ?? null;
+  const { data, error } = await query.single();
+  if (error) throw new Error(`Failed to look up gang resource: ${error.message}`);
+  return data ?? null;
 }
 
 export async function deductGangResource(
   supabase: SupabaseClient,
   campaignGangId: string,
   resourceName: string,
-  amount: number
+  amount: number,
+  campaignTypeResourceId?: string,
+  campaignResourceId?: string
 ): Promise<void> {
   if (amount <= 0) throw new Error('Resource amount must be greater than 0');
 
-  const resource = await findGangResourceByName(supabase, campaignGangId, resourceName);
+  const resource = await findGangResourceById(supabase, campaignGangId, campaignTypeResourceId, campaignResourceId);
 
   if (!resource) {
     throw new Error(`Resource "${resourceName}" not found for this gang`);
@@ -146,7 +150,9 @@ export async function returnGangResource(
   gangId: string,
   resourceName: string,
   amount: number,
-  campaignGangId?: string
+  campaignGangId?: string,
+  campaignTypeResourceId?: string,
+  campaignResourceId?: string
 ): Promise<boolean> {
   let resolvedCampaignGangId = campaignGangId;
   if (!resolvedCampaignGangId) {
@@ -161,7 +167,7 @@ export async function returnGangResource(
     resolvedCampaignGangId = campaignGang.id;
   }
 
-  const resource = await findGangResourceByName(supabase, resolvedCampaignGangId!, resourceName);
+  const resource = await findGangResourceById(supabase, resolvedCampaignGangId!, campaignTypeResourceId, campaignResourceId);
   if (!resource) return false;
 
   const { error } = await supabase
@@ -204,7 +210,7 @@ export async function deductGangReputation(
     .update({ reputation: current - amount })
     .eq('id', gangId)
     .gte('reputation', amount)
-    .select('gang_id');
+    .select('id');
 
   if (error) throw new Error(`Failed to deduct reputation: ${error.message}`);
   if (!data || data.length === 0) {

@@ -230,12 +230,15 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Return resource before deleting equipment (so resource isn't lost if return fails)
     if (isResourcePurchase) {
-      const costResource = equipmentData.cost_resource as { name: string; amount: number; campaign_gang_id?: string };
+      const costResource = equipmentData.cost_resource as {
+        name: string; amount: number; campaign_gang_id?: string;
+        campaign_type_resource_id?: string; campaign_resource_id?: string;
+      };
       try {
         if (costResource.name === REPUTATION_RESOURCE_NAME) {
           await returnGangReputation(supabase, gangId, costResource.amount);
         } else {
-          await returnGangResource(supabase, gangId, costResource.name, costResource.amount, costResource.campaign_gang_id);
+          await returnGangResource(supabase, gangId, costResource.name, costResource.amount, costResource.campaign_gang_id, costResource.campaign_type_resource_id, costResource.campaign_resource_id);
         }
       } catch (resourceError) {
         console.error('Failed to return resource on sell:', resourceError);
@@ -428,12 +431,15 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     }
 
     if (isResourcePurchaseStash) {
-      const costResource = row.cost_resource as { name: string; amount: number; campaign_gang_id?: string };
+      const costResource = row.cost_resource as {
+        name: string; amount: number; campaign_gang_id?: string;
+        campaign_type_resource_id?: string; campaign_resource_id?: string;
+      };
       try {
         if (costResource.name === REPUTATION_RESOURCE_NAME) {
           await returnGangReputation(supabase, row.gang_id, costResource.amount);
         } else {
-          await returnGangResource(supabase, row.gang_id, costResource.name, costResource.amount, costResource.campaign_gang_id);
+          await returnGangResource(supabase, row.gang_id, costResource.name, costResource.amount, costResource.campaign_gang_id, costResource.campaign_type_resource_id, costResource.campaign_resource_id);
         }
       } catch (resourceError) {
         console.error('Failed to return resource on stash sell:', resourceError);

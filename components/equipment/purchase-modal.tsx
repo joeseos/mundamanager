@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Modal from "@/components/ui/modal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { ImInfo } from "react-icons/im";
 import { Equipment, EquipmentGrants } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -19,7 +20,9 @@ interface PurchaseModalProps {
     equipmentTarget?: { target_equipment_id: string; effect_type_id: string },
     selectedGrantEquipmentIds?: string[],
     costResourceName?: string,
-    costResourceAmount?: number
+    costResourceAmount?: number,
+    costTypeResourceId?: string,
+    costCampaignResourceId?: string
   ) => void;
   isStashPurchase?: boolean;
   fighterId?: string;
@@ -50,8 +53,10 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [manualResourceAmount, setManualResourceAmount] = useState<string>(
     String(item.cost_resource_amount ?? 0)
   );
-  const resourceArgs = (): [string | undefined, number | undefined] =>
-    hasResourceCost ? [item.cost_resource_name!, Number(manualResourceAmount)] : [undefined, undefined];
+  const costResourceName = hasResourceCost ? item.cost_resource_name! : undefined;
+  const costResourceAmount = hasResourceCost ? Number(manualResourceAmount) : undefined;
+  const costTypeResourceId = hasResourceCost ? item.cost_type_resource_id ?? undefined : undefined;
+  const costCampaignResourceId = hasResourceCost ? item.cost_campaign_resource_id ?? undefined : undefined;
 
   const calculateMasterCraftedCost = (baseCost: number) => {
     // Increase by 25% and round up to nearest 5
@@ -92,13 +97,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         return false; // Don't close modal, show grants selection
       } else if (grants.selection_type === 'fixed') {
         // Fixed grants are handled server-side, proceed with purchase
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], ...resourceArgs());
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
         return true;
       }
     }
 
     // No grants selection needed
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], ...resourceArgs());
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
     return true;
   };
 
@@ -120,7 +125,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
     // If buying to stash, skip effect and grants selection entirely
     if (isStashPurchase) {
-      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, [], undefined, [], ...resourceArgs());
+      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, [], undefined, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
       return true;
     }
 
@@ -188,7 +193,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
       } catch (error) {
         console.error('Error checking effects:', error);
         // On error, proceed with purchase to avoid blocking the user
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, ...resourceArgs());
+        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
         return true;
       }
     }
@@ -196,7 +201,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     // Note: showTargetSelection, showEffectSelection, and showGrantsSelection are handled by separate modal render paths
     // If we reach here, it means no additional selection is needed
     // Just proceed with purchase
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, ...resourceArgs());
+    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
     return true; // Allow modal to close
   };
 
@@ -239,7 +244,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
-              onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData, [], ...resourceArgs());
+              onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
             }}
             onSelectionComplete={() => {
               // No-op; parent onConfirm is triggered by onApplyToTarget
@@ -383,7 +388,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             selectedEffectIds,
             undefined,
             selectedGrantIds,
-            ...resourceArgs()
+            costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId
           );
           return true;
         }}
@@ -435,18 +440,10 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     {item.cost_resource_name}
                   </label>
-                  <input
+                  <Input
                     type="number"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
                     value={manualResourceAmount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (/^\d*$/.test(val)) {
-                        setManualResourceAmount(val);
-                      }
-                    }}
-                    className="w-full p-2 border rounded-md"
+                    onChange={(e) => setManualResourceAmount(e.target.value)}
                     min="0"
                   />
                 </div>

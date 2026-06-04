@@ -57,6 +57,8 @@ interface BuyEquipmentParams {
   cost_resource_name?: string;
   cost_resource_amount?: number;
   campaign_gang_id?: string;
+  cost_type_resource_id?: string;
+  cost_campaign_resource_id?: string;
 }
 
 interface DeleteEquipmentParams {
@@ -377,7 +379,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         if (!campaignGang) {
           throw new Error('Invalid campaign_gang_id for this gang');
         }
-        await deductGangResource(supabase, params.campaign_gang_id, params.cost_resource_name!, params.cost_resource_amount!);
+        await deductGangResource(supabase, params.campaign_gang_id, params.cost_resource_name!, params.cost_resource_amount!, params.cost_type_resource_id, params.cost_campaign_resource_id);
       }
     } else {
       // Check gang credits (only for non-resource purchases)
@@ -385,6 +387,16 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits}`);
       }
     }
+
+    const costResourcePayload = isResourcePurchase
+      ? { cost_resource: {
+          name: params.cost_resource_name,
+          amount: params.cost_resource_amount,
+          ...(params.campaign_gang_id && { campaign_gang_id: params.campaign_gang_id }),
+          ...(params.cost_type_resource_id && { campaign_type_resource_id: params.cost_type_resource_id }),
+          ...(params.cost_campaign_resource_id && { campaign_resource_id: params.cost_campaign_resource_id }),
+        }}
+      : {};
 
     // Insert equipment
     let newEquipmentId: string;
@@ -404,7 +416,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
           is_editable: equipmentDetails.is_editable || false,
-          ...(isResourcePurchase && { cost_resource: { name: params.cost_resource_name, amount: params.cost_resource_amount, ...(params.campaign_gang_id && { campaign_gang_id: params.campaign_gang_id }) } })
+          ...costResourcePayload
         })
         .select('id')
         .single();
@@ -427,7 +439,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
           is_editable: equipmentDetails.is_editable || false,
-          ...(isResourcePurchase && { cost_resource: { name: params.cost_resource_name, amount: params.cost_resource_amount, ...(params.campaign_gang_id && { campaign_gang_id: params.campaign_gang_id }) } })
+          ...costResourcePayload
         })
         .select('id')
         .single();

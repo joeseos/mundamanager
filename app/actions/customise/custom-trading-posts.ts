@@ -179,7 +179,8 @@ export async function deleteCustomTradingPost(
 
 const TP_EQUIPMENT_SELECT = `
   id, custom_trading_post_id, equipment_id, custom_equipment_id,
-  cost_override, cost_resource_name, availability_override, sort_order,
+  cost_override, cost_type_resource_id, cost_campaign_resource_id, cost_reputation, cost_resource_amount,
+  availability_override, sort_order,
   equipment:equipment_id (equipment_name, equipment_category),
   custom_equipment:custom_equipment_id (equipment_name, equipment_category)
 `;
@@ -194,7 +195,10 @@ function mapTPEquipmentRow(row: any): CustomTPEquipment {
     equipment_category: row.equipment?.equipment_category ?? row.custom_equipment?.equipment_category ?? '',
     is_custom: !!row.custom_equipment_id,
     cost_override: row.cost_override,
-    cost_resource_name: row.cost_resource_name ?? null,
+    cost_type_resource_id: row.cost_type_resource_id ?? null,
+    cost_campaign_resource_id: row.cost_campaign_resource_id ?? null,
+    cost_reputation: row.cost_reputation ?? false,
+    cost_resource_amount: row.cost_resource_amount ?? null,
     availability_override: row.availability_override,
     sort_order: row.sort_order,
   };
@@ -224,7 +228,10 @@ export interface CustomTPEquipment {
   equipment_category: string;
   is_custom: boolean;
   cost_override: number | null;
-  cost_resource_name: string | null;
+  cost_type_resource_id: string | null;
+  cost_campaign_resource_id: string | null;
+  cost_reputation: boolean;
+  cost_resource_amount: number | null;
   availability_override: string | null;
   sort_order: number | null;
 }
@@ -350,7 +357,10 @@ export async function updateTPEquipment(
   id: string,
   data: {
     cost_override?: number | null;
-    cost_resource_name?: string | null;
+    cost_type_resource_id?: string | null;
+    cost_campaign_resource_id?: string | null;
+    cost_reputation?: boolean;
+    cost_resource_amount?: number | null;
     availability_override?: string | null;
     sort_order?: number | null;
   }

@@ -69,6 +69,8 @@ interface RawEquipmentData {
   trading_post_names?: string[];
   cost_resource_name?: string | null;
   cost_resource_amount?: number | null;
+  cost_type_resource_id?: string | null;
+  cost_campaign_resource_id?: string | null;
 }
 
 interface Category {
@@ -895,7 +897,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, costResourceName, costResourceAmount) => {
+                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId) => {
                   purchaseEquipment({
                     item: buyModalData,
                     manualCost: cost,
@@ -906,6 +908,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     selectedGrantEquipmentIds: selectedGrantEquipmentIds || [],
                     costResourceName,
                     costResourceAmount,
+                    costTypeResourceId,
+                    costCampaignResourceId,
                   })
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
