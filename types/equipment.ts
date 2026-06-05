@@ -164,3 +164,18 @@ export interface CustomWeaponProfileData {
   traits?: string;
   sort_order?: number;
 }
+
+export interface CostResourcePayload {
+  name: string;
+  amount: number;
+  campaign_gang_id?: string;
+  campaign_type_resource_id?: string;
+  campaign_resource_id?: string;
+}
+
+export interface ResourceCost {
+  resourceName: string;
+  amount: number;
+  typeResourceId?: string;
+  campaignResourceId?: string;
+}

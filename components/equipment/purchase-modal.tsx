@@ -5,26 +5,25 @@ import Modal from "@/components/ui/modal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ImInfo } from "react-icons/im";
-import { Equipment, EquipmentGrants } from '@/types/equipment';
+import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
+
+export interface PurchaseConfirmOptions {
+  cost: number;
+  isMasterCrafted: boolean;
+  useBaseCostForRating: boolean;
+  selectedEffectIds?: string[];
+  equipmentTarget?: { target_equipment_id: string; effect_type_id: string };
+  selectedGrantEquipmentIds?: string[];
+  resourceCost?: ResourceCost;
+}
 
 interface PurchaseModalProps {
   item: Equipment;
   gangCredits: number;
   onClose: () => void;
-  onConfirm: (
-    cost: number,
-    isMasterCrafted: boolean,
-    useBaseCostForRating: boolean,
-    selectedEffectIds?: string[],
-    equipmentTarget?: { target_equipment_id: string; effect_type_id: string },
-    selectedGrantEquipmentIds?: string[],
-    costResourceName?: string,
-    costResourceAmount?: number,
-    costTypeResourceId?: string,
-    costCampaignResourceId?: string
-  ) => void;
+  onConfirm: (options: PurchaseConfirmOptions) => void;
   isStashPurchase?: boolean;
   fighterId?: string;
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
@@ -56,10 +55,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [manualResourceAmount, setManualResourceAmount] = useState<string>(
     String(item.cost_resource_amount ?? 0)
   );
-  const costResourceName = hasResourceCost ? item.cost_resource_name! : undefined;
-  const costResourceAmount = hasResourceCost ? Number(manualResourceAmount) : undefined;
-  const costTypeResourceId = hasResourceCost ? item.cost_type_resource_id ?? undefined : undefined;
-  const costCampaignResourceId = hasResourceCost ? item.cost_campaign_resource_id ?? undefined : undefined;
+
+  const resourceCost: ResourceCost | undefined = hasResourceCost
+    ? {
+        resourceName: item.cost_resource_name!,
+        amount: Number(manualResourceAmount),
+        typeResourceId: item.cost_type_resource_id ?? undefined,
+        campaignResourceId: item.cost_campaign_resource_id ?? undefined,
+      }
+    : undefined;
 
   const availableResourceQuantity = hasResourceCost
     ? item.cost_resource_name === 'Reputation'
@@ -109,13 +113,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         return false; // Don't close modal, show grants selection
       } else if (grants.selection_type === 'fixed') {
         // Fixed grants are handled server-side, proceed with purchase
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
+        onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds: effectIds, equipmentTarget, selectedGrantEquipmentIds: [], resourceCost });
         return true;
       }
     }
 
     // No grants selection needed
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, effectIds, equipmentTarget, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
+    onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds: effectIds, equipmentTarget, selectedGrantEquipmentIds: [], resourceCost });
     return true;
   };
 
@@ -140,7 +144,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
     // If buying to stash, skip effect and grants selection entirely
     if (isStashPurchase) {
-      onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, [], undefined, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
+      onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds: [], selectedGrantEquipmentIds: [], resourceCost });
       return true;
     }
 
@@ -208,7 +212,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
       } catch (error) {
         console.error('Error checking effects:', error);
         // On error, proceed with purchase to avoid blocking the user
-        onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
+        onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, selectedGrantEquipmentIds: selectedGrantIds, resourceCost });
         return true;
       }
     }
@@ -216,7 +220,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     // Note: showTargetSelection, showEffectSelection, and showGrantsSelection are handled by separate modal render paths
     // If we reach here, it means no additional selection is needed
     // Just proceed with purchase
-    onConfirm(parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, undefined, selectedGrantIds, costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
+    onConfirm({ cost: parsedCost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, selectedGrantEquipmentIds: selectedGrantIds, resourceCost });
     return true; // Allow modal to close
   };
 
@@ -259,7 +263,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
-              onConfirm(Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTargetData, [], costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId);
+              onConfirm({ cost: Number(manualCost), isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget: equipmentTargetData, selectedGrantEquipmentIds: [], resourceCost });
             }}
             onSelectionComplete={() => {
               // No-op; parent onConfirm is triggered by onApplyToTarget
@@ -396,15 +400,14 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         }
         onClose={onClose}
         onConfirm={() => {
-          onConfirm(
-            Number(manualCost),
+          onConfirm({
+            cost: Number(manualCost),
             isMasterCrafted,
             useBaseCostForRating,
             selectedEffectIds,
-            undefined,
-            selectedGrantIds,
-            costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId
-          );
+            selectedGrantEquipmentIds: selectedGrantIds,
+            resourceCost,
+          });
           return true;
         }}
         confirmText="Confirm Purchase"

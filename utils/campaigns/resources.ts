@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CostResourcePayload } from '@/types/equipment';
 
 export interface CampaignResource {
   id: string;
@@ -116,7 +117,6 @@ async function findGangResourceById(
 export async function deductGangResource(
   supabase: SupabaseClient,
   campaignGangId: string,
-  resourceName: string,
   amount: number,
   campaignTypeResourceId?: string,
   campaignResourceId?: string
@@ -126,10 +126,10 @@ export async function deductGangResource(
   const resource = await findGangResourceById(supabase, campaignGangId, campaignTypeResourceId, campaignResourceId);
 
   if (!resource) {
-    throw new Error(`Resource "${resourceName}" not found for this gang`);
+    throw new Error('Resource not found for this gang');
   }
   if (resource.quantity < amount) {
-    throw new Error(`Not enough ${resourceName}. Required: ${amount}, Available: ${resource.quantity}`);
+    throw new Error(`Not enough resource. Required: ${amount}, Available: ${resource.quantity}`);
   }
 
   const { data, error } = await supabase
@@ -141,34 +141,19 @@ export async function deductGangResource(
 
   if (error) throw new Error(`Failed to deduct resource: ${error.message}`);
   if (!data || data.length === 0) {
-    throw new Error(`Not enough ${resourceName} (concurrent modification)`);
+    throw new Error('Not enough resource (concurrent modification)');
   }
 }
 
 export async function returnGangResource(
   supabase: SupabaseClient,
-  gangId: string,
-  resourceName: string,
+  campaignGangId: string,
   amount: number,
-  campaignGangId?: string,
   campaignTypeResourceId?: string,
   campaignResourceId?: string
 ): Promise<void> {
-  let resolvedCampaignGangId = campaignGangId;
-  if (!resolvedCampaignGangId) {
-    const { data: campaignGang } = await supabase
-      .from('campaign_gangs')
-      .select('id')
-      .eq('gang_id', gangId)
-      .limit(1)
-      .single();
-
-    if (!campaignGang) throw new Error(`Campaign gang not found for gang ${gangId}`);
-    resolvedCampaignGangId = campaignGang.id;
-  }
-
-  const resource = await findGangResourceById(supabase, resolvedCampaignGangId!, campaignTypeResourceId, campaignResourceId);
-  if (!resource) throw new Error(`Resource "${resourceName}" not found for this gang`);
+  const resource = await findGangResourceById(supabase, campaignGangId, campaignTypeResourceId, campaignResourceId);
+  if (!resource) throw new Error('Resource not found for this gang');
 
   const { error } = await supabase
     .from('campaign_gang_resources')
@@ -179,6 +164,21 @@ export async function returnGangResource(
 }
 
 export const REPUTATION_RESOURCE_NAME = 'Reputation';
+
+export async function returnCostResource(
+  supabase: SupabaseClient,
+  gangId: string,
+  costResource: CostResourcePayload
+): Promise<void> {
+  if (costResource.name === REPUTATION_RESOURCE_NAME) {
+    await returnGangReputation(supabase, gangId, costResource.amount);
+  } else {
+    if (!costResource.campaign_gang_id) {
+      throw new Error('Missing campaign_gang_id in stored resource data');
+    }
+    await returnGangResource(supabase, costResource.campaign_gang_id, costResource.amount, costResource.campaign_type_resource_id, costResource.campaign_resource_id);
+  }
+}
 
 export async function deductGangReputation(
   supabase: SupabaseClient,

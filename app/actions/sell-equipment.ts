@@ -8,7 +8,8 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
-import { returnGangResource, returnGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
+import { returnCostResource } from '@/utils/campaigns/resources';
+import type { CostResourcePayload } from '@/types/equipment';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -229,16 +230,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     }
 
     if (isResourcePurchase) {
-      const costResource = equipmentData.cost_resource as {
-        name: string; amount: number; campaign_gang_id?: string;
-        campaign_type_resource_id?: string; campaign_resource_id?: string;
-      };
       try {
-        if (costResource.name === REPUTATION_RESOURCE_NAME) {
-          await returnGangReputation(supabase, gangId, costResource.amount);
-        } else {
-          await returnGangResource(supabase, gangId, costResource.name, costResource.amount, costResource.campaign_gang_id, costResource.campaign_type_resource_id, costResource.campaign_resource_id);
-        }
+        await returnCostResource(supabase, gangId, equipmentData.cost_resource as CostResourcePayload);
       } catch (resourceError) {
         return { success: false, error: 'Failed to return resource — item not sold. Please try again.' };
       }
@@ -434,16 +427,8 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     }
 
     if (isResourcePurchaseStash) {
-      const costResource = row.cost_resource as {
-        name: string; amount: number; campaign_gang_id?: string;
-        campaign_type_resource_id?: string; campaign_resource_id?: string;
-      };
       try {
-        if (costResource.name === REPUTATION_RESOURCE_NAME) {
-          await returnGangReputation(supabase, row.gang_id, costResource.amount);
-        } else {
-          await returnGangResource(supabase, row.gang_id, costResource.name, costResource.amount, costResource.campaign_gang_id, costResource.campaign_type_resource_id, costResource.campaign_resource_id);
-        }
+        await returnCostResource(supabase, row.gang_id, row.cost_resource as CostResourcePayload);
       } catch (resourceError) {
         return { success: false, error: 'Failed to return resource — item not sold. Please try again.' };
       }

@@ -1,7 +1,7 @@
 'use client';
 
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
-import { Equipment } from '@/types/equipment';
+import { Equipment, ResourceCost } from '@/types/equipment';
 import { toast } from 'sonner';
 
 // This is for the wrapper function to inject dependencies from the parent component.
@@ -35,10 +35,7 @@ export interface PurchaseEquipmentInput {
   selectedEffectIds?: string[];
   equipmentTarget?: EquipmentTarget;
   selectedGrantEquipmentIds?: string[];
-  costResourceName?: string;
-  costResourceAmount?: number;
-  costTypeResourceId?: string;
-  costCampaignResourceId?: string;
+  resourceCost?: ResourceCost;
 }
 
 export interface BuyEquipmentPayload {
@@ -55,11 +52,8 @@ export interface BuyEquipmentPayload {
   equipment_target?: EquipmentTarget;
   listed_cost?: number;
   selected_grant_equipment_ids?: string[];
-  cost_resource_name?: string;
-  cost_resource_amount?: number;
+  resourceCost?: ResourceCost;
   campaign_gang_id?: string;
-  cost_type_resource_id?: string;
-  cost_campaign_resource_id?: string;
 }
 
 export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
@@ -73,10 +67,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
     selectedEffectIds = [],
     equipmentTarget,
     selectedGrantEquipmentIds = [],
-    costResourceName,
-    costResourceAmount,
-    costTypeResourceId,
-    costCampaignResourceId,
+    resourceCost,
   }: PurchaseEquipmentInput) => {
     const {
       session,
@@ -120,12 +111,9 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         selected_grant_equipment_ids: selectedGrantEquipmentIds,
       }),
 
-      ...(costResourceName && costResourceAmount != null && {
-        cost_resource_name: costResourceName,
-        cost_resource_amount: costResourceAmount,
+      ...(resourceCost && {
+        resourceCost,
         campaign_gang_id: campaignGangId,
-        ...(costTypeResourceId && { cost_type_resource_id: costTypeResourceId }),
-        ...(costCampaignResourceId && { cost_campaign_resource_id: costCampaignResourceId }),
       }),
     };
 
@@ -173,8 +161,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       const displayName = equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
         ? `${item.equipment_name} (Master-crafted)`
         : item.equipment_name;
-      const costDescription = costResourceName
-        ? `${costResourceAmount} ${costResourceName}`
+      const costDescription = resourceCost
+        ? `${resourceCost.amount} ${resourceCost.resourceName}`
         : `${serverPurchaseCost} credits`;
       toast.success('Equipment purchased', {
         description: `Successfully bought ${displayName} for ${costDescription}`,

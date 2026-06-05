@@ -901,7 +901,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, costResourceName, costResourceAmount, costTypeResourceId, costCampaignResourceId) => {
+                onConfirm={({ cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, resourceCost }) => {
                   purchaseEquipment({
                     item: buyModalData,
                     manualCost: cost,
@@ -910,10 +910,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     selectedEffectIds: selectedEffectIds || [],
                     equipmentTarget,
                     selectedGrantEquipmentIds: selectedGrantEquipmentIds || [],
-                    costResourceName,
-                    costResourceAmount,
-                    costTypeResourceId,
-                    costCampaignResourceId,
+                    resourceCost,
                   })
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
