@@ -255,6 +255,14 @@ const ALL_SKILL_ACQUISITION_TYPE_IDS = [
   'any_random'
 ] as const;
 
+// Legendary Names use separate acquisition type IDs returned by `get_available_skills`
+// (not primary/secondary/any). See the `legendary_name = TRUE` branch in that function.
+const LEGENDARY_SKILL_ACQUISITION_TYPE_IDS = ['selected', 'random'] as const;
+
+function isLegendaryAcquisitionTypeId(typeId: string): boolean {
+  return (LEGENDARY_SKILL_ACQUISITION_TYPE_IDS as readonly string[]).includes(typeId);
+}
+
 function getAcquisitionTypeIdsForAccess(
   level: 'primary' | 'secondary' | 'allowed' | null
 ): string[] {
@@ -272,6 +280,21 @@ function getAcquisitionTypeIdsForAccess(
       // No access: caller is expected to display a warning and offer all options
       return [...ALL_SKILL_ACQUISITION_TYPE_IDS];
   }
+}
+
+/**
+ * Resolves which acquisition type IDs to offer for the selected skill set.
+ * Legendary Names bypass access-level filtering and use their own `selected` / `random` types.
+ */
+function getAllowedAcquisitionTypeIds(
+  accessLevel: 'primary' | 'secondary' | 'allowed' | null,
+  availableTypes: AcquisitionType[]
+): string[] {
+  const availableIds = availableTypes.map((t) => t.type_id);
+  if (availableIds.some(isLegendaryAcquisitionTypeId)) {
+    return availableIds.filter(isLegendaryAcquisitionTypeId);
+  }
+  return getAcquisitionTypeIdsForAccess(accessLevel);
 }
 
 const GANGER_ADVANCEMENT_TABLE_LABEL = 'Ganger / Exotic Beast Advancement';
@@ -1325,7 +1348,7 @@ export function AdvancementModal({
     );
     const allTypes = sample?.available_acquisition_types ?? [];
     if (allTypes.length === 0) return [];
-    const allowedIds = new Set(getAcquisitionTypeIdsForAccess(selectedSkillSetAccess));
+    const allowedIds = new Set(getAllowedAcquisitionTypeIds(selectedSkillSetAccess, allTypes));
     return allTypes
       .filter((t) => allowedIds.has(t.type_id))
       .sort((a, b) => a.xp_cost - b.xp_cost)
@@ -1354,7 +1377,8 @@ export function AdvancementModal({
     });
   }, [advancementType, availableAdvancements]);
 
-  const isRandomAcquisitionType = skillAcquisitionType.endsWith('_random');
+  const isRandomAcquisitionType =
+    skillAcquisitionType === 'random' || skillAcquisitionType.endsWith('_random');
 
   const applyAcquisitionTypeSelection = useCallback(
     (typeId: string) => {
