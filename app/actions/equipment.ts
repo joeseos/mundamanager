@@ -726,7 +726,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         oldWealth: financialResult.oldValues?.wealth,
         newCredits: financialResult.newValues?.credits,
         newRating: financialResult.newValues?.rating,
-        newWealth: financialResult.newValues?.wealth
+        newWealth: financialResult.newValues?.wealth,
+        ...(isResourcePurchase && params.resourceCost && {
+          resource_cost_name: params.resourceCost.resourceName,
+          resource_cost_amount: params.resourceCost.amount
+        })
       });
     } catch (logError) {
       console.error('Failed to log equipment action:', logError);

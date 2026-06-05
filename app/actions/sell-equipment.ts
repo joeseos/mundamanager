@@ -284,11 +284,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         oldWealth: financialResult.oldValues?.wealth,
         newCredits: financialResult.newValues?.credits,
         newRating: financialResult.newValues?.rating,
-        newWealth: financialResult.newValues?.wealth
+        newWealth: financialResult.newValues?.wealth,
+        ...(isResourcePurchase && equipmentData.cost_resource && {
+          resource_cost_name: (equipmentData.cost_resource as any).name,
+          resource_cost_amount: (equipmentData.cost_resource as any).amount
+        })
       });
     } catch (logError) {
       console.error('Failed to log equipment sale:', logError);
-      // Don't fail the main operation for logging errors
     }
 
     if (isResourcePurchase) {

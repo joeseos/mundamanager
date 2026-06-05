@@ -15,6 +15,7 @@ import { MdCurrencyExchange, MdOutlineLinkOff } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
 import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
+import { Tooltip } from 'react-tooltip';
 import { Equipment } from '@/types/equipment';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,8 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const [manualCost, setManualCost] = useState(item.cost);
+  const isResourceItem = !!item.cost_resource_name;
+  const [manualCost, setManualCost] = useState(isResourceItem ? (item.cost_resource_amount ?? 0) : item.cost);
 
   return (
     <Modal
@@ -52,7 +54,7 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Cost
+                {isResourceItem ? item.cost_resource_name : 'Cost'}
               </label>
               <input
                 type="number"
@@ -592,7 +594,10 @@ export function VehicleEquipmentList({
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits` });
+        const costText = item.cost_resource_name
+          ? `${item.cost_resource_amount} ${item.cost_resource_name}`
+          : `${serverPurchaseCost} credits`;
+        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
       } catch (err) {
         // Rollback
         onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
@@ -684,7 +689,10 @@ export function VehicleEquipmentList({
       const reconciledGangCredits = result.data?.gang?.credits ?? optimisticGangCredits;
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, reconciledGangCredits);
       
-      toast.success("Success", { description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits` });
+      const sellDesc = equipmentToSell.cost_resource_name
+        ? `Returned ${manualCost} ${equipmentToSell.cost_resource_name}`
+        : `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits`;
+      toast.success("Success", { description: sellDesc });
       setSellModalData(null);
     } catch (error) {
       // Rollback
@@ -834,6 +842,8 @@ export function VehicleEquipmentList({
       slot: slot,
       hardpoint_location: hardpointLocation,
       is_consumable: item.is_consumable,
+      cost_resource_name: item.cost_resource_name,
+      cost_resource_amount: item.cost_resource_amount,
       _equipment: item as Equipment
     };
   });
@@ -886,7 +896,24 @@ export function VehicleEquipmentList({
           {
             key: 'cost',
             label: 'Cost',
-            align: 'right'
+            align: 'right',
+            render: (value: number, item: { cost_resource_name?: string | null; cost_resource_amount?: number | null }) => {
+              if (item.cost_resource_name && item.cost_resource_amount != null) {
+                return (
+                  <div className="flex items-center justify-end gap-1">
+                    <div
+                      className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
+                      data-tooltip-id="resource-cost-tooltip"
+                      data-tooltip-html={item.cost_resource_name!.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                    >
+                      <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
+                    </div>
+                    <span>{value}</span>
+                  </div>
+                );
+              }
+              return value;
+            }
           }
         ]}
         actions={[
@@ -1021,6 +1048,17 @@ export function VehicleEquipmentList({
       )}
 
       <EquipmentTooltip />
+      <Tooltip
+        id="resource-cost-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '24rem'
+        }}
+      />
     </>
   );
-} 
+}

@@ -217,7 +217,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       effect_names: item.effect_names,
       loadout_ids: item.loadout_ids,
       is_consumable: item.is_consumable,
-      // Attach a per-row breakdown for Exotic Beast equipment so the UI can render a tooltip
+      cost_resource_name: item.cost_resource?.name ?? null,
+      cost_resource_amount: item.cost_resource?.amount ?? null,
       beast_cost_breakdown: isBeastEquipment ? {
         base: item.purchase_cost,
         advancements: advancementsBeastCost,
@@ -241,7 +242,9 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
     vehicle_equipment_id: item.vehicle_weapon_id || item.id,
     weapon_profiles: item.weapon_profiles,
-    is_consumable: item.is_consumable
+    is_consumable: item.is_consumable,
+    cost_resource_name: item.cost_resource?.name ?? null,
+    cost_resource_amount: item.cost_resource?.amount ?? null
   }));
 
   // Preserve all effects from server, with defaults for required categories

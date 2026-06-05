@@ -35,6 +35,7 @@ export interface StashItem {
   equipment_category?: string;
   equipment_id?: string;
   custom_equipment_id?: string;
+  cost_resource?: { name: string; amount: number } | null;
 }
 
 export interface DefaultImageCredit {

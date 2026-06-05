@@ -87,13 +87,15 @@ interface SellModalProps {
 }
 
 function SellModal({ item, onClose, onConfirm }: SellModalProps) {
+  const isResourceItem = !!item.cost_resource_name;
   // Exotic Beasts' sale value excludes advancements (only base cost + beast equipment counts)
-  const originalCost = item.beast_cost_breakdown
-    ? item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment
-    : item.cost ?? 0;
+  const originalCost = isResourceItem
+    ? (item.cost_resource_amount ?? 0)
+    : item.beast_cost_breakdown
+      ? item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment
+      : item.cost ?? 0;
   const [manualCost, setManualCost] = useState(originalCost);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
-  
 
   const handleRoll = () => {
     const r = rollD6();
@@ -110,29 +112,30 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
       content={
         <div className="space-y-4">
           <p>Are you sure you want to sell {item.equipment_name}?</p>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleRoll}
-              className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
-            >
-              Roll D6
-            </button>
-            {lastRoll !== null && (
-              <div className="text-sm">
-                {(() => {
-                  const raw = originalCost - lastRoll * 10;
-                  const final = Math.max(5, raw);
-                  return `Roll ${lastRoll}: -${lastRoll * 10} → ${final} credits`;
-                })()}
-              </div>
-            )}
-          </div>
-
+          {!isResourceItem && (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleRoll}
+                className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+              >
+                Roll D6
+              </button>
+              {lastRoll !== null && (
+                <div className="text-sm">
+                  {(() => {
+                    const raw = originalCost - lastRoll * 10;
+                    const final = Math.max(5, raw);
+                    return `Roll ${lastRoll}: -${lastRoll * 10} → ${final} credits`;
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Cost
+                {isResourceItem ? item.cost_resource_name : 'Cost'}
               </label>
               <input
                 type="number"
@@ -143,11 +146,13 @@ function SellModal({ item, onClose, onConfirm }: SellModalProps) {
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
+          {!isResourceItem && (
+            <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
+          )}
         </div>
       }
       onClose={onClose}
-      onConfirm={() => { onConfirm(Number(manualCost) || 0); return true; }}
+      onConfirm={() => { onConfirm(isResourceItem ? 0 : (Number(manualCost) || 0)); return true; }}
     />
   );
 }
@@ -239,7 +244,10 @@ export function WeaponList({
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
-        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${serverPurchaseCost} credits` });
+        const costText = item.cost_resource_name
+          ? `${item.cost_resource_amount} ${item.cost_resource_name}`
+          : `${serverPurchaseCost} credits`;
+        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
 
         // Target selection handled pre-purchase via the existing purchase modal flow
       } catch (err) {
@@ -336,8 +344,11 @@ export function WeaponList({
 
       const reconciledGangCredits = result.data?.gang?.credits ?? optimisticGangCredits;
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, reconciledGangCredits);
-      
-      toast.success("Success", { description: `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits` });
+
+      const sellDesc = equipmentToSell.cost_resource_name
+        ? `Returned ${manualCost} ${equipmentToSell.cost_resource_name}`
+        : `Sold ${equipmentToSell.equipment_name} for ${manualCost || 0} credits`;
+      toast.success("Success", { description: sellDesc });
     } catch (error) {
       // Rollback
       onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
@@ -730,17 +741,28 @@ export function WeaponList({
           </EquipmentTooltipTrigger>
         </td>
         <td className="px-1 py-1 text-right">
-          {item.beast_cost_breakdown ? (
-            <span
-              className={`${isChild ? "text-sm" : ""} ${mutedClass} cursor-help`}
-              data-tooltip-id="exotic-beast-cost-tooltip"
-              data-tooltip-html={buildBeastCostTooltipHtml(item.beast_cost_breakdown)}
-            >
-              {item.cost}*
-            </span>
-          ) : (
-            <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.cost ?? '-'}</span>
-          )}
+          <div className="flex items-center justify-end gap-1">
+            {item.cost_resource_name && item.cost_resource_amount != null && (
+              <div
+                className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
+                data-tooltip-id="exotic-beast-cost-tooltip"
+                data-tooltip-html={escapeHtml(item.cost_resource_name)}
+              >
+                <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
+              </div>
+            )}
+            {item.beast_cost_breakdown ? (
+              <span
+                className={`${isChild ? "text-sm" : ""} ${mutedClass} cursor-help`}
+                data-tooltip-id="exotic-beast-cost-tooltip"
+                data-tooltip-html={buildBeastCostTooltipHtml(item.beast_cost_breakdown)}
+              >
+                {item.cost}*
+              </span>
+            ) : (
+              <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>{item.cost ?? '-'}</span>
+            )}
+          </div>
         </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
