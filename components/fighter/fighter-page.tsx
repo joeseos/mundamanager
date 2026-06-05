@@ -129,6 +129,7 @@ interface Fighter {
 interface Gang {
   id: string;
   credits: number;
+  reputation?: number;
   positioning?: Record<number, string>;
   gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
@@ -216,7 +217,8 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       effect_names: item.effect_names,
       loadout_ids: item.loadout_ids,
       is_consumable: item.is_consumable,
-      // Attach a per-row breakdown for Exotic Beast equipment so the UI can render a tooltip
+      cost_resource_name: item.cost_resource?.name ?? null,
+      cost_resource_amount: item.cost_resource?.amount ?? null,
       beast_cost_breakdown: isBeastEquipment ? {
         base: item.purchase_cost,
         advancements: advancementsBeastCost,
@@ -240,7 +242,9 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     vehicle_id: fighterData.fighter?.vehicles?.[0]?.id,
     vehicle_equipment_id: item.vehicle_weapon_id || item.id,
     weapon_profiles: item.weapon_profiles,
-    is_consumable: item.is_consumable
+    is_consumable: item.is_consumable,
+    cost_resource_name: item.cost_resource?.name ?? null,
+    cost_resource_amount: item.cost_resource?.amount ?? null
   }));
 
   // Preserve all effects from server, with defaults for required categories
@@ -332,6 +336,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     gang: {
       id: fighterData.gang.id,
       credits: fighterData.gang.credits,
+      reputation: fighterData.gang.reputation,
       gang_type_id: fighterData.gang.gang_type_id,
       custom_gang_type_id: fighterData.gang.custom_gang_type_id,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
@@ -637,6 +642,16 @@ export default function FighterPage({
         )
       };
     });
+
+  const campaigns = fighterData.fighter?.campaigns || [];
+  const campaignProps = campaigns.length > 0 ? {
+    campaignTradingPostIds: campaigns.find((c: any) => c.trading_posts !== undefined)?.trading_posts || [],
+    campaignTradingPostNames: campaigns.find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [],
+    campaignCustomTradingPostIds: campaigns.find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [],
+    campaignCustomTradingPostNames: campaigns.find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [],
+    campaignGangId: campaigns[0]?.campaign_gang_id as string | undefined,
+    gangCampaignResources: campaigns[0]?.resources,
+  } : {};
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -1347,18 +1362,8 @@ export default function FighterPage({
               fighterLegacyName={(fighterData as any)?.fighter?.fighter_gang_legacy?.name}
               isCustomFighter={Boolean((fighterData as any)?.fighter?.custom_fighter_type_id)}
               fighterWeapons={(fighterData.equipment || []).filter(eq => eq.equipment_type === 'weapon').map(eq => ({ id: eq.fighter_equipment_id, name: eq.equipment_name, equipment_category: eq.equipment_category, effect_names: eq.effect_names }))}
-              campaignTradingPostIds={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_posts || [])
-                : undefined}
-              campaignTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
-                : undefined}
-              campaignCustomTradingPostIds={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [])
-                : undefined}
-              campaignCustomTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
-                : undefined}
+              {...campaignProps}
+              gangReputation={fighterData.gang?.reputation}
               onPurchaseRequest={(payload) => { purchaseHandlerRef.current?.(payload); }}
             />
           )}
@@ -1378,18 +1383,8 @@ export default function FighterPage({
               vehicleTypeId={vehicle.vehicle_type_id}
               isVehicleEquipment={true}
               allowedCategories={VEHICLE_EQUIPMENT_CATEGORIES}
-              campaignTradingPostIds={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_posts || [])
-                : undefined}
-              campaignTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
-                : undefined}
-              campaignCustomTradingPostIds={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [])
-                : undefined}
-              campaignCustomTradingPostNames={(fighterData.fighter.campaigns || []).length > 0
-                ? ((fighterData.fighter.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
-                : undefined}
+              {...campaignProps}
+              gangReputation={fighterData.gang?.reputation}
               onPurchaseRequest={(payload) => { vehiclePurchaseHandlerRef.current?.(payload); }}
             />
           )}

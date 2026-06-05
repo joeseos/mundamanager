@@ -83,6 +83,7 @@ export interface GangStashItem {
   equipment_category: string;
   cost: number;
   type: 'equipment';
+  cost_resource?: { name: string; amount: number } | null;
 }
 
 export interface GangCampaignResource {
@@ -353,6 +354,7 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
           equipment_id,
           custom_equipment_id,
           purchase_cost,
+          cost_resource,
           equipment:equipment_id (
             equipment_name,
             equipment_type,
@@ -378,7 +380,8 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
         equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
         equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
         cost: item.purchase_cost,
-        type: 'equipment' as const
+        type: 'equipment' as const,
+        cost_resource: item.cost_resource ?? null
       }));
     },
     [`gang-stash-${gangId}`],

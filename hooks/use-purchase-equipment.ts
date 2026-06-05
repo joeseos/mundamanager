@@ -1,7 +1,7 @@
 'use client';
 
 import { buyEquipmentForFighter } from '@/app/actions/equipment';
-import { Equipment } from '@/types/equipment';
+import { Equipment, ResourceCost } from '@/types/equipment';
 import { toast } from 'sonner';
 
 // This is for the wrapper function to inject dependencies from the parent component.
@@ -13,6 +13,7 @@ export interface PurchaseEquipmentContext {
   isVehicleEquipment?: boolean;
   isStashMode?: boolean;
   fighterCredits: number;
+  campaignGangId?: string;
   onEquipmentBought?: (
     newFighterCredits: number,
     newGangCredits: number,
@@ -34,6 +35,7 @@ export interface PurchaseEquipmentInput {
   selectedEffectIds?: string[];
   equipmentTarget?: EquipmentTarget;
   selectedGrantEquipmentIds?: string[];
+  resourceCost?: ResourceCost;
 }
 
 export interface BuyEquipmentPayload {
@@ -50,6 +52,8 @@ export interface BuyEquipmentPayload {
   equipment_target?: EquipmentTarget;
   listed_cost?: number;
   selected_grant_equipment_ids?: string[];
+  resourceCost?: ResourceCost;
+  campaign_gang_id?: string;
 }
 
 export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
@@ -63,6 +67,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
     selectedEffectIds = [],
     equipmentTarget,
     selectedGrantEquipmentIds = [],
+    resourceCost,
   }: PurchaseEquipmentInput) => {
     const {
       session,
@@ -75,6 +80,7 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       onEquipmentBought,
       onPurchaseRequest,
       closePurchaseModal,
+      campaignGangId,
     } = deps;
 
     if (!session) return;
@@ -103,6 +109,11 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
 
       ...(selectedGrantEquipmentIds.length > 0 && {
         selected_grant_equipment_ids: selectedGrantEquipmentIds,
+      }),
+
+      ...(resourceCost && {
+        resourceCost,
+        campaign_gang_id: campaignGangId,
       }),
     };
 
@@ -147,12 +158,14 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         newGangWealth
       );
 
+      const displayName = equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
+        ? `${item.equipment_name} (Master-crafted)`
+        : item.equipment_name;
+      const costDescription = resourceCost
+        ? `${resourceCost.amount} ${resourceCost.resourceName}`
+        : `${serverPurchaseCost} credits`;
       toast.success('Equipment purchased', {
-        description: `Successfully bought ${
-          equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'
-            ? `${item.equipment_name} (Master-crafted)`
-            : item.equipment_name
-        } for ${serverPurchaseCost} credits`,
+        description: `Successfully bought ${displayName} for ${costDescription}`,
       });
 
       closePurchaseModal?.();

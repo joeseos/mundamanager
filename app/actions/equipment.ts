@@ -20,9 +20,10 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { EquipmentGrants } from '@/types/equipment';
+import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { clearHardpointReference } from './vehicle-hardpoints';
+import { deductGangResource, deductGangReputation, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -53,6 +54,8 @@ interface BuyEquipmentParams {
   target_equipment_id?: string;
   listed_cost?: number;
   selected_grant_equipment_ids?: string[];
+  resourceCost?: ResourceCost;
+  campaign_gang_id?: string;
 }
 
 interface DeleteEquipmentParams {
@@ -355,10 +358,60 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       ratingCost = Math.ceil((ratingCost * 1.25) / 5) * 5;
     }
 
-    // Check gang credits
-    if (finalPurchaseCost > 0 && gang.credits < finalPurchaseCost) {
-      throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits}`);
+    // Resource-based purchase validation
+    const isResourcePurchase = Boolean(params.resourceCost && params.resourceCost.amount > 0);
+    if (!isResourcePurchase) {
+      if (finalPurchaseCost > 0 && gang.credits < finalPurchaseCost) {
+        throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits}`);
+      }
+    } else {
+      // Validate resource amount against configured trading post cost
+      const equipmentIdField = params.equipment_id ? 'equipment_id' : 'custom_equipment_id';
+      const equipmentIdValue = params.equipment_id || params.custom_equipment_id;
+      let tpQuery = supabase
+        .from('custom_trading_post_equipment')
+        .select('cost_resource_amount')
+        .eq(equipmentIdField, equipmentIdValue);
+
+      if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
+        tpQuery = tpQuery.eq('cost_reputation', true);
+      } else {
+        if (!params.campaign_gang_id) {
+          throw new Error('campaign_gang_id is required for resource-based purchases');
+        }
+        const { data: campaignGang } = await supabase
+          .from('campaign_gangs')
+          .select('id')
+          .eq('id', params.campaign_gang_id)
+          .eq('gang_id', params.gang_id)
+          .single();
+        if (!campaignGang) {
+          throw new Error('Invalid campaign_gang_id for this gang');
+        }
+
+        if (params.resourceCost!.typeResourceId) {
+          tpQuery = tpQuery.eq('cost_type_resource_id', params.resourceCost!.typeResourceId);
+        } else if (params.resourceCost!.campaignResourceId) {
+          tpQuery = tpQuery.eq('cost_campaign_resource_id', params.resourceCost!.campaignResourceId);
+        }
+      }
+
+      const { data: tpItem } = await tpQuery.maybeSingle();
+      if (tpItem?.cost_resource_amount != null &&
+          params.resourceCost!.amount !== Number(tpItem.cost_resource_amount)) {
+        throw new Error('Resource amount does not match configured cost');
+      }
     }
+
+    const costResourcePayload: { cost_resource?: CostResourcePayload } = isResourcePurchase
+      ? { cost_resource: {
+          name: params.resourceCost!.resourceName,
+          amount: params.resourceCost!.amount,
+          ...(params.campaign_gang_id && { campaign_gang_id: params.campaign_gang_id }),
+          ...(params.resourceCost!.typeResourceId && { campaign_type_resource_id: params.resourceCost!.typeResourceId }),
+          ...(params.resourceCost!.campaignResourceId && { campaign_resource_id: params.resourceCost!.campaignResourceId }),
+        }}
+      : {};
 
     // Insert equipment
     let newEquipmentId: string;
@@ -377,7 +430,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           gang_stash: true,
           user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
-          is_editable: equipmentDetails.is_editable || false
+          is_editable: equipmentDetails.is_editable || false,
+          ...costResourcePayload
         })
         .select('id')
         .single();
@@ -399,7 +453,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           purchase_cost: ratingCost,
           user_id: gang.user_id,
           is_master_crafted: equipmentDetails.equipment_type === 'weapon' && params.master_crafted,
-          is_editable: equipmentDetails.is_editable || false
+          is_editable: equipmentDetails.is_editable || false,
+          ...costResourcePayload
         })
         .select('id')
         .single();
@@ -408,6 +463,20 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         throw new Error(`Failed to add equipment: ${equipError.message}`);
       }
       newEquipmentId = fighterEquip.id;
+    }
+
+    // Deduct resource after successful insert to avoid losing resources on insert failure
+    if (isResourcePurchase) {
+      try {
+        if (params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME) {
+          await deductGangReputation(supabase, params.gang_id, params.resourceCost!.amount);
+        } else {
+          await deductGangResource(supabase, params.campaign_gang_id!, params.resourceCost!.amount, params.resourceCost!.typeResourceId, params.resourceCost!.campaignResourceId);
+        }
+      } catch (err) {
+        await supabase.from('fighter_equipment').delete().eq('id', newEquipmentId);
+        throw err;
+      }
     }
 
     // Initialize rating deltas
@@ -631,7 +700,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
-      creditsDelta: -finalPurchaseCost - grantsRatingDelta,
+      creditsDelta: isResourcePurchase ? 0 : -finalPurchaseCost - grantsRatingDelta,
       stashValueDelta
     });
 
@@ -657,7 +726,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         oldWealth: financialResult.oldValues?.wealth,
         newCredits: financialResult.newValues?.credits,
         newRating: financialResult.newValues?.rating,
-        newWealth: financialResult.newValues?.wealth
+        newWealth: financialResult.newValues?.wealth,
+        ...(isResourcePurchase && params.resourceCost && {
+          resource_cost_name: params.resourceCost.resourceName,
+          resource_cost_amount: params.resourceCost.amount
+        })
       });
     } catch (logError) {
       console.error('Failed to log equipment action:', logError);
@@ -684,6 +757,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       } catch (logError) {
         console.error('Failed to log granted equipment:', logError);
       }
+    }
+
+    if (isResourcePurchase) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id));
     }
 
     // Optimized cache invalidation - use granular approach

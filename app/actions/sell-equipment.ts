@@ -8,6 +8,8 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
+import { returnCostResource } from '@/utils/campaigns/resources';
+import type { CostResourcePayload } from '@/types/equipment';
 
 // Helper function to invalidate owner's cache when beast fighter is updated
 async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supabase: any) {
@@ -79,6 +81,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         equipment_id,
         custom_equipment_id,
         purchase_cost,
+        cost_resource,
         equipment:equipment_id (equipment_category)
       `)
       .eq('id', params.fighter_equipment_id)
@@ -166,8 +169,9 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Note: Authorization is enforced by RLS policies on fighter_equipment and gangs tables
 
-    // Determine sell value (manual or default to purchase cost)
-    const sellValue = params.manual_cost ?? equipmentData.purchase_cost ?? 0;
+    // Resource-purchased items: return resource, not credits
+    const isResourcePurchase = equipmentData.cost_resource && equipmentData.cost_resource.name;
+    const sellValue = isResourcePurchase ? 0 : (params.manual_cost ?? equipmentData.purchase_cost ?? 0);
 
     // Get equipment name for logging before deletion
     let equipmentName = 'Unknown Equipment';
@@ -225,7 +229,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    // Start transaction-like sequence: Delete equipment and update gang credits
+    // Delete equipment and update gang credits
     const { error: deleteError } = await supabase
       .from('fighter_equipment')
       .delete()
@@ -233,6 +237,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    }
+
+    if (isResourcePurchase) {
+      try {
+        await returnCostResource(supabase, gangId, equipmentData.cost_resource as CostResourcePayload);
+      } catch (resourceError) {
+        return { success: false, error: 'Equipment removed but failed to return resource. Please contact support.' };
+      }
     }
 
     // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
@@ -272,11 +284,18 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         oldWealth: financialResult.oldValues?.wealth,
         newCredits: financialResult.newValues?.credits,
         newRating: financialResult.newValues?.rating,
-        newWealth: financialResult.newValues?.wealth
+        newWealth: financialResult.newValues?.wealth,
+        ...(isResourcePurchase && equipmentData.cost_resource && {
+          resource_cost_name: (equipmentData.cost_resource as any).name,
+          resource_cost_amount: (equipmentData.cost_resource as any).amount
+        })
       });
     } catch (logError) {
       console.error('Failed to log equipment sale:', logError);
-      // Don't fail the main operation for logging errors
+    }
+
+    if (isResourcePurchase) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId));
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
@@ -373,13 +392,14 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash, purchase_cost, equipment:equipment_id (equipment_category)')
+      .select('id, gang_id, gang_stash, purchase_cost, cost_resource, equipment:equipment_id (equipment_category)')
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
-    const sellValue = Math.floor(params.manual_cost || 0);
+    const isResourcePurchaseStash = row.cost_resource && (row.cost_resource as any).name;
+    const sellValue = isResourcePurchaseStash ? 0 : Math.floor(params.manual_cost || 0);
     const purchaseCost = row.purchase_cost || 0;
 
     // Query beast equipment cost before deletion (only for exotic beast equipment)
@@ -411,7 +431,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     // Update credits, rating and wealth using centralized helper
     // When selling from stash:
-    // - Credits increase by sellValue
+    // - Credits increase by sellValue (0 for resource purchases)
     // - Stash value decreases by purchaseCost + beastEquipmentCost
     const financialResult = await updateGangFinancials(supabase, {
       gangId: row.gang_id,
@@ -436,6 +456,18 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .delete()
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
+
+    if (isResourcePurchaseStash) {
+      try {
+        await returnCostResource(supabase, row.gang_id, row.cost_resource as CostResourcePayload);
+      } catch (resourceError) {
+        return { success: false, error: 'Equipment removed but failed to return resource. Please contact support.' };
+      }
+    }
+
+    if (isResourcePurchaseStash) {
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(row.gang_id));
+    }
 
     // Invalidate stash cache so UI refreshes
     invalidateGangStash({ gangId: row.gang_id, userId: user.id });

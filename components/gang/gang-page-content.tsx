@@ -600,6 +600,16 @@ export default function GangPageContent({
   gangData.onVehicleUpdate = handleVehicleUpdate;
   gangData.onFighterUpdate = handleFighterUpdate;
 
+  const gangCampaigns = gangData.processedData.campaigns || [];
+  const gangCampaignProps = gangCampaigns.length > 0 ? {
+    campaignTradingPostIds: gangCampaigns.find((c: any) => c.trading_posts !== undefined)?.trading_posts || [],
+    campaignTradingPostNames: gangCampaigns.find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [],
+    campaignCustomTradingPostIds: gangCampaigns.find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [],
+    campaignCustomTradingPostNames: gangCampaigns.find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [],
+    campaignGangId: gangCampaigns[0]?.campaign_gang_id as string | undefined,
+    gangCampaignResources: gangCampaigns[0]?.resources,
+  } : {};
+
   return (
     <FighterCardModalsProvider value={fighterCardModalsValue}>
       {/* Fighter card context modals */}
@@ -898,18 +908,8 @@ export default function GangPageContent({
           onGangRatingUpdate={handleGangRatingUpdate}
           onGangWealthUpdate={handleGangWealthUpdate}
           userPermissions={userPermissions}
-          campaignTradingPostIds={(gangData.processedData.campaigns || []).length > 0
-            ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_posts || [])
-            : undefined}
-          campaignTradingPostNames={(gangData.processedData.campaigns || []).length > 0
-            ? ((gangData.processedData.campaigns || []).find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [])
-            : undefined}
-          campaignCustomTradingPostIds={(gangData.processedData.campaigns || []).length > 0
-            ? ((gangData.processedData.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [])
-            : undefined}
-          campaignCustomTradingPostNames={(gangData.processedData.campaigns || []).length > 0
-            ? ((gangData.processedData.campaigns || []).find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [])
-            : undefined}
+          {...gangCampaignProps}
+          gangReputation={gangData.processedData.reputation}
           positioning={gangData.processedData.positioning}
         />
         <GangVehicles

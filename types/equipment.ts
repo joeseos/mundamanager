@@ -105,6 +105,10 @@ export interface Equipment {
   equipment_tradingpost?: boolean;
   trading_post_names?: string[];
   from_fighters_list?: boolean;
+  cost_resource_name?: string | null;
+  cost_resource_amount?: number | null;
+  cost_type_resource_id?: string | null;
+  cost_campaign_resource_id?: string | null;
   is_consumable?: boolean;
   // Cost breakdown for Exotic Beast equipment (base + advancements + equipment)
   beast_cost_breakdown?: {
@@ -159,4 +163,19 @@ export interface CustomWeaponProfileData {
   ammo: string;
   traits?: string;
   sort_order?: number;
+}
+
+export interface CostResourcePayload {
+  name: string;
+  amount: number;
+  campaign_gang_id?: string;
+  campaign_type_resource_id?: string;
+  campaign_resource_id?: string;
+}
+
+export interface ResourceCost {
+  resourceName: string;
+  amount: number;
+  typeResourceId?: string;
+  campaignResourceId?: string;
 }

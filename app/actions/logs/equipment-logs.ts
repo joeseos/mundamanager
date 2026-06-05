@@ -18,6 +18,8 @@ export interface EquipmentLogParams {
   newCredits?: number;
   newRating?: number;
   newWealth?: number;
+  resource_cost_name?: string;
+  resource_cost_amount?: number;
 }
 
 export async function logEquipmentAction(params: EquipmentLogParams): Promise<GangLogActionResult> {
@@ -76,27 +78,35 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
       }
     }
 
+    const costText = params.resource_cost_name
+      ? `${params.resource_cost_amount} ${params.resource_cost_name}`
+      : `${params.purchase_cost} credits`;
+
     switch (params.action_type) {
       case 'purchased':
         if (isStashPurchase) {
           actionType = 'equipment_purchased_to_stash';
-          description = `Gang purchased ${params.equipment_name} directly to stash for ${params.purchase_cost} credits.${financialChanges}`;
+          description = `Gang purchased ${params.equipment_name} directly to stash for ${costText}.${financialChanges}`;
         } else {
           actionType = isVehicleEquipment ? 'vehicle_equipment_purchased' : 'equipment_purchased';
-          description = `${targetType} "${targetName}" bought ${params.equipment_name} for ${params.purchase_cost} credits.${financialChanges}`;
+          description = `${targetType} "${targetName}" bought ${params.equipment_name} for ${costText}.${financialChanges}`;
         }
         break;
       case 'sold':
         actionType = isVehicleEquipment ? 'vehicle_equipment_sold' : 'equipment_sold';
-        description = `${targetType} "${targetName}" sold ${params.equipment_name} for ${params.purchase_cost} credits.${financialChanges}`;
+        if (params.resource_cost_name) {
+          description = `${targetType} "${targetName}" returned ${params.equipment_name} (${costText}).${financialChanges}`;
+        } else {
+          description = `${targetType} "${targetName}" sold ${params.equipment_name} for ${costText}.${financialChanges}`;
+        }
         break;
       case 'moved_from_stash':
         actionType = isVehicleEquipment ? 'vehicle_equipment_moved_from_stash' : 'equipment_moved_from_stash';
-        description = `${targetType} "${targetName}" took ${params.equipment_name} (${params.purchase_cost} credits) from gang stash.${financialChanges}`;
+        description = `${targetType} "${targetName}" took ${params.equipment_name} (${costText}) from gang stash.${financialChanges}`;
         break;
       case 'moved_to_stash':
         actionType = isVehicleEquipment ? 'vehicle_equipment_moved_to_stash' : 'equipment_moved_to_stash';
-        description = `${targetType} "${targetName}" moved ${params.equipment_name} (${params.purchase_cost} credits) to gang stash.${financialChanges}`;
+        description = `${targetType} "${targetName}" moved ${params.equipment_name} (${costText}) to gang stash.${financialChanges}`;
         break;
       case 'granted':
         actionType = isVehicleEquipment ? 'vehicle_equipment_granted' : 'equipment_granted';

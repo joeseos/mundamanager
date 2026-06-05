@@ -50,10 +50,14 @@ CREATE TABLE public.custom_trading_post_equipment (
   equipment_id uuid REFERENCES public.equipment(id) ON DELETE CASCADE,
   custom_equipment_id uuid REFERENCES public.custom_equipment(id) ON DELETE CASCADE,
   cost_override numeric,
-  cost_resource_name text,
+  cost_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL,
+  cost_campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE SET NULL,
+  cost_reputation boolean NOT NULL DEFAULT false,
+  cost_resource_amount numeric,
   availability_override text,
   sort_order integer,
-  CONSTRAINT chk_equipment_exclusive CHECK (num_nonnulls(equipment_id, custom_equipment_id) = 1)
+  CONSTRAINT chk_equipment_exclusive CHECK (num_nonnulls(equipment_id, custom_equipment_id) = 1),
+  CONSTRAINT chk_cost_resource_exclusive CHECK (num_nonnulls(cost_type_resource_id, cost_campaign_resource_id, NULLIF(cost_reputation, false)) <= 1)
 );
 
 CREATE INDEX idx_ctp_equipment_trading_post_id ON public.custom_trading_post_equipment(custom_trading_post_id);

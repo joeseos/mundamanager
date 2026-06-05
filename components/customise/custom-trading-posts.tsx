@@ -33,11 +33,16 @@ import {
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-trading-posts-constants';
+import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
 interface EquipmentPendingChanges {
   costOverride: number | null;
+  costTypeResourceId: string | null;
+  costCampaignResourceId: string | null;
+  costReputation: boolean;
+  costResourceAmount: number | null;
   availabilityOverride: string | null;
   availRules: CustomTPAvailabilityRule[];
   pricingRules: CustomTPPricingRule[];
@@ -307,6 +312,10 @@ export function CustomiseTradingPosts({
             async ([itemId, changes]) => {
               const overridesResult = await updateTPEquipment(itemId, {
                 cost_override: changes.costOverride,
+                cost_type_resource_id: changes.costTypeResourceId,
+                cost_campaign_resource_id: changes.costCampaignResourceId,
+                cost_reputation: changes.costReputation,
+                cost_resource_amount: changes.costResourceAmount,
                 availability_override: changes.availabilityOverride,
               });
               if (!overridesResult.success) {
@@ -609,7 +618,15 @@ function EquipmentItemsSection({
       .map(item => {
         const pending = pendingOverrides?.get(item.id);
         if (!pending) return item;
-        return { ...item, cost_override: pending.costOverride, availability_override: pending.availabilityOverride };
+        return {
+          ...item,
+          cost_override: pending.costOverride,
+          cost_type_resource_id: pending.costTypeResourceId,
+          cost_campaign_resource_id: pending.costCampaignResourceId,
+          cost_reputation: pending.costReputation,
+          cost_resource_amount: pending.costResourceAmount,
+          availability_override: pending.availabilityOverride,
+        };
       }),
     ...(pendingAdditions ?? []).map(equip => {
       const pending = pendingOverrides?.get(equip.id);
@@ -622,6 +639,10 @@ function EquipmentItemsSection({
         equipment_category: equip.equipment_category,
         is_custom: equip.is_custom,
         cost_override: pending?.costOverride ?? null,
+        cost_type_resource_id: pending?.costTypeResourceId ?? null,
+        cost_campaign_resource_id: pending?.costCampaignResourceId ?? null,
+        cost_reputation: pending?.costReputation ?? false,
+        cost_resource_amount: pending?.costResourceAmount ?? null,
         availability_override: pending?.availabilityOverride ?? null,
         sort_order: null,
       };
@@ -676,7 +697,9 @@ function EquipmentItemsSection({
                     </td>
                     <td className="py-2 pr-2 text-muted-foreground">{item.equipment_category || '-'}</td>
                     <td className="py-2 pr-2 text-center">
-                      {item.cost_override != null ? item.cost_override : '-'}
+                      {(item.cost_type_resource_id || item.cost_campaign_resource_id || item.cost_reputation) && item.cost_resource_amount != null
+                        ? `${item.cost_resource_amount} ${item.cost_reputation ? 'Reputation' : 'Resource'}`
+                        : item.cost_override != null ? item.cost_override : '-'}
                     </td>
                     <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>
                     {isEditable && (
@@ -724,6 +747,7 @@ function EquipmentItemsSection({
             onEquipmentOverrideChange(editOverridesItem.id, changes);
             setEditOverridesItem(null);
           }}
+          tradingPostId={tradingPostId}
         />
       )}
 
@@ -966,15 +990,36 @@ function EditEquipmentModal({
   pendingChanges,
   onClose,
   onSaveLocal,
+  tradingPostId,
 }: {
   item: CustomTPEquipment;
   pendingChanges?: EquipmentPendingChanges;
   onClose: () => void;
   onSaveLocal: (changes: EquipmentPendingChanges) => void;
+  tradingPostId: string;
 }) {
+  type ResourceOption = { id: string; name: string; type: 'campaign_type' | 'campaign' | 'reputation' };
+
   const [costOverride, setCostOverride] = useState(
     pendingChanges ? (pendingChanges.costOverride?.toString() ?? '') : (item.cost_override?.toString() ?? '')
   );
+  const [costResourceAmount, setCostResourceAmount] = useState(
+    pendingChanges ? (pendingChanges.costResourceAmount?.toString() ?? '') : (item.cost_resource_amount?.toString() ?? '')
+  );
+
+  const getInitialResourceValue = (): string => {
+    if (pendingChanges) {
+      if (pendingChanges.costReputation) return 'reputation';
+      if (pendingChanges.costTypeResourceId) return pendingChanges.costTypeResourceId;
+      if (pendingChanges.costCampaignResourceId) return pendingChanges.costCampaignResourceId;
+      return '';
+    }
+    if (item.cost_reputation) return 'reputation';
+    if (item.cost_type_resource_id) return item.cost_type_resource_id;
+    if (item.cost_campaign_resource_id) return item.cost_campaign_resource_id;
+    return '';
+  };
+  const [selectedResourceValue, setSelectedResourceValue] = useState(getInitialResourceValue);
   const parsedAvail = parseAvailability(
     pendingChanges ? pendingChanges.availabilityOverride : item.availability_override
   );
@@ -988,6 +1033,41 @@ function EditEquipmentModal({
   );
   const [isAddAvailOpen, setIsAddAvailOpen] = useState(false);
   const [isAddPricingOpen, setIsAddPricingOpen] = useState(false);
+
+  const { data: availableResources = [] } = useQuery<ResourceOption[]>({
+    queryKey: ['tpAvailableResources', tradingPostId],
+    queryFn: async () => {
+      const sharedRes = await fetch(`/api/custom-trading-posts/${tradingPostId}/shared-campaigns`);
+      const sharedIds: string[] = sharedRes.ok ? await sharedRes.json() : [];
+
+      const reputationOption: ResourceOption = { id: 'reputation', name: 'Reputation', type: 'reputation' };
+
+      if (sharedIds.length === 0) return [reputationOption];
+
+      const allResources = await Promise.all(
+        sharedIds.map(async (id) => {
+          const res = await fetch(`/api/campaigns/${id}/resources`);
+          if (!res.ok) return [] as CampaignResource[];
+          return res.json() as Promise<CampaignResource[]>;
+        })
+      );
+
+      const seen = new Set<string>();
+      const options: ResourceOption[] = [reputationOption];
+      allResources.flat().forEach(r => {
+        if (!seen.has(r.id)) {
+          seen.add(r.id);
+          options.push({
+            id: r.id,
+            name: r.resource_name,
+            type: r.is_custom ? 'campaign' : 'campaign_type',
+          });
+        }
+      });
+      return options;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
   const { data: fetchedAvailRules = [] } = useQuery({
     queryKey: ['tpAvailabilityRules', item.id],
@@ -1012,9 +1092,20 @@ function EditEquipmentModal({
   const availRules = localAvailRules ?? fetchedAvailRules;
   const pricingRules = localPricingRules ?? fetchedPricingRules;
 
+  const selectedResource = availableResources.find(r => r.id === selectedResourceValue) ?? null;
+  const hasResourceCost = !!selectedResource;
+
   const handleSave = async () => {
+    if (hasResourceCost && (!costResourceAmount.trim() || Number(costResourceAmount) <= 0)) {
+      toast.error('A resource cost requires a resource amount greater than 0');
+      return false;
+    }
     onSaveLocal({
       costOverride: costOverride.trim() ? Number(costOverride) : null,
+      costTypeResourceId: selectedResource?.type === 'campaign_type' ? selectedResource.id : null,
+      costCampaignResourceId: selectedResource?.type === 'campaign' ? selectedResource.id : null,
+      costReputation: selectedResource?.type === 'reputation',
+      costResourceAmount: hasResourceCost && costResourceAmount.trim() ? Number(costResourceAmount) : null,
       availabilityOverride: combineAvailability(availLetter, availNumber),
       availRules,
       pricingRules,
@@ -1052,6 +1143,27 @@ function EditEquipmentModal({
       >
         <div className="space-y-6">
           <div className="space-y-4">
+            <div>
+              <Label className="mb-1">Resource Cost</Label>
+              <Combobox
+                options={availableResources.map(r => ({ value: r.id, label: r.name }))}
+                value={selectedResourceValue}
+                onValueChange={setSelectedResourceValue}
+                placeholder="None (uses credits)"
+                clearable
+              />
+            </div>
+            {hasResourceCost && (
+              <div>
+                <Label className="mb-1">Resource Amount</Label>
+                <Input
+                  type="number"
+                  value={costResourceAmount}
+                  onChange={(e) => setCostResourceAmount(e.target.value)}
+                  placeholder="Resource amount to charge"
+                />
+              </div>
+            )}
             <div>
               <Label className="mb-1">Cost Override</Label>
               <Input

@@ -16,6 +16,7 @@ import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger, EquipmentTooltip } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
 import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
+import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 
 interface ItemModalProps {
   title: string;
@@ -40,6 +41,9 @@ interface ItemModalProps {
   campaignTradingPostNames?: string[];
   campaignCustomTradingPostIds?: string[];
   campaignCustomTradingPostNames?: string[];
+  campaignGangId?: string;
+  gangCampaignResources?: GangCampaignResource[];
+  gangReputation?: number;
   onEquipmentBought?: (newFighterCredits: number, newGangCredits: number, boughtEquipment: Equipment, newGangRating?: number, newGangWealth?: number) => void;
   onPurchaseRequest?: (payload: { params: any; item: Equipment }) => void;
   // Optional: pass fighter weapons to avoid client fetch in target selection
@@ -66,6 +70,10 @@ interface RawEquipmentData {
   grants_equipment?: EquipmentGrants;
   equipment_tradingpost?: boolean;
   trading_post_names?: string[];
+  cost_resource_name?: string | null;
+  cost_resource_amount?: number | null;
+  cost_type_resource_id?: string | null;
+  cost_campaign_resource_id?: string | null;
 }
 
 interface Category {
@@ -96,6 +104,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   campaignTradingPostNames,
   campaignCustomTradingPostIds,
   campaignCustomTradingPostNames,
+  campaignGangId,
+  gangCampaignResources,
+  gangReputation,
   onEquipmentBought,
   onPurchaseRequest,
   fighterWeapons
@@ -139,6 +150,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     isVehicleEquipment,
     isStashMode,
     fighterCredits,
+    campaignGangId,
     onEquipmentBought,
     onPurchaseRequest,
     closePurchaseModal: () => setBuyModalData(null),
@@ -825,7 +837,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                     </div>
                                   </EquipmentTooltipTrigger>
                                   <div className="flex items-center gap-1">
-                                    {item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
+                                    {item.cost_resource_name && item.cost_resource_amount != null ? (
+                                      <div className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5" title={item.cost_resource_name}>
+                                        <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
+                                      </div>
+                                    ) : item.adjusted_cost !== undefined && item.adjusted_cost !== (item.base_cost ?? item.cost) ? (
                                       <div className="flex items-center gap-1">
                                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${
                                           item.adjusted_cost < (item.base_cost ?? item.cost) ? 'bg-green-500' : 'bg-red-500'
@@ -885,7 +901,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 item={buyModalData}
                 gangCredits={gangCredits}
                 onClose={() => setBuyModalData(null)}
-                onConfirm={(cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds) => {
+                onConfirm={({ cost, isMasterCrafted, useBaseCostForRating, selectedEffectIds, equipmentTarget, selectedGrantEquipmentIds, resourceCost }) => {
                   purchaseEquipment({
                     item: buyModalData,
                     manualCost: cost,
@@ -894,12 +910,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     selectedEffectIds: selectedEffectIds || [],
                     equipmentTarget,
                     selectedGrantEquipmentIds: selectedGrantEquipmentIds || [],
+                    resourceCost,
                   })
                 }}
                 isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
                 fighterId={fighterId}
                 fighterWeapons={fighterWeapons}
                 equipmentListType={equipmentListType}
+                gangCampaignResources={gangCampaignResources}
+                gangReputation={gangReputation}
               />
             )}
           </div>

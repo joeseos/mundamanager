@@ -89,8 +89,9 @@ export interface FighterEquipment {
   is_master_crafted?: boolean;
   weapon_profiles?: any[];
   target_equipment_id?: string | null;
-  effect_names?: string[]; // Names of effects that target this weapon
-  loadout_ids?: string[]; // Which loadouts this equipment belongs to
+  effect_names?: string[];
+  loadout_ids?: string[];
+  cost_resource?: { name: string; amount: number } | null;
 }
 
 // FighterLoadout imported from @/types/equipment
@@ -213,6 +214,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
           original_cost,
           is_master_crafted,
           is_editable,
+          cost_resource,
           equipment:equipment_id (
             equipment_name,
             equipment_type,
@@ -483,7 +485,8 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             target_equipment_id: targetEquipmentId,
             effect_names: effectNames.length > 0 ? effectNames : undefined,
             loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,
-            is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false
+            is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
+            cost_resource: item.cost_resource ?? null
           };
         })
       );
@@ -700,6 +703,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
             purchase_cost,
             is_master_crafted,
             is_editable,
+            cost_resource,
             equipment:equipment_id (
               equipment_name,
               equipment_type,
@@ -890,7 +894,8 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
           purchase_cost: item.purchase_cost || 0,
           is_editable: item.is_editable || false,
           weapon_profiles: weaponProfiles,
-          is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false
+          is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
+          cost_resource: item.cost_resource ?? null
         };
       });
 

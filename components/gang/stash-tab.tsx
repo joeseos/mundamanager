@@ -14,6 +14,7 @@ import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
 import ItemModal from '@/components/equipment/equipment';
+import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
@@ -27,6 +28,7 @@ import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
 import { Combobox } from '@/components/ui/combobox';
 import { rollD6 } from '@/utils/dice';
+import { Tooltip } from 'react-tooltip';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
@@ -50,6 +52,9 @@ interface GangInventoryProps {
   campaignTradingPostNames?: string[];
   campaignCustomTradingPostIds?: string[];
   campaignCustomTradingPostNames?: string[];
+  campaignGangId?: string;
+  gangCampaignResources?: GangCampaignResource[];
+  gangReputation?: number;
   positioning?: Record<number, string>;
 }
 
@@ -72,6 +77,9 @@ export default function GangInventory({
   campaignTradingPostNames,
   campaignCustomTradingPostIds,
   campaignCustomTradingPostNames,
+  campaignGangId,
+  gangCampaignResources,
+  gangReputation,
   positioning
 }: GangInventoryProps) {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
@@ -852,7 +860,7 @@ export default function GangInventory({
                           onClick={() => {
                             setSellModalItemIdx(index);
                             setSellLastRoll(null);
-                            setSellManualCost(stash[index].cost || 0);
+                            setSellManualCost(stash[index].cost_resource?.amount ?? stash[index].cost ?? 0);
                           }}
                           disabled={!userPermissions?.canEdit}
                           title="Sell"
@@ -874,7 +882,18 @@ export default function GangInventory({
                         </Button>
                         */}
                       </div>
-                      <span className="w-20 text-right">{item.cost}</span>
+                      <span className="w-20 flex items-center justify-end gap-1">
+                        {item.cost_resource && (
+                          <div
+                            className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
+                            data-tooltip-id="stash-resource-cost-tooltip"
+                            data-tooltip-html={item.cost_resource.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                          >
+                            <span className="text-[10px] font-medium">{item.cost_resource.amount}</span>
+                          </div>
+                        )}
+                        {item.cost}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -967,19 +986,26 @@ export default function GangInventory({
           campaignTradingPostNames={campaignTradingPostNames}
           campaignCustomTradingPostIds={campaignCustomTradingPostIds}
           campaignCustomTradingPostNames={campaignCustomTradingPostNames}
+          campaignGangId={campaignGangId}
+          gangCampaignResources={gangCampaignResources}
+          gangReputation={gangReputation}
           onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
             const newStashItem: StashItem = {
-              id: boughtEquipment.fighter_equipment_id, // This will be the gang_stash ID from the API response
+              id: boughtEquipment.fighter_equipment_id,
               cost: boughtEquipment.cost,
               type: 'equipment',
               equipment_id: boughtEquipment.equipment_id,
               equipment_name: boughtEquipment.equipment_name,
               equipment_type: boughtEquipment.equipment_type,
               equipment_category: boughtEquipment.equipment_category,
-              custom_equipment_id: boughtEquipment.is_custom ? boughtEquipment.equipment_id : undefined
+              custom_equipment_id: boughtEquipment.is_custom ? boughtEquipment.equipment_id : undefined,
+              cost_resource: boughtEquipment.cost_resource_name ? {
+                name: boughtEquipment.cost_resource_name,
+                amount: boughtEquipment.cost_resource_amount ?? 0,
+              } : undefined
             };
 
             // Update the stash state optimistically
@@ -1006,7 +1032,10 @@ export default function GangInventory({
               onGangWealthUpdate(newGangWealth);
             }
 
-            toast.success("Equipment Purchased", { description: `${boughtEquipment.equipment_name} added to gang stash for ${boughtEquipment.cost} credits` });
+            const costDescription = boughtEquipment.cost_resource_name
+              ? `${boughtEquipment.cost_resource_amount} ${boughtEquipment.cost_resource_name}`
+              : `${boughtEquipment.cost} credits`;
+            toast.success("Equipment Purchased", { description: `${boughtEquipment.equipment_name} added to gang stash for ${costDescription}` });
           }}
         />
       )}
@@ -1122,35 +1151,42 @@ export default function GangInventory({
           width="lg"
         />
       )}
-      {sellModalItemIdx !== null && (
+      {sellModalItemIdx !== null && (() => {
+        const sellItem = stash[sellModalItemIdx];
+        const isResourceItem = !!sellItem.cost_resource;
+        return (
         <Modal
           title="Sell Stash Item"
           content={
             <div className="space-y-4">
               <p>
-                Are you sure you want to sell <strong>{getItemName(stash[sellModalItemIdx])}</strong>?
+                Are you sure you want to sell <strong>{getItemName(sellItem)}</strong>?
               </p>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const r = rollD6();
-                    setSellLastRoll(r);
-                    const cost = stash[sellModalItemIdx!].cost || 0;
-                    const final = Math.max(5, cost - r * 10);
-                    setSellManualCost(final);
-                    toast(`Roll ${r}: -${r * 10} → ${final} credits`);
-                  }}
-                  className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-                >
-                  Roll D6
-                </button>
-                {sellLastRoll !== null && (
-                  <div className="text-sm">Roll {sellLastRoll}: -{sellLastRoll * 10} → {Math.max(5, (stash[sellModalItemIdx!].cost || 0) - sellLastRoll * 10)} credits</div>
-                )}
-              </div>
+              {!isResourceItem && (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const r = rollD6();
+                      setSellLastRoll(r);
+                      const cost = sellItem.cost || 0;
+                      const final = Math.max(5, cost - r * 10);
+                      setSellManualCost(final);
+                      toast(`Roll ${r}: -${r * 10} → ${final} credits`);
+                    }}
+                    className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                  >
+                    Roll D6
+                  </button>
+                  {sellLastRoll !== null && (
+                    <div className="text-sm">Roll {sellLastRoll}: -{sellLastRoll * 10} → {Math.max(5, (sellItem.cost || 0) - sellLastRoll * 10)} credits</div>
+                  )}
+                </div>
+              )}
               <div>
-                <label className="block text-sm font-medium mb-1">Sale Price</label>
+                <label className="block text-sm font-medium mb-1">
+                  {isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -1158,7 +1194,9 @@ export default function GangInventory({
                   onChange={(e) => setSellManualCost(Number(e.target.value))}
                   className="w-full p-2 border rounded-sm"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
+                {!isResourceItem && (
+                  <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
+                )}
               </div>
             </div>
           }
@@ -1166,13 +1204,16 @@ export default function GangInventory({
           onConfirm={async () => {
             const idx = sellModalItemIdx!;
             const item = stash[idx];
-            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: sellManualCost || 0 });
+            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: isResourceItem ? 0 : (sellManualCost || 0) });
             if (res.success) {
               const newStash = stash.filter((_, i) => i !== idx);
               setStash(newStash);
               onStashUpdate?.(newStash);
-              toast.success(`Sold ${getItemName(item)} for ${sellManualCost || 0} credits`);
-              // Update gang credits and wealth using server-returned values
+              if (isResourceItem) {
+                toast.success(`Returned ${sellManualCost} ${item.cost_resource!.name}`);
+              } else {
+                toast.success(`Sold ${getItemName(item)} for ${sellManualCost || 0} credits`);
+              }
               if (res.data?.gang?.credits !== undefined) {
                 onGangCreditsUpdate?.(res.data.gang.credits);
               }
@@ -1187,7 +1228,8 @@ export default function GangInventory({
           }}
           confirmText="Sell"
         />
-      )}
+        );
+      })()}
 
       {/* Delete from stash modal */}
       {deleteModalIdx !== null && (
@@ -1220,6 +1262,17 @@ export default function GangInventory({
           confirmText="Delete"
         />
       )}
+      <Tooltip
+        id="stash-resource-cost-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          maxWidth: '24rem'
+        }}
+      />
     </>
   );
 }

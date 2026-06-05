@@ -1,12 +1,12 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { getCampaignResources } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { fetchCampaignResources } from "@/utils/campaigns/resources";
 
 export type { CampaignResource as Resource } from "@/utils/campaigns/resources";
 
 /**
  * GET /api/campaigns/[campaignId]/resources
- * Fetches available resources for a campaign (with server-side caching)
+ * Fetches available resources for a campaign
  * - For all campaigns: returns both predefined campaign type resources (if applicable) and custom campaign resources
  */
 export async function GET(
@@ -25,19 +25,18 @@ export async function GET(
   }
 
   try {
-    const resources = await getCampaignResources(campaignId, supabase);
+    const resources = await fetchCampaignResources(campaignId, supabase);
     return NextResponse.json(resources);
   } catch (error: any) {
     console.error('Error fetching resources:', error);
-    
-    // Handle specific error cases
+
     if (error?.code === 'PGRST116' || error?.message === 'Campaign not found') {
       return NextResponse.json(
         { error: "Campaign not found" },
         { status: 404 }
       );
     }
-    
+
     return NextResponse.json(
       { error: "Failed to fetch resources" },
       { status: 500 }
