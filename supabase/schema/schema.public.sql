@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict fnxqP06hCORPkViNAbicqvTPqm9Otft4spFt9nuLOxdrnLY8XuQg8BxWhcwzkm4
+\restrict mBqhFB2FOdj7Zg4r19uhLoHn9Oe3BZd4QPI5ihb1yzUKuRfDlY87gR1vBeAM5Ab
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -1535,7 +1535,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
             (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
             (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
-            bool_or(ctpe.cost_reputation) AS cost_reputation,
+            (array_agg(ctpe.cost_reputation ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_reputation))[1] AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
         FROM custom_trading_post_equipment ctpe
@@ -1856,7 +1856,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
             (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
             (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
-            bool_or(ctpe.cost_reputation) AS cost_reputation,
+            (array_agg(ctpe.cost_reputation ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_reputation))[1] AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
             MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
             COALESCE(
@@ -11645,5 +11645,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fnxqP06hCORPkViNAbicqvTPqm9Otft4spFt9nuLOxdrnLY8XuQg8BxWhcwzkm4
+\unrestrict mBqhFB2FOdj7Zg4r19uhLoHn9Oe3BZd4QPI5ihb1yzUKuRfDlY87gR1vBeAM5Ab
 
