@@ -333,6 +333,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
     gang: {
       id: fighterData.gang.id,
       credits: fighterData.gang.credits,
+      reputation: fighterData.gang.reputation,
       gang_type_id: fighterData.gang.gang_type_id,
       custom_gang_type_id: fighterData.gang.custom_gang_type_id,
       gang_affiliation_id: fighterData.gang.gang_affiliation_id,
