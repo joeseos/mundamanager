@@ -229,14 +229,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    if (isResourcePurchase) {
-      try {
-        await returnCostResource(supabase, gangId, equipmentData.cost_resource as CostResourcePayload);
-      } catch (resourceError) {
-        return { success: false, error: 'Failed to return resource — item not sold. Please try again.' };
-      }
-    }
-
     // Delete equipment and update gang credits
     const { error: deleteError } = await supabase
       .from('fighter_equipment')
@@ -245,6 +237,14 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     if (deleteError) {
       throw new Error(`Failed to delete equipment: ${deleteError.message}`);
+    }
+
+    if (isResourcePurchase) {
+      try {
+        await returnCostResource(supabase, gangId, equipmentData.cost_resource as CostResourcePayload);
+      } catch (resourceError) {
+        return { success: false, error: 'Equipment removed but failed to return resource. Please contact support.' };
+      }
     }
 
     // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
@@ -429,14 +429,6 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       }
     }
 
-    if (isResourcePurchaseStash) {
-      try {
-        await returnCostResource(supabase, row.gang_id, row.cost_resource as CostResourcePayload);
-      } catch (resourceError) {
-        return { success: false, error: 'Failed to return resource — item not sold. Please try again.' };
-      }
-    }
-
     // Update credits, rating and wealth using centralized helper
     // When selling from stash:
     // - Credits increase by sellValue (0 for resource purchases)
@@ -464,6 +456,14 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .delete()
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
+
+    if (isResourcePurchaseStash) {
+      try {
+        await returnCostResource(supabase, row.gang_id, row.cost_resource as CostResourcePayload);
+      } catch (resourceError) {
+        return { success: false, error: 'Equipment removed but failed to return resource. Please contact support.' };
+      }
+    }
 
     if (isResourcePurchaseStash) {
       revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(row.gang_id));
