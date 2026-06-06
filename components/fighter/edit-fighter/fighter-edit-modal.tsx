@@ -16,8 +16,7 @@ import { FighterPromotionModal } from './fighter-promotion-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
 
-const normalizeSpecialRule = (rule: string) =>
-  typeof rule === 'string' ? rule.replace(/^"|"$/g, '') : rule;
+const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
 
 interface FighterTypesData {
@@ -229,12 +228,12 @@ export function EditFighterModal({
     const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
     if (!selectedFighterType) return null;
 
-    if (selectedSubTypeId !== undefined && selectedSubTypeId !== null && selectedSubTypeId !== '') {
+    if (selectedSubTypeId !== '') {
       const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
       if (foundSubType?.fighterTypeId) {
         return fighterTypes.find(ft => ft.id === foundSubType.fighterTypeId) ?? selectedFighterType;
       }
-    } else if (selectedSubTypeId === '' && availableSubTypes.length > 0) {
+    } else if (availableSubTypes.length > 0) {
       const defaultOption = availableSubTypes.find(st => st.value === '');
       if (defaultOption?.fighterTypeId) {
         return fighterTypes.find(ft => ft.id === defaultOption.fighterTypeId) ?? selectedFighterType;
@@ -275,7 +274,11 @@ export function EditFighterModal({
         disabled: true,
       });
       availableDefaultSpecialRules.forEach(rule => {
-        options.push({ value: rule, label: rule });
+        options.push({
+          value: rule,
+          label: <span className="ml-3">{rule}</span>,
+          displayValue: rule,
+        });
       });
     }
 
@@ -451,9 +454,7 @@ export function EditFighterModal({
           fighter_type: type.fighter_type,
           fighter_class: type.fighter_class,
           fighter_class_id: type.fighter_class_id,
-          special_rules: (type.special_rules || [])
-            .map((r: string) => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r)
-            .filter(Boolean),
+          special_rules: (type.special_rules || []).map(normalizeSpecialRule).filter(Boolean),
           gang_type_id: type.gang_type_id,
           total_cost: type.total_cost,
           typeClassKey: type.typeClassKey,
@@ -665,6 +666,8 @@ export function EditFighterModal({
   // Update the handleFighterTypeChange function
   const handleFighterTypeChange = (fighterTypeId: string) => {
     setSelectedFighterTypeId(fighterTypeId);
+    setSelectedSpecialRuleOption('');
+    setCustomSpecialRule('');
 
     // Set flag to indicate user has explicitly selected a fighter type
     setHasExplicitlySelectedType(true);
@@ -762,6 +765,8 @@ export function EditFighterModal({
   // Add handler for sub-type change
   const handleSubTypeChange = (subTypeId: string) => {
     setSelectedSubTypeId(subTypeId);
+    setSelectedSpecialRuleOption('');
+    setCustomSpecialRule('');
   };
 
   // Add handler for gang legacy change
@@ -852,7 +857,7 @@ export function EditFighterModal({
       type SubType = { id: string; fighter_sub_type: string; cost: number; fighterTypeId: string; };
       let selectedSubType: SubType | null = null;
       
-      if (selectedSubTypeId !== undefined && selectedSubTypeId !== null && selectedSubTypeId !== '') {
+      if (selectedSubTypeId !== '') {
         // Find the sub-type in the currently available sub-types only
         const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
         if (foundSubType) {
@@ -1303,50 +1308,41 @@ export function EditFighterModal({
                 Special Rules
               </label>
               <div className="mb-2">
-                {selectedSpecialRuleOption === 'custom' ? (
-                  <>
+                <div className={selectedSpecialRuleOption !== 'custom' ? 'flex space-x-2' : ''}>
+                  <div className={selectedSpecialRuleOption !== 'custom' ? 'grow' : ''}>
                     <Combobox
                       options={specialRuleComboboxOptions}
-                      value="custom"
+                      value={selectedSpecialRuleOption}
                       onValueChange={handleSpecialRuleOptionChange}
                       placeholder="Add a Special Rule"
                       allowCustom={true}
                       dropdownPlacement="down"
                     />
-                    <div className="flex space-x-2 mt-2">
-                      <Input
-                        type="text"
-                        value={customSpecialRule}
-                        onChange={(e) => setCustomSpecialRule(e.target.value)}
-                        placeholder="Enter custom Special Rule"
-                        className="grow"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddSpecialRule();
-                          }
-                        }}
-                      />
-                      <Button
-                        onClick={handleAddSpecialRule}
-                        type="button"
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex space-x-2">
-                    <div className="grow">
-                      <Combobox
-                        options={specialRuleComboboxOptions}
-                        value={selectedSpecialRuleOption}
-                        onValueChange={handleSpecialRuleOptionChange}
-                        placeholder="Add a Special Rule"
-                        allowCustom={true}
-                        dropdownPlacement="down"
-                      />
-                    </div>
+                  </div>
+                  {selectedSpecialRuleOption !== 'custom' && (
+                    <Button
+                      onClick={handleAddSpecialRule}
+                      type="button"
+                    >
+                      Add
+                    </Button>
+                  )}
+                </div>
+                {selectedSpecialRuleOption === 'custom' && (
+                  <div className="flex space-x-2 mt-2">
+                    <Input
+                      type="text"
+                      value={customSpecialRule}
+                      onChange={(e) => setCustomSpecialRule(e.target.value)}
+                      placeholder="Enter custom Special Rule"
+                      className="grow"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSpecialRule();
+                        }
+                      }}
+                    />
                     <Button
                       onClick={handleAddSpecialRule}
                       type="button"
