@@ -48,12 +48,6 @@ interface GangDataState {
     gang_colour: string;
     credits: number;
     reputation: number;
-    meat: number;
-    scavenging_rolls: number;
-    exploration_points: number;
-    power: number;
-    sustenance: number;
-    salvage: number;
     rating: number;
     wealth: number;
     alignment: string;

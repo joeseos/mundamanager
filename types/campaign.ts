@@ -140,14 +140,6 @@ export interface Member {
     reputation?: number;
     territory_count?: number;
 
-    // Optional campaign resources
-    exploration_points?: number | null;
-    meat?: number | null;
-    scavenging_rolls?: number | null;
-    power?: number | null;
-    sustenance?: number | null;
-    salvage?: number | null;
-
     // Allegiance information
     allegiance?: {
       id: string;
@@ -169,9 +161,15 @@ export interface UserCampaign {
 /**
  * Campaign type definition (e.g. Dominion, Law & Misrule)
  */
+export interface CampaignTypeResource {
+  id: string;
+  resource_name: string;
+}
+
 export interface CampaignType {
   id: string;
   campaign_type_name: string;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  campaign_type_resources?: CampaignTypeResource[];
 }

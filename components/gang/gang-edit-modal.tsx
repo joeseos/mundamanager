@@ -24,19 +24,6 @@ interface GangUpdates {
   alliance_name?: string;
   reputation?: number;
   reputation_operation?: 'add' | 'subtract';
-  // Legacy resource fields - kept for backward compatibility
-  meat?: number;
-  meat_operation?: 'add' | 'subtract';
-  scavenging_rolls?: number;
-  scavenging_rolls_operation?: 'add' | 'subtract';
-  exploration_points?: number;
-  exploration_points_operation?: 'add' | 'subtract';
-  power?: number;
-  power_operation?: 'add' | 'subtract';
-  sustenance?: number;
-  sustenance_operation?: 'add' | 'subtract';
-  salvage?: number;
-  salvage_operation?: 'add' | 'subtract';
   gang_variants?: string[];
   gang_colour?: string;
   gang_affiliation_id?: string | null;
@@ -61,13 +48,6 @@ interface CampaignResource {
 interface Campaign {
   campaign_id: string;
   campaign_gang_id: string;
-  // Legacy flags - kept for backward compatibility
-  has_meat: boolean;
-  has_scavenging_rolls: boolean;
-  has_exploration_points: boolean;
-  has_power: boolean;
-  has_sustenance: boolean;
-  has_salvage: boolean;
   allegiance?: {
     id: string;
     name: string;
@@ -86,13 +66,6 @@ interface GangEditModalProps {
   gangName: string;
   credits: number;
   reputation: number;
-  // Legacy resource props - kept for backward compatibility
-  meat: number;
-  scavengingRolls: number;
-  explorationPoints: number;
-  power: number;
-  sustenance: number;
-  salvage: number;
   alignment: string;
   allianceId: string | null;
   allianceName: string;
@@ -137,12 +110,6 @@ export default function GangEditModal({
   gangName,
   credits,
   reputation,
-  meat,
-  scavengingRolls,
-  explorationPoints,
-  power,
-  sustenance,
-  salvage,
   alignment,
   allianceId,
   allianceName,
@@ -190,13 +157,6 @@ export default function GangEditModal({
     name: gangName,
     credits: '',  // delta inputs start empty
     reputation: '',
-    // Legacy resource deltas - kept for backward compatibility
-    meat: '',
-    scavengingRolls: '',
-    explorationPoints: '',
-    power: '',
-    sustenance: '',
-    salvage: '',
     alignment: alignment,
     allianceId: allianceId || '',
     gangColour: gangColour,
@@ -272,12 +232,6 @@ export default function GangEditModal({
         name: gangName,
         credits: '',
         reputation: '',
-        meat: '',
-        scavengingRolls: '',
-        explorationPoints: '',
-        power: '',
-        sustenance: '',
-        salvage: '',
         alignment: alignment,
         allianceId: allianceId || '',
         gangColour: gangColour,
@@ -292,7 +246,7 @@ export default function GangEditModal({
       // Reset resource deltas
       setResourceDeltas({});
     }
-  }, [isOpen, gangName, meat, scavengingRolls, explorationPoints, power, sustenance, salvage, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden, effectiveCurrentAllegianceId, campaigns]);
+  }, [isOpen, gangName, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden, effectiveCurrentAllegianceId, campaigns]);
 
   // Sync allegiance when it changes externally (e.g., from optimistic update)
   // Only sync if user hasn't made changes (form state still matches initial)

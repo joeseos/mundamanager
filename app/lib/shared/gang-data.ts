@@ -17,12 +17,6 @@ export interface GangBasic {
   gang_type_id: string;
   gang_colour: string;
   reputation: number;
-  meat: number;
-  scavenging_rolls: number;
-  exploration_points: number;
-  power: number;
-  sustenance: number;
-  salvage: number;
   alignment: string;
   note?: string;
   note_backstory?: string;
@@ -101,13 +95,6 @@ export interface GangCampaign {
   status: string;
   invited_at?: string;
   invited_by?: string;
-  // Legacy flags - kept for backward compatibility during transition
-  has_meat: boolean;
-  has_exploration_points: boolean;
-  has_scavenging_rolls: boolean;
-  has_power: boolean;
-  has_sustenance: boolean;
-  has_salvage: boolean;
   trading_posts?: string[] | null;
   trading_post_names?: string[];
   custom_trading_posts?: string[] | null;
@@ -199,12 +186,6 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           gang_type_id,
           gang_colour,
           reputation,
-          meat,
-          scavenging_rolls,
-          exploration_points,
-          power,
-          sustenance,
-          salvage,
           alignment,
           note,
           note_backstory,
@@ -542,12 +523,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             id,
             campaign_name,
             campaign_type_id,
-            has_meat,
-            has_exploration_points,
-            has_scavenging_rolls,
-            has_power,
-            has_sustenance,
-            has_salvage,
             trading_posts,
             custom_trading_posts
           )
@@ -817,12 +792,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
             status: (memberData as any)?.status,
             invited_at: (memberData as any)?.invited_at,
             invited_by: (memberData as any)?.invited_by,
-            has_meat: (cg.campaigns as any).has_meat,
-            has_exploration_points: (cg.campaigns as any).has_exploration_points,
-            has_scavenging_rolls: (cg.campaigns as any).has_scavenging_rolls,
-            has_power: (cg.campaigns as any).has_power,
-            has_sustenance: (cg.campaigns as any).has_sustenance,
-            has_salvage: (cg.campaigns as any).has_salvage,
             trading_posts: tradingPosts,
             trading_post_names,
             custom_trading_posts: customTradingPosts,

@@ -41,12 +41,6 @@ interface PrintGangProps {
     gang_colour: string | null;
     credits: number | null;
     reputation: number | null;
-    meat: number | null;
-    scavenging_rolls: number | null;
-    exploration_points: number | null;
-    power: number | null;
-    sustenance: number | null;
-    salvage: number | null;
     rating: number | null;
     wealth: number | null;
     alignment: string;

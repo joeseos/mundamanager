@@ -9,7 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
-import type { CampaignType } from '@/types/campaign';
+import type { CampaignType, CampaignTypeResource } from '@/types/campaign';
 
 enum OperationType {
   POST = 'POST',
@@ -123,6 +123,8 @@ export function AdminCampaignManagementModal({
   const [relatedTerritories, setRelatedTerritories] = useState<Territory[]>([]);
   const [relatedTriumphs, setRelatedTriumphs] = useState<CampaignTriumph[]>([]);
   const [relatedTradingPostIds, setRelatedTradingPostIds] = useState<string[]>([]);
+  const [campaignTypeResources, setCampaignTypeResources] = useState<CampaignTypeResource[]>([]);
+  const [newResourceName, setNewResourceName] = useState('');
   const [showAddTerritoryModal, setShowAddTerritoryModal] = useState(false);
   const [showAddTriumphModal, setShowAddTriumphModal] = useState(false);
   const [showAddTradingPostModal, setShowAddTradingPostModal] = useState(false);
@@ -154,6 +156,8 @@ export function AdminCampaignManagementModal({
     setRelatedTerritories([]);
     setRelatedTriumphs([]);
     setRelatedTradingPostIds([]);
+    setCampaignTypeResources([]);
+    setNewResourceName('');
 
     setSelectedTerritoryId('');
     setTerritoryName('');
@@ -196,6 +200,8 @@ export function AdminCampaignManagementModal({
       setCampaignTypeName(selected.campaign_type_name);
       setImageUrl(selected.image_url || '');
       setRelatedTradingPostIds(selected.trading_posts || []);
+      setCampaignTypeResources(selected.campaign_type_resources ?? []);
+      setNewResourceName('');
     }
   };
 
@@ -207,6 +213,8 @@ export function AdminCampaignManagementModal({
     setRelatedTerritories([]);
     setRelatedTriumphs([]);
     setRelatedTradingPostIds([]);
+    setCampaignTypeResources([]);
+    setNewResourceName('');
   };
 
   const handleSubmitCampaignType = async (operation: OperationType) => {
@@ -227,7 +235,8 @@ export function AdminCampaignManagementModal({
           body = JSON.stringify({
             campaign_type_name: campaignTypeName.trim(),
             image_url: imageUrl.trim() || null,
-            trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null
+            trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
+            resources: campaignTypeResources.map(r => r.resource_name)
           });
           break;
         case OperationType.UPDATE:
@@ -236,7 +245,8 @@ export function AdminCampaignManagementModal({
             id: selectedCampaignTypeId,
             campaign_type_name: campaignTypeName.trim(),
             image_url: imageUrl.trim() || null,
-            trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null
+            trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
+            resources: campaignTypeResources.map(r => r.resource_name)
           });
           break;
         default:
@@ -341,6 +351,8 @@ export function AdminCampaignManagementModal({
       setRelatedTerritories([]);
       setRelatedTriumphs([]);
       setRelatedTradingPostIds([]);
+      setCampaignTypeResources([]);
+      setNewResourceName('');
       setIsCreateModeCampaignType(false);
 
       if (onSubmit) {
@@ -804,6 +816,60 @@ export function AdminCampaignManagementModal({
                               onClick={() => {
                                 setRelatedTriumphs(relatedTriumphs.filter(t => t.id !== triumph.id));
                               }}
+                              className="hover:text-red-500 focus:outline-hidden"
+                            >
+                              <HiX className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Resources Section */}
+                {(isCreateModeCampaignType || (selectedCampaignTypeId && !isCreateModeCampaignType)) && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Resources
+                    </label>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        type="text"
+                        value={newResourceName}
+                        onChange={(e) => setNewResourceName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newResourceName.trim()) {
+                            setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: newResourceName.trim() }]);
+                            setNewResourceName('');
+                          }
+                        }}
+                        placeholder="e.g. Meat"
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={() => {
+                          if (!newResourceName.trim()) return;
+                          setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: newResourceName.trim() }]);
+                          setNewResourceName('');
+                        }}
+                        variant="outline"
+                        size="sm"
+                        disabled={!newResourceName.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {campaignTypeResources.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {campaignTypeResources.map((resource, idx) => (
+                          <div
+                            key={resource.id}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                          >
+                            <span>{resource.resource_name}</span>
+                            <button
+                              onClick={() => setCampaignTypeResources(campaignTypeResources.filter((_, i) => i !== idx))}
                               className="hover:text-red-500 focus:outline-hidden"
                             >
                               <HiX className="h-4 w-4" />

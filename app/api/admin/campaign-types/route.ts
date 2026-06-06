@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data: campaignTypes, error } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, image_url, trading_posts')
+      .select('id, campaign_type_name, image_url, trading_posts, campaign_type_resources(id, resource_name)')
       .order('campaign_type_name', { ascending: true });
 
     if (error) throw error;
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { campaign_type_name, image_url, trading_posts } = body;
+    const { campaign_type_name, image_url, trading_posts, resources } = body;
 
     if (!campaign_type_name?.trim()) {
       return NextResponse.json(
@@ -96,6 +96,17 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
+
+    // Insert initial resources if provided
+    if (Array.isArray(resources) && resources.length > 0 && campaignType) {
+      const newNames: string[] = resources.map((r: string) => r.trim()).filter(Boolean);
+      if (newNames.length > 0) {
+        await supabase
+          .from('campaign_type_resources')
+          .insert(newNames.map(resource_name => ({ campaign_type_id: campaignType.id, resource_name })));
+      }
+    }
+
     return NextResponse.json(campaignType);
   } catch (error) {
     console.error('Error creating campaign type:', error);
@@ -116,7 +127,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, campaign_type_name, image_url, trading_posts } = body;
+    const { id, campaign_type_name, image_url, trading_posts, resources } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -172,22 +183,53 @@ export async function PATCH(request: Request) {
       updateData.trading_posts = trading_posts;
     }
 
-    if (Object.keys(updateData).length === 0) {
+    if (Object.keys(updateData).length === 0 && resources === undefined) {
       return NextResponse.json(
         { error: 'No fields to update' },
         { status: 400 }
       );
     }
 
-    const { data: campaignType, error } = await supabase
-      .from('campaign_types')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    if (Object.keys(updateData).length > 0) {
+      const { error } = await supabase
+        .from('campaign_types')
+        .update(updateData)
+        .eq('id', id);
+      if (error) throw error;
+    }
 
-    if (error) throw error;
-    return NextResponse.json(campaignType);
+    // Sync campaign_type_resources if provided
+    if (Array.isArray(resources)) {
+      const newNames: string[] = resources.map((r: string) => r.trim()).filter(Boolean);
+
+      const { data: existing } = await supabase
+        .from('campaign_type_resources')
+        .select('id, resource_name')
+        .eq('campaign_type_id', id);
+
+      const existingRows = existing ?? [];
+      const existingNames = existingRows.map(r => r.resource_name);
+
+      const toDelete = existingRows.filter(r => !newNames.includes(r.resource_name)).map(r => r.id);
+      const toInsert = newNames.filter(name => !existingNames.includes(name));
+
+      if (toDelete.length > 0) {
+        const { error } = await supabase
+          .from('campaign_type_resources')
+          .delete()
+          .in('id', toDelete);
+        if (error) throw error;
+      }
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase
+          .from('campaign_type_resources')
+          .insert(toInsert.map(resource_name => ({ campaign_type_id: id, resource_name })));
+        if (error) throw error;
+      }
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating campaign type:', error);
     return NextResponse.json(

@@ -54,12 +54,6 @@ interface Member {
     rating?: number;
     wealth?: number;
     reputation?: number;
-    exploration_points?: number | null;
-    meat?: number | null;
-    scavenging_rolls?: number | null;
-    power?: number | null;
-    sustenance?: number | null;
-    salvage?: number | null;
     territory_count?: number;
     resources?: GangResource[];
     allegiance?: {
@@ -79,12 +73,6 @@ interface Gang {
   rating?: number;
   wealth?: number;
   reputation?: number;
-  exploration_points?: number | null;
-  meat?: number | null;
-  scavenging_rolls?: number | null;
-  power?: number | null;
-  sustenance?: number | null;
-  salvage?: number | null;
   isInCampaign?: boolean;
 }
 
@@ -96,12 +84,6 @@ type GangWithCampaignCheck = {
   rating?: number;
   wealth?: number;
   reputation?: number;
-  exploration_points?: number | null;
-  meat?: number | null;
-  scavenging_rolls?: number | null;
-  power?: number | null;
-  sustenance?: number | null;
-  salvage?: number | null;
   campaign_gangs?: Array<{ gang_id: string }>;
 }
 
@@ -310,19 +292,13 @@ export default function MembersTable({
       const { data: gangs, error } = await supabase
         .from('gangs')
         .select(`
-          id, 
-          name, 
-          gang_type, 
-          gang_colour, 
-          rating, 
-          wealth, 
-          reputation, 
-          exploration_points, 
-          meat, 
-          scavenging_rolls, 
-          power, 
-          sustenance, 
-          salvage,
+          id,
+          name,
+          gang_type,
+          gang_colour,
+          rating,
+          wealth,
+          reputation,
           campaign_gangs(gang_id)
         `)
         .eq('user_id', userId)
@@ -405,12 +381,6 @@ export default function MembersTable({
         rating: gangData.rating || 0,
         wealth: gangData.wealth || 0,
         reputation: gangData.reputation || 0,
-        exploration_points: gangData.exploration_points ?? undefined,
-        meat: gangData.meat ?? undefined,
-        scavenging_rolls: gangData.scavenging_rolls ?? undefined,
-        power: gangData.power ?? undefined,
-        sustenance: gangData.sustenance ?? undefined,
-        salvage: gangData.salvage ?? undefined,
         territory_count: 0, // Will be updated when server responds
         allegiance: allegianceData ? {
           id: allegianceData.id,
