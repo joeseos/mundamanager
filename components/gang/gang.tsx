@@ -47,12 +47,6 @@ interface GangProps {
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
-  meat: number | null;
-  scavenging_rolls: number | null;
-  exploration_points: number | null;
-  power: number | null;
-  sustenance: number | null;
-  salvage: number | null;
   rating: number | null;
   wealth?: number | null;
   alignment: string;
@@ -75,13 +69,6 @@ interface GangProps {
     campaign_name: string;
     role: string | null;
     status: string | null;
-    // Legacy flags - kept for backward compatibility
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-    has_power: boolean;
-    has_sustenance: boolean;
-    has_salvage: boolean;
     territories: {
       id: string;
       created_at: string;
@@ -134,12 +121,6 @@ export default function Gang({
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
-  meat: initialMeat,
-  scavenging_rolls: initialScavengingRolls,
-  exploration_points: initialExplorationPoints,
-  power: initialPower,
-  sustenance: initialSustenance,
-  salvage: initialSalvage,
   rating: initialRating,
   wealth: initialWealth,
   alignment: initialAlignment,
@@ -184,13 +165,6 @@ export default function Gang({
   const [name, setName] = useState(initialName)
   const [credits, setCredits] = useState(initialCredits ?? 0)
   const [reputation, setReputation] = useState(initialReputation ?? 0)
-  // Legacy resource states - kept for backward compatibility during transition
-  const [meat, setMeat] = useState(initialMeat ?? 0)
-  const [scavengingRolls, setScavengingRolls] = useState(initialScavengingRolls ?? 0)
-  const [explorationPoints, setExplorationPoints] = useState(initialExplorationPoints ?? 0)
-  const [power, setPower] = useState(initialPower ?? 0)
-  const [sustenance, setSustenance] = useState(initialSustenance ?? 0)
-  const [salvage, setSalvage] = useState(initialSalvage ?? 0)
   // Dynamic resources from normalised tables
   const [campaignResources, setCampaignResources] = useState<Array<{
     resource_id: string;
@@ -511,7 +485,7 @@ export default function Gang({
       const snapshot = {
         name, credits, wealth, alignment, allianceId, allianceName,
         gangAffiliationId, gangAffiliationName, gangOriginId, gangOriginName,
-        reputation, meat, scavengingRolls, explorationPoints, power, sustenance, salvage,
+        reputation,
         gangVariants: [...gangVariants], gangIsVariant, gangColour, hidden,
         campaignResources: [...campaignResources]
       };
@@ -555,30 +529,6 @@ export default function Gang({
         setReputation(snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
       }
 
-      if (updates.meat !== undefined && updates.meat_operation) {
-        setMeat(snapshot.meat + (updates.meat_operation === 'add' ? updates.meat : -updates.meat));
-      }
-
-      if (updates.scavenging_rolls !== undefined && updates.scavenging_rolls_operation) {
-        setScavengingRolls(snapshot.scavengingRolls + (updates.scavenging_rolls_operation === 'add' ? updates.scavenging_rolls : -updates.scavenging_rolls));
-      }
-
-      if (updates.exploration_points !== undefined && updates.exploration_points_operation) {
-        setExplorationPoints(snapshot.explorationPoints + (updates.exploration_points_operation === 'add' ? updates.exploration_points : -updates.exploration_points));
-      }
-
-      if (updates.power !== undefined && updates.power_operation) {
-        setPower(snapshot.power + (updates.power_operation === 'add' ? updates.power : -updates.power));
-      }
-
-      if (updates.sustenance !== undefined && updates.sustenance_operation) {
-        setSustenance(snapshot.sustenance + (updates.sustenance_operation === 'add' ? updates.sustenance : -updates.sustenance));
-      }
-
-      if (updates.salvage !== undefined && updates.salvage_operation) {
-        setSalvage(snapshot.salvage + (updates.salvage_operation === 'add' ? updates.salvage : -updates.salvage));
-      }
-
       if (updates.gang_variants !== undefined) {
         const newVariants = updates.gang_variants.map((variantId: string) =>
           availableVariants.find(v => v.id === variantId) ||
@@ -607,12 +557,6 @@ export default function Gang({
         setGangOriginId(s.gangOriginId);
         setGangOriginName(s.gangOriginName);
         setReputation(s.reputation);
-        setMeat(s.meat);
-        setScavengingRolls(s.scavengingRolls);
-        setExplorationPoints(s.explorationPoints);
-        setPower(s.power);
-        setSustenance(s.sustenance);
-        setSalvage(s.salvage);
         setGangVariants(s.gangVariants);
         setGangIsVariant(s.gangIsVariant);
         setGangColour(s.gangColour);
@@ -1311,14 +1255,8 @@ export default function Gang({
             gangName={name}
             credits={credits}
             reputation={reputation}
-            meat={meat}
-            scavengingRolls={scavengingRolls}
-            explorationPoints={explorationPoints}
-            power={power}
             isGangOwner={userPermissions?.isOwner}
             isAdmin={userPermissions?.isAdmin}
-            sustenance={sustenance}
-            salvage={salvage}
             alignment={alignment}
             allianceId={allianceId}
             allianceName={allianceName}

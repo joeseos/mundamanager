@@ -21,12 +21,6 @@ async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
       description,
       created_at,
       updated_at,
-      has_meat,
-      has_exploration_points,
-      has_scavenging_rolls,
-      has_power,
-      has_sustenance,
-      has_salvage,
       trading_posts,
       custom_trading_posts,
       note,
@@ -131,12 +125,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         gang_type,
         gang_colour,
         reputation,
-        exploration_points,
-        meat,
-        scavenging_rolls,
-        power,
-        sustenance,
-        salvage,
         rating,
         wealth,
         credits
@@ -326,14 +314,6 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
         reputation: gangDetails?.reputation || 0,
         territory_count: territoryCounts[cg.gang_id] || 0,
 
-        // Optional campaign resources (legacy - kept for backwards compatibility during sync trigger phase)
-        exploration_points: gangDetails?.exploration_points ?? null,
-        meat: gangDetails?.meat ?? null,
-        scavenging_rolls: gangDetails?.scavenging_rolls ?? null,
-        power: gangDetails?.power ?? null,
-        sustenance: gangDetails?.sustenance ?? null,
-        salvage: gangDetails?.salvage ?? null,
-        
         // Normalised resources from campaign_gang_resources table
         resources: gangResourcesMap[cg.id] || [],
         

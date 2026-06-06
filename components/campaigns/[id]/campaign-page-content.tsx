@@ -113,12 +113,6 @@ interface CampaignPageContentProps {
     note: string | null;
     members: any[];
     territories: Territory[];
-    has_meat: boolean;
-    has_exploration_points: boolean;
-    has_scavenging_rolls: boolean;
-    has_power: boolean;
-    has_sustenance: boolean;
-    has_salvage: boolean;
     trading_posts: string[];
     custom_trading_posts?: string[];
     discord_guild_id?: string | null;

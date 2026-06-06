@@ -14,8 +14,6 @@ export type Gang = {
   gang_type_default_image_urls?: DefaultImageEntry[];
   credits: number;
   reputation: number;
-  meat: number;
-  exploration_points: number;
   rating: number;
   created_at: string;
   last_updated: string;
@@ -32,8 +30,6 @@ type RawGangData = {
   gang_type_id: string;
   credits: number;
   reputation: number;
-  meat: number;
-  exploration_points: number;
   created_at: string;
   last_updated: string;
   default_gang_image?: number | null;
@@ -80,8 +76,6 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
             default_gang_image,
             credits,
             reputation,
-            meat,
-            exploration_points,
             rating,
             created_at,
             last_updated,
@@ -172,8 +166,6 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
           gang_type_default_image_urls: normaliseDefaultImageUrls(gang.gang_types?.default_image_urls ?? gang.custom_gang_types?.default_image_urls),
           credits: gang.credits,
           reputation: gang.reputation,
-          meat: gang.meat,
-          exploration_points: gang.exploration_points,
           rating: gang.rating || 0,
           created_at: gang.created_at,
           last_updated: gang.last_updated,

@@ -9,12 +9,6 @@ export interface UpdateCampaignSettingsParams {
   campaignId: string;
   campaign_name?: string;
   description?: string;
-  has_meat?: boolean;
-  has_exploration_points?: boolean;
-  has_scavenging_rolls?: boolean;
-  has_power?: boolean;
-  has_sustenance?: boolean;
-  has_salvage?: boolean;
   trading_posts?: string[];
   note?: string;
   status?: string;
@@ -37,12 +31,6 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       campaignId,
       campaign_name,
       description,
-      has_meat,
-      has_exploration_points,
-      has_scavenging_rolls,
-      has_power,
-      has_sustenance,
-      has_salvage,
       trading_posts,
       note,
       status,
@@ -56,12 +44,6 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     const updateData: any = { updated_at: new Date().toISOString() };
     if (campaign_name !== undefined) updateData.campaign_name = campaign_name.trimEnd();
     if (description !== undefined) updateData.description = description;
-    if (has_meat !== undefined) updateData.has_meat = has_meat;
-    if (has_exploration_points !== undefined) updateData.has_exploration_points = has_exploration_points;
-    if (has_scavenging_rolls !== undefined) updateData.has_scavenging_rolls = has_scavenging_rolls;
-    if (has_power !== undefined) updateData.has_power = has_power;
-    if (has_sustenance !== undefined) updateData.has_sustenance = has_sustenance;
-    if (has_salvage !== undefined) updateData.has_salvage = has_salvage;
     if (trading_posts !== undefined) updateData.trading_posts = trading_posts;
     if (custom_trading_posts !== undefined) updateData.custom_trading_posts = custom_trading_posts;
     if (note !== undefined) updateData.note = note;
