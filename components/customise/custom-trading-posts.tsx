@@ -1031,8 +1031,8 @@ function EditEquipmentModal({
   const [localPricingRules, setLocalPricingRules] = useState<CustomTPPricingRule[] | null>(
     pendingChanges ? pendingChanges.pricingRules : null
   );
-  const [isAddAvailOpen, setIsAddAvailOpen] = useState(false);
-  const [isAddPricingOpen, setIsAddPricingOpen] = useState(false);
+  const [availRuleModal, setAvailRuleModal] = useState<'add' | number | null>(null);
+  const [pricingRuleModal, setPricingRuleModal] = useState<'add' | number | null>(null);
 
   const { data: availableResources = [] } = useQuery<ResourceOption[]>({
     queryKey: ['tpAvailableResources', tradingPostId],
@@ -1116,7 +1116,16 @@ function EditEquipmentModal({
 
   const handleAddAvailRule = (rule: CustomTPAvailabilityRule) => {
     setLocalAvailRules(prev => [...(prev ?? fetchedAvailRules), rule]);
-    setIsAddAvailOpen(false);
+    setAvailRuleModal(null);
+  };
+
+  const handleUpdateAvailRule = (index: number, rule: CustomTPAvailabilityRule) => {
+    setLocalAvailRules(prev => {
+      const rules = [...(prev ?? fetchedAvailRules)];
+      rules[index] = rule;
+      return rules;
+    });
+    setAvailRuleModal(null);
   };
 
   const handleRemoveAvailRule = (index: number) => {
@@ -1125,7 +1134,16 @@ function EditEquipmentModal({
 
   const handleAddPricingRule = (rule: CustomTPPricingRule) => {
     setLocalPricingRules(prev => [...(prev ?? fetchedPricingRules), rule]);
-    setIsAddPricingOpen(false);
+    setPricingRuleModal(null);
+  };
+
+  const handleUpdatePricingRule = (index: number, rule: CustomTPPricingRule) => {
+    setLocalPricingRules(prev => {
+      const rules = [...(prev ?? fetchedPricingRules)];
+      rules[index] = rule;
+      return rules;
+    });
+    setPricingRuleModal(null);
   };
 
   const handleRemovePricingRule = (index: number) => {
@@ -1144,18 +1162,18 @@ function EditEquipmentModal({
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <Label className="mb-1">Resource Cost</Label>
+              <Label>Resource Type</Label>
               <Combobox
                 options={availableResources.map(r => ({ value: r.id, label: r.name }))}
                 value={selectedResourceValue}
                 onValueChange={setSelectedResourceValue}
-                placeholder="None (uses credits)"
+                placeholder="Credits (default)"
                 clearable
               />
             </div>
             {hasResourceCost && (
               <div>
-                <Label className="mb-1">Resource Amount</Label>
+                <Label>Resource Amount</Label>
                 <Input
                   type="number"
                   value={costResourceAmount}
@@ -1165,7 +1183,7 @@ function EditEquipmentModal({
               </div>
             )}
             <div>
-              <Label className="mb-1">Cost Override</Label>
+              <Label>General Cost Override</Label>
               <Input
                 type="number"
                 value={costOverride}
@@ -1174,7 +1192,7 @@ function EditEquipmentModal({
               />
             </div>
             <AvailabilityPicker
-              label="Availability Override"
+              label="General Availability Override"
               letter={availLetter}
               number={availNumber}
               onLetterChange={setAvailLetter}
@@ -1187,7 +1205,7 @@ function EditEquipmentModal({
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold">Availability Rules</h4>
-              <Button onClick={() => setIsAddAvailOpen(true)}>
+              <Button onClick={() => setAvailRuleModal('add')}>
                 Add
               </Button>
             </div>
@@ -1217,14 +1235,24 @@ function EditEquipmentModal({
                         <td className="py-1 pr-2">{rule.alignment || '-'}</td>
                         <td className="py-1 pr-2 text-center">{rule.availability || '-'}</td>
                         <td className="py-1 text-right">
-                          <Button
-                            variant="outline_remove"
-                            size="sm"
-                            className="text-xs px-1 h-5"
-                            onClick={() => handleRemoveAvailRule(index)}
-                          >
-                            <LuTrash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs px-1 h-5"
+                              onClick={() => setAvailRuleModal(index)}
+                            >
+                              <LuSquarePen className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline_remove"
+                              size="sm"
+                              className="text-xs px-1 h-5"
+                              onClick={() => handleRemoveAvailRule(index)}
+                            >
+                              <LuTrash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1238,7 +1266,7 @@ function EditEquipmentModal({
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold">Cost Rules</h4>
-              <Button onClick={() => setIsAddPricingOpen(true)}>
+              <Button onClick={() => setPricingRuleModal('add')}>
                 Add
               </Button>
             </div>
@@ -1264,14 +1292,24 @@ function EditEquipmentModal({
                         <td className="py-1 pr-2">{rule.fighter_type_name || '-'}</td>
                         <td className="py-1 pr-2 text-center">{rule.adjusted_cost != null ? rule.adjusted_cost : '-'}</td>
                         <td className="py-1 text-right">
-                          <Button
-                            variant="outline_remove"
-                            size="sm"
-                            className="text-xs px-1 h-5"
-                            onClick={() => handleRemovePricingRule(index)}
-                          >
-                            <LuTrash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs px-1 h-5"
+                              onClick={() => setPricingRuleModal(index)}
+                            >
+                              <LuSquarePen className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline_remove"
+                              size="sm"
+                              className="text-xs px-1 h-5"
+                              onClick={() => handleRemovePricingRule(index)}
+                            >
+                              <LuTrash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1283,19 +1321,33 @@ function EditEquipmentModal({
         </div>
       </Modal>
 
-      {isAddAvailOpen && (
+      {availRuleModal !== null && (
         <AddAvailabilityRuleModal
           equipmentItemId={item.id}
-          onClose={() => setIsAddAvailOpen(false)}
-          onAdded={handleAddAvailRule}
+          initialRule={typeof availRuleModal === 'number' ? availRules[availRuleModal] : undefined}
+          onClose={() => setAvailRuleModal(null)}
+          onSaved={(rule) => {
+            if (typeof availRuleModal === 'number') {
+              handleUpdateAvailRule(availRuleModal, rule);
+            } else {
+              handleAddAvailRule(rule);
+            }
+          }}
         />
       )}
 
-      {isAddPricingOpen && (
+      {pricingRuleModal !== null && (
         <AddPricingRuleModal
           equipmentItemId={item.id}
-          onClose={() => setIsAddPricingOpen(false)}
-          onAdded={handleAddPricingRule}
+          initialRule={typeof pricingRuleModal === 'number' ? pricingRules[pricingRuleModal] : undefined}
+          onClose={() => setPricingRuleModal(null)}
+          onSaved={(rule) => {
+            if (typeof pricingRuleModal === 'number') {
+              handleUpdatePricingRule(pricingRuleModal, rule);
+            } else {
+              handleAddPricingRule(rule);
+            }
+          }}
         />
       )}
     </>
@@ -1303,7 +1355,7 @@ function EditEquipmentModal({
 }
 
 // ---------------------------------------------------------------------------
-// Add Availability Rule Modal
+// Availability Rule Modal (add / edit)
 // ---------------------------------------------------------------------------
 
 interface GangTypeOption {
@@ -1400,23 +1452,28 @@ function GangScopeFields({
 
 function AddAvailabilityRuleModal({
   equipmentItemId,
+  initialRule,
   onClose,
-  onAdded,
+  onSaved,
 }: {
   equipmentItemId: string;
+  initialRule?: CustomTPAvailabilityRule;
   onClose: () => void;
-  onAdded: (rule: CustomTPAvailabilityRule) => void;
+  onSaved: (rule: CustomTPAvailabilityRule) => void;
 }) {
-  const [gangTypeId, setGangTypeId] = useState('');
-  const [isCustomGangType, setIsCustomGangType] = useState(false);
-  const [gangOriginId, setGangOriginId] = useState('');
-  const [gangTypeName, setGangTypeName] = useState<string | null>(null);
-  const [gangOriginName, setGangOriginName] = useState<string | null>(null);
-  const [gangVariantId, setGangVariantId] = useState('');
-  const [allegiance, setAllegiance] = useState('');
-  const [alignment, setAlignment] = useState('');
-  const [availLetter, setAvailLetter] = useState('');
-  const [availNumber, setAvailNumber] = useState(6);
+  const parsedAvail = parseAvailability(initialRule?.availability);
+  const [gangTypeId, setGangTypeId] = useState(
+    initialRule ? (initialRule.custom_gang_type_id || initialRule.gang_type_id || '') : ''
+  );
+  const [isCustomGangType, setIsCustomGangType] = useState(!!initialRule?.custom_gang_type_id);
+  const [gangOriginId, setGangOriginId] = useState(initialRule?.gang_origin_id || '');
+  const [gangTypeName, setGangTypeName] = useState<string | null>(initialRule?.gang_type_name ?? null);
+  const [gangOriginName, setGangOriginName] = useState<string | null>(initialRule?.gang_origin_name ?? null);
+  const [gangVariantId, setGangVariantId] = useState(initialRule?.gang_variant_id || '');
+  const [allegiance, setAllegiance] = useState(initialRule?.campaign_type_allegiance_id || '');
+  const [alignment, setAlignment] = useState(initialRule?.alignment || '');
+  const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
+  const [availNumber, setAvailNumber] = useState(parsedAvail.number);
 
   const { data: variants = [] } = useQuery({
     queryKey: ['gangVariantTypes'],
@@ -1441,9 +1498,9 @@ function AddAvailabilityRuleModal({
   const selectedVariantName = variants.find(v => v.id === gangVariantId)?.variant || null;
   const selectedAllegianceName = allegiances.find(a => a.id === allegiance)?.allegiance_name || null;
 
-  const handleAdd = () => {
+  const handleSave = () => {
     const rule: CustomTPAvailabilityRule = {
-      id: `local_${Date.now()}`,
+      id: initialRule?.id ?? `local_${Date.now()}`,
       custom_trading_post_equipment_id: equipmentItemId,
       gang_type_id: !isCustomGangType && gangTypeId ? gangTypeId : null,
       custom_gang_type_id: isCustomGangType && gangTypeId ? gangTypeId : null,
@@ -1457,20 +1514,21 @@ function AddAvailabilityRuleModal({
       gang_variant_name: selectedVariantName,
       allegiance_name: selectedAllegianceName,
     };
-    onAdded(rule);
+    onSaved(rule);
   };
 
   const hasAnyField = gangTypeId || gangOriginId || gangVariantId || allegiance || alignment;
+  const isEditing = !!initialRule;
 
   return (
     <Modal
-      title="Add Availability Rule"
+      title={isEditing ? 'Edit Availability Rule' : 'Add Availability Rule'}
       onClose={onClose}
       onConfirm={async () => {
-        handleAdd();
+        handleSave();
         return true;
       }}
-      confirmText="Add Rule"
+      confirmText={isEditing ? 'Save Rule' : 'Add Rule'}
       confirmDisabled={!hasAnyField}
     >
       <div className="space-y-3">
@@ -1546,58 +1604,143 @@ function AddAvailabilityRuleModal({
 }
 
 // ---------------------------------------------------------------------------
-// Add Pricing Rule Modal
+// Cost Rule Modal (add / edit)
 // ---------------------------------------------------------------------------
+
+type PricingRuleFighterType = {
+  id: string;
+  fighter_type: string;
+  fighter_class?: string;
+  gang_type?: string;
+  gang_type_id?: string;
+  sub_type?: { id?: string; sub_type_name?: string } | null;
+};
+
+function getPricingRuleFighterTypeClassKey(ft: PricingRuleFighterType): string {
+  return `${ft.fighter_type}-${ft.fighter_class || 'Unknown'}`;
+}
+
+function buildMultiProfileKeys(fighterTypes: PricingRuleFighterType[]): Set<string> {
+  const keyCounts = new Map<string, number>();
+  for (const ft of fighterTypes) {
+    const key = getPricingRuleFighterTypeClassKey(ft);
+    keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+  }
+  const keys = new Set<string>();
+  keyCounts.forEach((count, key) => {
+    if (count > 1) keys.add(key);
+  });
+  return keys;
+}
+
+function formatPricingRuleFighterTypeLabel(
+  ft: PricingRuleFighterType,
+  multiProfileKeys: Set<string>
+): string {
+  const fighterClass = ft.fighter_class || 'Unknown';
+  const base = `${ft.fighter_type} (${fighterClass})`;
+  if (!multiProfileKeys.has(getPricingRuleFighterTypeClassKey(ft))) return base;
+  if (!ft.sub_type?.sub_type_name) return base;
+  return `${base} - ${ft.sub_type.sub_type_name}`;
+}
 
 function AddPricingRuleModal({
   equipmentItemId,
+  initialRule,
   onClose,
-  onAdded,
+  onSaved,
 }: {
   equipmentItemId: string;
+  initialRule?: CustomTPPricingRule;
   onClose: () => void;
-  onAdded: (rule: CustomTPPricingRule) => void;
+  onSaved: (rule: CustomTPPricingRule) => void;
 }) {
-  const [gangTypeId, setGangTypeId] = useState('');
-  const [isCustomGangType, setIsCustomGangType] = useState(false);
-  const [gangOriginId, setGangOriginId] = useState('');
-  const [gangTypeName, setGangTypeName] = useState<string | null>(null);
-  const [gangOriginName, setGangOriginName] = useState<string | null>(null);
-  const [fighterTypeId, setFighterTypeId] = useState('');
-  const [adjustedCost, setAdjustedCost] = useState('');
+  const [gangTypeId, setGangTypeId] = useState(
+    initialRule ? (initialRule.custom_gang_type_id || initialRule.gang_type_id || '') : ''
+  );
+  const [isCustomGangType, setIsCustomGangType] = useState(!!initialRule?.custom_gang_type_id);
+  const [gangOriginId, setGangOriginId] = useState(initialRule?.gang_origin_id || '');
+  const [gangTypeName, setGangTypeName] = useState<string | null>(initialRule?.gang_type_name ?? null);
+  const [gangOriginName, setGangOriginName] = useState<string | null>(initialRule?.gang_origin_name ?? null);
+  const [fighterTypeId, setFighterTypeId] = useState(initialRule?.fighter_type_id || '');
+  const [adjustedCost, setAdjustedCost] = useState(
+    initialRule?.adjusted_cost != null ? initialRule.adjusted_cost.toString() : ''
+  );
 
-  const { data: fighterTypes = [] } = useQuery({
+  const { data: fighterTypes = [], isLoading: isFighterTypesLoading } = useQuery({
     queryKey: ['fighterTypes'],
     queryFn: async () => {
       const res = await fetch('/api/fighter-types?include_all_types=true');
       if (!res.ok) throw new Error('Failed to fetch fighter types');
-      return res.json() as Promise<Array<{ id: string; fighter_type: string; gang_type?: string }>>;
+      return res.json() as Promise<PricingRuleFighterType[]>;
     },
     staleTime: 10 * 60 * 1000,
   });
 
+  const { data: customFighterTypes = [], isLoading: isCustomFighterTypesLoading } = useQuery({
+    queryKey: ['fighterTypes', 'custom', gangTypeId],
+    queryFn: async () => {
+      const res = await fetch(`/api/fighter-types?custom_gang_type_id=${gangTypeId}`);
+      if (!res.ok) throw new Error('Failed to fetch custom fighter types');
+      return res.json() as Promise<PricingRuleFighterType[]>;
+    },
+    enabled: isCustomGangType && !!gangTypeId,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const scopedFighterTypes = React.useMemo(() => {
+    if (!gangTypeId) return [];
+    if (isCustomGangType) return customFighterTypes;
+    return fighterTypes.filter(ft => ft.gang_type_id === gangTypeId);
+  }, [gangTypeId, isCustomGangType, fighterTypes, customFighterTypes]);
+
   const fighterTypeOptions = React.useMemo(() => {
-    const grouped: Record<string, Array<{ id: string; fighter_type: string }>> = {};
-    for (const ft of fighterTypes) {
-      const group = ft.gang_type || 'Other';
-      if (!grouped[group]) grouped[group] = [];
-      grouped[group].push(ft);
-    }
-    const options: Array<{ value: string; label: string; displayValue?: string; disabled?: boolean }> = [];
-    for (const gangType of Object.keys(grouped)) {
-      options.push({ value: `header_${gangType}`, label: gangType, disabled: true });
-      for (const ft of grouped[gangType]) {
-        options.push({ value: ft.id, label: ft.fighter_type, displayValue: ft.fighter_type });
-      }
-    }
-    return options;
-  }, [fighterTypes]);
+    const multiProfileKeys = buildMultiProfileKeys(scopedFighterTypes);
+    return [...scopedFighterTypes]
+      .map(ft => {
+        const label = formatPricingRuleFighterTypeLabel(ft, multiProfileKeys);
+        return {
+          value: ft.id,
+          label,
+          displayValue: label,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [scopedFighterTypes]);
 
-  const selectedFighterTypeName = fighterTypes.find(ft => ft.id === fighterTypeId)?.fighter_type || null;
+  const selectedFighterTypeName = (() => {
+    const ft =
+      scopedFighterTypes.find(item => item.id === fighterTypeId)
+      || fighterTypes.find(item => item.id === fighterTypeId)
+      || customFighterTypes.find(item => item.id === fighterTypeId);
+    if (!ft) return null;
+    const scopeForLabel =
+      scopedFighterTypes.length > 0
+        ? scopedFighterTypes
+        : isCustomGangType
+          ? customFighterTypes
+          : fighterTypes.filter(item => item.gang_type_id === gangTypeId);
+    return formatPricingRuleFighterTypeLabel(ft, buildMultiProfileKeys(scopeForLabel));
+  })();
 
-  const handleAdd = () => {
+  useEffect(() => {
+    if (!fighterTypeId || !gangTypeId) return;
+    if (isCustomGangType ? isCustomFighterTypesLoading : isFighterTypesLoading) return;
+    if (!scopedFighterTypes.some(ft => ft.id === fighterTypeId)) {
+      setFighterTypeId('');
+    }
+  }, [
+    gangTypeId,
+    isCustomGangType,
+    scopedFighterTypes,
+    fighterTypeId,
+    isCustomFighterTypesLoading,
+    isFighterTypesLoading,
+  ]);
+
+  const handleSave = () => {
     const rule: CustomTPPricingRule = {
-      id: `local_${Date.now()}`,
+      id: initialRule?.id ?? `local_${Date.now()}`,
       custom_trading_post_equipment_id: equipmentItemId,
       gang_type_id: !isCustomGangType && gangTypeId ? gangTypeId : null,
       custom_gang_type_id: isCustomGangType && gangTypeId ? gangTypeId : null,
@@ -1608,20 +1751,21 @@ function AddPricingRuleModal({
       gang_origin_name: gangOriginName,
       fighter_type_name: selectedFighterTypeName,
     };
-    onAdded(rule);
+    onSaved(rule);
   };
 
   const isValid = adjustedCost.trim() !== '' && (gangTypeId || gangOriginId || fighterTypeId);
+  const isEditing = !!initialRule;
 
   return (
     <Modal
-      title="Add Cost Rule"
+      title={isEditing ? 'Edit Cost Rule' : 'Add Cost Rule'}
       onClose={onClose}
       onConfirm={async () => {
-        handleAdd();
+        handleSave();
         return true;
       }}
-      confirmText="Add Rule"
+      confirmText={isEditing ? 'Save Rule' : 'Add Rule'}
       confirmDisabled={!isValid}
     >
       <div className="space-y-3">
@@ -1634,6 +1778,15 @@ function AddPricingRuleModal({
             setGangTypeName(name);
             setGangOriginId('');
             setGangOriginName(null);
+            if (!id) {
+              setFighterTypeId('');
+            } else if (fighterTypeId) {
+              if (!isCustom) {
+                if (!fighterTypes.some(ft => ft.gang_type_id === id && ft.id === fighterTypeId)) {
+                  setFighterTypeId('');
+                }
+              }
+            }
           }}
           onGangOriginChange={(id, name) => {
             setGangOriginId(id);
@@ -1649,6 +1802,7 @@ function AddPricingRuleModal({
             onValueChange={setFighterTypeId}
             placeholder="Any fighter type"
             clearable
+            disabled={!gangTypeId}
           />
         </div>
 
