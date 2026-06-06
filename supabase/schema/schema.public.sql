@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict mBqhFB2FOdj7Zg4r19uhLoHn9Oe3BZd4QPI5ihb1yzUKuRfDlY87gR1vBeAM5Ab
+\restrict edaw2G1FNC6bImtlKnhdUhN4wb4PX7lvF5Ir0Xr1HoCOXeOvEkMB8YO5bAvjbWE
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -2845,7 +2845,7 @@ $$;
 -- Name: get_gang_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, meat numeric, scavenging_rolls numeric, exploration_points numeric, power numeric, sustenance numeric, salvage numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json)
+CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_variants json)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3508,12 +3508,6 @@ BEGIN
                    'invited_at', cg.invited_at,
                    'joined_at', cg.joined_at,
                    'invited_by', cg.invited_by,
-                   'has_meat', c.has_meat,
-                   'has_exploration_points', c.has_exploration_points,
-                   'has_scavenging_rolls', c.has_scavenging_rolls,
-                   'has_power', c.has_power,
-                   'has_sustenance', c.has_sustenance,
-                   'has_salvage', c.has_salvage,
                    'territories', COALESCE(
                        (SELECT ct.territories 
                         FROM campaign_territories ct 
@@ -3633,12 +3627,6 @@ BEGIN
        g.gang_colour,
        g.credits,
        g.reputation,
-       g.meat,
-       g.scavenging_rolls,
-       g.exploration_points,
-       g.power,
-       g.sustenance,
-       g.salvage,
        (SELECT total_gang_rating FROM gang_totals) as rating,
        g.alignment,
        g.positioning,
@@ -4272,13 +4260,13 @@ CREATE TABLE public.campaign_types (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     campaign_type_name text,
     description text,
-    has_meat boolean DEFAULT false NOT NULL,
-    has_exploration_points boolean DEFAULT false NOT NULL,
-    has_scavenging_rolls boolean DEFAULT false NOT NULL,
+    "OLDhas_meat" boolean DEFAULT false NOT NULL,
+    "OLDhas_exploration_points" boolean DEFAULT false NOT NULL,
+    "OLDhas_scavenging_rolls" boolean DEFAULT false NOT NULL,
     image_url text,
-    has_power boolean DEFAULT false,
-    has_sustenance boolean DEFAULT false,
-    has_salvage boolean DEFAULT false,
+    "OLDhas_power" boolean DEFAULT false,
+    "OLDhas_sustenance" boolean DEFAULT false,
+    "OLDhas_salvage" boolean DEFAULT false,
     trading_posts jsonb
 );
 
@@ -4294,15 +4282,15 @@ CREATE TABLE public.campaigns (
     campaign_type_id uuid,
     status text,
     updated_at timestamp with time zone,
-    has_meat boolean DEFAULT false NOT NULL,
-    has_exploration_points boolean DEFAULT false NOT NULL,
-    has_scavenging_rolls boolean DEFAULT false NOT NULL,
+    "OLDhas_meat" boolean DEFAULT false NOT NULL,
+    "OLDhas_exploration_points" boolean DEFAULT false NOT NULL,
+    "OLDhas_scavenging_rolls" boolean DEFAULT false NOT NULL,
     note text,
     description text,
     image_url text,
-    has_power boolean DEFAULT false,
-    has_sustenance boolean DEFAULT false,
-    has_salvage boolean DEFAULT false,
+    "OLDhas_power" boolean DEFAULT false,
+    "OLDhas_sustenance" boolean DEFAULT false,
+    "OLDhas_salvage" boolean DEFAULT false,
     trading_posts jsonb,
     discord_channel_id text,
     discord_guild_id text,
@@ -5318,8 +5306,8 @@ CREATE TABLE public.gangs (
     credits numeric,
     last_updated timestamp with time zone,
     reputation numeric,
-    meat numeric DEFAULT '0'::numeric,
-    exploration_points numeric DEFAULT '0'::numeric,
+    "OLDmeat" numeric DEFAULT '0'::numeric,
+    "OLDexploration_points" numeric DEFAULT '0'::numeric,
     rating numeric,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     gang_type_id uuid,
@@ -5329,15 +5317,15 @@ CREATE TABLE public.gangs (
     alliance_id uuid,
     gang_variants jsonb,
     gang_colour text,
-    scavenging_rolls numeric DEFAULT '0'::numeric,
+    "OLDscavenging_rolls" numeric DEFAULT '0'::numeric,
     image_url text,
     note_backstory text,
     gang_affiliation_id uuid,
     gang_origin_id uuid,
     wealth numeric,
-    power numeric,
-    sustenance numeric,
-    salvage numeric,
+    "OLDpower" numeric,
+    "OLDsustenance" numeric,
+    "OLDsalvage" numeric,
     hidden boolean DEFAULT false,
     default_gang_image numeric,
     is_favourite boolean DEFAULT false NOT NULL,
@@ -11645,5 +11633,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict mBqhFB2FOdj7Zg4r19uhLoHn9Oe3BZd4QPI5ihb1yzUKuRfDlY87gR1vBeAM5Ab
+\unrestrict edaw2G1FNC6bImtlKnhdUhN4wb4PX7lvF5Ir0Xr1HoCOXeOvEkMB8YO5bAvjbWE
 
