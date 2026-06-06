@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import type { CustomEquipment } from '@/app/lib/customise/custom-equipment'
-import type { CustomTerritory } from '@/app/lib/customise/custom-territories'
 import type { CustomSkill } from '@/app/lib/customise/custom-skills'
 import type { CustomFighterType } from '@/types/fighter'
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
@@ -14,7 +13,6 @@ import type { UserCampaign } from '@/types/campaign'
 import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
 import { CustomiseTradingPosts } from '@/components/customise/custom-trading-posts'
 import { CustomiseEquipment } from '@/components/customise/custom-equipment'
-import { CustomiseTerritories } from '@/components/customise/custom-territories'
 import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
@@ -28,7 +26,6 @@ interface HomeTabsProps {
   campaigns: Campaign[];
   userId: string;
   customEquipment: CustomEquipment[];
-  customTerritories: CustomTerritory[];
   customFighterTypes: CustomFighterType[];
   customSkills: CustomSkill[];
   customGangTypes: CustomGangType[];
@@ -41,7 +38,6 @@ export default function HomeTabs({
   campaigns,
   userId,
   customEquipment,
-  customTerritories,
   customFighterTypes,
   customSkills,
   customGangTypes,
@@ -178,8 +174,6 @@ export default function HomeTabs({
               userId={userId}
               userCampaigns={userCampaigns}
             />
-
-            <CustomiseTerritories initialTerritories={customTerritories} readOnly />
           </div>
         )}
       </div>

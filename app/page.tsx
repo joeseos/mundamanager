@@ -13,7 +13,6 @@ import { GrHelpBook } from "react-icons/gr";
 import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
-import { getUserCustomTerritories } from "@/app/lib/customise/custom-territories";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
 import { getUserCustomSkills } from "@/app/lib/customise/custom-skills";
 import { getUserCustomGangTypes } from "@/app/lib/customise/custom-gang-types";
@@ -36,7 +35,6 @@ export default async function Home() {
     gangs,
     campaigns,
     customEquipment,
-    customTerritories,
     customFighterTypes,
     customSkills,
     customGangTypes,
@@ -45,7 +43,6 @@ export default async function Home() {
     getUserGangs(user.id, supabase),
     getUserCampaigns(user.id, supabase),
     getUserCustomEquipment(user.id),
-    getUserCustomTerritories(),
     getUserCustomFighterTypes(user.id),
     getUserCustomSkills(user.id),
     getUserCustomGangTypes(user.id),
@@ -138,7 +135,6 @@ export default async function Home() {
           campaigns={campaigns}
           userId={user.id}
           customEquipment={customEquipment}
-          customTerritories={customTerritories}
           customFighterTypes={customFighterTypes}
           customSkills={customSkills}
           customGangTypes={customGangTypes}
