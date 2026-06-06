@@ -840,6 +840,11 @@ export function AdminCampaignManagementModal({
                         onChange={(e) => setNewResourceName(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && newResourceName.trim()) {
+                            e.preventDefault();
+                            if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === newResourceName.trim().toLowerCase())) {
+                              toast.error('Resource already exists');
+                              return;
+                            }
                             setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: newResourceName.trim() }]);
                             setNewResourceName('');
                           }
@@ -850,6 +855,10 @@ export function AdminCampaignManagementModal({
                       <Button
                         onClick={() => {
                           if (!newResourceName.trim()) return;
+                          if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === newResourceName.trim().toLowerCase())) {
+                            toast.error('Resource already exists');
+                            return;
+                          }
                           setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: newResourceName.trim() }]);
                           setNewResourceName('');
                         }}

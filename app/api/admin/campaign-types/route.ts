@@ -101,9 +101,10 @@ export async function POST(request: Request) {
     if (Array.isArray(resources) && resources.length > 0 && campaignType) {
       const newNames: string[] = resources.map((r: string) => r.trim()).filter(Boolean);
       if (newNames.length > 0) {
-        await supabase
+        const { error: resourceError } = await supabase
           .from('campaign_type_resources')
           .insert(newNames.map(resource_name => ({ campaign_type_id: campaignType.id, resource_name })));
+        if (resourceError) throw resourceError;
       }
     }
 
@@ -229,7 +230,13 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    const { data: updatedCampaignType, error: fetchError } = await supabase
+      .from('campaign_types')
+      .select('id, campaign_type_name, image_url, trading_posts, campaign_type_resources(id, resource_name)')
+      .eq('id', id)
+      .single();
+    if (fetchError) throw fetchError;
+    return NextResponse.json(updatedCampaignType);
   } catch (error) {
     console.error('Error updating campaign type:', error);
     return NextResponse.json(
