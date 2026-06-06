@@ -1691,8 +1691,10 @@ function AddPricingRuleModal({
   const scopedFighterTypes = React.useMemo(() => {
     if (!gangTypeId) return [];
     if (isCustomGangType) return customFighterTypes;
-    return fighterTypes.filter(ft => ft.gang_type_id === gangTypeId);
-  }, [gangTypeId, isCustomGangType, fighterTypes, customFighterTypes]);
+    return fighterTypes.filter(
+      ft => ft.gang_type_id === gangTypeId || (fighterTypeId !== '' && ft.id === fighterTypeId)
+    );
+  }, [gangTypeId, isCustomGangType, fighterTypes, customFighterTypes, fighterTypeId]);
 
   const fighterTypeOptions = React.useMemo(() => {
     const multiProfileKeys = buildMultiProfileKeys(scopedFighterTypes);
@@ -1708,7 +1710,7 @@ function AddPricingRuleModal({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [scopedFighterTypes]);
 
-  const selectedFighterTypeName = (() => {
+  const selectedFighterTypeName = React.useMemo(() => {
     const ft =
       scopedFighterTypes.find(item => item.id === fighterTypeId)
       || fighterTypes.find(item => item.id === fighterTypeId)
@@ -1719,9 +1721,11 @@ function AddPricingRuleModal({
         ? scopedFighterTypes
         : isCustomGangType
           ? customFighterTypes
-          : fighterTypes.filter(item => item.gang_type_id === gangTypeId);
+          : fighterTypes.filter(
+              item => item.gang_type_id === gangTypeId || (fighterTypeId !== '' && item.id === fighterTypeId)
+            );
     return formatPricingRuleFighterTypeLabel(ft, buildMultiProfileKeys(scopeForLabel));
-  })();
+  }, [scopedFighterTypes, fighterTypeId, fighterTypes, customFighterTypes, isCustomGangType, gangTypeId]);
 
   useEffect(() => {
     if (!fighterTypeId || !gangTypeId) return;
@@ -1781,10 +1785,10 @@ function AddPricingRuleModal({
             if (!id) {
               setFighterTypeId('');
             } else if (fighterTypeId) {
-              if (!isCustom) {
-                if (!fighterTypes.some(ft => ft.gang_type_id === id && ft.id === fighterTypeId)) {
-                  setFighterTypeId('');
-                }
+              if (isCustom) {
+                setFighterTypeId('');
+              } else if (!fighterTypes.some(ft => ft.gang_type_id === id && ft.id === fighterTypeId)) {
+                setFighterTypeId('');
               }
             }
           }}
