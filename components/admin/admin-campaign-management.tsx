@@ -205,6 +205,17 @@ export function AdminCampaignManagementModal({
     }
   };
 
+  const handleAddResource = () => {
+    const name = newResourceName.trim();
+    if (!name) return;
+    if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === name.toLowerCase())) {
+      toast.error('Resource already exists');
+      return;
+    }
+    setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: name }]);
+    setNewResourceName('');
+  };
+
   const handleCreateNewCampaignType = () => {
     setSelectedCampaignTypeId('');
     setCampaignTypeName('');
@@ -839,29 +850,16 @@ export function AdminCampaignManagementModal({
                         value={newResourceName}
                         onChange={(e) => setNewResourceName(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newResourceName.trim()) {
+                          if (e.key === 'Enter') {
                             e.preventDefault();
-                            if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === newResourceName.trim().toLowerCase())) {
-                              toast.error('Resource already exists');
-                              return;
-                            }
-                            setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: newResourceName.trim() }]);
-                            setNewResourceName('');
+                            handleAddResource();
                           }
                         }}
                         placeholder="e.g. Meat"
                         className="flex-1"
                       />
                       <Button
-                        onClick={() => {
-                          if (!newResourceName.trim()) return;
-                          if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === newResourceName.trim().toLowerCase())) {
-                            toast.error('Resource already exists');
-                            return;
-                          }
-                          setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: newResourceName.trim() }]);
-                          setNewResourceName('');
-                        }}
+                        onClick={handleAddResource}
                         variant="outline"
                         size="sm"
                         disabled={!newResourceName.trim()}
