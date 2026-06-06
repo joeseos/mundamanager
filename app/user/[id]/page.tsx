@@ -189,7 +189,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               <MdOutlineColorLens className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">
-                  {customAssets.equipment + customAssets.fighters + customAssets.gangTypes + customAssets.tradingPosts}
+                  {customAssets.equipment + customAssets.fighters + customAssets.skills + customAssets.gangTypes + customAssets.tradingPosts}
                 </p>
                 <p className="text-sm text-muted-foreground">Custom Assets</p>
               </div>
