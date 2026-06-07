@@ -505,7 +505,14 @@ export default function VehicleEdit({
   };
 
   const handleRemoveSpecialRule = (ruleToRemove: string) => {
-    setVehicleSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
+    setVehicleSpecialRules(prev => {
+      const filtered = prev.filter(rule => rule !== ruleToRemove);
+      // If the user removes the locomotion tag, re-add the current dropdown selection
+      if (LOCOMOTION_SET.has(ruleToRemove) && locomotionChoice) {
+        return filtered.includes(locomotionChoice) ? filtered : [...filtered, locomotionChoice];
+      }
+      return filtered;
+    });
   };
 
   const handleLocomotionChange = (newLoco: string) => {
@@ -564,11 +571,6 @@ export default function VehicleEdit({
     originalLocomotion !== '' ||
     (vehicle.special_rules ?? []).includes('Locomotion');
 
-  // Skimmer is only selectable when Antigrav Generators are fitted, or if it's already the current locomotion
-  const hasAntiGrav = vehicle.equipment?.some(
-    e => e.equipment_name?.toLowerCase().includes('antigrav')
-  ) ?? false;
-  const skimmerAvailable = hasAntiGrav || originalLocomotion === 'Skimmer';
 
   // Check if vehicle has characteristic data
   const hasCharacteristics = vehicle.movement !== undefined || vehicle.front !== undefined;
@@ -606,17 +608,7 @@ export default function VehicleEdit({
                 value={locomotionChoice}
                 onValueChange={handleLocomotionChange}
                 placeholder="Select locomotion"
-                options={LOCOMOTION_OPTIONS.map(opt => {
-                  const isSkimmer = opt === 'Skimmer';
-                  const disabled = isSkimmer && !skimmerAvailable;
-                  return {
-                    value: opt,
-                    label: disabled
-                      ? `${opt} (requires Antigrav Generators)`
-                      : opt,
-                    disabled
-                  };
-                })}
+                options={LOCOMOTION_OPTIONS.map(opt => ({ value: opt, label: opt }))}
               />
             </div>
           )}
@@ -680,13 +672,15 @@ export default function VehicleEdit({
                   className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
                 >
                   <span>{rule}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSpecialRule(rule)}
-                    className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
-                  >
-                    <HiX size={14} />
-                  </button>
+                  {!LOCOMOTION_SET.has(rule) && rule !== 'Locomotion' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSpecialRule(rule)}
+                      className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
+                    >
+                      <HiX size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
               {effectSpecialRules

@@ -8,7 +8,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
-import { LOCOMOTION_OPTIONS } from '@/utils/vehicle-locomotion';
+import { getAllowedLocomotionOptions } from '@/utils/vehicle-locomotion';
 
 interface VehicleType {
   id: string;
@@ -57,6 +57,9 @@ export default function AddVehicle({
 
   const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId) ?? null;
   const locomotionRequired = selectedVehicleType?.special_rules?.includes('Locomotion') ?? false;
+  const allowedLocomotionOptions = selectedVehicleType
+    ? getAllowedLocomotionOptions(selectedVehicleType.vehicle_type)
+    : [];
 
   // Fetch vehicle types when component mounts
   useEffect(() => {
@@ -303,11 +306,7 @@ export default function AddVehicle({
                 value={locomotionChoice}
                 onValueChange={setLocomotionChoice}
                 placeholder="Locomotion"
-                options={LOCOMOTION_OPTIONS.map(opt => ({
-                  value: opt,
-                  label: opt === 'Skimmer' ? `${opt} (requires Antigrav Generators)` : opt,
-                  displayValue: opt
-                }))}
+                options={allowedLocomotionOptions.map(opt => ({ value: opt, label: opt }))}
               />
 
             </div>
