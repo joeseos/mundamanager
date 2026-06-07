@@ -54,7 +54,7 @@ export default function ActiveSession({
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
-  const broadcast = useBattleSessionRealtime(session.id);
+  const { broadcast, suppressRefetch } = useBattleSessionRealtime(session.id);
 
   if (session.status === 'completed') {
     return <CompletedSession session={session} userId={userId} />;
@@ -431,6 +431,7 @@ export default function ActiveSession({
           gangFightersMap={gangFightersMap}
           territories={territories}
           onClose={() => setShowCompleteBattleModal(false)}
+          onSuppressRefetch={suppressRefetch}
         />
       )}
     </>

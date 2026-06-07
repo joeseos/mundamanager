@@ -33,6 +33,7 @@ interface CompleteBattleModalProps {
   gangFightersMap: Record<string, GangFighter[]>;
   territories?: CompleteBattleTerritory[];
   onClose: () => void;
+  onSuppressRefetch?: () => void;
 }
 
 export default function CompleteBattleModal({
@@ -40,6 +41,7 @@ export default function CompleteBattleModal({
   gangFightersMap,
   territories = [],
   onClose,
+  onSuppressRefetch,
 }: CompleteBattleModalProps) {
   // Multi-winner state. Prefill from the persisted is_winner / claimed_territory
   // flags (with fallback to the legacy winner_gang_id for older sessions).
@@ -99,6 +101,7 @@ export default function CompleteBattleModal({
     }
 
     setSubmitting(true);
+    onSuppressRefetch?.();
 
     const winnerPayload = isDraw
       ? []
