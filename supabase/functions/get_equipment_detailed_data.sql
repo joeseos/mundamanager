@@ -79,6 +79,10 @@ AS $$
         SELECT gt.trading_post_type_id
         FROM gang_types gt
         WHERE gt.gang_type_id = $1
+          AND (
+              $10 IS NULL
+              OR gt.trading_post_type_id = ANY($10)
+          )
     ),
 
     -- =======================================================================
