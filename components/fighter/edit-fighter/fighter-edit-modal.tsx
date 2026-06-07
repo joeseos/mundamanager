@@ -16,7 +16,7 @@ import { FighterPromotionModal } from './fighter-promotion-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
 
-
+const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
 
 interface FighterTypesData {
@@ -147,8 +147,9 @@ export function EditFighterModal({
   const [fighterTypesError, setFighterTypesError] = useState<string | null>(null);
 
   
-  // Add state for new special rule input
-  const [newSpecialRule, setNewSpecialRule] = useState('');
+  // Add state for special rule combobox selection
+  const [selectedSpecialRuleOption, setSelectedSpecialRuleOption] = useState('');
+  const [customSpecialRule, setCustomSpecialRule] = useState('');
 
   // Local state for tracking current fighter state (including all modifications)
   const [currentFighter, setCurrentFighter] = useState<Fighter>(fighter);
@@ -219,6 +220,70 @@ export function EditFighterModal({
     }
     return defaultFighterClassName;
   }, [selectedFighterClassId, allFighterClasses, defaultFighterClassName]);
+
+  // Resolve the effective fighter type for default special rules (sub-type aware)
+  const effectiveFighterType = useMemo(() => {
+    if (!selectedFighterTypeId || fighterTypes.length === 0) return null;
+
+    const selectedFighterType = fighterTypes.find(ft => ft.id === selectedFighterTypeId);
+    if (!selectedFighterType) return null;
+
+    if (selectedSubTypeId !== '') {
+      const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
+      if (foundSubType?.fighterTypeId) {
+        return fighterTypes.find(ft => ft.id === foundSubType.fighterTypeId) ?? selectedFighterType;
+      }
+    } else if (availableSubTypes.length > 0) {
+      const defaultOption = availableSubTypes.find(st => st.value === '');
+      if (defaultOption?.fighterTypeId) {
+        return fighterTypes.find(ft => ft.id === defaultOption.fighterTypeId) ?? selectedFighterType;
+      }
+    }
+
+    return selectedFighterType;
+  }, [selectedFighterTypeId, selectedSubTypeId, availableSubTypes, fighterTypes]);
+
+  // Default special rules for the effective fighter type that are not already on the fighter
+  const availableDefaultSpecialRules = useMemo(() => {
+    const typeRules = (effectiveFighterType?.special_rules || [])
+      .map(normalizeSpecialRule)
+      .filter(Boolean);
+
+    const currentRules = new Set(
+      formValues.special_rules.map(normalizeSpecialRule).filter(Boolean)
+    );
+
+    return typeRules.filter(rule => !currentRules.has(rule));
+  }, [effectiveFighterType, formValues.special_rules]);
+
+  const specialRuleComboboxOptions = useMemo(() => {
+    const options: Array<{
+      value: string;
+      label: string | React.ReactNode;
+      displayValue?: string;
+      disabled?: boolean;
+    }> = [];
+
+    options.push({ value: 'custom', label: 'Custom' });
+
+    if (availableDefaultSpecialRules.length > 0) {
+      options.push({
+        value: '__default_special_rules_header__',
+        label: <span className="font-bold">Default Special Rules</span>,
+        displayValue: 'Default Special Rules',
+        disabled: true,
+      });
+      availableDefaultSpecialRules.forEach(rule => {
+        options.push({
+          value: rule,
+          label: <span className="ml-3">{rule}</span>,
+          displayValue: rule,
+        });
+      });
+    }
+
+    return options;
+  }, [availableDefaultSpecialRules]);
 
   // Determine if this fighter is eligible for promotion
   const isEligibleForPromotion = ['Ganger', 'Juve', 'Prospect', 'Champion', 'Exotic Beast'].includes(
@@ -389,9 +454,7 @@ export function EditFighterModal({
           fighter_type: type.fighter_type,
           fighter_class: type.fighter_class,
           fighter_class_id: type.fighter_class_id,
-          special_rules: (type.special_rules || [])
-            .map((r: string) => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r)
-            .filter(Boolean),
+          special_rules: (type.special_rules || []).map(normalizeSpecialRule).filter(Boolean),
           gang_type_id: type.gang_type_id,
           total_cost: type.total_cost,
           typeClassKey: type.typeClassKey,
@@ -603,6 +666,8 @@ export function EditFighterModal({
   // Update the handleFighterTypeChange function
   const handleFighterTypeChange = (fighterTypeId: string) => {
     setSelectedFighterTypeId(fighterTypeId);
+    setSelectedSpecialRuleOption('');
+    setCustomSpecialRule('');
 
     // Set flag to indicate user has explicitly selected a fighter type
     setHasExplicitlySelectedType(true);
@@ -700,6 +765,8 @@ export function EditFighterModal({
   // Add handler for sub-type change
   const handleSubTypeChange = (subTypeId: string) => {
     setSelectedSubTypeId(subTypeId);
+    setSelectedSpecialRuleOption('');
+    setCustomSpecialRule('');
   };
 
   // Add handler for gang legacy change
@@ -707,21 +774,42 @@ export function EditFighterModal({
     setSelectedGangLegacyId(legacyId);
   };
 
+  // Add handler for special rule combobox selection
+  const handleSpecialRuleOptionChange = (value: string) => {
+    if (value === 'custom') {
+      setSelectedSpecialRuleOption('custom');
+      setCustomSpecialRule('');
+    } else if (availableDefaultSpecialRules.includes(value)) {
+      setSelectedSpecialRuleOption(value);
+      setCustomSpecialRule('');
+    } else {
+      setSelectedSpecialRuleOption('custom');
+      setCustomSpecialRule(value);
+    }
+  };
+
   // Add handler for adding a special rule
   const handleAddSpecialRule = () => {
-    if (!newSpecialRule.trim()) return;
-    
+    const ruleToAdd = selectedSpecialRuleOption === 'custom'
+      ? customSpecialRule.trim()
+      : selectedSpecialRuleOption.trim();
+
+    if (!ruleToAdd) return;
+
     // Avoid duplicates
-    if (formValues.special_rules.includes(newSpecialRule.trim())) {
-      setNewSpecialRule('');
+    const normalisedCurrent = formValues.special_rules.map(normalizeSpecialRule);
+    if (normalisedCurrent.includes(normalizeSpecialRule(ruleToAdd))) {
+      setSelectedSpecialRuleOption('');
+      setCustomSpecialRule('');
       return;
     }
-    
+
     setFormValues(prev => ({
       ...prev,
-      special_rules: [...prev.special_rules, newSpecialRule.trim()]
+      special_rules: [...prev.special_rules, ruleToAdd]
     }));
-    setNewSpecialRule('');
+    setSelectedSpecialRuleOption('');
+    setCustomSpecialRule('');
   };
 
   // Add handler for removing a special rule
@@ -769,7 +857,7 @@ export function EditFighterModal({
       type SubType = { id: string; fighter_sub_type: string; cost: number; fighterTypeId: string; };
       let selectedSubType: SubType | null = null;
       
-      if (selectedSubTypeId !== undefined && selectedSubTypeId !== null && selectedSubTypeId !== '') {
+      if (selectedSubTypeId !== '') {
         // Find the sub-type in the currently available sub-types only
         const foundSubType = availableSubTypes.find(st => st.value === selectedSubTypeId);
         if (foundSubType) {
@@ -1219,26 +1307,50 @@ export function EditFighterModal({
               <label className="block text-sm font-medium mb-1">
                 Special Rules
               </label>
-              <div className="flex space-x-2 mb-2">
-                <Input
-                  type="text"
-                  value={newSpecialRule}
-                  onChange={(e) => setNewSpecialRule(e.target.value)}
-                  placeholder="Add a Special Rule"
-                  className="grow"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddSpecialRule();
-                    }
-                  }}
-                />
-                <Button
-                  onClick={handleAddSpecialRule}
-                  type="button"
-                >
-                  Add
-                </Button>
+              <div className="mb-2">
+                <div className={selectedSpecialRuleOption !== 'custom' ? 'flex space-x-2' : ''}>
+                  <div className={selectedSpecialRuleOption !== 'custom' ? 'grow' : ''}>
+                    <Combobox
+                      options={specialRuleComboboxOptions}
+                      value={selectedSpecialRuleOption}
+                      onValueChange={handleSpecialRuleOptionChange}
+                      placeholder="Add a Special Rule"
+                      allowCustom={true}
+                      dropdownPlacement="down"
+                    />
+                  </div>
+                  {selectedSpecialRuleOption !== 'custom' && (
+                    <Button
+                      onClick={handleAddSpecialRule}
+                      type="button"
+                    >
+                      Add
+                    </Button>
+                  )}
+                </div>
+                {selectedSpecialRuleOption === 'custom' && (
+                  <div className="flex space-x-2 mt-2">
+                    <Input
+                      type="text"
+                      value={customSpecialRule}
+                      onChange={(e) => setCustomSpecialRule(e.target.value)}
+                      placeholder="Enter custom Special Rule"
+                      className="grow"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSpecialRule();
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={handleAddSpecialRule}
+                      type="button"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                )}
               </div>
               
               {/* Display existing special rules as tags */}
