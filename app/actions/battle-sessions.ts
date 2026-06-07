@@ -1205,7 +1205,7 @@ export async function completeBattleSession(
 
     // Derive the effective winner set
     const flaggedWinnerIds: string[] =
-      (allParticipants ?? [])
+      allParticipants
         .filter((p) => p.is_winner === true)
         .map((p) => p.gang_id);
     const effectiveWinnerIds: string[] =
@@ -1216,7 +1216,7 @@ export async function completeBattleSession(
           : [];
     const winnerGangSet = new Set(effectiveWinnerIds);
     const claimerGangId: string | null =
-      (allParticipants ?? []).find((p) => p.claimed_territory === true)?.gang_id
+      allParticipants.find((p) => p.claimed_territory === true)?.gang_id
       ?? session.winner_gang_id
       ?? null;
     const legacyWinnerId: string | null =
@@ -1224,7 +1224,7 @@ export async function completeBattleSession(
 
     // --- Campaign battle log (inline insert, no createBattleLog call) ---
     let campaign_battle_id: string | undefined;
-    if (session.campaign_id && allParticipants) {
+    if (session.campaign_id) {
       const battleParticipants = allParticipants.map((p) => ({
         role: p.role,
         gang_id: p.gang_id,
@@ -1264,7 +1264,8 @@ export async function completeBattleSession(
           .eq('campaign_id', session.campaign_id);
 
         if (claimError) {
-          await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+          const { error: deleteError } = await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+          if (deleteError) console.error('Failed to rollback campaign battle after territory claim error:', deleteError);
           return { success: false, error: `Failed to claim territory: ${claimError.message}` };
         }
       }
@@ -1285,7 +1286,8 @@ export async function completeBattleSession(
 
     if (error || !updated || updated.length === 0) {
       if (campaign_battle_id) {
-        await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+        const { error: deleteError } = await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+        if (deleteError) console.error('Failed to rollback campaign battle after session update error:', deleteError);
       }
       return { success: false, error: error?.message || 'Session was already completed' };
     }
@@ -1296,8 +1298,6 @@ export async function completeBattleSession(
     // === Everything below runs AFTER the response is sent ===
     after(async () => {
       try {
-        if (!allParticipants) return;
-
         // Fetch gang names + owner IDs for logging (one query)
         const gangIds = allParticipants.map((p) => p.gang_id);
         const { data: gangs } = await supabase
@@ -1308,9 +1308,7 @@ export async function completeBattleSession(
           gangs?.map((g) => [g.id, g]) || []
         );
 
-        // Batch gang logs — one insert instead of N sequential calls
-        const campaignName = session.campaign_id ? undefined : 'Standalone Battle';
-        let resolvedCampaignName = campaignName;
+        let resolvedCampaignName = 'Standalone Battle';
         if (session.campaign_id) {
           const { data: campaign } = await supabase
             .from('campaigns')
@@ -1320,55 +1318,52 @@ export async function completeBattleSession(
           resolvedCampaignName = campaign?.campaign_name || 'Campaign';
         }
 
-        const logs = allParticipants
-          .map((p) => {
-            const gang = gangMap.get(p.gang_id);
-            if (!gang) return null;
+        // Build all gang logs in one batch
+        const logs: { gang_id: string; user_id: string; action_type: string; description: string; created_at: string }[] = [];
 
-            let result: 'won' | 'lost' | 'draw';
-            if (winnerGangSet.size === 0) {
-              result = 'draw';
-            } else if (winnerGangSet.has(p.gang_id)) {
-              result = 'won';
-            } else {
-              result = 'lost';
-            }
+        for (const p of allParticipants) {
+          const gang = gangMap.get(p.gang_id);
+          if (!gang) continue;
 
-            const opponents = allParticipants
-              .filter((op) => op.gang_id !== p.gang_id)
-              .map((op) => gangMap.get(op.gang_id)?.name)
-              .filter(Boolean)
-              .join(', ');
+          let result: 'won' | 'lost' | 'draw';
+          if (winnerGangSet.size === 0) {
+            result = 'draw';
+          } else if (winnerGangSet.has(p.gang_id)) {
+            result = 'won';
+          } else {
+            result = 'lost';
+          }
 
-            const roleText =
-              p.role === 'attacker'
-                ? 'attacked'
-                : p.role === 'defender'
-                  ? 'defended against'
-                  : 'fought';
-            const resultText =
-              result === 'won' ? 'Victory!' : result === 'lost' ? 'Defeat' : 'Draw';
+          const opponents = allParticipants
+            .filter((op) => op.gang_id !== p.gang_id)
+            .map((op) => gangMap.get(op.gang_id)?.name)
+            .filter(Boolean)
+            .join(', ');
 
-            return {
-              gang_id: p.gang_id,
-              user_id: gang.user_id,
-              action_type: `battle_${result}`,
-              description: `Gang "${gang.name}" ${roleText} "${opponents || 'Unknown'}" in "${session.scenario || 'Unknown Scenario'}" (Campaign: ${resolvedCampaignName}). Result: ${resultText}`,
-              created_at: new Date().toISOString(),
-            };
-          })
-          .filter((log): log is NonNullable<typeof log> => log !== null);
+          const roleText =
+            p.role === 'attacker'
+              ? 'attacked'
+              : p.role === 'defender'
+                ? 'defended against'
+                : 'fought';
+          const resultText =
+            result === 'won' ? 'Victory!' : result === 'lost' ? 'Defeat' : 'Draw';
 
-        if (logs.length > 0) {
-          await supabase.from('gang_logs').insert(logs);
+          logs.push({
+            gang_id: p.gang_id,
+            user_id: gang.user_id,
+            action_type: `battle_${result}`,
+            description: `Gang "${gang.name}" ${roleText} "${opponents || 'Unknown'}" in "${session.scenario || 'Unknown Scenario'}" (Campaign: ${resolvedCampaignName}). Result: ${resultText}`,
+            created_at: new Date().toISOString(),
+          });
         }
 
-        // Territory claim log
+        // Territory claim log — added to same batch
         if (options?.campaign_territory_id && claimerGangId && claimed_territory) {
           const claimer = gangMap.get(claimerGangId);
           if (claimer) {
             const territoryType = territoryIsCustom ? 'custom territory' : 'territory';
-            await supabase.from('gang_logs').insert({
+            logs.push({
               gang_id: claimerGangId,
               user_id: claimer.user_id,
               action_type: 'territory_claimed',
@@ -1376,6 +1371,10 @@ export async function completeBattleSession(
               created_at: new Date().toISOString(),
             });
           }
+        }
+
+        if (logs.length > 0) {
+          await supabase.from('gang_logs').insert(logs);
         }
 
         // Notifications — one insert
