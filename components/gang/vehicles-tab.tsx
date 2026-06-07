@@ -22,6 +22,7 @@ interface GangVehiclesProps {
   vehicles: VehicleProps[];
   fighters: FighterProps[];
   gangId: string;
+  gangTypeId?: string | null;
   title?: string;
   onVehicleUpdate?: (updatedVehicles: VehicleProps[]) => void;
   onFighterUpdate?: (updatedFighter: FighterProps, skipRatingUpdate?: boolean) => void;
@@ -43,6 +44,7 @@ export default function GangVehicles({
   vehicles,
   fighters,
   gangId,
+  gangTypeId,
   title = 'Vehicles',
   onVehicleUpdate,
   onFighterUpdate,
@@ -823,6 +825,7 @@ export default function GangVehicles({
       </div>
       <VehicleEdit
         vehicle={editingVehicle}
+        gangTypeId={gangTypeId}
         onClose={() => setEditingVehicle(null)}
         onSave={handleSaveVehicle}
         isLoading={isEditLoading}

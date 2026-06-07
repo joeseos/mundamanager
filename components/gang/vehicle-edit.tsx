@@ -9,9 +9,16 @@ import { Combobox } from "@/components/ui/combobox";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
+import { toast } from 'sonner';
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
+const DEFAULT_SPECIAL_RULES_HEADER_VALUE = '__combobox_header__:default_special_rules';
+
+type VehicleTypeOption = {
+  id: string;
+  special_rules: string[] | null;
+};
 
 type CombinedVehicleProps = VehicleProps & {
   assigned_to?: string;
@@ -19,6 +26,7 @@ type CombinedVehicleProps = VehicleProps & {
 
 interface VehicleEditProps {
   vehicle: CombinedVehicleProps | null;
+  gangTypeId?: string | null;
   onClose: () => void;
   onSave: (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>) => Promise<boolean>;
   isLoading?: boolean;
@@ -346,6 +354,7 @@ function VehicleCharacteristicModal({
 
 export default function VehicleEdit({
   vehicle,
+  gangTypeId,
   onClose,
   onSave,
   isLoading = false
@@ -357,14 +366,17 @@ export default function VehicleEdit({
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
 
-  const { data: vehicleTypes = [] } = useQuery<Array<{ id: string; special_rules: string[] }>>({
-    queryKey: ['vehicle-types', vehicle?.gang_id],
+  const gangId = vehicle?.gang_id;
+
+  const { data: vehicleTypes = [] } = useQuery<VehicleTypeOption[]>({
+    queryKey: ['vehicle-types', gangTypeId ?? gangId],
     queryFn: async () => {
-      const response = await fetch(`/api/gangs/${vehicle!.gang_id}/vehicles`);
+      if (!gangId) throw new Error('No gang_id');
+      const response = await fetch(`/api/gangs/${gangId}/vehicles`);
       if (!response.ok) throw new Error('Failed to fetch vehicle types');
       return response.json();
     },
-    enabled: !!vehicle?.gang_id,
+    enabled: !!gangId,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -397,7 +409,7 @@ export default function VehicleEdit({
 
     if (availableDefaultSpecialRules.length > 0) {
       options.push({
-        value: '__default_special_rules_header__',
+        value: DEFAULT_SPECIAL_RULES_HEADER_VALUE,
         label: <span className="font-bold">Default Special Rules</span>,
         displayValue: 'Default Special Rules',
         disabled: true,
@@ -447,6 +459,7 @@ export default function VehicleEdit({
 
     const normalisedCurrent = vehicleSpecialRules.map(normalizeSpecialRule);
     if (normalisedCurrent.includes(normalizeSpecialRule(ruleToAdd))) {
+      toast.error('This rule is already applied');
       setSelectedSpecialRuleOption('');
       setCustomSpecialRule('');
       return;
