@@ -910,6 +910,7 @@ export default function GangPageContent({
           vehicles={gangData.processedData.vehicles || []}
           fighters={gangData.processedData.fighters || []}
           gangId={gangId}
+          gangTypeId={gangData.processedData.gang_type_id}
           onVehicleUpdate={handleVehicleUpdate}
           onFighterUpdate={handleFighterUpdate}
           userPermissions={userPermissions}
