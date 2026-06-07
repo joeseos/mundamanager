@@ -463,6 +463,40 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         throw new Error(`Failed to add equipment: ${equipError.message}`);
       }
       newEquipmentId = fighterEquip.id;
+
+      // Antigrav Generators fitted to a vehicle override its locomotion to Skimmer
+      const ANTIGRAV_LOCOMOTION = 'Skimmer';
+      const isAntigrav = equipmentDetails.equipment_name?.toLowerCase().includes('antigrav');
+      if (params.vehicle_id && isAntigrav) {
+        const grantedLocomotion: string = ANTIGRAV_LOCOMOTION;
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('special_rules, movement')
+          .eq('id', params.vehicle_id)
+          .single();
+
+        if (vehicleData) {
+          const LOCOMOTION = ['Wheeled', 'Tracked', 'Walker', 'Skimmer'];
+          const currentRules: string[] = vehicleData.special_rules ?? [];
+          const oldLocomotion = currentRules.find(r => LOCOMOTION.includes(r)) ?? null;
+
+          // Replace existing locomotion rule with the granted one (or append if none)
+          const newRules = oldLocomotion
+            ? currentRules.map(r => r === oldLocomotion ? grantedLocomotion : r)
+            : [...currentRules, grantedLocomotion];
+
+          // Tracked carries a -1" movement penalty; Skimmer/Wheeled/Walker do not
+          const wasTracked = oldLocomotion === 'Tracked';
+          const isTracked = grantedLocomotion === 'Tracked';
+          const movementDelta = (wasTracked ? 1 : 0) - (isTracked ? 1 : 0);
+          const newMovement = Math.max(0, (vehicleData.movement ?? 0) + movementDelta);
+
+          await supabase
+            .from('vehicles')
+            .update({ special_rules: newRules, movement: newMovement })
+            .eq('id', params.vehicle_id);
+        }
+      }
     }
 
     // Deduct resource after successful insert to avoid losing resources on insert failure

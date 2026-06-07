@@ -12,6 +12,7 @@ import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { LOCOMOTION_OPTIONS } from "@/utils/vehicle-locomotion";
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 const DEFAULT_SPECIAL_RULES_HEADER_VALUE = '__combobox_header__:default_special_rules';
@@ -29,12 +30,12 @@ interface VehicleEditProps {
   vehicle: CombinedVehicleProps | null;
   gangTypeId?: string | null;
   onClose: () => void;
-  onSave: (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>) => Promise<boolean>;
+  onSave: (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>, movementDelta?: number) => Promise<boolean>;
   isLoading?: boolean;
 }
 
 // Vehicle Characteristic Table component
-function VehicleCharacteristicTable({ vehicle }: { vehicle: CombinedVehicleProps }) {
+function VehicleCharacteristicTable({ vehicle, locomotionMovementDelta = 0 }: { vehicle: CombinedVehicleProps; locomotionMovementDelta?: number }) {
   const stats = [
     { key: 'movement', label: 'M' },
     { key: 'front', label: 'Front' },
@@ -88,11 +89,17 @@ function VehicleCharacteristicTable({ vehicle }: { vehicle: CombinedVehicleProps
             <td className="px-1 py-1 font-medium text-xs">Base</td>
             {stats.map(stat => {
               const baseValue = getStat(vehicle, stat.key);
+              const isMovement = stat.key === 'movement';
+              const displayValue = isMovement ? Math.max(0, baseValue + locomotionMovementDelta) : baseValue;
+              const isPending = isMovement && locomotionMovementDelta !== 0;
               return (
-                <td key={stat.key} className="border-l border-border text-center text-xs">
-                  {stat.key === 'movement' ? `${baseValue}"` :
-                   stat.key === 'handling' || stat.key === 'save' ? `${baseValue}+` :
-                   baseValue}
+                <td
+                  key={stat.key}
+                  className={`border-l border-border text-center text-xs font-medium ${isPending ? 'text-amber-500' : ''}`}
+                >
+                  {isMovement ? `${displayValue}"` :
+                   stat.key === 'handling' || stat.key === 'save' ? `${displayValue}+` :
+                   displayValue}
                 </td>
               );
             })}
@@ -142,10 +149,12 @@ function VehicleCharacteristicTable({ vehicle }: { vehicle: CombinedVehicleProps
               const damageValue = lastingDamagesEffects[stat.key] || 0;
               const upgradeValue = vehicleUpgradesEffects[stat.key] || 0;
               const userValue = userEffects[stat.key] || 0;
-              const total = baseValue + damageValue + upgradeValue + userValue;
+              const locoValue = stat.key === 'movement' ? locomotionMovementDelta : 0;
+              const total = Math.max(0, baseValue + damageValue + upgradeValue + userValue + locoValue);
+              const isPending = stat.key === 'movement' && locomotionMovementDelta !== 0;
 
               return (
-                <td key={stat.key} className="border-l border-border text-center text-xs">
+                <td key={stat.key} className={`border-l border-border text-center text-xs ${isPending ? 'text-amber-500' : ''}`}>
                   {stat.key === 'movement' ? `${total}"` :
                    stat.key === 'handling' || stat.key === 'save' ? `${total}+` :
                    total}
@@ -353,6 +362,12 @@ function VehicleCharacteristicModal({
   );
 }
 
+const LOCOMOTION_SET = new Set<string>(LOCOMOTION_OPTIONS);
+
+function detectLocomotion(rules: string[]): string {
+  return rules.find(r => LOCOMOTION_SET.has(r)) ?? '';
+}
+
 export default function VehicleEdit({
   vehicle,
   gangTypeId,
@@ -366,6 +381,9 @@ export default function VehicleEdit({
   const [customSpecialRule, setCustomSpecialRule] = useState('');
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
+  const [locomotionChoice, setLocomotionChoice] = useState('');
+  // Original locomotion when the modal opened — used to compute the movement delta on save
+  const [originalLocomotion, setOriginalLocomotion] = useState('');
 
   const gangId = vehicle?.gang_id;
 
@@ -431,10 +449,14 @@ export default function VehicleEdit({
   useEffect(() => {
     if (vehicle) {
       setEditedVehicleName(vehicle.vehicle_name);
-      setVehicleSpecialRules(vehicle.special_rules || []);
+      const rules = vehicle.special_rules || [];
+      setVehicleSpecialRules(rules);
       setSelectedSpecialRuleOption('');
       setCustomSpecialRule('');
       setPendingStatAdjustments({});
+      const loco = detectLocomotion(rules);
+      setLocomotionChoice(loco);
+      setOriginalLocomotion(loco);
     }
   }, [vehicle]);
 
@@ -494,6 +516,15 @@ export default function VehicleEdit({
     setVehicleSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
+  const handleLocomotionChange = (newLoco: string) => {
+    setLocomotionChoice(newLoco);
+    setVehicleSpecialRules(prev => {
+      // Remove both the resolved locomotion type and the raw "Locomotion" placeholder
+      const withoutOld = prev.filter(r => !LOCOMOTION_SET.has(r) && r !== 'Locomotion');
+      return newLoco ? [...withoutOld, newLoco] : withoutOld;
+    });
+  };
+
   const handleUpdateStats = (stats: Record<string, number>) => {
     setPendingStatAdjustments(stats);
     setShowStatsModal(false);
@@ -524,7 +555,19 @@ export default function VehicleEdit({
     if (!vehicle) return false;
 
     const statAdjustments = Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined;
-    const success = await onSave(vehicle.id, editedVehicleName, vehicleSpecialRules, statAdjustments);
+
+    // Tracked carries a -1" movement penalty; no other locomotion type does
+    const movementDelta =
+      (originalLocomotion === 'Tracked' ? 1 : 0) -
+      (locomotionChoice === 'Tracked' ? 1 : 0);
+
+    const success = await onSave(
+      vehicle.id,
+      editedVehicleName,
+      vehicleSpecialRules,
+      statAdjustments,
+      movementDelta !== 0 ? movementDelta : undefined
+    );
 
     if (success) {
       onClose();
@@ -534,6 +577,17 @@ export default function VehicleEdit({
   };
 
   if (!vehicle) return null;
+
+  // Show the locomotion dropdown when the vehicle has a resolved locomotion type OR the raw "Locomotion" placeholder
+  const hasLocomotionFeature =
+    originalLocomotion !== '' ||
+    (vehicle.special_rules ?? []).includes('Locomotion');
+
+  // Skimmer is only selectable when Antigrav Generators are fitted, or if it's already the current locomotion
+  const hasAntiGrav = vehicle.equipment?.some(
+    e => e.equipment_name?.toLowerCase().includes('antigrav')
+  ) ?? false;
+  const skimmerAvailable = hasAntiGrav || originalLocomotion === 'Skimmer';
 
   // Check if vehicle has characteristic data
   const hasCharacteristics = vehicle.movement !== undefined || vehicle.front !== undefined;
@@ -560,6 +614,31 @@ export default function VehicleEdit({
               placeholder="Enter vehicle name"
             />
           </div>
+
+          {/* Locomotion selector — shown when the vehicle type has the Locomotion feature */}
+          {hasLocomotionFeature && (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Locomotion
+              </label>
+              <Combobox
+                value={locomotionChoice}
+                onValueChange={handleLocomotionChange}
+                placeholder="Select locomotion"
+                options={LOCOMOTION_OPTIONS.map(opt => {
+                  const isSkimmer = opt === 'Skimmer';
+                  const disabled = isSkimmer && !skimmerAvailable;
+                  return {
+                    value: opt,
+                    label: disabled
+                      ? `${opt} (requires Antigrav Generators)`
+                      : opt,
+                    disabled
+                  };
+                })}
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -647,7 +726,13 @@ export default function VehicleEdit({
           {hasCharacteristics && (
             <div>
               <h3 className="text-sm font-medium mb-2">Characteristics</h3>
-              <VehicleCharacteristicTable vehicle={previewVehicle} />
+              <VehicleCharacteristicTable
+                vehicle={previewVehicle}
+                locomotionMovementDelta={
+                  (originalLocomotion === 'Tracked' ? 1 : 0) -
+                  (locomotionChoice === 'Tracked' ? 1 : 0)
+                }
+              />
               <Button
                 onClick={() => setShowStatsModal(true)}
                 className="w-full mt-2"

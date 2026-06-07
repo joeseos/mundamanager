@@ -366,7 +366,7 @@ export default function GangVehicles({
     setSellAmount(calculateVehicleTotalValue(vehicle));
   };
 
-  const handleSaveVehicle = async (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>) => {
+  const handleSaveVehicle = async (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>, movementDelta?: number) => {
     if (!editingVehicle) return true;
 
     setIsEditLoading(true);
@@ -402,7 +402,14 @@ export default function GangVehicles({
       if (onVehicleUpdate) {
         const updatedVehicles = allVehicles.map(v => {
           if (v.id === vehicleId) {
-            const updated = { ...v, vehicle_name: vehicleName, special_rules: specialRules };
+            const updated = {
+              ...v,
+              vehicle_name: vehicleName,
+              special_rules: specialRules,
+              ...(movementDelta !== undefined && movementDelta !== 0
+                ? { movement: Math.max(0, (v.movement ?? 0) + movementDelta) }
+                : {})
+            };
             // Add optimistic user effects if stat adjustments exist
             if (optimisticUserEffects) {
               updated.effects = {
@@ -426,7 +433,10 @@ export default function GangVehicles({
           const updatedVehicle = {
             ...fighter.vehicles[0],
             vehicle_name: vehicleName,
-            special_rules: specialRules
+            special_rules: specialRules,
+            ...(movementDelta !== undefined && movementDelta !== 0
+              ? { movement: Math.max(0, (fighter.vehicles[0].movement ?? 0) + movementDelta) }
+              : {})
           };
 
           // Add optimistic user effects if stat adjustments exist
@@ -458,7 +468,8 @@ export default function GangVehicles({
         specialRules: specialRules,
         gangId: gangId,
         assignedFighterId: assignedFighter?.id,
-        statAdjustments: statAdjustments
+        statAdjustments: statAdjustments,
+        movementDelta: movementDelta
       });
 
       if (!result.success) {

@@ -12,6 +12,7 @@ interface UpdateVehicleParams {
   gangId: string;
   assignedFighterId?: string;
   statAdjustments?: Record<string, number>;
+  movementDelta?: number;
 }
 
 interface UpdateVehicleResult {
@@ -27,10 +28,10 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Get current vehicle data to compare name
+    // Get current vehicle data to compare name and resolve movement delta
     const { data: currentVehicle, error: currentError } = await supabase
       .from('vehicles')
-      .select('vehicle_name, fighter_id, gang_id')
+      .select('vehicle_name, fighter_id, gang_id, movement')
       .eq('id', params.vehicleId)
       .single();
 
@@ -41,14 +42,20 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
     const oldVehicleName = currentVehicle.vehicle_name;
     const nameChanged = oldVehicleName !== params.vehicleName.trimEnd();
 
+    // Build the update payload, applying locomotion movement delta directly to the base column
+    const vehicleUpdate: Record<string, unknown> = {
+      vehicle_name: params.vehicleName.trimEnd(),
+      special_rules: params.specialRules,
+      updated_at: new Date().toISOString()
+    };
+    if (params.movementDelta !== undefined && params.movementDelta !== 0) {
+      vehicleUpdate.movement = Math.max(0, (currentVehicle.movement ?? 0) + params.movementDelta);
+    }
+
     // Update the vehicle
     const { data, error } = await supabase
       .from('vehicles')
-      .update({
-        vehicle_name: params.vehicleName.trimEnd(),
-        special_rules: params.specialRules,
-        updated_at: new Date().toISOString()
-      })
+      .update(vehicleUpdate)
       .eq('id', params.vehicleId)
       .select()
       .single();

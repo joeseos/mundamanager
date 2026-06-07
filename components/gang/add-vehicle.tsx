@@ -303,7 +303,11 @@ export default function AddVehicle({
                 value={locomotionChoice}
                 onValueChange={setLocomotionChoice}
                 placeholder="Locomotion"
-                options={LOCOMOTION_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+                options={LOCOMOTION_OPTIONS.map(opt => ({
+                  value: opt,
+                  label: opt === 'Skimmer' ? `${opt} (requires Antigrav Generators)` : opt,
+                  displayValue: opt
+                }))}
               />
 
             </div>
