@@ -9,11 +9,14 @@ export function useBattleSessionRealtime(sessionId: string) {
   const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
+  const suppressedRef = useRef(false);
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
 
     const debouncedRefresh = () => {
+      if (suppressedRef.current) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['battle-session', sessionId] });
@@ -63,6 +66,7 @@ export function useBattleSessionRealtime(sessionId: string) {
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
       broadcastChannelRef.current = null;
       supabase.removeChannel(dbChannel);
       supabase.removeChannel(broadcastChannel);
@@ -77,5 +81,13 @@ export function useBattleSessionRealtime(sessionId: string) {
     });
   }, []);
 
-  return broadcast;
+  const suppressRefetch = useCallback(() => {
+    suppressedRef.current = true;
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
+    suppressTimerRef.current = setTimeout(() => {
+      suppressedRef.current = false;
+    }, 2000);
+  }, []);
+
+  return { broadcast, suppressRefetch };
 }
