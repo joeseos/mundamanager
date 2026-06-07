@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
+import { LOCOMOTION_OPTIONS } from "@/utils/vehicle-locomotion";
 import {
   invalidateFighterData,
   invalidateFighterDataWithFinancials,
@@ -476,9 +477,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           .single();
 
         if (vehicleData) {
-          const LOCOMOTION = ['Wheeled', 'Tracked', 'Walker', 'Skimmer'];
           const currentRules: string[] = vehicleData.special_rules ?? [];
-          const oldLocomotion = currentRules.find(r => LOCOMOTION.includes(r)) ?? null;
+          const oldLocomotion = currentRules.find(r => (LOCOMOTION_OPTIONS as readonly string[]).includes(r)) ?? null;
 
           // Replace existing locomotion rule with the granted one (or append if none)
           const newRules = oldLocomotion
@@ -491,10 +491,13 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           const movementDelta = (wasTracked ? 1 : 0) - (isTracked ? 1 : 0);
           const newMovement = Math.max(0, (vehicleData.movement ?? 0) + movementDelta);
 
-          await supabase
+          const { error: updateError } = await supabase
             .from('vehicles')
             .update({ special_rules: newRules, movement: newMovement })
             .eq('id', params.vehicle_id);
+          if (updateError) {
+            console.error('Failed to update vehicle locomotion after antigrav install:', updateError);
+          }
         }
       }
     }
