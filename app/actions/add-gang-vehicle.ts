@@ -87,14 +87,13 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
 
     const vehicleSpecialRules = vehicleType.special_rules as string[] || [];
     const hasLocomotionRule = vehicleSpecialRules.includes('Locomotion');
-    const movementDelta = hasLocomotionRule && params.locomotionChoice === 'Tracked' ? 1 : 0;
 
     // Create the vehicle in vehicles table
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
         vehicle_name: (params.vehicleName || vehicleType.vehicle_type).trimEnd(),
-        movement: Math.max(0, vehicleType.movement - movementDelta),
+        movement: vehicleType.movement,
         front: vehicleType.front,
         side: vehicleType.side,
         rear: vehicleType.rear,

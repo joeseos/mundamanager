@@ -30,12 +30,12 @@ interface VehicleEditProps {
   vehicle: CombinedVehicleProps | null;
   gangTypeId?: string | null;
   onClose: () => void;
-  onSave: (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>, movementDelta?: number) => Promise<boolean>;
+  onSave: (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>) => Promise<boolean>;
   isLoading?: boolean;
 }
 
 // Vehicle Characteristic Table component
-function VehicleCharacteristicTable({ vehicle, locomotionMovementDelta = 0 }: { vehicle: CombinedVehicleProps; locomotionMovementDelta?: number }) {
+function VehicleCharacteristicTable({ vehicle }: { vehicle: CombinedVehicleProps }) {
   const stats = [
     { key: 'movement', label: 'M' },
     { key: 'front', label: 'Front' },
@@ -89,17 +89,11 @@ function VehicleCharacteristicTable({ vehicle, locomotionMovementDelta = 0 }: { 
             <td className="px-1 py-1 font-medium text-xs">Base</td>
             {stats.map(stat => {
               const baseValue = getStat(vehicle, stat.key);
-              const isMovement = stat.key === 'movement';
-              const displayValue = isMovement ? Math.max(0, baseValue + locomotionMovementDelta) : baseValue;
-              const isPending = isMovement && locomotionMovementDelta !== 0;
               return (
-                <td
-                  key={stat.key}
-                  className={`border-l border-border text-center text-xs font-medium ${isPending ? 'text-amber-500' : ''}`}
-                >
-                  {isMovement ? `${displayValue}"` :
-                   stat.key === 'handling' || stat.key === 'save' ? `${displayValue}+` :
-                   displayValue}
+                <td key={stat.key} className="border-l border-border text-center text-xs">
+                  {stat.key === 'movement' ? `${baseValue}"` :
+                   stat.key === 'handling' || stat.key === 'save' ? `${baseValue}+` :
+                   baseValue}
                 </td>
               );
             })}
@@ -149,12 +143,10 @@ function VehicleCharacteristicTable({ vehicle, locomotionMovementDelta = 0 }: { 
               const damageValue = lastingDamagesEffects[stat.key] || 0;
               const upgradeValue = vehicleUpgradesEffects[stat.key] || 0;
               const userValue = userEffects[stat.key] || 0;
-              const locoValue = stat.key === 'movement' ? locomotionMovementDelta : 0;
-              const total = Math.max(0, baseValue + damageValue + upgradeValue + userValue + locoValue);
-              const isPending = stat.key === 'movement' && locomotionMovementDelta !== 0;
+              const total = baseValue + damageValue + upgradeValue + userValue;
 
               return (
-                <td key={stat.key} className={`border-l border-border text-center text-xs ${isPending ? 'text-amber-500' : ''}`}>
+                <td key={stat.key} className="border-l border-border text-center text-xs">
                   {stat.key === 'movement' ? `${total}"` :
                    stat.key === 'handling' || stat.key === 'save' ? `${total}+` :
                    total}
@@ -556,18 +548,7 @@ export default function VehicleEdit({
 
     const statAdjustments = Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined;
 
-    // Tracked carries a -1" movement penalty; no other locomotion type does
-    const movementDelta =
-      (originalLocomotion === 'Tracked' ? 1 : 0) -
-      (locomotionChoice === 'Tracked' ? 1 : 0);
-
-    const success = await onSave(
-      vehicle.id,
-      editedVehicleName,
-      vehicleSpecialRules,
-      statAdjustments,
-      movementDelta !== 0 ? movementDelta : undefined
-    );
+    const success = await onSave(vehicle.id, editedVehicleName, vehicleSpecialRules, statAdjustments);
 
     if (success) {
       onClose();
@@ -726,13 +707,7 @@ export default function VehicleEdit({
           {hasCharacteristics && (
             <div>
               <h3 className="text-sm font-medium mb-2">Characteristics</h3>
-              <VehicleCharacteristicTable
-                vehicle={previewVehicle}
-                locomotionMovementDelta={
-                  (originalLocomotion === 'Tracked' ? 1 : 0) -
-                  (locomotionChoice === 'Tracked' ? 1 : 0)
-                }
-              />
+              <VehicleCharacteristicTable vehicle={previewVehicle} />
               <Button
                 onClick={() => setShowStatsModal(true)}
                 className="w-full mt-2"

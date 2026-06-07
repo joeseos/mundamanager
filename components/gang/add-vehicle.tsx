@@ -145,7 +145,7 @@ export default function AddVehicle({
         vehicle_type: selectedVehicleType.vehicle_type,
         gang_id: gangId,
         fighter_id: null,
-        movement: Math.max(0, selectedVehicleType.movement - (locomotionRequired && locomotionChoice === 'Tracked' ? 1 : 0)),
+        movement: selectedVehicleType.movement,
         front: selectedVehicleType.front,
         side: selectedVehicleType.side,
         rear: selectedVehicleType.rear,
