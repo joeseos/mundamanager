@@ -1170,7 +1170,7 @@ export async function completeBattleSession(
     // Parallel fetch: session, participants, profile, and territory name (if applicable)
     const [
       { data: session },
-      { data: allParticipants },
+      { data: allParticipants, error: participantsError },
       { data: userProfile },
       territoryResult,
     ] = await Promise.all([
@@ -1187,7 +1187,7 @@ export async function completeBattleSession(
       options?.campaign_territory_id
         ? supabase
             .from('campaign_territories')
-            .select('territory_name')
+            .select('territory_name, territory_id')
             .eq('id', options.campaign_territory_id)
             .single()
         : Promise.resolve({ data: null }),
@@ -1196,9 +1196,12 @@ export async function completeBattleSession(
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'post_battle')
       return { success: false, error: 'Session must be in post-battle to complete' };
+    if (participantsError || !allParticipants)
+      return { success: false, error: 'Failed to load session participants' };
 
     const senderName = userProfile?.username || 'Someone';
     const claimed_territory = territoryResult?.data?.territory_name ?? null;
+    const territoryIsCustom = territoryResult?.data ? !territoryResult.data.territory_id : false;
 
     // Derive the effective winner set
     const flaggedWinnerIds: string[] =
@@ -1254,11 +1257,16 @@ export async function completeBattleSession(
 
       // Claim territory in same flow
       if (options?.campaign_territory_id && claimerGangId) {
-        await supabase
+        const { error: claimError } = await supabase
           .from('campaign_territories')
           .update({ gang_id: claimerGangId })
           .eq('id', options.campaign_territory_id)
           .eq('campaign_id', session.campaign_id);
+
+        if (claimError) {
+          await supabase.from('campaign_battles').delete().eq('id', campaign_battle_id);
+          return { success: false, error: `Failed to claim territory: ${claimError.message}` };
+        }
       }
     }
 
@@ -1359,11 +1367,12 @@ export async function completeBattleSession(
         if (options?.campaign_territory_id && claimerGangId && claimed_territory) {
           const claimer = gangMap.get(claimerGangId);
           if (claimer) {
+            const territoryType = territoryIsCustom ? 'custom territory' : 'territory';
             await supabase.from('gang_logs').insert({
               gang_id: claimerGangId,
               user_id: claimer.user_id,
               action_type: 'territory_claimed',
-              description: `Gang "${claimer.name}" claimed territory "${claimed_territory}" in campaign "${resolvedCampaignName}"`,
+              description: `Gang "${claimer.name}" claimed ${territoryType} "${claimed_territory}" in campaign "${resolvedCampaignName}"`,
               created_at: new Date().toISOString(),
             });
           }

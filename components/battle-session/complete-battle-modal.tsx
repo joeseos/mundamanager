@@ -81,8 +81,6 @@ export default function CompleteBattleModal({
   });
 
   const handleConfirm = async () => {
-    onSuppressRefetch?.();
-
     if (!hasAnyWinnerSelected) {
       toast.error('Please select a winner or draw');
       return false;
@@ -103,6 +101,7 @@ export default function CompleteBattleModal({
     }
 
     setSubmitting(true);
+    onSuppressRefetch?.();
 
     const winnerPayload = isDraw
       ? []
