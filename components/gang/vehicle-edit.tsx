@@ -546,8 +546,8 @@ export default function VehicleEdit({
               Special Rules
             </label>
             <div className="mb-2">
-              <div className={selectedSpecialRuleOption !== 'custom' ? 'flex space-x-2' : ''}>
-                <div className={selectedSpecialRuleOption !== 'custom' ? 'grow' : ''}>
+              <div className="flex space-x-2">
+                <div className="grow min-w-0">
                   <Combobox
                     options={specialRuleComboboxOptions}
                     value={selectedSpecialRuleOption}
