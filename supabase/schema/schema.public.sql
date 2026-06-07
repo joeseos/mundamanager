@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict edaw2G1FNC6bImtlKnhdUhN4wb4PX7lvF5Ir0Xr1HoCOXeOvEkMB8YO5bAvjbWE
+\restrict BbExARNVSYpssQPj48D3TVh7ojbhL3VUPCa8P2OHYZQb790ifKTClBU13SZCCNX
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -1380,6 +1380,10 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT gt.trading_post_type_id
         FROM gang_types gt
         WHERE gt.gang_type_id = $1
+          AND (
+              $10 IS NULL
+              OR gt.trading_post_type_id = ANY($10)
+          )
     ),
 
     -- =======================================================================
@@ -4009,7 +4013,6 @@ CREATE TABLE public.campaign_battles (
     updated_at timestamp with time zone,
     scenario text,
     territory_id uuid,
-    custom_territory_id uuid,
     cycle integer,
     campaign_territory_id uuid
 );
@@ -4188,7 +4191,6 @@ CREATE TABLE public.campaign_territories (
     ruined boolean DEFAULT false,
     updated_at timestamp with time zone,
     default_gang_territory boolean DEFAULT false,
-    custom_territory_id uuid,
     playing_card text,
     description text,
     map_object_id uuid,
@@ -4411,7 +4413,6 @@ CREATE TABLE public.custom_shared (
     custom_equipment_id uuid,
     custom_fighter_type_id uuid,
     campaign_id uuid,
-    custom_territory_id uuid,
     user_id uuid,
     custom_skill_id uuid,
     custom_gang_type_id uuid,
@@ -4445,19 +4446,6 @@ CREATE TABLE public.custom_skills (
     skill_type_id uuid,
     custom_skill_type_id uuid,
     CONSTRAINT chk_custom_skills_skill_type_exclusive CHECK ((((skill_type_id IS NOT NULL) AND (custom_skill_type_id IS NULL)) OR ((skill_type_id IS NULL) AND (custom_skill_type_id IS NOT NULL))))
-);
-
-
---
--- Name: custom_territories; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.custom_territories (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT now(),
-    territory_name text,
-    user_id uuid NOT NULL,
-    updated_at timestamp with time zone
 );
 
 
@@ -5845,14 +5833,6 @@ ALTER TABLE ONLY public.custom_skills
 
 
 --
--- Name: custom_territories custom_territories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.custom_territories
-    ADD CONSTRAINT custom_territories_pkey PRIMARY KEY (id);
-
-
---
 -- Name: custom_trading_post_availability custom_trading_post_availability_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6466,13 +6446,6 @@ CREATE INDEX campaign_battles_campaign_territory_id_idx ON public.campaign_battl
 --
 
 CREATE INDEX campaign_map_objects_campaign_map_id_idx ON public.campaign_map_objects USING btree (campaign_map_id);
-
-
---
--- Name: campaign_territories_custom_territory_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_territories_custom_territory_id_idx ON public.campaign_territories USING btree (custom_territory_id);
 
 
 --
@@ -8671,13 +8644,6 @@ CREATE POLICY "Allow authenticated users to create custom skills" ON public.cust
 
 
 --
--- Name: custom_territories Allow authenticated users to create custom territories; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to create custom territories" ON public.custom_territories FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
-
-
---
 -- Name: custom_trading_post_availability Allow authenticated users to create custom trading post availab; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -8822,13 +8788,6 @@ CREATE POLICY "Allow authenticated users to view custom skill types" ON public.c
 --
 
 CREATE POLICY "Allow authenticated users to view custom skills" ON public.custom_skills FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: custom_territories Allow authenticated users to view custom territories; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view custom territories" ON public.custom_territories FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -10052,20 +10011,6 @@ CREATE POLICY "Only custom skill type owner or admin can update" ON public.custo
 
 
 --
--- Name: custom_territories Only custom territory owner or admin can delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only custom territory owner or admin can delete" ON public.custom_territories FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
-
-
---
--- Name: custom_territories Only custom territory owner or admin can update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only custom territory owner or admin can update" ON public.custom_territories FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
-
-
---
 -- Name: custom_trading_post_availability Only custom trading post availability owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10808,12 +10753,6 @@ ALTER TABLE public.custom_skill_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_skills ENABLE ROW LEVEL SECURITY;
-
---
--- Name: custom_territories; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.custom_territories ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: custom_trading_post_availability; Type: ROW SECURITY; Schema: public; Owner: -
@@ -11633,5 +11572,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict edaw2G1FNC6bImtlKnhdUhN4wb4PX7lvF5Ir0Xr1HoCOXeOvEkMB8YO5bAvjbWE
+\unrestrict BbExARNVSYpssQPj48D3TVh7ojbhL3VUPCa8P2OHYZQb790ifKTClBU13SZCCNX
 
