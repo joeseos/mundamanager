@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { LuPlus } from "react-icons/lu";
 import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
+
+const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
 type CombinedVehicleProps = VehicleProps & {
   assigned_to?: string;
@@ -348,30 +352,109 @@ export default function VehicleEdit({
 }: VehicleEditProps) {
   const [editedVehicleName, setEditedVehicleName] = useState('');
   const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
-  const [newSpecialRule, setNewSpecialRule] = useState('');
+  const [selectedSpecialRuleOption, setSelectedSpecialRuleOption] = useState('');
+  const [customSpecialRule, setCustomSpecialRule] = useState('');
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
+
+  const { data: vehicleTypes = [] } = useQuery<Array<{ id: string; special_rules: string[] }>>({
+    queryKey: ['vehicle-types', vehicle?.gang_id],
+    queryFn: async () => {
+      const response = await fetch(`/api/gangs/${vehicle!.gang_id}/vehicles`);
+      if (!response.ok) throw new Error('Failed to fetch vehicle types');
+      return response.json();
+    },
+    enabled: !!vehicle?.gang_id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const vehicleType = useMemo(
+    () => vehicleTypes.find(vt => vt.id === vehicle?.vehicle_type_id) ?? null,
+    [vehicleTypes, vehicle?.vehicle_type_id]
+  );
+
+  const availableDefaultSpecialRules = useMemo(() => {
+    const typeRules = (vehicleType?.special_rules || [])
+      .map(normalizeSpecialRule)
+      .filter(Boolean);
+
+    const currentRules = new Set(
+      vehicleSpecialRules.map(normalizeSpecialRule).filter(Boolean)
+    );
+
+    return typeRules.filter(rule => !currentRules.has(rule));
+  }, [vehicleType, vehicleSpecialRules]);
+
+  const specialRuleComboboxOptions = useMemo(() => {
+    const options: Array<{
+      value: string;
+      label: string | React.ReactNode;
+      displayValue?: string;
+      disabled?: boolean;
+    }> = [];
+
+    options.push({ value: 'custom', label: 'Custom' });
+
+    if (availableDefaultSpecialRules.length > 0) {
+      options.push({
+        value: '__default_special_rules_header__',
+        label: <span className="font-bold">Default Special Rules</span>,
+        displayValue: 'Default Special Rules',
+        disabled: true,
+      });
+      availableDefaultSpecialRules.forEach(rule => {
+        options.push({
+          value: rule,
+          label: <span className="ml-3">{rule}</span>,
+          displayValue: rule,
+        });
+      });
+    }
+
+    return options;
+  }, [availableDefaultSpecialRules]);
 
   // Initialize state when vehicle changes
   useEffect(() => {
     if (vehicle) {
       setEditedVehicleName(vehicle.vehicle_name);
       setVehicleSpecialRules(vehicle.special_rules || []);
-      setNewSpecialRule('');
+      setSelectedSpecialRuleOption('');
+      setCustomSpecialRule('');
       setPendingStatAdjustments({});
     }
   }, [vehicle]);
 
-  const handleAddSpecialRule = () => {
-    if (!newSpecialRule.trim()) return;
+  const handleSpecialRuleOptionChange = (value: string) => {
+    if (value === 'custom') {
+      setSelectedSpecialRuleOption('custom');
+      setCustomSpecialRule('');
+    } else if (availableDefaultSpecialRules.includes(value)) {
+      setSelectedSpecialRuleOption(value);
+      setCustomSpecialRule('');
+    } else {
+      setSelectedSpecialRuleOption('custom');
+      setCustomSpecialRule(value);
+    }
+  };
 
-    if (vehicleSpecialRules.includes(newSpecialRule.trim())) {
-      setNewSpecialRule('');
+  const handleAddSpecialRule = () => {
+    const ruleToAdd = selectedSpecialRuleOption === 'custom'
+      ? customSpecialRule.trim()
+      : selectedSpecialRuleOption.trim();
+
+    if (!ruleToAdd) return;
+
+    const normalisedCurrent = vehicleSpecialRules.map(normalizeSpecialRule);
+    if (normalisedCurrent.includes(normalizeSpecialRule(ruleToAdd))) {
+      setSelectedSpecialRuleOption('');
+      setCustomSpecialRule('');
       return;
     }
 
-    setVehicleSpecialRules(prev => [...prev, newSpecialRule.trim()]);
-    setNewSpecialRule('');
+    setVehicleSpecialRules(prev => [...prev, ruleToAdd]);
+    setSelectedSpecialRuleOption('');
+    setCustomSpecialRule('');
   };
 
   const handleRemoveSpecialRule = (ruleToRemove: string) => {
@@ -449,26 +532,50 @@ export default function VehicleEdit({
             <label className="block text-sm font-medium text-muted-foreground mb-1">
               Special Rules
             </label>
-            <div className="flex space-x-2 mb-2">
-              <Input
-                type="text"
-                value={newSpecialRule}
-                onChange={(e) => setNewSpecialRule(e.target.value)}
-                placeholder="Add a special rule"
-                className="grow"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddSpecialRule();
-                  }
-                }}
-              />
-              <Button
-                onClick={handleAddSpecialRule}
-                type="button"
-              >
-                Add
-              </Button>
+            <div className="mb-2">
+              <div className={selectedSpecialRuleOption !== 'custom' ? 'flex space-x-2' : ''}>
+                <div className={selectedSpecialRuleOption !== 'custom' ? 'grow' : ''}>
+                  <Combobox
+                    options={specialRuleComboboxOptions}
+                    value={selectedSpecialRuleOption}
+                    onValueChange={handleSpecialRuleOptionChange}
+                    placeholder="Add a Special Rule"
+                    allowCustom={true}
+                    dropdownPlacement="down"
+                  />
+                </div>
+                {selectedSpecialRuleOption !== 'custom' && (
+                  <Button
+                    onClick={handleAddSpecialRule}
+                    type="button"
+                  >
+                    Add
+                  </Button>
+                )}
+              </div>
+              {selectedSpecialRuleOption === 'custom' && (
+                <div className="flex space-x-2 mt-2">
+                  <Input
+                    type="text"
+                    value={customSpecialRule}
+                    onChange={(e) => setCustomSpecialRule(e.target.value)}
+                    placeholder="Enter custom Special Rule"
+                    className="grow"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddSpecialRule();
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={handleAddSpecialRule}
+                    type="button"
+                  >
+                    Add
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2 mt-2">
