@@ -374,7 +374,8 @@ export default function VehicleEdit({
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
   const [locomotionChoice, setLocomotionChoice] = useState('');
-  // Original locomotion when the modal opened — used to compute the movement delta on save
+  // Original locomotion detected when the modal opened — used to keep the locomotion
+  // dropdown visible even after the user switches away from the current selection.
   const [originalLocomotion, setOriginalLocomotion] = useState('');
 
   const gangId = vehicle?.gang_id;
@@ -505,14 +506,7 @@ export default function VehicleEdit({
   };
 
   const handleRemoveSpecialRule = (ruleToRemove: string) => {
-    setVehicleSpecialRules(prev => {
-      const filtered = prev.filter(rule => rule !== ruleToRemove);
-      // If the user removes the locomotion tag, re-add the current dropdown selection
-      if (LOCOMOTION_SET.has(ruleToRemove) && locomotionChoice) {
-        return filtered.includes(locomotionChoice) ? filtered : [...filtered, locomotionChoice];
-      }
-      return filtered;
-    });
+    setVehicleSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
   const handleLocomotionChange = (newLoco: string) => {

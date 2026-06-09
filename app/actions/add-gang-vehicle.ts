@@ -6,7 +6,7 @@ import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
 import { logVehicleAction } from "./logs/vehicle-logs";
-import { LOCOMOTION_OPTIONS } from "@/utils/vehicle-locomotion";
+import { getAllowedLocomotionOptions } from "@/utils/vehicle-locomotion";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -79,10 +79,12 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
-    // Validate locomotionChoice against the allowed set
-    if (params.locomotionChoice !== undefined &&
-        !LOCOMOTION_OPTIONS.includes(params.locomotionChoice as typeof LOCOMOTION_OPTIONS[number])) {
-      return { success: false, error: 'Invalid locomotion choice' };
+    // Validate locomotionChoice against the type-specific allowed set
+    if (params.locomotionChoice !== undefined) {
+      const allowed = getAllowedLocomotionOptions(vehicleType.vehicle_type);
+      if (!(allowed as readonly string[]).includes(params.locomotionChoice)) {
+        return { success: false, error: 'Invalid locomotion choice for this vehicle type' };
+      }
     }
 
     const vehicleSpecialRules = vehicleType.special_rules as string[] || [];

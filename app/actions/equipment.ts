@@ -485,11 +485,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             ? currentRules.map(r => r === oldLocomotion ? grantedLocomotion : r)
             : [...currentRules, grantedLocomotion];
 
-          // Tracked carries a -1" movement penalty; Skimmer/Wheeled/Walker do not
-          const wasTracked = oldLocomotion === 'Tracked';
-          const isTracked = grantedLocomotion === 'Tracked';
-          const movementDelta = (wasTracked ? 1 : 0) - (isTracked ? 1 : 0);
-          const newMovement = Math.max(0, (vehicleData.movement ?? 0) + movementDelta);
+          const newMovement = vehicleData.movement ?? 0;
 
           const { error: updateError } = await supabase
             .from('vehicles')
