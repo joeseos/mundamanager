@@ -40,9 +40,6 @@ export function getEquipmentTooltipHtml(
     if (item.equipment_tradingpost && (item.trading_post_names || []).length > 0) {
       sourceParts.push((item.trading_post_names || []).join(', '));
     }
-    if (equipmentListType === 'fighters-tradingpost' && item.equipment_tradingpost && (item.trading_post_names || []).length === 0 && !(item.fighter_type_equipment || item.from_fighters_list)) {
-      sourceParts.push(isVehicleEquipment ? "Vehicle's List" : "Fighter's List");
-    }
     if (equipmentListType === 'unrestricted' && sourceParts.length === 0) {
       sourceParts.push('Exclusive');
     }
