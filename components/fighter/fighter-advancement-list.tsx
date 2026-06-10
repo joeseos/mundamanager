@@ -15,11 +15,11 @@ import { useMutation } from '@tanstack/react-query';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
+  applyPromotionWithSkillAdvancement,
   deleteAdvancement,
   verifyAndLogRolledGangerAdvancementRoll,
   verifyAndLogRolledSkillAdvancementRoll
 } from '@/app/actions/fighter-advancement';
-import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { Combobox } from '@/components/ui/combobox';
@@ -364,7 +364,8 @@ function buildSkillSetComboboxOptions(
       ) : (
         <span className="pl-4 italic text-neutral-400">{labelText}</span>
       ),
-      displayValue: labelText
+      displayValue: labelText,
+      ...(highlightPrimaryOnly && effectiveLevel !== 'primary' ? { disabled: true } : {})
     });
   };
 
@@ -516,6 +517,8 @@ export function AdvancementModal({
   } | null>(null);
   const [championPromotionOpen, setChampionPromotionOpen] = useState(false);
   const [championPendingPromotion, setChampionPendingPromotion] = useState<ChampionPendingPromotion | null>(null);
+  const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
+  const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
   // isSubmitting unused; removed
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
@@ -838,6 +841,13 @@ export function AdvancementModal({
   }, [gangerPendingPromotion?.fighter_type_id]);
 
   useEffect(() => {
+    setSelectedCategory('');
+    setSelectedAdvancement(null);
+    setSkillRollResult(null);
+    setAvailableAdvancements([]);
+  }, [championPendingPromotion?.fighter_type_id]);
+
+  useEffect(() => {
     if (!gangerSelectedSkillSetId || !gangerPendingPromotion?.fighter_type_id) {
       setGangerSkillsInSet([]);
       setGangerSkillsInSetLoading(false);
@@ -951,24 +961,15 @@ export function AdvancementModal({
       credits_increase: number;
       skillName: string;
     }) => {
-      const u = await updateFighterDetails({
-        fighter_id: fighterId,
-        fighter_class: vars.promotion.fighter_class,
-        fighter_class_id: vars.promotion.fighter_class_id,
-        fighter_type: vars.promotion.fighter_type,
-        fighter_type_id: vars.promotion.fighter_type_id,
-        special_rules: vars.promotion.special_rules
-      });
-      if (!u.success) throw new Error(u.error || 'Failed to promote fighter');
-      const s = await addSkillAdvancement({
+      const result = await applyPromotionWithSkillAdvancement({
         fighter_id: fighterId,
         skill_id: vars.skill_id,
         xp_cost: vars.xp_cost,
         credits_increase: vars.credits_increase,
-        is_advance: true
+        promotion: vars.promotion
       });
-      if (!s.success) throw new Error(s.error || 'Failed to add skill');
-      return { u, s };
+      if (!result.success) throw new Error(result.error || 'Failed to apply promotion and skill');
+      return result;
     },
     onMutate: async (vars) => {
       const previousSkills = { ...skills };
@@ -1014,24 +1015,15 @@ export function AdvancementModal({
       credits_increase: number;
       skillName: string;
     }) => {
-      const u = await updateFighterDetails({
-        fighter_id: fighterId,
-        fighter_class: vars.promotion.fighter_class,
-        fighter_class_id: vars.promotion.fighter_class_id,
-        fighter_type: vars.promotion.fighter_type,
-        fighter_type_id: vars.promotion.fighter_type_id,
-        special_rules: vars.promotion.special_rules
-      });
-      if (!u.success) throw new Error(u.error || 'Failed to promote fighter');
-      const s = await addSkillAdvancement({
+      const result = await applyPromotionWithSkillAdvancement({
         fighter_id: fighterId,
         skill_id: vars.skill_id,
         xp_cost: vars.xp_cost,
         credits_increase: vars.credits_increase,
-        is_advance: true
+        promotion: vars.promotion
       });
-      if (!s.success) throw new Error(s.error || 'Failed to add skill');
-      return { u, s };
+      if (!result.success) throw new Error(result.error || 'Failed to apply promotion and skill');
+      return result;
     },
     onMutate: async (vars) => {
       const previousSkills = { ...skills };
@@ -1205,7 +1197,7 @@ export function AdvancementModal({
         toast.error('Choose a Primary skill set');
         return false;
       }
-      const accessRow = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+      const accessRow = championPreviewSkillAccess.find((a) => a.skill_type_id === selectedCategory);
       const accessLevel = accessRow ? effectiveSkillAccess(accessRow) : null;
       if (accessLevel !== 'primary') {
         toast.error('This advancement requires a Primary skill set');
@@ -1240,7 +1232,7 @@ export function AdvancementModal({
       advancementType,
       championPendingPromotion,
       selectedCategory,
-      skillAccess,
+      championPreviewSkillAccess,
       selectedAdvancement,
       currentXp,
       applyChampionPromotionMutation
@@ -1514,17 +1506,36 @@ export function AdvancementModal({
   // Returns null when the fighter has no defined access to this set.
   const selectedSkillSetAccess = useMemo<'primary' | 'secondary' | 'allowed' | null>(() => {
     if (!isSkillLikeAdvancementType || !selectedCategory) return null;
-    const access = skillAccess.find((a) => a.skill_type_id === selectedCategory);
+    const accessSource =
+      advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
+    const access = accessSource.find((a) => a.skill_type_id === selectedCategory);
     return access ? effectiveSkillAccess(access) : null;
-  }, [isSkillLikeAdvancementType, selectedCategory, skillAccess]);
+  }, [
+    isSkillLikeAdvancementType,
+    advancementType,
+    selectedCategory,
+    skillAccess,
+    championPreviewSkillAccess
+  ]);
 
   const selectedSkillSetLacksAccess = useMemo(() => {
     if (!isSkillLikeAdvancementType || !selectedCategory) return false;
     // Suppress the warning while skill access data is still loading to avoid
     // a false "not accessible" flash on slower connections.
-    if (skillAccessLoading) return false;
+    const accessLoading =
+      advancementType === 'promotion_to_champion'
+        ? championPreviewSkillAccessLoading
+        : skillAccessLoading;
+    if (accessLoading) return false;
     return selectedSkillSetAccess === null;
-  }, [isSkillLikeAdvancementType, selectedCategory, skillAccessLoading, selectedSkillSetAccess]);
+  }, [
+    isSkillLikeAdvancementType,
+    advancementType,
+    selectedCategory,
+    skillAccessLoading,
+    championPreviewSkillAccessLoading,
+    selectedSkillSetAccess
+  ]);
 
   const championPromotionRequiresPrimarySet =
     advancementType === 'promotion_to_champion' &&
@@ -1601,12 +1612,20 @@ export function AdvancementModal({
   const skillSetComboboxOptions = useMemo(() => {
     if (!isSkillLikeAdvancementType) return [];
     const skillCategories = categories.filter((cat): cat is SkillType => cat.type === 'skill');
+    const accessSource =
+      advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
     return buildSkillSetComboboxOptions(
       skillCategories,
-      skillAccess,
+      accessSource,
       advancementType === 'promotion_to_champion'
     );
-  }, [isSkillLikeAdvancementType, advancementType, categories, skillAccess]);
+  }, [
+    isSkillLikeAdvancementType,
+    advancementType,
+    categories,
+    skillAccess,
+    championPreviewSkillAccess
+  ]);
 
   /**
    * Acquisition Type combobox options derived from the selected skill set's access level.
@@ -1870,7 +1889,7 @@ export function AdvancementModal({
       setEditableXpCost(CHAMPION_PROMOTION_XP_COST);
       setEditableCreditsIncrease(CHAMPION_PROMOTION_CREDITS_INCREASE);
     }
-  }, [advancementType, selectedCategory]);
+  }, [advancementType]);
 
   // Add these console.logs to help debug
   // Debug effect removed
@@ -1888,9 +1907,9 @@ export function AdvancementModal({
     }
   }, [selectedCategory, selectedAdvancement, advancementType]);
 
-  // Fetch skill access for fighter when advancementType is 'skill' or 'promotion_to_champion'
+  // Fetch skill access for the standard skill advancement flow
   useEffect(() => {
-    if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
+    if (advancementType !== 'skill') return;
     let cancelled = false;
     const fetchSkillAccess = async () => {
       setSkillAccessLoading(true);
@@ -1912,6 +1931,40 @@ export function AdvancementModal({
     void fetchSkillAccess();
     return () => { cancelled = true; };
   }, [advancementType, fighterId]);
+
+  // Fetch preview skill access for the target Champion type after promotion is confirmed
+  useEffect(() => {
+    if (advancementType !== 'promotion_to_champion' || !championPendingPromotion?.fighter_type_id) {
+      setChampionPreviewSkillAccess([]);
+      setChampionPreviewSkillAccessLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setChampionPreviewSkillAccessLoading(true);
+    const run = async () => {
+      try {
+        const res = await fetch(
+          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(championPendingPromotion.fighter_type_id)}`
+        );
+        if (!res.ok || cancelled) {
+          if (!cancelled) setChampionPreviewSkillAccess([]);
+          return;
+        }
+        const data = await res.json();
+        const access = (data.skill_access || []) as SkillAccess[];
+        if (!cancelled) setChampionPreviewSkillAccess(access);
+      } catch {
+        if (!cancelled) setChampionPreviewSkillAccess([]);
+      } finally {
+        if (!cancelled) setChampionPreviewSkillAccessLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+      setChampionPreviewSkillAccessLoading(false);
+    };
+  }, [advancementType, fighterId, championPendingPromotion?.fighter_type_id]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -2025,6 +2078,7 @@ export function AdvancementModal({
     ? !gangerBuyUi.canBuy || purchaseBlockingBusy || gangerBuyUi.pending
     : advancementType === 'promotion_to_champion'
       ? !championPendingPromotion ||
+        championPreviewSkillAccessLoading ||
         !selectedCategory ||
         selectedSkillSetAccess !== 'primary' ||
         !selectedAdvancement ||
@@ -2338,6 +2392,7 @@ export function AdvancementModal({
                       }}
                       placeholder="Select a Skill Set"
                       options={skillSetComboboxOptions}
+                      disabled={championPreviewSkillAccessLoading}
                       dropdownPlacement="down"
                     />
                     {championPromotionRequiresPrimarySet && (

@@ -15,6 +15,7 @@ import {
   logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
+import { updateFighterDetails } from './edit-fighter';
 
 // Type for power boost type_specific_data
 interface PowerBoostTypeData {
@@ -57,6 +58,20 @@ export interface AddSkillAdvancementParams {
   /** Added to gang rating. When is_advance is false (direct purchase), also deducted from gang stash. */
   credits_increase: number;
   is_advance?: boolean;
+}
+
+export interface PromotionWithSkillAdvancementParams {
+  fighter_id: string;
+  skill_id: string;
+  xp_cost: number;
+  credits_increase: number;
+  promotion: {
+    fighter_type: string;
+    fighter_type_id: string;
+    fighter_class: string;
+    fighter_class_id: string;
+    special_rules: string[];
+  };
 }
 
 export interface DeleteAdvancementParams {
@@ -542,6 +557,76 @@ export async function addSkillAdvancement(
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    };
+  }
+}
+
+/**
+ * Promotes a fighter and adds a skill advancement as one logical operation.
+ * If the skill step fails after promotion succeeds, the fighter's class/type is reverted.
+ */
+export async function applyPromotionWithSkillAdvancement(
+  params: PromotionWithSkillAdvancementParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select('fighter_class, fighter_class_id, fighter_type, fighter_type_id, special_rules')
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const promotionResult = await updateFighterDetails({
+      fighter_id: params.fighter_id,
+      fighter_class: params.promotion.fighter_class,
+      fighter_class_id: params.promotion.fighter_class_id,
+      fighter_type: params.promotion.fighter_type,
+      fighter_type_id: params.promotion.fighter_type_id,
+      special_rules: params.promotion.special_rules
+    });
+
+    if (!promotionResult.success) {
+      return { success: false, error: promotionResult.error || 'Failed to promote fighter' };
+    }
+
+    const skillResult = await addSkillAdvancement({
+      fighter_id: params.fighter_id,
+      skill_id: params.skill_id,
+      xp_cost: params.xp_cost,
+      credits_increase: params.credits_increase,
+      is_advance: true
+    });
+
+    if (!skillResult.success) {
+      const revertResult = await updateFighterDetails({
+        fighter_id: params.fighter_id,
+        fighter_class: before.fighter_class ?? undefined,
+        fighter_class_id: before.fighter_class_id ?? undefined,
+        fighter_type: before.fighter_type ?? undefined,
+        fighter_type_id: before.fighter_type_id ?? undefined,
+        special_rules: before.special_rules ?? []
+      });
+
+      if (!revertResult.success) {
+        return {
+          success: false,
+          error: `${skillResult.error}. Promotion could not be reverted automatically — please check this fighter's class and type in Edit Fighter.`
+        };
+      }
+
+      return { success: false, error: skillResult.error || 'Failed to add skill' };
+    }
+
+    return skillResult;
+  } catch (error) {
+    console.error('Error applying promotion with skill advancement:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }

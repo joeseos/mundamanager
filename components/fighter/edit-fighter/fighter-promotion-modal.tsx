@@ -20,9 +20,9 @@ const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 
-function normalizeSpecialRules(rules: string[]): string[] {
+function normalizeSpecialRules(rules: (string | unknown)[]): string[] {
   return rules
-    .map((r) => (typeof r === 'string' ? normalizeSpecialRule(r) : r))
+    .map((r) => (typeof r === 'string' ? normalizeSpecialRule(r) : String(r)))
     .filter(Boolean);
 }
 
