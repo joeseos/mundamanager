@@ -485,11 +485,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             ? currentRules.map(r => r === oldLocomotion ? grantedLocomotion : r)
             : [...currentRules, grantedLocomotion];
 
-          const newMovement = vehicleData.movement ?? 0;
-
           const { error: updateError } = await supabase
             .from('vehicles')
-            .update({ special_rules: newRules, movement: newMovement })
+            .update({ special_rules: newRules })
             .eq('id', params.vehicle_id);
           if (updateError) {
             console.error('Failed to update vehicle locomotion after antigrav install:', updateError);
