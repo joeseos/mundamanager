@@ -415,15 +415,15 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
               backgroundPosition: 'center',
               backgroundSize: '100% 100%'
             }}>
-            <div className="absolute z-10 pl-4 sm:pl-8 flex items-center gap-2 w-[60svw] sm:w-[80%] overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
+            <div className="absolute z-10 left-0 right-[156px] md:right-[206px] pl-4 sm:pl-8 flex items-center gap-2 overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
               {label && (
                 <div className="inline-flex items-center rounded-xs bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}
-              <div className="flex flex-col items-baseline w-full">
-                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground">{name}</div>
-                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden whitespace-nowrap print:text-muted-foreground">
+              <div className="flex flex-col items-baseline w-full min-w-0">
+                <div className="text-xl sm:leading-7 sm:text-2xl font-semibold text-white mr-2 print:text-foreground truncate w-full">{name}</div>
+                <div className="text-gray-300 text-xs sm:leading-5 sm:text-base overflow-hidden text-ellipsis whitespace-nowrap w-full print:text-muted-foreground">
                   {type}
                   {alliance_crew_name && ` – ${alliance_crew_name}`}
                   {fighter_class && ` (${fighter_class})`}
