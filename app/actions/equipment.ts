@@ -642,7 +642,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     let createdBeasts: any[] = [];
     let createdBeastsRatingDelta = 0;
 
-    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id && fighterName) {
+    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
       try {
         const beastResult = await createExoticBeastsForEquipment({
           equipmentId: params.equipment_id,
