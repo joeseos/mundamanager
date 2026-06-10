@@ -10,11 +10,21 @@ const PROMOTION_MAP: Record<string, string> = {
   'Juve': 'Specialist',
   'Prospect': 'Champion',
   'Champion': 'Leader',
+  'Specialist': 'Champion',
   'Exotic Beast': 'Exotic Beast Specialist',
+  'Exotic Beast Specialist': 'Champion',
 };
 
 const EXOTIC_BEAST_SPECIALIST_CLASS_ID = '38598144-0f38-43c5-9a07-512106b9fc9e';
 const EXOTIC_BEAST_SPECIALIST_CLASS_NAME = 'Exotic Beast Specialist';
+
+const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
+
+function normalizeSpecialRules(rules: (string | unknown)[]): string[] {
+  return rules
+    .map((r) => (typeof r === 'string' ? normalizeSpecialRule(r) : String(r)))
+    .filter(Boolean);
+}
 
 interface FighterPromotionModalProps {
   currentClass: string;
@@ -66,12 +76,17 @@ export function FighterPromotionModal({
 
   const selectedType = eligibleTypes.find(ft => ft.id === selectedTypeId);
 
+  const normalizedCurrentSpecialRules = useMemo(
+    () => normalizeSpecialRules(currentSpecialRules),
+    [currentSpecialRules]
+  );
+
   // Reset state on each open, pre-select the first eligible type
   useEffect(() => {
     if (isOpen) {
       if (isExoticBeast) {
         setSelectedTypeId('');
-        setNewSpecialRules(currentSpecialRules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean));
+        setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
         setNewRuleInput('');
       } else {
         const eligible = targetClass
@@ -79,9 +94,9 @@ export function FighterPromotionModal({
           : [];
         const firstType = eligible.length > 0 ? eligible[0] : null;
         setSelectedTypeId(firstType?.id || '');
-        setNewSpecialRules(firstType?.special_rules
-          ? firstType.special_rules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean)
-          : []);
+        setNewSpecialRules(
+          firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
+        );
         setNewRuleInput('');
       }
     }
@@ -91,9 +106,7 @@ export function FighterPromotionModal({
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
     const type = eligibleTypes.find(ft => ft.id === typeId);
-    setNewSpecialRules(type?.special_rules
-      ? type.special_rules.map(r => typeof r === 'string' ? r.replace(/^"|"$/g, '') : r).filter(Boolean)
-      : []);
+    setNewSpecialRules(type?.special_rules ? normalizeSpecialRules(type.special_rules) : []);
   };
 
   const handleAddRule = () => {
@@ -178,13 +191,13 @@ export function FighterPromotionModal({
               </div>
 
               {/* Current Special Rules (read-only) */}
-              {currentSpecialRules.length > 0 && (
+              {normalizedCurrentSpecialRules.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                  Special Rules To Be Removed
+                  Special Rules to be Removed
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {currentSpecialRules.map((rule, index) => (
+                    {normalizedCurrentSpecialRules.map((rule, index) => (
                       <div
                         key={index}
                         className="bg-muted px-3 py-1 rounded-full text-sm"
@@ -201,7 +214,7 @@ export function FighterPromotionModal({
           {/* Special Rules (editable) */}
           <div>
             <label className="block text-sm font-medium mb-1">
-              {isExoticBeast ? 'Special Rules' : 'Special Rules To Be Added'}
+              {isExoticBeast ? 'Special Rules' : 'Special Rules to be Added'}
             </label>
             <div className="flex space-x-2 mb-2">
               <Input
