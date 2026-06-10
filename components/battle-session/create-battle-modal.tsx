@@ -80,6 +80,8 @@ export default function CreateBattleModal({
       return res.json() as Promise<CampaignGang[]>;
     },
     enabled: !!campaignId,
+    // Other players join/leave campaigns; refetch on every modal open
+    staleTime: 0,
   });
 
   const { data: selectedUserGangs, isLoading: loadingGangs } = useQuery({
@@ -91,6 +93,8 @@ export default function CreateBattleModal({
       return (data.gangs || []) as { id: string; name: string; rating: number }[];
     },
     enabled: !!selectedUser,
+    // Opponents' gang lists change outside this client; refetch on every modal open
+    staleTime: 0,
   });
 
   const scenarios = battleData?.scenarios ?? [];
