@@ -5,6 +5,7 @@ DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boole
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[]);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[],uuid[]);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[]);
 
 CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     gang_type_id uuid DEFAULT NULL,          -- $1
@@ -15,9 +16,8 @@ CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     fighter_id uuid DEFAULT NULL,             -- $6
     only_equipment_id uuid DEFAULT NULL,      -- $7
     gang_id uuid DEFAULT NULL,               -- $8
-    fighters_tradingpost_only boolean DEFAULT NULL, -- $9
-    campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $10
-    campaign_custom_trading_post_ids uuid[] DEFAULT NULL -- $11
+    campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $9
+    campaign_custom_trading_post_ids uuid[] DEFAULT NULL -- $10
 )
 RETURNS TABLE (
     id uuid,
@@ -80,44 +80,13 @@ AS $$
         FROM gang_types gt
         WHERE gt.gang_type_id = $1
           AND (
-              $10 IS NULL
-              OR gt.trading_post_type_id = ANY($10)
+              $9 IS NULL
+              OR gt.trading_post_type_id = ANY($9)
           )
     ),
 
     -- =======================================================================
-    -- 3. FIGHTER TRADING POST EQUIPMENT
-    --    KEY OPTIMISATION: filter to only the relevant fighter_type_ids
-    --    BEFORE unpacking the JSONB array. Previously scanned ALL rows.
-    -- =======================================================================
-    filtered_fet AS (
-        SELECT fet.fighter_type_id, equip_id::uuid AS equipment_id
-        FROM fighter_equipment_tradingpost fet
-        CROSS JOIN gang_data gd
-        CROSS JOIN jsonb_array_elements_text(fet.equipment_tradingpost) AS equip_id
-        WHERE fet.fighter_type_id IN ($3, gd.affiliation_ft_id)
-          AND (
-            $10 IS NULL
-            OR EXISTS (
-                SELECT 1 FROM trading_post_equipment tpe
-                WHERE tpe.equipment_id = equip_id::uuid
-                  AND tpe.trading_post_type_id = (SELECT trading_post_type_id FROM gang_tp)
-            )
-            OR (array_length($10, 1) > 0 AND EXISTS (
-                SELECT 1 FROM trading_post_equipment tpe
-                WHERE tpe.equipment_id = equip_id::uuid
-                  AND tpe.trading_post_type_id = ANY($10)
-            ))
-            OR NOT EXISTS (
-                SELECT 1 FROM trading_post_equipment tpe
-                WHERE tpe.equipment_id = equip_id::uuid
-            )
-          )
-    ),
-
-    -- =======================================================================
-    -- 4. TRADING POST ACCESS — computed once per equipment_id
-    --    Replaces 4-5 repeated EXISTS subqueries in the original.
+    -- 3. TRADING POST ACCESS — computed once per equipment_id
     -- =======================================================================
     tp_access AS (
         -- Gang's own trading post
@@ -132,18 +101,9 @@ AS $$
         SELECT tpe.equipment_id, tpt.trading_post_name
         FROM trading_post_equipment tpe
         JOIN trading_post_types tpt ON tpt.id = tpe.trading_post_type_id
-        WHERE $10 IS NOT NULL
-          AND array_length($10, 1) > 0
-          AND tpe.trading_post_type_id = ANY($10)
-
-        UNION
-
-        -- Fighter-specific trading post access (no TP name — these aren't real TPs)
-        SELECT ff.equipment_id, NULL::text
-        FROM filtered_fet ff
-        CROSS JOIN gang_data gd
-        WHERE ff.fighter_type_id = $3
-           OR (gd.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gd.affiliation_ft_id)
+        WHERE $9 IS NOT NULL
+          AND array_length($9, 1) > 0
+          AND tpe.trading_post_type_id = ANY($9)
 
         UNION
 
@@ -152,8 +112,8 @@ AS $$
         FROM custom_trading_post_equipment ctpe
         JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
         WHERE ctpe.equipment_id IS NOT NULL
-          AND $11 IS NOT NULL AND array_length($11, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($11)
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
     ),
 
     tp_summary AS (
@@ -169,17 +129,8 @@ AS $$
         GROUP BY ta.equipment_id
     ),
 
-    -- Helper: does this equipment have fighter-specific TP access?
-    fighter_tp_set AS (
-        SELECT DISTINCT equipment_id
-        FROM filtered_fet ff
-        CROSS JOIN gang_data gd
-        WHERE ff.fighter_type_id = $3
-           OR (gd.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gd.affiliation_ft_id)
-    ),
-
     -- =======================================================================
-    -- 5. EQUIPMENT IDS WITH ORIGIN-SPECIFIC DISCOUNTS (for branching logic)
+    -- 4. EQUIPMENT IDS WITH ORIGIN-SPECIFIC DISCOUNTS (for branching logic)
     -- =======================================================================
     origin_discount_equip AS (
         SELECT DISTINCT ed.equipment_id
@@ -190,7 +141,7 @@ AS $$
     ),
 
     -- =======================================================================
-    -- 6. BEST ADJUSTED COST — computed once per equipment_id
+    -- 5. BEST ADJUSTED COST — computed once per equipment_id
     --    Replaces 2 correlated subqueries for adjusted_cost.
     -- =======================================================================
     best_adjusted_cost AS (
@@ -226,7 +177,7 @@ AS $$
     ),
 
     -- =======================================================================
-    -- 7. CUSTOM TP OVERRIDES — per official equipment_id
+    -- 6. CUSTOM TP OVERRIDES — per official equipment_id
     --    Resolves cost/availability overrides and adjusted cost from active
     --    custom TPs. Custom TP values take precedence over official values.
     --    Tiebreak: lowest sort_order, then earliest created_at.
@@ -258,8 +209,8 @@ AS $$
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.equipment_id IS NOT NULL
-          AND $11 IS NOT NULL AND array_length($11, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($11)
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.equipment_id
     )
 
@@ -459,12 +410,7 @@ AS $$
                     ELSE false
                 END) = $4
                 OR
-                (
-                    CASE
-                        WHEN $9 = true THEN (EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id) OR cto.equipment_id IS NOT NULL)
-                        ELSE COALESCE(tp.has_access, false)
-                    END
-                ) = $5
+                COALESCE(tp.has_access, false) = $5
             ))
             OR
             -- Fighter's list only
@@ -477,12 +423,7 @@ AS $$
             ) = $4)
             OR
             -- Trading post only
-            ($4 IS NULL AND $5 IS NOT NULL AND (
-                CASE
-                    WHEN $9 = true THEN (EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id) OR cto.equipment_id IS NOT NULL)
-                    ELSE COALESCE(tp.has_access, false)
-                END
-            ) = $5)
+            ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
 
     UNION ALL
@@ -584,8 +525,8 @@ AS $$
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.custom_equipment_id IS NOT NULL
-          AND $11 IS NOT NULL AND array_length($11, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($11)
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.custom_equipment_id
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
@@ -594,10 +535,9 @@ AS $$
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
-        AND NOT ($4 IS NULL AND $5 IS NOT NULL AND $5 = true AND $9 IS NOT NULL AND $9 = true)
 $$;
 
-REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, BOOLEAN, UUID[], UUID[]) TO service_role;
+REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) TO service_role;
