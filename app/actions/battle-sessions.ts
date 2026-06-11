@@ -15,6 +15,7 @@ import type {
   SessionRecord,
 } from '@/types/battle-session';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { PermissionService } from '@/app/lib/user-permissions';
 
 // =============================================================================
 // Data Fetching
@@ -29,21 +30,61 @@ export async function fetchBattleSession(sessionId: string): Promise<BattleSessi
 // Authorization Helpers
 // =============================================================================
 
-async function verifySessionCreator(
+// Site admins and campaign OWNERs/ARBITRATORs can act on any session in their
+// campaign. Mirrors the RLS policies on the battle session tables
+// (private.is_admin() OR private.is_arb(campaign_id)) and the gang page
+// permission model.
+async function isSessionArbitrator(
+  userId: string,
+  campaignId: string | null
+): Promise<boolean> {
+  const permissionService = new PermissionService();
+  const profile = await permissionService.getUserProfile(userId);
+  if (profile?.user_role === 'admin') return true;
+  if (!campaignId) return false;
+  const role = await permissionService.getCampaignRole(userId, campaignId);
+  return role === 'OWNER' || role === 'ARBITRATOR';
+}
+
+async function canManageSession(
+  userId: string,
+  session: { created_by: string; campaign_id: string | null }
+): Promise<boolean> {
+  if (session.created_by === userId) return true;
+  return isSessionArbitrator(userId, session.campaign_id);
+}
+
+async function verifySessionManager(
   supabase: Awaited<ReturnType<typeof createClient>>,
   sessionId: string,
   userId: string
 ): Promise<{ authorized: boolean; error?: string }> {
   const { data: session } = await supabase
     .from('battle_sessions')
-    .select('created_by')
+    .select('created_by, campaign_id')
     .eq('id', sessionId)
     .single();
 
   if (!session) return { authorized: false, error: 'Session not found' };
-  if (session.created_by !== userId)
-    return { authorized: false, error: 'Only the session creator can perform this action' };
+  if (!(await canManageSession(userId, session)))
+    return { authorized: false, error: 'Only the session creator or an arbitrator can perform this action' };
   return { authorized: true };
+}
+
+// Arbitrators (not the session creator) may act on another player's
+// participant slot — same rights they have over that player's gang page.
+async function isArbitratorForSession(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string,
+  userId: string
+): Promise<boolean> {
+  const { data: session } = await supabase
+    .from('battle_sessions')
+    .select('campaign_id')
+    .eq('id', sessionId)
+    .single();
+  if (!session) return false;
+  return isSessionArbitrator(userId, session.campaign_id);
 }
 
 async function verifySessionParticipant(
@@ -55,13 +96,14 @@ async function verifySessionParticipant(
   if (participantId) {
     const { data: participant } = await supabase
       .from('battle_session_participants')
-      .select('id')
+      .select('id, user_id')
       .eq('id', participantId)
       .eq('battle_session_id', sessionId)
-      .eq('user_id', userId)
       .maybeSingle();
 
     if (!participant)
+      return { authorized: false, error: 'You are not a participant in this session' };
+    if (participant.user_id !== userId && !(await isArbitratorForSession(supabase, sessionId, userId)))
       return { authorized: false, error: 'You are not a participant in this session' };
     return { authorized: true, participantId: participant.id };
   }
@@ -74,9 +116,11 @@ async function verifySessionParticipant(
     .limit(1);
 
   const participant = participants?.[0];
-  if (!participant)
-    return { authorized: false, error: 'You are not a participant in this battle session' };
-  return { authorized: true, participantId: participant.id };
+  if (participant) return { authorized: true, participantId: participant.id };
+
+  if (await isArbitratorForSession(supabase, sessionId, userId))
+    return { authorized: true };
+  return { authorized: false, error: 'You are not a participant in this battle session' };
 }
 
 // =============================================================================
@@ -169,13 +213,13 @@ export async function cancelBattleSession(
 
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('created_by, status')
+      .select('created_by, campaign_id, status')
       .eq('id', sessionId)
       .single();
 
     if (!session) return { success: false, error: 'Session not found' };
-    if (session.created_by !== user.id)
-      return { success: false, error: 'Only the session creator can cancel' };
+    if (!(await canManageSession(user.id, session)))
+      return { success: false, error: 'Only the session creator or an arbitrator can cancel' };
     if (session.status === 'completed')
       return { success: false, error: 'Cannot cancel a completed session' };
 
@@ -205,7 +249,7 @@ export async function cancelBattleSession(
   }
 }
 
-async function updateSessionAsCreator(
+async function updateSessionAsManager(
   sessionId: string,
   updateFields: Record<string, unknown>,
   options?: { requireStatus?: string; statusError?: string }
@@ -215,13 +259,13 @@ async function updateSessionAsCreator(
 
   const { data: session } = await supabase
     .from('battle_sessions')
-    .select('created_by, status')
+    .select('created_by, campaign_id, status')
     .eq('id', sessionId)
     .single();
 
   if (!session) return { success: false, error: 'Session not found' };
-  if (session.created_by !== user.id)
-    return { success: false, error: 'Only the session creator can perform this action' };
+  if (!(await canManageSession(user.id, session)))
+    return { success: false, error: 'Only the session creator or an arbitrator can perform this action' };
   if (options?.requireStatus && session.status !== options.requireStatus)
     return { success: false, error: options.statusError || 'Invalid session status' };
 
@@ -241,7 +285,7 @@ export async function setSessionScenario(
   scenario: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    return await updateSessionAsCreator(sessionId, { scenario });
+    return await updateSessionAsManager(sessionId, { scenario });
   } catch (err) {
     console.error('Error setting scenario:', err);
     return { success: false, error: 'Failed to set scenario' };
@@ -264,7 +308,7 @@ export async function setSessionWinners(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    const auth = await verifySessionManager(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const claimers = winners.filter((w) => w.claimed_territory === true);
@@ -452,7 +496,6 @@ export async function toggleParticipantReady(
       .from('battle_session_participants')
       .select('id, ready')
       .eq('id', participantId)
-      .eq('user_id', user.id)
       .single();
     if (!myParticipant) return { success: false, error: 'Participant not found' };
 
@@ -501,7 +544,7 @@ export async function changeSessionPhase(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    const auth = await verifySessionManager(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const { data: session } = await supabase
@@ -567,8 +610,8 @@ export async function addParticipant(params: {
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'pre_battle')
       return { success: false, error: 'Can only add players during pre-battle' };
-    if (session.created_by !== currentUser.id)
-      return { success: false, error: 'Only the session creator can add participants' };
+    if (!(await canManageSession(currentUser.id, session)))
+      return { success: false, error: 'Only the session creator or an arbitrator can add participants' };
 
     // Validate gang belongs to the specified user
     const { data: gangOwner } = await supabase
@@ -662,8 +705,8 @@ export async function removeParticipant(
 
     const isSelfRemoval = participant.user_id === user.id;
     if (!isSelfRemoval) {
-      const auth = await verifySessionCreator(supabase, sessionId, user.id);
-      if (!auth.authorized) return { success: false, error: 'Only the session creator can remove other participants' };
+      const auth = await verifySessionManager(supabase, sessionId, user.id);
+      if (!auth.authorized) return { success: false, error: 'Only the session creator or an arbitrator can remove other participants' };
     }
 
     const { error } = await supabase
@@ -694,7 +737,7 @@ export async function updateParticipantRole(
 
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('id, status, created_by')
+      .select('id, status, created_by, campaign_id')
       .eq('id', sessionId)
       .single();
 
@@ -711,7 +754,7 @@ export async function updateParticipantRole(
 
     if (!participant) return { success: false, error: 'Participant not found' };
 
-    if (participant.user_id !== user.id && session.created_by !== user.id)
+    if (participant.user_id !== user.id && !(await canManageSession(user.id, session)))
       return { success: false, error: 'Not authorized to change this role' };
 
     const { error } = await supabase
@@ -1164,7 +1207,7 @@ export async function completeBattleSession(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionCreator(supabase, sessionId, user.id);
+    const auth = await verifySessionManager(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     // Parallel fetch: session, participants, profile, and territory name (if applicable)

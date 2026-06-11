@@ -67,8 +67,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
   try {
     const supabase = await createClient();
     
-    // Get the current user with optimized getClaims()
-    const user = await getAuthenticatedUser(supabase);
+    // Ensure the caller is authenticated (RLS handles write permissions)
+    await getAuthenticatedUser(supabase);
 
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
@@ -431,11 +431,13 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
       // Only log if something changed
       if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation)) {
+        // Use gang owner's user_id so logs are attributed to the owner even
+        // when an arbitrator edits on their behalf (matches gang-campaign-logs)
         await logGangResourceChanges({
           gang_id: params.gang_id,
           oldState,
           newState,
-          user_id: user.id
+          user_id: gang.user_id
         });
       }
     } catch (logError) {

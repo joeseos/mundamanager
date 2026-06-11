@@ -13,10 +13,12 @@ import { Button } from '@/components/ui/button';
 import type { Scenario } from '@/types/campaign';
 
 interface CreateBattleModalProps {
-  gangId: string;
-  gangName: string;
+  // Optional: arbitrators can add players to a session without having a gang in it
+  gangId?: string;
+  gangName?: string;
   campaignId?: string;
   existingSessionId?: string;
+  existingGangIds?: string[];
   onClose: () => void;
 }
 
@@ -39,6 +41,7 @@ export default function CreateBattleModal({
   gangName,
   campaignId,
   existingSessionId,
+  existingGangIds = [],
   onClose,
 }: CreateBattleModalProps) {
   const router = useRouter();
@@ -105,7 +108,10 @@ export default function CreateBattleModal({
   });
 
   const opponentCampaignGangs = (campaignGangs ?? []).filter(
-    (g) => g.id !== gangId && !selectedCampaignGangIds.includes(g.id)
+    (g) =>
+      g.id !== gangId &&
+      !selectedCampaignGangIds.includes(g.id) &&
+      !existingGangIds.includes(g.id)
   );
 
   // User search (non-campaign, debounced)
@@ -170,9 +176,12 @@ export default function CreateBattleModal({
     setSelectedCampaignGangIds((prev) => prev.filter((id) => id !== campaignGangId));
   };
 
-  // Filter out gangs already added as opponents
+  // Filter out gangs already added as opponents or already in the session
   const availableUserGangs = (selectedUserGangs ?? []).filter(
-    (g) => g.id !== gangId && !opponents.some((o) => o.gangId === g.id)
+    (g) =>
+      g.id !== gangId &&
+      !opponents.some((o) => o.gangId === g.id) &&
+      !existingGangIds.includes(g.id)
   );
 
   const createMutation = useMutation({
@@ -214,11 +223,11 @@ export default function CreateBattleModal({
         return { success: true };
       }
 
-      // Create mode
+      // Create mode (always launched from a gang page, so gangId is set)
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
         : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
-      const allGangIds = [gangId];
+      const allGangIds = gangId ? [gangId] : [];
 
       if (campaignId) {
         allGangIds.push(...selectedCampaignGangIds);
@@ -269,15 +278,17 @@ export default function CreateBattleModal({
       width="md"
     >
       <div className="space-y-4">
-        {/* Your Gang */}
-        <div>
-          <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Your Gang
-          </label>
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
-            {gangName}
+        {/* Your Gang (hidden for arbitrators without a gang in the session) */}
+        {gangId && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Your Gang
+            </label>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
+              {gangName}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Opponent selection */}
         {campaignId ? (
