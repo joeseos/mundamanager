@@ -134,7 +134,7 @@ export default function FighterLogs({ gangId, fighterId, fighterName, vehicleId,
       onClose={onClose}
       width="4xl"
     >
-      <div className="max-h-[70vh] min-h-[400px] overflow-y-auto">
+      <div className="max-h-[min(70vh,calc(100svh-12rem))] overflow-y-auto">
         <table className="w-full table-auto">
           <thead className="sticky top-0 bg-card z-10 shadow-xs">
             <tr className="bg-muted">
@@ -194,11 +194,11 @@ export default function FighterLogs({ gangId, fighterId, fighterName, vehicleId,
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted mt-4">
-          <div className="text-sm text-muted-foreground">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-t border-border bg-muted mt-4">
+          <div className="text-sm text-muted-foreground text-center sm:text-left">
             Showing {startIndex + 1} to {Math.min(endIndex, sortedLogs.length)} of {sortedLogs.length} logs
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-center sm:justify-end space-x-2">
             <button
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1}
