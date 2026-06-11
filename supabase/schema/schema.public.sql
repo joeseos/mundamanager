@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict f5RafH2Z7y3AbGa9ESt5WKouulzSaNxRb8bcC7FHIfHBu4aOWQ4mtszyAm0AIp3
+\restrict xmelhDk4YEgcOESdc1f34YGIZeG67e4zfNeEbbjJhUvW9HhK2uilffMI2EbHEh4
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -1340,10 +1340,10 @@ $$;
 
 
 --
--- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, boolean, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, fighters_tradingpost_only boolean DEFAULT NULL::boolean, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1381,44 +1381,13 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         FROM gang_types gt
         WHERE gt.gang_type_id = $1
           AND (
-              $10 IS NULL
-              OR gt.trading_post_type_id = ANY($10)
+              $9 IS NULL
+              OR gt.trading_post_type_id = ANY($9)
           )
     ),
 
     -- =======================================================================
-    -- 3. FIGHTER TRADING POST EQUIPMENT
-    --    KEY OPTIMISATION: filter to only the relevant fighter_type_ids
-    --    BEFORE unpacking the JSONB array. Previously scanned ALL rows.
-    -- =======================================================================
-    filtered_fet AS (
-        SELECT fet.fighter_type_id, equip_id::uuid AS equipment_id
-        FROM fighter_equipment_tradingpost fet
-        CROSS JOIN gang_data gd
-        CROSS JOIN jsonb_array_elements_text(fet.equipment_tradingpost) AS equip_id
-        WHERE fet.fighter_type_id IN ($3, gd.affiliation_ft_id)
-          AND (
-            $10 IS NULL
-            OR EXISTS (
-                SELECT 1 FROM trading_post_equipment tpe
-                WHERE tpe.equipment_id = equip_id::uuid
-                  AND tpe.trading_post_type_id = (SELECT trading_post_type_id FROM gang_tp)
-            )
-            OR (array_length($10, 1) > 0 AND EXISTS (
-                SELECT 1 FROM trading_post_equipment tpe
-                WHERE tpe.equipment_id = equip_id::uuid
-                  AND tpe.trading_post_type_id = ANY($10)
-            ))
-            OR NOT EXISTS (
-                SELECT 1 FROM trading_post_equipment tpe
-                WHERE tpe.equipment_id = equip_id::uuid
-            )
-          )
-    ),
-
-    -- =======================================================================
-    -- 4. TRADING POST ACCESS — computed once per equipment_id
-    --    Replaces 4-5 repeated EXISTS subqueries in the original.
+    -- 3. TRADING POST ACCESS — computed once per equipment_id
     -- =======================================================================
     tp_access AS (
         -- Gang's own trading post
@@ -1433,18 +1402,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         SELECT tpe.equipment_id, tpt.trading_post_name
         FROM trading_post_equipment tpe
         JOIN trading_post_types tpt ON tpt.id = tpe.trading_post_type_id
-        WHERE $10 IS NOT NULL
-          AND array_length($10, 1) > 0
-          AND tpe.trading_post_type_id = ANY($10)
-
-        UNION
-
-        -- Fighter-specific trading post access (no TP name — these aren't real TPs)
-        SELECT ff.equipment_id, NULL::text
-        FROM filtered_fet ff
-        CROSS JOIN gang_data gd
-        WHERE ff.fighter_type_id = $3
-           OR (gd.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gd.affiliation_ft_id)
+        WHERE $9 IS NOT NULL
+          AND array_length($9, 1) > 0
+          AND tpe.trading_post_type_id = ANY($9)
 
         UNION
 
@@ -1453,8 +1413,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         FROM custom_trading_post_equipment ctpe
         JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
         WHERE ctpe.equipment_id IS NOT NULL
-          AND $11 IS NOT NULL AND array_length($11, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($11)
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
     ),
 
     tp_summary AS (
@@ -1470,17 +1430,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         GROUP BY ta.equipment_id
     ),
 
-    -- Helper: does this equipment have fighter-specific TP access?
-    fighter_tp_set AS (
-        SELECT DISTINCT equipment_id
-        FROM filtered_fet ff
-        CROSS JOIN gang_data gd
-        WHERE ff.fighter_type_id = $3
-           OR (gd.affiliation_ft_id IS NOT NULL AND ff.fighter_type_id = gd.affiliation_ft_id)
-    ),
-
     -- =======================================================================
-    -- 5. EQUIPMENT IDS WITH ORIGIN-SPECIFIC DISCOUNTS (for branching logic)
+    -- 4. EQUIPMENT IDS WITH ORIGIN-SPECIFIC DISCOUNTS (for branching logic)
     -- =======================================================================
     origin_discount_equip AS (
         SELECT DISTINCT ed.equipment_id
@@ -1491,7 +1442,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     ),
 
     -- =======================================================================
-    -- 6. BEST ADJUSTED COST — computed once per equipment_id
+    -- 5. BEST ADJUSTED COST — computed once per equipment_id
     --    Replaces 2 correlated subqueries for adjusted_cost.
     -- =======================================================================
     best_adjusted_cost AS (
@@ -1527,7 +1478,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     ),
 
     -- =======================================================================
-    -- 7. CUSTOM TP OVERRIDES — per official equipment_id
+    -- 6. CUSTOM TP OVERRIDES — per official equipment_id
     --    Resolves cost/availability overrides and adjusted cost from active
     --    custom TPs. Custom TP values take precedence over official values.
     --    Tiebreak: lowest sort_order, then earliest created_at.
@@ -1559,8 +1510,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.equipment_id IS NOT NULL
-          AND $11 IS NOT NULL AND array_length($11, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($11)
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.equipment_id
     )
 
@@ -1760,12 +1711,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
                     ELSE false
                 END) = $4
                 OR
-                (
-                    CASE
-                        WHEN $9 = true THEN (EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id) OR cto.equipment_id IS NOT NULL)
-                        ELSE COALESCE(tp.has_access, false)
-                    END
-                ) = $5
+                COALESCE(tp.has_access, false) = $5
             ))
             OR
             -- Fighter's list only
@@ -1778,12 +1724,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             ) = $4)
             OR
             -- Trading post only
-            ($4 IS NULL AND $5 IS NOT NULL AND (
-                CASE
-                    WHEN $9 = true THEN (EXISTS (SELECT 1 FROM fighter_tp_set fts WHERE fts.equipment_id = e.id) OR cto.equipment_id IS NOT NULL)
-                    ELSE COALESCE(tp.has_access, false)
-                END
-            ) = $5)
+            ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
 
     UNION ALL
@@ -1885,8 +1826,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
             AND (a.alignment IS NULL OR a.alignment = gd.alignment)
         WHERE ctpe.custom_equipment_id IS NOT NULL
-          AND $11 IS NOT NULL AND array_length($11, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($11)
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.custom_equipment_id
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
@@ -1895,7 +1836,6 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
-        AND NOT ($4 IS NULL AND $5 IS NOT NULL AND $5 = true AND $9 IS NOT NULL AND $9 = true)
 $_$;
 
 
@@ -3892,6 +3832,19 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: OLDfighter_equipment_tradingpost; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."OLDfighter_equipment_tradingpost" (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    fighter_type_id uuid,
+    equipment_tradingpost jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone
+);
+
+
+--
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4830,19 +4783,6 @@ CREATE TABLE public.fighter_equipment_selections (
 --
 
 COMMENT ON TABLE public.fighter_equipment_selections IS 'Table that have all the related equipment that fighters with selections can choose, for example hanger-ons etc.';
-
-
---
--- Name: fighter_equipment_tradingpost; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.fighter_equipment_tradingpost (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    fighter_type_id uuid,
-    equipment_tradingpost jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone
-);
 
 
 --
@@ -5969,10 +5909,10 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
--- Name: fighter_equipment_tradingpost fighter_equipment_tradingpost_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.fighter_equipment_tradingpost
+ALTER TABLE ONLY public."OLDfighter_equipment_tradingpost"
     ADD CONSTRAINT fighter_equipment_tradingpost_pkey PRIMARY KEY (id);
 
 
@@ -6613,7 +6553,7 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 -- Name: fighter_equipment_tradingpost_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighter_equipment_tradingpost_fighter_type_id_idx ON public.fighter_equipment_tradingpost USING btree (fighter_type_id);
+CREATE INDEX fighter_equipment_tradingpost_fighter_type_id_idx ON public."OLDfighter_equipment_tradingpost" USING btree (fighter_type_id);
 
 
 --
@@ -7966,10 +7906,10 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
--- Name: fighter_equipment_tradingpost fighter_equipment_tradingpost_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_fighter_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.fighter_equipment_tradingpost
+ALTER TABLE ONLY public."OLDfighter_equipment_tradingpost"
     ADD CONSTRAINT fighter_equipment_tradingpost_fighter_type_id_fkey FOREIGN KEY (fighter_type_id) REFERENCES public.fighter_types(id) ON DELETE CASCADE;
 
 
@@ -8917,10 +8857,10 @@ CREATE POLICY "Allow authenticated users to view fighter_equipment" ON public.fi
 
 
 --
--- Name: fighter_equipment_tradingpost Allow authenticated users to view fighter_equipment_tradingpost; Type: POLICY; Schema: public; Owner: -
+-- Name: OLDfighter_equipment_tradingpost Allow authenticated users to view fighter_equipment_tradingpost; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Allow authenticated users to view fighter_equipment_tradingpost" ON public.fighter_equipment_tradingpost FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow authenticated users to view fighter_equipment_tradingpost" ON public."OLDfighter_equipment_tradingpost" FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -9355,6 +9295,12 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
    FROM public.campaign_gangs cg
   WHERE ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))));
 
+
+--
+-- Name: OLDfighter_equipment_tradingpost; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public."OLDfighter_equipment_tradingpost" ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_triumphs Only admin can create campaign_triumphs entries; Type: POLICY; Schema: public; Owner: -
@@ -11077,30 +11023,24 @@ CREATE POLICY fighter_equipment_selections_admin_update_policy ON public.fighter
 
 
 --
--- Name: fighter_equipment_tradingpost; Type: ROW SECURITY; Schema: public; Owner: -
+-- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
 --
 
-ALTER TABLE public.fighter_equipment_tradingpost ENABLE ROW LEVEL SECURITY;
-
---
--- Name: fighter_equipment_tradingpost fighter_equipment_tradingpost_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY fighter_equipment_tradingpost_admin_delete_policy ON public.fighter_equipment_tradingpost FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+CREATE POLICY fighter_equipment_tradingpost_admin_delete_policy ON public."OLDfighter_equipment_tradingpost" FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
--- Name: fighter_equipment_tradingpost fighter_equipment_tradingpost_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+-- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY fighter_equipment_tradingpost_admin_insert_policy ON public.fighter_equipment_tradingpost FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+CREATE POLICY fighter_equipment_tradingpost_admin_insert_policy ON public."OLDfighter_equipment_tradingpost" FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
--- Name: fighter_equipment_tradingpost fighter_equipment_tradingpost_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+-- Name: OLDfighter_equipment_tradingpost fighter_equipment_tradingpost_admin_update_policy; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY fighter_equipment_tradingpost_admin_update_policy ON public.fighter_equipment_tradingpost FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+CREATE POLICY fighter_equipment_tradingpost_admin_update_policy ON public."OLDfighter_equipment_tradingpost" FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -11572,5 +11512,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict f5RafH2Z7y3AbGa9ESt5WKouulzSaNxRb8bcC7FHIfHBu4aOWQ4mtszyAm0AIp3
+\unrestrict xmelhDk4YEgcOESdc1f34YGIZeG67e4zfNeEbbjJhUvW9HhK2uilffMI2EbHEh4
 
