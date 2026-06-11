@@ -272,10 +272,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
         // In Trading Post mode with fighter type, we want both trading post AND fighter's list items
         if (resolvedTypeId && !isVehicleEquipment && !isCustomFighter) {
           // Pass both filters - SQL will use OR logic to return items in EITHER trading post OR fighter's list
-          // fighters_tradingpost_only ensures only fighter-specific trading post items are shown (not gang-level)
           requestBody.equipment_tradingpost = true;
           requestBody.fighter_type_equipment = true;
-          requestBody.fighters_tradingpost_only = true;
         } else {
           // For vehicle/custom/gang-level, use standard trading post filter
           requestBody.equipment_tradingpost = true;
