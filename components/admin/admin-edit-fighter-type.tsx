@@ -15,7 +15,6 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import Modal from '@/components/ui/modal';
-import { AdminFighterTradingPostAccess } from "@/components/admin/admin-fighter-trading-post-access";
 
 interface FighterSubType {
   id: string;
@@ -130,7 +129,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] = useState('');
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [tradingPostEquipment, setTradingPostEquipment] = useState<string[]>([]);
   const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
   const [isEquipmentLoaded, setIsEquipmentLoaded] = useState(false);
 
@@ -447,8 +445,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       fetchedSkillDetailsRef.current.clear();
       setEquipmentListSelections(data.equipment_list || []);
       setEquipmentDiscounts(data.equipment_discounts || []);
-      setTradingPostEquipment(data.trading_post_equipment || []);
-      
       // Set gang-specific costs if they exist
       if (data.gang_type_costs && Array.isArray(data.gang_type_costs)) {
         setGangTypeCosts(data.gang_type_costs);
@@ -1030,7 +1026,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
-        trading_post_equipment: tradingPostEquipment,
         equipment_selection: guiToDataModel(equipmentSelection),
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
         updated_at: new Date().toISOString(),
@@ -2169,17 +2164,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-
-              <div>
-                {isEquipmentLoaded && (
-                  <AdminFighterTradingPostAccess
-                    equipment={equipment}
-                    tradingPostEquipment={tradingPostEquipment}
-                    setTradingPostEquipment={setTradingPostEquipment}
-                    disabled={!gangTypeFilter || !selectedFighterTypeId}
-                  />
                 )}
               </div>
 
