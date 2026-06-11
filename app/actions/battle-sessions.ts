@@ -450,12 +450,15 @@ export async function advanceRound(
         fighters.map((f) => {
           const rules = rulesMap.get(f.fighter_id);
           const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
+          // Injured fighters are out of action and get no fresh activation;
+          // players can still grant one manually via updateActivations
+          const isInjured = (f.session_record?.injuries?.length ?? 0) > 0;
           const record: SessionRecord = {
             xp_earned: f.session_record?.xp_earned ?? 0,
             injuries: f.session_record?.injuries ?? [],
             conditions: f.session_record?.conditions ?? [],
             note: f.session_record?.note,
-            activations: isDual ? 2 : 1,
+            activations: isInjured ? 0 : isDual ? 2 : 1,
           };
           return supabase
             .from('battle_session_fighters')
