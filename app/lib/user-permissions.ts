@@ -120,6 +120,24 @@ export class PermissionService {
   }
 
   /**
+   * Check if a user has arbitrator-level rights over a campaign: site admin,
+   * or campaign OWNER/ARBITRATOR. Pass null campaignId for content with no
+   * campaign (only site admins qualify there).
+   *
+   * @param userId - The current user's ID
+   * @param campaignId - The campaign's ID, or null
+   * @returns boolean indicating arbitrator-level access
+   */
+  async isCampaignArbitrator(userId: string, campaignId: string | null): Promise<boolean> {
+    const [profile, role] = await Promise.all([
+      this.getUserProfile(userId),
+      campaignId ? this.getCampaignRole(userId, campaignId) : Promise.resolve(null),
+    ]);
+    if (profile?.user_role === 'admin') return true;
+    return role === 'OWNER' || role === 'ARBITRATOR';
+  }
+
+  /**
    * Check if a user can view a hidden gang
    *
    * Permission Logic:

@@ -27,6 +27,7 @@ import type { GangFighter } from '@/app/lib/shared/gang-data';
 interface ActiveSessionProps {
   session: BattleSessionFull;
   userId: string;
+  isArbitrator?: boolean;
   scenarios: Scenario[];
   gangFightersMap: Record<string, GangFighter[]>;
   gangPositioningMap: Record<string, Record<string, any> | null>;
@@ -36,6 +37,7 @@ interface ActiveSessionProps {
 export default function ActiveSession({
   session: initialSession,
   userId,
+  isArbitrator = false,
   scenarios,
   gangFightersMap,
   gangPositioningMap,
@@ -66,6 +68,7 @@ export default function ActiveSession({
   const [showReturnToSetupModal, setShowReturnToSetupModal] = useState(false);
   const [showCompleteBattleModal, setShowCompleteBattleModal] = useState(false);
   const isOwner = session.created_by === userId;
+  const canManage = isOwner || isArbitrator;
   const isPreBattle = session.status === 'pre_battle';
   const isPostBattle = session.status === 'post_battle';
   const battleActive = session.status === 'active';
@@ -101,7 +104,15 @@ export default function ActiveSession({
         setShowCancelModal(false);
         toast.success('Battle cancelled');
         broadcast();
-        router.push(`/gang/${session.participants.find(p => p.user_id === userId)?.gang_id}`);
+        const ownGangId = session.participants.find(p => p.user_id === userId)?.gang_id;
+        // Arbitrators may have no gang in the session; send them to the campaign
+        router.push(
+          ownGangId
+            ? `/gang/${ownGangId}`
+            : session.campaign_id
+              ? `/campaigns/${session.campaign_id}`
+              : '/'
+        );
       } else {
         toast.error(result.error);
       }
@@ -166,7 +177,7 @@ export default function ActiveSession({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {isOwner && (
+            {canManage && (
               <>
                 {isPreBattle && (
                   <Button onClick={() => setShowAddPlayerModal(true)}>
@@ -312,7 +323,8 @@ export default function ActiveSession({
               participant={participant}
               session={session}
               userId={userId}
-              isOwner={isOwner}
+              canManage={canManage}
+              isArbitrator={isArbitrator}
               editable={isPreBattle || isPostBattle}
               battleActive={battleActive}
               gangFightersList={gangFightersMap[participant.gang_id] || []}
@@ -325,7 +337,7 @@ export default function ActiveSession({
           ))}
         </div>
 
-        {battleActive && isOwner && (
+        {battleActive && canManage && (
           <div className="mt-4 flex justify-end gap-2">
             <Button
               onClick={() => changePhaseMutation.mutate('forward')}
@@ -336,7 +348,7 @@ export default function ActiveSession({
           </div>
         )}
 
-        {isPostBattle && isOwner && (
+        {isPostBattle && canManage && (
           <div className="mt-4 flex justify-end gap-2">
             <Button
               onClick={() => setShowCompleteBattleModal(true)}
@@ -415,12 +427,13 @@ export default function ActiveSession({
         document.body
       )}
 
-      {showAddPlayerModal && userGangInSession && (
+      {showAddPlayerModal && (userGangInSession || canManage) && (
         <CreateBattleModal
-          gangId={userGangInSession.gang_id}
-          gangName={userGangInSession.gang?.name ?? 'Your Gang'}
+          gangId={userGangInSession?.gang_id}
+          gangName={userGangInSession?.gang?.name ?? 'Your Gang'}
           campaignId={session.campaign_id ?? undefined}
           existingSessionId={session.id}
+          existingGangIds={session.participants.map((p) => p.gang_id)}
           onClose={() => setShowAddPlayerModal(false)}
         />
       )}

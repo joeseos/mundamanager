@@ -841,7 +841,11 @@ interface ParticipantCardProps {
   participant: BattleSessionParticipant & { fighters: BattleSessionFighter[] };
   session: BattleSessionFull;
   userId: string;
-  isOwner: boolean;
+  // Session creator or arbitrator: may manage participants (remove, set roles)
+  canManage: boolean;
+  // Campaign OWNER/ARBITRATOR (or site admin): may edit any participant's data,
+  // unlike the session creator who only manages the session itself
+  isArbitrator?: boolean;
   editable?: boolean;
   battleActive?: boolean;
   gangFightersList?: GangFighter[];
@@ -853,7 +857,8 @@ export default function ParticipantCard({
   participant,
   session,
   userId,
-  isOwner,
+  canManage,
+  isArbitrator = false,
   editable = false,
   battleActive = false,
   gangFightersList = [],
@@ -881,10 +886,10 @@ export default function ParticipantCard({
   const localReady = readyOverride ?? participant.ready;
   const isMyGang = participant.user_id === userId;
   const isPostBattle = session.status === 'post_battle';
-  const canEdit = editable && isMyGang && !isPostBattle;
-  const canInteract = battleActive && isMyGang;
-  const canPostBattle = isPostBattle && isMyGang;
-  const canEditRole = editable && (isOwner || isMyGang) && !isPostBattle;
+  const canEdit = editable && (isMyGang || isArbitrator) && !isPostBattle;
+  const canInteract = battleActive && (isMyGang || isArbitrator);
+  const canPostBattle = isPostBattle && (isMyGang || isArbitrator);
+  const canEditRole = editable && (canManage || isMyGang) && !isPostBattle;
 
   const handleRoleChange = (role: 'attacker' | 'defender' | 'none') => {
     setLocalRole(role);
@@ -1309,7 +1314,7 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
-          {(canEdit || canPostBattle || ((isOwner || isMyGang) && editable && !isPostBattle)) && (
+          {(canEdit || canPostBattle || ((canManage || isMyGang) && editable && !isPostBattle)) && (
             <div className="flex gap-2 self-end sm:self-auto">
               {(canEdit || canPostBattle) && (
                 <>
@@ -1339,7 +1344,7 @@ export default function ParticipantCard({
                   )}
                 </>
               )}
-              {(isOwner || isMyGang) && editable && !isPostBattle && (
+              {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
                   variant="destructive"
                   onClick={() => removeMutation.mutate()}
@@ -1633,7 +1638,7 @@ export default function ParticipantCard({
             </div>
           )}
 
-          {isPostBattle && !isMyGang && (localRepChange !== 0 || localCreditsEarned !== 0 || localResourceChanges.some((r) => r.quantity_delta !== 0)) && (
+          {isPostBattle && !isMyGang && !isArbitrator && (localRepChange !== 0 || localCreditsEarned !== 0 || localResourceChanges.some((r) => r.quantity_delta !== 0)) && (
             <div className="border-t border-neutral-100 pt-3 text-sm dark:border-neutral-700 flex gap-4 flex-wrap">
               {localRepChange !== 0 && (
                 <span>Reputation: {localRepChange > 0 ? '+' : ''}{localRepChange}</span>
