@@ -323,7 +323,7 @@ export default function ActiveSession({
               participant={participant}
               session={session}
               userId={userId}
-              isOwner={canManage}
+              canManage={canManage}
               isArbitrator={isArbitrator}
               editable={isPreBattle || isPostBattle}
               battleActive={battleActive}

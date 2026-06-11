@@ -841,7 +841,8 @@ interface ParticipantCardProps {
   participant: BattleSessionParticipant & { fighters: BattleSessionFighter[] };
   session: BattleSessionFull;
   userId: string;
-  isOwner: boolean;
+  // Session creator or arbitrator: may manage participants (remove, set roles)
+  canManage: boolean;
   // Campaign OWNER/ARBITRATOR (or site admin): may edit any participant's data,
   // unlike the session creator who only manages the session itself
   isArbitrator?: boolean;
@@ -856,7 +857,7 @@ export default function ParticipantCard({
   participant,
   session,
   userId,
-  isOwner,
+  canManage,
   isArbitrator = false,
   editable = false,
   battleActive = false,
@@ -888,7 +889,7 @@ export default function ParticipantCard({
   const canEdit = editable && (isMyGang || isArbitrator) && !isPostBattle;
   const canInteract = battleActive && (isMyGang || isArbitrator);
   const canPostBattle = isPostBattle && (isMyGang || isArbitrator);
-  const canEditRole = editable && (isOwner || isMyGang) && !isPostBattle;
+  const canEditRole = editable && (canManage || isMyGang) && !isPostBattle;
 
   const handleRoleChange = (role: 'attacker' | 'defender' | 'none') => {
     setLocalRole(role);
@@ -1313,7 +1314,7 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
-          {(canEdit || canPostBattle || ((isOwner || isMyGang) && editable && !isPostBattle)) && (
+          {(canEdit || canPostBattle || ((canManage || isMyGang) && editable && !isPostBattle)) && (
             <div className="flex gap-2 self-end sm:self-auto">
               {(canEdit || canPostBattle) && (
                 <>
@@ -1343,7 +1344,7 @@ export default function ParticipantCard({
                   )}
                 </>
               )}
-              {(isOwner || isMyGang) && editable && !isPostBattle && (
+              {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
                   variant="destructive"
                   onClick={() => removeMutation.mutate()}

@@ -38,12 +38,7 @@ async function isSessionArbitrator(
   userId: string,
   campaignId: string | null
 ): Promise<boolean> {
-  const permissionService = new PermissionService();
-  const profile = await permissionService.getUserProfile(userId);
-  if (profile?.user_role === 'admin') return true;
-  if (!campaignId) return false;
-  const role = await permissionService.getCampaignRole(userId, campaignId);
-  return role === 'OWNER' || role === 'ARBITRATOR';
+  return new PermissionService().isCampaignArbitrator(userId, campaignId);
 }
 
 async function canManageSession(

@@ -34,15 +34,10 @@ export async function renderBattleSessionPage(sessionId: string) {
 
   // Site admins and campaign OWNERs/ARBITRATORs can manage the session like
   // the creator and edit participants like the gang owners (gang page model)
-  let isArbitrator = false;
-  const permissionService = new PermissionService();
-  const profile = await permissionService.getUserProfile(user.id);
-  if (profile?.user_role === 'admin') {
-    isArbitrator = true;
-  } else if (session.campaign_id) {
-    const role = await permissionService.getCampaignRole(user.id, session.campaign_id);
-    isArbitrator = role === 'OWNER' || role === 'ARBITRATOR';
-  }
+  const isArbitrator = await new PermissionService().isCampaignArbitrator(
+    user.id,
+    session.campaign_id
+  );
 
   const uniqueGangIds = Array.from(
     new Set(session.participants.map((p) => p.gang_id))

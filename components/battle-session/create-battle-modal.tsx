@@ -223,7 +223,8 @@ export default function CreateBattleModal({
         return { success: true };
       }
 
-      // Create mode (always launched from a gang page, so gangId is set)
+      // Create mode — gangId may only be absent in add mode (arbitrators),
+      // but guard anyway so a session is never created with an undefined gang
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
         : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
