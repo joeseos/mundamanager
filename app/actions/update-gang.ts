@@ -432,12 +432,13 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       // Only log if something changed
       if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation)) {
         // Use gang owner's user_id so logs are attributed to the owner even
-        // when an arbitrator edits on their behalf (matches gang-campaign-logs)
+        // when an arbitrator edits on their behalf (matches gang-campaign-logs).
+        // Ownerless gangs fall back to the caller inside createGangLog.
         await logGangResourceChanges({
           gang_id: params.gang_id,
           oldState,
           newState,
-          user_id: gang.user_id
+          user_id: gang.user_id ?? undefined
         });
       }
     } catch (logError) {

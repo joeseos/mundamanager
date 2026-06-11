@@ -82,6 +82,10 @@ async function isArbitratorForSession(
   return isSessionArbitrator(userId, session.campaign_id);
 }
 
+// Authorizes the user's own participant slot, or any slot for arbitrators.
+// NOTE: callers that need a participant row MUST pass `participantId` — the
+// no-participantId form authorizes session-wide actions and returns no
+// participantId when the caller is an arbitrator without a gang in the session.
 async function verifySessionParticipant(
   supabase: Awaited<ReturnType<typeof createClient>>,
   sessionId: string,
@@ -91,15 +95,20 @@ async function verifySessionParticipant(
   if (participantId) {
     const { data: participant } = await supabase
       .from('battle_session_participants')
-      .select('id, user_id')
+      .select('id, user_id, battle_sessions(campaign_id)')
       .eq('id', participantId)
       .eq('battle_session_id', sessionId)
       .maybeSingle();
 
     if (!participant)
       return { authorized: false, error: 'You are not a participant in this session' };
-    if (participant.user_id !== userId && !(await isArbitratorForSession(supabase, sessionId, userId)))
-      return { authorized: false, error: 'You are not a participant in this session' };
+    if (participant.user_id !== userId) {
+      const session = Array.isArray(participant.battle_sessions)
+        ? participant.battle_sessions[0]
+        : participant.battle_sessions;
+      if (!(await isSessionArbitrator(userId, session?.campaign_id ?? null)))
+        return { authorized: false, error: 'You are not a participant in this session' };
+    }
     return { authorized: true, participantId: participant.id };
   }
 
@@ -491,6 +500,7 @@ export async function toggleParticipantReady(
       .from('battle_session_participants')
       .select('id, ready')
       .eq('id', participantId)
+      .eq('battle_session_id', sessionId)
       .single();
     if (!myParticipant) return { success: false, error: 'Participant not found' };
 
