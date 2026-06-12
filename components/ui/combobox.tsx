@@ -375,7 +375,7 @@ export function Combobox({
                   className={cn(
                     "w-full px-3 py-2 text-left text-sm flex items-center justify-between",
                     option.disabled
-                      ? "cursor-default opacity-50"
+                      ? "cursor-default"
                       : "hover:bg-muted focus:bg-muted focus:outline-hidden cursor-pointer",
                     value === option.value && !option.disabled && "bg-muted"
                   )}
