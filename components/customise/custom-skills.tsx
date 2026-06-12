@@ -14,7 +14,12 @@ import { FiShare2 } from 'react-icons/fi';
 import { createClient } from '@/utils/supabase/client';
 import { skillSetRank } from '@/utils/skillSetRank';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { Tooltip } from 'react-tooltip';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
+import { escapeHtml } from '@/utils/campaigns/map-markers';
 import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseSkillsProps {
@@ -41,8 +46,8 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const [copyModalData, setCopyModalData] = useState<CustomSkill | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomSkill | null>(null);
   const [skillTypes, setSkillTypes] = useState<SkillType[]>([]);
-  const [editForm, setEditForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false });
-  const [createForm, setCreateForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false });
+  const [editForm, setEditForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false, description: null as string | null });
+  const [createForm, setCreateForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false, description: null as string | null });
 
   // Inline skill type creation/rename state
   const [newSkillTypeName, setNewSkillTypeName] = useState('');
@@ -110,7 +115,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
 
   const handleCreateModalClose = () => {
     setCreateModalOpen(false);
-    setCreateForm({ skill_name: '', skill_type_id: '', is_custom_type: false });
+    setCreateForm({ skill_name: '', skill_type_id: '', is_custom_type: false, description: null });
     resetNewSkillTypeInput();
     setSkillTypesToDelete([]);
   };
@@ -125,6 +130,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       }
       const newSkill = await createCustomSkill({
         skill_name: createForm.skill_name,
+        description: createForm.description,
         ...(resolved.is_custom
           ? { custom_skill_type_id: resolved.id }
           : { skill_type_id: resolved.id }
@@ -151,13 +157,14 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       skill_name: skill.skill_name,
       skill_type_id: skill.custom_skill_type_id || skill.skill_type_id || '',
       is_custom_type: isCustomType,
+      description: skill.description || null,
     });
     fetchSkillTypes();
   };
 
   const handleEditModalClose = () => {
     setEditModalData(null);
-    setEditForm({ skill_name: '', skill_type_id: '', is_custom_type: false });
+    setEditForm({ skill_name: '', skill_type_id: '', is_custom_type: false, description: null });
     resetNewSkillTypeInput();
     setSkillTypesToDelete([]);
   };
@@ -173,6 +180,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       }
       const updatedSkill = await updateCustomSkill(editModalData.id, {
         skill_name: editForm.skill_name,
+        description: editForm.description,
         ...(resolved.is_custom
           ? { custom_skill_type_id: resolved.id, skill_type_id: undefined }
           : { skill_type_id: resolved.id, custom_skill_type_id: undefined }
@@ -229,6 +237,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       setIsLoading(true);
       await createCustomSkill({
         skill_name: copyModalData.skill_name,
+        description: copyModalData.description,
         ...(copyModalData.custom_skill_type_id
           ? { custom_skill_type_id: copyModalData.custom_skill_type_id }
           : { skill_type_id: copyModalData.skill_type_id }
@@ -250,14 +259,30 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       key: 'skill_name',
       label: 'Name',
       align: 'left',
-      width: '50%',
+      width: '55%',
     },
     {
       key: 'skill_type_name',
       label: 'Skill Set',
       align: 'left',
-      width: '40%',
+      width: '30%',
       cellClassName: 'text-sm text-muted-foreground',
+    },
+    {
+      key: 'description',
+      label: 'Desc.',
+      align: 'left',
+      width: '5%',
+      render: (_value, item: CustomSkill) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-skill-description-tooltip"
+            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.skill_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View skill description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -355,8 +380,8 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   };
 
   const renderSkillTypeField = (
-    form: { skill_name: string; skill_type_id: string; is_custom_type: boolean },
-    setForm: (v: typeof form) => void,
+    form: { skill_name: string; skill_type_id: string; is_custom_type: boolean; description: string | null },
+    setForm: React.Dispatch<React.SetStateAction<{ skill_name: string; skill_type_id: string; is_custom_type: boolean; description: string | null }>>,
     showDeleteSection: boolean = false
   ) => {
     const selectedType = skillTypes.find(t => t.id === form.skill_type_id);
@@ -457,6 +482,38 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
     );
   };
 
+  const renderDescriptionField = (
+    form: { description: string | null },
+    setForm: React.Dispatch<React.SetStateAction<{ skill_name: string; skill_type_id: string; is_custom_type: boolean; description: string | null }>>,
+    isReadOnly = false
+  ) => {
+    const descCharCount = form.description?.length ?? 0;
+
+    return (
+      <div>
+        <label htmlFor="skill-description" className="flex justify-between items-center text-sm font-medium mb-1">
+          <span>Description</span>
+          {!isReadOnly && (
+            <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {descCharCount}/{DESCRIPTION_MAX_LENGTH} characters
+            </span>
+          )}
+        </label>
+        <Textarea
+          id="skill-description"
+          className="min-h-20 resize-y"
+          value={form.description || ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            setForm(prev => ({ ...prev, description: value || null }));
+          }}
+          placeholder="Enter description (optional)"
+          disabled={isReadOnly}
+        />
+      </div>
+    );
+  };
+
   const sortSkills = (a: CustomSkill, b: CustomSkill) => {
     return a.skill_name.localeCompare(b.skill_name);
   };
@@ -464,12 +521,12 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   return (
     <div className={className}>
       <List<CustomSkill>
-        title="Skills"
+        title="Skills & Skill Sets"
         items={skills}
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : handleAddSkill}
-        addButtonText="Add"
+        addButtonText="Create"
         emptyMessage="No custom skills created yet."
         isLoading={isLoading}
         sortBy={sortSkills}
@@ -494,6 +551,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                 />
               </div>
               {renderSkillTypeField(createForm, setCreateForm)}
+              {renderDescriptionField(createForm, setCreateForm)}
             </div>
           }
           onClose={handleCreateModalClose}
@@ -522,6 +580,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                 />
               </div>
               {renderSkillTypeField(editForm, setEditForm, true)}
+              {renderDescriptionField(editForm, setEditForm)}
             </div>
           }
           onClose={handleEditModalClose}
@@ -601,6 +660,20 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
           onClose={() => setShareModalData(null)}
         />
       )}
+
+      <Tooltip
+        id="custom-skill-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
 }

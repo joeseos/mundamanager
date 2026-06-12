@@ -4,9 +4,12 @@ import React, { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { Tooltip } from 'react-tooltip';
 import { ShareCustomGangTypeModal } from '@/components/customise/custom-shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,6 +19,8 @@ import {
   type CustomGangType,
   type CustomGangTypeData,
 } from '@/app/actions/customise/custom-gang-types';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
+import { escapeHtml } from '@/utils/campaigns/map-markers';
 import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseGangTypesProps {
@@ -50,7 +55,9 @@ export function CustomiseGangTypes({
   const [formData, setFormData] = useState<CustomGangTypeData>({
     gang_type: '',
     alignment: null,
+    description: null,
   });
+  const descCharCount = formData.description?.length ?? 0;
 
   const queryClient = useQueryClient();
 
@@ -65,6 +72,7 @@ export function CustomiseGangTypes({
         user_id: userId || '',
         gang_type: newData.gang_type,
         alignment: newData.alignment,
+        description: newData.description,
         created_at: new Date().toISOString(),
       };
       setGangTypes(prev => [...prev, optimistic]);
@@ -159,6 +167,7 @@ export function CustomiseGangTypes({
     setFormData({
       gang_type: '',
       alignment: null,
+      description: null,
     });
   };
 
@@ -167,11 +176,17 @@ export function CustomiseGangTypes({
     setFormData({
       gang_type: gangType.gang_type,
       alignment: (gangType.alignment as CustomGangTypeData['alignment']) || null,
+      description: gangType.description || null,
     });
   };
 
   const handleView = (gangType: CustomGangType) => {
     setViewModalData(gangType);
+    setFormData({
+      gang_type: gangType.gang_type,
+      alignment: (gangType.alignment as CustomGangTypeData['alignment']) || null,
+      description: gangType.description || null,
+    });
   };
 
   const handleDelete = (gangType: CustomGangType) => {
@@ -210,7 +225,7 @@ export function CustomiseGangTypes({
   const columns: ListColumn[] = [
     {
       key: 'gang_type',
-      label: 'Gang Type',
+      label: 'Name',
       align: 'left',
       width: '50%',
     },
@@ -218,9 +233,25 @@ export function CustomiseGangTypes({
       key: 'alignment',
       label: 'Alignment',
       align: 'left',
-      width: '40%',
+      width: '35%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value || '-',
+    },
+    {
+      key: 'description',
+      label: 'Desc.',
+      align: 'left',
+      width: '5%',
+      render: (_value, item: CustomGangType) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-gang-type-description-tooltip"
+            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.gang_type)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View gang type description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -294,6 +325,28 @@ export function CustomiseGangTypes({
         </select>
       </div>
 
+      <div>
+        <label htmlFor="gt-description" className="flex justify-between items-center text-sm font-medium mb-1">
+          <span>Description</span>
+          {!isReadOnly && (
+            <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {descCharCount}/{DESCRIPTION_MAX_LENGTH} characters
+            </span>
+          )}
+        </label>
+        <Textarea
+          id="gt-description"
+          className="min-h-20 resize-y"
+          value={formData.description || ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            setFormData({ ...formData, description: value || null });
+          }}
+          placeholder="Enter description (optional)"
+          disabled={isReadOnly}
+        />
+      </div>
+
     </div>
   );
 
@@ -305,14 +358,14 @@ export function CustomiseGangTypes({
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : handleAddModalOpen}
-        addButtonText="Add"
+        addButtonText="Create"
         emptyMessage="No custom gang types created yet."
       />
 
       {/* Add Modal */}
       {isAddModalOpen && (
         <Modal
-          title="Add Custom Gang Type"
+          title="Create Custom Gang Type"
           onClose={() => {
             setIsAddModalOpen(false);
             resetForm();
@@ -376,6 +429,20 @@ export function CustomiseGangTypes({
           </p>
         </Modal>
       )}
+
+      <Tooltip
+        id="custom-gang-type-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
 }

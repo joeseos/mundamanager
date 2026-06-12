@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 import { CustomFighterType } from '@/types/fighter';
+import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
 
 export interface CreateCustomFighterData {
   fighter_type: string;
@@ -11,6 +12,7 @@ export interface CreateCustomFighterData {
   gang_type_id?: string;
   custom_gang_type_id?: string;
   cost: number;
+  description?: string | null;
   movement?: number;
   weapon_skill?: number;
   ballistic_skill?: number;
@@ -37,6 +39,10 @@ export interface CreateCustomFighterData {
 }
 
 export async function createCustomFighter(data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
+  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
+    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  }
+
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -50,6 +56,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         gang_type_id: data.custom_gang_type_id ? null : data.gang_type_id,
         custom_gang_type_id: data.custom_gang_type_id || null,
         cost: data.cost,
+        description: data.description || null,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,
@@ -275,6 +282,10 @@ export async function deleteCustomFighter(id: string): Promise<{ success: boolea
 }
 
 export async function updateCustomFighter(id: string, data: CreateCustomFighterData): Promise<{ success: boolean; data?: CustomFighterType; error?: string }> {
+  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
+    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  }
+
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -300,6 +311,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         gang_type_id: data.custom_gang_type_id ? null : data.gang_type_id,
         custom_gang_type_id: data.custom_gang_type_id || null,
         cost: data.cost,
+        description: data.description || null,
         movement: data.movement,
         weapon_skill: data.weapon_skill,
         ballistic_skill: data.ballistic_skill,

@@ -13,9 +13,14 @@ import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { Tooltip } from 'react-tooltip';
 import Modal from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
+import { escapeHtml } from '@/utils/campaigns/map-markers';
 import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
@@ -153,6 +158,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         free_skill: newFighterData.free_skill,
         fighter_class: newFighterData.fighter_class,
         fighter_class_id: newFighterData.fighter_class_id,
+        description: newFighterData.description,
         skill_access: newFighterData.skill_access,
         created_at: new Date().toISOString(),
       };
@@ -266,6 +272,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         free_skill: data.free_skill,
         fighter_class: data.fighter_class,
         fighter_class_id: data.fighter_class_id,
+        description: data.description,
         skill_access: data.skill_access,
         updated_at: new Date().toISOString(),
       };
@@ -327,6 +334,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [specialRules, setSpecialRules] = useState<string[]>([]);
   const [newSpecialRule, setNewSpecialRule] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
+  const [description, setDescription] = useState<string | null>(null);
 
   // Skill access state
   const [skillTypes, setSkillTypes] = useState<Array<{id: string, skill_type: string, name?: string, is_custom?: boolean}>>([]);
@@ -397,9 +405,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const columns: ListColumn[] = [
     {
       key: 'fighter_type',
-      label: 'Fighter Type',
+      label: 'Name',
       align: 'left',
-      width: '30%'
+      width: '40%'
     },
     {
       key: 'fighter_class',
@@ -412,14 +420,14 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       key: 'gang_type',
       label: 'Gang Type',
       align: 'left',
-      width: '15%',
+      width: '20%',
       cellClassName: 'text-sm text-muted-foreground'
     },
     {
       key: '',
       label: '',
       align: 'right',
-      width: '15%'
+      width: '5%',
     },
     {
       key: 'cost',
@@ -428,6 +436,22 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       width: '10%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value ? `${value}` : '-',
+    },
+    {
+      key: 'description',
+      label: 'Desc.',
+      align: 'left',
+      width: '5%',
+      render: (_value, item: CustomFighterType) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-fighter-description-tooltip"
+            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.fighter_type)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View fighter description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -646,6 +670,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setSpecialRules([]);
     setNewSpecialRule('');
     setFreeSkill(false);
+    setDescription(null);
     setSkillAccess([]);
     setSkillTypeToAdd('');
     setSelectedSkills([]);
@@ -695,6 +720,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setIntelligence(fighter.intelligence?.toString() || '');
     setSpecialRules(fighter.special_rules || []);
     setFreeSkill(fighter.free_skill || false);
+    setDescription(fighter.description || null);
     setSkillAccess(fighter.skill_access || []);
 
     // Set selected skills from existing data
@@ -718,6 +744,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleView = async (fighter: CustomFighterType) => {
     setViewModalData(fighter);
+    setDescription(fighter.description || null);
 
     // Load existing default skills if they exist - use data from server
     if (fighter.default_skills && fighter.default_skills.length > 0) {
@@ -842,6 +869,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         skill_access: copyModalData.skill_access || [],
         default_skills: copyModalData.default_skills?.map(skill => skill.skill_id) || [],
         default_equipment: copyModalData.default_equipment?.map(eq => eq.equipment_id) || [],
+        description: copyModalData.description,
       };
 
       if (readOnly) {
@@ -922,6 +950,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       skill_access: skillAccess,
       default_skills: selectedSkills,
       default_equipment: selectedEquipment,
+      description,
     };
 
     // Check if we're editing or creating
@@ -979,6 +1008,39 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     );
   };
 
+  const renderDescriptionField = (isReadOnly = false) => {
+    const descCharCount = description?.length ?? 0;
+
+    return (
+      <div>
+        <label htmlFor="fighter-description" className="flex justify-between items-center text-sm font-medium mb-1">
+          <span>Description</span>
+          {!isReadOnly && (
+            <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {descCharCount}/{DESCRIPTION_MAX_LENGTH} characters
+            </span>
+          )}
+        </label>
+        {isReadOnly ? (
+          <div className="w-full p-2 border rounded-md bg-muted min-h-20 whitespace-pre-wrap">
+            {description || ''}
+          </div>
+        ) : (
+          <Textarea
+            id="fighter-description"
+            className="min-h-20 resize-y"
+            value={description || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDescription(value || null);
+            }}
+            placeholder="Enter description (optional)"
+          />
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={className}>
       <List
@@ -987,7 +1049,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : () => setIsAddModalOpen(true)}
-        addButtonText="Add"
+        addButtonText="Create"
         addButtonDisabled={createFighterMutation.isPending || deleteFighterMutation.isPending || updateFighterMutation.isPending}
         emptyMessage="No custom fighters created yet."
         isLoading={deleteFighterMutation.isPending}
@@ -995,8 +1057,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
       {isAddModalOpen && (
         <Modal
-          title="Add Custom Fighter"
-          helper="Create your own custom fighter with unique stats and abilities."
+          title="Create Custom Fighter"
+          helper="Create your own custom fighter with unique characteristics and abilities."
           onClose={() => {
             setIsAddModalOpen(false);
             resetForm();
@@ -1370,6 +1432,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 Free Skill
               </label>
             </div>
+
+            {renderDescriptionField()}
           </div>
         </Modal>
       )}
@@ -1750,6 +1814,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 Free Skill
               </label>
             </div>
+
+            {renderDescriptionField()}
           </div>
         </Modal>
       )}
@@ -1972,6 +2038,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 </div>
               </div>
             )}
+
+            {renderDescriptionField(true)}
           </div>
         </Modal>
       )}
@@ -2021,6 +2089,20 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           }}
         />
       )}
+
+      <Tooltip
+        id="custom-fighter-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
 }

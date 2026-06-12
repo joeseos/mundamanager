@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
+import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
 
 export async function updateCustomEquipment(
   equipmentId: string,
@@ -14,8 +15,13 @@ export async function updateCustomEquipment(
     equipment_type?: 'wargear' | 'weapon';
     availability?: string;
     is_consumable?: boolean;
+    description?: string | null;
   }
 ) {
+  if (updates.description && updates.description.length > DESCRIPTION_MAX_LENGTH) {
+    throw new Error(`Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`);
+  }
+
   const supabase = await createClient();
   
   // Get the current user
@@ -31,6 +37,10 @@ export async function updateCustomEquipment(
   // Trim equipment name if it's being updated
   if (updates.equipment_name !== undefined) {
     updateData.equipment_name = updates.equipment_name.trimEnd();
+  }
+
+  if (updates.description !== undefined) {
+    updateData.description = updates.description || null;
   }
   
   // If equipment_category is being updated, we need to get the category_id
@@ -114,7 +124,12 @@ export async function createCustomEquipment(data: {
   equipment_category: string;
   equipment_type: 'wargear' | 'weapon';
   is_consumable?: boolean;
+  description?: string | null;
 }) {
+  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
+    throw new Error(`Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`);
+  }
+
   const supabase = await createClient();
   
   // Get the current user
@@ -145,6 +160,7 @@ export async function createCustomEquipment(data: {
       equipment_category_id: categoryData.id,
       equipment_type: data.equipment_type,
       is_consumable: data.is_consumable ?? false,
+      description: data.description || null,
       created_at: new Date().toISOString()
     })
     .select()

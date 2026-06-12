@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
-import { DESCRIPTION_MAX_LENGTH } from './custom-trading-posts-constants';
+import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
 
 export interface CustomTradingPostData {
   custom_trading_post_name: string;
