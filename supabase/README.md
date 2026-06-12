@@ -24,7 +24,6 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 
 | Name          | Arguments                                                                                                           | Return type | Security |
 |---------------|---------------------------------------------------------------------------------------------------------------------|-------------|----------|
-| gang_logs     | p_gang_id uuid, p_action_type text, p_description text, p_fighter_id uuid DEFAULT NULL, p_vehicle_id uuid DEFAULT NULL | uuid | Definer |
 | safe_to_numeric | v text                                                                                                            | numeric | Invoker |
 
 ### Trigger Functions
