@@ -27,7 +27,7 @@ import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
 import { Combobox } from '@/components/ui/combobox';
-import { rollD6 } from '@/utils/dice';
+import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import { Tooltip } from 'react-tooltip';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
@@ -91,8 +91,6 @@ export default function GangInventory({
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
   const [showTradingPost, setShowTradingPost] = useState(false);
   const [sellModalItemIdx, setSellModalItemIdx] = useState<number | null>(null);
-  const [sellManualCost, setSellManualCost] = useState<number>(0);
-  const [sellLastRoll, setSellLastRoll] = useState<number | null>(null);
   const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
   
   
@@ -859,8 +857,6 @@ export default function GangInventory({
                           className="h-6 px-2 text-xs py-0"
                           onClick={() => {
                             setSellModalItemIdx(index);
-                            setSellLastRoll(null);
-                            setSellManualCost(stash[index].cost_resource?.amount ?? stash[index].cost ?? 0);
                           }}
                           disabled={!userPermissions?.canEdit}
                           title="Sell"
@@ -1155,79 +1151,39 @@ export default function GangInventory({
         const sellItem = stash[sellModalItemIdx];
         const isResourceItem = !!sellItem.cost_resource;
         return (
-        <Modal
-          title="Sell Stash Item"
-          content={
-            <div className="space-y-4">
-              <p>
-                Are you sure you want to sell <strong>{getItemName(sellItem)}</strong>?
-              </p>
-              {!isResourceItem && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const r = rollD6();
-                      setSellLastRoll(r);
-                      const cost = sellItem.cost || 0;
-                      const final = Math.max(5, cost - r * 10);
-                      setSellManualCost(final);
-                      toast(`Roll ${r}: -${r * 10} → ${final} credits`);
-                    }}
-                    className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-                  >
-                    Roll D6
-                  </button>
-                  {sellLastRoll !== null && (
-                    <div className="text-sm">Roll {sellLastRoll}: -{sellLastRoll * 10} → {Math.max(5, (sellItem.cost || 0) - sellLastRoll * 10)} credits</div>
-                  )}
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  {isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={sellManualCost}
-                  onChange={(e) => setSellManualCost(Number(e.target.value))}
-                  className="w-full p-2 border rounded-sm"
-                />
-                {!isResourceItem && (
-                  <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
-                )}
-              </div>
-            </div>
-          }
-          onClose={() => { setSellModalItemIdx(null); setSellLastRoll(null); setSellManualCost(0); }}
-          onConfirm={async () => {
-            const idx = sellModalItemIdx!;
-            const item = stash[idx];
-            const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: isResourceItem ? 0 : (sellManualCost || 0) });
-            if (res.success) {
-              const newStash = stash.filter((_, i) => i !== idx);
-              setStash(newStash);
-              onStashUpdate?.(newStash);
-              if (isResourceItem) {
-                toast.success(`Returned ${sellManualCost} ${item.cost_resource!.name}`);
+          <SellConfirmModal
+            title="Sell Stash Item"
+            itemName={getItemName(sellItem)}
+            initialCost={isResourceItem ? (sellItem.cost_resource!.amount ?? 0) : (sellItem.cost || 0)}
+            showD6Roll={!isResourceItem}
+            costLabel={isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
+            confirmText="Sell"
+            onClose={() => setSellModalItemIdx(null)}
+            onConfirm={async (cost) => {
+              const idx = sellModalItemIdx!;
+              const item = stash[idx];
+              const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: isResourceItem ? 0 : (cost || 0) });
+              if (res.success) {
+                const newStash = stash.filter((_, i) => i !== idx);
+                setStash(newStash);
+                onStashUpdate?.(newStash);
+                if (isResourceItem) {
+                  toast.success(`Returned ${cost} ${item.cost_resource!.name}`);
+                } else {
+                  toast.success(`Sold ${getItemName(item)} for ${cost || 0} credits`);
+                }
+                if (res.data?.gang?.credits !== undefined) {
+                  onGangCreditsUpdate?.(res.data.gang.credits);
+                }
+                if (res.data?.gang?.wealth !== undefined) {
+                  onGangWealthUpdate?.(res.data.gang.wealth);
+                }
               } else {
-                toast.success(`Sold ${getItemName(item)} for ${sellManualCost || 0} credits`);
+                toast.error(res.error || 'Failed to sell item');
               }
-              if (res.data?.gang?.credits !== undefined) {
-                onGangCreditsUpdate?.(res.data.gang.credits);
-              }
-              if (res.data?.gang?.wealth !== undefined) {
-                onGangWealthUpdate?.(res.data.gang.wealth);
-              }
-            } else {
-              toast.error(res.error || 'Failed to sell item');
-            }
-            setSellModalItemIdx(null);
-            setSellLastRoll(null);
-          }}
-          confirmText="Sell"
-        />
+              setSellModalItemIdx(null);
+            }}
+          />
         );
       })()}
 
