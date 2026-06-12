@@ -612,7 +612,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
       {/* Fighter Logs Modal */}
       <LogModal
-        fetchUrl={`/api/gangs/${gangId}/logs?fighterId=${id}${fighter_class === 'Crew' && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${fighter_class === 'Crew' && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
         title={`Activity Logs: ${name}`}
         emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}

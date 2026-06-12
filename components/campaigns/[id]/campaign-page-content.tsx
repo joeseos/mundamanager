@@ -32,7 +32,7 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import GangLogs from "@/components/log-modal";
+import LogModal from "@/components/log-modal";
 
 interface Gang {
   id: string;
@@ -1087,7 +1087,7 @@ export default function CampaignPageContent({
 
       </div>
 
-      <GangLogs
+      <LogModal
         fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
         title="Campaign Activity Logs"
         emptyMessage="No activity logs found for this campaign."

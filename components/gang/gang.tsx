@@ -20,7 +20,7 @@ import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import GangLogs from '../log-modal';
+import LogModal from '../log-modal';
 import { ViewModeDropdown } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
@@ -1315,7 +1315,7 @@ export default function Gang({
             />
           )}
 
-          <GangLogs
+          <LogModal
             fetchUrl={`/api/gangs/${id}/logs`}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}

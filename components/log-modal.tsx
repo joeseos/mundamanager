@@ -24,7 +24,7 @@ interface LogModalProps {
   onClose: () => void;
 }
 
-export default function GangLogs({ fetchUrl, title = 'Activity Logs', emptyMessage = 'No activity logs found.', isOpen, onClose }: LogModalProps) {
+export default function LogModal({ fetchUrl, title = 'Activity Logs', emptyMessage = 'No activity logs found.', isOpen, onClose }: LogModalProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
 
@@ -48,15 +48,10 @@ export default function GangLogs({ fetchUrl, title = 'Activity Logs', emptyMessa
 
   const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType);
 
-  const sortLogs = (a: GangLog, b: GangLog) => {
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  };
-
-  const sortedLogs = [...logs].sort(sortLogs);
-  const totalPages = Math.ceil(sortedLogs.length / logsPerPage);
+  const totalPages = Math.ceil(logs.length / logsPerPage);
   const startIndex = (currentPage - 1) * logsPerPage;
   const endIndex = startIndex + logsPerPage;
-  const currentLogs = sortedLogs.slice(startIndex, endIndex);
+  const currentLogs = logs.slice(startIndex, endIndex);
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -184,7 +179,7 @@ export default function GangLogs({ fetchUrl, title = 'Activity Logs', emptyMessa
       {totalPages > 1 && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-t border-border bg-muted mt-4">
           <div className="text-sm text-muted-foreground text-center sm:text-left">
-            Showing {startIndex + 1} to {Math.min(endIndex, sortedLogs.length)} of {sortedLogs.length} logs
+            Showing {startIndex + 1} to {Math.min(endIndex, logs.length)} of {logs.length} logs
           </div>
           <div className="flex items-center justify-center sm:justify-end space-x-2">
             <button
