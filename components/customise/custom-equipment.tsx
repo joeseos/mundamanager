@@ -19,7 +19,7 @@ import { Tooltip } from 'react-tooltip';
 import { createClient } from '@/utils/supabase/client';
 import { ShareCustomEquipmentModal } from './custom-shared';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { escapeHtml } from '@/utils/campaigns/map-markers';
+import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
@@ -1080,4 +1080,4 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       />
     </div>
   );
-} 
+}

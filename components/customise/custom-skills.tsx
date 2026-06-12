@@ -19,7 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { escapeHtml } from '@/utils/campaigns/map-markers';
+import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseSkillsProps {
@@ -485,13 +485,15 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const renderDescriptionField = (
     form: { description: string | null },
     setForm: React.Dispatch<React.SetStateAction<{ skill_name: string; skill_type_id: string; is_custom_type: boolean; description: string | null }>>,
+    idSuffix: string,
     isReadOnly = false
   ) => {
     const descCharCount = form.description?.length ?? 0;
+    const fieldId = `skill-description-${idSuffix}`;
 
     return (
       <div>
-        <label htmlFor="skill-description" className="flex justify-between items-center text-sm font-medium mb-1">
+        <label htmlFor={fieldId} className="flex justify-between items-center text-sm font-medium mb-1">
           <span>Description</span>
           {!isReadOnly && (
             <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -499,17 +501,22 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
             </span>
           )}
         </label>
-        <Textarea
-          id="skill-description"
-          className="min-h-20 resize-y"
-          value={form.description || ''}
-          onChange={(e) => {
-            const value = e.target.value;
-            setForm(prev => ({ ...prev, description: value || null }));
-          }}
-          placeholder="Enter description (optional)"
-          disabled={isReadOnly}
-        />
+        {isReadOnly ? (
+          <div className="w-full p-2 border rounded-md bg-muted min-h-20 whitespace-pre-wrap">
+            {form.description || ''}
+          </div>
+        ) : (
+          <Textarea
+            id={fieldId}
+            className="min-h-20 resize-y"
+            value={form.description || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setForm(prev => ({ ...prev, description: value || null }));
+            }}
+            placeholder="Enter description (optional)"
+          />
+        )}
       </div>
     );
   };
@@ -551,7 +558,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                 />
               </div>
               {renderSkillTypeField(createForm, setCreateForm)}
-              {renderDescriptionField(createForm, setCreateForm)}
+              {renderDescriptionField(createForm, setCreateForm, 'create')}
             </div>
           }
           onClose={handleCreateModalClose}
@@ -580,7 +587,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                 />
               </div>
               {renderSkillTypeField(editForm, setEditForm, true)}
-              {renderDescriptionField(editForm, setEditForm)}
+              {renderDescriptionField(editForm, setEditForm, 'edit')}
             </div>
           }
           onClose={handleEditModalClose}

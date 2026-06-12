@@ -5,7 +5,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
-import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
+import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
 export interface CustomTradingPostData {
   custom_trading_post_name: string;
@@ -24,8 +24,10 @@ export interface CustomTradingPost {
 export async function createCustomTradingPost(
   data: CustomTradingPostData
 ): Promise<{ success: boolean; data?: CustomTradingPost; error?: string }> {
-  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
-    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    return { success: false, error: lengthError };
   }
   try {
     const supabase = await createClient();
@@ -36,7 +38,7 @@ export async function createCustomTradingPost(
       .insert({
         user_id: user.id,
         custom_trading_post_name: data.custom_trading_post_name.trimEnd(),
-        description: data.description || null,
+        description,
       })
       .select()
       .single();
@@ -61,8 +63,10 @@ export async function updateCustomTradingPost(
   id: string,
   data: CustomTradingPostData
 ): Promise<{ success: boolean; data?: CustomTradingPost; error?: string }> {
-  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
-    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    return { success: false, error: lengthError };
   }
   try {
     const supabase = await createClient();
@@ -83,7 +87,7 @@ export async function updateCustomTradingPost(
       .from('custom_trading_posts')
       .update({
         custom_trading_post_name: data.custom_trading_post_name.trimEnd(),
-        description: data.description || null,
+        description,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

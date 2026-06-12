@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
-import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
+import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
 export async function updateCustomEquipment(
   equipmentId: string,
@@ -18,8 +18,12 @@ export async function updateCustomEquipment(
     description?: string | null;
   }
 ) {
-  if (updates.description && updates.description.length > DESCRIPTION_MAX_LENGTH) {
-    throw new Error(`Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`);
+  if (updates.description !== undefined) {
+    const description = normalizeCustomDescription(updates.description);
+    const lengthError = getCustomDescriptionLengthError(description);
+    if (lengthError) {
+      throw new Error(lengthError);
+    }
   }
 
   const supabase = await createClient();
@@ -40,7 +44,7 @@ export async function updateCustomEquipment(
   }
 
   if (updates.description !== undefined) {
-    updateData.description = updates.description || null;
+    updateData.description = normalizeCustomDescription(updates.description);
   }
   
   // If equipment_category is being updated, we need to get the category_id
@@ -126,8 +130,10 @@ export async function createCustomEquipment(data: {
   is_consumable?: boolean;
   description?: string | null;
 }) {
-  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
-    throw new Error(`Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`);
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    throw new Error(lengthError);
   }
 
   const supabase = await createClient();
@@ -160,7 +166,7 @@ export async function createCustomEquipment(data: {
       equipment_category_id: categoryData.id,
       equipment_type: data.equipment_type,
       is_consumable: data.is_consumable ?? false,
-      description: data.description || null,
+      description,
       created_at: new Date().toISOString()
     })
     .select()

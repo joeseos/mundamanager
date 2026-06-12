@@ -20,7 +20,7 @@ import {
   type CustomGangTypeData,
 } from '@/app/actions/customise/custom-gang-types';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { escapeHtml } from '@/utils/campaigns/map-markers';
+import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseGangTypesProps {
@@ -334,17 +334,22 @@ export function CustomiseGangTypes({
             </span>
           )}
         </label>
-        <Textarea
-          id="gt-description"
-          className="min-h-20 resize-y"
-          value={formData.description || ''}
-          onChange={(e) => {
-            const value = e.target.value;
-            setFormData({ ...formData, description: value || null });
-          }}
-          placeholder="Enter description (optional)"
-          disabled={isReadOnly}
-        />
+        {isReadOnly ? (
+          <div className="w-full p-2 border rounded-md bg-muted min-h-20 whitespace-pre-wrap">
+            {formData.description || ''}
+          </div>
+        ) : (
+          <Textarea
+            id="gt-description"
+            className="min-h-20 resize-y"
+            value={formData.description || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setFormData({ ...formData, description: value || null });
+            }}
+            placeholder="Enter description (optional)"
+          />
+        )}
       </div>
 
     </div>

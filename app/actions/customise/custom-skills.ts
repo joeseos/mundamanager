@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { invalidateFighterAdvancement } from "@/utils/cache-tags";
-import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
+import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
 export async function createCustomSkill(data: {
   skill_name: string;
@@ -12,8 +12,10 @@ export async function createCustomSkill(data: {
   custom_skill_type_id?: string;
   description?: string | null;
 }) {
-  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
-    throw new Error(`Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`);
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    throw new Error(lengthError);
   }
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
@@ -25,7 +27,7 @@ export async function createCustomSkill(data: {
       skill_name: data.skill_name.trimEnd(),
       skill_type_id: data.skill_type_id ?? null,
       custom_skill_type_id: data.custom_skill_type_id ?? null,
-      description: data.description || null,
+      description,
       created_at: new Date().toISOString()
     })
     .select(`
@@ -64,8 +66,12 @@ export async function updateCustomSkill(
     description?: string | null;
   }
 ) {
-  if (updates.description && updates.description.length > DESCRIPTION_MAX_LENGTH) {
-    throw new Error(`Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`);
+  if (updates.description !== undefined) {
+    const description = normalizeCustomDescription(updates.description);
+    const lengthError = getCustomDescriptionLengthError(description);
+    if (lengthError) {
+      throw new Error(lengthError);
+    }
   }
 
   const supabase = await createClient();
@@ -77,7 +83,7 @@ export async function updateCustomSkill(
   };
 
   if (updates.description !== undefined) {
-    updateData.description = updates.description || null;
+    updateData.description = normalizeCustomDescription(updates.description);
   }
 
   // Ensure mutual exclusivity of skill type FKs

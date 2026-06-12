@@ -15,7 +15,7 @@ import { ImInfo } from 'react-icons/im';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
 import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
-import { escapeHtml } from '@/utils/campaigns/map-markers';
+import { escapeHtml } from '@/utils/html';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createCustomTradingPost,

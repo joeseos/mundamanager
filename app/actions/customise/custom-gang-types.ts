@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
-import { DESCRIPTION_MAX_LENGTH } from './custom-constants';
+import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
 export interface CustomGangTypeData {
   gang_type: string;
@@ -30,8 +30,10 @@ export interface CustomGangType {
 export async function createCustomGangType(
   data: CustomGangTypeData
 ): Promise<{ success: boolean; data?: CustomGangType; error?: string }> {
-  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
-    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    return { success: false, error: lengthError };
   }
 
   try {
@@ -44,7 +46,7 @@ export async function createCustomGangType(
         user_id: user.id,
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
-        description: data.description || null,
+        description,
         trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
         created_at: new Date().toISOString(),
       })
@@ -71,8 +73,10 @@ export async function updateCustomGangType(
   id: string,
   data: CustomGangTypeData
 ): Promise<{ success: boolean; data?: CustomGangType; error?: string }> {
-  if (data.description && data.description.length > DESCRIPTION_MAX_LENGTH) {
-    return { success: false, error: `Description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.` };
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    return { success: false, error: lengthError };
   }
 
   try {
@@ -96,7 +100,7 @@ export async function updateCustomGangType(
       .update({
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
-        description: data.description || null,
+        description,
         trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
         updated_at: new Date().toISOString(),
       })
