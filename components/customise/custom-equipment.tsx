@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
