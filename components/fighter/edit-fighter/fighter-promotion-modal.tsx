@@ -7,7 +7,7 @@ import { HiX } from "react-icons/hi";
 // Determines the target class for promotion based on current class
 const PROMOTION_MAP: Record<string, string> = {
   'Ganger': 'Specialist',
-  'Juve': 'Champion',
+  'Juve': 'Specialist',
   'Prospect': 'Champion',
   'Champion': 'Leader',
   'Specialist': 'Champion',
