@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
-import { calculateAdjustedStats } from "@/utils/effect-modifiers";
+import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
 import { injuryAggregationLabel } from "@/utils/bitterEnmityDisplay";
 import WeaponTable from "./fighter-card-weapon-table";
 import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
@@ -561,14 +561,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         .join(", ")
                     : "";
 
-                const specialRulesText =
-                  fighter.special_rules && fighter.special_rules.length > 0
-                    ? fighter.special_rules.join(", ")
+                const fighterEffects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+                const mergedFighterRules = applySpecialRulesModifiers(fighter.special_rules || [], fighterEffects);
+                const specialRulesText = mergedFighterRules.length > 0
+                    ? mergedFighterRules.join(", ")
                     : "";
 
-                const vehicleRulesText =
-                  isCrew && vehicle && Array.isArray(vehicle.special_rules) && vehicle.special_rules.length > 0
-                    ? vehicle.special_rules.join(", ")
+                const vehicleEffects = (isCrew && vehicle?.effects) ? Object.values(vehicle.effects).flat() : [];
+                const mergedVehicleRules = applySpecialRulesModifiers(
+                  (isCrew && vehicle && Array.isArray(vehicle.special_rules)) ? vehicle.special_rules : [],
+                  vehicleEffects
+                );
+                const vehicleRulesText = mergedVehicleRules.length > 0
+                    ? mergedVehicleRules.join(", ")
                     : "";
 
                 // Get vehicle equipment (excluding weapons, which are shown in the Weapons column)
