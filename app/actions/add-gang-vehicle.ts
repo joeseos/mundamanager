@@ -90,6 +90,10 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
     const vehicleSpecialRules = vehicleType.special_rules as string[] || [];
     const hasLocomotionRule = vehicleSpecialRules.includes('Locomotion');
 
+    if (hasLocomotionRule && !params.locomotionChoice) {
+      return { success: false, error: 'Locomotion choice is required for this vehicle type' };
+    }
+
     // Create the vehicle in vehicles table
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
