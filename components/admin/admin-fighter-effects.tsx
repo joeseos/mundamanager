@@ -106,6 +106,8 @@ export function AdminFighterEffects({
     selection_group: '',
     traits_to_add: '',
     traits_to_remove: '',
+    special_rules_to_add: '',
+    special_rules_to_remove: '',
     credits_increase: '',
     cost: '',
     is_editable: false,
@@ -160,6 +162,12 @@ export function AdminFighterEffects({
       const traitsToRemove = newEffect.traits_to_remove
         ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
         : [];
+      const specialRulesToAdd = newEffect.special_rules_to_add
+        ? newEffect.special_rules_to_add.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
+      const specialRulesToRemove = newEffect.special_rules_to_remove
+        ? newEffect.special_rules_to_remove.split(',').map(t => t.trim()).filter(Boolean)
+        : [];
 
       const typeSpecificData: any = {
         ...(isSkill ? { skill_id: equipmentId } : { equipment_id: equipmentId }),
@@ -169,6 +177,8 @@ export function AdminFighterEffects({
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
+        ...(specialRulesToAdd.length > 0 && { special_rules_to_add: specialRulesToAdd }),
+        ...(specialRulesToRemove.length > 0 && { special_rules_to_remove: specialRulesToRemove }),
         ...(newEffect.credits_increase && { credits_increase: parseInt(newEffect.credits_increase) }),
         ...(newEffect.cost && { cost: parseInt(newEffect.cost) }),
         ...(newEffect.is_editable && { is_editable: true }),
@@ -211,6 +221,8 @@ export function AdminFighterEffects({
         selection_group: '',
         traits_to_add: '',
         traits_to_remove: '',
+        special_rules_to_add: '',
+        special_rules_to_remove: '',
         credits_increase: '',
         cost: '',
         is_editable: false,
@@ -248,6 +260,8 @@ export function AdminFighterEffects({
       selection_group: '',
       traits_to_add: '',
       traits_to_remove: '',
+      special_rules_to_add: '',
+      special_rules_to_remove: '',
       credits_increase: '',
       cost: '',
       is_editable: false,
@@ -270,6 +284,8 @@ export function AdminFighterEffects({
       selection_group: effect.type_specific_data?.selection_group || '',
       traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
       traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
+      special_rules_to_add: effect.type_specific_data?.special_rules_to_add?.join(', ') || '',
+      special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
       cost: effect.type_specific_data?.cost?.toString() || '',
       is_editable: effect.type_specific_data?.is_editable === true,
@@ -296,6 +312,12 @@ export function AdminFighterEffects({
     const traitsToRemove = newEffect.traits_to_remove
       ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
       : [];
+    const specialRulesToAdd = newEffect.special_rules_to_add
+      ? newEffect.special_rules_to_add.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
+    const specialRulesToRemove = newEffect.special_rules_to_remove
+      ? newEffect.special_rules_to_remove.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
 
     // Build type_specific_data - explicitly set all fields to handle cleared values
     const typeSpecificData: any = {
@@ -312,6 +334,8 @@ export function AdminFighterEffects({
       // Set traits arrays - use empty arrays when cleared
       traits_to_add: traitsToAdd.length > 0 ? traitsToAdd : undefined,
       traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
+      special_rules_to_add: specialRulesToAdd.length > 0 ? specialRulesToAdd : undefined,
+      special_rules_to_remove: specialRulesToRemove.length > 0 ? specialRulesToRemove : undefined,
       // Set credits_increase or remove it if empty
       ...(newEffect.credits_increase ? { credits_increase: parseInt(newEffect.credits_increase) } : { credits_increase: undefined }),
       // Set cost or remove it if empty
@@ -557,6 +581,18 @@ export function AdminFighterEffects({
                         {effect.type_specific_data?.traits_to_remove && effect.type_specific_data.traits_to_remove.length > 0 && (
                           <Badge variant="destructive">
                             Removes: {effect.type_specific_data.traits_to_remove.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.special_rules_to_add && effect.type_specific_data.special_rules_to_add.length > 0 && (
+                          <Badge variant="default" className="bg-green-600">
+                            +Rules: {effect.type_specific_data.special_rules_to_add.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.special_rules_to_remove && effect.type_specific_data.special_rules_to_remove.length > 0 && (
+                          <Badge variant="destructive">
+                            -Rules: {effect.type_specific_data.special_rules_to_remove.join(', ')}
                           </Badge>
                         )}
 
@@ -926,6 +962,40 @@ export function AdminFighterEffects({
                   />
                   <p className="text-xs text-muted-foreground">
                     Enter trait names separated by commas
+                  </p>
+                </div>
+              </>
+            )}
+
+            {newEffect.applies_to !== 'equipment' && (
+              <>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Special Rules to Add (optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={newEffect.special_rules_to_add}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, special_rules_to_add: e.target.value }))}
+                    placeholder="e.g., Skimmer, Tenacious"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter special rule names separated by commas
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Special Rules to Remove (optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={newEffect.special_rules_to_remove}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, special_rules_to_remove: e.target.value }))}
+                    placeholder="e.g., Wheeled, Fast Learner"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter special rule names separated by commas
                   </p>
                 </div>
               </>
