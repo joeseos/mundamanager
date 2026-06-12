@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
-import { List, ListColumn, ListAction } from '@/components/ui/list';
+import { ListColumn, ListAction } from '@/components/ui/list';
 import { getLogTypeLabel } from '@/utils/log-types';
 
 interface GangLog {
@@ -16,45 +17,37 @@ interface GangLog {
 }
 
 interface GangLogsProps {
-  gangId: string;
+  gangId?: string;
+  fetchUrl?: string;
+  title?: string;
+  emptyMessage?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
-  const [logs, setLogs] = useState<GangLog[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+export default function GangLogs({ gangId, fetchUrl, title = 'Gang Activity Logs', emptyMessage = 'No activity logs found for this gang.', isOpen, onClose }: GangLogsProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
 
-  const fetchLogs = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/gangs/${gangId}/logs`);
-      
+  const url = fetchUrl || `/api/gangs/${gangId}/logs`;
+
+  const { data: logs = [], isLoading } = useQuery<GangLog[]>({
+    queryKey: ['logs', url],
+    queryFn: async () => {
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      const data = await response.json();
-      setLogs(data);
-    } catch (error) {
-      console.error('Error fetching gang logs:', error);
-      // Keep logs empty on error - the UI will show the empty state
-      setLogs([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return response.json();
+    },
+    enabled: isOpen,
+  });
 
   useEffect(() => {
     if (isOpen) {
-      fetchLogs();
-      setCurrentPage(1); // Reset to first page when modal opens
-    } else {
-      setLogs([]); // Clear logs when modal closes to prevent flickering on reopen
+      setCurrentPage(1);
     }
-  }, [isOpen, gangId]);
+  }, [isOpen]);
 
   const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType);
 
@@ -62,7 +55,6 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   };
 
-  // Pagination logic
   const sortedLogs = [...logs].sort(sortLogs);
   const totalPages = Math.ceil(sortedLogs.length / logsPerPage);
   const startIndex = (currentPage - 1) * logsPerPage;
@@ -114,17 +106,16 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
   ];
 
   const actions: ListAction[] = [
-    // Future: Add actions like "Revert" for certain log types
   ];
 
   if (!isOpen) return null;
 
   return (
     <Modal
-      title="Gang Activity Logs"
+      title={title}
       helper={
         <>
-          Track all changes made to your gang
+          Track all changes and activity
           <br />
           <span className="text-xs italic">Note: Logs are automatically deleted after 3 months</span>
         </>
@@ -166,11 +157,11 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
                   colSpan={columns.length}
                   className="text-muted-foreground italic text-center py-8"
                 >
-                  No activity logs found for this gang.
+                  {emptyMessage}
                 </td>
               </tr>
             ) : (
-              currentLogs.map((log, index) => (
+              currentLogs.map((log) => (
                 <tr key={log.id} className="border-t hover:bg-muted">
                   {columns.map((column) => (
                     <td
@@ -196,7 +187,6 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
         </table>
       </div>
 
-      {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-t border-border bg-muted mt-4">
           <div className="text-sm text-muted-foreground text-center sm:text-left">
@@ -211,16 +201,13 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
               Prev
             </button>
 
-            {/* Page numbers */}
             <div className="flex items-center space-x-1">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                // Show first page, last page, current page, and pages around current page
                 const showPage = page === 1 ||
                                page === totalPages ||
                                Math.abs(page - currentPage) <= 1;
 
                 if (!showPage) {
-                  // Show ellipsis for gaps
                   if (page === 2 && currentPage > 4) {
                     return <span key={page} className="px-2 text-muted-foreground">...</span>;
                   }
@@ -258,4 +245,4 @@ export default function GangLogs({ gangId, isOpen, onClose }: GangLogsProps) {
       )}
     </Modal>
   );
-} 
+}
