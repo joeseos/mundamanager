@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
-import { ListColumn, ListAction } from '@/components/ui/list';
+import { ListColumn } from '@/components/ui/list';
 import { getLogTypeLabel } from '@/utils/log-types';
 
 interface GangLog {
@@ -16,25 +16,22 @@ interface GangLog {
   username?: string;
 }
 
-interface GangLogsProps {
-  gangId?: string;
-  fetchUrl?: string;
+interface LogModalProps {
+  fetchUrl: string;
   title?: string;
   emptyMessage?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export default function GangLogs({ gangId, fetchUrl, title = 'Gang Activity Logs', emptyMessage = 'No activity logs found for this gang.', isOpen, onClose }: GangLogsProps) {
+export default function GangLogs({ fetchUrl, title = 'Activity Logs', emptyMessage = 'No activity logs found.', isOpen, onClose }: LogModalProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const logsPerPage = 10;
 
-  const url = fetchUrl || `/api/gangs/${gangId}/logs`;
-
   const { data: logs = [], isLoading } = useQuery<GangLog[]>({
-    queryKey: ['logs', url],
+    queryKey: ['logs', fetchUrl],
     queryFn: async () => {
-      const response = await fetch(url);
+      const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -103,9 +100,6 @@ export default function GangLogs({ gangId, fetchUrl, title = 'Gang Activity Logs
         );
       }
     }
-  ];
-
-  const actions: ListAction[] = [
   ];
 
   if (!isOpen) return null;

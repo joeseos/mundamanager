@@ -1,6 +1,5 @@
 /**
- * Shared action type → display label map for gang and fighter log UIs.
- * Single source of truth — imported by both gang-logs.tsx and fighter-logs.tsx.
+ * Shared action type → display label map for log UIs.
  */
 export const CAMPAIGN_ACTION_TYPES = [
   'campaign_joined',

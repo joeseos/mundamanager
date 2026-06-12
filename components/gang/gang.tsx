@@ -1316,7 +1316,7 @@ export default function Gang({
           )}
 
           <GangLogs
-            gangId={id}
+            fetchUrl={`/api/gangs/${id}/logs`}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}
           />
