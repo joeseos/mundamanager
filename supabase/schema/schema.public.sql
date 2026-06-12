@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xmelhDk4YEgcOESdc1f34YGIZeG67e4zfNeEbbjJhUvW9HhK2uilffMI2EbHEh4
+\restrict ual5oyq6QfJydqvjdMrWLjS9rbtloXR1bbmFarDPPT25uC2Rzg5KdQWvxqQ8xfv
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -460,38 +460,6 @@ BEGIN
       FROM fighter_effects fe
       WHERE fe.id = new_effect_id
     );
-END;
-$$;
-
-
---
--- Name: gang_logs(uuid, text, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.gang_logs(p_gang_id uuid, p_action_type text, p_description text, p_fighter_id uuid DEFAULT NULL::uuid, p_vehicle_id uuid DEFAULT NULL::uuid) RETURNS uuid
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-DECLARE
-    log_id UUID;
-BEGIN
-    INSERT INTO gang_logs (
-        gang_id,
-        user_id,
-        action_type,
-        description,
-        fighter_id,
-        vehicle_id
-    ) VALUES (
-        p_gang_id,
-        auth.uid(),
-        p_action_type,
-        p_description,
-        p_fighter_id,
-        p_vehicle_id
-    ) RETURNING id INTO log_id;
-    
-    RETURN log_id;
 END;
 $$;
 
@@ -4281,7 +4249,8 @@ CREATE TABLE public.custom_equipment (
     equipment_type text,
     user_id uuid NOT NULL,
     is_editable boolean DEFAULT false,
-    is_consumable boolean DEFAULT false
+    is_consumable boolean DEFAULT false,
+    description text
 );
 
 
@@ -4328,7 +4297,8 @@ CREATE TABLE public.custom_fighter_types (
     fighter_class text,
     fighter_class_id uuid,
     user_id uuid,
-    custom_gang_type_id uuid
+    custom_gang_type_id uuid,
+    description text
 );
 
 
@@ -4344,7 +4314,8 @@ CREATE TABLE public.custom_gang_types (
     gang_type text NOT NULL,
     alignment public.alignment,
     trading_post_type_id uuid,
-    default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb
+    default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb,
+    description text
 );
 
 
@@ -4398,6 +4369,7 @@ CREATE TABLE public.custom_skills (
     user_id uuid,
     skill_type_id uuid,
     custom_skill_type_id uuid,
+    description text,
     CONSTRAINT chk_custom_skills_skill_type_exclusive CHECK ((((skill_type_id IS NOT NULL) AND (custom_skill_type_id IS NULL)) OR ((skill_type_id IS NULL) AND (custom_skill_type_id IS NOT NULL))))
 );
 
@@ -11512,5 +11484,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xmelhDk4YEgcOESdc1f34YGIZeG67e4zfNeEbbjJhUvW9HhK2uilffMI2EbHEh4
+\unrestrict ual5oyq6QfJydqvjdMrWLjS9rbtloXR1bbmFarDPPT25uC2Rzg5KdQWvxqQ8xfv
 
