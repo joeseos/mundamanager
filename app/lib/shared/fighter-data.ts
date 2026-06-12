@@ -853,10 +853,12 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
         if (equipmentType === 'weapon') {
           if (item.equipment_id) {
             const baseProfiles = standardProfilesMap.get(item.equipment_id) || [];
-            const ammoProfiles = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
+            const standardAmmo = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
               .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+            const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
+              .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
             const seenIds = new Set<string>();
-            weaponProfiles = [...baseProfiles, ...ammoProfiles]
+            weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
               .filter((p: any) => {
                 if (seenIds.has(p.id)) return false;
                 seenIds.add(p.id);
@@ -868,10 +870,12 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
               }));
           } else if (item.custom_equipment_id) {
             const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
-            const ammoProfiles = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+            const customAmmo = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+            const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
             const seenIds = new Set<string>();
-            weaponProfiles = [...baseProfiles, ...ammoProfiles]
+            weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
               .filter((p: any) => {
                 if (seenIds.has(p.id)) return false;
                 seenIds.add(p.id);

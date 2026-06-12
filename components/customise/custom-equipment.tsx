@@ -5,7 +5,7 @@ import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
 import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } from '@/app/actions/customise/custom-equipment';
 import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/customise/custom-weapon-profiles';
-import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
+import { CustomWeaponProfiles, CustomWeaponProfile, AvailableWeapon } from './custom-weapon-profiles';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
@@ -41,6 +41,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [shareModalData, setShareModalData] = useState<CustomEquipment | null>(null);
   const supabase = createClient();
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
+  const [availableWeapons, setAvailableWeapons] = useState<AvailableWeapon[]>([]);
   const [editForm, setEditForm] = useState({
     equipment_name: '',
     cost: '',
@@ -71,6 +72,9 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     if (categories.length === 0) {
       fetchCategories();
     }
+    if (availableWeapons.length === 0) {
+      fetchAvailableWeapons();
+    }
   };
 
   // Fetch equipment categories
@@ -83,6 +87,23 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast.error("Error", { description: "Failed to load equipment categories" });
+    }
+  };
+
+  const fetchAvailableWeapons = async () => {
+    try {
+      const response = await fetch('/api/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      const data = await response.json();
+      const weapons: AvailableWeapon[] = data.map((item: any) => ({
+        id: item.is_custom ? item.original_id : item.id,
+        name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
+        is_custom: item.is_custom,
+        category: item.equipment_category || '',
+      }));
+      setAvailableWeapons(weapons);
+    } catch (error) {
+      console.error('Error fetching available weapons:', error);
     }
   };
 
@@ -313,9 +334,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       setOriginalEditWeaponProfiles([]);
     }
     
-    // Fetch categories if not already loaded
+    // Fetch categories and weapons if not already loaded
     if (categories.length === 0) {
       fetchCategories();
+    }
+    if (availableWeapons.length === 0) {
+      fetchAvailableWeapons();
     }
   };
 
@@ -487,6 +511,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
             ammo: profile.ammo,
             traits: profile.traits,
             sort_order: profile.sort_order,
+            weapon_group_id: profile.weapon_group_id === copyModalData.id ? createdEquipment.id : profile.weapon_group_id,
             user_id: user.id
           }));
 
@@ -671,6 +696,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     <CustomWeaponProfiles
                       profiles={editWeaponProfiles}
                       onProfilesChange={handleEditWeaponProfilesChange}
+                      availableWeapons={availableWeapons}
+                      showTargetWeapon={editForm.equipment_category.toLowerCase() === 'ammunition'}
                     />
                   </div>
                 )}
@@ -924,6 +951,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     <CustomWeaponProfiles
                       profiles={createWeaponProfiles}
                       onProfilesChange={setCreateWeaponProfiles}
+                      availableWeapons={availableWeapons}
+                      showTargetWeapon={createForm.equipment_category.toLowerCase() === 'ammunition'}
                     />
                   </div>
                 )}
