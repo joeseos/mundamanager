@@ -242,6 +242,10 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     () => (profiles.length > 0 ? profiles[0].weapon_group_id ?? null : null)
   );
 
+  React.useEffect(() => {
+    setStoredTargetWeaponId(profiles[0]?.weapon_group_id ?? null);
+  }, [profiles]);
+
   const targetWeaponId = profiles.length > 0 ? profiles[0].weapon_group_id ?? storedTargetWeaponId : storedTargetWeaponId;
   const targetWeapon = targetWeaponId
     ? availableWeapons?.find(w => w.id === targetWeaponId) ?? { id: targetWeaponId, name: 'Unknown weapon' }
