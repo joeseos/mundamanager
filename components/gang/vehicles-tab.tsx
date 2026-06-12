@@ -400,7 +400,11 @@ export default function GangVehicles({
       if (onVehicleUpdate) {
         const updatedVehicles = allVehicles.map(v => {
           if (v.id === vehicleId) {
-            const updated = { ...v, vehicle_name: vehicleName, special_rules: specialRules };
+            const updated = {
+              ...v,
+              vehicle_name: vehicleName,
+              special_rules: specialRules
+            };
             // Add optimistic user effects if stat adjustments exist
             if (optimisticUserEffects) {
               updated.effects = {

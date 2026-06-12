@@ -6,6 +6,7 @@ import { revalidateTag, revalidatePath } from "next/cache";
 import { CACHE_TAGS, invalidateGangFinancials } from "@/utils/cache-tags";
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
 import { logVehicleAction } from "./logs/vehicle-logs";
+import { getAllowedLocomotionOptions } from "@/utils/vehicle-locomotion";
 
 interface AddGangVehicleParams {
   gangId: string;
@@ -13,6 +14,7 @@ interface AddGangVehicleParams {
   cost: number;
   vehicleName: string;
   baseCost?: number;
+  locomotionChoice?: string;
 }
 
 interface AddGangVehicleResult {
@@ -77,6 +79,21 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
       };
     }
 
+    // Validate locomotionChoice against the type-specific allowed set
+    if (params.locomotionChoice !== undefined) {
+      const allowed = getAllowedLocomotionOptions(vehicleType.vehicle_type);
+      if (!(allowed as readonly string[]).includes(params.locomotionChoice)) {
+        return { success: false, error: 'Invalid locomotion choice for this vehicle type' };
+      }
+    }
+
+    const vehicleSpecialRules = vehicleType.special_rules as string[] || [];
+    const hasLocomotionRule = vehicleSpecialRules.includes('Locomotion');
+
+    if (hasLocomotionRule && !params.locomotionChoice) {
+      return { success: false, error: 'Locomotion choice is required for this vehicle type' };
+    }
+
     // Create the vehicle in vehicles table
     const { data: vehicle, error: vehicleError } = await supabase
       .from('vehicles')
@@ -92,7 +109,9 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
         body_slots: vehicleType.body_slots,
         drive_slots: vehicleType.drive_slots,
         engine_slots: vehicleType.engine_slots,
-        special_rules: vehicleType.special_rules,
+        special_rules: hasLocomotionRule && params.locomotionChoice
+          ? vehicleSpecialRules.map(r => r === 'Locomotion' ? params.locomotionChoice! : r)
+          : vehicleSpecialRules,
         body_slots_occupied: 0,
         drive_slots_occupied: 0,
         engine_slots_occupied: 0,

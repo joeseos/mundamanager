@@ -8,6 +8,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
+import { getAllowedLocomotionOptions } from '@/utils/vehicle-locomotion';
 
 interface VehicleType {
   id: string;
@@ -52,7 +53,14 @@ export default function AddVehicle({
   const [vehicleCost, setVehicleCost] = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [useBaseCost, setUseBaseCost] = useState<boolean>(true);
-  
+  const [locomotionChoice, setLocomotionChoice] = useState('');
+
+  const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId) ?? null;
+  const locomotionRequired = selectedVehicleType?.special_rules?.includes('Locomotion') ?? false;
+  const allowedLocomotionOptions = selectedVehicleType
+    ? getAllowedLocomotionOptions(selectedVehicleType.vehicle_type)
+    : [];
+
   // Fetch vehicle types when component mounts
   useEffect(() => {
     const fetchVehicleTypes = async () => {
@@ -120,7 +128,8 @@ export default function AddVehicle({
         vehicleTypeId: selectedVehicleTypeId,
         cost: paymentCost, // This is what the user pays in credits
         vehicleName: name,
-        baseCost: ratingCost // The vehicle's base cost for display and when equipped
+        baseCost: ratingCost, // The vehicle's base cost for display and when equipped
+        locomotionChoice: locomotionRequired ? locomotionChoice : undefined,
       });
 
       if (!result.success) {
@@ -152,7 +161,9 @@ export default function AddVehicle({
         drive_slots_occupied: 0,
         engine_slots: selectedVehicleType.engine_slots,
         engine_slots_occupied: 0,
-        special_rules: selectedVehicleType.special_rules || [],
+        special_rules: locomotionRequired && locomotionChoice
+          ? (selectedVehicleType.special_rules || []).map((r: string) => r === 'Locomotion' ? locomotionChoice : r)
+          : (selectedVehicleType.special_rules || []),
         created_at: new Date().toISOString(),
         equipment: [],
         payment_cost: paymentCost // Track what was actually paid
@@ -196,6 +207,7 @@ export default function AddVehicle({
     setVehicleName('');
     setVehicleError(null);
     setUseBaseCost(true);
+    setLocomotionChoice('');
   };
 
   return (
@@ -220,6 +232,7 @@ export default function AddVehicle({
               value={selectedVehicleTypeId}
               onValueChange={(value) => {
                 setSelectedVehicleTypeId(value);
+                setLocomotionChoice('');
                 const vehicle = vehicleTypes.find(v => v.id === value);
                 if (vehicle) {
                   setVehicleCost(vehicle.cost.toString());
@@ -283,6 +296,22 @@ export default function AddVehicle({
             />
           </div>
 
+          {/* Locomotion selection — only shown for vehicle types with the Locomotion special rule */}
+          {locomotionRequired && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-muted-foreground">
+                Locomotion *
+              </label>
+              <Combobox
+                value={locomotionChoice}
+                onValueChange={setLocomotionChoice}
+                placeholder="Locomotion"
+                options={allowedLocomotionOptions.map(opt => ({ value: opt, label: opt }))}
+              />
+
+            </div>
+          )}
+
           {/* Vehicle Cost */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-muted-foreground">
@@ -344,7 +373,7 @@ export default function AddVehicle({
       onClose={handleClose}
       onConfirm={handleAddVehicle}
       confirmText="Add Vehicle"
-      confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost}
+      confirmDisabled={!selectedVehicleTypeId || !vehicleName || !vehicleCost || (locomotionRequired && !locomotionChoice)}
     />
   );
-} 
+}

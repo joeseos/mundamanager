@@ -12,6 +12,7 @@ import { HiX } from "react-icons/hi";
 import { toast } from 'sonner';
 import { VehicleProps, VehicleEffect } from '@/types/vehicle';
 import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { LOCOMOTION_OPTIONS } from "@/utils/vehicle-locomotion";
 
 const normalizeSpecialRule = (rule: string) => rule.replace(/^"|"$/g, '');
 const DEFAULT_SPECIAL_RULES_HEADER_VALUE = '__combobox_header__:default_special_rules';
@@ -353,6 +354,12 @@ function VehicleCharacteristicModal({
   );
 }
 
+const LOCOMOTION_SET = new Set<string>(LOCOMOTION_OPTIONS);
+
+function detectLocomotion(rules: string[]): string {
+  return rules.find(r => LOCOMOTION_SET.has(r)) ?? '';
+}
+
 export default function VehicleEdit({
   vehicle,
   gangTypeId,
@@ -366,6 +373,10 @@ export default function VehicleEdit({
   const [customSpecialRule, setCustomSpecialRule] = useState('');
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [pendingStatAdjustments, setPendingStatAdjustments] = useState<Record<string, number>>({});
+  const [locomotionChoice, setLocomotionChoice] = useState('');
+  // Original locomotion detected when the modal opened — used to keep the locomotion
+  // dropdown visible even after the user switches away from the current selection.
+  const [originalLocomotion, setOriginalLocomotion] = useState('');
 
   const gangId = vehicle?.gang_id;
 
@@ -431,10 +442,14 @@ export default function VehicleEdit({
   useEffect(() => {
     if (vehicle) {
       setEditedVehicleName(vehicle.vehicle_name);
-      setVehicleSpecialRules(vehicle.special_rules || []);
+      const rules = vehicle.special_rules || [];
+      setVehicleSpecialRules(rules);
       setSelectedSpecialRuleOption('');
       setCustomSpecialRule('');
       setPendingStatAdjustments({});
+      const loco = detectLocomotion(rules);
+      setLocomotionChoice(loco);
+      setOriginalLocomotion(loco);
     }
   }, [vehicle]);
 
@@ -494,6 +509,15 @@ export default function VehicleEdit({
     setVehicleSpecialRules(prev => prev.filter(rule => rule !== ruleToRemove));
   };
 
+  const handleLocomotionChange = (newLoco: string) => {
+    setLocomotionChoice(newLoco);
+    setVehicleSpecialRules(prev => {
+      // Remove both the resolved locomotion type and the raw "Locomotion" placeholder
+      const withoutOld = prev.filter(r => !LOCOMOTION_SET.has(r) && r !== 'Locomotion');
+      return newLoco ? [...withoutOld, newLoco] : withoutOld;
+    });
+  };
+
   const handleUpdateStats = (stats: Record<string, number>) => {
     setPendingStatAdjustments(stats);
     setShowStatsModal(false);
@@ -524,6 +548,7 @@ export default function VehicleEdit({
     if (!vehicle) return false;
 
     const statAdjustments = Object.keys(pendingStatAdjustments).length > 0 ? pendingStatAdjustments : undefined;
+
     const success = await onSave(vehicle.id, editedVehicleName, vehicleSpecialRules, statAdjustments);
 
     if (success) {
@@ -534,6 +559,12 @@ export default function VehicleEdit({
   };
 
   if (!vehicle) return null;
+
+  // Show the locomotion dropdown when the vehicle has a resolved locomotion type OR the raw "Locomotion" placeholder
+  const hasLocomotionFeature =
+    originalLocomotion !== '' ||
+    (vehicle.special_rules ?? []).includes('Locomotion');
+
 
   // Check if vehicle has characteristic data
   const hasCharacteristics = vehicle.movement !== undefined || vehicle.front !== undefined;
@@ -560,6 +591,21 @@ export default function VehicleEdit({
               placeholder="Enter vehicle name"
             />
           </div>
+
+          {/* Locomotion selector — shown when the vehicle type has the Locomotion feature */}
+          {hasLocomotionFeature && (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Locomotion
+              </label>
+              <Combobox
+                value={locomotionChoice}
+                onValueChange={handleLocomotionChange}
+                placeholder="Select locomotion"
+                options={LOCOMOTION_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -620,13 +666,15 @@ export default function VehicleEdit({
                   className="bg-muted px-3 py-1 rounded-full flex items-center text-sm"
                 >
                   <span>{rule}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSpecialRule(rule)}
-                    className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
-                  >
-                    <HiX size={14} />
-                  </button>
+                  {!LOCOMOTION_SET.has(rule) && rule !== 'Locomotion' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSpecialRule(rule)}
+                      className="ml-2 text-muted-foreground hover:text-muted-foreground focus:outline-hidden"
+                    >
+                      <HiX size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
               {effectSpecialRules
