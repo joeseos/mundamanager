@@ -32,6 +32,7 @@ export interface CustomSkill {
   skill_type_id?: string;
   custom_skill_type_id?: string;
   skill_type_name?: string;
+  description?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -47,6 +48,7 @@ export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]
       skill_name,
       skill_type_id,
       custom_skill_type_id,
+      description,
       created_at,
       updated_at,
       skill_types (name),
@@ -67,6 +69,7 @@ export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]
     skill_type_id: skill.skill_type_id,
     custom_skill_type_id: skill.custom_skill_type_id,
     skill_type_name: skill.skill_types?.name || skill.custom_skill_types?.name || 'Unknown',
+    description: skill.description,
     created_at: skill.created_at,
     updated_at: skill.updated_at,
   }));

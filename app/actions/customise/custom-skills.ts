@@ -4,12 +4,19 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { invalidateFighterAdvancement } from "@/utils/cache-tags";
+import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
 export async function createCustomSkill(data: {
   skill_name: string;
   skill_type_id?: string;
   custom_skill_type_id?: string;
+  description?: string | null;
 }) {
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    throw new Error(lengthError);
+  }
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
@@ -20,6 +27,7 @@ export async function createCustomSkill(data: {
       skill_name: data.skill_name.trimEnd(),
       skill_type_id: data.skill_type_id ?? null,
       custom_skill_type_id: data.custom_skill_type_id ?? null,
+      description,
       created_at: new Date().toISOString()
     })
     .select(`
@@ -28,6 +36,7 @@ export async function createCustomSkill(data: {
       skill_name,
       skill_type_id,
       custom_skill_type_id,
+      description,
       created_at,
       updated_at,
       skill_types (name),
@@ -54,8 +63,18 @@ export async function updateCustomSkill(
     skill_name?: string;
     skill_type_id?: string | null;
     custom_skill_type_id?: string | null;
+    description?: string | null;
   }
 ) {
+  let normalizedDescription: string | null | undefined;
+  if (updates.description !== undefined) {
+    normalizedDescription = normalizeCustomDescription(updates.description);
+    const lengthError = getCustomDescriptionLengthError(normalizedDescription);
+    if (lengthError) {
+      throw new Error(lengthError);
+    }
+  }
+
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
@@ -63,6 +82,10 @@ export async function updateCustomSkill(
     ...updates,
     updated_at: new Date().toISOString()
   };
+
+  if (updates.description !== undefined) {
+    updateData.description = normalizedDescription;
+  }
 
   // Ensure mutual exclusivity of skill type FKs
   if (updates.custom_skill_type_id !== undefined) {
@@ -92,6 +115,7 @@ export async function updateCustomSkill(
       skill_name,
       skill_type_id,
       custom_skill_type_id,
+      description,
       created_at,
       updated_at,
       skill_types (name),

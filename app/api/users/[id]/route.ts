@@ -121,6 +121,7 @@ export async function GET(
           skill_name,
           skill_type_id,
           custom_skill_type_id,
+          description,
           created_at,
           updated_at,
           skill_types (name),
@@ -147,6 +148,7 @@ export async function GET(
       skill_name: skill.skill_name,
       skill_type_id: skill.skill_type_id,
       skill_type_name: skill.skill_types?.name || skill.custom_skill_types?.name || 'Unknown',
+      description: skill.description,
       created_at: skill.created_at,
       updated_at: skill.updated_at,
     }));

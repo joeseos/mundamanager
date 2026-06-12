@@ -293,6 +293,7 @@ export interface CustomFighterType {
   delegation_cost?: number | null;
   fighter_class?: string;
   fighter_class_id?: string;
+  description?: string | null;
   skill_access?: {
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';

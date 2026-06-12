@@ -3,10 +3,12 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
+import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
 export interface CustomGangTypeData {
   gang_type: string;
   alignment?: 'Outlaw' | 'Law Abiding' | 'Unaligned' | null;
+  description?: string | null;
 }
 
 const DEFAULT_TRADING_POST_TYPE_ID = 'cada4005-66e3-4e3c-8a77-146329bd1eda';
@@ -15,6 +17,7 @@ export interface CustomGangType {
   id: string;
   user_id: string;
   gang_type: string;
+  description?: string | null;
   alignment?: string | null;
   trading_post_type_id?: string | null;
   default_image_urls?: any | null;
@@ -27,6 +30,12 @@ export interface CustomGangType {
 export async function createCustomGangType(
   data: CustomGangTypeData
 ): Promise<{ success: boolean; data?: CustomGangType; error?: string }> {
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    return { success: false, error: lengthError };
+  }
+
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -37,6 +46,7 @@ export async function createCustomGangType(
         user_id: user.id,
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
+        description,
         trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
         created_at: new Date().toISOString(),
       })
@@ -63,6 +73,12 @@ export async function updateCustomGangType(
   id: string,
   data: CustomGangTypeData
 ): Promise<{ success: boolean; data?: CustomGangType; error?: string }> {
+  const description = normalizeCustomDescription(data.description);
+  const lengthError = getCustomDescriptionLengthError(description);
+  if (lengthError) {
+    return { success: false, error: lengthError };
+  }
+
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -84,6 +100,7 @@ export async function updateCustomGangType(
       .update({
         gang_type: data.gang_type.trimEnd(),
         alignment: data.alignment || null,
+        description,
         trading_post_type_id: DEFAULT_TRADING_POST_TYPE_ID,
         updated_at: new Date().toISOString(),
       })

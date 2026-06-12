@@ -142,6 +142,7 @@ export interface CustomEquipment {
   equipment_category?: string;
   equipment_category_id?: string;
   equipment_type?: string;
+  description?: string | null;
   created_at: string;
   updated_at?: string;
   is_consumable?: boolean;

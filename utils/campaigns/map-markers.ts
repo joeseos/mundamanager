@@ -3,14 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { RxCrosshair2 } from 'react-icons/rx';
 import { FaBiohazard } from 'react-icons/fa6';
 
-export function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+export { escapeHtml } from '@/utils/html';
 
 const HIVE_CITY_SVG_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/campaigns/map/icons/hive-city.svg';

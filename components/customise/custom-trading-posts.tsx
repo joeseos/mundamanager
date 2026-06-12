@@ -12,8 +12,10 @@ import { Combobox } from '@/components/ui/combobox';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
 import { ImInfo } from 'react-icons/im';
+import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
 import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
+import { escapeHtml } from '@/utils/html';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createCustomTradingPost,
@@ -32,7 +34,7 @@ import {
   type CustomTPAvailabilityRule,
   type CustomTPPricingRule,
 } from '@/app/actions/customise/custom-trading-posts';
-import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-trading-posts-constants';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
@@ -371,17 +373,25 @@ export function CustomiseTradingPosts({
   const columns: ListColumn[] = [
     {
       key: 'custom_trading_post_name',
-      label: 'Trading Post',
+      label: 'Name',
       align: 'left',
-      width: '30%',
+      width: '85%',
     },
     {
       key: 'description',
-      label: 'Description',
+      label: 'Desc.',
       align: 'left',
-      width: '60%',
-      cellClassName: 'text-sm text-muted-foreground',
-      render: (value) => value || '-',
+      width: '5%',
+      render: (_value, item: CustomTradingPost) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-trading-post-description-tooltip"
+            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.custom_trading_post_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View trading post description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -560,6 +570,19 @@ export function CustomiseTradingPosts({
         </Modal>
       )}
 
+      <Tooltip
+        id="custom-trading-post-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
 }

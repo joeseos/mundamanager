@@ -9,12 +9,17 @@ import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions
 import { CustomWeaponProfiles, CustomWeaponProfile, AvailableWeapon } from './custom-weapon-profiles';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
+import { BiSolidNotepad } from 'react-icons/bi';
+import { Tooltip } from 'react-tooltip';
 import { createClient } from '@/utils/supabase/client';
 import { ShareCustomEquipmentModal } from './custom-shared';
+import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
+import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
@@ -49,7 +54,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     equipment_type: 'wargear' as 'wargear' | 'weapon',
     availability_letter: 'C' as 'C' | 'R' | 'E' | 'I' | 'S',
     availability_number: 6,
-    is_consumable: false
+    is_consumable: false,
+    description: null as string | null,
   });
   const [createForm, setCreateForm] = useState({
     equipment_name: '',
@@ -58,7 +64,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     cost: '',
     equipment_category: '',
     equipment_type: 'wargear' as 'wargear' | 'weapon',
-    is_consumable: false
+    is_consumable: false,
+    description: null as string | null,
   });
   const [createWeaponProfiles, setCreateWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [editWeaponProfiles, setEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
@@ -117,7 +124,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       cost: '',
       equipment_category: '',
       equipment_type: 'wargear',
-      is_consumable: false
+      is_consumable: false,
+      description: null,
     });
     setCreateWeaponProfiles([]);
   };
@@ -138,7 +146,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       const newEquipment = await createCustomEquipment({
         ...createForm,
         cost: parseInt(createForm.cost),
-        availability: combineAvailability(createForm.availability_letter, createForm.availability_number)
+        availability: combineAvailability(createForm.availability_letter, createForm.availability_number),
+        description: createForm.description,
       });
 
       // Save weapon profiles if this is a weapon and there are profiles
@@ -177,7 +186,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       key: 'equipment_name',
       label: 'Name',
       align: 'left',
-      width: '30%'
+      width: '35%'
     },
     {
       key: 'equipment_category',
@@ -190,7 +199,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       key: 'equipment_type',
       label: 'Type',
       align: 'left',
-      width: '15%',
+      width: '10%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '-'
     },
@@ -198,7 +207,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       key: 'availability',
       label: 'AL',
       align: 'right',
-      width: '15%',
+      width: '10%',
       cellClassName: 'text-sm text-muted-foreground'
     },
     {
@@ -208,6 +217,22 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       width: '10%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => value ? String(value) : '-'
+    },
+    {
+      key: 'description',
+      label: 'Desc.',
+      align: 'left',
+      width: '5%',
+      render: (_value, item: CustomEquipment) =>
+        item.description?.trim() ? (
+          <span
+            className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+            data-tooltip-id="custom-equipment-description-tooltip"
+            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.equipment_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+          >
+            <BiSolidNotepad className="text-lg" aria-label="View equipment description" />
+          </span>
+        ) : null,
     },
   ];
 
@@ -261,7 +286,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S',
       availability_number: parsed.number,
-      is_consumable: equipment.is_consumable ?? false
+      is_consumable: equipment.is_consumable ?? false,
+      description: equipment.description || null,
     });
 
     // Reset weapon profiles modification flag
@@ -312,7 +338,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_type: (equipment.equipment_type as 'wargear' | 'weapon') || 'wargear',
       availability_letter: (parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S',
       availability_number: parsed.number,
-      is_consumable: equipment.is_consumable ?? false
+      is_consumable: equipment.is_consumable ?? false,
+      description: equipment.description || null,
     });
     
     // Reset weapon profiles modification flag
@@ -357,7 +384,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       equipment_type: 'wargear',
       availability_letter: 'C',
       availability_number: 6,
-      is_consumable: false
+      is_consumable: false,
+      description: null,
     });
     setEditWeaponProfiles([]);
     setOriginalEditWeaponProfiles([]);
@@ -386,7 +414,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         equipment_category: editForm.equipment_category,
         equipment_type: editForm.equipment_type,
         availability: combineAvailability(editForm.availability_letter, editForm.availability_number),
-        is_consumable: editForm.is_consumable
+        is_consumable: editForm.is_consumable,
+        description: editForm.description,
       });
 
       // Handle weapon profiles based on equipment type
@@ -468,6 +497,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         equipment_category: copyModalData.equipment_category,
         equipment_type: copyModalData.equipment_type,
         availability: copyModalData.availability,
+        description: copyModalData.description,
         user_id: user.id
       };
 
@@ -577,6 +607,64 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     return a.equipment_name.localeCompare(b.equipment_name);
   };
 
+  const renderDescriptionField = (isReadOnly = false) => {
+    const descCharCount = editForm.description?.length ?? 0;
+
+    return (
+      <div className="col-span-1 md:col-span-2">
+        <label htmlFor="equipment-description" className="flex justify-between items-center text-sm font-medium mb-1">
+          <span>Description</span>
+          {!isReadOnly && (
+            <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+              {descCharCount}/{DESCRIPTION_MAX_LENGTH} characters
+            </span>
+          )}
+        </label>
+        {isReadOnly ? (
+          <div className="w-full p-2 border rounded-md bg-muted min-h-20 whitespace-pre-wrap">
+            {editForm.description || ''}
+          </div>
+        ) : (
+          <Textarea
+            id="equipment-description"
+            className="min-h-20 resize-y"
+            value={editForm.description || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setEditForm(prev => ({ ...prev, description: value || null }));
+            }}
+            placeholder="Enter description (optional)"
+          />
+        )}
+      </div>
+    );
+  };
+
+  const renderCreateDescriptionField = () => {
+    const descCharCount = createForm.description?.length ?? 0;
+
+    return (
+      <div className="col-span-1 md:col-span-2">
+        <label htmlFor="create-equipment-description" className="flex justify-between items-center text-sm font-medium mb-1">
+          <span>Description</span>
+          <span className={`text-sm ${descCharCount > DESCRIPTION_MAX_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+            {descCharCount}/{DESCRIPTION_MAX_LENGTH} characters
+          </span>
+        </label>
+        <Textarea
+          id="create-equipment-description"
+          className="min-h-20 resize-y"
+          value={createForm.description || ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            setCreateForm(prev => ({ ...prev, description: value || null }));
+          }}
+          placeholder="Enter description (optional)"
+        />
+      </div>
+    );
+  };
+
   return (
     <div className={className}>
       <List<CustomEquipment>
@@ -585,7 +673,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : handleAddEquipment}
-        addButtonText="Add"
+        addButtonText="Create"
         emptyMessage="No custom equipment created yet."
         isLoading={isLoading}
         sortBy={sortEquipment}
@@ -687,6 +775,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   </label>
                 </div>
 
+                {renderDescriptionField()}
+
                 {/* Weapon Profiles Section */}
                 {editForm.equipment_type === 'weapon' && (
                   <div className="col-span-1 md:col-span-2 pt-4 border-t">
@@ -759,6 +849,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     {editForm.availability_letter}{editForm.availability_number}
                   </div>
                 </div>
+
+                {renderDescriptionField(true)}
               </div>
 
               {editForm.equipment_type === 'weapon' && (
@@ -942,6 +1034,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                   </label>
                 </div>
 
+                {renderCreateDescriptionField()}
+
                 {/* Weapon Profiles Section */}
                 {createForm.equipment_type === 'weapon' && (
                   <div className="col-span-1 md:col-span-2 pt-4 border-t">
@@ -970,6 +1064,20 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           onClose={() => setShareModalData(null)}
         />
       )}
+
+      <Tooltip
+        id="custom-equipment-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh',
+        }}
+      />
     </div>
   );
-} 
+}
