@@ -163,6 +163,7 @@ export interface CustomWeaponProfileData {
   ammo: string;
   traits?: string;
   sort_order?: number;
+  weapon_group_id?: string | null;
 }
 
 export interface CostResourcePayload {

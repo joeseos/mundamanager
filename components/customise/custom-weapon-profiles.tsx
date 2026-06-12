@@ -3,6 +3,7 @@
 import React, { useState, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ImInfo } from "react-icons/im";
+import { HiX } from "react-icons/hi";
 import { LuChevronUp, LuChevronDown } from "react-icons/lu";
 
 export interface CustomWeaponProfile {
@@ -18,12 +19,22 @@ export interface CustomWeaponProfile {
   ammo: string;
   traits?: string;
   sort_order?: number;
+  weapon_group_id?: string | null;
+}
+
+export interface AvailableWeapon {
+  id: string;
+  name: string;
+  is_custom?: boolean;
+  category?: string;
 }
 
 interface CustomWeaponProfilesProps {
   profiles: CustomWeaponProfile[];
   onProfilesChange: (profiles: CustomWeaponProfile[]) => void;
   disabled?: boolean;
+  availableWeapons?: AvailableWeapon[];
+  showTargetWeapon?: boolean;
 }
 
 interface ProfileCardProps {
@@ -225,8 +236,44 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
 
 ProfileCard.displayName = 'ProfileCard';
 
-export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false }: CustomWeaponProfilesProps) {
-  
+export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = false, availableWeapons, showTargetWeapon = false }: CustomWeaponProfilesProps) {
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [storedTargetWeaponId, setStoredTargetWeaponId] = useState<string | null>(
+    () => (profiles.length > 0 ? profiles[0].weapon_group_id ?? null : null)
+  );
+
+  React.useEffect(() => {
+    setStoredTargetWeaponId(profiles[0]?.weapon_group_id ?? null);
+  }, [profiles]);
+
+  const targetWeaponId = profiles.length > 0 ? profiles[0].weapon_group_id ?? storedTargetWeaponId : storedTargetWeaponId;
+  const targetWeapon = targetWeaponId
+    ? availableWeapons?.find(w => w.id === targetWeaponId) ?? { id: targetWeaponId, name: 'Unknown weapon' }
+    : null;
+
+  const categories = availableWeapons
+    ? Array.from(new Set(availableWeapons.map(w => w.category).filter(Boolean))).sort()
+    : [];
+
+  const filteredWeapons = availableWeapons?.filter(w => w.category === selectedCategory) || [];
+
+  const handleSetTargetWeapon = (weaponId: string) => {
+    if (!weaponId) return;
+    setStoredTargetWeaponId(weaponId);
+    if (profiles.length > 0) {
+      const updated = profiles.map(p => ({ ...p, weapon_group_id: weaponId }));
+      onProfilesChange(updated);
+    }
+    setSelectedCategory('');
+  };
+
+  const handleClearTargetWeapon = () => {
+    setStoredTargetWeaponId(null);
+    if (profiles.length > 0) {
+      const updated = profiles.map(p => ({ ...p, weapon_group_id: null }));
+      onProfilesChange(updated);
+    }
+  };
 
   const createEmptyProfile = (): CustomWeaponProfile => ({
     profile_name: '',
@@ -239,7 +286,8 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     damage: '',
     ammo: '',
     traits: '',
-    sort_order: profiles.length
+    sort_order: profiles.length,
+    weapon_group_id: targetWeaponId || null,
   });
 
   const handleAddProfile = () => {
@@ -259,7 +307,6 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
 
   const handleDeleteProfile = useCallback((index: number) => {
     const updatedProfiles = profiles.filter((_, i) => i !== index);
-    // Update sort_order for remaining profiles
     updatedProfiles.forEach((profile, i) => {
       profile.sort_order = i;
     });
@@ -274,7 +321,6 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     updatedProfiles[index - 1] = updatedProfiles[index];
     updatedProfiles[index] = temp;
 
-    // Update sort_order
     updatedProfiles.forEach((profile, i) => {
       profile.sort_order = i;
     });
@@ -290,7 +336,6 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     updatedProfiles[index + 1] = updatedProfiles[index];
     updatedProfiles[index] = temp;
 
-    // Update sort_order
     updatedProfiles.forEach((profile, i) => {
       profile.sort_order = i;
     });
@@ -304,6 +349,64 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
 
   return (
     <div className="space-y-4">
+      {showTargetWeapon && availableWeapons && availableWeapons.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-xs font-medium text-muted-foreground">
+              Target Weapon
+            </label>
+            <div className="relative group">
+              <ImInfo />
+              <div className="absolute bottom-full left-0 -translate-x-1/4 mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 z-50">
+                Attach all profiles to an existing weapon. Use this for ammunition — the profiles will appear under the selected weapon when both are equipped on a fighter.
+              </div>
+            </div>
+          </div>
+
+          {targetWeapon ? (
+            <div className="flex flex-wrap gap-2 mt-1">
+              <div className="bg-muted px-3 py-1 rounded-full flex items-center text-sm">
+                <span>{targetWeapon.name}{targetWeapon.is_custom ? ' (Custom)' : ''}</span>
+                <button
+                  type="button"
+                  onClick={handleClearTargetWeapon}
+                  className="ml-2 text-gray-500 hover:text-muted-foreground focus:outline-hidden"
+                >
+                  <HiX size={14} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full p-2 border rounded-md text-sm"
+              >
+                <option value="">Select a weapon category</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+
+              <select
+                value=""
+                onChange={(e) => handleSetTargetWeapon(e.target.value)}
+                className="w-full p-2 border rounded-md text-sm"
+                disabled={!selectedCategory}
+              >
+                <option value="">Select a weapon</option>
+                {filteredWeapons.map((weapon) => (
+                  <option key={weapon.id} value={weapon.id}>
+                    {weapon.name}{weapon.is_custom ? ' (Custom)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h4 className="text-sm font-medium text-muted-foreground">Weapon Profiles</h4>
         <Button
@@ -337,4 +440,4 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
       )}
     </div>
   );
-} 
+}

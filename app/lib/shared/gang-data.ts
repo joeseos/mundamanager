@@ -1666,12 +1666,14 @@ export const getGangFightersList = async (
               const baseProfiles = standardProfilesMap.get(item.equipment_id) || [];
 
               // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
-              const ammoProfiles = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
+              const standardAmmo = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
                 .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+              const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
+                .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
 
               // Combine and deduplicate
               const seenIds = new Set<string>();
-              weaponProfiles = [...baseProfiles, ...ammoProfiles]
+              weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
                 .filter((p: any) => {
                   if (seenIds.has(p.id)) return false;
                   seenIds.add(p.id);
@@ -1686,12 +1688,14 @@ export const getGangFightersList = async (
               const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
 
               // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
-              const ammoProfiles = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+              const customAmmo = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
                 .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
+              const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
 
               // Combine and deduplicate
               const seenIds = new Set<string>();
-              weaponProfiles = [...baseProfiles, ...ammoProfiles]
+              weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
                 .filter((p: any) => {
                   if (seenIds.has(p.id)) return false;
                   seenIds.add(p.id);
@@ -1776,11 +1780,13 @@ export const getGangFightersList = async (
             if (equipmentType === 'weapon') {
               if (item.equipment_id) {
                 const baseProfiles = vehicleStandardProfilesMap.get(item.equipment_id) || [];
-                const ammoProfiles = (vehicleStandardAmmoByParent.get(item.equipment_id) || [])
+                const standardAmmo = (vehicleStandardAmmoByParent.get(item.equipment_id) || [])
                   .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+                const customAmmo = (vehicleCustomAmmoByParent.get(item.equipment_id) || [])
+                  .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
 
                 const seenIds = new Set<string>();
-                weaponProfiles = [...baseProfiles, ...ammoProfiles]
+                weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
                   .filter((p: any) => {
                     if (seenIds.has(p.id)) return false;
                     seenIds.add(p.id);
@@ -1789,11 +1795,13 @@ export const getGangFightersList = async (
                   .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
               } else if (item.custom_equipment_id) {
                 const baseProfiles = vehicleCustomProfilesMap.get(item.custom_equipment_id) || [];
-                const ammoProfiles = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
+                const customAmmo = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
                   .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+                const standardAmmo = (vehicleStandardAmmoByParent.get(item.custom_equipment_id) || [])
+                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
 
                 const seenIds = new Set<string>();
-                weaponProfiles = [...baseProfiles, ...ammoProfiles]
+                weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
                   .filter((p: any) => {
                     if (seenIds.has(p.id)) return false;
                     seenIds.add(p.id);

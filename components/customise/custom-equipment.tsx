@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
 import { updateCustomEquipment, deleteCustomEquipment, createCustomEquipment } from '@/app/actions/customise/custom-equipment';
 import { saveCustomWeaponProfiles, getCustomWeaponProfiles } from '@/app/actions/customise/custom-weapon-profiles';
-import { CustomWeaponProfiles, CustomWeaponProfile } from './custom-weapon-profiles';
+import { CustomWeaponProfiles, CustomWeaponProfile, AvailableWeapon } from './custom-weapon-profiles';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
@@ -85,6 +86,26 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       toast.error("Error", { description: "Failed to load equipment categories" });
     }
   };
+
+  const needsAvailableWeapons =
+    (createModalOpen && createForm.equipment_category.toLowerCase() === 'ammunition') ||
+    (editModalData !== null && editForm.equipment_category.toLowerCase() === 'ammunition');
+
+  const { data: availableWeapons = [] } = useQuery<AvailableWeapon[]>({
+    queryKey: ['availableWeapons'],
+    queryFn: async () => {
+      const response = await fetch('/api/equipment');
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      const data = await response.json();
+      return data.map((item: any) => ({
+        id: item.is_custom ? item.original_id : item.id,
+        name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
+        is_custom: item.is_custom,
+        category: item.equipment_category || '',
+      }));
+    },
+    enabled: needsAvailableWeapons,
+  });
 
   // Handle create modal close
   const handleCreateModalClose = () => {
@@ -487,6 +508,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
             ammo: profile.ammo,
             traits: profile.traits,
             sort_order: profile.sort_order,
+            weapon_group_id: profile.weapon_group_id === copyModalData.id ? createdEquipment.id : profile.weapon_group_id,
             user_id: user.id
           }));
 
@@ -671,6 +693,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     <CustomWeaponProfiles
                       profiles={editWeaponProfiles}
                       onProfilesChange={handleEditWeaponProfilesChange}
+                      availableWeapons={availableWeapons}
+                      showTargetWeapon={editForm.equipment_category.toLowerCase() === 'ammunition'}
                     />
                   </div>
                 )}
@@ -924,6 +948,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     <CustomWeaponProfiles
                       profiles={createWeaponProfiles}
                       onProfilesChange={setCreateWeaponProfiles}
+                      availableWeapons={availableWeapons}
+                      showTargetWeapon={createForm.equipment_category.toLowerCase() === 'ammunition'}
                     />
                   </div>
                 )}

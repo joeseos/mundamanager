@@ -23,7 +23,7 @@ export async function saveCustomWeaponProfiles(
     const { error: deleteError } = await supabase
       .from('custom_weapon_profiles')
       .delete()
-      .eq('weapon_group_id', equipmentId)
+      .eq('custom_equipment_id', equipmentId)
       .eq('user_id', user.id);
 
     if (deleteError) {
@@ -59,7 +59,7 @@ export async function saveCustomWeaponProfiles(
           traits: profile.traits || null, // Explicitly preserve traits
           sort_order: profile.sort_order !== undefined ? profile.sort_order : index,
           custom_equipment_id: equipmentId,
-          weapon_group_id: equipmentId,
+          weapon_group_id: profile.weapon_group_id || equipmentId,
           user_id: user.id,
           created_at: new Date().toISOString()
         };
@@ -111,27 +111,12 @@ export async function getCustomWeaponProfiles(equipmentId: string) {
   
 
   try {
-    // First try to find profiles by weapon_group_id
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('custom_weapon_profiles')
       .select('*')
-      .eq('weapon_group_id', equipmentId)
+      .eq('custom_equipment_id', equipmentId)
       .eq('user_id', user.id)
       .order('sort_order');
-
-    // If no profiles found with weapon_group_id, try custom_equipment_id as fallback
-    if (!error && (!data || data.length === 0)) {
-      const fallbackResult = await supabase
-        .from('custom_weapon_profiles')
-        .select('*')
-        .eq('custom_equipment_id', equipmentId)
-        .eq('user_id', user.id)
-        .order('sort_order');
-      
-      if (!fallbackResult.error && fallbackResult.data) {
-        data = fallbackResult.data;
-      }
-    }
 
     if (error) {
       console.error('Error fetching weapon profiles:', error);
