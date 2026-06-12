@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import Modal from '../ui/modal';
+import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import { VehicleEquipment } from '@/types/fighter';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
@@ -35,43 +36,6 @@ interface VehicleEquipmentListProps {
   onRegisterPurchase?: (fn: (payload: { params: any; item: any }) => void) => void;
 }
 
-interface SellModalProps {
-  item: VehicleEquipment;
-  onClose: () => void;
-  onConfirm: (cost: number) => void;
-}
-
-function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const isResourceItem = !!item.cost_resource_name;
-  const [manualCost, setManualCost] = useState(isResourceItem ? (item.cost_resource_amount ?? 0) : item.cost);
-
-  return (
-    <Modal
-      title="Confirm Sale"
-      content={
-        <div className="space-y-4">
-          <p>Are you sure you want to sell {item.equipment_name}?</p>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                {isResourceItem ? item.cost_resource_name : 'Cost'}
-              </label>
-              <input
-                type="number"
-                value={manualCost}
-                onChange={(e) => setManualCost(Number(e.target.value))}
-                className="w-full p-2 border rounded-md"
-                min="0"
-              />
-            </div>
-          </div>
-        </div>
-      }
-      onClose={onClose}
-      onConfirm={() => { onConfirm(manualCost); return true; }}
-    />
-  );
-}
 
 interface FitWeaponModalProps {
   weaponName: string;
@@ -983,13 +947,20 @@ export function VehicleEquipmentList({
       )}
 
       {sellModalData && (
-        <SellModal
-          item={sellModalData}
+        <SellConfirmModal
+          itemName={sellModalData.equipment_name}
+          initialCost={
+            sellModalData.cost_resource_name
+              ? (sellModalData.cost_resource_amount ?? 0)
+              : sellModalData.cost
+          }
+          showD6Roll={!sellModalData.cost_resource_name}
+          costLabel={sellModalData.cost_resource_name || 'Cost'}
           onClose={() => setSellModalData(null)}
-          onConfirm={(manualCost) => { void handleSellEquipment(
+          onConfirm={(cost) => { void handleSellEquipment(
             sellModalData.fighter_equipment_id,
             sellModalData.equipment_id,
-            manualCost
+            cost
           ); }}
         />
       )}

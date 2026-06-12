@@ -15,7 +15,7 @@ import { FaBox } from 'react-icons/fa';
 import { LuTrash2, LuSquarePen } from 'react-icons/lu';
 import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
 import { TbCornerLeftUp } from 'react-icons/tb';
-import { rollD6 } from '@/utils/dice';
+import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
@@ -80,82 +80,6 @@ interface WeaponListProps {
   onLoadoutsUpdate?: (loadouts: FighterLoadout[], activeLoadoutId: string | null) => void;
 }
 
-interface SellModalProps {
-  item: Equipment;
-  onClose: () => void;
-  onConfirm: (cost: number) => void;
-}
-
-function SellModal({ item, onClose, onConfirm }: SellModalProps) {
-  const isResourceItem = !!item.cost_resource_name;
-  // Exotic Beasts' sale value excludes advancements (only base cost + beast equipment counts)
-  const originalCost = isResourceItem
-    ? (item.cost_resource_amount ?? 0)
-    : item.beast_cost_breakdown
-      ? item.beast_cost_breakdown.base + item.beast_cost_breakdown.equipment
-      : item.cost ?? 0;
-  const [manualCost, setManualCost] = useState(originalCost);
-  const [lastRoll, setLastRoll] = useState<number | null>(null);
-
-  const handleRoll = () => {
-    const r = rollD6();
-    setLastRoll(r);
-    const deduction = r * 10;
-    const final = Math.max(5, originalCost - deduction);
-    setManualCost(final);
-    toast(`Roll ${r}: -${deduction} → ${final} credits`);
-  };
-
-  return (
-    <Modal
-      title="Confirm Sale"
-      content={
-        <div className="space-y-4">
-          <p>Are you sure you want to sell {item.equipment_name}?</p>
-          {!isResourceItem && (
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleRoll}
-                className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
-              >
-                Roll D6
-              </button>
-              {lastRoll !== null && (
-                <div className="text-sm">
-                  {(() => {
-                    const raw = originalCost - lastRoll * 10;
-                    const final = Math.max(5, raw);
-                    return `Roll ${lastRoll}: -${lastRoll * 10} → ${final} credits`;
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-muted-foreground mb-1">
-                {isResourceItem ? item.cost_resource_name : 'Cost'}
-              </label>
-              <input
-                type="number"
-                value={manualCost}
-                onChange={(e) => setManualCost(Number(e.target.value))}
-                className="w-full p-2 border rounded-md"
-                min={0}
-              />
-            </div>
-          </div>
-          {!isResourceItem && (
-            <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
-          )}
-        </div>
-      }
-      onClose={onClose}
-      onConfirm={() => { onConfirm(isResourceItem ? 0 : (Number(manualCost) || 0)); return true; }}
-    />
-  );
-}
 
 export function WeaponList({
   fighterId,
@@ -1017,13 +941,22 @@ export function WeaponList({
       )}
 
       {sellModalData && (
-        <SellModal
-          item={sellModalData}
+        <SellConfirmModal
+          itemName={sellModalData.equipment_name}
+          initialCost={
+            sellModalData.cost_resource_name
+              ? (sellModalData.cost_resource_amount ?? 0)
+              : sellModalData.beast_cost_breakdown
+                ? sellModalData.beast_cost_breakdown.base + sellModalData.beast_cost_breakdown.equipment
+                : sellModalData.cost ?? 0
+          }
+          showD6Roll={!sellModalData.cost_resource_name}
+          costLabel={sellModalData.cost_resource_name || 'Cost'}
           onClose={() => setSellModalData(null)}
-          onConfirm={(manualCost) => { void handleSellEquipment(
+          onConfirm={(cost) => { void handleSellEquipment(
             sellModalData.fighter_equipment_id,
             sellModalData.equipment_id,
-            manualCost
+            sellModalData.cost_resource_name ? 0 : cost
           ); }}
         />
       )}

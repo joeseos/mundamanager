@@ -6,7 +6,7 @@ import { FighterProps } from '@/types/fighter';
 import { VehicleProps } from '@/types/vehicle';
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
-import { Input } from "@/components/ui/input";
+import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { updateVehicle } from '@/app/actions/update-vehicle';
 import { deleteVehicle } from '@/app/actions/delete-vehicle';
@@ -66,7 +66,6 @@ export default function GangVehicles({
   const [editingVehicle, setEditingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [deletingVehicle, setDeletingVehicle] = useState<CombinedVehicleProps | null>(null);
   const [sellingVehicle, setSellingVehicle] = useState<CombinedVehicleProps | null>(null);
-  const [sellAmount, setSellAmount] = useState<number>(0);
 
   // Calculate total vehicle value including equipment
   const calculateVehicleTotalValue = (vehicle: CombinedVehicleProps): number => {
@@ -363,7 +362,6 @@ export default function GangVehicles({
   const handleSellClick = (e: React.MouseEvent<HTMLButtonElement>, vehicle: CombinedVehicleProps) => {
     e.preventDefault();
     setSellingVehicle(vehicle);
-    setSellAmount(calculateVehicleTotalValue(vehicle));
   };
 
   const handleSaveVehicle = async (vehicleId: string, vehicleName: string, specialRules: string[], statAdjustments?: Record<string, number>) => {
@@ -494,12 +492,11 @@ export default function GangVehicles({
     }
   };
 
-  const handleConfirmSellVehicle = async () => {
+  const handleConfirmSellVehicle = async (cost: number) => {
     if (!sellingVehicle) return false;
 
     setIsSellLoading(true);
 
-    // Store original state for potential rollback
     const originalVehicles = [...vehicles];
     const originalFighters = [...fighters];
     const originalWealth = currentWealth || 0;
@@ -508,7 +505,6 @@ export default function GangVehicles({
       const isAssigned = !!sellingVehicle.assigned_to;
       const vehicleCost = calculateVehicleTotalValue(sellingVehicle);
 
-      // OPTIMISTIC UPDATES
       if (!isAssigned && onVehicleUpdate) {
         const updatedVehicles = vehicles.filter(v => v.id !== sellingVehicle.id);
         onVehicleUpdate(updatedVehicles);
@@ -526,33 +522,24 @@ export default function GangVehicles({
         }
       }
 
-      // Update wealth optimistically
-      // Wealth = rating + credits + stash_value + unassigned_vehicles_value
-      // If assigned: rating decreases by vehicle cost, credits increase by sell value
-      //              wealthDelta = -vehicleCost + sellAmount
-      // If unassigned: rating unchanged, credits increase by sell value, unassigned vehicles value decreases by vehicle cost
-      //                wealthDelta = -vehicleCost + sellAmount
       if (onGangWealthUpdate) {
-        const wealthDelta = -vehicleCost + sellAmount;
+        const wealthDelta = -vehicleCost + cost;
         onGangWealthUpdate(Math.max(0, originalWealth + wealthDelta));
       }
 
-      // Server call
       const result = await sellVehicle({
         vehicleId: sellingVehicle.id,
         gangId,
-        manual_cost: sellAmount
+        manual_cost: cost
       });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to sell vehicle');
       }
 
-      // Update gang credits immediately if provided
       if (typeof result.data?.gang?.credits === 'number' && onGangCreditsUpdate) {
         onGangCreditsUpdate(result.data.gang.credits);
       }
-      // Update gang rating and wealth immediately if provided
       if (typeof result.data?.updated_gang_rating === 'number' && onGangRatingUpdate) {
         onGangRatingUpdate(result.data.updated_gang_rating);
       }
@@ -560,7 +547,7 @@ export default function GangVehicles({
         onGangWealthUpdate(result.data.gang.wealth);
       }
 
-      toast.success('Success', { description: `${sellingVehicle.vehicle_name || sellingVehicle.vehicle_type} sold for ${sellAmount} credits` });
+      toast.success('Success', { description: `${sellingVehicle.vehicle_name || sellingVehicle.vehicle_type} sold for ${cost} credits` });
 
       setSellingVehicle(null);
       setSelectedVehicle(null);
@@ -568,7 +555,6 @@ export default function GangVehicles({
     } catch (error) {
       console.error('Error selling vehicle:', error);
 
-      // ROLLBACK optimistic updates on error
       if (onVehicleUpdate) {
         onVehicleUpdate(originalVehicles);
       }
@@ -831,35 +817,16 @@ export default function GangVehicles({
         isLoading={isEditLoading}
       />
       {sellingVehicle && (
-        <Modal
+        <SellConfirmModal
           title="Sell Vehicle"
-          onClose={() => setSellingVehicle(null)}
-          onConfirm={handleConfirmSellVehicle}
+          itemName={sellingVehicle.vehicle_name || sellingVehicle.vehicle_type}
+          initialCost={calculateVehicleTotalValue(sellingVehicle)}
+          costLabel="Sell Value"
           confirmText={isSellLoading ? 'Selling...' : 'Sell'}
-        >
-          <div className="space-y-4">
-            <p>
-              Are you sure you want to sell <strong>{sellingVehicle.vehicle_name || sellingVehicle.vehicle_type}</strong>?
-            </p>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Sell Value
-                </label>
-                <Input
-                  type="number"
-                  value={sellAmount}
-                  min={0}
-                  onChange={(e) => setSellAmount(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Credits will be returned to the gang. If the vehicle is assigned to a Crew, the gang rating will decrease accordingly.
-            </p>
-          </div>
-        </Modal>
+          description="Credits will be returned to the gang. If the vehicle is assigned to a Crew, the gang rating will decrease accordingly."
+          onClose={() => setSellingVehicle(null)}
+          onConfirm={(cost) => { void handleConfirmSellVehicle(cost); }}
+        />
       )}
       {deletingVehicle && (
         <Modal
