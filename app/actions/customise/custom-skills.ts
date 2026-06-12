@@ -66,9 +66,10 @@ export async function updateCustomSkill(
     description?: string | null;
   }
 ) {
+  let normalizedDescription: string | null | undefined;
   if (updates.description !== undefined) {
-    const description = normalizeCustomDescription(updates.description);
-    const lengthError = getCustomDescriptionLengthError(description);
+    normalizedDescription = normalizeCustomDescription(updates.description);
+    const lengthError = getCustomDescriptionLengthError(normalizedDescription);
     if (lengthError) {
       throw new Error(lengthError);
     }
@@ -83,7 +84,7 @@ export async function updateCustomSkill(
   };
 
   if (updates.description !== undefined) {
-    updateData.description = normalizeCustomDescription(updates.description);
+    updateData.description = normalizedDescription;
   }
 
   // Ensure mutual exclusivity of skill type FKs

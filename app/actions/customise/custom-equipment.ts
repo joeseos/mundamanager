@@ -18,9 +18,10 @@ export async function updateCustomEquipment(
     description?: string | null;
   }
 ) {
+  let normalizedDescription: string | null | undefined;
   if (updates.description !== undefined) {
-    const description = normalizeCustomDescription(updates.description);
-    const lengthError = getCustomDescriptionLengthError(description);
+    normalizedDescription = normalizeCustomDescription(updates.description);
+    const lengthError = getCustomDescriptionLengthError(normalizedDescription);
     if (lengthError) {
       throw new Error(lengthError);
     }
@@ -44,7 +45,7 @@ export async function updateCustomEquipment(
   }
 
   if (updates.description !== undefined) {
-    updateData.description = normalizeCustomDescription(updates.description);
+    updateData.description = normalizedDescription;
   }
   
   // If equipment_category is being updated, we need to get the category_id
