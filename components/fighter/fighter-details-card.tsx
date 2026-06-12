@@ -15,7 +15,7 @@ import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterImageEditModal } from './fighter-image-edit-modal';
-import FighterLogs from './fighter-logs';
+import LogModal from '@/components/log-modal';
 
 // Vehicle equipment interface that extends Equipment
 interface VehicleEquipment extends Equipment {
@@ -611,11 +611,10 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       />
 
       {/* Fighter Logs Modal */}
-      <FighterLogs
-        gangId={gangId || ''}
-        fighterId={id}
-        fighterName={name}
-        vehicleId={fighter_class === 'Crew' && vehicles?.[0] ? vehicles[0].id : undefined}
+      <LogModal
+        fetchUrl={`/api/gangs/${gangId || ''}/logs?fighterId=${id}${fighter_class === 'Crew' && vehicles?.[0] ? `&vehicleId=${vehicles[0].id}` : ''}`}
+        title={`Activity Logs: ${name}`}
+        emptyMessage="No activity logs found for this fighter."
         isOpen={isLogsModalOpen}
         onClose={() => setIsLogsModalOpen(false)}
       />

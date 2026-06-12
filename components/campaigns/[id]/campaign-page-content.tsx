@@ -14,7 +14,7 @@ import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiMap, FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuTrophy, LuCodeXml } from "react-icons/lu";
+import { LuSwords, LuTrophy, LuCodeXml, LuLogs } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { ImInfo } from "react-icons/im";
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
@@ -32,6 +32,7 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
+import LogModal from "@/components/log-modal";
 
 interface Gang {
   id: string;
@@ -192,6 +193,7 @@ export default function CampaignPageContent({
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   // Helper for checking authentication
   const isAuthenticated = !!userId;
@@ -555,6 +557,19 @@ export default function CampaignPageContent({
                </div>
 
               <div className="flex flex-wrap justify-end -mr-[10px] mb-1">
+                {/* Campaign Logs button */}
+                {(safePermissions.isMember || safePermissions.isArbitrator || safePermissions.isOwner || safePermissions.isAdmin) && (
+                  <Button
+                    onClick={() => setShowLogsModal(true)}
+                    variant="ghost"
+                    size="icon"
+                    className="print:hidden"
+                    title="View Campaign Logs"
+                  >
+                    <LuLogs className="w-5 h-5" />
+                  </Button>
+                )}
+
                 {/* View Campaign Data button */}
                 {safePermissions.canEditCampaign && (
                   <Button
@@ -1071,6 +1086,14 @@ export default function CampaignPageContent({
         />
 
       </div>
+
+      <LogModal
+        fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
+        title="Campaign Activity Logs"
+        emptyMessage="No activity logs found for this campaign."
+        isOpen={showLogsModal}
+        onClose={() => setShowLogsModal(false)}
+      />
 
       {/* View Campaign Data Modal */}
       {showExportModal && (
