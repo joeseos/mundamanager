@@ -93,8 +93,8 @@ export async function deleteGang(gangId: string) {
     }
 
     // Invalidate user's gang cache
-    revalidateTag(CACHE_TAGS.USER_GANGS(gang.user_id));
-    revalidateTag(CACHE_TAGS.USER_DASHBOARD(gang.user_id));
+    revalidateTag(CACHE_TAGS.USER_GANGS(gang.user_id), { expire: 0 });
+    revalidateTag(CACHE_TAGS.USER_DASHBOARD(gang.user_id), { expire: 0 });
 
     // Invalidate gang permissions cache
     invalidateGangPermissionsForUser({

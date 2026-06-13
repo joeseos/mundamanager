@@ -22,11 +22,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
   try {
     // Revalidate all relevant campaign cache tags for this campaign
-    revalidateTag(`campaign-basic-${campaignId}`);
-    revalidateTag(`campaign-members-${campaignId}`);
-    revalidateTag(`campaign-territories-${campaignId}`);
-    revalidateTag(`campaign-battles-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`);
+    revalidateTag(`campaign-basic-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-members-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-battles-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
     // Use the same cached functions as the page
     const [
       campaignBasic,

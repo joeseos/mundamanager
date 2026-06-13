@@ -162,7 +162,7 @@ export async function deleteCustomTradingPost(
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id));
+          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id), { expire: 0 });
         }
       }
     }

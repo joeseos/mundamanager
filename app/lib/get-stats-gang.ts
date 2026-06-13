@@ -7,7 +7,7 @@ import { createServiceRoleClient } from '@/utils/supabase/server';
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT()) after gang creation/deletion
+ * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT(), { expire: 0 }) after gang creation/deletion
  *
  * @returns The total number of gangs in the database, or null if service role key is not available
  */

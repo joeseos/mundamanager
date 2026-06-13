@@ -293,8 +293,8 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
       });
     } else {
       // If no specific gangs, still invalidate campaign data
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
-      revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
+      revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
     }
 
     return { success: true };
@@ -478,8 +478,8 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     if (error) throw error;
 
     // Use targeted cache invalidation for member addition
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
 
     return { success: true, data };
   } catch (error) {
@@ -565,8 +565,8 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     });
 
     // Use targeted cache invalidation for role update
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
 
     return { success: true };
   } catch (error) {

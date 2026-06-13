@@ -262,7 +262,7 @@ export async function addFighterInjury(
         }
 
         invalidateFighterData(params.fighter_id, fighter.gang_id);
-        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
 
         return {
           success: false,
@@ -305,11 +305,11 @@ export async function addFighterInjury(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
 
     // If injury grants a skill, invalidate skills cache
     if (injuryData?.type_specific_data?.skill_id) {
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id));
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id), { expire: 0 });
     }
 
     return {
@@ -511,11 +511,11 @@ export async function deleteFighterInjury(
 
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id));
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
 
     // If injury had related skills, invalidate skills cache
     if (hasRelatedSkills) {
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id));
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id), { expire: 0 });
     }
 
     return {

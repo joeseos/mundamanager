@@ -46,9 +46,9 @@ export async function updateGangImage(
     }
 
     // Revalidate the gang basic data used by the gang page
-    revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(gangId));
+    revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(gangId), { expire: 0 });
     // Also revalidate shared basic info used across pages that show the gang's basic info
-    revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(gangId));
+    revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(gangId), { expire: 0 });
 
     return { success: true };
   } catch (error) {

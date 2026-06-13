@@ -244,7 +244,7 @@ export async function updateVehicleHardpoint(
     // --- Invalidate ---
     invalidateVehicleEffects(params.vehicleId, vehicle.fighter_id || undefined, params.gangId);
     if (delta !== 0) invalidateGangFinancials(params.gangId);
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
+    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId), { expire: 0 });
 
     return {
       success: true,

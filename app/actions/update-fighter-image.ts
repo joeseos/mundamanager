@@ -23,8 +23,8 @@ export async function updateFighterImage(
     }
 
     // Invalidate cache for fighter data
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 
     return { success: true };
   } catch (error) {

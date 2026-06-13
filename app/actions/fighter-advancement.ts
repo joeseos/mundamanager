@@ -38,7 +38,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
     // Invalidate the owner's beast costs cache
     // Without this, the owner's cost calculation uses stale beast data
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 

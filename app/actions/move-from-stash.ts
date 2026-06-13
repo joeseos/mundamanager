@@ -28,7 +28,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -559,7 +559,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         });
       }
       if (hasExoticBeastEquipment) {
-        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighter_id));
+        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighter_id), { expire: 0 });
       }
       await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
     }

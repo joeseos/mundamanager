@@ -18,7 +18,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -303,7 +303,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
       // If moving exotic beast equipment to stash, invalidate beast costs cache for the owner
       if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
-        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id));
+        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase);

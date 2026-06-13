@@ -21,7 +21,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -295,7 +295,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     }
 
     if (isResourcePurchase) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId));
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId), { expire: 0 });
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
@@ -316,7 +316,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
       // If selling exotic beast equipment, invalidate beast costs cache
       if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
-        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id));
+        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase);
@@ -466,7 +466,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     }
 
     if (isResourcePurchaseStash) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(row.gang_id));
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(row.gang_id), { expire: 0 });
     }
 
     // Invalidate stash cache so UI refreshes

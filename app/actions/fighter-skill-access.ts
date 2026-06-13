@@ -81,8 +81,8 @@ export async function saveFighterSkillAccessOverrides(params: {
     }
 
     // Invalidate relevant caches
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id));
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id));
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id), { expire: 0 });
 
     return { success: true };
   } catch (error) {
