@@ -332,7 +332,11 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
               .order('profile_name')
           : Promise.resolve({ data: [] }),
 
-        // Batch fetch targeting effects (effects that target equipment)
+        // Batch fetch targeting effects (effects that modify weapon profiles).
+        // Two cases mirror the gang-data.ts approach:
+        // 1. Equipment-to-equipment upgrades: fighter_equipment_id = source attachment,
+        //    target_equipment_id = target weapon
+        // 2. Rig glitches: fighter_equipment_id = target weapon, target_equipment_id = NULL
         fighterEquipmentIds.length > 0
           ? supabase
               .from('fighter_effects')
@@ -342,11 +346,13 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                 effect_name,
                 type_specific_data,
                 sort_order,
+                fighter_equipment_id,
                 target_equipment_id,
                 fighter_effect_type:fighter_effect_type_id ( sort_order ),
                 fighter_effect_modifiers ( stat_name, numeric_value, operation )
               `)
-              .in('target_equipment_id', fighterEquipmentIds)
+              .eq('fighter_id', fighterId)
+              .not('fighter_equipment_id', 'is', null)
           : Promise.resolve({ data: [] }),
 
         // Batch fetch loadout assignments (which loadouts each equipment belongs to)
@@ -392,10 +398,12 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
 
       const targetingEffectsMap = new Map<string, any[]>();
       (targetingEffectsData.data || []).forEach((effect: any) => {
-        if (!targetingEffectsMap.has(effect.target_equipment_id)) {
-          targetingEffectsMap.set(effect.target_equipment_id, []);
+        const targetId = effect.target_equipment_id || effect.fighter_equipment_id;
+        if (!targetId) return;
+        if (!targetingEffectsMap.has(targetId)) {
+          targetingEffectsMap.set(targetId, []);
         }
-        targetingEffectsMap.get(effect.target_equipment_id)!.push(effect);
+        targetingEffectsMap.get(targetId)!.push(effect);
       });
       // Sort effects by sort_order (type as default, instance as override) and build names map
       const targetingEffectNamesMap = new Map<string, string[]>();

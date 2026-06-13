@@ -24,6 +24,7 @@ import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { Tooltip } from 'react-tooltip';
 
 // Escape untrusted strings before inlining into tooltip HTML
@@ -158,13 +159,28 @@ export function WeaponList({
         const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
 
         // Replace temp with real item and reconcile credits
-        const updated = [...previousEquipment, {
+        const newItem: Equipment = {
           ...item,
           fighter_equipment_id: newEquipmentId || tempId,
           cost: serverRatingCost,
           is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
           target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
-        } as Equipment];
+        } as Equipment;
+
+        let updated: Equipment[] = [...previousEquipment, newItem];
+
+        // If the purchase attached an effect to another weapon (e.g. a weapon upgrade tier),
+        // apply the modifiers to that weapon's profiles in state so tooltips reflect the
+        // change immediately without requiring a page refresh.
+        const attachmentEffect = data?.attachment_effect;
+        if (attachmentEffect?.target_equipment_id) {
+          updated = updated.map(eq => {
+            if (eq.fighter_equipment_id !== attachmentEffect.target_equipment_id) return eq;
+            const baseProfiles = eq.base_weapon_profiles || eq.weapon_profiles || [];
+            const modifiedProfiles = applyWeaponModifiers(baseProfiles, [attachmentEffect]);
+            return { ...eq, base_weapon_profiles: baseProfiles, weapon_profiles: modifiedProfiles };
+          });
+        }
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
