@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
+import { getUserCustomCollections } from '@/app/lib/customise/custom-collections'
 
 export async function GET(
   request: NextRequest,
@@ -153,12 +154,21 @@ export async function GET(
       updated_at: skill.updated_at,
     }));
 
+    // Fetch the user's collections (with resolved item names)
+    let customCollections: Awaited<ReturnType<typeof getUserCustomCollections>> = []
+    try {
+      customCollections = await getUserCustomCollections(userId)
+    } catch (collectionsError) {
+      console.error('Error fetching custom collections:', collectionsError)
+    }
+
     const customAssets = {
       equipment: customEquipmentResult.data?.length || 0,
       fighters: customFightersResult.data?.length || 0,
       skills: customSkillsData.length,
       gangTypes: customGangTypesResult.data?.length || 0,
       tradingPosts: customTradingPostsResult.data?.length || 0,
+      collections: customCollections.length,
     }
 
     // Fetch related data for fighters (default skills and equipment)
@@ -296,6 +306,7 @@ export async function GET(
       skills: customSkillsData,
       gangTypes: customGangTypesResult.data || [],
       tradingPosts: customTradingPostsResult.data || [],
+      collections: customCollections,
     }
 
     return Response.json({

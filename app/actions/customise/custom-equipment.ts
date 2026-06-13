@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
+import { removeItemFromAllCollections } from './custom-collections';
 
 export async function updateCustomEquipment(
   equipmentId: string,
@@ -103,9 +104,10 @@ export async function deleteCustomEquipment(equipmentId: string) {
     throw new Error(`Failed to delete equipment: ${error.message}`);
   }
 
-  // Revalidate the home page (customise tab) to show updated data
+  await removeItemFromAllCollections(supabase, user.id, [{ type: 'equipment', id: equipmentId }]);
+
   revalidatePath('/');
-  
+
   return { success: true };
 }
 

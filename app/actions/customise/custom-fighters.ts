@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 import { CustomFighterType } from '@/types/fighter';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
+import { removeItemFromAllCollections } from './custom-collections';
 
 export interface CreateCustomFighterData {
   fighter_type: string;
@@ -271,6 +272,8 @@ export async function deleteCustomFighter(id: string): Promise<{ success: boolea
       console.error('Error deleting custom fighter type:', deleteError);
       return { success: false, error: `Failed to delete custom fighter type: ${deleteError.message}` };
     }
+
+    await removeItemFromAllCollections(supabase, user.id, [{ type: 'fighter_type', id }]);
 
     revalidatePath('/');
     return { success: true };

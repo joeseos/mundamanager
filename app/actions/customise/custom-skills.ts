@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from "next/cache";
 import { invalidateFighterAdvancement } from "@/utils/cache-tags";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
+import { removeItemFromAllCollections } from './custom-collections';
 
 export async function createCustomSkill(data: {
   skill_name: string;
@@ -268,6 +269,10 @@ export async function deleteCustomSkillType(skillTypeId: string) {
     throw new Error(`Failed to delete skill set: ${error.message}`);
   }
 
+  if (skillIds.length > 0) {
+    await removeItemFromAllCollections(supabase, user.id, skillIds.map(id => ({ type: 'skill' as const, id })));
+  }
+
   revalidatePath('/');
 
   for (const row of affectedFighters) {
@@ -301,6 +306,8 @@ export async function deleteCustomSkill(skillId: string) {
     console.error('Error deleting custom skill:', error);
     throw new Error(`Failed to delete skill: ${error.message}`);
   }
+
+  await removeItemFromAllCollections(supabase, user.id, [{ type: 'skill', id: skillId }]);
 
   revalidatePath('/');
 
