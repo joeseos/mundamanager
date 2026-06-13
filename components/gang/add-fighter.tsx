@@ -1488,7 +1488,7 @@ export default function AddFighter({
             htmlFor="include-all-fighter-types"
             className="text-sm font-medium text-muted-foreground cursor-pointer"
           >
-            Include all fighter types
+            Include all Fighter Types
           </label>
           <div className="relative group">
             <ImInfo />

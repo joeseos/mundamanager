@@ -13,7 +13,6 @@ import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { isArchetypeEligible, mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
 import { SkillAccessModal } from './skill-access-modal';
-import { FighterPromotionModal } from './fighter-promotion-modal';
 import { FighterCharacteristicTable } from './fighter-characteristic-table';
 import { CharacterStatsModal } from './character-stats-modal';
 
@@ -183,9 +182,6 @@ export function EditFighterModal({
   // State for skill access modal
   const [showSkillAccessModal, setShowSkillAccessModal] = useState(false);
 
-  // State for promotion modal
-  const [showPromotionModal, setShowPromotionModal] = useState(false);
-
   // State for fighter class selection
   const [selectedFighterClassId, setSelectedFighterClassId] = useState<string>((fighter as any).fighter_class_id || '');
 
@@ -285,11 +281,6 @@ export function EditFighterModal({
 
     return options;
   }, [availableDefaultSpecialRules]);
-
-  // Determine if this fighter is eligible for promotion
-  const isEligibleForPromotion = ['Ganger', 'Juve', 'Prospect', 'Champion', 'Exotic Beast'].includes(
-    effectiveFighterClass || fighter.fighter_class || ''
-  );
 
   // Determine if this fighter can use archetypes (Outcasts gang + Leader/Champion class)
   const canUseArchetypes = isArchetypeEligible({
@@ -1099,16 +1090,6 @@ export function EditFighterModal({
                 </div>
               )}
             </div>
-            
-            {/* Promotion */}
-            {isEligibleForPromotion && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">Promotion</h3>
-                <Button onClick={() => setShowPromotionModal(true)} className="w-full">
-                  Promote Fighter
-                </Button>
-              </div>
-            )}
 
             {/* Fighter Type Dropdown */}
             <div>
@@ -1451,32 +1432,6 @@ export function EditFighterModal({
         fighterId={fighter.id}
         isOpen={showSkillAccessModal}
         onClose={() => setShowSkillAccessModal(false)}
-      />
-
-      {/* Promotion modal */}
-      <FighterPromotionModal
-        currentClass={effectiveFighterClass || ''}
-        currentSpecialRules={formValues.special_rules}
-        currentFighterType={formValues.fighter_type}
-        currentFighterTypeId={selectedFighterTypeId}
-        fighterTypes={fighterTypes}
-        isOpen={showPromotionModal}
-        onClose={() => setShowPromotionModal(false)}
-        onPromoted={(data) => {
-          setSelectedFighterTypeId(data.fighter_type_id);
-          setHasExplicitlySelectedType(true);
-          setSelectedFighterClassId(data.fighter_class_id);
-          setFormValues(prev => ({
-            ...prev,
-            fighter_type: data.fighter_type,
-            fighter_type_id: data.fighter_type_id,
-            fighter_class: data.fighter_class,
-            fighter_class_id: data.fighter_class_id,
-            special_rules: data.special_rules,
-          }));
-          handleFighterTypeChange(data.fighter_type_id);
-          setShowPromotionModal(false);
-        }}
       />
     </>
   );

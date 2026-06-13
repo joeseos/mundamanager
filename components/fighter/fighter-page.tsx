@@ -859,6 +859,7 @@ export default function FighterPage({
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+            fighterSubTypeId={fighterData.fighter?.fighter_sub_type?.fighter_sub_type_id || ''}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,

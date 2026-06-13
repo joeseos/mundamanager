@@ -20,6 +20,7 @@ import {
   verifyAndLogRolledGangerAdvancementRoll,
   verifyAndLogRolledSkillAdvancementRoll
 } from '@/app/actions/fighter-advancement';
+import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { Combobox } from '@/components/ui/combobox';
@@ -60,6 +61,7 @@ interface AdvancementModalProps {
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
+  fighterSubTypeId?: string;
   onFighterDetailsUpdate?: (patch: {
     fighter_class?: string;
     fighter_class_id?: string;
@@ -193,6 +195,7 @@ interface AdvancementsListProps {
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
+  fighterSubTypeId?: string;
   onFighterDetailsUpdate?: (patch: {
     fighter_class?: string;
     fighter_class_id?: string;
@@ -465,6 +468,7 @@ export function AdvancementModal({
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
+  fighterSubTypeId = '',
   onFighterDetailsUpdate
 }: AdvancementModalProps) {
   
@@ -2317,6 +2321,7 @@ export function AdvancementModal({
                   currentSpecialRules={fighterSpecialRules}
                   currentFighterType={fighterTypeName}
                   currentFighterTypeId={fighterTypeId}
+                  currentFighterSubTypeId={fighterSubTypeId || undefined}
                   fighterTypes={preFetchedFighterTypes}
                   isOpen={gangerPromotionOpen}
                   onClose={() => setGangerPromotionOpen(false)}
@@ -2459,6 +2464,7 @@ export function AdvancementModal({
                     currentSpecialRules={fighterSpecialRules}
                     currentFighterType={fighterTypeName}
                     currentFighterTypeId={fighterTypeId}
+                    currentFighterSubTypeId={fighterSubTypeId || undefined}
                     fighterTypes={preFetchedFighterTypes}
                     isOpen={championPromotionOpen}
                     onClose={() => setChampionPromotionOpen(false)}
@@ -2669,14 +2675,60 @@ export function AdvancementsList({
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
+  fighterSubTypeId = '',
   onFighterDetailsUpdate
 }: AdvancementsListProps) {
   const [isAdvancementModalOpen, setIsAdvancementModalOpen] = useState(false);
+  const [isStandalonePromotionOpen, setIsStandalonePromotionOpen] = useState(false);
   // isDeleting unused; removed
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string; type: string } | null>(null);
-  
+
+  const showPromoteButton = ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(fighterClass);
+
   // removed queryClient – server actions handle cache revalidation
 
+  const standalonePromotionMutation = useMutation({
+    mutationFn: async (promotion: {
+      fighter_type: string;
+      fighter_type_id: string;
+      fighter_class: string;
+      fighter_class_id: string;
+      special_rules: string[];
+    }) => {
+      const result = await updateFighterDetails({
+        fighter_id: fighterId,
+        fighter_class: promotion.fighter_class,
+        fighter_class_id: promotion.fighter_class_id,
+        fighter_type: promotion.fighter_type,
+        fighter_type_id: promotion.fighter_type_id,
+        special_rules: promotion.special_rules,
+      });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to promote fighter');
+      }
+      return result;
+    },
+    onMutate: async (promotion) => {
+      const previousPatch = {
+        fighter_class: fighterClass,
+        fighter_type: fighterTypeName,
+        fighter_type_id: fighterTypeId,
+        special_rules: fighterSpecialRules,
+      };
+      onFighterDetailsUpdate?.(promotion);
+      return { previousPatch };
+    },
+    onSuccess: () => {
+      setIsStandalonePromotionOpen(false);
+      toast.success('Fighter promoted successfully');
+    },
+    onError: (error, _promotion, context) => {
+      if (context?.previousPatch) {
+        onFighterDetailsUpdate?.(context.previousPatch);
+      }
+      toast.error(error instanceof Error ? error.message : 'Failed to promote fighter');
+    },
+  });
 
   // TanStack Query delete mutation
   const deleteAdvancementMutation = useMutation({
@@ -2908,10 +2960,20 @@ export function AdvancementsList({
       });
   }, [allAdvancements]);
 
+  const advancementCount = allAdvancements.length;
+  const title = (
+    <>
+      <span className="sm:hidden">Advanc.</span>
+      <span className="hidden sm:inline">Advancements</span>{' '}
+      <span className="text-sm sm:hidden">({advancementCount})</span>
+      <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
+    </>
+  );
+
   return (
     <>
       <List
-        title="Advancements"
+        title={title}
         items={transformedAdvancements}
         columns={[
           {
@@ -2944,6 +3006,21 @@ export function AdvancementsList({
             disabled: (item) => deleteAdvancementMutation.isPending || !item.advancement_id || !userPermissions.canEdit
           }
         ]}
+        headerActions={
+          showPromoteButton ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!userPermissions.canEdit || standalonePromotionMutation.isPending}
+              onClick={async () => {
+                await onEnsureFighterTypes?.();
+                setIsStandalonePromotionOpen(true);
+              }}
+            >
+              Promote
+            </Button>
+          ) : undefined
+        }
         onAdd={() => setIsAdvancementModalOpen(true)}
         addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
@@ -2951,6 +3028,21 @@ export function AdvancementsList({
       />
 
       {/* Modals */}
+      <FighterPromotionModal
+        currentClass={fighterClass}
+        currentSpecialRules={fighterSpecialRules}
+        currentFighterType={fighterTypeName}
+        currentFighterTypeId={fighterTypeId}
+        currentFighterSubTypeId={fighterSubTypeId || undefined}
+        fighterTypes={preFetchedFighterTypes}
+        isOpen={isStandalonePromotionOpen}
+        onClose={() => setIsStandalonePromotionOpen(false)}
+        showXpPromotionHint
+        onPromoted={(data) => {
+          standalonePromotionMutation.mutate(data);
+        }}
+      />
+
       {isAdvancementModalOpen && (
         <AdvancementModal
           fighterId={fighterId}
@@ -2970,6 +3062,7 @@ export function AdvancementsList({
           fighterSpecialRules={fighterSpecialRules}
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}
+          fighterSubTypeId={fighterSubTypeId}
           onFighterDetailsUpdate={onFighterDetailsUpdate}
         />
       )}
