@@ -179,18 +179,18 @@ export default function HomeTabs({
               userCampaigns={userCampaigns}
             />
 
-            {userCampaigns.length > 0 && (
-              <CustomisePacks
-                initialPacks={customPacks}
-                userId={userId}
-                userCampaigns={userCampaigns}
-                customEquipment={customEquipment}
-                customFighterTypes={fighterTypes}
-                customSkills={customSkills}
-                customGangTypes={customGangTypes}
-                customTradingPosts={customTradingPosts}
-              />
-            )}
+            {/* Packs work like the other custom assets: always editable here; the
+                Share action gates itself to campaigns the user arbitrates. */}
+            <CustomisePacks
+              initialPacks={customPacks}
+              userId={userId}
+              userCampaigns={userCampaigns}
+              customEquipment={customEquipment}
+              customFighterTypes={fighterTypes}
+              customSkills={customSkills}
+              customGangTypes={customGangTypes}
+              customTradingPosts={customTradingPosts}
+            />
           </div>
         )}
       </div>
