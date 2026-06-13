@@ -660,13 +660,26 @@ export async function sharePack(packId: string, campaignIds: string[]): Promise<
 
       const removedCampaignIds = oldTpCampaignIds.filter(id => !campaignIds.includes(id));
       if (removedCampaignIds.length > 0) {
+        // A trading post may be linked to a campaign by more than one share source
+        // (an individual share, or another pack). This pack's tagged rows were already
+        // deleted above, so any remaining custom_shared row means the campaign still
+        // needs the TP — only strip it from the jsonb when nothing else links it.
+        const { data: stillLinked } = await supabase
+          .from('custom_shared')
+          .select('campaign_id, custom_trading_post_id')
+          .in('campaign_id', removedCampaignIds)
+          .in('custom_trading_post_id', tpArray);
+        const stillNeeded = new Set(
+          (stillLinked ?? []).map(r => `${r.campaign_id}:${r.custom_trading_post_id}`)
+        );
+
         const { data: removeCampaigns } = await supabase
           .from('campaigns')
           .select('id, custom_trading_posts')
           .in('id', removedCampaignIds);
         for (const c of removeCampaigns ?? []) {
           const current = (c.custom_trading_posts as string[]) || [];
-          const filtered = current.filter(id => !tpArray.includes(id));
+          const filtered = current.filter(id => !(tpArray.includes(id) && !stillNeeded.has(`${c.id}:${id}`)));
           if (filtered.length !== current.length) {
             await supabase.from('campaigns').update({ custom_trading_posts: filtered }).eq('id', c.id);
           }

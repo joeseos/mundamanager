@@ -96,9 +96,11 @@ export function CustomisePacks({
   const isFormValid = () => formData.name.trim() !== '';
 
   // Keep the edit modal and the list in sync when a pack's items change.
-  const applyItemsUpdate = (packId: string, items: ResolvedPackItem[]) => {
-    setPacks(prev => prev.map(p => (p.id === packId ? { ...p, resolvedItems: items, items } : p)));
-    setEditModalData(prev => (prev && prev.id === packId ? { ...prev, resolvedItems: items, items } : prev));
+  // `items` is the DB shape (PackItem[], no name); `resolvedItems` carries the name for display.
+  const applyItemsUpdate = (packId: string, resolvedItems: ResolvedPackItem[]) => {
+    const items = resolvedItems.map(({ type, id }) => ({ type, id }));
+    setPacks(prev => prev.map(p => (p.id === packId ? { ...p, resolvedItems, items } : p)));
+    setEditModalData(prev => (prev && prev.id === packId ? { ...prev, resolvedItems, items } : prev));
   };
 
   // --- Create ---
