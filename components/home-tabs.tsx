@@ -143,7 +143,7 @@ export default function HomeTabs({
             <div>
               <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
               <p className="text-muted-foreground">
-                Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you're an Arbitrator of. Bundle them into Collections to apply a whole themed set to a campaign at once, or copy another arbitrator's collection into your account. Custom Territories and Scenarios are created in the campaign pages.
+                Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you're an Arbitrator of. Bundle them into Asset Collections to apply a whole themed set to a campaign at once, or copy another arbitrator's asset collection into your account. Custom Territories and Scenarios are created in the campaign pages.
               </p>
             </div>
 

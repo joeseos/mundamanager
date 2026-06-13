@@ -296,12 +296,12 @@ export function ShareCustomCollectionModal({ collection, userCampaigns, onClose,
       itemName={collection.name}
       column="custom_collection_id"
       queryKind="collection"
-      noun="Collection"
-      title="Share Collection"
-      helper="Apply this collection to campaigns you arbitrate. All items in the collection (and any custom fighters and skills they reference) will be shared to the campaign."
-      confirmLabel="Share Collection"
+      noun="Asset Collection"
+      title="Share Asset Collection"
+      helper="Apply this asset collection to campaigns you arbitrate. All items in the asset collection (and any custom fighters and skills they reference) will be shared to the campaign."
+      confirmLabel="Share Asset Collection"
       applyVerb="Applying"
-      emptyHint="You need to be an arbitrator of a campaign to apply collections to it."
+      emptyHint="You need to be an arbitrator of a campaign to apply asset collections to it."
       idPrefix="collection-campaign"
       invalidateKeys={[['customCollections']]}
       share={(ids) => shareCollection(collection.id, ids)}

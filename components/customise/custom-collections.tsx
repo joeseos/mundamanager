@@ -202,7 +202,7 @@ export function CustomiseCollections({
       return result;
     },
     onSuccess: () => {
-      toast.success(`"${copyModalData?.name ?? 'Collection'}" has been copied to your assets.`);
+      toast.success(`"${copyModalData?.name ?? 'Asset Collection'}" has been copied to your assets.`);
       setCopyModalData(null);
       resetForm();
     },
@@ -292,7 +292,7 @@ export function CustomiseCollections({
   };
 
   const columns: ListColumn[] = [
-    { key: 'name', label: 'Collection', align: 'left', width: '35%' },
+    { key: 'name', label: 'Asset Collection', align: 'left', width: '35%' },
     {
       key: 'resolvedItems',
       label: 'Items',
@@ -358,20 +358,20 @@ export function CustomiseCollections({
   return (
     <div className={className}>
       <List<CustomCollectionWithItems>
-        title="Collections"
+        title="Asset Collections"
         items={collections}
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : () => { resetForm(); setIsAddModalOpen(true); }}
         addButtonText="Create"
-        emptyMessage="No collections created yet."
+        emptyMessage="No asset collections created yet."
         sortBy={(a, b) => a.name.localeCompare(b.name)}
       />
 
       {isAddModalOpen && (
         <Modal
-          title="Create Collection"
-          helper="Bundle your custom items into a collection you can apply to your campaigns or share. Add items after creating."
+          title="Create Asset Collection"
+          helper="Bundle your custom items into an asset collection you can apply to your campaigns or share. Add items after creating."
           onClose={() => { setIsAddModalOpen(false); resetForm(); }}
           onConfirm={handleCreateConfirm}
           confirmText="Create"
@@ -383,7 +383,7 @@ export function CustomiseCollections({
 
       {editModalData && (
         <Modal
-          title="Edit Collection"
+          title="Edit Asset Collection"
           onClose={() => { setEditModalData(null); resetForm(); }}
           onConfirm={handleEditConfirm}
           confirmText="Save"
@@ -405,10 +405,10 @@ export function CustomiseCollections({
       )}
 
       {viewModalData && (
-        <Modal title="View Collection" onClose={() => setViewModalData(null)} width="2xl" hideCancel>
+        <Modal title="View Asset Collection" onClose={() => setViewModalData(null)} width="2xl" hideCancel>
           <div className="space-y-4">
             <div>
-              <Label className="block mb-1">Collection Name</Label>
+              <Label className="block mb-1">Asset Collection Name</Label>
               <div className="w-full p-2 border rounded-md bg-muted">{viewModalData.name}</div>
             </div>
             <div>
@@ -425,21 +425,21 @@ export function CustomiseCollections({
 
       {deleteModalData && (
         <Modal
-          title="Delete Collection"
+          title="Delete Asset Collection"
           onClose={() => setDeleteModalData(null)}
           onConfirm={handleDeleteConfirm}
           confirmText="Delete"
         >
           <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>
           <p className="text-sm text-muted-foreground mt-2">
-            This only deletes the collection. Items already shared to campaigns from this collection stay shared, and the custom items themselves are not deleted.
+            This only deletes the asset collection. Items already shared to campaigns from this asset collection stay shared, and the custom items themselves are not deleted.
           </p>
         </Modal>
       )}
 
       {copyModalData && (
         <Modal
-          title="Copy Collection"
+          title="Copy Asset Collection"
           onClose={() => { setCopyModalData(null); resetForm(); }}
           onConfirm={handleCopyConfirm}
           confirmText={copyMutation.isPending ? 'Copying...' : 'Copy to my assets'}
@@ -447,15 +447,15 @@ export function CustomiseCollections({
         >
           <div className="space-y-4">
             <div>
-              <Label className="block mb-2">Collection Name *</Label>
+              <Label className="block mb-2">Asset Collection Name *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter collection name"
+                placeholder="Enter asset collection name"
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              You'll get your own editable duplicates of every item in the collection. This won't affect the original.
+              You'll get your own editable duplicates of every item in the asset collection. This won't affect the original.
             </p>
           </div>
         </Modal>
@@ -482,11 +482,11 @@ function CollectionForm({
   return (
     <div className="space-y-4">
       <div>
-        <Label className="block mb-2">Collection Name *</Label>
+        <Label className="block mb-2">Asset Collection Name *</Label>
         <Input
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Enter collection name"
+          placeholder="Enter asset collection name"
         />
       </div>
       <div>
