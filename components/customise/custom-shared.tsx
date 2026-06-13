@@ -6,7 +6,7 @@ import { CustomEquipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
-import { shareCustomFighter, shareCustomEquipment, shareCustomGangType, shareCustomTradingPost, sharePack } from '@/app/actions/customise/custom-share';
+import { shareCustomFighter, shareCustomEquipment, shareCustomGangType, shareCustomTradingPost, shareCollection } from '@/app/actions/customise/custom-share';
 import { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,14 +19,14 @@ type ShareColumn =
   | 'custom_equipment_id'
   | 'custom_gang_type_id'
   | 'custom_trading_post_id'
-  | 'custom_pack_id';
+  | 'custom_collection_id';
 
 interface ShareToCampaignsModalProps {
   itemId: string;
   itemName: string;
   column: ShareColumn;
   queryKind: string;          // discriminator for the shared-campaigns query key
-  noun: string;               // e.g. "Custom fighter", "Pack" — used in toasts
+  noun: string;               // e.g. "Custom fighter", "Collection" — used in toasts
   title: string;
   helper: string;
   confirmLabel: string;       // e.g. "Share Fighter"
@@ -42,7 +42,7 @@ interface ShareToCampaignsModalProps {
 
 /**
  * Shared "apply to campaigns" modal used by every custom asset (fighter, equipment,
- * gang type, trading post, pack). Loads the campaigns the item is currently shared to,
+ * gang type, trading post, collection). Loads the campaigns the item is currently shared to,
  * lets the arbitrator toggle the set, and persists via the supplied `share` action.
  */
 function ShareToCampaignsModal({
@@ -282,29 +282,29 @@ export function ShareCustomTradingPostModal({ tradingPost, userCampaigns, onClos
   );
 }
 
-interface ShareCustomPackModalProps {
-  pack: { id: string; name: string };
+interface ShareCustomCollectionModalProps {
+  collection: { id: string; name: string };
   userCampaigns: UserCampaign[];
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-export function ShareCustomPackModal({ pack, userCampaigns, onClose, onSuccess }: ShareCustomPackModalProps) {
+export function ShareCustomCollectionModal({ collection, userCampaigns, onClose, onSuccess }: ShareCustomCollectionModalProps) {
   return (
     <ShareToCampaignsModal
-      itemId={pack.id}
-      itemName={pack.name}
-      column="custom_pack_id"
-      queryKind="pack"
-      noun="Pack"
-      title="Share Pack"
-      helper="Apply this pack to campaigns you arbitrate. All items in the pack (and any custom fighters and skills they reference) will be shared to the campaign."
-      confirmLabel="Share Pack"
+      itemId={collection.id}
+      itemName={collection.name}
+      column="custom_collection_id"
+      queryKind="collection"
+      noun="Collection"
+      title="Share Collection"
+      helper="Apply this collection to campaigns you arbitrate. All items in the collection (and any custom fighters and skills they reference) will be shared to the campaign."
+      confirmLabel="Share Collection"
       applyVerb="Applying"
-      emptyHint="You need to be an arbitrator of a campaign to apply packs to it."
-      idPrefix="pack-campaign"
-      invalidateKeys={[['customPacks']]}
-      share={(ids) => sharePack(pack.id, ids)}
+      emptyHint="You need to be an arbitrator of a campaign to apply collections to it."
+      idPrefix="collection-campaign"
+      invalidateKeys={[['customCollections']]}
+      share={(ids) => shareCollection(collection.id, ids)}
       userCampaigns={userCampaigns}
       onClose={onClose}
       onSuccess={onSuccess}

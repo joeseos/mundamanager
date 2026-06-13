@@ -495,17 +495,17 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
   }
 }
 
-type PackShareItemColumn =
+type CollectionShareItemColumn =
   | 'custom_equipment_id'
   | 'custom_gang_type_id'
   | 'custom_fighter_type_id'
   | 'custom_skill_id'
   | 'custom_trading_post_id';
 
-interface PackShareRow {
+interface CollectionShareRow {
   campaign_id: string;
   user_id: string;
-  custom_pack_id: string;
+  custom_collection_id: string;
   custom_equipment_id?: string;
   custom_gang_type_id?: string;
   custom_fighter_type_id?: string;
@@ -514,30 +514,30 @@ interface PackShareRow {
 }
 
 /**
- * Share (apply) a whole pack to selected campaigns — the primary pack action.
- * Expands the pack's items into per-item custom_shared rows (tagged with custom_pack_id),
+ * Share (apply) a whole collection to selected campaigns — the primary collection action.
+ * Expands the collection's items into per-item custom_shared rows (tagged with custom_collection_id),
  * cascading gang types -> fighters -> skills (mirroring shareCustomGangType), and syncing
- * campaigns.custom_trading_posts for any packed trading posts. campaignIds should be limited
+ * campaigns.custom_trading_posts for any collected trading posts. campaignIds should be limited
  * to campaigns the caller arbitrates (enforced by the share modal's userCampaigns list).
- * Passing an empty campaignIds unshares the pack from all campaigns.
+ * Passing an empty campaignIds unshares the collection from all campaigns.
  */
-export async function sharePack(packId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
+export async function shareCollection(collectionId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const { data: pack, error: packError } = await supabase
-      .from('custom_packs')
+    const { data: collection, error: collectionError } = await supabase
+      .from('custom_collections')
       .select('id, user_id, items')
-      .eq('id', packId)
+      .eq('id', collectionId)
       .eq('user_id', user.id)
       .single();
 
-    if (packError || !pack) {
-      return { success: false, error: 'Pack not found or not owned by user' };
+    if (collectionError || !collection) {
+      return { success: false, error: 'Collection not found or not owned by user' };
     }
 
-    const items = ((pack.items as { type: string; id: string }[]) || []);
+    const items = ((collection.items as { type: string; id: string }[]) || []);
     const equipmentIds = new Set(items.filter(i => i.type === 'equipment').map(i => i.id));
     const gangTypeIds = new Set(items.filter(i => i.type === 'gang_type').map(i => i.id));
     const fighterTypeIds = new Set(items.filter(i => i.type === 'fighter_type').map(i => i.id));
@@ -576,24 +576,24 @@ export async function sharePack(packId: string, campaignIds: string[]): Promise<
       }
     }
 
-    // Campaigns this pack previously shared a trading post to (for jsonb cleanup)
+    // Campaigns this collection previously shared a trading post to (for jsonb cleanup)
     const { data: oldTpShares } = await supabase
       .from('custom_shared')
       .select('campaign_id')
-      .eq('custom_pack_id', packId)
+      .eq('custom_collection_id', collectionId)
       .eq('user_id', user.id)
       .not('custom_trading_post_id', 'is', null);
     const oldTpCampaignIds = Array.from(new Set((oldTpShares ?? []).map(s => s.campaign_id)));
 
-    // Replace this pack's tagged shares
+    // Replace this collection's tagged shares
     const { error: deleteError } = await supabase
       .from('custom_shared')
       .delete()
-      .eq('custom_pack_id', packId)
+      .eq('custom_collection_id', collectionId)
       .eq('user_id', user.id);
 
     if (deleteError) {
-      console.error('Error deleting existing pack shares:', deleteError);
+      console.error('Error deleting existing collection shares:', deleteError);
       return { success: false, error: `Failed to update shares: ${deleteError.message}` };
     }
 
@@ -607,19 +607,19 @@ export async function sharePack(packId: string, campaignIds: string[]): Promise<
 
       const alreadyShared = new Set(
         (existing ?? []).flatMap(r =>
-          (['custom_equipment_id', 'custom_gang_type_id', 'custom_fighter_type_id', 'custom_skill_id', 'custom_trading_post_id'] as PackShareItemColumn[])
+          (['custom_equipment_id', 'custom_gang_type_id', 'custom_fighter_type_id', 'custom_skill_id', 'custom_trading_post_id'] as CollectionShareItemColumn[])
             .filter(col => r[col])
             .map(col => `${r.campaign_id}:${col}:${r[col]}`)
         )
       );
 
-      const rows: PackShareRow[] = [];
-      const pushRows = (col: PackShareItemColumn, ids: Set<string>) => {
+      const rows: CollectionShareRow[] = [];
+      const pushRows = (col: CollectionShareItemColumn, ids: Set<string>) => {
         const idList = Array.from(ids);
         for (const campaignId of campaignIds) {
           for (const id of idList) {
             if (alreadyShared.has(`${campaignId}:${col}:${id}`)) continue;
-            rows.push({ [col]: id, campaign_id: campaignId, user_id: user.id, custom_pack_id: packId });
+            rows.push({ [col]: id, campaign_id: campaignId, user_id: user.id, custom_collection_id: collectionId });
           }
         }
       };
@@ -633,13 +633,13 @@ export async function sharePack(packId: string, campaignIds: string[]): Promise<
       if (rows.length > 0) {
         const { error: insertError } = await supabase.from('custom_shared').insert(rows);
         if (insertError) {
-          console.error('Error inserting pack shares:', insertError);
-          return { success: false, error: `Failed to share pack: ${insertError.message}` };
+          console.error('Error inserting collection shares:', insertError);
+          return { success: false, error: `Failed to share collection: ${insertError.message}` };
         }
       }
     }
 
-    // Sync campaigns.custom_trading_posts for packed trading posts
+    // Sync campaigns.custom_trading_posts for collected trading posts
     if (tradingPostIds.size > 0) {
       const tpArray = Array.from(tradingPostIds);
 
@@ -661,7 +661,7 @@ export async function sharePack(packId: string, campaignIds: string[]): Promise<
       const removedCampaignIds = oldTpCampaignIds.filter(id => !campaignIds.includes(id));
       if (removedCampaignIds.length > 0) {
         // A trading post may be linked to a campaign by more than one share source
-        // (an individual share, or another pack). This pack's tagged rows were already
+        // (an individual share, or another collection). This collection's tagged rows were already
         // deleted above, so any remaining custom_shared row means the campaign still
         // needs the TP — only strip it from the jsonb when nothing else links it.
         const { data: stillLinked } = await supabase
@@ -694,7 +694,7 @@ export async function sharePack(packId: string, campaignIds: string[]): Promise<
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    console.error('Error in sharePack:', error);
+    console.error('Error in shareCollection:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

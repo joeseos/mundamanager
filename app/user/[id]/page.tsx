@@ -13,13 +13,13 @@ import { CustomiseFighters } from "@/components/customise/custom-fighters";
 import { CustomiseSkills } from "@/components/customise/custom-skills";
 import { CustomiseGangTypes } from "@/components/customise/custom-gang-types";
 import { CustomiseTradingPosts } from "@/components/customise/custom-trading-posts";
-import { CustomisePacks } from "@/components/customise/custom-packs";
+import { CustomiseCollections } from "@/components/customise/custom-collections";
 import { CustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { CustomSkill } from "@/app/lib/customise/custom-skills";
 import { CustomFighterType } from "@/types/fighter";
 import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
-import { CustomPackWithItems } from "@/app/lib/customise/custom-packs";
+import { CustomCollectionWithItems } from "@/app/lib/customise/custom-collections";
 import { useSession } from "@/hooks/use-session";
 import { toast } from 'sonner';
 
@@ -63,7 +63,7 @@ interface UserData {
     skills: number;
     gangTypes: number;
     tradingPosts: number;
-    packs: number;
+    collections: number;
   };
   customAssetsData: {
     equipment: CustomEquipment[];
@@ -71,7 +71,7 @@ interface UserData {
     skills: CustomSkill[];
     gangTypes: CustomGangType[];
     tradingPosts: CustomTradingPost[];
-    packs: CustomPackWithItems[];
+    collections: CustomCollectionWithItems[];
   };
 }
 
@@ -193,7 +193,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               <MdOutlineColorLens className="h-8 w-8 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">
-                  {customAssets.equipment + customAssets.fighters + customAssets.skills + customAssets.gangTypes + customAssets.tradingPosts + (customAssets.packs || 0)}
+                  {customAssets.equipment + customAssets.fighters + customAssets.skills + customAssets.gangTypes + customAssets.tradingPosts + (customAssets.collections || 0)}
                 </p>
                 <p className="text-sm text-muted-foreground">Custom Assets</p>
               </div>
@@ -280,7 +280,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Custom Assets Section */}
-        {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.skills > 0 || customAssets.gangTypes > 0 || customAssets.tradingPosts > 0 || (customAssets.packs || 0) > 0) && (
+        {(customAssets.equipment > 0 || customAssets.fighters > 0 || customAssets.skills > 0 || customAssets.gangTypes > 0 || customAssets.tradingPosts > 0 || (customAssets.collections || 0) > 0) && (
           <div className="bg-card shadow-md rounded-lg p-4">
             <div className="mb-4">
               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
@@ -341,10 +341,10 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 />
               )}
 
-              {/* Packs */}
-              {(customAssetsData.packs?.length || 0) > 0 && (
-                <CustomisePacks
-                  initialPacks={customAssetsData.packs}
+              {/* Collections */}
+              {(customAssetsData.collections?.length || 0) > 0 && (
+                <CustomiseCollections
+                  initialCollections={customAssetsData.collections}
                   readOnly={currentUserId !== profile.id}
                   userId={currentUserId || undefined}
                   userCampaigns={userCampaigns}
@@ -355,7 +355,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {/* Empty State */}
-        {gangs.length === 0 && campaigns.length === 0 && customAssets.equipment === 0 && customAssets.fighters === 0 && customAssets.skills === 0 && customAssets.gangTypes === 0 && customAssets.tradingPosts === 0 && (customAssets.packs || 0) === 0 && (
+        {gangs.length === 0 && campaigns.length === 0 && customAssets.equipment === 0 && customAssets.fighters === 0 && customAssets.skills === 0 && customAssets.gangTypes === 0 && customAssets.tradingPosts === 0 && (customAssets.collections || 0) === 0 && (
           <div className="bg-card shadow-md rounded-lg p-8 text-center">
             <FaUser className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Public Activity</h3>

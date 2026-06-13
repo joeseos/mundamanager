@@ -1,10 +1,10 @@
--- Deep-clone a pack and all of its custom items into the calling user's account.
+-- Deep-clone a collection and all of its custom items into the calling user's account.
 -- SECURITY INVOKER: open-SELECT RLS reads the source owner's rows; owner-INSERT RLS
 -- accepts the clones (user_id = auth.uid()). Runs atomically in one transaction.
 -- Implemented with plpgsql array variables + jsonb id-maps (no temp tables) so the
 -- body compiles under check_function_bodies and avoids cached-plan pitfalls.
 -- Maps are jsonb objects keyed by old uuid (text) -> new uuid (text).
-CREATE OR REPLACE FUNCTION public.copy_custom_pack(p_pack_id uuid)
+CREATE OR REPLACE FUNCTION public.copy_custom_collection(p_collection_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -12,7 +12,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_user uuid := auth.uid();
-  v_new_pack uuid := gen_random_uuid();
+  v_new_collection uuid := gen_random_uuid();
   v_items jsonb;
   v_new_items jsonb;
   v_name text;
@@ -41,14 +41,14 @@ BEGIN
 
   SELECT p.items, p.name, p.description
     INTO v_items, v_name, v_description
-  FROM public.custom_packs p
-  WHERE p.id = p_pack_id;
+  FROM public.custom_collections p
+  WHERE p.id = p_collection_id;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Pack not found';
+    RAISE EXCEPTION 'Collection not found';
   END IF;
 
-  -- Seed closure id-sets from the pack's items jsonb.
+  -- Seed closure id-sets from the collection's items jsonb.
   v_eq := COALESCE((SELECT array_agg(x.id) FROM jsonb_to_recordset(v_items) AS x(type text, id uuid)
                     WHERE x.type = 'equipment' AND x.id IS NOT NULL), '{}');
   v_ft := COALESCE((SELECT array_agg(x.id) FROM jsonb_to_recordset(v_items) AS x(type text, id uuid)
@@ -60,7 +60,7 @@ BEGIN
   v_tp := COALESCE((SELECT array_agg(x.id) FROM jsonb_to_recordset(v_items) AS x(type text, id uuid)
                     WHERE x.type = 'trading_post' AND x.id IS NOT NULL), '{}');
 
-  -- Transitive closure: pull in every custom item referenced by packed items so
+  -- Transitive closure: pull in every custom item referenced by collected items so
   -- the copy is self-contained. Loop until no new ids are discovered.
   LOOP
     v_before := cardinality(v_eq) + cardinality(v_st) + cardinality(v_sk)
@@ -224,7 +224,7 @@ BEGIN
   FROM public.custom_trading_post_pricing pr
   WHERE (v_map_tpe ? pr.custom_trading_post_equipment_id::text);
 
-  -- Build the new pack's items, remapping each entry's id; drop unresolved entries.
+  -- Build the new collection's items, remapping each entry's id; drop unresolved entries.
   v_new_items := COALESCE((
     SELECT jsonb_agg(jsonb_build_object('type', x.type, 'id', mapped.nid))
     FROM jsonb_to_recordset(v_items) AS x(type text, id uuid)
@@ -240,9 +240,9 @@ BEGIN
     WHERE mapped.nid IS NOT NULL
   ), '[]'::jsonb);
 
-  INSERT INTO public.custom_packs (id, created_at, user_id, name, description, items)
-  VALUES (v_new_pack, now(), v_user, v_name || ' (Copy)', v_description, v_new_items);
+  INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items)
+  VALUES (v_new_collection, now(), v_user, v_name || ' (Copy)', v_description, v_new_items);
 
-  RETURN v_new_pack;
+  RETURN v_new_collection;
 END;
 $$;

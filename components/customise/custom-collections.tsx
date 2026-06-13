@@ -12,18 +12,18 @@ import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShareCustomPackModal } from '@/components/customise/custom-shared';
+import { ShareCustomCollectionModal } from '@/components/customise/custom-shared';
 import {
-  createCustomPack,
-  updateCustomPack,
-  deleteCustomPack,
-  addPackItem,
-  removePackItem,
-  copyPack,
-  type CustomPackData,
-  type PackItemType,
-} from '@/app/actions/customise/custom-packs';
-import type { CustomPackWithItems, ResolvedPackItem } from '@/app/lib/customise/custom-packs';
+  createCustomCollection,
+  updateCustomCollection,
+  deleteCustomCollection,
+  addCollectionItem,
+  removeCollectionItem,
+  copyCollection,
+  type CustomCollectionData,
+  type CollectionItemType,
+} from '@/app/actions/customise/custom-collections';
+import type { CustomCollectionWithItems, ResolvedCollectionItem } from '@/app/lib/customise/custom-collections';
 import type { CustomEquipment } from '@/types/equipment';
 import type { CustomFighterType } from '@/types/fighter';
 import type { CustomSkill } from '@/app/lib/customise/custom-skills';
@@ -31,7 +31,7 @@ import type { CustomGangType } from '@/app/actions/customise/custom-gang-types';
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts';
 import type { UserCampaign } from '@/types/campaign';
 
-const TYPE_LABELS: Record<PackItemType, string> = {
+const TYPE_LABELS: Record<CollectionItemType, string> = {
   gang_type: 'Gang Type',
   fighter_type: 'Fighter',
   equipment: 'Equipment',
@@ -44,13 +44,13 @@ interface CandidateItem {
   name: string;
 }
 
-interface CustomisePacksProps {
+interface CustomiseCollectionsProps {
   className?: string;
-  initialPacks: CustomPackWithItems[];
+  initialCollections: CustomCollectionWithItems[];
   userId?: string;
   userCampaigns?: UserCampaign[];
   readOnly?: boolean;
-  // Candidate custom assets to add into a pack — the same arrays the Custom Assets
+  // Candidate custom assets to add into a collection — the same arrays the Custom Assets
   // tab already holds, so the editor needs no extra fetch.
   customEquipment?: CustomEquipment[];
   customFighterTypes?: CustomFighterType[];
@@ -59,9 +59,9 @@ interface CustomisePacksProps {
   customTradingPosts?: CustomTradingPost[];
 }
 
-export function CustomisePacks({
+export function CustomiseCollections({
   className,
-  initialPacks,
+  initialCollections,
   userId,
   userCampaigns = [],
   readOnly = false,
@@ -70,21 +70,21 @@ export function CustomisePacks({
   customSkills = [],
   customGangTypes = [],
   customTradingPosts = [],
-}: CustomisePacksProps) {
-  const [packs, setPacks] = useState<CustomPackWithItems[]>(initialPacks);
+}: CustomiseCollectionsProps) {
+  const [collections, setCollections] = useState<CustomCollectionWithItems[]>(initialCollections);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editModalData, setEditModalData] = useState<CustomPackWithItems | null>(null);
-  const [viewModalData, setViewModalData] = useState<CustomPackWithItems | null>(null);
-  const [deleteModalData, setDeleteModalData] = useState<CustomPackWithItems | null>(null);
-  const [shareModalData, setShareModalData] = useState<CustomPackWithItems | null>(null);
-  const [copyModalData, setCopyModalData] = useState<CustomPackWithItems | null>(null);
+  const [editModalData, setEditModalData] = useState<CustomCollectionWithItems | null>(null);
+  const [viewModalData, setViewModalData] = useState<CustomCollectionWithItems | null>(null);
+  const [deleteModalData, setDeleteModalData] = useState<CustomCollectionWithItems | null>(null);
+  const [shareModalData, setShareModalData] = useState<CustomCollectionWithItems | null>(null);
+  const [copyModalData, setCopyModalData] = useState<CustomCollectionWithItems | null>(null);
 
   const [formData, setFormData] = useState<{ name: string; description: string }>({ name: '', description: '' });
 
   const queryClient = useQueryClient();
 
   // Candidate items available to add, keyed by type.
-  const candidates: Record<PackItemType, CandidateItem[]> = {
+  const candidates: Record<CollectionItemType, CandidateItem[]> = {
     gang_type: customGangTypes.map(g => ({ id: g.id, name: g.gang_type })),
     fighter_type: customFighterTypes.map(f => ({ id: f.id, name: f.fighter_type })),
     equipment: customEquipment.map(e => ({ id: e.id, name: e.equipment_name || 'Unnamed' })),
@@ -95,25 +95,25 @@ export function CustomisePacks({
   const resetForm = () => setFormData({ name: '', description: '' });
   const isFormValid = () => formData.name.trim() !== '';
 
-  // Keep the edit modal and the list in sync when a pack's items change.
-  // `items` is the DB shape (PackItem[], no name); `resolvedItems` carries the name for display.
-  const applyItemsUpdate = (packId: string, resolvedItems: ResolvedPackItem[]) => {
+  // Keep the edit modal and the list in sync when a collection's items change.
+  // `items` is the DB shape (CollectionItem[], no name); `resolvedItems` carries the name for display.
+  const applyItemsUpdate = (collectionId: string, resolvedItems: ResolvedCollectionItem[]) => {
     const items = resolvedItems.map(({ type, id }) => ({ type, id }));
-    setPacks(prev => prev.map(p => (p.id === packId ? { ...p, resolvedItems, items } : p)));
-    setEditModalData(prev => (prev && prev.id === packId ? { ...prev, resolvedItems, items } : prev));
+    setCollections(prev => prev.map(p => (p.id === collectionId ? { ...p, resolvedItems, items } : p)));
+    setEditModalData(prev => (prev && prev.id === collectionId ? { ...prev, resolvedItems, items } : prev));
   };
 
   // --- Create ---
   const createMutation = useMutation({
-    mutationFn: async (data: CustomPackData) => {
-      const result = await createCustomPack(data);
-      if (!result.success || !result.data) throw new Error(result.error || 'Failed to create pack');
+    mutationFn: async (data: CustomCollectionData) => {
+      const result = await createCustomCollection(data);
+      if (!result.success || !result.data) throw new Error(result.error || 'Failed to create collection');
       return result.data;
     },
     onMutate: async (data) => {
-      await queryClient.cancelQueries({ queryKey: ['customPacks'] });
+      await queryClient.cancelQueries({ queryKey: ['customCollections'] });
       const tempId = `temp-${Date.now()}`;
-      const optimistic: CustomPackWithItems = {
+      const optimistic: CustomCollectionWithItems = {
         id: tempId,
         user_id: userId || '',
         name: data.name,
@@ -122,137 +122,137 @@ export function CustomisePacks({
         resolvedItems: [],
         created_at: new Date().toISOString(),
       };
-      const previous = packs;
-      setPacks(prev => [...prev, optimistic]);
+      const previous = collections;
+      setCollections(prev => [...prev, optimistic]);
       return { previous, tempId };
     },
     onSuccess: (serverData, _vars, context) => {
       if (context) {
-        setPacks(prev => prev.map(p => (p.id === context.tempId ? { ...serverData, resolvedItems: [] } : p)));
+        setCollections(prev => prev.map(p => (p.id === context.tempId ? { ...serverData, resolvedItems: [] } : p)));
       }
-      toast.success('Pack created successfully');
+      toast.success('Collection created successfully');
     },
     onError: (error: Error, _vars, context) => {
-      if (context?.previous) setPacks(context.previous);
-      toast.error(error.message || 'Failed to create pack');
+      if (context?.previous) setCollections(context.previous);
+      toast.error(error.message || 'Failed to create collection');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['customPacks'] });
+      queryClient.invalidateQueries({ queryKey: ['customCollections'] });
     },
   });
 
   // --- Update (name / description) ---
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: CustomPackData }) => {
-      const result = await updateCustomPack(id, data);
-      if (!result.success || !result.data) throw new Error(result.error || 'Failed to update pack');
+    mutationFn: async ({ id, data }: { id: string; data: CustomCollectionData }) => {
+      const result = await updateCustomCollection(id, data);
+      if (!result.success || !result.data) throw new Error(result.error || 'Failed to update collection');
       return result.data;
     },
     onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: ['customPacks'] });
-      const previous = packs;
-      setPacks(prev =>
+      await queryClient.cancelQueries({ queryKey: ['customCollections'] });
+      const previous = collections;
+      setCollections(prev =>
         prev.map(p => (p.id === id ? { ...p, name: data.name, description: data.description ?? null } : p))
       );
       return { previous };
     },
     onSuccess: (serverData) => {
-      setPacks(prev => prev.map(p => (p.id === serverData.id ? { ...p, ...serverData } : p)));
-      toast.success('Pack updated successfully');
+      setCollections(prev => prev.map(p => (p.id === serverData.id ? { ...p, ...serverData } : p)));
+      toast.success('Collection updated successfully');
     },
     onError: (error: Error, _vars, context) => {
-      if (context?.previous) setPacks(context.previous);
-      toast.error(error.message || 'Failed to update pack');
+      if (context?.previous) setCollections(context.previous);
+      toast.error(error.message || 'Failed to update collection');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['customPacks'] });
+      queryClient.invalidateQueries({ queryKey: ['customCollections'] });
     },
   });
 
   // --- Delete ---
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const result = await deleteCustomPack(id);
-      if (!result.success) throw new Error(result.error || 'Failed to delete pack');
+      const result = await deleteCustomCollection(id);
+      if (!result.success) throw new Error(result.error || 'Failed to delete collection');
       return id;
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['customPacks'] });
-      const previous = packs;
-      setPacks(prev => prev.filter(p => p.id !== id));
+      await queryClient.cancelQueries({ queryKey: ['customCollections'] });
+      const previous = collections;
+      setCollections(prev => prev.filter(p => p.id !== id));
       return { previous };
     },
     onSuccess: () => {
-      toast.success('Pack deleted successfully');
+      toast.success('Collection deleted successfully');
     },
     onError: (error: Error, _vars, context) => {
-      if (context?.previous) setPacks(context.previous);
-      toast.error(error.message || 'Failed to delete pack');
+      if (context?.previous) setCollections(context.previous);
+      toast.error(error.message || 'Failed to delete collection');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['customPacks'] });
+      queryClient.invalidateQueries({ queryKey: ['customCollections'] });
     },
   });
 
   // --- Copy (into the current user's account) ---
   const copyMutation = useMutation({
     mutationFn: async (id: string) => {
-      const result = await copyPack(id);
-      if (!result.success) throw new Error(result.error || 'Failed to copy pack');
+      const result = await copyCollection(id);
+      if (!result.success) throw new Error(result.error || 'Failed to copy collection');
       return result;
     },
     onSuccess: () => {
-      toast.success(`"${copyModalData?.name ?? 'Pack'}" has been copied to your account.`);
+      toast.success(`"${copyModalData?.name ?? 'Collection'}" has been copied to your account.`);
       setCopyModalData(null);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to copy pack');
+      toast.error(error.message || 'Failed to copy collection');
     },
   });
 
   // --- Add item (live, optimistic) ---
   const addItemMutation = useMutation({
-    mutationFn: async ({ packId, type, id }: { packId: string; type: PackItemType; id: string; name: string }) => {
-      const result = await addPackItem(packId, type, id);
+    mutationFn: async ({ collectionId, type, id }: { collectionId: string; type: CollectionItemType; id: string; name: string }) => {
+      const result = await addCollectionItem(collectionId, type, id);
       if (!result.success) throw new Error(result.error || 'Failed to add item');
       return result;
     },
-    onMutate: async ({ packId, type, id, name }) => {
-      const pack = packs.find(p => p.id === packId);
-      const previousItems = pack?.resolvedItems ?? [];
+    onMutate: async ({ collectionId, type, id, name }) => {
+      const collection = collections.find(p => p.id === collectionId);
+      const previousItems = collection?.resolvedItems ?? [];
       if (!previousItems.some(i => i.type === type && i.id === id)) {
-        applyItemsUpdate(packId, [...previousItems, { type, id, name }]);
+        applyItemsUpdate(collectionId, [...previousItems, { type, id, name }]);
       }
-      return { packId, previousItems };
+      return { collectionId, previousItems };
     },
     onError: (error: Error, _vars, context) => {
-      if (context) applyItemsUpdate(context.packId, context.previousItems);
+      if (context) applyItemsUpdate(context.collectionId, context.previousItems);
       toast.error(error.message || 'Failed to add item');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['customPacks'] });
+      queryClient.invalidateQueries({ queryKey: ['customCollections'] });
     },
   });
 
   // --- Remove item (live, optimistic) ---
   const removeItemMutation = useMutation({
-    mutationFn: async ({ packId, type, id }: { packId: string; type: PackItemType; id: string }) => {
-      const result = await removePackItem(packId, type, id);
+    mutationFn: async ({ collectionId, type, id }: { collectionId: string; type: CollectionItemType; id: string }) => {
+      const result = await removeCollectionItem(collectionId, type, id);
       if (!result.success) throw new Error(result.error || 'Failed to remove item');
       return result;
     },
-    onMutate: async ({ packId, type, id }) => {
-      const pack = packs.find(p => p.id === packId);
-      const previousItems = pack?.resolvedItems ?? [];
-      applyItemsUpdate(packId, previousItems.filter(i => !(i.type === type && i.id === id)));
-      return { packId, previousItems };
+    onMutate: async ({ collectionId, type, id }) => {
+      const collection = collections.find(p => p.id === collectionId);
+      const previousItems = collection?.resolvedItems ?? [];
+      applyItemsUpdate(collectionId, previousItems.filter(i => !(i.type === type && i.id === id)));
+      return { collectionId, previousItems };
     },
     onError: (error: Error, _vars, context) => {
-      if (context) applyItemsUpdate(context.packId, context.previousItems);
+      if (context) applyItemsUpdate(context.collectionId, context.previousItems);
       toast.error(error.message || 'Failed to remove item');
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['customPacks'] });
+      queryClient.invalidateQueries({ queryKey: ['customCollections'] });
     },
   });
 
@@ -285,13 +285,13 @@ export function CustomisePacks({
     return true;
   };
 
-  const handleEditOpen = (pack: CustomPackWithItems) => {
-    setEditModalData(pack);
-    setFormData({ name: pack.name, description: pack.description || '' });
+  const handleEditOpen = (collection: CustomCollectionWithItems) => {
+    setEditModalData(collection);
+    setFormData({ name: collection.name, description: collection.description || '' });
   };
 
   const columns: ListColumn[] = [
-    { key: 'name', label: 'Pack', align: 'left', width: '35%' },
+    { key: 'name', label: 'Collection', align: 'left', width: '35%' },
     {
       key: 'resolvedItems',
       label: 'Items',
@@ -299,7 +299,7 @@ export function CustomisePacks({
       width: '15%',
       cellClassName: 'text-sm text-muted-foreground',
       render: (value) => {
-        const count = (value as ResolvedPackItem[]).length;
+        const count = (value as ResolvedCollectionItem[]).length;
         return `${count} item${count !== 1 ? 's' : ''}`;
       },
     },
@@ -317,14 +317,14 @@ export function CustomisePacks({
     ? [
         {
           icon: <LuEye className="h-4 w-4" />,
-          onClick: (item: CustomPackWithItems) => setViewModalData(item),
+          onClick: (item: CustomCollectionWithItems) => setViewModalData(item),
           variant: 'outline',
           size: 'sm',
           className: 'text-xs px-1.5 h-6',
         },
         {
           icon: <FaRegCopy className="h-4 w-4" />,
-          onClick: (item: CustomPackWithItems) => setCopyModalData(item),
+          onClick: (item: CustomCollectionWithItems) => setCopyModalData(item),
           variant: 'outline',
           size: 'sm',
           className: 'text-xs px-1.5 h-6',
@@ -333,21 +333,21 @@ export function CustomisePacks({
     : [
         {
           icon: <FiShare2 className="h-4 w-4" />,
-          onClick: (item: CustomPackWithItems) => setShareModalData(item),
+          onClick: (item: CustomCollectionWithItems) => setShareModalData(item),
           variant: 'outline',
           size: 'sm',
           className: 'text-xs px-1.5 h-6',
         },
         {
           icon: <LuSquarePen className="h-4 w-4" />,
-          onClick: (item: CustomPackWithItems) => handleEditOpen(item),
+          onClick: (item: CustomCollectionWithItems) => handleEditOpen(item),
           variant: 'outline',
           size: 'sm',
           className: 'text-xs px-1.5 h-6',
         },
         {
           icon: <LuTrash2 className="h-4 w-4" />,
-          onClick: (item: CustomPackWithItems) => setDeleteModalData(item),
+          onClick: (item: CustomCollectionWithItems) => setDeleteModalData(item),
           variant: 'outline_remove',
           size: 'sm',
           className: 'text-xs px-1.5 h-6',
@@ -356,33 +356,33 @@ export function CustomisePacks({
 
   return (
     <div className={className}>
-      <List<CustomPackWithItems>
-        title="Packs"
-        items={packs}
+      <List<CustomCollectionWithItems>
+        title="Collections"
+        items={collections}
         columns={columns}
         actions={actions}
         onAdd={readOnly ? undefined : () => { resetForm(); setIsAddModalOpen(true); }}
         addButtonText="Create"
-        emptyMessage="No packs created yet."
+        emptyMessage="No collections created yet."
         sortBy={(a, b) => a.name.localeCompare(b.name)}
       />
 
       {isAddModalOpen && (
         <Modal
-          title="Create Pack"
-          helper="Bundle your custom items into a pack you can apply to your campaigns or share. Add items after creating."
+          title="Create Collection"
+          helper="Bundle your custom items into a collection you can apply to your campaigns or share. Add items after creating."
           onClose={() => { setIsAddModalOpen(false); resetForm(); }}
           onConfirm={handleCreateConfirm}
           confirmText="Create"
           confirmDisabled={!isFormValid() || createMutation.isPending}
         >
-          <PackForm formData={formData} setFormData={setFormData} />
+          <CollectionForm formData={formData} setFormData={setFormData} />
         </Modal>
       )}
 
       {editModalData && (
         <Modal
-          title="Edit Pack"
+          title="Edit Collection"
           onClose={() => { setEditModalData(null); resetForm(); }}
           onConfirm={handleEditConfirm}
           confirmText="Save"
@@ -390,13 +390,13 @@ export function CustomisePacks({
           width="2xl"
         >
           <div className="space-y-6">
-            <PackForm formData={formData} setFormData={setFormData} />
+            <CollectionForm formData={formData} setFormData={setFormData} />
             <div className="border-t pt-4">
-              <PackItemsEditor
+              <CollectionItemsEditor
                 items={editModalData.resolvedItems}
                 candidates={candidates}
-                onAdd={(type, candidate) => addItemMutation.mutate({ packId: editModalData.id, type, id: candidate.id, name: candidate.name })}
-                onRemove={(item) => removeItemMutation.mutate({ packId: editModalData.id, type: item.type, id: item.id })}
+                onAdd={(type, candidate) => addItemMutation.mutate({ collectionId: editModalData.id, type, id: candidate.id, name: candidate.name })}
+                onRemove={(item) => removeItemMutation.mutate({ collectionId: editModalData.id, type: item.type, id: item.id })}
               />
             </div>
           </div>
@@ -404,10 +404,10 @@ export function CustomisePacks({
       )}
 
       {viewModalData && (
-        <Modal title="View Pack" onClose={() => setViewModalData(null)} width="2xl" hideCancel>
+        <Modal title="View Collection" onClose={() => setViewModalData(null)} width="2xl" hideCancel>
           <div className="space-y-4">
             <div>
-              <Label className="block mb-1">Pack Name</Label>
+              <Label className="block mb-1">Collection Name</Label>
               <div className="w-full p-2 border rounded-md bg-muted">{viewModalData.name}</div>
             </div>
             <div>
@@ -416,7 +416,7 @@ export function CustomisePacks({
             </div>
             <div>
               <Label className="block mb-2">Items ({viewModalData.resolvedItems.length})</Label>
-              <PackItemsList items={viewModalData.resolvedItems} />
+              <CollectionItemsList items={viewModalData.resolvedItems} />
             </div>
           </div>
         </Modal>
@@ -424,21 +424,21 @@ export function CustomisePacks({
 
       {deleteModalData && (
         <Modal
-          title="Delete Pack"
+          title="Delete Collection"
           onClose={() => setDeleteModalData(null)}
           onConfirm={handleDeleteConfirm}
           confirmText="Delete"
         >
           <p>Are you sure you want to delete <strong>{deleteModalData.name}</strong>?</p>
           <p className="text-sm text-muted-foreground mt-2">
-            This only deletes the pack. Items already shared to campaigns from this pack stay shared, and the custom items themselves are not deleted.
+            This only deletes the collection. Items already shared to campaigns from this collection stay shared, and the custom items themselves are not deleted.
           </p>
         </Modal>
       )}
 
       {copyModalData && (
         <Modal
-          title="Copy Pack"
+          title="Copy Collection"
           onClose={() => setCopyModalData(null)}
           onConfirm={handleCopyConfirm}
           confirmText={copyMutation.isPending ? 'Copying...' : 'Copy to my account'}
@@ -446,14 +446,14 @@ export function CustomisePacks({
         >
           <p>Copy <strong>"{copyModalData.name}"</strong> and all its custom items into your own account?</p>
           <p className="text-sm text-muted-foreground mt-2">
-            You'll get your own editable duplicates of every item in the pack. This won't affect the original.
+            You'll get your own editable duplicates of every item in the collection. This won't affect the original.
           </p>
         </Modal>
       )}
 
       {shareModalData && userId && (
-        <ShareCustomPackModal
-          pack={shareModalData}
+        <ShareCustomCollectionModal
+          collection={shareModalData}
           userCampaigns={userCampaigns}
           onClose={() => setShareModalData(null)}
         />
@@ -462,7 +462,7 @@ export function CustomisePacks({
   );
 }
 
-function PackForm({
+function CollectionForm({
   formData,
   setFormData,
 }: {
@@ -472,11 +472,11 @@ function PackForm({
   return (
     <div className="space-y-4">
       <div>
-        <Label className="block mb-2">Pack Name *</Label>
+        <Label className="block mb-2">Collection Name *</Label>
         <Input
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Enter pack name"
+          placeholder="Enter collection name"
         />
       </div>
       <div>
@@ -492,22 +492,22 @@ function PackForm({
   );
 }
 
-function PackItemsEditor({
+function CollectionItemsEditor({
   items,
   candidates,
   onAdd,
   onRemove,
 }: {
-  items: ResolvedPackItem[];
-  candidates: Record<PackItemType, CandidateItem[]>;
-  onAdd: (type: PackItemType, candidate: CandidateItem) => void;
-  onRemove: (item: ResolvedPackItem) => void;
+  items: ResolvedCollectionItem[];
+  candidates: Record<CollectionItemType, CandidateItem[]>;
+  onAdd: (type: CollectionItemType, candidate: CandidateItem) => void;
+  onRemove: (item: ResolvedCollectionItem) => void;
 }) {
-  const [selectedType, setSelectedType] = useState<PackItemType>('gang_type');
+  const [selectedType, setSelectedType] = useState<CollectionItemType>('gang_type');
   const [selectedId, setSelectedId] = useState('');
 
-  const inPack = new Set(items.map(i => `${i.type}:${i.id}`));
-  const available = (candidates[selectedType] || []).filter(c => !inPack.has(`${selectedType}:${c.id}`));
+  const inCollection = new Set(items.map(i => `${i.type}:${i.id}`));
+  const available = (candidates[selectedType] || []).filter(c => !inCollection.has(`${selectedType}:${c.id}`));
 
   return (
     <div className="space-y-3">
@@ -517,9 +517,9 @@ function PackItemsEditor({
         <select
           className="border rounded-md p-2 bg-background text-base md:text-sm"
           value={selectedType}
-          onChange={(e) => { setSelectedType(e.target.value as PackItemType); setSelectedId(''); }}
+          onChange={(e) => { setSelectedType(e.target.value as CollectionItemType); setSelectedId(''); }}
         >
-          {(Object.keys(TYPE_LABELS) as PackItemType[]).map(t => (
+          {(Object.keys(TYPE_LABELS) as CollectionItemType[]).map(t => (
             <option key={t} value={t}>{TYPE_LABELS[t]}</option>
           ))}
         </select>
@@ -545,7 +545,7 @@ function PackItemsEditor({
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">No items in this pack yet.</p>
+        <p className="text-sm text-muted-foreground text-center py-4">No items in this collection yet.</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
@@ -579,9 +579,9 @@ function PackItemsEditor({
   );
 }
 
-function PackItemsList({ items }: { items: ResolvedPackItem[] }) {
+function CollectionItemsList({ items }: { items: ResolvedCollectionItem[] }) {
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">This pack has no items.</p>;
+    return <p className="text-sm text-muted-foreground">This collection has no items.</p>;
   }
   return (
     <table className="w-full text-sm">

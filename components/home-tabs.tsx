@@ -9,11 +9,11 @@ import type { CustomSkill } from '@/app/lib/customise/custom-skills'
 import type { CustomFighterType } from '@/types/fighter'
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts'
-import type { CustomPackWithItems } from '@/app/lib/customise/custom-packs'
+import type { CustomCollectionWithItems } from '@/app/lib/customise/custom-collections'
 import type { UserCampaign } from '@/types/campaign'
 import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
 import { CustomiseTradingPosts } from '@/components/customise/custom-trading-posts'
-import { CustomisePacks } from '@/components/customise/custom-packs'
+import { CustomiseCollections } from '@/components/customise/custom-collections'
 import { CustomiseEquipment } from '@/components/customise/custom-equipment'
 import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
@@ -32,7 +32,7 @@ interface HomeTabsProps {
   customSkills: CustomSkill[];
   customGangTypes: CustomGangType[];
   customTradingPosts: CustomTradingPost[];
-  customPacks: CustomPackWithItems[];
+  customCollections: CustomCollectionWithItems[];
   userCampaigns: UserCampaign[];
 }
 
@@ -45,7 +45,7 @@ export default function HomeTabs({
   customSkills,
   customGangTypes,
   customTradingPosts,
-  customPacks,
+  customCollections,
   userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
@@ -143,7 +143,7 @@ export default function HomeTabs({
             <div>
               <h2 className="text-xl md:text-2xl font-bold mb-2">Custom Assets</h2>
               <p className="text-muted-foreground">
-                Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you're an Arbitrator of. Bundle them into Packs to apply a whole themed set to a campaign at once, or copy another arbitrator's pack into your account. Custom Territories and Scenarios are created in the campaign pages.
+                Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you're an Arbitrator of. Bundle them into Collections to apply a whole themed set to a campaign at once, or copy another arbitrator's collection into your account. Custom Territories and Scenarios are created in the campaign pages.
               </p>
             </div>
 
@@ -179,10 +179,10 @@ export default function HomeTabs({
               userCampaigns={userCampaigns}
             />
 
-            {/* Packs work like the other custom assets: always editable here; the
+            {/* Collections work like the other custom assets: always editable here; the
                 Share action gates itself to campaigns the user arbitrates. */}
-            <CustomisePacks
-              initialPacks={customPacks}
+            <CustomiseCollections
+              initialCollections={customCollections}
               userId={userId}
               userCampaigns={userCampaigns}
               customEquipment={customEquipment}

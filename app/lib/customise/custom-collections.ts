@@ -1,18 +1,18 @@
 import { createClient } from "@/utils/supabase/server";
-import type { CustomPack, PackItem, PackItemType } from "@/app/actions/customise/custom-packs";
+import type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 
-export type { CustomPack, PackItem, PackItemType } from "@/app/actions/customise/custom-packs";
+export type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 
-export interface ResolvedPackItem extends PackItem {
+export interface ResolvedCollectionItem extends CollectionItem {
   name: string;
 }
 
-export interface CustomPackWithItems extends CustomPack {
-  resolvedItems: ResolvedPackItem[];
+export interface CustomCollectionWithItems extends CustomCollection {
+  resolvedItems: ResolvedCollectionItem[];
 }
 
 // Per-type resolution config: which table and name column to read.
-const RESOLVE: Record<PackItemType, { table: string; nameColumn: string }> = {
+const RESOLVE: Record<CollectionItemType, { table: string; nameColumn: string }> = {
   equipment: { table: 'custom_equipment', nameColumn: 'equipment_name' },
   fighter_type: { table: 'custom_fighter_types', nameColumn: 'fighter_type' },
   gang_type: { table: 'custom_gang_types', nameColumn: 'gang_type' },
@@ -21,42 +21,42 @@ const RESOLVE: Record<PackItemType, { table: string; nameColumn: string }> = {
 };
 
 /**
- * Fetch a user's packs and resolve each item's display name. Item ids that no
+ * Fetch a user's collections and resolve each item's display name. Item ids that no
  * longer resolve (e.g. the underlying custom item was deleted) are skipped.
  */
-export async function getUserCustomPacks(userId: string): Promise<CustomPackWithItems[]> {
+export async function getUserCustomCollections(userId: string): Promise<CustomCollectionWithItems[]> {
   const supabase = await createClient();
 
-  const { data: packs, error } = await supabase
-    .from('custom_packs')
+  const { data: collections, error } = await supabase
+    .from('custom_collections')
     .select('*')
     .eq('user_id', userId)
     .order('name', { ascending: true });
 
   if (error) {
-    console.error('Error fetching custom packs:', error);
-    throw new Error(`Failed to fetch custom packs: ${error.message}`);
+    console.error('Error fetching custom collections:', error);
+    throw new Error(`Failed to fetch custom collections: ${error.message}`);
   }
 
-  const typedPacks = (packs || []) as CustomPack[];
-  if (typedPacks.length === 0) return [];
+  const typedCollections = (collections || []) as CustomCollection[];
+  if (typedCollections.length === 0) return [];
 
-  // Collect ids per type across all packs.
-  const idsByType: Record<PackItemType, Set<string>> = {
+  // Collect ids per type across all collections.
+  const idsByType: Record<CollectionItemType, Set<string>> = {
     equipment: new Set(),
     fighter_type: new Set(),
     gang_type: new Set(),
     skill: new Set(),
     trading_post: new Set(),
   };
-  for (const pack of typedPacks) {
-    for (const item of (pack.items || [])) {
+  for (const collection of typedCollections) {
+    for (const item of (collection.items || [])) {
       if (idsByType[item.type]) idsByType[item.type].add(item.id);
     }
   }
 
   // Resolve names per type in one query each.
-  const nameMaps: Record<PackItemType, Map<string, string>> = {
+  const nameMaps: Record<CollectionItemType, Map<string, string>> = {
     equipment: new Map(),
     fighter_type: new Map(),
     gang_type: new Map(),
@@ -65,7 +65,7 @@ export async function getUserCustomPacks(userId: string): Promise<CustomPackWith
   };
 
   await Promise.all(
-    (Object.keys(RESOLVE) as PackItemType[]).map(async (type) => {
+    (Object.keys(RESOLVE) as CollectionItemType[]).map(async (type) => {
       const ids = Array.from(idsByType[type]);
       if (ids.length === 0) return;
       const { table, nameColumn } = RESOLVE[type];
@@ -79,13 +79,13 @@ export async function getUserCustomPacks(userId: string): Promise<CustomPackWith
     })
   );
 
-  return typedPacks.map(pack => ({
-    ...pack,
-    resolvedItems: (pack.items || [])
+  return typedCollections.map(collection => ({
+    ...collection,
+    resolvedItems: (collection.items || [])
       .map(item => {
         const name = nameMaps[item.type]?.get(item.id);
         return name ? { ...item, name } : null;
       })
-      .filter((i): i is ResolvedPackItem => i !== null),
+      .filter((i): i is ResolvedCollectionItem => i !== null),
   }));
 }
