@@ -462,12 +462,13 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
           }
 
           // If we have profiles, apply equipment-targeted effects from fighter_effects targeting this equipment
+          let baseWeaponProfiles: any[] | null = null;
           if (weaponProfiles.length > 0) {
             // Lookup targeting effects from Map (O(1) instead of query)
             const targetingEffects = targetingEffectsMap.get(fighterEquipmentId) || [];
 
             if (targetingEffects.length > 0) {
-              // Use shared utility function to apply weapon modifiers
+              baseWeaponProfiles = weaponProfiles;
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
           }
@@ -490,6 +491,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             is_master_crafted: item.is_master_crafted || false,
             is_editable: item.is_editable || false,
             weapon_profiles: weaponProfiles,
+            base_weapon_profiles: baseWeaponProfiles,
             target_equipment_id: targetEquipmentId,
             effect_names: effectNames.length > 0 ? effectNames : undefined,
             loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,

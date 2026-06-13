@@ -11,6 +11,12 @@ export interface EquipmentTooltipOptions {
   isVehicleEquipment?: boolean;
 }
 
+function formatRange(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '-';
+  const strValue = value.toString();
+  return /\d$/.test(strValue) ? `${strValue}"` : strValue;
+}
+
 function hasProfileData(profile: WeaponProfile): boolean {
   return !!(
     profile.range_short || profile.range_long ||
@@ -106,8 +112,8 @@ export function getEquipmentTooltipHtml(
         html += '<tr style="border-bottom: 1px solid #555;">';
         html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
         if (profileHasData) {
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.range_short ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.range_long ?? '-'}</td>`;
+          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${formatRange(profile.range_short)}</td>`;
+          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${formatRange(profile.range_long)}</td>`;
           html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.acc_short ?? '-'}</td>`;
           html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.acc_long ?? '-'}</td>`;
           html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.strength ?? '-'}</td>`;
