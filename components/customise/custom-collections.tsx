@@ -208,12 +208,6 @@ export function CustomiseCollections({
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to copy collection');
     },
-    // The copier's own list is server-rendered and refreshed by revalidatePath('/')
-    // inside copyCollection; this invalidation is only for consistency with the other
-    // mutations (no client query currently consumes this key).
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['customCollections'] });
-    },
   });
 
   // --- Add item (live, optimistic) ---
