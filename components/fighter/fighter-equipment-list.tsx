@@ -187,7 +187,8 @@ export function WeaponList({
           updated = updated.map(eq => {
             if (eq.fighter_equipment_id !== attachmentEffect.target_equipment_id) return eq;
             const baseProfiles = eq.base_weapon_profiles || eq.weapon_profiles || [];
-            const modifiedProfiles = applyWeaponModifiers(baseProfiles, [attachmentEffect]);
+            const currentProfiles = eq.weapon_profiles || [];
+            const modifiedProfiles = applyWeaponModifiers(currentProfiles, [attachmentEffect]);
             return { ...eq, base_weapon_profiles: baseProfiles, weapon_profiles: modifiedProfiles };
           });
         }
