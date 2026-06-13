@@ -116,7 +116,6 @@ export function CustomisePacks({
         user_id: userId || '',
         name: data.name,
         description: data.description ?? null,
-        visibility: 'public',
         items: [],
         resolvedItems: [],
         created_at: new Date().toISOString(),

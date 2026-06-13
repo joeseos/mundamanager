@@ -240,8 +240,8 @@ BEGIN
     WHERE mapped.nid IS NOT NULL
   ), '[]'::jsonb);
 
-  INSERT INTO public.custom_packs (id, created_at, user_id, name, description, visibility, items)
-  VALUES (v_new_pack, now(), v_user, v_name || ' (Copy)', v_description, 'public', v_new_items);
+  INSERT INTO public.custom_packs (id, created_at, user_id, name, description, items)
+  VALUES (v_new_pack, now(), v_user, v_name || ' (Copy)', v_description, v_new_items);
 
   RETURN v_new_pack;
 END;

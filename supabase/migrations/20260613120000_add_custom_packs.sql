@@ -24,7 +24,6 @@ CREATE TABLE public.custom_packs (
   user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   name text NOT NULL,
   description text,
-  visibility text NOT NULL DEFAULT 'public' CHECK (visibility IN ('private', 'public')),
   -- Array of { "type": "equipment|fighter_type|gang_type|skill|trading_post", "id": "<uuid>" }.
   -- No FK enforcement on the inner ids (graceful skip of dangling entries on read/copy),
   -- matching how campaigns.custom_trading_posts already behaves.
@@ -32,7 +31,6 @@ CREATE TABLE public.custom_packs (
 );
 
 CREATE INDEX idx_custom_packs_user_id ON public.custom_packs(user_id);
-CREATE INDEX idx_custom_packs_items ON public.custom_packs USING gin (items);
 
 ALTER TABLE public.custom_packs ENABLE ROW LEVEL SECURITY;
 

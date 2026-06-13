@@ -16,7 +16,6 @@ export interface CustomPack {
   user_id: string;
   name: string;
   description?: string | null;
-  visibility: 'private' | 'public';
   items: PackItem[];
   created_at: string;
   updated_at?: string | null;
