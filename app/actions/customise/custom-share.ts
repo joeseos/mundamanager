@@ -494,3 +494,197 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
     };
   }
 }
+
+type PackShareItemColumn =
+  | 'custom_equipment_id'
+  | 'custom_gang_type_id'
+  | 'custom_fighter_type_id'
+  | 'custom_skill_id'
+  | 'custom_trading_post_id';
+
+interface PackShareRow {
+  campaign_id: string;
+  user_id: string;
+  custom_pack_id: string;
+  custom_equipment_id?: string;
+  custom_gang_type_id?: string;
+  custom_fighter_type_id?: string;
+  custom_skill_id?: string;
+  custom_trading_post_id?: string;
+}
+
+/**
+ * Share (apply) a whole pack to selected campaigns — the primary pack action.
+ * Expands the pack's items into per-item custom_shared rows (tagged with custom_pack_id),
+ * cascading gang types -> fighters -> skills (mirroring shareCustomGangType), and syncing
+ * campaigns.custom_trading_posts for any packed trading posts. campaignIds should be limited
+ * to campaigns the caller arbitrates (enforced by the share modal's userCampaigns list).
+ * Passing an empty campaignIds unshares the pack from all campaigns.
+ */
+export async function sharePack(packId: string, campaignIds: string[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: pack, error: packError } = await supabase
+      .from('custom_packs')
+      .select('id, user_id, items')
+      .eq('id', packId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (packError || !pack) {
+      return { success: false, error: 'Pack not found or not owned by user' };
+    }
+
+    const items = ((pack.items as { type: string; id: string }[]) || []);
+    const equipmentIds = new Set(items.filter(i => i.type === 'equipment').map(i => i.id));
+    const gangTypeIds = new Set(items.filter(i => i.type === 'gang_type').map(i => i.id));
+    const fighterTypeIds = new Set(items.filter(i => i.type === 'fighter_type').map(i => i.id));
+    const skillIds = new Set(items.filter(i => i.type === 'skill').map(i => i.id));
+    const tradingPostIds = new Set(items.filter(i => i.type === 'trading_post').map(i => i.id));
+
+    // Cascade: gang types -> their custom fighter types
+    if (gangTypeIds.size > 0) {
+      const { data: fighters } = await supabase
+        .from('custom_fighter_types')
+        .select('id')
+        .in('custom_gang_type_id', Array.from(gangTypeIds))
+        .eq('user_id', user.id);
+      (fighters ?? []).forEach(f => fighterTypeIds.add(f.id));
+    }
+
+    // Cascade: fighter types -> their custom skills (via custom skill types)
+    if (fighterTypeIds.size > 0) {
+      const { data: access } = await supabase
+        .from('fighter_type_skill_access')
+        .select('custom_skill_type_id')
+        .in('custom_fighter_type_id', Array.from(fighterTypeIds))
+        .not('custom_skill_type_id', 'is', null);
+
+      const skillTypeIds = Array.from(new Set(
+        (access ?? []).map(a => a.custom_skill_type_id).filter(Boolean) as string[]
+      ));
+
+      if (skillTypeIds.length > 0) {
+        const { data: skills } = await supabase
+          .from('custom_skills')
+          .select('id')
+          .in('custom_skill_type_id', skillTypeIds)
+          .eq('user_id', user.id);
+        (skills ?? []).forEach(s => skillIds.add(s.id));
+      }
+    }
+
+    // Campaigns this pack previously shared a trading post to (for jsonb cleanup)
+    const { data: oldTpShares } = await supabase
+      .from('custom_shared')
+      .select('campaign_id')
+      .eq('custom_pack_id', packId)
+      .eq('user_id', user.id)
+      .not('custom_trading_post_id', 'is', null);
+    const oldTpCampaignIds = Array.from(new Set((oldTpShares ?? []).map(s => s.campaign_id)));
+
+    // Replace this pack's tagged shares
+    const { error: deleteError } = await supabase
+      .from('custom_shared')
+      .delete()
+      .eq('custom_pack_id', packId)
+      .eq('user_id', user.id);
+
+    if (deleteError) {
+      console.error('Error deleting existing pack shares:', deleteError);
+      return { success: false, error: `Failed to update shares: ${deleteError.message}` };
+    }
+
+    if (campaignIds.length > 0) {
+      // Dedup against the user's remaining shares for these campaigns
+      const { data: existing } = await supabase
+        .from('custom_shared')
+        .select('campaign_id, custom_equipment_id, custom_gang_type_id, custom_fighter_type_id, custom_skill_id, custom_trading_post_id')
+        .in('campaign_id', campaignIds)
+        .eq('user_id', user.id);
+
+      const alreadyShared = new Set(
+        (existing ?? []).flatMap(r =>
+          (['custom_equipment_id', 'custom_gang_type_id', 'custom_fighter_type_id', 'custom_skill_id', 'custom_trading_post_id'] as PackShareItemColumn[])
+            .filter(col => r[col])
+            .map(col => `${r.campaign_id}:${col}:${r[col]}`)
+        )
+      );
+
+      const rows: PackShareRow[] = [];
+      const pushRows = (col: PackShareItemColumn, ids: Set<string>) => {
+        const idList = Array.from(ids);
+        for (const campaignId of campaignIds) {
+          for (const id of idList) {
+            if (alreadyShared.has(`${campaignId}:${col}:${id}`)) continue;
+            rows.push({ [col]: id, campaign_id: campaignId, user_id: user.id, custom_pack_id: packId });
+          }
+        }
+      };
+
+      pushRows('custom_equipment_id', equipmentIds);
+      pushRows('custom_gang_type_id', gangTypeIds);
+      pushRows('custom_fighter_type_id', fighterTypeIds);
+      pushRows('custom_skill_id', skillIds);
+      pushRows('custom_trading_post_id', tradingPostIds);
+
+      if (rows.length > 0) {
+        const { error: insertError } = await supabase.from('custom_shared').insert(rows);
+        if (insertError) {
+          console.error('Error inserting pack shares:', insertError);
+          return { success: false, error: `Failed to share pack: ${insertError.message}` };
+        }
+      }
+    }
+
+    // Sync campaigns.custom_trading_posts for packed trading posts
+    if (tradingPostIds.size > 0) {
+      const tpArray = Array.from(tradingPostIds);
+
+      if (campaignIds.length > 0) {
+        const { data: addCampaigns } = await supabase
+          .from('campaigns')
+          .select('id, custom_trading_posts')
+          .in('id', campaignIds);
+        for (const c of addCampaigns ?? []) {
+          const current = (c.custom_trading_posts as string[]) || [];
+          const merged = Array.from(new Set([...current, ...tpArray]));
+          if (merged.length !== current.length) {
+            await supabase.from('campaigns').update({ custom_trading_posts: merged }).eq('id', c.id);
+          }
+          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(c.id));
+        }
+      }
+
+      const removedCampaignIds = oldTpCampaignIds.filter(id => !campaignIds.includes(id));
+      if (removedCampaignIds.length > 0) {
+        const { data: removeCampaigns } = await supabase
+          .from('campaigns')
+          .select('id, custom_trading_posts')
+          .in('id', removedCampaignIds);
+        for (const c of removeCampaigns ?? []) {
+          const current = (c.custom_trading_posts as string[]) || [];
+          const filtered = current.filter(id => !tpArray.includes(id));
+          if (filtered.length !== current.length) {
+            await supabase.from('campaigns').update({ custom_trading_posts: filtered }).eq('id', c.id);
+          }
+          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(c.id));
+        }
+      }
+    }
+
+    for (const cid of campaignIds) {
+      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(cid));
+    }
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('Error in sharePack:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}

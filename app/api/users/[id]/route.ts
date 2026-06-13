@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
+import { getUserCustomPacks } from '@/app/lib/customise/custom-packs'
 
 export async function GET(
   request: NextRequest,
@@ -153,12 +154,21 @@ export async function GET(
       updated_at: skill.updated_at,
     }));
 
+    // Fetch the user's packs (with resolved item names)
+    let customPacks: Awaited<ReturnType<typeof getUserCustomPacks>> = []
+    try {
+      customPacks = await getUserCustomPacks(userId)
+    } catch (packsError) {
+      console.error('Error fetching custom packs:', packsError)
+    }
+
     const customAssets = {
       equipment: customEquipmentResult.data?.length || 0,
       fighters: customFightersResult.data?.length || 0,
       skills: customSkillsData.length,
       gangTypes: customGangTypesResult.data?.length || 0,
       tradingPosts: customTradingPostsResult.data?.length || 0,
+      packs: customPacks.length,
     }
 
     // Fetch related data for fighters (default skills and equipment)
@@ -296,6 +306,7 @@ export async function GET(
       skills: customSkillsData,
       gangTypes: customGangTypesResult.data || [],
       tradingPosts: customTradingPostsResult.data || [],
+      packs: customPacks,
     }
 
     return Response.json({
