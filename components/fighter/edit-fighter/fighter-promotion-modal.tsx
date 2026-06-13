@@ -50,6 +50,25 @@ function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
   return ft.sub_type?.sub_type_name ? `${base}, ${ft.sub_type.sub_type_name}` : base;
 }
 
+export type FighterPromotionResult = {
+  fighter_type: string;
+  fighter_type_id: string;
+  fighter_class: string;
+  fighter_class_id: string;
+  special_rules: string[];
+  fighter_sub_type?: string | null;
+  fighter_sub_type_id?: string | null;
+};
+
+function promotionSubTypeFields(
+  type?: { sub_type?: { id: string; sub_type_name: string } | null } | null
+): Pick<FighterPromotionResult, 'fighter_sub_type' | 'fighter_sub_type_id'> {
+  return {
+    fighter_sub_type: type?.sub_type?.sub_type_name ?? null,
+    fighter_sub_type_id: type?.sub_type?.id ?? null,
+  };
+}
+
 interface FighterPromotionModalProps {
   currentClass: string;
   currentSpecialRules: string[];
@@ -69,13 +88,7 @@ interface FighterPromotionModalProps {
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
   showXpPromotionHint?: boolean;
-  onPromoted: (data: {
-    fighter_type: string;
-    fighter_type_id: string;
-    fighter_class: string;
-    fighter_class_id: string;
-    special_rules: string[];
-  }) => void;
+  onPromoted: (data: FighterPromotionResult) => void;
 }
 
 export function FighterPromotionModal({
@@ -208,12 +221,14 @@ export function FighterPromotionModal({
 
   const handleConfirm = () => {
     if (isExoticBeast) {
+      const currentType = fighterTypes.find((ft) => ft.id === currentFighterTypeId);
       onPromoted({
         fighter_type: currentFighterType || '',
         fighter_type_id: currentFighterTypeId || '',
         fighter_class: EXOTIC_BEAST_SPECIALIST_CLASS_NAME,
         fighter_class_id: EXOTIC_BEAST_SPECIALIST_CLASS_ID,
         special_rules: newSpecialRules,
+        ...promotionSubTypeFields(currentType),
       });
       return;
     }
@@ -224,6 +239,7 @@ export function FighterPromotionModal({
       fighter_class: selectedType.fighter_class,
       fighter_class_id: selectedType.fighter_class_id || '',
       special_rules: newSpecialRules,
+      ...promotionSubTypeFields(selectedType),
     });
   };
 
@@ -252,7 +268,7 @@ export function FighterPromotionModal({
               {showXpPromotionHint && (
                 <div className="mb-4">
                   <p className="text-sm mb-2 text-amber-500">
-                    To promote a fighter using XP, click Add Advancement on the Fighter page.
+                    To promote a fighter using XP, use the Add Advancement button on the Fighter page.
                   </p>
                 </div>
               )}
@@ -290,8 +306,8 @@ export function FighterPromotionModal({
                     Include all Gang Fighter Types
                   </label>
                   <div className="relative group">
-                    <ImInfo />
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-64 -left-36">
+                    <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-64 -left-36 z-50">
                       When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
                     </div>
                   </div>

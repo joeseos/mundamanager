@@ -1435,4 +1435,4 @@ export function EditFighterModal({
       />
     </>
   );
-} 
+}
