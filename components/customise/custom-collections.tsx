@@ -196,14 +196,15 @@ export function CustomiseCollections({
 
   // --- Copy (into the current user's assets) ---
   const copyMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const result = await copyCollection(id);
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const result = await copyCollection(id, name);
       if (!result.success) throw new Error(result.error || 'Failed to copy collection');
       return result;
     },
     onSuccess: () => {
       toast.success(`"${copyModalData?.name ?? 'Collection'}" has been copied to your assets.`);
       setCopyModalData(null);
+      resetForm();
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to copy collection');
@@ -280,8 +281,8 @@ export function CustomiseCollections({
   };
 
   const handleCopyConfirm = () => {
-    if (!copyModalData) return false;
-    copyMutation.mutate(copyModalData.id);
+    if (!copyModalData || !formData.name.trim()) return false;
+    copyMutation.mutate({ id: copyModalData.id, name: formData.name });
     return true;
   };
 
@@ -324,7 +325,7 @@ export function CustomiseCollections({
         },
         {
           icon: <FaRegCopy className="h-4 w-4" />,
-          onClick: (item: CustomCollectionWithItems) => setCopyModalData(item),
+          onClick: (item: CustomCollectionWithItems) => { setFormData({ name: item.name, description: '' }); setCopyModalData(item); },
           variant: 'outline',
           size: 'sm',
           className: 'text-xs px-1.5 h-6',
@@ -439,15 +440,24 @@ export function CustomiseCollections({
       {copyModalData && (
         <Modal
           title="Copy Collection"
-          onClose={() => setCopyModalData(null)}
+          onClose={() => { setCopyModalData(null); resetForm(); }}
           onConfirm={handleCopyConfirm}
           confirmText={copyMutation.isPending ? 'Copying...' : 'Copy to my assets'}
-          confirmDisabled={copyMutation.isPending}
+          confirmDisabled={copyMutation.isPending || !formData.name.trim()}
         >
-          <p>Copy <strong>"{copyModalData.name}"</strong> and all its custom items into your own assets?</p>
-          <p className="text-sm text-muted-foreground mt-2">
-            You'll get your own editable duplicates of every item in the collection. This won't affect the original.
-          </p>
+          <div className="space-y-4">
+            <div>
+              <Label className="block mb-2">Collection Name *</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter collection name"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              You'll get your own editable duplicates of every item in the collection. This won't affect the original.
+            </p>
+          </div>
         </Modal>
       )}
 

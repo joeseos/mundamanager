@@ -265,13 +265,14 @@ export async function removeCollectionItem(
  * caller's account, via the atomic copy_custom_collection() RPC. Any viewable collection is copyable.
  */
 export async function copyCollection(
-  collectionId: string
+  collectionId: string,
+  name: string
 ): Promise<{ success: boolean; newCollectionId?: string; error?: string }> {
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
 
-    const { data, error } = await supabase.rpc('copy_custom_collection', { p_collection_id: collectionId });
+    const { data, error } = await supabase.rpc('copy_custom_collection', { p_collection_id: collectionId, p_name: name.trimEnd() });
 
     if (error) {
       console.error('Error copying collection:', error);

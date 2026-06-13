@@ -4,7 +4,7 @@
 -- Implemented with plpgsql array variables + jsonb id-maps (no temp tables) so the
 -- body compiles under check_function_bodies and avoids cached-plan pitfalls.
 -- Maps are jsonb objects keyed by old uuid (text) -> new uuid (text).
-CREATE OR REPLACE FUNCTION public.copy_custom_collection(p_collection_id uuid)
+CREATE OR REPLACE FUNCTION public.copy_custom_collection(p_collection_id uuid, p_name text DEFAULT NULL)
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -241,8 +241,7 @@ BEGIN
   ), '[]'::jsonb);
 
   INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items)
-  VALUES (v_new_collection, now(), v_user, v_name || ' (Copy)', v_description, v_new_items);
-
+  VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items);
   RETURN v_new_collection;
 END;
 $$;
