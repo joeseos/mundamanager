@@ -194,7 +194,7 @@ export function CustomiseCollections({
     },
   });
 
-  // --- Copy (into the current user's account) ---
+  // --- Copy (into the current user's assets) ---
   const copyMutation = useMutation({
     mutationFn: async (id: string) => {
       const result = await copyCollection(id);
@@ -202,7 +202,7 @@ export function CustomiseCollections({
       return result;
     },
     onSuccess: () => {
-      toast.success(`"${copyModalData?.name ?? 'Collection'}" has been copied to your account.`);
+      toast.success(`"${copyModalData?.name ?? 'Collection'}" has been copied to your assets.`);
       setCopyModalData(null);
     },
     onError: (error: Error) => {
@@ -441,10 +441,10 @@ export function CustomiseCollections({
           title="Copy Collection"
           onClose={() => setCopyModalData(null)}
           onConfirm={handleCopyConfirm}
-          confirmText={copyMutation.isPending ? 'Copying...' : 'Copy to my account'}
+          confirmText={copyMutation.isPending ? 'Copying...' : 'Copy to my assets'}
           confirmDisabled={copyMutation.isPending}
         >
-          <p>Copy <strong>"{copyModalData.name}"</strong> and all its custom items into your own account?</p>
+          <p>Copy <strong>"{copyModalData.name}"</strong> and all its custom items into your own assets?</p>
           <p className="text-sm text-muted-foreground mt-2">
             You'll get your own editable duplicates of every item in the collection. This won't affect the original.
           </p>

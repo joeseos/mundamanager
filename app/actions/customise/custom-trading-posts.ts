@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { removeItemFromAllCollections } from './custom-collections';
 
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 
@@ -165,6 +166,8 @@ export async function deleteCustomTradingPost(
         }
       }
     }
+
+    await removeItemFromAllCollections(supabase, user.id, [{ type: 'trading_post', id }]);
 
     revalidatePath('/');
     return { success: true };

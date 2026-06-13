@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
+import { removeItemFromAllCollections } from './custom-collections';
 
 export interface CustomGangTypeData {
   gang_type: string;
@@ -155,6 +156,8 @@ export async function deleteCustomGangType(
       console.error('Error deleting custom gang type:', deleteError);
       return { success: false, error: `Failed to delete custom gang type: ${deleteError.message}` };
     }
+
+    await removeItemFromAllCollections(supabase, user.id, [{ type: 'gang_type', id }]);
 
     revalidatePath('/');
     return { success: true };

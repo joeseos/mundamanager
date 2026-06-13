@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type CollectionItemType = 'equipment' | 'fighter_type' | 'gang_type' | 'skill' | 'trading_post';
 
@@ -34,6 +35,36 @@ const ITEM_TABLE: Record<CollectionItemType, string> = {
   skill: 'custom_skills',
   trading_post: 'custom_trading_posts',
 };
+
+export async function removeItemFromAllCollections(
+  supabase: SupabaseClient,
+  userId: string,
+  removals: { type: CollectionItemType; id: string }[]
+): Promise<void> {
+  try {
+    const { data: collections } = await supabase
+      .from('custom_collections')
+      .select('id, items')
+      .eq('user_id', userId);
+
+    if (!collections?.length) return;
+
+    const removalSet = new Set(removals.map(r => `${r.type}:${r.id}`));
+
+    for (const col of collections) {
+      const items = (col.items as CollectionItem[]) || [];
+      const filtered = items.filter(i => !removalSet.has(`${i.type}:${i.id}`));
+      if (filtered.length < items.length) {
+        await supabase
+          .from('custom_collections')
+          .update({ items: filtered, updated_at: new Date().toISOString() })
+          .eq('id', col.id);
+      }
+    }
+  } catch (error) {
+    console.error('Error removing items from collections:', error);
+  }
+}
 
 export async function createCustomCollection(
   data: CustomCollectionData
