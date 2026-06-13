@@ -4,6 +4,7 @@
 -- Implemented with plpgsql array variables + jsonb id-maps (no temp tables) so the
 -- body compiles under check_function_bodies and avoids cached-plan pitfalls.
 -- Maps are jsonb objects keyed by old uuid (text) -> new uuid (text).
+DROP FUNCTION IF EXISTS public.copy_custom_collection(uuid);
 CREATE OR REPLACE FUNCTION public.copy_custom_collection(p_collection_id uuid, p_name text DEFAULT NULL)
 RETURNS uuid
 LANGUAGE plpgsql
