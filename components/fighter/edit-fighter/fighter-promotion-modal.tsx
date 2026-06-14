@@ -2,7 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { Checkbox } from "@/components/ui/checkbox";
 import { HiX } from "react-icons/hi";
+import { ImInfo } from "react-icons/im";
+import { fighterClassRank } from '@/utils/fighterClassRank';
 
 // Determines the target class for promotion based on current class
 const PROMOTION_MAP: Record<string, string> = {
@@ -26,11 +30,51 @@ function normalizeSpecialRules(rules: (string | unknown)[]): string[] {
     .filter(Boolean);
 }
 
+type PromotionFighterType = FighterPromotionModalProps['fighterTypes'][number];
+
+function sortPromotionFighterTypes(types: PromotionFighterType[]): PromotionFighterType[] {
+  return [...types].sort((a, b) => {
+    const classRankA = fighterClassRank[a.fighter_class.toLowerCase()] ?? Infinity;
+    const classRankB = fighterClassRank[b.fighter_class.toLowerCase()] ?? Infinity;
+    if (classRankA !== classRankB) return classRankA - classRankB;
+
+    const typeCompare = a.fighter_type.localeCompare(b.fighter_type);
+    if (typeCompare !== 0) return typeCompare;
+
+    return (a.sub_type?.sub_type_name || '').localeCompare(b.sub_type?.sub_type_name || '');
+  });
+}
+
+function formatPromotionFighterTypeLabel(ft: PromotionFighterType): string {
+  const base = `${ft.fighter_type} (${ft.fighter_class})`;
+  return ft.sub_type?.sub_type_name ? `${base}, ${ft.sub_type.sub_type_name}` : base;
+}
+
+export type FighterPromotionResult = {
+  fighter_type: string;
+  fighter_type_id: string;
+  fighter_class: string;
+  fighter_class_id: string;
+  special_rules: string[];
+  fighter_sub_type?: string | null;
+  fighter_sub_type_id?: string | null;
+};
+
+function promotionSubTypeFields(
+  type?: { sub_type?: { id: string; sub_type_name: string } | null } | null
+): Pick<FighterPromotionResult, 'fighter_sub_type' | 'fighter_sub_type_id'> {
+  return {
+    fighter_sub_type: type?.sub_type?.sub_type_name ?? null,
+    fighter_sub_type_id: type?.sub_type?.id ?? null,
+  };
+}
+
 interface FighterPromotionModalProps {
   currentClass: string;
   currentSpecialRules: string[];
   currentFighterType?: string;
   currentFighterTypeId?: string;
+  currentFighterSubTypeId?: string;
   fighterTypes: Array<{
     id: string;
     fighter_type: string;
@@ -42,13 +86,9 @@ interface FighterPromotionModalProps {
   }>;
   isOpen: boolean;
   onClose: () => void;
-  onPromoted: (data: {
-    fighter_type: string;
-    fighter_type_id: string;
-    fighter_class: string;
-    fighter_class_id: string;
-    special_rules: string[];
-  }) => void;
+  /** When true, shows guidance to use Add Advancement for XP-based promotion. */
+  showXpPromotionHint?: boolean;
+  onPromoted: (data: FighterPromotionResult) => void;
 }
 
 export function FighterPromotionModal({
@@ -56,25 +96,69 @@ export function FighterPromotionModal({
   currentSpecialRules,
   currentFighterType,
   currentFighterTypeId,
+  currentFighterSubTypeId,
   fighterTypes,
   isOpen,
   onClose,
+  showXpPromotionHint = false,
   onPromoted,
 }: FighterPromotionModalProps) {
   const [selectedTypeId, setSelectedTypeId] = useState('');
   const [newSpecialRules, setNewSpecialRules] = useState<string[]>([]);
   const [newRuleInput, setNewRuleInput] = useState('');
+  const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
   const targetClass = PROMOTION_MAP[currentClass] || '';
   const isExoticBeast = currentClass === 'Exotic Beast';
 
-  // Filter fighter types to only those matching the target promotion class
+  // Fighter types matching the standard promotion target class
   const eligibleTypes = useMemo(() => {
     if (isExoticBeast || !targetClass) return [];
-    return fighterTypes.filter(ft => ft.fighter_class === targetClass);
+    return sortPromotionFighterTypes(
+      fighterTypes.filter(ft => ft.fighter_class === targetClass)
+    );
   }, [fighterTypes, targetClass, isExoticBeast]);
 
-  const selectedType = eligibleTypes.find(ft => ft.id === selectedTypeId);
+  // Types shown in the combobox: eligible only, or all gang types when expanded
+  const displayTypes = useMemo(() => {
+    if (isExoticBeast) return [];
+    if (includeAllGangFighterTypes) {
+      return sortPromotionFighterTypes(fighterTypes);
+    }
+    return eligibleTypes;
+  }, [fighterTypes, eligibleTypes, isExoticBeast, includeAllGangFighterTypes]);
+
+  const selectedType = displayTypes.find(ft => ft.id === selectedTypeId);
+
+  const resolvedCurrentSubTypeId = useMemo(() => {
+    if (currentFighterSubTypeId) return currentFighterSubTypeId;
+    if (!currentFighterTypeId) return '';
+    return fighterTypes.find(ft => ft.id === currentFighterTypeId)?.sub_type?.id ?? '';
+  }, [currentFighterSubTypeId, currentFighterTypeId, fighterTypes]);
+
+  const fighterTypeComboboxOptions = useMemo(
+    () =>
+      displayTypes.map((ft) => {
+        const labelText = formatPromotionFighterTypeLabel(ft);
+        const optionSubTypeId = ft.sub_type?.id ?? '';
+        const isDifferentSubType =
+          Boolean(resolvedCurrentSubTypeId) && optionSubTypeId !== resolvedCurrentSubTypeId;
+        const isIneligibleForPromotion =
+          includeAllGangFighterTypes && Boolean(targetClass) && ft.fighter_class !== targetClass;
+        const useMutedStyle = isDifferentSubType || isIneligibleForPromotion;
+
+        return {
+          value: ft.id,
+          label: useMutedStyle ? (
+            <span className="italic text-neutral-400">{labelText}</span>
+          ) : (
+            labelText
+          ),
+          displayValue: labelText,
+        };
+      }),
+    [displayTypes, resolvedCurrentSubTypeId, includeAllGangFighterTypes, targetClass]
+  );
 
   const normalizedCurrentSpecialRules = useMemo(
     () => normalizeSpecialRules(currentSpecialRules),
@@ -86,13 +170,12 @@ export function FighterPromotionModal({
     if (isOpen) {
       if (isExoticBeast) {
         setSelectedTypeId('');
+        setIncludeAllGangFighterTypes(false);
         setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
         setNewRuleInput('');
       } else {
-        const eligible = targetClass
-          ? fighterTypes.filter(ft => ft.fighter_class === targetClass)
-          : [];
-        const firstType = eligible.length > 0 ? eligible[0] : null;
+        setIncludeAllGangFighterTypes(false);
+        const firstType = eligibleTypes.length > 0 ? eligibleTypes[0] : null;
         setSelectedTypeId(firstType?.id || '');
         setNewSpecialRules(
           firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
@@ -100,12 +183,24 @@ export function FighterPromotionModal({
         setNewRuleInput('');
       }
     }
-  }, [isOpen, targetClass, fighterTypes, isExoticBeast, currentSpecialRules]);
+  }, [isOpen, eligibleTypes, isExoticBeast, currentSpecialRules]);
+
+  const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
+    setIncludeAllGangFighterTypes(checked);
+    const types = checked
+      ? sortPromotionFighterTypes(fighterTypes)
+      : eligibleTypes;
+    const firstType = types.length > 0 ? types[0] : null;
+    setSelectedTypeId(firstType?.id || '');
+    setNewSpecialRules(
+      firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
+    );
+  };
 
   // When selection changes, update new special rules from the selected type
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
-    const type = eligibleTypes.find(ft => ft.id === typeId);
+    const type = displayTypes.find(ft => ft.id === typeId);
     setNewSpecialRules(type?.special_rules ? normalizeSpecialRules(type.special_rules) : []);
   };
 
@@ -126,12 +221,14 @@ export function FighterPromotionModal({
 
   const handleConfirm = () => {
     if (isExoticBeast) {
+      const currentType = fighterTypes.find((ft) => ft.id === currentFighterTypeId);
       onPromoted({
         fighter_type: currentFighterType || '',
         fighter_type_id: currentFighterTypeId || '',
         fighter_class: EXOTIC_BEAST_SPECIALIST_CLASS_NAME,
         fighter_class_id: EXOTIC_BEAST_SPECIALIST_CLASS_ID,
         special_rules: newSpecialRules,
+        ...promotionSubTypeFields(currentType),
       });
       return;
     }
@@ -142,6 +239,7 @@ export function FighterPromotionModal({
       fighter_class: selectedType.fighter_class,
       fighter_class_id: selectedType.fighter_class_id || '',
       special_rules: newSpecialRules,
+      ...promotionSubTypeFields(selectedType),
     });
   };
 
@@ -156,7 +254,7 @@ export function FighterPromotionModal({
       confirmText="Confirm Promotion"
       confirmDisabled={!isExoticBeast && !selectedType}
       content={
-        <div className="space-y-4">
+        <div className="space-y-6">
           {isExoticBeast ? (
             /* Exotic Beast simplified promotion UI */
             <div>
@@ -167,27 +265,53 @@ export function FighterPromotionModal({
           ) : (
             /* Standard fighter type selection dropdown */
             <>
+              {showXpPromotionHint && (
+                <div className="mb-4">
+                  <p className="text-sm mb-2 text-amber-500">
+                    To promote a fighter using XP, use the Add Advancement button on the Fighter page.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Promote to Fighter Type
                 </label>
-                {eligibleTypes.length === 0 ? (
+                {displayTypes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No eligible {targetClass || 'promotion'} fighter types available for this gang.
+                    {includeAllGangFighterTypes
+                      ? 'No Fighter Types available for this gang.'
+                      : `No eligible ${targetClass || 'promotion'} Fighter Types available.`}
                   </p>
                 ) : (
-                  <select
+                  <Combobox
                     value={selectedTypeId}
-                    onChange={(e) => handleTypeChange(e.target.value)}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    {eligibleTypes.map(ft => (
-                      <option key={ft.id} value={ft.id}>
-                        {ft.fighter_type}{ft.sub_type?.sub_type_name ? `, ${ft.sub_type.sub_type_name}` : ''} ({ft.fighter_class})
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={handleTypeChange}
+                    placeholder="Select a Fighter Type"
+                    options={fighterTypeComboboxOptions}
+                    dropdownPlacement="down"
+                  />
                 )}
+                <div className="flex items-center space-x-2 mt-2">
+                  <Checkbox
+                    id="include-all-gang-fighter-types"
+                    checked={includeAllGangFighterTypes}
+                    onCheckedChange={(checked) => {
+                      handleIncludeAllGangFighterTypesChange(checked as boolean);
+                    }}
+                  />
+                  <label
+                    htmlFor="include-all-gang-fighter-types"
+                    className="text-sm font-medium text-muted-foreground cursor-pointer"
+                  >
+                    Include all Gang Fighter Types
+                  </label>
+                  <div className="relative group">
+                    <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-64 -left-36 z-50">
+                      When enabled, all Fighter Types available to this gang will be shown, not just those normally eligible for promotion.
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Current Special Rules (read-only) */}

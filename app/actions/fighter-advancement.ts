@@ -71,6 +71,8 @@ export interface PromotionWithSkillAdvancementParams {
     fighter_class: string;
     fighter_class_id: string;
     special_rules: string[];
+    fighter_sub_type?: string | null;
+    fighter_sub_type_id?: string | null;
   };
 }
 
@@ -572,7 +574,7 @@ export async function applyPromotionWithSkillAdvancement(
     const supabase = await createClient();
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
-      .select('fighter_class, fighter_class_id, fighter_type, fighter_type_id, special_rules')
+      .select('fighter_class, fighter_class_id, fighter_type, fighter_type_id, fighter_sub_type, fighter_sub_type_id, special_rules')
       .eq('id', params.fighter_id)
       .single();
 
@@ -586,6 +588,8 @@ export async function applyPromotionWithSkillAdvancement(
       fighter_class_id: params.promotion.fighter_class_id,
       fighter_type: params.promotion.fighter_type,
       fighter_type_id: params.promotion.fighter_type_id,
+      fighter_sub_type: params.promotion.fighter_sub_type ?? null,
+      fighter_sub_type_id: params.promotion.fighter_sub_type_id ?? null,
       special_rules: params.promotion.special_rules
     });
 
@@ -608,6 +612,8 @@ export async function applyPromotionWithSkillAdvancement(
         fighter_class_id: before.fighter_class_id ?? undefined,
         fighter_type: before.fighter_type ?? undefined,
         fighter_type_id: before.fighter_type_id ?? undefined,
+        fighter_sub_type: before.fighter_sub_type ?? null,
+        fighter_sub_type_id: before.fighter_sub_type_id ?? null,
         special_rules: before.special_rules ?? []
       });
 

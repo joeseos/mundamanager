@@ -859,6 +859,7 @@ export default function FighterPage({
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
+            fighterSubTypeId={fighterData.fighter?.fighter_sub_type?.fighter_sub_type_id || ''}
             onFighterDetailsUpdate={(patch) => {
               setFighterData((prev) => ({
                 ...prev,
@@ -873,7 +874,16 @@ export default function FighterPage({
                               fighter_type: patch.fighter_type,
                               fighter_type_id: patch.fighter_type_id
                             }
-                          : prev.fighter.fighter_type
+                          : prev.fighter.fighter_type,
+                      fighter_sub_type:
+                        patch.fighter_sub_type !== undefined || patch.fighter_sub_type_id !== undefined
+                          ? patch.fighter_sub_type_id
+                            ? {
+                                fighter_sub_type: patch.fighter_sub_type ?? '',
+                                fighter_sub_type_id: patch.fighter_sub_type_id,
+                              }
+                            : undefined
+                          : prev.fighter.fighter_sub_type
                     }
                   : null
               }));

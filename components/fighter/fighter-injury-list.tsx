@@ -899,7 +899,14 @@ export function InjuriesList({
   const title = is_spyrer
     ? (
         <>
-          Rig Glitches <span className="text-sm sm:hidden">({glitchCount})</span><span className="text-sm hidden sm:inline">(Glitch count: {glitchCount})</span>
+          Rig Glitches
+          {glitchCount > 0 && (
+            <>
+              {' '}
+              <span className="text-sm sm:hidden">({glitchCount})</span>
+              <span className="text-sm hidden sm:inline">(Glitch count: {glitchCount})</span>
+            </>
+          )}
         </>
       )
     : "Lasting Injuries";

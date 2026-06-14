@@ -1462,8 +1462,8 @@ export default function AddFighter({
             Include Custom Fighter Types
           </label>
           <div className="relative group">
-            <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
+            <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
               When enabled, your custom fighter types will be included in the fighter type dropdown. Only custom fighters matching this gang type will be shown.
             </div>
           </div>
@@ -1488,11 +1488,11 @@ export default function AddFighter({
             htmlFor="include-all-fighter-types"
             className="text-sm font-medium text-muted-foreground cursor-pointer"
           >
-            Include all fighter types
+            Include all Fighter Types
           </label>
           <div className="relative group">
-            <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
+            <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
               When enabled, fighter types from all gangs will be shown. Gang additions are found in the "Gang Additions" menu.
             </div>
           </div>
@@ -1655,8 +1655,8 @@ export default function AddFighter({
             Use Listed Cost for Rating
           </label>
           <div className="relative group">
-            <ImInfo />
-            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
+            <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
               When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>
