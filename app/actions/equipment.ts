@@ -965,6 +965,22 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             try {
               invalidateFighterDataWithFinancials(params.fighter_id, params.gang_id);
             } catch {}
+
+            // Include the applied effect's modifiers in the response so the client can
+            // update the target weapon's profiles immediately without a page refresh
+            if (result.effect_data) {
+              responseData.attachment_effect = {
+                id: result.effect_id,
+                effect_name: result.effect_data.effect_name,
+                type_specific_data: result.effect_data.type_specific_data || {},
+                fighter_effect_modifiers: (result.effect_data.fighter_effect_type_modifiers || []).map((m: any) => ({
+                  stat_name: m.stat_name,
+                  numeric_value: m.default_numeric_value,
+                  operation: m.operation || 'add'
+                })),
+                target_equipment_id: chosenTargetId
+              };
+            }
           }
         } catch (e) {
           console.error('Failed to attach equipment upgrade during purchase:', e);

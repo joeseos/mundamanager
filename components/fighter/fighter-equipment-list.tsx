@@ -24,7 +24,21 @@ import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { Tooltip } from 'react-tooltip';
+
+// When a weapon attachment is removed, revert the target weapon's profiles to base
+function revertWeaponProfilesAfterRemoval(filteredEquipment: Equipment[], removedItem: Equipment): Equipment[] {
+  if (!removedItem.target_equipment_id) return filteredEquipment;
+  return filteredEquipment.map(eq => {
+    if (eq.fighter_equipment_id !== removedItem.target_equipment_id) return eq;
+    const stillTargeted = filteredEquipment.some(r => r.target_equipment_id === eq.fighter_equipment_id);
+    if (!stillTargeted && eq.base_weapon_profiles) {
+      return { ...eq, weapon_profiles: eq.base_weapon_profiles, base_weapon_profiles: null };
+    }
+    return eq;
+  });
+}
 
 // Escape untrusted strings before inlining into tooltip HTML
 const escapeHtml = (unsafe: string): string =>
@@ -158,13 +172,26 @@ export function WeaponList({
         const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
 
         // Replace temp with real item and reconcile credits
-        const updated = [...previousEquipment, {
+        const newItem: Equipment = {
           ...item,
           fighter_equipment_id: newEquipmentId || tempId,
           cost: serverRatingCost,
           is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
           target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
-        } as Equipment];
+        } as Equipment;
+
+        let updated: Equipment[] = [...previousEquipment, newItem];
+
+        const attachmentEffect = data?.attachment_effect;
+        if (attachmentEffect?.target_equipment_id) {
+          updated = updated.map(eq => {
+            if (eq.fighter_equipment_id !== attachmentEffect.target_equipment_id) return eq;
+            const baseProfiles = eq.base_weapon_profiles || eq.weapon_profiles || [];
+            const currentProfiles = eq.weapon_profiles || [];
+            const modifiedProfiles = applyWeaponModifiers(currentProfiles, [attachmentEffect]);
+            return { ...eq, base_weapon_profiles: baseProfiles, weapon_profiles: modifiedProfiles };
+          });
+        }
 
         onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
 
@@ -203,7 +230,8 @@ export function WeaponList({
       }
 
       // Optimistic UI: remove item and adjust fighter credits
-      const optimisticEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
+      const filtered = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
+      const optimisticEquipment = revertWeaponProfilesAfterRemoval(filtered, equipmentToDelete);
       const optimisticFighterCredits = previousFighterCredits - (equipmentToDelete.cost ?? 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
 
@@ -249,9 +277,8 @@ export function WeaponList({
       if (!equipmentToSell) throw new Error('Equipment not found');
 
       // Optimistic UI: remove item, adjust fighter and gang credits
-      const optimisticEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
+      const filtered = equipment.filter(item => item.fighter_equipment_id !== fighterEquipmentId);
+      const optimisticEquipment = revertWeaponProfilesAfterRemoval(filtered, equipmentToSell);
       const optimisticFighterCredits = previousFighterCredits - (equipmentToSell.cost ?? 0);
       const optimisticGangCredits = previousGangCredits + (manualCost || 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, optimisticGangCredits);
@@ -297,9 +324,8 @@ export function WeaponList({
       }
 
       // Optimistic UI: remove item and adjust fighter credits (gang credits unchanged)
-      const optimisticEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
+      const filtered = equipment.filter(item => item.fighter_equipment_id !== fighterEquipmentId);
+      const optimisticEquipment = revertWeaponProfilesAfterRemoval(filtered, equipmentToStash);
       const optimisticFighterCredits = previousFighterCredits - (equipmentToStash.cost ?? 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
 
