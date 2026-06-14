@@ -817,7 +817,7 @@ export function VehicleEquipmentList({
       <List
         title={
           <>
-            <span className="md:hidden">Veh. Equip.</span>
+            <span className="md:hidden">Vehicle Eq.</span>
             <span className="hidden md:inline">Vehicle Equipment</span>
           </>
         }
