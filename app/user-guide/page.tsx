@@ -55,7 +55,7 @@ export default function UserGuidePage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": "2025-06-01",
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/user-guide`
