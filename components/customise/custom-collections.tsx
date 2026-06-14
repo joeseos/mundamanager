@@ -455,7 +455,7 @@ export function CustomiseCollections({
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              You'll get your own editable duplicates of every item in the asset collection. This won't affect the original.
+              You&apos;ll get your own editable duplicates of every item in the asset collection. This won&apos;t affect the original.
             </p>
           </div>
         </Modal>

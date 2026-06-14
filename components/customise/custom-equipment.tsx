@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
@@ -69,7 +69,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   });
   const [createWeaponProfiles, setCreateWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [editWeaponProfiles, setEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
-  const [originalEditWeaponProfiles, setOriginalEditWeaponProfiles] = useState<CustomWeaponProfile[]>([]);
   const [weaponProfilesModified, setWeaponProfilesModified] = useState(false);
   
 
@@ -306,20 +305,16 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         if (error) {
           console.error('Error loading weapon profiles:', error);
           setEditWeaponProfiles([]);
-          setOriginalEditWeaponProfiles([]);
         } else {
           // Use the raw database data directly since the view modal expects the original field names
           setEditWeaponProfiles(profiles || []);
-          setOriginalEditWeaponProfiles(profiles || []);
         }
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
         setEditWeaponProfiles([]);
-        setOriginalEditWeaponProfiles([]);
-      }
+        }
     } else {
       setEditWeaponProfiles([]);
-      setOriginalEditWeaponProfiles([]);
     }
     
     // Fetch categories if not already loaded
@@ -350,15 +345,12 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       try {
         const profiles = await getCustomWeaponProfiles(equipment.id);
         setEditWeaponProfiles(profiles);
-        setOriginalEditWeaponProfiles(profiles);
       } catch (error) {
         console.error('Error loading weapon profiles:', error);
         setEditWeaponProfiles([]);
-        setOriginalEditWeaponProfiles([]);
-      }
+        }
     } else {
       setEditWeaponProfiles([]);
-      setOriginalEditWeaponProfiles([]);
     }
     
     // Fetch categories if not already loaded
@@ -388,7 +380,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       description: null,
     });
     setEditWeaponProfiles([]);
-    setOriginalEditWeaponProfiles([]);
     setWeaponProfilesModified(false);
   };
 
@@ -926,7 +917,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           title="Copy Custom Asset"
           content={
             <div className="space-y-4">
-              <p>Do you want to copy the custom asset <strong>"{copyModalData.equipment_name}"</strong> into your own profile?</p>
+              <p>Do you want to copy the custom asset <strong>&quot;{copyModalData.equipment_name}&quot;</strong> into your own profile?</p>
               <p className="text-sm text-muted-foreground">
                 This will create a copy of the equipment in your custom equipment list.
               </p>

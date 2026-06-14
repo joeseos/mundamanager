@@ -650,7 +650,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
           title="Copy Custom Skill"
           content={
             <div className="space-y-4">
-              <p>Do you want to copy <strong>"{copyModalData.skill_name}"</strong> into your own custom skills?</p>
+              <p>Do you want to copy <strong>&quot;{copyModalData.skill_name}&quot;</strong> into your own custom skills?</p>
             </div>
           }
           onClose={() => setCopyModalData(null)}
@@ -719,11 +719,12 @@ function ShareCustomSkillModal({
     gcTime: 10 * 60 * 1000,
   });
 
-  useEffect(() => {
-    if (isSuccess) {
-      setSelectedCampaigns(sharedCampaignIds);
-    }
-  }, [isSuccess, sharedCampaignIds]);
+  const [prevSharedKey, setPrevSharedKey] = useState('');
+  const sharedKey = `${isSuccess}:${JSON.stringify(sharedCampaignIds)}`;
+  if (sharedKey !== prevSharedKey) {
+    setPrevSharedKey(sharedKey);
+    if (isSuccess) setSelectedCampaigns(sharedCampaignIds);
+  }
 
   useEffect(() => {
     if (fetchError) {
@@ -778,7 +779,7 @@ function ShareCustomSkillModal({
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : userCampaigns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>You're not part of any campaigns yet.</p>
+            <p>You&apos;re not part of any campaigns yet.</p>
             <p className="text-sm mt-2">You need to be an arbitrator of a campaign to share custom skills to it.</p>
           </div>
         ) : (

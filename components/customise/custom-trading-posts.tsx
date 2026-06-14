@@ -501,8 +501,6 @@ export function CustomiseTradingPosts({
       {editModalData && (
         <EditTradingPostModal
           tradingPost={editModalData}
-          formData={formData}
-          setFormData={setFormData}
           isFormValid={isFormValid}
           onClose={() => {
             setEditModalData(null);
@@ -796,8 +794,6 @@ function EquipmentItemsSection({
 
 function EditTradingPostModal({
   tradingPost,
-  formData,
-  setFormData,
   isFormValid,
   onClose,
   onConfirm,
@@ -811,8 +807,6 @@ function EditTradingPostModal({
   onRemoveEquipment,
 }: {
   tradingPost: CustomTradingPost;
-  formData: CustomTradingPostData;
-  setFormData: React.Dispatch<React.SetStateAction<CustomTradingPostData>>;
   isFormValid: () => boolean;
   onClose: () => void;
   onConfirm: () => Promise<boolean | undefined>;
@@ -1750,20 +1744,17 @@ function AddPricingRuleModal({
     return formatPricingRuleFighterTypeLabel(ft, buildMultiProfileKeys(scopeForLabel));
   }, [scopedFighterTypes, fighterTypeId, fighterTypes, customFighterTypes, isCustomGangType, gangTypeId]);
 
-  useEffect(() => {
-    if (!fighterTypeId || !gangTypeId) return;
-    if (isCustomGangType ? isCustomFighterTypesLoading : isFighterTypesLoading) return;
-    if (!scopedFighterTypes.some(ft => ft.id === fighterTypeId)) {
-      setFighterTypeId('');
+  const scopeResetKey = `${gangTypeId}:${isCustomGangType}:${scopedFighterTypes.map(ft => ft.id).join(',')}:${isCustomGangType ? isCustomFighterTypesLoading : isFighterTypesLoading}`;
+  const [prevScopeResetKey, setPrevScopeResetKey] = useState(scopeResetKey);
+  if (scopeResetKey !== prevScopeResetKey) {
+    setPrevScopeResetKey(scopeResetKey);
+    if (fighterTypeId && gangTypeId) {
+      const loading = isCustomGangType ? isCustomFighterTypesLoading : isFighterTypesLoading;
+      if (!loading && !scopedFighterTypes.some(ft => ft.id === fighterTypeId)) {
+        setFighterTypeId('');
+      }
     }
-  }, [
-    gangTypeId,
-    isCustomGangType,
-    scopedFighterTypes,
-    fighterTypeId,
-    isCustomFighterTypesLoading,
-    isFighterTypesLoading,
-  ]);
+  }
 
   const handleSave = () => {
     const rule: CustomTPPricingRule = {

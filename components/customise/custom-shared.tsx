@@ -82,9 +82,12 @@ function ShareToCampaignsModal({
     gcTime: 10 * 60 * 1000,
   });
 
-  useEffect(() => {
+  const [prevSharedKey, setPrevSharedKey] = useState('');
+  const sharedKey = `${isSuccess}:${JSON.stringify(sharedCampaignIds)}`;
+  if (sharedKey !== prevSharedKey) {
+    setPrevSharedKey(sharedKey);
     if (isSuccess) setSelectedCampaigns(sharedCampaignIds);
-  }, [isSuccess, sharedCampaignIds]);
+  }
 
   useEffect(() => {
     if (fetchError) toast.error('Failed to load shared campaigns');
@@ -131,7 +134,7 @@ function ShareToCampaignsModal({
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : userCampaigns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>You're not part of any campaigns yet.</p>
+            <p>You&apos;re not part of any campaigns yet.</p>
             <p className="text-sm mt-2">{emptyHint}</p>
           </div>
         ) : (

@@ -110,9 +110,11 @@ interface FighterClass {
 export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false }: CustomiseFightersProps) {
   const [fighters, setFighters] = useState<CustomFighterType[]>(initialFighters);
 
-  useEffect(() => {
+  const [prevInitialFighters, setPrevInitialFighters] = useState(initialFighters);
+  if (initialFighters !== prevInitialFighters) {
+    setPrevInitialFighters(initialFighters);
     setFighters(initialFighters);
-  }, [initialFighters]);
+  }
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editModalData, setEditModalData] = useState<CustomFighterType | null>(null);
@@ -364,22 +366,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   // Check if selected fighter class is Crew (simplified stats)
   const isCrew = Boolean(selectedFighterClass && selectedFighterClass.class_name === 'Crew');
 
-  // Clear disabled stats when switching to/from Crew class (but not when loading edit data)
-  useEffect(() => {
-    // Don't clear stats if we're currently loading edit data
-    if (editModalData) return;
-
-    if (isCrew) {
-      // Clear the fields for Crew class (they'll be disabled and show empty)
-      setMovement('');
-      setWeaponSkill('');
-      setStrength('');
-      setToughness('');
-      setWounds('');
-      setInitiative('');
-      setAttacks('');
-    } else {
-      // Clear the fields when switching away from Crew class
+  const [prevIsCrew, setPrevIsCrew] = useState(isCrew);
+  if (isCrew !== prevIsCrew) {
+    setPrevIsCrew(isCrew);
+    if (!editModalData) {
       setMovement('');
       setWeaponSkill('');
       setStrength('');
@@ -388,10 +378,12 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setInitiative('');
       setAttacks('');
     }
-  }, [isCrew, editModalData]);
+  }
 
-  // Set fighter class when editing and fighter classes are loaded
-  useEffect(() => {
+  const [prevEditClassKey, setPrevEditClassKey] = useState('');
+  const editClassKey = `${editModalData?.id}:${fighterClasses.length}`;
+  if (editClassKey !== prevEditClassKey) {
+    setPrevEditClassKey(editClassKey);
     if (editModalData && fighterClasses.length > 0 && !selectedFighterClass) {
       const fighterClass = fighterClasses.find(fc =>
         fc.id === editModalData.fighter_class_id || fc.class_name === editModalData.fighter_class
@@ -400,7 +392,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         setSelectedFighterClass(fighterClass);
       }
     }
-  }, [editModalData, fighterClasses, selectedFighterClass]);
+  }
 
   const columns: ListColumn[] = [
     {
@@ -548,7 +540,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
       fetchGangTypes();
     }
-  }, [isAddModalOpen, editModalData, toast, gangTypes.length]);
+  }, [isAddModalOpen, editModalData, gangTypes.length]);
 
   useEffect(() => {
     if ((isAddModalOpen || editModalData) && !isLoadingDropdownData && (fighterClasses.length === 0 || skillTypes.length === 0 || equipment.length === 0)) {
@@ -610,7 +602,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
       fetchData();
     }
-  }, [isAddModalOpen, editModalData, fighterClasses.length, skillTypes.length, equipment.length, isLoadingDropdownData, toast]);
+  }, [isAddModalOpen, editModalData, fighterClasses.length, skillTypes.length, equipment.length, isLoadingDropdownData]);
 
   // useEffect to fetch skills based on selected skill type
   useEffect(() => {
@@ -647,7 +639,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     };
 
     fetchSkills();
-  }, [selectedSkillType, toast]);
+  }, [selectedSkillType]);
 
 
   const resetForm = () => {
@@ -2066,7 +2058,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           title="Copy Custom Asset"
           content={
             <div className="space-y-4">
-              <p>Do you want to copy the custom asset <strong>"{copyModalData.fighter_type}"</strong> into your own profile?</p>
+              <p>Do you want to copy the custom asset <strong>&quot;{copyModalData.fighter_type}&quot;</strong> into your own profile?</p>
               <p className="text-sm text-muted-foreground">
                 This will create a copy of the fighter in your custom fighters list.
               </p>

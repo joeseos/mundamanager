@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
@@ -96,7 +96,7 @@ const ProfileCard = memo(({ profile, index, isFirst, isLast, onUpdate, onDelete,
             <div className="relative group">
               <ImInfo />
               <div className="absolute bottom-full left-0 -translate-x-1/4 mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 z-50">
-                This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it's suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like "- gas shells" or "- shatter shells".
+                This name will be displayed on the fighter card next to the weapon stats. If the weapon has only one profile, it&apos;s suggested to name it the same as the weapon name. For multiple profiles, use descriptive names like &quot;- gas shells&quot; or &quot;- shatter shells&quot;.
               </div>
             </div>
           </div>
@@ -242,9 +242,10 @@ export function CustomWeaponProfiles({ profiles, onProfilesChange, disabled = fa
     () => (profiles.length > 0 ? profiles[0].weapon_group_id ?? null : null)
   );
 
-  React.useEffect(() => {
-    setStoredTargetWeaponId(profiles[0]?.weapon_group_id ?? null);
-  }, [profiles]);
+  const nextTargetWeaponId = profiles[0]?.weapon_group_id ?? null;
+  if (nextTargetWeaponId !== storedTargetWeaponId) {
+    setStoredTargetWeaponId(nextTargetWeaponId);
+  }
 
   const targetWeaponId = profiles.length > 0 ? profiles[0].weapon_group_id ?? storedTargetWeaponId : storedTargetWeaponId;
   const targetWeapon = targetWeaponId
