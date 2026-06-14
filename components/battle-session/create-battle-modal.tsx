@@ -115,13 +115,11 @@ export default function CreateBattleModal({
   );
 
   // User search (non-campaign, debounced)
+  const shouldSearch = !!searchQuery.trim() && showSuggestions && !campaignId;
   useEffect(() => {
-    if (!searchQuery.trim() || !showSuggestions || campaignId) {
-      setSearchResults([]);
-      return;
-    }
-    setIsSearching(true);
+    if (!shouldSearch) return;
     const timer = setTimeout(async () => {
+      setIsSearching(true);
       try {
         const res = await fetch(`/api/search-users?query=${encodeURIComponent(searchQuery)}`);
         if (res.ok) setSearchResults(await res.json());
@@ -132,9 +130,10 @@ export default function CreateBattleModal({
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, showSuggestions, campaignId]);
+  }, [shouldSearch, searchQuery]);
 
-  const filteredSearchResults = searchResults.filter(
+  const effectiveSearchResults = shouldSearch ? searchResults : [];
+  const filteredSearchResults = effectiveSearchResults.filter(
     (p) => !opponents.some((o) => o.userId === p.id)
   );
 

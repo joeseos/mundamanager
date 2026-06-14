@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -89,12 +89,13 @@ export function AdminFighterEffects({
 }: AdminFighterEffectsProps) {
   const [fighterEffectTypes, setFighterEffectTypes] = useState<FighterEffectType[]>(fighterEffects);
   const [categories, setCategories] = useState<FighterEffectCategory[]>(fighterEffectCategories);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
   const [showAddEffectDialog, setShowAddEffectDialog] = useState(false);
   const [showEditEffectDialog, setShowEditEffectDialog] = useState(false);
   const [editingEffect, setEditingEffect] = useState<FighterEffectType | null>(null);
   const [showAddModifierDialog, setShowAddModifierDialog] = useState(false);
   const [selectedEffectTypeId, setSelectedEffectTypeId] = useState<string | null>(null);
+  const tempIdCounter = useRef(0);
   
   // New effect form state
   const [newEffect, setNewEffect] = useState({
@@ -122,16 +123,19 @@ export function AdminFighterEffects({
   const [newModifierValue, setNewModifierValue] = useState<string>('');
   const [newModifierOperation, setNewModifierOperation] = useState<'add' | 'set'>('add');
   
-  
 
-  // Update local state when props change
-  useEffect(() => {
+
+  const [prevFighterEffects, setPrevFighterEffects] = useState(fighterEffects);
+  if (fighterEffects !== prevFighterEffects) {
+    setPrevFighterEffects(fighterEffects);
     setFighterEffectTypes(fighterEffects);
-  }, [fighterEffects]);
+  }
 
-  useEffect(() => {
+  const [prevCategories, setPrevCategories] = useState(fighterEffectCategories);
+  if (fighterEffectCategories !== prevCategories) {
+    setPrevCategories(fighterEffectCategories);
     setCategories(fighterEffectCategories);
-  }, [fighterEffectCategories]);
+  }
 
   const isHardpointCategory = categories.find(
     c => c.id === newEffect.fighter_effect_category_id
@@ -192,8 +196,7 @@ export function AdminFighterEffects({
         })
       };
 
-      // Create effect with temp ID - will be saved when parent saves
-      const tempId = `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const tempId = `temp-${++tempIdCounter.current}`;
       const newEffectType: FighterEffectType = {
         id: tempId,
         effect_name: newEffect.effect_name,
@@ -540,8 +543,6 @@ export function AdminFighterEffects({
         ) : (
           <div className="space-y-4">
             {fighterEffectTypes.map((effect) => {
-              const selectionType = effect.type_specific_data?.effect_selection || 'fixed';
-
               return (
                 <div key={effect.id} className="border rounded-md p-4">
                   <div className="flex justify-between items-center mb-2">
@@ -831,7 +832,7 @@ export function AdminFighterEffects({
                   </span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  Check this if this effect modifies weapon profiles of another piece of equipment (e.g., Hot-shot Las Pack removes "Plentiful" trait from lasguns)
+                  Check this if this effect modifies weapon profiles of another piece of equipment (e.g., Hot-shot Las Pack removes &quot;Plentiful&quot; trait from lasguns)
                 </p>
               </div>
             )}

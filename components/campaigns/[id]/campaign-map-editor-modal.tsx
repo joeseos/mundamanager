@@ -165,7 +165,7 @@ export default function CampaignMapEditorModal({
   mapData,
   mapObjects,
   territories,
-  allGangs,
+  allGangs: _allGangs,
   onClose,
   onSave,
 }: CampaignMapEditorModalProps) {
@@ -259,7 +259,6 @@ export default function CampaignMapEditorModal({
     map: L.Map
   ) => {
     // Geoman text markers store their editable textarea on `layer.pm.textArea`.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const marker = layer as any;
     const textArea = marker.pm?.textArea as HTMLTextAreaElement | undefined;
     if (!textArea) return;
@@ -462,8 +461,7 @@ export default function CampaignMapEditorModal({
 
       // When Geoman enters draw mode, disable pointer events on hex polygons
       // and existing shapes so clicks pass through to the drawing handler.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      map.on('pm:globaldrawmodetoggled', (e: any) => {
+        map.on('pm:globaldrawmodetoggled', (e: any) => {
         const isDrawing = e.enabled as boolean;
 
         if (isDrawing && placingMarkerRef.current) {
@@ -499,10 +497,8 @@ export default function CampaignMapEditorModal({
         });
 
         // For text layers, allow direct text editing after creation/restoration.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        layer.on('dblclick', (evt: any) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const marker = layer as any;
+            layer.on('dblclick', (evt: any) => {
+                const marker = layer as any;
           if (typeof marker?.pm?.getText !== 'function') return;
 
           L.DomEvent.stop(evt);
@@ -518,8 +514,7 @@ export default function CampaignMapEditorModal({
       }
 
       function attachDragEndHandler(layer: L.Layer, tempId: string) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        layer.on('pm:dragend' as any, () => {
+            layer.on('pm:dragend' as any, () => {
           setLocalObjects(prev => prev.map(obj => {
             if (obj.tempId !== tempId) return obj;
             let geometry = obj.geometry;
@@ -543,8 +538,7 @@ export default function CampaignMapEditorModal({
       }
 
       function attachTextChangeHandler(layer: L.Layer, tempId: string) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        layer.on('pm:textchange', (evt: any) => {
+            layer.on('pm:textchange', (evt: any) => {
           const nextText = typeof evt?.text === 'string' ? evt.text : 'Text';
           setLocalObjects(prev => prev.map(obj => (
             obj.tempId === tempId
@@ -555,8 +549,7 @@ export default function CampaignMapEditorModal({
       }
 
       function applyTextLayerVisualStyle(layer: L.Layer) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const marker = layer as any;
+            const marker = layer as any;
         if (typeof marker?.pm?.getText !== 'function') return;
         const textArea = marker.pm?.textArea as HTMLTextAreaElement | undefined;
         if (!textArea) return;
@@ -628,12 +621,9 @@ export default function CampaignMapEditorModal({
             const text = (obj.properties as Record<string, unknown>).text as string ?? 'Text';
             layer = L.marker(geo.latlng, {
               // Geoman recognises these options and initialises a text marker.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              textMarker: true as any,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              text: text as any,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              className: EDITOR_TEXT_CLASSNAME as any,
+                        textMarker: true as any,
+                        text: text as any,
+                        className: EDITOR_TEXT_CLASSNAME as any,
             } as L.MarkerOptions).addTo(map);
             break;
           }
@@ -652,8 +642,7 @@ export default function CampaignMapEditorModal({
       });
 
       // Listen for new shapes created via Geoman
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      map.on('pm:create', (e: any) => {
+        map.on('pm:create', (e: any) => {
         const layer = e.layer as L.Layer;
         const tempId = crypto.randomUUID();
         (layer as L.Layer & { options: Record<string, unknown> }).options.objectTempId = tempId;
@@ -714,8 +703,7 @@ export default function CampaignMapEditorModal({
       });
 
       // Listen for edits
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      map.on('pm:edit' as any, (e: any) => {
+        map.on('pm:edit' as any, (e: any) => {
         const layer = e.layer as L.Layer;
         const tempId = (layer as L.Layer & { options: Record<string, unknown> }).options.objectTempId as string;
         if (!tempId) return;
@@ -742,8 +730,7 @@ export default function CampaignMapEditorModal({
       });
 
       // Listen for removals
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      map.on('pm:remove', (e: any) => {
+        map.on('pm:remove', (e: any) => {
         const tempId = (e.layer as L.Layer & { options: Record<string, unknown> }).options.objectTempId as string;
         if (!tempId) return;
 
@@ -843,6 +830,13 @@ export default function CampaignMapEditorModal({
     };
     img.src = selectedImageUrl;
 
+    const hexLayers = hexLayersRef.current;
+    const hexCentres = hexCentresRef.current;
+    const objectLayers = objectLayersRef.current;
+    const markerIconSignature = markerIconSignatureRef.current;
+    const styledObjectRings = styledObjectRingsRef.current;
+    const territoryNameLayers = territoryNameLayersRef.current;
+
     return () => {
       aborted = true;
       cleanupKeyDown?.();
@@ -850,14 +844,15 @@ export default function CampaignMapEditorModal({
         editorMapRef.current.remove();
         editorMapRef.current = null;
       }
-      hexLayersRef.current.clear();
-      hexCentresRef.current.clear();
-      objectLayersRef.current.clear();
-      markerIconSignatureRef.current.clear();
-      styledObjectRingsRef.current.clear();
-      territoryNameLayersRef.current.clear();
+      hexLayers.clear();
+      hexCentres.clear();
+      objectLayers.clear();
+      markerIconSignature.clear();
+      styledObjectRings.clear();
+      territoryNameLayers.clear();
       setEditorReady(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, selectedImageUrl, hexGridEnabled, hexSize, createLandmarkIcon]);
 
   // Visual styling: linked territories shown in green, selected item in highlight colour.
@@ -1506,6 +1501,7 @@ export default function CampaignMapEditorModal({
                     selectedImageUrl === url ? 'border-foreground' : 'border-transparent hover:border-muted-foreground'
                   }`}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`Default map ${i + 1}`} className="w-full h-full object-cover" />
                 </button>
               ))}
@@ -1544,6 +1540,7 @@ export default function CampaignMapEditorModal({
             <div>
               <h4 className="text-sm font-medium mb-2">Selected Image</h4>
               <div className="rounded-lg overflow-hidden border-2 border-foreground">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={selectedImageUrl} alt="Selected" className="w-full h-full object-cover" />
               </div>
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, memo } from 'react';
+import { useState } from 'react';
 import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { Equipment } from '@/types/equipment';
@@ -71,90 +71,6 @@ const SELECTION_MODES = [
   { value: 'multiple', label: 'Multiple Selection' },
 ];
 
-const EquipmentOptionRow = memo(function EquipmentOptionRow({
-  equip,
-  item,
-  index,
-  categoryId,
-  disabled,
-  setEquipmentSelection
-}: {
-  equip: EquipmentWithId | undefined,
-  item: EquipmentOption,
-  index: number,
-  categoryId: string,
-  disabled: boolean,
-  setEquipmentSelection: AdminFighterEquipmentSelectionProps['setEquipmentSelection']
-}) {
-  return (
-    <div className="flex items-center gap-2 bg-muted p-2 rounded-sm">
-      <span>{equip?.equipment_name || 'Unknown Equipment'}</span>
-      <div className="ml-auto flex items-center gap-4">
-        <div>
-          <label className="block text-xs text-muted-foreground">Cost</label>
-          <input
-            type="number"
-            defaultValue={item.cost}
-            onBlur={(e) => {
-              const cost = parseInt(e.target.value) || 0;
-              setEquipmentSelection(prev => ({
-                ...prev,
-                [categoryId]: {
-                  ...prev[categoryId],
-                  options: prev[categoryId].options?.map((o, i) =>
-                    i === index ? { ...o, cost } : o
-                  )
-                }
-              }));
-            }}
-            placeholder="Cost"
-            className="w-20 p-1 border rounded-sm"
-            disabled={disabled}
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-muted-foreground">Max Number</label>
-          <input
-            type="number"
-            defaultValue={item.max_quantity}
-            onBlur={(e) => {
-              const max_quantity = parseInt(e.target.value) || 1;
-              setEquipmentSelection(prev => ({
-                ...prev,
-                [categoryId]: {
-                  ...prev[categoryId],
-                  options: prev[categoryId].options?.map((o, i) =>
-                    i === index ? { ...o, max_quantity } : o
-                  )
-                }
-              }));
-            }}
-            placeholder="Max"
-            min="1"
-            className="w-16 p-1 border rounded-sm"
-            disabled={disabled}
-          />
-        </div>
-        <button
-          onClick={() => {
-            setEquipmentSelection(prev => ({
-              ...prev,
-              [categoryId]: {
-                ...prev[categoryId],
-                options: prev[categoryId].options?.filter((_, i) => i !== index)
-              }
-            }));
-          }}
-          className="hover:bg-muted p-1 rounded-sm self-end"
-          disabled={disabled}
-        >
-                              <HiX className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-});
-
 export function AdminFighterEquipmentSelection({
   equipment,
   equipmentSelection,
@@ -224,7 +140,7 @@ export function AdminFighterEquipmentSelection({
       {Object.keys(equipmentSelection).length === 0 ? (
         <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
           <p className="mb-2">No equipment categories.</p> 
-          <p>Select a selection type and click "Add Category" to get started.</p>
+          <p>Select a selection type and click &quot;Add Category&quot; to get started.</p>
         </div>
       ) : (
         Object.entries(equipmentSelection).map(([categoryId, category]) => (
@@ -753,7 +669,7 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
       const groups = data?.[type]?.[name] || [];
       
       // Each group becomes a separate GUI category
-      groups.forEach((group, groupIndex) => {
+      groups.forEach((group) => {
         if (group.length > 0) {
           const id = `${name}_${type}_${idCounter++}`;
           

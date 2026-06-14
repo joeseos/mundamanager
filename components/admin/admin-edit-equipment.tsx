@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,8 +167,14 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
     refetchOnWindowFocus: false,
   });
 
-  // Sync equipment details to form state
-  useEffect(() => {
+  const [prevSyncKey, setPrevSyncKey] = useState<string | null>(null);
+  const syncKey = selectedEquipmentId
+    ? (equipmentDetails ? `${selectedEquipmentId}:${JSON.stringify(equipmentDetails)}` : null)
+    : 'empty';
+
+  if (syncKey !== null && syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+
     if (!selectedEquipmentId) {
       setEquipmentName('');
       setAvailLetter('C');
@@ -200,114 +206,111 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
       setEquipmentOriginAvailabilities([]);
       setEquipmentVariantAvailabilities([]);
       setSelectedTradingPosts([]);
-      return;
+    } else if (equipmentDetails) {
+      setEquipmentName(equipmentDetails.equipment_name);
+      const parsed = parseAvailability(equipmentDetails.availability);
+      setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S');
+      setAvailNumber(parsed.number);
+      setCost(equipmentDetails.cost?.toString() || '');
+      setVariants(equipmentDetails.variants || '');
+      setEquipmentCategory(equipmentDetails.equipment_category_id);
+      setEquipmentType(equipmentDetails.equipment_type);
+      setCoreEquipment(equipmentDetails.core_equipment || false);
+      setIsEditable(equipmentDetails.is_editable || false);
+      setIsConsumable(equipmentDetails.is_consumable || false);
+
+      if (equipmentDetails.grants_equipment) {
+        setGrantsEquipment(equipmentDetails.grants_equipment);
+      }
+
+      if (equipmentDetails.all_equipment) {
+        setAllEquipment(equipmentDetails.all_equipment);
+      }
+
+      if (equipmentDetails.gang_adjusted_costs) {
+        setGangAdjustedCosts(equipmentDetails.gang_adjusted_costs.map((d: any) => ({
+          gang_type: d.gang_type,
+          gang_type_id: d.gang_type_id,
+          adjusted_cost: d.adjusted_cost
+        })));
+      }
+
+      if (equipmentDetails.gang_origin_adjusted_costs) {
+        setGangOriginAdjustedCosts(equipmentDetails.gang_origin_adjusted_costs.map((d: any) => ({
+          origin_name: d.origin_name,
+          gang_origin_id: d.gang_origin_id,
+          adjusted_cost: d.adjusted_cost
+        })));
+      }
+
+      if (equipmentDetails.equipment_availabilities) {
+        setEquipmentAvailabilities(equipmentDetails.equipment_availabilities.map((a: any) => ({
+          gang_type: a.gang_type,
+          gang_type_id: a.gang_type_id,
+          availability: a.availability
+        })));
+      }
+
+      if (equipmentDetails.equipment_origin_availabilities) {
+        setEquipmentOriginAvailabilities(equipmentDetails.equipment_origin_availabilities.map((a: any) => ({
+          origin_name: a.origin_name,
+          gang_origin_id: a.gang_origin_id,
+          availability: a.availability
+        })));
+      }
+
+      if (equipmentDetails.equipment_variant_availabilities) {
+        setEquipmentVariantAvailabilities(equipmentDetails.equipment_variant_availabilities.map((a: any) => ({
+          variant: a.variant,
+          gang_variant_id: a.gang_variant_id,
+          availability: a.availability
+        })));
+      }
+
+      if (equipmentDetails.trading_post_associations) {
+        setSelectedTradingPosts(equipmentDetails.trading_post_associations);
+      }
+
+      if (equipmentDetails.trading_post_types) {
+        setTradingPostTypes(equipmentDetails.trading_post_types);
+      }
+
+      if (equipmentDetails.fighter_effects) {
+        setFighterEffects(equipmentDetails.fighter_effects);
+      }
+
+      if (equipmentDetails.fighter_effect_categories) {
+        setFighterEffectCategories(equipmentDetails.fighter_effect_categories);
+      }
+
+      if (equipmentDetails.all_fighter_types) {
+        setFighterTypes(equipmentDetails.all_fighter_types);
+      }
+
+      if (equipmentDetails.fighter_types_with_equipment) {
+        setSelectedFighterTypes(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ft.fighter_type_id));
+      }
+
+      if (equipmentDetails.weapon_profiles && equipmentDetails.weapon_profiles.length > 0) {
+        setWeaponProfiles(equipmentDetails.weapon_profiles);
+      } else if (equipmentDetails.equipment_type === 'weapon') {
+        setWeaponProfiles([{
+          profile_name: '',
+          range_short: '',
+          range_long: '',
+          acc_short: '',
+          acc_long: '',
+          strength: '',
+          ap: '',
+          damage: '',
+          ammo: '',
+          traits: '',
+          weapon_group_id: null,
+          sort_order: 1
+        }]);
+      }
     }
-
-    if (!equipmentDetails) return;
-
-    setEquipmentName(equipmentDetails.equipment_name);
-    const parsed = parseAvailability(equipmentDetails.availability);
-    setAvailLetter((parsed.letter || 'C') as 'C' | 'R' | 'E' | 'I' | 'S');
-    setAvailNumber(parsed.number);
-    setCost(equipmentDetails.cost?.toString() || '');
-    setVariants(equipmentDetails.variants || '');
-    setEquipmentCategory(equipmentDetails.equipment_category_id);
-    setEquipmentType(equipmentDetails.equipment_type);
-    setCoreEquipment(equipmentDetails.core_equipment || false);
-    setIsEditable(equipmentDetails.is_editable || false);
-    setIsConsumable(equipmentDetails.is_consumable || false);
-
-    if (equipmentDetails.grants_equipment) {
-      setGrantsEquipment(equipmentDetails.grants_equipment);
-    }
-
-    if (equipmentDetails.all_equipment) {
-      setAllEquipment(equipmentDetails.all_equipment);
-    }
-
-    if (equipmentDetails.gang_adjusted_costs) {
-      setGangAdjustedCosts(equipmentDetails.gang_adjusted_costs.map((d: any) => ({
-        gang_type: d.gang_type,
-        gang_type_id: d.gang_type_id,
-        adjusted_cost: d.adjusted_cost
-      })));
-    }
-
-    if (equipmentDetails.gang_origin_adjusted_costs) {
-      setGangOriginAdjustedCosts(equipmentDetails.gang_origin_adjusted_costs.map((d: any) => ({
-        origin_name: d.origin_name,
-        gang_origin_id: d.gang_origin_id,
-        adjusted_cost: d.adjusted_cost
-      })));
-    }
-
-    if (equipmentDetails.equipment_availabilities) {
-      setEquipmentAvailabilities(equipmentDetails.equipment_availabilities.map((a: any) => ({
-        gang_type: a.gang_type,
-        gang_type_id: a.gang_type_id,
-        availability: a.availability
-      })));
-    }
-
-    if (equipmentDetails.equipment_origin_availabilities) {
-      setEquipmentOriginAvailabilities(equipmentDetails.equipment_origin_availabilities.map((a: any) => ({
-        origin_name: a.origin_name,
-        gang_origin_id: a.gang_origin_id,
-        availability: a.availability
-      })));
-    }
-
-    if (equipmentDetails.equipment_variant_availabilities) {
-      setEquipmentVariantAvailabilities(equipmentDetails.equipment_variant_availabilities.map((a: any) => ({
-        variant: a.variant,
-        gang_variant_id: a.gang_variant_id,
-        availability: a.availability
-      })));
-    }
-
-    if (equipmentDetails.trading_post_associations) {
-      setSelectedTradingPosts(equipmentDetails.trading_post_associations);
-    }
-
-    if (equipmentDetails.trading_post_types) {
-      setTradingPostTypes(equipmentDetails.trading_post_types);
-    }
-
-    if (equipmentDetails.fighter_effects) {
-      setFighterEffects(equipmentDetails.fighter_effects);
-    }
-
-    if (equipmentDetails.fighter_effect_categories) {
-      setFighterEffectCategories(equipmentDetails.fighter_effect_categories);
-    }
-
-    if (equipmentDetails.all_fighter_types) {
-      setFighterTypes(equipmentDetails.all_fighter_types);
-    }
-
-    if (equipmentDetails.fighter_types_with_equipment) {
-      setSelectedFighterTypes(equipmentDetails.fighter_types_with_equipment.map((ft: any) => ft.fighter_type_id));
-    }
-
-    if (equipmentDetails.weapon_profiles && equipmentDetails.weapon_profiles.length > 0) {
-      setWeaponProfiles(equipmentDetails.weapon_profiles);
-    } else if (equipmentDetails.equipment_type === 'weapon') {
-      setWeaponProfiles([{
-        profile_name: '',
-        range_short: '',
-        range_long: '',
-        acc_short: '',
-        acc_long: '',
-        strength: '',
-        ap: '',
-        damage: '',
-        ammo: '',
-        traits: '',
-        weapon_group_id: null,
-        sort_order: 1
-      }]);
-    }
-  }, [selectedEquipmentId, equipmentDetails]);
+  }
 
   const { data: weapons = [], isLoading: isWeaponsLoading } = useQuery<Array<{id: string, equipment_name: string}>>({
     queryKey: ['admin-weapons'],
@@ -660,7 +663,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
                     <div>
                       <span className="text-sm font-medium text-muted-foreground">Exclusive to a single Fighter</span>
                       <p className="text-sm text-muted-foreground mt-1">
-                        I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
+                        I.e. the &apos;Canine jaws&apos; of the Hacked Cyber-mastiff (Exotic Beast).
                       </p>
                     </div>
                   </label>
@@ -786,7 +789,7 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
 
                       {grantsEquipment.options.length === 0 && (
                         <p className="text-sm text-muted-foreground italic">
-                          No equipment options configured. Click "Add Option" to add one.
+                          No equipment options configured. Click &quot;Add Option&quot; to add one.
                         </p>
                       )}
 

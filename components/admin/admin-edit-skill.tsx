@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,17 +176,16 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   });
 
 
-  // Set skill effects when skill selected from dropdown
-  useEffect(() => {
+  const [prevSkillId, setPrevSkillId] = useState(skillId);
+  const [prevSkillNameList, setPrevSkillNameList] = useState(skillNameList);
+  if (skillId !== prevSkillId || skillNameList !== prevSkillNameList) {
+    setPrevSkillId(skillId);
+    setPrevSkillNameList(skillNameList);
     if (skillId) {
       const selectedSkill = skillNameList.find(s => s.id === skillId);
-      if (selectedSkill?.effects) {
-        setSkillEffects(selectedSkill.effects);
-      } else {
-        setSkillEffects([]);
-      }
+      setSkillEffects(selectedSkill?.effects ?? []);
     }
-  }, [skillId, skillNameList]);
+  }
 
   const searchSkillType = async (skillTypeId: string) => {
     setIsLoading(true);

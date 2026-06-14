@@ -37,7 +37,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [availLetter, setAvailLetter] = useState<'C' | 'R' | 'E' | 'I' | 'S'>('C');
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
-  const [variants, setVariants] = useState('');
+  const [variants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [coreEquipment, setCoreEquipment] = useState(false);
@@ -324,7 +324,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                       Exclusive to a single Fighter
                     </span>
                     <p className="text-sm text-muted-foreground mt-1">
-                      I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).
+                      I.e. the &apos;Canine jaws&apos; of the Hacked Cyber-mastiff (Exotic Beast).
                     </p>
                   </div>
                 </label>

@@ -101,8 +101,9 @@ export default function CampaignEditModal({
 
   const router = useRouter();
 
-  // Reset form values when campaign data changes or when modal opens
-  useEffect(() => {
+  const [prevCampaignData, setPrevCampaignData] = useState(campaignData);
+  if (campaignData !== prevCampaignData) {
+    setPrevCampaignData(campaignData);
     setFormValues({
       campaignName: campaignData.campaign_name,
       description: campaignData.description ?? '',
@@ -112,12 +113,19 @@ export default function CampaignEditModal({
     });
     setCharCount((campaignData.description ?? '').length);
     setSelectedChannelId(campaignData.discord_channel_id || '');
-  }, [campaignData]);
+  }
 
-  // Fetch Discord channels when guild is connected
-  useEffect(() => {
+  const [prevDiscordKey, setPrevDiscordKey] = useState('');
+  const discordKey = `${campaignData.discord_guild_id}:${isOpen}`;
+  if (discordKey !== prevDiscordKey) {
+    setPrevDiscordKey(discordKey);
     if (campaignData.discord_guild_id && isOpen) {
       setLoadingChannels(true);
+    }
+  }
+
+  useEffect(() => {
+    if (campaignData.discord_guild_id && isOpen) {
       fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
         .then(res => res.ok ? res.json() : [])
         .then(channels => setDiscordChannels(channels))

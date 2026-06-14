@@ -6,10 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
-import { LuPlus } from "react-icons/lu";
-import { LuMinus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
-import { FighterType } from "@/types/fighter";
 import { GangType, Equipment } from "@/types/gang";
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
@@ -33,15 +30,6 @@ interface Skill {
   id: string;
   skill_name: string;
   skill_type_id: string;
-}
-
-interface EquipmentOption {
-  id: string;
-  cost: number;
-  max_quantity: number;
-  equipment_name?: string;
-  replaces?: string[];
-  max_replace?: number;
 }
 
 interface EquipmentWithId extends Equipment {
@@ -292,39 +280,6 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     }
   };
 
-  const handleAddAdjustedCost = () => {
-    if (!selectedAdjustedCostEquipment || !adjustedCostAmount) return;
-    
-    const newAdjustedCost = {
-      equipment_id: selectedAdjustedCostEquipment,
-      adjusted_cost: parseInt(adjustedCostAmount)
-    };
-
-    setEquipmentDiscounts([...equipmentDiscounts, newAdjustedCost]);
-    setSelectedAdjustedCostEquipment('');
-    setAdjustedCostAmount('');
-  };
-
-  const handleRemoveAdjustedCost = (equipmentId: string) => {
-    setEquipmentDiscounts(equipmentDiscounts.filter(
-      adjusted_cost => adjusted_cost.equipment_id !== equipmentId
-    ));
-  };
-
-  const renderStatInput = (label: string, value: string, onChange: (value: string) => void) => (
-    <div>
-      <label className="block text-sm font-medium text-muted-foreground mb-1">
-        {label}
-      </label>
-      <Input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        min="0"
-      />
-    </div>
-  );
 
   return (
     <div 
@@ -815,7 +770,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Fighter's Equipment List
+                Fighter&apos;s Equipment List
               </label>
               <select
                 value=""

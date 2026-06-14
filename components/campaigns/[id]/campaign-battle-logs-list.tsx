@@ -16,7 +16,7 @@ import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Member, Scenario } from '@/types/campaign';
+import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -386,7 +386,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       // Trigger server refresh after successful delete
       onBattleAdd();
     },
-    onError: (error, variables, context) => {
+    onError: (error) => {
       console.error('Battle deletion failed:', error);
 
       // Trigger server refresh to get correct state back

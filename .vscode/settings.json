@@ -9,5 +9,12 @@
   "editor.quickSuggestions": {
     "strings": true
   },
-  "files.eol": "\n"
+  "files.eol": "\n",
+  "eslint.useFlatConfig": true,
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ]
 }

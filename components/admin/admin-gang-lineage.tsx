@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,11 +120,23 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
     enabled: !!selectedType,
   });
 
+  const clearForm = () => {
+    setSelectedGangLineage(null);
+    setGangLineageName('');
+    setSelectedGangTypeId('');
+    setAssociatedFighterTypeId('');
+    setLineageType('');
+    setFighterTypeAccess([]);
+    setAccessRuleGangTypeId('');
+  };
+
   // Reset selection when type changes
-  useEffect(() => {
+  const [prevSelectedType, setPrevSelectedType] = useState(selectedType);
+  if (selectedType !== prevSelectedType) {
+    setPrevSelectedType(selectedType);
     setSelectedGangLineageId('');
     clearForm();
-  }, [selectedType]);
+  }
 
   // Query for selected gang lineage details
   const { data: gangLineageDetailsData, isLoading: isDetailsLoading } = useQuery<any>({
@@ -140,24 +152,25 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   });
 
   // Sync lineage details to form state
-  useEffect(() => {
+  const [prevLineageId, setPrevLineageId] = useState(selectedGangLineageId);
+  const [prevDetailsData, setPrevDetailsData] = useState(gangLineageDetailsData);
+  if (selectedGangLineageId !== prevLineageId || gangLineageDetailsData !== prevDetailsData) {
+    setPrevLineageId(selectedGangLineageId);
+    setPrevDetailsData(gangLineageDetailsData);
+
     if (!selectedGangLineageId) {
       clearForm();
-      return;
+    } else if (gangLineageDetailsData) {
+      setSelectedGangLineage(gangLineageDetailsData);
+      setGangLineageName(gangLineageDetailsData.name);
+      setLineageType(gangLineageDetailsData.type);
+      setFighterTypeAccess(gangLineageDetailsData.fighter_type_access || []);
+      if (gangLineageDetailsData.associated_fighter_type) {
+        setSelectedGangTypeId(gangLineageDetailsData.associated_fighter_type.gang_type_id || '');
+      }
+      setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
     }
-
-    if (!gangLineageDetailsData) return;
-
-    setSelectedGangLineage(gangLineageDetailsData);
-    setGangLineageName(gangLineageDetailsData.name);
-    setLineageType(gangLineageDetailsData.type);
-    setFighterTypeAccess(gangLineageDetailsData.fighter_type_access || []);
-
-    if (gangLineageDetailsData.associated_fighter_type) {
-      setSelectedGangTypeId(gangLineageDetailsData.associated_fighter_type.gang_type_id || '');
-    }
-    setAssociatedFighterTypeId(gangLineageDetailsData.fighter_type_id);
-  }, [selectedGangLineageId, gangLineageDetailsData]);
+  }
 
   // Derived: filter fighter types by selected gang type
   const filteredFighterTypes = useMemo(
@@ -180,16 +193,6 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
   };
 
   const isLoading = isLineagesLoading || isDetailsLoading || isSubmitting;
-
-  const clearForm = () => {
-    setSelectedGangLineage(null);
-    setGangLineageName('');
-    setSelectedGangTypeId('');
-    setAssociatedFighterTypeId('');
-    setLineageType('');
-    setFighterTypeAccess([]);
-    setAccessRuleGangTypeId('');
-  };
 
   const handleCreateGangLineage = async () => {
     if (!gangLineageName || !selectedGangTypeId || !associatedFighterTypeId || !lineageType) {

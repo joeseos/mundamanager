@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
@@ -48,7 +48,7 @@ const CampaignBattleLogModal = ({
   onClose,
   onSuccess,
   onBattleUpdate,
-  localBattles,
+  localBattles: _localBattles,
   battleToEdit = null,
   userRole = 'MEMBER'
 }: CampaignBattleLogModalProps) => {
@@ -62,7 +62,6 @@ const CampaignBattleLogModal = ({
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
-  const [availableTerritories, setAvailableTerritories] = useState<BattleLogTerritory[]>([]);
 
   const selectedGangs = useMemo(
     () => gangsInBattle.filter((entry) => !!entry.gangId),
@@ -98,9 +97,6 @@ const CampaignBattleLogModal = ({
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
-
-  // Check if the user has admin permissions (OWNER or ARBITRATOR)
-  const isAdmin = userRole === 'OWNER' || userRole === 'ARBITRATOR';
 
   // Helper to get gang name by ID - extracted to avoid duplication
   const getGangName = (gangId: string | null | undefined) => {
@@ -181,7 +177,7 @@ const CampaignBattleLogModal = ({
 
       return { optimisticId };
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (result, _variables, context) => {
       // Replace optimistic entry with real server data if available
       if (result?.data && context?.optimisticId) {
         onBattleUpdate((currentBattles) =>
@@ -196,7 +192,7 @@ const CampaignBattleLogModal = ({
       // Call onSuccess to trigger server refresh after optimistic update is complete
       onSuccess();
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       console.error('Battle creation failed:', error);
 
       // Rollback optimistic update using functional update
@@ -277,7 +273,7 @@ const CampaignBattleLogModal = ({
 
       return { battleId };
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (result, _variables, context) => {
       // Replace with real server data if available
       if (result?.data && context?.battleId) {
         onBattleUpdate((currentBattles) =>
@@ -292,7 +288,7 @@ const CampaignBattleLogModal = ({
       // Call onSuccess to trigger server refresh after optimistic update is complete
       onSuccess();
     },
-    onError: (error, variables, context) => {
+    onError: (error) => {
       console.error('Battle update failed:', error);
 
       // For updates, we need to fetch the original data to rollback
@@ -311,25 +307,23 @@ const CampaignBattleLogModal = ({
   // Load battle data when the modal opens
   useEffect(() => {
     let isMounted = true;
-    
+
     if (isOpen && campaignId) {
-      setIsLoadingBattleData(true);
-      
       const fetchData = async () => {
+        setIsLoadingBattleData(true);
         try {
           const response = await fetch('/api/campaigns/battles', {
             headers: {
               'X-Campaign-Id': campaignId
             }
           });
-          
+
           if (!response.ok) throw new Error('Failed to fetch battle data');
-          
+
           if (isMounted) {
             const data = await response.json();
             // Sort scenarios by scenario_number
             const sortedScenarios = [...data.scenarios].sort((a, b) => {
-              // Handle null scenario_number (put them at the end)
               if (a.scenario_number === null) return 1;
               if (b.scenario_number === null) return -1;
               return a.scenario_number - b.scenario_number;
@@ -347,52 +341,48 @@ const CampaignBattleLogModal = ({
           }
         }
       };
-      
+
       fetchData();
     }
-    
+
     return () => {
       isMounted = false;
     };
-  }, [isOpen, campaignId, toast]);
+  }, [isOpen, campaignId]);
 
-  // Populate a form with battle data when editing
-  const populateFormWithBattleData = useCallback(() => {
-    if (!battleToEdit) return;
-    
-    // Set scenario
-    // Look for a matching scenario in the list
-    const matchingScenario = scenarios.find(s => 
-      s.scenario_name === battleToEdit.scenario_name || 
+  // Populate form when modal opens with edit data and scenarios are loaded
+  const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);
+  if (!isOpen && populatedForBattle !== null) {
+    setPopulatedForBattle(null);
+  }
+  if (isOpen && battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
+    setPopulatedForBattle(battleToEdit.id);
+
+    const matchingScenario = scenarios.find(s =>
+      s.scenario_name === battleToEdit.scenario_name ||
       s.scenario_name === battleToEdit.scenario
     );
-    
+
     if (matchingScenario) {
       setSelectedScenario(matchingScenario.id);
     } else {
-      // If no matching scenario, set as custom
       setSelectedScenario('custom');
       setCustomScenario(battleToEdit.scenario || battleToEdit.scenario_name || '');
     }
-    
-    // Prefill date from created_at
+
     if (battleToEdit.created_at) {
       const dt = new Date(battleToEdit.created_at);
       const tzOffsetMs = dt.getTimezoneOffset() * 60000;
       setBattleDate(new Date(dt.getTime() - tzOffsetMs).toISOString().slice(0, 10));
     }
 
-    // Set cycle
     if (battleToEdit.cycle !== undefined && battleToEdit.cycle !== null) {
       setCycle(String(battleToEdit.cycle));
     } else {
       setCycle('');
     }
 
-    // Set gangs and roles
     const newGangsInBattle: GangEntry[] = [];
-    
-    // Parse participants if it's a string
     let participants = battleToEdit.participants;
     if (participants && typeof participants === 'string') {
       try {
@@ -402,10 +392,8 @@ const CampaignBattleLogModal = ({
         participants = [];
       }
     }
-    
-    // If using the new data structure with participants
+
     if (participants && Array.isArray(participants) && participants.length > 0) {
-      // Add gangs with roles from participants
       participants.forEach((participant: BattleParticipant, index: number) => {
         if (participant.gang_id) {
           newGangsInBattle.push({
@@ -416,46 +404,27 @@ const CampaignBattleLogModal = ({
         }
       });
     } else {
-      // Fallback to enriched attacker/defender objects
       let idx = 1;
-
       if (battleToEdit.attacker?.id) {
-        newGangsInBattle.push({
-          id: idx++,
-          gangId: battleToEdit.attacker.id,
-          role: 'attacker'
-        });
+        newGangsInBattle.push({ id: idx++, gangId: battleToEdit.attacker.id, role: 'attacker' });
       }
-
       if (battleToEdit.defender?.id) {
-        newGangsInBattle.push({
-          id: idx++,
-          gangId: battleToEdit.defender.id,
-          role: 'defender'
-        });
+        newGangsInBattle.push({ id: idx++, gangId: battleToEdit.defender.id, role: 'defender' });
       }
     }
-    
-    // If no gangs were added, use default
+
     if (newGangsInBattle.length === 0) {
       setGangsInBattle([
         { id: 1, gangId: "", role: 'none' },
         { id: 2, gangId: "", role: 'none' },
       ]);
     } else {
-      // Ensure at least 2 gang entries
       while (newGangsInBattle.length < 2) {
-        newGangsInBattle.push({
-          id: newGangsInBattle.length + 1,
-          gangId: "",
-          role: 'none'
-        });
+        newGangsInBattle.push({ id: newGangsInBattle.length + 1, gangId: "", role: 'none' });
       }
       setGangsInBattle(newGangsInBattle);
     }
-    
-    // Pre-fill all three winner fields atomically via the hook method so the
-    // draw/winner invariants are always maintained.
+
     const winnerIds = getWinnerIds(battleToEdit);
     loadExistingWinners({
       winnerIds,
@@ -463,51 +432,31 @@ const CampaignBattleLogModal = ({
       isDraw: battleToEdit.winner_id === null && winnerIds.length === 0,
     });
 
-    // Set notes
     setNotes(battleToEdit.note || "");
 
-    // Set territory if the battle has one
     if (battleToEdit.campaign_territory_id) {
       const matched = territories.find(t => t.id === battleToEdit.campaign_territory_id);
       if (matched) setSelectedTerritory(matched.id);
     }
-  }, [battleToEdit, scenarios, territories]);
+  }
 
-  useEffect(() => {
-    if (isOpen && battleToEdit && scenarios.length > 0) {
-      populateFormWithBattleData();
-    }
-  }, [isOpen, battleToEdit, scenarios, populateFormWithBattleData]);
-
-  // Update available territories when the winner state changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    // Skip the effect if territories aren't loaded yet or gangsInBattle doesn't have valid entries
+  // Derive available territories from winner state
+  const availableTerritories = useMemo(() => {
     if (territories.length === 0 || gangsInBattle.every(gang => !gang.gangId)) {
-      return;
+      return [] as BattleLogTerritory[];
     }
+    return hasAnyWinnerSelected ? territories : ([] as BattleLogTerritory[]);
+  }, [hasAnyWinnerSelected, gangsInBattle, territories]);
 
-    // Define what the new available territories should be
-    let newAvailableTerritories: BattleLogTerritory[] = [];
-
-    if (hasAnyWinnerSelected) {
-      // Show ALL territories - players can challenge over any territory
-      newAvailableTerritories = territories;
+  // Clear selected territory when no territories are available (non-edit mode only)
+  const [prevHasAvailable, setPrevHasAvailable] = useState(false);
+  const hasAvailable = availableTerritories.length > 0;
+  if (hasAvailable !== prevHasAvailable) {
+    setPrevHasAvailable(hasAvailable);
+    if (!hasAvailable && selectedTerritory && !isEditMode) {
+      setSelectedTerritory('');
     }
-
-    // Compare by value using JSON.stringify to avoid infinite loops
-    const currentTerritoriesJSON = JSON.stringify(availableTerritories.map(t => t.id).sort());
-    const newTerritoriesJSON = JSON.stringify(newAvailableTerritories.map(t => t.id).sort());
-
-    if (currentTerritoriesJSON !== newTerritoriesJSON) {
-      setAvailableTerritories(newAvailableTerritories);
-
-      // Don't clear selected territory in edit mode (preserve what was claimed)
-      if (newAvailableTerritories.length === 0 && selectedTerritory && !isEditMode) {
-        setSelectedTerritory('');
-      }
-    }
-  }, [hasAnyWinnerSelected, gangsInBattle, territories]); // Don't include availableTerritories or selectedTerritory here
+  }
 
   const handleGangRoleChange = (gangEntryId: number, newRole: GangRole) => {
     setGangsInBattle(gangsInBattle.map(entry => 

@@ -130,28 +130,20 @@ export default function CampaignTerritoryList({
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [listDefaultTerritories, setListDefaultTerritories] = useState<boolean | null>(null);
-
-  useEffect(() => {
+  const [listDefaultTerritories, setListDefaultTerritories] = useState<boolean | null>(() => {
     try {
+      if (typeof window === 'undefined') return null;
       const storedList = window.localStorage.getItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY);
       if (storedList === 'true' || storedList === 'false') {
-        setListDefaultTerritories(storedList === 'true');
-        return;
+        return storedList === 'true';
       }
       const legacyHide = window.localStorage.getItem(LEGACY_HIDE_DEFAULT_TERRITORIES_STORAGE_KEY);
-      if (legacyHide === 'true') {
-        setListDefaultTerritories(false);
-      } else if (legacyHide === 'false') {
-        setListDefaultTerritories(true);
-      } else {
-        setListDefaultTerritories(true);
-      }
+      if (legacyHide === 'true') return false;
+      return true;
     } catch {
-      // Ignore storage access issues (e.g. privacy mode restrictions).
-      setListDefaultTerritories(true);
+      return true;
     }
-  }, []);
+  });
 
   useEffect(() => {
     if (listDefaultTerritories === null) return;
@@ -217,18 +209,15 @@ export default function CampaignTerritoryList({
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, _variables, context) => {
       toast.success(`${context?.gangName} assigned to ${context?.territoryName}`);
-      
+
       // Close modal
       setShowGangModal(false);
       setSelectedTerritory(null);
     },
-    onError: (error, variables, context) => {
-      // Rollback by refreshing data from server
+    onError: (error) => {
       onTerritoryUpdate?.();
-      
-      // Note: Modal stays open on error to allow user to retry with a different selection
       console.error('Error assigning gang:', error);
       toast.error(error instanceof Error ? error.message : "Failed to assign gang to territory");
     }
@@ -285,13 +274,11 @@ export default function CampaignTerritoryList({
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, _variables, context) => {
       toast.success(`Gang removed from ${context?.territoryName}`);
     },
-    onError: (error, variables, context) => {
-      // Rollback by refreshing data from server
+    onError: (error) => {
       onTerritoryUpdate?.();
-      
       console.error('Error removing gang:', error);
       toast.error(error instanceof Error ? error.message : "Failed to remove gang from territory");
     }
@@ -352,18 +339,16 @@ export default function CampaignTerritoryList({
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, _variables, context) => {
       toast.success(`${context?.territoryName} updated successfully`);
-      
+
       // Close modal
       setShowTerritoryEditModal(false);
       setTerritoryToEdit(null);
       setEditGroupTerritories([]);
     },
-    onError: (error, variables, context) => {
-      // Rollback by refreshing data from server
+    onError: (error) => {
       onTerritoryUpdate?.();
-      
       console.error('Error updating territory:', error);
       toast.error(error instanceof Error ? error.message : "Failed to update territory");
     }
@@ -409,15 +394,8 @@ export default function CampaignTerritoryList({
     }
   };
 
-  // Sort indicator component
-  const SortIndicator = ({ field }: { field: 'ref' | 'territory' | 'controllingGang' }) => {
-    if (sortField !== field) return null;
-    return (
-      <span className="ml-1">
-        {sortDirection === 'asc' ? '↑' : '↓'}
-      </span>
-    );
-  };
+  const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang') =>
+    sortField === field ? <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span> : null;
 
   const escapeHtml = (value: string) =>
     value
@@ -482,7 +460,7 @@ export default function CampaignTerritoryList({
     }));
 
     // Create display items for uncontrolled territories (grouped)
-    const uncontrolledItems = Object.entries(uncontrolledTerritories).map(([groupKey, { territory, territories: groupedTerritories, count }]) => ({
+    const uncontrolledItems = Object.entries(uncontrolledTerritories).map(([_groupKey, { territory, territories: groupedTerritories, count }]) => ({
       type: 'uncontrolled' as const,
       territory,
       territories: groupedTerritories,
@@ -530,17 +508,15 @@ export default function CampaignTerritoryList({
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, _variables, context) => {
       toast.success(`${context?.territoryName} removed successfully`);
-      
+
       // Close modal
       setShowDeleteModal(false);
       setTerritoryToDelete(null);
     },
-    onError: (error, variables, context) => {
-      // Rollback by refreshing data from server
+    onError: (error) => {
       onTerritoryUpdate?.();
-      
       console.error('Error removing territory:', error);
       toast.error(error instanceof Error ? error.message : "Failed to remove territory");
     }
@@ -599,21 +575,21 @@ export default function CampaignTerritoryList({
                 onClick={() => handleSort('ref')}
               >
                 Ref.
-                <SortIndicator field="ref" />
+                {sortIndicator('ref')}
               </th>
               <th 
                 className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
-                <SortIndicator field="territory" />
+                {sortIndicator('territory')}
               </th>
               <th 
                 className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
-                <SortIndicator field="controllingGang" />
+                {sortIndicator('controllingGang')}
               </th>
               <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
                 <span className="hidden sm:inline">Description</span>
