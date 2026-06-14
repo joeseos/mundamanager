@@ -68,7 +68,6 @@ interface PrintGangProps {
 
 const calculateVehicleStats = (
   baseStats: Vehicle | undefined,
-  vehicleEquipment: Array<Equipment & Partial<VehicleEquipment>> = []
 ) => {
   if (!baseStats) return null;
 
@@ -508,7 +507,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 const vehicle = fighter.vehicles && fighter.vehicles.length > 0 
                   ? (fighter.vehicles[0] as unknown as Vehicle)
                   : undefined;
-                const vehicleStats = isCrew ? calculateVehicleStats(vehicle, vehicle?.equipment || []) : null;
+                const vehicleStats = isCrew ? calculateVehicleStats(vehicle) : null;
 
                 const wargearText =
                   fighter.wargear && fighter.wargear.length > 0
@@ -1018,6 +1017,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     {(image_url || gang_type_image_url) && (
                       <div className="absolute right-4 md:top-0 top-2 flex items-center z-20">
                         <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={image_url || gang_type_image_url}
                             alt={name}
@@ -1267,7 +1267,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                   const adjustedStats = calculateAdjustedStats(fighter);
                   const isCrew = fighter.fighter_class === "Crew";
                   const vehicleStats = isCrew
-                    ? calculateVehicleStats(vehicle, vehicle?.equipment || [])
+                    ? calculateVehicleStats(vehicle)
                     : null;
 
                   // Create base_stats and current_stats for FighterCard
@@ -1455,6 +1455,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                 {(image_url || gang_type_image_url) && (
                   <div className="absolute right-2 top-2 flex items-center z-20">
                     <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image_url || gang_type_image_url}
                         alt={name}

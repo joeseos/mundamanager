@@ -53,7 +53,7 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
         getting it to the table.
         </p>
         <p className="text-muted-foreground">
-        Whether you're an Arbitrator running a full campaign or a player juggling multiple gangs, 
+        Whether you&apos;re an Arbitrator running a full campaign or a player juggling multiple gangs,
         Munda Manager gives you the tools to keep everything organised and running smoothly.
         </p>
       </section>

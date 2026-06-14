@@ -18,7 +18,7 @@ import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
 import { VehicleEquipment } from '@/types/fighter';
-import { moveEquipmentFromStash, type MoveFromStashItem, type MoveFromStashItemResult } from '@/app/actions/move-from-stash';
+import { moveEquipmentFromStash, type MoveFromStashItemResult } from '@/app/actions/move-from-stash';
 import { deleteEquipmentFromStash } from '@/app/actions/equipment';
 import { sellEquipmentFromStash } from '@/app/actions/sell-equipment';
 import { MdCurrencyExchange, MdChair } from 'react-icons/md';
@@ -110,9 +110,11 @@ export default function GangInventory({
   const targetSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [isTargetSelectionValid, setIsTargetSelectionValid] = useState(false);
   const targetResolveRef = useRef<((targetId: string | null) => void) | null>(null);
-  const pendingBatchWeaponsRef = useRef<{ id: string; name: string; equipment_category?: string }[]>([]);
+  const [pendingBatchWeapons, setPendingBatchWeapons] = useState<{ id: string; name: string; equipment_category?: string }[]>([]);
   const stashRef = useRef<StashItem[]>(stash);
-  stashRef.current = stash;
+  useEffect(() => {
+    stashRef.current = stash;
+  });
 
   // TanStack Query mutation for chem-alchemy with optimistic update
   const createChemMutation = useMutation({
@@ -214,7 +216,7 @@ export default function GangInventory({
     fighters.find(f => f.id === id);
 
   // Prompt user to select effects; returns selected IDs or null on cancel
-  const promptEffectSelection = (equipmentId: string, effectTypes: any[], stashIdx: number) => {
+  const promptEffectSelection = (_equipmentId: string, effectTypes: any[], stashIdx: number) => {
     setEffectModalTypes(effectTypes);
     setEffectModalStashIdx(stashIdx);
     setIsEffectSelectionValid(false);
@@ -231,7 +233,7 @@ export default function GangInventory({
     stashIdx: number,
     batchWeapons?: { id: string; name: string; equipment_category?: string }[]
   ) => {
-    pendingBatchWeaponsRef.current = batchWeapons || [];
+    setPendingBatchWeapons(batchWeapons || []);
     setTargetModalEffectTypeId(effectTypeId);
     setTargetModalEffectName(effectName || null);
     setTargetModalStashIdx(stashIdx);
@@ -788,7 +790,26 @@ export default function GangInventory({
     }
 
     return options;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fighters, positioning, selectedItems, hasSelectedVehicle, hasVehicleExclusiveItem, showVehicleOptions, vehicles]);
+
+  const targetModalFighterWeapons = useMemo(() => {
+    if (!targetModalOpen || targetModalStashIdx === null || !targetModalEffectTypeId) return [];
+    const selectedFighterObj = selectedFighter && !selectedFighter.startsWith('vehicle-')
+      ? fighters.find(f => f.id === selectedFighter)
+      : null;
+    const existingWeapons = selectedFighterObj?.weapons?.map(weapon => ({
+      id: weapon.fighter_weapon_id,
+      name: weapon.weapon_name,
+      equipment_category: weapon.equipment_category,
+      effect_names: weapon.effect_names
+    })) || [];
+    const existingIds = new Set(existingWeapons.map(w => w.id));
+    return [
+      ...existingWeapons,
+      ...pendingBatchWeapons.filter(w => !existingIds.has(w.id))
+    ];
+  }, [targetModalOpen, targetModalStashIdx, targetModalEffectTypeId, selectedFighter, fighters, pendingBatchWeapons]);
 
   return (
     <>
@@ -985,7 +1006,7 @@ export default function GangInventory({
           campaignGangId={campaignGangId}
           gangCampaignResources={gangCampaignResources}
           gangReputation={gangReputation}
-          onEquipmentBought={(newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
+          onEquipmentBought={(_newFighterCredits, newGangCredits, boughtEquipment, newGangRating, newGangWealth) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
@@ -1037,26 +1058,7 @@ export default function GangInventory({
       )}
 
       {/* Target weapon selection modal (for equipment upgrades) */}
-      {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (() => {
-        // Get the selected fighter and extract weapons
-        const selectedFighterObj = selectedFighter && !selectedFighter.startsWith('vehicle-') 
-          ? fighters.find(f => f.id === selectedFighter)
-          : null;
-        
-        const existingWeapons = selectedFighterObj?.weapons?.map(weapon => ({
-          id: weapon.fighter_weapon_id,
-          name: weapon.weapon_name,
-          equipment_category: weapon.equipment_category,
-          effect_names: weapon.effect_names
-        })) || [];
-        const batchWeapons = pendingBatchWeaponsRef.current;
-        const existingIds = new Set(existingWeapons.map(w => w.id));
-        const fighterWeapons = [
-          ...existingWeapons,
-          ...batchWeapons.filter(w => !existingIds.has(w.id))
-        ];
-
-        return (
+      {targetModalOpen && targetModalStashIdx !== null && targetModalEffectTypeId && (
           <Modal
             title="Select Weapon"
             hideCancel
@@ -1069,9 +1071,8 @@ export default function GangInventory({
                 modifierEquipmentId=""
                 effectTypeId={targetModalEffectTypeId}
                 effectName={targetModalEffectName || undefined}
-                fighterWeapons={fighterWeapons}
+                fighterWeapons={targetModalFighterWeapons}
                 onApplyToTarget={async (targetEquipmentId) => {
-                  // Resolve promise with target ID
                   targetResolveRef.current?.(targetEquipmentId);
                   setTargetModalOpen(false);
                   setTargetModalEffectTypeId(null);
@@ -1106,8 +1107,7 @@ export default function GangInventory({
             confirmDisabled={!isTargetSelectionValid}
             width="lg"
           />
-        );
-      })()}
+      )}
 
       {/* Fighter effect selection modal */}
       {effectModalOpen && effectModalStashIdx !== null && (

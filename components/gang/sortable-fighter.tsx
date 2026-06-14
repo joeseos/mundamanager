@@ -1,8 +1,7 @@
-import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import FighterCard from './fighter-card';
-import { FighterProps, FighterSkills } from '@/types/fighter';
+import { FighterProps } from '@/types/fighter';
 import { useState, useEffect } from 'react';
 import { UserPermissions } from '@/types/user-permissions';
 
@@ -14,7 +13,7 @@ interface SortableFighterProps {
   userPermissions?: UserPermissions;
 }
 
-export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode = 'normal', userPermissions }: SortableFighterProps) {
+export function SortableFighter({ fighter, viewMode = 'normal', userPermissions }: SortableFighterProps) {
   const [isDragging, setIsDragging] = useState(false);
   
   // Check if user can edit to determine if drag should be enabled
@@ -41,10 +40,9 @@ export function SortableFighter({ fighter, positions, onFighterDeleted, viewMode
     pointerEvents: 'auto', // Ensure clicks still work for navigation
   } as const;
 
-  // Update isDragging when dndKitIsDragging changes
-  useEffect(() => {
+  if (dndKitIsDragging !== isDragging) {
     setIsDragging(dndKitIsDragging);
-  }, [dndKitIsDragging]);
+  }
 
   // Show grabbing cursor on document while dragging so it stays visible even when pointer leaves the card
   useEffect(() => {

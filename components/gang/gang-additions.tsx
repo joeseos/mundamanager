@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Input } from '../ui/input';
-import { Button } from '../ui/button';
 import Modal from '@/components/ui/modal';
-import { FighterType, EquipmentOption, DefaultEquipment, EquipmentSelectionCategory, NormalizedEquipmentSelection } from '@/types/fighter-type';
+import { FighterType, EquipmentOption, DefaultEquipment, NormalizedEquipmentSelection } from '@/types/fighter-type';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { FighterProps, FighterEffect, FighterSkills } from '@/types/fighter';
-import { createClient } from '@/utils/supabase/client';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
@@ -222,13 +221,11 @@ export default function GangAdditions({
   
   const [selectedGangAdditionTypeId, setSelectedGangAdditionTypeId] = useState('');
   const [selectedGangAdditionClass, setSelectedGangAdditionClass] = useState<string>('');
-  const [gangAdditionTypes, setGangAdditionTypes] = useState<FighterType[]>([]);
-  const [selectedFighterTypeId, setSelectedFighterTypeId] = useState('');
+  const [, setSelectedFighterTypeId] = useState('');
   const [fighterName, setFighterName] = useState('');
-  const [gangAdditionCost, setGangAdditionCost] = useState('');
+  const [, setGangAdditionCost] = useState('');
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
-  const [defaultEquipmentNames, setDefaultEquipmentNames] = useState<Record<string, string>>({});
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -239,18 +236,16 @@ export default function GangAdditions({
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
 
-  // Automatically select NULL sub-type if available, otherwise select the cheapest one
-  useEffect(() => {
+  const [prevAvailableSubTypes, setPrevAvailableSubTypes] = useState(availableSubTypes);
+  if (availableSubTypes !== prevAvailableSubTypes) {
+    setPrevAvailableSubTypes(availableSubTypes);
     if (availableSubTypes.length > 0 && !selectedSubTypeId) {
-      // Try to find a sub-type with NULL sub_type_name (Default)
       const defaultSubType = availableSubTypes.find(
         (sub) => !sub.sub_type_name || sub.sub_type_name === 'Default'
       );
-      
       if (defaultSubType) {
         setSelectedSubTypeId(defaultSubType.id);
       } else {
-        // Find the cheapest sub-type if no default is available
         const cheapestSubType = availableSubTypes.reduce(
           (lowest, current) => {
             const lowestCost = gangAdditionTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
@@ -259,36 +254,27 @@ export default function GangAdditions({
           },
           availableSubTypes[0]
         );
-        
         setSelectedSubTypeId(cheapestSubType.id);
       }
     }
-  }, [availableSubTypes, selectedSubTypeId, gangAdditionTypes]);
+  }
 
-  // Fetch gang addition types if needed when component mounts
-  useEffect(() => {
-    if (showModal && gangAdditionTypes.length === 0) {
-      fetchGangAdditionTypes();
-    }
-  }, [showModal]);
-
-  const fetchGangAdditionTypes = async () => {
-    try {
-      // Use the API route
+  const { data: gangAdditionTypes = [] } = useQuery<FighterType[]>({
+    queryKey: ['gang-addition-types', gangTypeId, gangAffiliationId],
+    queryFn: async () => {
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
       const gangTypeParam = gangTypeId ? `gang_type_id=${gangTypeId}&` : '';
       const response = await fetch(`/api/fighter-types?${gangTypeParam}is_gang_addition=true${affiliationParam}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
-      // Transform API response to match existing FighterType interface
-      const transformedData = data.map((type: any) => ({
+
+      return data.map((type: any) => ({
         id: type.id,
-        fighter_type_id: type.id, // Map id to fighter_type_id for compatibility
+        fighter_type_id: type.id,
         fighter_type: type.fighter_type,
         fighter_class: type.fighter_class,
         gang_type: type.gang_type,
@@ -317,15 +303,11 @@ export default function GangAdditions({
         delegation_cost: type.delegation_cost ?? null,
         equipment_selection: type.equipment_selection,
         sub_type: type.sub_type,
-        fighter_sub_type_id: type.sub_type?.id
+        fighter_sub_type_id: type.sub_type?.id,
       }));
-      
-      setGangAdditionTypes(transformedData);
-    } catch (error) {
-      console.error('Error fetching gang addition types:', error);
-      toast.error("Failed to load gang additions");
-    }
-  };
+    },
+    enabled: showModal,
+  });
 
   // Handle cost input changes
   const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -398,8 +380,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           const isOptional = selectType === 'optional';
           const isOptionalSingle = selectType === 'optional_single';
           const isSingle = selectType === 'single';
-          const isMultiple = selectType === 'multiple';
-
           // Compute slot counts for optional categories
           const totalSlots = isOptional && categoryData.default
             ? categoryData.default.reduce((sum, d) => sum + (d.quantity || 1), 0) : 0;
@@ -847,42 +827,6 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     );
   };
 
-  // Replace the calculateTotalCostWithEquipment function with a corrected version
-  const calculateTotalCostWithEquipment = () => {
-    // Get manually entered cost
-    const manualCost = parseInt(fighterCost || '0');
-    
-    // Calculate equipment cost
-    let equipmentCost = 0;
-    const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-    
-    if (selectedType?.equipment_selection) {
-      // Use normalized structure
-      const normalizedSelection = normalizeEquipmentSelection(selectedType.equipment_selection);
-      const allCategories = Object.entries(normalizedSelection);
-      allCategories.forEach(([categoryId, categoryData]) => {
-        if (categoryData.options && Array.isArray(categoryData.options)) {
-          categoryData.options.forEach((option: EquipmentOption) => {
-            const uniqueOptionId = `${categoryId}-${option.id}`;
-            if (selectedEquipmentIds.includes(uniqueOptionId)) {
-              const isStrictOptional = categoryData.select_type === 'optional'
-                && categoryData.replacement_mode === 'strict';
-              const slots = isStrictOptional && categoryData.default
-                ? categoryData.default.reduce((sum, d) => sum + (d.quantity || 1), 0) : 1;
-              equipmentCost += (option.cost || 0) * slots;
-            }
-          });
-        }
-      });
-    }
-
-    return {
-      manualCost,
-      equipmentCost,
-      totalCost: manualCost + equipmentCost
-    };
-  };
-
   // Function to calculate total selected equipment cost directly for display purposes
   const getSelectedEquipmentCost = () => {
     let total = 0;
@@ -947,41 +891,35 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     return defaults;
   };
 
-  // Update equipment cost calculation when fighter type changes
-  useEffect(() => {
+  const [prevSelectedGangAdditionTypeId, setPrevSelectedGangAdditionTypeId] = useState(selectedGangAdditionTypeId);
+  if (selectedGangAdditionTypeId !== prevSelectedGangAdditionTypeId) {
+    setPrevSelectedGangAdditionTypeId(selectedGangAdditionTypeId);
     if (selectedGangAdditionTypeId) {
       const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
       if (selectedType?.equipment_selection) {
         const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
         setSelectedEquipment(defaultEquipment);
-        
-        // Calculate total cost of default equipment
         const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        
-        // Update fighter cost to include default equipment cost
         const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
         setFighterCost(String(baseCost + defaultCost));
       }
     }
-  }, [selectedGangAdditionTypeId, gangAdditionTypes]);
+  }
 
-  // Update equipment cost calculation when sub-type changes
-  useEffect(() => {
+  const [prevSelectedSubTypeId, setPrevSelectedSubTypeId] = useState(selectedSubTypeId);
+  if (selectedSubTypeId !== prevSelectedSubTypeId) {
+    setPrevSelectedSubTypeId(selectedSubTypeId);
     if (selectedSubTypeId) {
       const selectedType = gangAdditionTypes.find(t => t.id === selectedSubTypeId);
       if (selectedType?.equipment_selection) {
         const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
         setSelectedEquipment(defaultEquipment);
-
-        // Calculate total cost of default equipment
         const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-
-        // Update fighter cost to include default equipment cost
         const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
         setFighterCost(String(baseCost + defaultCost));
       }
     }
-  }, [selectedSubTypeId, gangAdditionTypes]);
+  }
 
   const handleAddFighter = async () => {
     if (isAdding) return;
@@ -1692,7 +1630,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           <div className="relative group">
             <ImInfo />
             <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, the fighter's rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+              When enabled, the fighter&apos;s rating is calculated using their listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>
         </div>

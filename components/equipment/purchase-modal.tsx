@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import Modal from "@/components/ui/modal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -80,14 +80,16 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
     return Math.ceil(increased / 5) * 5;
   };
 
-  useEffect(() => {
+  const costKey = `${isMasterCrafted}:${item.adjusted_cost}:${item.cost}:${item.equipment_type}`;
+  const [prevCostKey, setPrevCostKey] = useState(costKey);
+  if (costKey !== prevCostKey) {
+    setPrevCostKey(costKey);
     const baseCost = item.adjusted_cost ?? item.cost;
     const newCost = isMasterCrafted && item.equipment_type === 'weapon'
       ? calculateMasterCraftedCost(baseCost)
       : baseCost;
-
     setManualCost(String(newCost));
-  }, [isMasterCrafted, item]);
+  }
 
   // Helper to check and show grants selection if needed
   const checkAndShowGrantsSelection = async (effectIds: string[], equipmentTarget?: { target_equipment_id: string; effect_type_id: string }) => {
@@ -509,7 +511,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
               <div className="relative group">
                 <ImInfo />
                 <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                When enabled, the Fighter Rating is calculated using the item's listed cost (from the fighter's Equipment List or the Trading Post), even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+                When enabled, the Fighter Rating is calculated using the item&apos;s listed cost (from the fighter&apos;s Equipment List or the Trading Post), even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
                 </div>
               </div>
             </div>

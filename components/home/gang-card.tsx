@@ -142,9 +142,9 @@ export function SortableGangCard({ gang, onToggleFavourite }: SortableGangCardPr
     pointerEvents: 'auto',
   } as const;
 
-  useEffect(() => {
+  if (dndKitIsDragging !== isDraggingState) {
     setIsDraggingState(dndKitIsDragging);
-  }, [dndKitIsDragging]);
+  }
 
   useEffect(() => {
     if (!dndKitIsDragging) return;
