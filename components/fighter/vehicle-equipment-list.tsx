@@ -815,7 +815,12 @@ export function VehicleEquipmentList({
   return (
     <>
       <List
-        title="Vehicle Equipment"
+        title={
+          <>
+            <span className="md:hidden">Veh. Equip.</span>
+            <span className="hidden md:inline">Vehicle Equipment</span>
+          </>
+        }
         headerActions={
           <Button
             type="button"
