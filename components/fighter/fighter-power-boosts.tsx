@@ -218,7 +218,7 @@ export function PowerBoostsList({
     } finally {
       setIsLoadingPowerBoosts(false);
     }
-  }, [isLoadingPowerBoosts, toast]);
+  }, [isLoadingPowerBoosts]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -256,11 +256,11 @@ export function PowerBoostsList({
         const dateB = b.created_at || '';
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       })
-      .map((boost) => {
+      .map((boost, index) => {
         const specificData = parseTypeSpecificData(boost.type_specific_data);
 
         return {
-          id: boost.id || `temp-${Math.random()}`,
+          id: boost.id || `temp-${index}`,
           name: boost.effect_name,
           kill_cost: (specificData.kill_cost as number) || 0,
           credits_increase: (specificData.credits_increase as number) || 0,

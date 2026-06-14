@@ -12,72 +12,39 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function PwaInstallButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isAndroid, setIsAndroid] = useState(false);
-  const [isWindowsDesktop, setIsWindowsDesktop] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
+                             window.matchMedia('(display-mode: fullscreen)').matches;
+    const ua = window.navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(ua) || (/macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const isIOSStandalone = ios && (window.navigator as any).standalone === true;
+    return isStandaloneMode || isIOSStandalone;
+  });
+  const [isIOS] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(ua);
+    const isIPadOS = /macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+    return isIOSDevice || isIPadOS;
+  });
+  const [isAndroid] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return /android/.test(window.navigator.userAgent.toLowerCase());
+  });
+  const [isWindowsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isWindows = /windows/.test(ua) && !/phone|tablet|mobile/.test(ua);
+    return isWindows && !(/iphone|ipad|ipod/.test(ua)) && !(/android/.test(ua));
+  });
+  const [isInstallable, setIsInstallable] = useState(() => isIOS && !isInstalled);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [showAndroidInstructions, setShowAndroidInstructions] = useState(false);
   const [showDesktopInfo, setShowDesktopInfo] = useState(false);
 
   useEffect(() => {
-    // Detect iOS
-    const checkIOS = () => {
-      const userAgent = window.navigator.userAgent.toLowerCase();
-      const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-      
-      // Also check for iPad on iOS 13+ which may report as Mac
-      // Check for touch capability and Mac-like user agent
-      const isIPadOS = navigator.maxTouchPoints > 1 && 
-                      /macintosh/.test(userAgent) && 
-                      !(window as any).MSStream; // Exclude IE/Edge legacy
-      
-      return isIOSDevice || isIPadOS;
-    };
-
-    // Detect Android
-    const checkAndroid = () => {
-      const userAgent = window.navigator.userAgent.toLowerCase();
-      return /android/.test(userAgent);
-    };
-
-    const ios = checkIOS();
-    const android = checkAndroid();
-    const isWindows =
-      /windows/.test(window.navigator.userAgent.toLowerCase()) &&
-      !/phone|tablet|mobile/.test(window.navigator.userAgent.toLowerCase());
-
-    setIsIOS(ios);
-    setIsAndroid(android);
-    setIsWindowsDesktop(isWindows && !ios && !android);
-
-    // Check if app is already installed
-    const checkIfInstalled = () => {
-      // Method 1: Check display-mode media query (works for most browsers)
-      // When installed as PWA, the display-mode is 'standalone' or 'fullscreen'
-      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
-                               window.matchMedia('(display-mode: fullscreen)').matches;
-      
-      // Method 2: iOS-specific check
-      // iOS Safari sets navigator.standalone to true when PWA is installed
-      const isIOSStandalone = ios && (window.navigator as any).standalone === true;
-
-      return isStandaloneMode || isIOSStandalone;
-    };
-
-    const installed = checkIfInstalled();
-    if (installed) {
-      setIsInstalled(true);
-      return;
-    }
-
-
-    // On iOS, show the button if not installed (user can see instructions)
-    if (ios) {
-      setIsInstallable(true);
-      return;
-    }
+    if (isInstalled || isIOS) return;
 
     // For development: show button on localhost for testing (Chrome/Edge only)
     const isLocalhost = window.location.hostname === 'localhost' || 
@@ -124,7 +91,7 @@ export function PwaInstallButton() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [isIOS, isInstalled]);
 
   const handleInstallClick = async () => {
     // For iOS, show instructions
@@ -197,8 +164,8 @@ export function PwaInstallButton() {
                   <IoDownloadOutline className="inline-block align-middle" /> at
                   the bottom of the screen
                 </li>
-                <li>Scroll down and tap "Add to Home Screen"</li>
-                <li>Tap "Add" in the top right corner</li>
+                <li>Scroll down and tap &quot;Add to Home Screen&quot;</li>
+                <li>Tap &quot;Add&quot; in the top right corner</li>
               </ol>
               <button
                 onClick={() => setShowIOSInstructions(false)}
@@ -223,11 +190,11 @@ export function PwaInstallButton() {
                   Tap the menu button <span className="inline-block">⋮</span>{' '}
                   (three dots) of your browser
                 </li>
-                <li>Select "Install app" or "Add to Home screen"</li>
+                <li>Select &quot;Install app&quot; or &quot;Add to Home screen&quot;</li>
                 <li>Follow the prompts to complete installation</li>
               </ol>
               <div className="text-xs text-muted-foreground">
-                Note: If you don't see the install option, this browser may
+                Note: If you don&apos;t see the install option, this browser may
                 not support Progressive Web App. Try accessing this site from
                 another browser.
               </div>

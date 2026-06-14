@@ -132,13 +132,12 @@ export function FighterXpModal({
     }, 0);
 
   // Update the XP amount whenever the checkboxes/counts change
-  useEffect(() => {
-    // Always update the XP amount when the calculation changes
+  const [prevTotalXp, setPrevTotalXp] = useState(totalXpFromCountsAndCheckboxes);
+  if (totalXpFromCountsAndCheckboxes !== prevTotalXp) {
+    setPrevTotalXp(totalXpFromCountsAndCheckboxes);
     const calculatedAmount = totalXpFromCountsAndCheckboxes === 0 ? "" : String(totalXpFromCountsAndCheckboxes);
-    
-    // Update the input field with the calculated value
     setXpAmount(calculatedAmount);
-  }, [totalXpFromCountsAndCheckboxes]);
+  }
 
   // Function to check if the input is valid
   const isValidXpInput = (value: string) => {

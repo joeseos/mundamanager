@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -109,6 +109,7 @@ export function VehicleDamagesList({
   };
 
   const VEHICLE_DAMAGE_CATEGORY_ID = 'a993261a-4172-4afb-85bf-f35e78a1189f';
+  const tempIdCounter = useRef(0);
 
   // TanStack Query mutations
   const addDamageMutation = useMutation({
@@ -120,7 +121,7 @@ export function VehicleDamagesList({
 
       // Create optimistic damage object
       const optimisticDamage: FighterEffect = {
-        id: `temp-${Date.now()}`, // Temporary ID for optimistic update
+        id: `temp-${++tempIdCounter.current}`,
         effect_name: selectedDamage.effect_name,
         fighter_effect_type_id: variables.damageId,
         fighter_effect_modifiers: selectedDamage.fighter_effect_modifiers || [],
@@ -334,11 +335,11 @@ export function VehicleDamagesList({
   }, []);
 
   // When opened from gang card floating menu, open the Add modal instead of showing the list first
-  useEffect(() => {
-    if (initialOpenAddModal) {
-      setIsAddModalOpen(true);
-    }
-  }, [initialOpenAddModal]);
+  const [prevInitialOpenAddModal, setPrevInitialOpenAddModal] = useState(false);
+  if (initialOpenAddModal && !prevInitialOpenAddModal) {
+    setPrevInitialOpenAddModal(true);
+    setIsAddModalOpen(true);
+  }
 
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
@@ -413,24 +414,31 @@ export function VehicleDamagesList({
     : damages;
 
   // Calculate vehicle cost + upgrades (excluding weapons)
-  useEffect(() => {
-    if (!isRepairModalOpen) return;
-    if (!vehicle) {
-      setRepairCost(0);
-      return;
+  const [prevRepairModalOpen, setPrevRepairModalOpen] = useState(isRepairModalOpen);
+  const [prevRepairPercent, setPrevRepairPercent] = useState(repairPercent);
+  const [prevVehicle, setPrevVehicle] = useState(vehicle);
+  if (isRepairModalOpen !== prevRepairModalOpen || repairPercent !== prevRepairPercent || vehicle !== prevVehicle) {
+    setPrevRepairModalOpen(isRepairModalOpen);
+    setPrevRepairPercent(repairPercent);
+    setPrevVehicle(vehicle);
+    if (isRepairModalOpen) {
+      if (!vehicle) {
+        setRepairCost(0);
+      } else {
+        const vehicleBaseCost = vehicle.cost || 0;
+        const upgrades = (vehicle.equipment || []).filter((eq: any) => eq.equipment_type !== 'weapon');
+        const upgradesCost = upgrades.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
+        const total = vehicleBaseCost + upgradesCost;
+        let cost = 0;
+        if (repairPercent === 10) {
+          cost = Math.ceil((total * 0.10) / 5) * 5;
+        } else if (repairPercent === 25) {
+          cost = Math.ceil((total * 0.25) / 5) * 5;
+        }
+        setRepairCost(cost);
+      }
     }
-    const vehicleBaseCost = vehicle.cost || 0;
-    const upgrades = (vehicle.equipment || []).filter((eq: any) => eq.equipment_type !== 'weapon');
-    const upgradesCost = upgrades.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
-    const total = vehicleBaseCost + upgradesCost;
-    let cost = 0;
-    if (repairPercent === 10) {
-      cost = Math.ceil((total * 0.10) / 5) * 5;
-    } else if (repairPercent === 25) {
-      cost = Math.ceil((total * 0.25) / 5) * 5;
-    }
-    setRepairCost(cost);
-  }, [isRepairModalOpen, repairPercent, vehicle]);
+  }
 
   // When opened directly from gang card menu, render only the add form (no list, no inner modal)
   if (addFormOnly) {

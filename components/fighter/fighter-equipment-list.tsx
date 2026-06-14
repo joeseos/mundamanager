@@ -109,85 +109,71 @@ export function WeaponList({
   const [deleteEffectModalData, setDeleteEffectModalData] = useState<{ effectId: string; fighterEquipmentId: string; effectName: string; creditsIncrease: number } | null>(null);
   const effectSelectionRef = React.useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
-  // Optimistic purchase mutation wired from here; modal delegates via onPurchaseRequest
-  const purchaseMutation = {
-    mutate: async ({ params, item }: { params: any; item: Equipment }) => {
-      // Snapshot state for rollback
-      const previousEquipment = [...equipment];
-      const previousFighterCredits = fighterCredits;
-      const previousGangCredits = gangCredits;
-
-      // Compute optimistic rating cost guess
-      const isWeapon = item.equipment_type === 'weapon';
-      const isMaster = Boolean(params.master_crafted && isWeapon);
-      const useBaseForRating = Boolean(params.use_base_cost_for_rating);
-      const baseForRating = item.adjusted_cost ?? item.cost ?? 0;
-      const appliedRatingCost = useBaseForRating ? baseForRating : (params.manual_cost || baseForRating);
-      const ratingCostGuess = isMaster
-        ? Math.ceil((appliedRatingCost * 1.25) / 5) * 5
-        : appliedRatingCost;
-
-      // Apply optimistic UI update: add temp item and adjust credits
-      const tempId = `temp-${Date.now()}`;
-      const optimisticEquipment: Equipment = {
-        ...item,
-        fighter_equipment_id: tempId,
-        cost: ratingCostGuess,
-        is_master_crafted: isMaster ? true : item.is_master_crafted,
-        target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
-      } as Equipment;
-
-      try {
-        // Optimistically update UI
-        onEquipmentUpdate(
-          [...previousEquipment, optimisticEquipment],
-          previousFighterCredits + ratingCostGuess,
-          previousGangCredits - (params.manual_cost || 0)
-        );
-
-        // Execute server action (authoritative; triggers server cache-tags)
-        const result = await buyEquipmentForFighter(params);
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to buy equipment');
-        }
-
-        const data = result.data;
-        const newGangCredits = data?.updategangsCollection?.records?.[0]?.credits ?? previousGangCredits;
-        const serverRatingCost = data?.rating_cost ?? ratingCostGuess;
-        const serverPurchaseCost = data?.purchase_cost ?? params.manual_cost ?? serverRatingCost;
-        const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
-
-        // Replace temp with real item and reconcile credits
-        const updated = [...previousEquipment, {
-          ...item,
-          fighter_equipment_id: newEquipmentId || tempId,
-          cost: serverRatingCost,
-          is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
-          target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
-        } as Equipment];
-
-        onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
-
-        const costText = item.cost_resource_name
-          ? `${item.cost_resource_amount} ${item.cost_resource_name}`
-          : `${serverPurchaseCost} credits`;
-        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
-
-        // Target selection handled pre-purchase via the existing purchase modal flow
-      } catch (err) {
-        // Rollback
-        onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
-        toast.error(err instanceof Error ? err.message : 'Failed to buy equipment');
-      }
-    }
-  };
-
   // Register purchase handler for parent (so ItemModal can delegate and close immediately)
   useEffect(() => {
     if (onRegisterPurchase) {
-      onRegisterPurchase((payload) => purchaseMutation.mutate(payload));
+      onRegisterPurchase(async ({ params, item }: { params: any; item: Equipment }) => {
+        const previousEquipment = [...equipment];
+        const previousFighterCredits = fighterCredits;
+        const previousGangCredits = gangCredits;
+
+        const isWeapon = item.equipment_type === 'weapon';
+        const isMaster = Boolean(params.master_crafted && isWeapon);
+        const useBaseForRating = Boolean(params.use_base_cost_for_rating);
+        const baseForRating = item.adjusted_cost ?? item.cost ?? 0;
+        const appliedRatingCost = useBaseForRating ? baseForRating : (params.manual_cost || baseForRating);
+        const ratingCostGuess = isMaster
+          ? Math.ceil((appliedRatingCost * 1.25) / 5) * 5
+          : appliedRatingCost;
+
+        const tempId = `temp-${Date.now()}`;
+        const optimisticEquipment: Equipment = {
+          ...item,
+          fighter_equipment_id: tempId,
+          cost: ratingCostGuess,
+          is_master_crafted: isMaster ? true : item.is_master_crafted,
+          target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
+        } as Equipment;
+
+        try {
+          onEquipmentUpdate(
+            [...previousEquipment, optimisticEquipment],
+            previousFighterCredits + ratingCostGuess,
+            previousGangCredits - (params.manual_cost || 0)
+          );
+
+          const result = await buyEquipmentForFighter(params);
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to buy equipment');
+          }
+
+          const data = result.data;
+          const newGangCredits = data?.updategangsCollection?.records?.[0]?.credits ?? previousGangCredits;
+          const serverRatingCost = data?.rating_cost ?? ratingCostGuess;
+          const serverPurchaseCost = data?.purchase_cost ?? params.manual_cost ?? serverRatingCost;
+          const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
+
+          const updated = [...previousEquipment, {
+            ...item,
+            fighter_equipment_id: newEquipmentId || tempId,
+            cost: serverRatingCost,
+            is_master_crafted: Boolean(data?.insertIntofighter_equipmentCollection?.records?.[0]?.is_master_crafted) || isMaster,
+            target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
+          } as Equipment];
+
+          onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
+
+          const costText = item.cost_resource_name
+            ? `${item.cost_resource_amount} ${item.cost_resource_name}`
+            : `${serverPurchaseCost} credits`;
+          toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
+        } catch (err) {
+          onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
+          toast.error(err instanceof Error ? err.message : 'Failed to buy equipment');
+        }
+      });
     }
-  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits]);
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate]);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback

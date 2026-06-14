@@ -83,22 +83,31 @@ function FitWeaponModal({
   const [validationError, setValidationError] = useState<string>('');
 
   // Keep local hardpoints view in sync with incoming props when modal is (re)opened
-  React.useEffect(() => {
+  const [prevHardpoints, setPrevHardpoints] = React.useState(hardpoints);
+  if (hardpoints !== prevHardpoints) {
+    setPrevHardpoints(hardpoints);
     setModalHardpoints(hardpoints);
-  }, [hardpoints]);
+  }
 
   // Auto-select weapon when weaponName is provided (user came from clicking "Fit to hardpoint" on a weapon)
-  React.useEffect(() => {
+  const weaponAutoSelectKey = `${weaponName}-${equipment.length}`;
+  const [prevWeaponAutoSelectKey, setPrevWeaponAutoSelectKey] = React.useState(weaponAutoSelectKey);
+  if (weaponAutoSelectKey !== prevWeaponAutoSelectKey) {
+    setPrevWeaponAutoSelectKey(weaponAutoSelectKey);
     if (weaponName && equipment.length > 0) {
       const weapon = equipment.find(eq => eq.equipment_name === weaponName && eq.equipment_type === 'weapon');
       if (weapon) {
         setSelectedWeaponId(weapon.fighter_equipment_id);
       }
     }
-  }, [weaponName, equipment]);
+  }
 
   // Sync edit state when selection changes
-  React.useEffect(() => {
+  const [prevSelectedHardpointId, setPrevSelectedHardpointId] = React.useState(selectedHardpointId);
+  const [prevHardpointsForSync, setPrevHardpointsForSync] = React.useState(hardpoints);
+  if (selectedHardpointId !== prevSelectedHardpointId || hardpoints !== prevHardpointsForSync) {
+    setPrevSelectedHardpointId(selectedHardpointId);
+    setPrevHardpointsForSync(hardpoints);
     if (selectedHardpointId) {
       const hp = hardpoints.find(h => h.id === selectedHardpointId);
       if (hp) {
@@ -107,13 +116,12 @@ function FitWeaponModal({
         setEditedOperatedBy(operatedBy === 'crew' || operatedBy === 'passenger' ? operatedBy : '');
         setEditedLocation(hp.location || '');
         setValidationError('');
-        // Don't reset weapon selection if weaponName was provided (user came from weapon selection)
         if (!weaponName) {
-          setSelectedWeaponId(''); // Reset weapon selection when hardpoint changes
+          setSelectedWeaponId('');
         }
       }
     }
-  }, [selectedHardpointId, hardpoints, weaponName]);
+  }
 
   const selected = hardpoints.find(hp => hp.id === selectedHardpointId);
   const hasWeaponFitted = !!selected?.fitted_weapon_name && selected.fitted_weapon_name !== '—' && selected.fitted_weapon_name !== '';
@@ -502,79 +510,72 @@ export function VehicleEquipmentList({
     weaponName: string;
   } | null>(null);
 
-  // Optimistic purchase mutation for vehicle equipment delegated from modal
-  const purchaseMutation = {
-    mutate: async ({ params, item }: { params: any; item: any }) => {
-      const previousEquipment = [...equipment];
-      const previousFighterCredits = fighterCredits;
-      const previousGangCredits = gangCredits;
+  // Register optimistic purchase handler for parent (so ItemModal can delegate and close immediately)
+  React.useEffect(() => {
+    if (onRegisterPurchase) {
+      onRegisterPurchase(async ({ params, item }: { params: any; item: any }) => {
+        const previousEquipment = [...equipment];
+        const previousFighterCredits = fighterCredits;
+        const previousGangCredits = gangCredits;
 
-      // rating cost guess (no master-crafted for vehicle upgrades)
-      const baseForRating = item.adjusted_cost ?? item.cost ?? 0;
-      const appliedRatingCost = params.use_base_cost_for_rating ? baseForRating : (params.manual_cost ?? baseForRating);
-      const ratingCostGuess = appliedRatingCost;
+        const baseForRating = item.adjusted_cost ?? item.cost ?? 0;
+        const appliedRatingCost = params.use_base_cost_for_rating ? baseForRating : (params.manual_cost ?? baseForRating);
+        const ratingCostGuess = appliedRatingCost;
 
-      const tempId = `temp-${Date.now()}`;
-      const optimisticItem: VehicleEquipment = {
-        fighter_equipment_id: tempId,
-        equipment_id: item.equipment_id,
-        equipment_name: item.equipment_name,
-        equipment_type: item.equipment_type,
-        cost: ratingCostGuess,
-        core_equipment: false,
-        vehicle_id: params.vehicle_id,
-        vehicle_equipment_id: tempId
-      } as VehicleEquipment;
-
-      try {
-        // Optimistic UI: add item and adjust fighter/gang credits
-        onEquipmentUpdate(
-          [...previousEquipment, optimisticItem],
-          previousFighterCredits + ratingCostGuess,
-          previousGangCredits - (params.manual_cost || 0)
-        );
-
-        const result = await buyEquipmentForFighter(params);
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to buy vehicle equipment');
-        }
-
-        const data = result.data;
-        const newGangCredits = data?.updategangsCollection?.records?.[0]?.credits ?? previousGangCredits;
-        const serverRatingCost = data?.rating_cost ?? ratingCostGuess;
-        const serverPurchaseCost = data?.purchase_cost ?? params.manual_cost ?? serverRatingCost;
-        const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
-
-        const updated = [...previousEquipment, {
-          fighter_equipment_id: newEquipmentId || tempId,
+        const tempId = `temp-${Date.now()}`;
+        const optimisticItem: VehicleEquipment = {
+          fighter_equipment_id: tempId,
           equipment_id: item.equipment_id,
           equipment_name: item.equipment_name,
           equipment_type: item.equipment_type,
-          cost: serverRatingCost,
+          cost: ratingCostGuess,
           core_equipment: false,
           vehicle_id: params.vehicle_id,
-          vehicle_equipment_id: newEquipmentId || tempId
-        } as VehicleEquipment];
+          vehicle_equipment_id: tempId
+        } as VehicleEquipment;
 
-        onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
+        try {
+          onEquipmentUpdate(
+            [...previousEquipment, optimisticItem],
+            previousFighterCredits + ratingCostGuess,
+            previousGangCredits - (params.manual_cost || 0)
+          );
 
-        const costText = item.cost_resource_name
-          ? `${item.cost_resource_amount} ${item.cost_resource_name}`
-          : `${serverPurchaseCost} credits`;
-        toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
-      } catch (err) {
-        // Rollback
-        onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
-        toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to buy vehicle equipment' });
-      }
+          const result = await buyEquipmentForFighter(params);
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to buy vehicle equipment');
+          }
+
+          const data = result.data;
+          const newGangCredits = data?.updategangsCollection?.records?.[0]?.credits ?? previousGangCredits;
+          const serverRatingCost = data?.rating_cost ?? ratingCostGuess;
+          const serverPurchaseCost = data?.purchase_cost ?? params.manual_cost ?? serverRatingCost;
+          const newEquipmentId = data?.insertIntofighter_equipmentCollection?.records?.[0]?.id;
+
+          const updated = [...previousEquipment, {
+            fighter_equipment_id: newEquipmentId || tempId,
+            equipment_id: item.equipment_id,
+            equipment_name: item.equipment_name,
+            equipment_type: item.equipment_type,
+            cost: serverRatingCost,
+            core_equipment: false,
+            vehicle_id: params.vehicle_id,
+            vehicle_equipment_id: newEquipmentId || tempId
+          } as VehicleEquipment];
+
+          onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
+
+          const costText = item.cost_resource_name
+            ? `${item.cost_resource_amount} ${item.cost_resource_name}`
+            : `${serverPurchaseCost} credits`;
+          toast.success('Equipment purchased', { description: `Successfully bought ${item.equipment_name} for ${costText}` });
+        } catch (err) {
+          onEquipmentUpdate(previousEquipment, previousFighterCredits, previousGangCredits);
+          toast.error('Error', { description: err instanceof Error ? err.message : 'Failed to buy vehicle equipment' });
+        }
+      });
     }
-  };
-
-  React.useEffect(() => {
-    if (onRegisterPurchase) {
-      onRegisterPurchase((payload) => purchaseMutation.mutate(payload));
-    }
-  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits]);
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate]);
 
   // Enhanced delete function using server actions with targeted cache invalidation
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {

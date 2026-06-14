@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
@@ -76,7 +76,7 @@ export function SkillAccessModal({
     if (skillAccessError) {
       toast.error(skillAccessError instanceof Error ? skillAccessError.message : 'Failed to load skill access');
     }
-  }, [skillTypesError, skillAccessError, toast]);
+  }, [skillTypesError, skillAccessError]);
 
   // Helper to get the group label for a skill set based on its rank
   const getGroupLabel = (rank: number): string => {
@@ -90,58 +90,59 @@ export function SkillAccessModal({
     return 'Misc.';
   };
 
-  // Initialize local state from fetched data - merge all skill types with current access
-  useEffect(() => {
-    if (allSkillTypes && skillAccessData && !hasInitialized) {
-      // Create a map of current access levels (defaults + overrides)
-      const accessMap = new Map(
-        (skillAccessData.skill_access || []).map((sa: any) => [
-          sa.skill_type_id,
-          { default: sa.access_level, override: sa.override_access_level }
-        ])
-      );
+  // Reset initialization state when modal closes
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (!isOpen && prevIsOpen) {
+    setHasInitialized(false);
+  }
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+  }
 
-      // Helper to get the rank for a given skill set name, defaulting to Infinity for unknown sets
-      const getRank = (name: string): number =>
-        skillSetRank[name.toLowerCase()] ?? Number.POSITIVE_INFINITY;
+  // Derive merged skill access from fetched data
+  const computedSkillAccess = useMemo(() => {
+    if (!allSkillTypes || !skillAccessData) return null;
 
-      // Build skill access from ALL skill types
-      const allSkillTypesWithAccess: LocalSkillAccess[] = (allSkillTypes as any[])
-        .map((st: any) => {
-          const access = accessMap.get(st.id) as { default: string | null, override: string | null } | undefined;
-          return {
-            skill_type_id: st.id,
-            skill_type_name: st.name,
-            default_access_level: access?.default || null,
-            selected_access_level: access?.override
-              ? (access.override as AccessLevel)
-              : 'default'
-          };
-        });
+    const accessMap = new Map(
+      (skillAccessData.skill_access || []).map((sa: any) => [
+        sa.skill_type_id,
+        { default: sa.access_level, override: sa.override_access_level }
+      ])
+    );
 
-      // Sort by skill set rank to align with the Skills modal, with alphabetical tiebreaker
-      allSkillTypesWithAccess.sort((a: LocalSkillAccess, b: LocalSkillAccess) => {
-        const rankA = getRank(a.skill_type_name);
-        const rankB = getRank(b.skill_type_name);
+    const getRank = (name: string): number =>
+      skillSetRank[name.toLowerCase()] ?? Number.POSITIVE_INFINITY;
 
-        if (rankA !== rankB) {
-          return rankA - rankB;
-        }
-
-        return a.skill_type_name.localeCompare(b.skill_type_name);
+    const result: LocalSkillAccess[] = (allSkillTypes as any[])
+      .map((st: any) => {
+        const access = accessMap.get(st.id) as { default: string | null, override: string | null } | undefined;
+        return {
+          skill_type_id: st.id,
+          skill_type_name: st.name,
+          default_access_level: access?.default || null,
+          selected_access_level: access?.override
+            ? (access.override as AccessLevel)
+            : 'default'
+        };
       });
 
-      setSkillAccess(allSkillTypesWithAccess);
-      setHasInitialized(true);
-    }
-  }, [allSkillTypes, skillAccessData, hasInitialized]);
+    result.sort((a, b) => {
+      const rankA = getRank(a.skill_type_name);
+      const rankB = getRank(b.skill_type_name);
+      if (rankA !== rankB) return rankA - rankB;
+      return a.skill_type_name.localeCompare(b.skill_type_name);
+    });
 
-  // Reset initialization state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setHasInitialized(false);
-    }
-  }, [isOpen]);
+    return result;
+  }, [allSkillTypes, skillAccessData]);
+
+  // Sync computed data to local state once per modal open
+  const [prevComputedSkillAccess, setPrevComputedSkillAccess] = useState(computedSkillAccess);
+  if (computedSkillAccess && computedSkillAccess !== prevComputedSkillAccess && !hasInitialized) {
+    setPrevComputedSkillAccess(computedSkillAccess);
+    setSkillAccess(computedSkillAccess);
+    setHasInitialized(true);
+  }
 
   const isLoading = isLoadingSkillTypes || isLoadingSkillAccess;
   const error = skillTypesError || skillAccessError;

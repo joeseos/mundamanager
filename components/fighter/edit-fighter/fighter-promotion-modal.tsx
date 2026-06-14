@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -166,24 +166,26 @@ export function FighterPromotionModal({
   );
 
   // Reset state on each open, pre-select the first eligible type
-  useEffect(() => {
-    if (isOpen) {
-      if (isExoticBeast) {
-        setSelectedTypeId('');
-        setIncludeAllGangFighterTypes(false);
-        setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
-        setNewRuleInput('');
-      } else {
-        setIncludeAllGangFighterTypes(false);
-        const firstType = eligibleTypes.length > 0 ? eligibleTypes[0] : null;
-        setSelectedTypeId(firstType?.id || '');
-        setNewSpecialRules(
-          firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
-        );
-        setNewRuleInput('');
-      }
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen && !prevIsOpen) {
+    if (isExoticBeast) {
+      setSelectedTypeId('');
+      setIncludeAllGangFighterTypes(false);
+      setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
+      setNewRuleInput('');
+    } else {
+      setIncludeAllGangFighterTypes(false);
+      const firstType = eligibleTypes.length > 0 ? eligibleTypes[0] : null;
+      setSelectedTypeId(firstType?.id || '');
+      setNewSpecialRules(
+        firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
+      );
+      setNewRuleInput('');
     }
-  }, [isOpen, eligibleTypes, isExoticBeast, currentSpecialRules]);
+  }
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+  }
 
   const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
     setIncludeAllGangFighterTypes(checked);

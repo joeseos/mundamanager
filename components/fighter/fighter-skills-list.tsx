@@ -181,7 +181,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     };
 
     fetchCategoriesAndAccess();
-  }, [fighterId, toast]);
+  }, [fighterId]);
 
   // Fetch skills when category is selected
   useEffect(() => {
@@ -211,7 +211,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     };
 
     fetchSkills();
-  }, [selectedCategory, fighterId, toast]);
+  }, [selectedCategory, fighterId]);
 
   /**
    * Skill Set combobox options grouped by rank (Custom Skill Sets first, then standard groups).
@@ -471,9 +471,11 @@ export function SkillsList({
   const [localSkills, setLocalSkills] = useState<FighterSkills>(skills);
 
   // Sync with props when they change (from server refresh)
-  useEffect(() => {
+  const [prevSkills, setPrevSkills] = useState(skills);
+  if (skills !== prevSkills) {
+    setPrevSkills(skills);
     setLocalSkills(skills);
-  }, [skills]);
+  }
 
   // TanStack Query delete mutation
   const deleteSkillMutation = useMutation({

@@ -34,13 +34,12 @@ export function SellFighterModal({
   };
 
   // Update sell value when fighter value changes or checkbox is toggled
-  useEffect(() => {
-    if (useFullValue) {
-      setSellValue(fighterValue);
-    } else {
-      setSellValue(calculateDefaultSellValue(fighterValue));
-    }
-  }, [fighterValue, useFullValue]);
+  const derivedSellValue = useFullValue ? fighterValue : calculateDefaultSellValue(fighterValue);
+  const [prevDerivedSellValue, setPrevDerivedSellValue] = useState(derivedSellValue);
+  if (derivedSellValue !== prevDerivedSellValue) {
+    setPrevDerivedSellValue(derivedSellValue);
+    setSellValue(derivedSellValue);
+  }
 
   const handleSellValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value) || 0;
@@ -96,7 +95,7 @@ export function SellFighterModal({
                 className="w-full"
               />
               <p className="text-xs text-muted-foreground">
-                Fighter's total value: {fighterValue} credits
+                Fighter&apos;s total value: {fighterValue} credits
               </p>
             </div>
 
@@ -107,7 +106,7 @@ export function SellFighterModal({
                 onCheckedChange={handleCheckboxChange}
               />
               <Label htmlFor="full-value" className="text-sm">
-                Use 100% of fighter's value ({fighterValue} credits)
+                Use 100% of fighter&apos;s value ({fighterValue} credits)
               </Label>
             </div>
           </>

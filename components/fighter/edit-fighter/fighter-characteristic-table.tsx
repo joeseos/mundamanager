@@ -25,10 +25,11 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
   };
 
   // Single function to calculate effects for any category
+  const fighterEffects = fighter.effects;
   const calculateEffectsForCategory = useMemo(() => {
-    return (categoryName: keyof typeof fighter.effects) => {
+    return (categoryName: keyof NonNullable<typeof fighterEffects>) => {
       const effects: Record<string, number> = {};
-      fighter.effects?.[categoryName]?.forEach(effect => {
+      fighterEffects?.[categoryName]?.forEach(effect => {
         effect.fighter_effect_modifiers?.forEach(modifier => {
           const statName = modifier.stat_name.toLowerCase();
           const numValue = parseInt(modifier.numeric_value.toString());
@@ -37,7 +38,7 @@ export function FighterCharacteristicTable({ fighter }: { fighter: Fighter }) {
       });
       return effects;
     };
-  }, [fighter.effects]);
+  }, [fighterEffects]);
 
   // Calculate all effect categories using the single function
   const injuryEffects = useMemo(() => calculateEffectsForCategory('injuries'), [calculateEffectsForCategory]);

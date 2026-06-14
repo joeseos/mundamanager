@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -98,7 +98,7 @@ interface FighterDetailsCardProps {
 }
 
 // Update the stats calculation to include vehicle equipment bonuses
-const calculateVehicleStats = (baseStats: any, vehicleEquipment: (Equipment | VehicleEquipment)[] = []) => {
+const calculateVehicleStats = (baseStats: any) => {
   if (!baseStats) return {
     movement: 0,
     front: 0,
@@ -234,9 +234,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   willpower,
   intelligence,
   xp,
-  total_xp,
   advancements,
-  onNameUpdate,
   onAddXp,
   onEdit,
   killed,
@@ -251,7 +249,6 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   is_spyrer,
   effects,
   vehicles,
-  vehicleEquipment = [],
   gangId,
   userPermissions,
   owner_name,
@@ -362,8 +359,8 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   // Calculate vehicle stats once
   const vehicleStats = useMemo(() => 
-    isCrew ? calculateVehicleStats(vehicles?.[0], vehicleEquipment) : null,
-    [isCrew, vehicles, vehicleEquipment]
+    isCrew ? calculateVehicleStats(vehicles?.[0]) : null,
+    [isCrew, vehicles]
   );
 
   // Update stats object to handle crew stats - now using modifiedStats instead of adjustedStats
@@ -448,11 +445,13 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             className={`bg-secondary rounded-full shadow-md border-4 border-black flex flex-col md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden ${canShowEditButtons ? 'cursor-pointer hover:border-neutral-400 transition-colors' : ''}`}
             onClick={handleImageClick}
           >
+          {/* eslint-disable @next/next/no-img-element */}
           {currentImageUrl ? (
             <img src={currentImageUrl} alt="Fighter" className="object-cover rounded-full" />
           ) : (
             <img src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_fighter_cropped_web.webp" alt="Fighter" className="object-cover rounded-full" />
           )}
+          {/* eslint-enable @next/next/no-img-element */}
           </div>
           <div className="bg-secondary rounded-full shadow-md border-4 border-black flex flex-col items-center justify-center md:size-[85px] size-[64px] shrink-0 relative z-10 print:bg-card print:shadow-none">
             <span className="leading-none font-bold md:text-3xl text-2xl">{Math.round(credits ?? 0) === 0 ? '*' : Math.round(credits ?? 0)}</span>
