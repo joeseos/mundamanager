@@ -2956,9 +2956,14 @@ export function AdvancementsList({
   const title = (
     <>
       <span className="sm:hidden">Advanc.</span>
-      <span className="hidden sm:inline">Advancements</span>{' '}
-      <span className="text-sm sm:hidden">({advancementCount})</span>
-      <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
+      <span className="hidden sm:inline">Advancements</span>
+      {advancementCount > 0 && (
+        <>
+          {' '}
+          <span className="text-sm sm:hidden">({advancementCount})</span>
+          <span className="text-sm hidden sm:inline">(Adv. count: {advancementCount})</span>
+        </>
+      )}
     </>
   );
 
