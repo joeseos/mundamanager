@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { RichTextEditor, RichTextEditorHandle } from "@/components/ui/rich-text-editor";
@@ -31,19 +31,16 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
     return textContent.length;
   };
 
-  useEffect(() => {
+  const [prevInitialNote, setPrevInitialNote] = useState(initialNote);
+  if (initialNote !== prevInitialNote) {
+    setPrevInitialNote(initialNote);
     if (!isEditing) {
       setNote(initialNote || '');
     }
-  }, [initialNote, isEditing]);
-
-  // Track when the note has been refreshed from server
-  useEffect(() => {
     if (isRefreshing && initialNote === savedContent) {
-      // The server has returned our saved content, so refresh is complete
       setIsRefreshing(false);
     }
-  }, [initialNote, isRefreshing, savedContent]);
+  }
 
   const handleSave = async () => {
     try {

@@ -58,33 +58,12 @@ export default function ActiveSession({
   });
   const { broadcast, suppressRefetch } = useBattleSessionRealtime(session.id);
 
-  if (session.status === 'completed') {
-    return <CompletedSession session={session} userId={userId} />;
-  }
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showRoundModal, setShowRoundModal] = useState(false);
   const [showRevertRoundModal, setShowRevertRoundModal] = useState(false);
   const [showReturnToSetupModal, setShowReturnToSetupModal] = useState(false);
   const [showCompleteBattleModal, setShowCompleteBattleModal] = useState(false);
-  const isOwner = session.created_by === userId;
-  const canManage = isOwner || isArbitrator;
-  const isPreBattle = session.status === 'pre_battle';
-  const isPostBattle = session.status === 'post_battle';
-  const battleActive = session.status === 'active';
-
-  const ratings = session.participants.map((p) => {
-    const gfList = gangFightersMap[p.gang_id] || [];
-    return (p.fighters ?? []).reduce((sum, f) => {
-      const match = gfList.find(
-        (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
-      ) ?? gfList.find((gf) => gf.id === f.fighter_id);
-      return sum + (match ? (match.loadout_cost ?? match.credits) : (f.fighter?.credits ?? 0));
-    }, 0);
-  });
-  const maxRating = ratings.length > 0 ? Math.max(...ratings) : 0;
-  const minRating = ratings.length > 0 ? Math.min(...ratings) : 0;
-  const ratingDiff = ratings.length >= 2 ? maxRating - minRating : 0;
 
   const scenarioMutation = useMutation({
     mutationFn: (scenario: string) =>
@@ -105,7 +84,6 @@ export default function ActiveSession({
         toast.success('Battle cancelled');
         broadcast();
         const ownGangId = session.participants.find(p => p.user_id === userId)?.gang_id;
-        // Arbitrators may have no gang in the session; send them to the campaign
         router.push(
           ownGangId
             ? `/gang/${ownGangId}`
@@ -160,6 +138,29 @@ export default function ActiveSession({
     },
     onError: () => toast.error('Failed to change phase'),
   });
+
+  if (session.status === 'completed') {
+    return <CompletedSession session={session} userId={userId} />;
+  }
+
+  const isOwner = session.created_by === userId;
+  const canManage = isOwner || isArbitrator;
+  const isPreBattle = session.status === 'pre_battle';
+  const isPostBattle = session.status === 'post_battle';
+  const battleActive = session.status === 'active';
+
+  const ratings = session.participants.map((p) => {
+    const gfList = gangFightersMap[p.gang_id] || [];
+    return (p.fighters ?? []).reduce((sum, f) => {
+      const match = gfList.find(
+        (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
+      ) ?? gfList.find((gf) => gf.id === f.fighter_id);
+      return sum + (match ? (match.loadout_cost ?? match.credits) : (f.fighter?.credits ?? 0));
+    }, 0);
+  });
+  const maxRating = ratings.length > 0 ? Math.max(...ratings) : 0;
+  const minRating = ratings.length > 0 ? Math.min(...ratings) : 0;
+  const ratingDiff = ratings.length >= 2 ? maxRating - minRating : 0;
 
   const userGangInSession = session.participants.find((p) => p.user_id === userId);
 

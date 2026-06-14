@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useTransition, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-ima
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import { FiMap, FiCamera, FiShare2 } from "react-icons/fi";
+import { FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
 import { LuSwords, LuTrophy, LuCodeXml, LuLogs } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
@@ -189,14 +189,10 @@ export default function CampaignPageContent({
   const campaignContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(0);
   const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
-  const [isPending, startTransition] = useTransition();
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
-
-  // Helper for checking authentication
-  const isAuthenticated = !!userId;
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -223,30 +219,27 @@ export default function CampaignPageContent({
   // Fix: Include app-level admin status in isAdmin check
   const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
-      // Instead of router.refresh(), fetch fresh data from our cached endpoints
       const response = await fetch(`/api/campaigns/${campaignData.id}`, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
         },
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch updated campaign data');
       }
-      
+
       const updatedCampaignData = await response.json();
-      
-      // Update only the campaign data state
       setCampaignData(updatedCampaignData);
-      
+
     } catch (error) {
       console.error('Error refreshing campaign data:', error);
       toast.error("Failed to refresh campaign data");
     }
-  };
+  }, [campaignData.id]);
 
   // Shared handler for territory updates with optimistic updates
   interface TerritoryUpdate {

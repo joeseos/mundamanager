@@ -13,7 +13,7 @@ import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
 import { skillSetRank } from "@/utils/skillSetRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
-import { AdminFighterEquipmentSelection, EquipmentSelection, EquipmentOption, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
+import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
 import Modal from '@/components/ui/modal';
 
 interface FighterSubType {
@@ -45,14 +45,6 @@ interface Skill {
   id: string;
   skill_name: string;
   skill_type_id: string;
-}
-
-interface Fighter {
-  id: string;
-  fighter_type: string;
-  fighter_class: string;
-  gang_type_id: string;
-  fighter_sub_type_id?: string | null;
 }
 
 interface SubType {
@@ -95,7 +87,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [isLoading, setIsLoading] = useState(false);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState<string>('');
   const [availableSubTypes, setAvailableSubTypes] = useState<FighterSubType[]>([]);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const [movement, setMovement] = useState('');
   const [weaponSkill, setWeaponSkill] = useState('');
@@ -120,7 +112,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [selectedEquipmentType, setSelectedEquipmentType] = useState('');
+  const [_selectedEquipmentType, _setSelectedEquipmentType] = useState('');
   const [equipmentListSelections, setEquipmentListSelections] = useState<string[]>([]);
   const [equipmentDiscounts, setEquipmentDiscounts] = useState<{
     equipment_id: string;
@@ -130,7 +122,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
-  const [isEquipmentLoaded, setIsEquipmentLoaded] = useState(false);
+  const [, setIsEquipmentLoaded] = useState(false);
 
   // Add a new state variable to track the sub-type name
   const [subTypeName, setSubTypeName] = useState('');
@@ -235,19 +227,66 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     );
   }, [skillTypes]);
 
+  const fetchEquipmentByCategory = async () => {
+    if (hasLoadedEquipmentCategoriesRef.current && equipment.length > 0) {
+      return;
+    }
+
+    const wasLoading = isLoading;
+    if (!wasLoading) {
+      setIsLoading(true);
+    }
+
+    try {
+      const response = await fetch('/api/admin/equipment');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch equipment: ${response.status} ${response.statusText}`);
+      }
+
+      const equipmentData = await response.json();
+
+      const equipmentWithIds = equipmentData.map((item: any) => ({
+        ...item,
+        id: item.id,
+        equipment_id: item.id
+      })) as EquipmentWithId[];
+
+      setEquipment(equipmentWithIds);
+      hasLoadedEquipmentCategoriesRef.current = true;
+
+      return equipmentWithIds;
+    } catch (error) {
+      console.error('Error fetching equipment data:', error);
+      toast.error('Failed to load equipment data. Please try again.');
+      throw error;
+    } finally {
+      if (!wasLoading) {
+        setIsLoading(false);
+      }
+    }
+  };
+
   // Preload equipment data when the component mounts
   useEffect(() => {
-    const preloadEquipment = async () => {
+    if (hasLoadedEquipmentCategoriesRef.current) return;
+    let cancelled = false;
+    (async () => {
       try {
-        if (!hasLoadedEquipmentCategoriesRef.current) {
-          await fetchEquipmentByCategory();
-          setIsEquipmentLoaded(true);
-        }
-      } catch (error) {
-        // Equipment loading failed silently, will retry when needed
+        const response = await fetch('/api/admin/equipment');
+        if (!response.ok || cancelled) return;
+        const equipmentData = await response.json();
+        if (cancelled) return;
+        const equipmentWithIds = equipmentData.map((item: any) => ({
+          ...item, id: item.id, equipment_id: item.id
+        })) as EquipmentWithId[];
+        setEquipment(equipmentWithIds);
+        hasLoadedEquipmentCategoriesRef.current = true;
+        setIsEquipmentLoaded(true);
+      } catch {
+        // Will retry when needed via fetchEquipmentByCategory
       }
-    };
-    preloadEquipment();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const { data: gangTypes = [] } = useQuery<GangType[]>({
@@ -337,7 +376,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     };
 
     fetchSkills();
-  }, [selectedSkillType, toast]);
+  }, [selectedSkillType]);
 
   // Fetch full skill details for selected skills when loading a fighter type
   useEffect(() => {
@@ -1101,7 +1140,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
-  const handleAddAdjustedCost = () => {
+  const _handleAddAdjustedCost = () => {
     if (!selectedAdjustedCostEquipment || !adjustedCostAmount) return;
     
     const newAdjustedCost = {
@@ -1114,67 +1153,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     setAdjustedCostAmount('');
   };
 
-  const handleRemoveAdjustedCost = (equipmentId: string) => {
+  const _handleRemoveAdjustedCost = (equipmentId: string) => {
     setEquipmentDiscounts(equipmentDiscounts.filter(
       adjusted_cost => adjusted_cost.equipment_id !== equipmentId
     ));
   };
 
-  const fetchEquipmentByCategory = async () => {
-    // Only fetch if we haven't already loaded the data
-    if (hasLoadedEquipmentCategoriesRef.current && equipment.length > 0) {
-      console.log('Using cached equipment data');
-      return;
-    }
-
-    console.log('Starting to fetch equipment data');
-    // Track our loading state locally to ensure we don't conflict with other operations
-    const wasLoading = isLoading;
-    if (!wasLoading) {
-      setIsLoading(true);
-    }
-
-    try {
-      console.log('Fetching equipment data from API...');
-      
-      // Fetch all equipment from the API
-      const response = await fetch('/api/admin/equipment');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch equipment: ${response.status} ${response.statusText}`);
-      }
-      
-      const equipmentData = await response.json();
-      console.log(`Fetched ${equipmentData.length} equipment items`);
-      
-      // Cast the data for the main equipment state
-      const equipmentWithIds = equipmentData.map((item: any) => ({
-        ...item,
-        id: item.id,
-        equipment_id: item.id  // Make sure both properties exist
-      })) as EquipmentWithId[];
-      
-      // Update main equipment state
-      setEquipment(equipmentWithIds);
-      hasLoadedEquipmentCategoriesRef.current = true;
-      console.log('Equipment data successfully loaded');
-      
-      return equipmentWithIds;
-    } catch (error) {
-      console.error('Error fetching equipment data:', error);
-      toast.error('Failed to load equipment data. Please try again.');
-      // Re-throw to allow caller to handle the error
-      throw error;
-    } finally {
-      // Only reset loading state if we set it
-      if (!wasLoading) {
-        setIsLoading(false);
-      }
-      console.log('Equipment fetch process completed');
-    }
-  };
-
-  // Add this function at the component level
-  const handleInputTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputTyping = (_e: React.ChangeEvent<HTMLInputElement>) => {
     // This function exists just to satisfy the React onChange prop
     // The actual value is read from the ref on blur
     // This is deliberately empty to avoid any performance overhead
@@ -1943,7 +1928,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div className="mt-2">
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Fighter's Equipment List
+                  Fighter&apos;s Equipment List
                 </label>
                 <select
                   value=""

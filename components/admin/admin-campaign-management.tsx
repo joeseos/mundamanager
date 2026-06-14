@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -172,18 +172,18 @@ export function AdminCampaignManagementModal({
     setIsCreateModeTriumph(false);
   };
 
-  // Load related territories and triumphs when campaign type is selected
-  useEffect(() => {
+  const [prevRelatedKey, setPrevRelatedKey] = useState('');
+  const relatedKey = `${selectedCampaignTypeId}:${isCreateModeCampaignType}:${territories.length}:${triumphs.length}`;
+  if (relatedKey !== prevRelatedKey) {
+    setPrevRelatedKey(relatedKey);
     if (selectedCampaignTypeId && !isCreateModeCampaignType) {
-      const relatedTerrs = territories.filter(t => t.campaign_type_id === selectedCampaignTypeId);
-      const relatedTrphs = triumphs.filter(t => t.campaign_type_id === selectedCampaignTypeId);
-      setRelatedTerritories(relatedTerrs);
-      setRelatedTriumphs(relatedTrphs);
+      setRelatedTerritories(territories.filter(t => t.campaign_type_id === selectedCampaignTypeId));
+      setRelatedTriumphs(triumphs.filter(t => t.campaign_type_id === selectedCampaignTypeId));
     } else {
       setRelatedTerritories([]);
       setRelatedTriumphs([]);
     }
-  }, [selectedCampaignTypeId, territories, triumphs, isCreateModeCampaignType]);
+  }
 
   const invalidateAllData = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ['admin-campaign-types'] }),

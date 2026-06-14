@@ -296,17 +296,23 @@ export default function CampaignMapCanvas({
     onMapReadyRef.current?.(map);
     setMapReadyTick(t => t + 1);
 
+    const hexPolygons = hexPolygonsRef.current;
+    const hexTerritoryNameLayers = hexTerritoryNameLayersRef.current;
+    const hexSelectionSetters = hexSelectionSettersRef.current;
+    const objectLayers = objectLayersRef.current;
+    const objectSelectionSetters = objectSelectionSettersRef.current;
+
     return () => {
-      objectLayersRef.current.forEach(entry => entry.cleanup?.());
+      objectLayers.forEach(entry => entry.cleanup?.());
       map.remove();
       mapRef.current = null;
       hexGroupRef.current = null;
       objectsGroupRef.current = null;
-      hexPolygonsRef.current.clear();
-      hexTerritoryNameLayersRef.current.clear();
-      hexSelectionSettersRef.current.clear();
-      objectLayersRef.current.clear();
-      objectSelectionSettersRef.current.clear();
+      hexPolygons.clear();
+      hexTerritoryNameLayers.clear();
+      hexSelectionSetters.clear();
+      objectLayers.clear();
+      objectSelectionSetters.clear();
       lastHexConfigRef.current = '';
     };
     // `mapData.background_image_url` is already captured through

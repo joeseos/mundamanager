@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import Modal from "@/components/ui/modal"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -86,8 +86,6 @@ export default function TerritoryEditModal({
   const [selectedRef, setSelectedRef] = useState(initialPlayingCard.selectedRef);
   const [customPlayingCard, setCustomPlayingCard] = useState(initialPlayingCard.customPlayingCard);
   const [description, setDescription] = useState(currentDescription || '');
-  const [hasChanged, setHasChanged] = useState(false);
-
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
@@ -101,8 +99,10 @@ export default function TerritoryEditModal({
     return selectedRef;
   }, [selectedRef, customPlayingCard]);
 
-  // Reset state when modal opens/closes or the territory value changes
-  useEffect(() => {
+  const [prevResetKey, setPrevResetKey] = useState('');
+  const resetKey = `${isOpen}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}`;
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
     if (isOpen) {
       const next = deriveInitialPlayingCardSelection(currentPlayingCard);
       setRuined(currentRuined);
@@ -110,28 +110,14 @@ export default function TerritoryEditModal({
       setSelectedRef(next.selectedRef);
       setCustomPlayingCard(next.customPlayingCard);
       setDescription(currentDescription || '');
-      setHasChanged(false);
     }
-  }, [isOpen, currentRuined, currentDefaultGangTerritory, currentPlayingCard, currentDescription]);
+  }
 
-  // Track changes
-  useEffect(() => {
-    setHasChanged(
-      ruined !== currentRuined ||
-      defaultGangTerritory !== currentDefaultGangTerritory ||
-      normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard) ||
-      normaliseDescription(description) !== normaliseDescription(currentDescription)
-    );
-  }, [
-    ruined,
-    currentRuined,
-    defaultGangTerritory,
-    currentDefaultGangTerritory,
-    effectivePlayingCard,
-    currentPlayingCard,
-    description,
-    currentDescription
-  ]);
+  const hasChanged =
+    ruined !== currentRuined ||
+    defaultGangTerritory !== currentDefaultGangTerritory ||
+    normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard) ||
+    normaliseDescription(description) !== normaliseDescription(currentDescription);
 
   const comboboxValue =
     selectedRef === TERRITORY_PLAYING_CARD_CUSTOM

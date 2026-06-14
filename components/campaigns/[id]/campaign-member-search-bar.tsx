@@ -41,7 +41,7 @@ interface MemberSearchBarProps {
 
 export default function MemberSearchBar({
   campaignId,
-  campaignMembers,
+  campaignMembers: _campaignMembers,
   onMemberAdd,
   disabled = false
 }: MemberSearchBarProps) {
@@ -98,7 +98,7 @@ export default function MemberSearchBar({
     };
     const debounceTimer = setTimeout(searchUsers, 300);
     return () => clearTimeout(debounceTimer);
-  }, [query, toast]);
+  }, [query]);
 
   const handleAddMember = async (member: Member) => {
     setIsAdding(true)

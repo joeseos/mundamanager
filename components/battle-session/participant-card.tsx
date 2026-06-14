@@ -36,14 +36,12 @@ import {
   updateFighterLoadout,
   updateSessionXp,
   addSessionInjury,
-  removeSessionInjury,
   updateSessionConditions,
   updateActivations,
   updateSessionNote,
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
-import { deleteFighterInjury } from '@/app/actions/fighter-injury';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 
@@ -368,7 +366,7 @@ function InjuryPickerModal({
   onBroadcast?: () => void;
 }) {
   const [injuryTypes, setInjuryTypes] = useState<InjuryType[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [selectedInjury, setSelectedInjury] = useState<InjuryType | null>(null);
   const [mode, setMode] = useState<'main' | 'recovery' | 'captured'>('main');
@@ -404,7 +402,6 @@ function InjuryPickerModal({
   });
 
   useEffect(() => {
-    setLoading(true);
     fetch('/api/fighters/injuries?is_spyrer=false')
       .then((r) => r.json())
       .then(setInjuryTypes)
@@ -878,9 +875,9 @@ export default function ParticipantCard({
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
   const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current); }, []);
-  const prevReadyProp = useRef(participant.ready);
-  if (prevReadyProp.current !== participant.ready) {
-    prevReadyProp.current = participant.ready;
+  const [prevReadyProp, setPrevReadyProp] = useState(participant.ready);
+  if (prevReadyProp !== participant.ready) {
+    setPrevReadyProp(participant.ready);
     if (readyOverride !== null) setReadyOverride(null);
   }
   const localReady = readyOverride ?? participant.ready;
@@ -1070,7 +1067,7 @@ export default function ParticipantCard({
     };
   };
 
-  const addFighterMutation = useMutation({
+  const _addFighterMutation = useMutation({
     mutationFn: async (entry: { fighter_id: string; loadout_id?: string }) => {
       const result = await bulkAddFightersToSession({
         session_id: session.id,
@@ -1096,7 +1093,7 @@ export default function ParticipantCard({
     },
   });
 
-  const addAllFightersMutation = useMutation({
+  const _addAllFightersMutation = useMutation({
     mutationFn: async () => {
       const seen = new Set<string>();
       const entries = availableFighters
@@ -1227,21 +1224,29 @@ export default function ParticipantCard({
     },
   });
 
-  useEffect(() => {
+  const [prevFighters, setPrevFighters] = useState(participant.fighters);
+  if (participant.fighters !== prevFighters) {
+    setPrevFighters(participant.fighters);
     setLocalFighters(participant.fighters);
-  }, [participant.fighters]);
+  }
 
-  useEffect(() => {
+  const [prevCreditsEarned, setPrevCreditsEarned] = useState(participant.credits_earned);
+  if (participant.credits_earned !== prevCreditsEarned) {
+    setPrevCreditsEarned(participant.credits_earned);
     setLocalCreditsEarned(participant.credits_earned);
-  }, [participant.credits_earned]);
+  }
 
-  useEffect(() => {
+  const [prevRepChange, setPrevRepChange] = useState(participant.reputation_change);
+  if (participant.reputation_change !== prevRepChange) {
+    setPrevRepChange(participant.reputation_change);
     setLocalRepChange(participant.reputation_change);
-  }, [participant.reputation_change]);
+  }
 
-  useEffect(() => {
+  const [prevRole, setPrevRole] = useState(participant.role);
+  if (participant.role !== prevRole) {
+    setPrevRole(participant.role);
     setLocalRole(participant.role);
-  }, [participant.role]);
+  }
 
 
 

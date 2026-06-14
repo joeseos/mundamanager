@@ -135,10 +135,9 @@ export default function MembersTable({
   availableResources = [],
   initialAllegiances = []
 }: MembersTableProps) {
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [showGangModal, setShowGangModal] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [selectedMemberIndex, setSelectedMemberIndex] = useState<number | undefined>(undefined)
   const [userGangs, setUserGangs] = useState<Gang[]>([])
   const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
   const [selectedAllegiance, setSelectedAllegiance] = useState<{ id: string; is_custom: boolean } | null>(null)
@@ -174,9 +173,11 @@ export default function MembersTable({
     gcTime: 10 * 60 * 1000,  // 10 minutes
   })
 
-  useEffect(() => {
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (userId !== prevUserId) {
+    setPrevUserId(userId);
     setCurrentUserId(userId || null);
-  }, [userId]);
+  }
 
   useEffect(() => {
     if (selectedMember) {
@@ -199,7 +200,7 @@ export default function MembersTable({
     // Now flatten the groups, but maintain indices within groups
     const membersWithCorrectIndices: Member[] = [];
     
-    Object.entries(userGroups).forEach(([userId, userMembers]) => {
+    Object.entries(userGroups).forEach(([_userId, userMembers]) => {
       userMembers.forEach((member, indexInGroup) => {
         membersWithCorrectIndices.push({
           ...member,
@@ -579,14 +580,14 @@ export default function MembersTable({
     },
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    onSuccess: (result, variables, context) => {
+    onSuccess: (_result, _variables, context) => {
       toast.success(`Removed ${context?.gangName} from the campaign`);
-      
+
       // Close modal
       setShowRemoveGangModal(false);
       setGangToRemove(null);
     },
-    onError: (error, variables, context) => {
+    onError: (error) => {
       // Rollback optimistic update by refreshing data
       onMemberUpdate({});
       
@@ -670,7 +671,7 @@ export default function MembersTable({
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Are you sure you want to change <span className="font-bold">{roleChange?.username}</span>'s role from {' '}
+        Are you sure you want to change <span className="font-bold">{roleChange?.username}</span>&apos;s role from {' '}
         <span className="font-bold">{roleChange?.currentRole}</span> to {' '}
         <span className="font-bold">{roleChange?.newRole}</span>?
       </p>
@@ -707,7 +708,7 @@ export default function MembersTable({
   ), [gangToRemove]);
 
   // Handler for updating gang allegiance with proper immutability
-  const handleAllegianceChange = async (gangId: string, allegianceId: string | null, isCustom: boolean, memberIndex: number) => {
+  const handleAllegianceChange = async (gangId: string, allegianceId: string | null, isCustom: boolean, _memberIndex: number) => {
     // Store previous state for rollback
     const previousMembers = members.map(member => ({
       ...member,

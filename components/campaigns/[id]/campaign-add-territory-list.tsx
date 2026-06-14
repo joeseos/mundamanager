@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,23 +43,23 @@ export default function TerritoryList({
   onTerritoryAdd 
 }: TerritoryListProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
-  const [campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
-  const [isLoading, setIsLoading] = useState(false);
+  const [_campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
+  const [isLoading] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
   const [newTerritoryName, setNewTerritoryName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
+  const [prevCampaignTypeId, setPrevCampaignTypeId] = useState(campaignTypeId);
+  if (campaignTypeId !== prevCampaignTypeId) {
+    setPrevCampaignTypeId(campaignTypeId);
     setSelectedTypes([campaignTypeId]);
-  }, [campaignTypeId]);
+  }
 
-  useEffect(() => {
-    setIsLoading(false);
-  }, []);
-
-  useEffect(() => {
+  const [prevExistingTerritories, setPrevExistingTerritories] = useState(existingCampaignTerritories);
+  if (existingCampaignTerritories !== prevExistingTerritories) {
+    setPrevExistingTerritories(existingCampaignTerritories);
     setCampaignTerritories(existingCampaignTerritories);
-  }, [existingCampaignTerritories]);
+  }
 
   const handleTypeToggle = (typeId: string) => {
     setSelectedTypes(prev => 
