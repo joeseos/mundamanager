@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
@@ -24,43 +24,26 @@ export function DraggableFighters({
   userPermissions,
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   
-  // Ensure component only renders drag functionality on client
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-  
-  // Add useEffect to ensure all fighters have positions
-  useEffect(() => {
-    // Ensure all fighters have positions
-    const unpositionedFighters = fighters.filter(f => 
+  const [prevFighters, setPrevFighters] = useState(fighters);
+  if (fighters !== prevFighters) {
+    setPrevFighters(fighters);
+    const unpositionedFighters = fighters.filter(f =>
       !Object.values(currentPositions).includes(f.id)
     );
-    
     if (unpositionedFighters.length > 0) {
-      // Get the next available position
-      const maxPosition = Object.keys(currentPositions).length > 0 
-        ? Math.max(...Object.keys(currentPositions).map(Number)) 
+      const maxPosition = Object.keys(currentPositions).length > 0
+        ? Math.max(...Object.keys(currentPositions).map(Number))
         : -1;
-      
-      // Create new positions for unpositioned fighters
       const newPositions = { ...currentPositions };
       unpositionedFighters.forEach((fighter, index) => {
         newPositions[maxPosition + index + 1] = fighter.id;
       });
-      
-      // Update positions
       setCurrentPositions(newPositions);
-      console.log("Added positions for unpositioned fighters:", 
-        unpositionedFighters.map(f => f.id),
-        newPositions
-      );
-      
-      // Also inform parent component about new positions
       onPositionsUpdate?.(newPositions);
     }
-  }, [fighters, currentPositions, onPositionsUpdate]);
+  }
   
   const sortedFighters = Object.entries(currentPositions)
     .sort(([a], [b]) => Number(a) - Number(b))

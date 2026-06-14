@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
@@ -365,7 +365,6 @@ export default function VehicleEdit({
   gangTypeId,
   onClose,
   onSave,
-  isLoading = false
 }: VehicleEditProps) {
   const [editedVehicleName, setEditedVehicleName] = useState('');
   const [vehicleSpecialRules, setVehicleSpecialRules] = useState<string[]>([]);
@@ -438,8 +437,9 @@ export default function VehicleEdit({
     return options;
   }, [availableDefaultSpecialRules]);
 
-  // Initialize state when vehicle changes
-  useEffect(() => {
+  const [prevVehicle, setPrevVehicle] = useState(vehicle);
+  if (vehicle !== prevVehicle) {
+    setPrevVehicle(vehicle);
     if (vehicle) {
       setEditedVehicleName(vehicle.vehicle_name);
       const rules = vehicle.special_rules || [];
@@ -451,7 +451,7 @@ export default function VehicleEdit({
       setLocomotionChoice(loco);
       setOriginalLocomotion(loco);
     }
-  }, [vehicle]);
+  }
 
   const handleSpecialRuleOptionChange = (value: string) => {
     if (value === 'custom') {
@@ -470,7 +470,7 @@ export default function VehicleEdit({
     if (!vehicle?.effects) return [];
     const allEffects = Object.values(vehicle.effects).flat().filter(Boolean) as VehicleEffect[];
     return applySpecialRulesModifiers([], allEffects);
-  }, [vehicle?.effects]);
+  }, [vehicle]);
 
   const effectRemovedRules = useMemo(() => {
     const removed = new Set<string>();
@@ -483,7 +483,7 @@ export default function VehicleEdit({
       });
     }
     return removed;
-  }, [vehicle?.effects]);
+  }, [vehicle]);
 
   const handleAddSpecialRule = () => {
     const ruleToAdd = selectedSpecialRuleOption === 'custom'

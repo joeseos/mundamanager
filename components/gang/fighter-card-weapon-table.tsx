@@ -8,16 +8,9 @@ interface WeaponTableProps {
 }
 
 const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) => {
-  if (!weapons || weapons.length === 0) {
-    return <p>No weapons available.</p>;
-  }
-
-  // viewMode
-  const pClass = viewMode === 'normal' ? 'p-1' : 'p-px';
-
   // Memoize formatting functions
   const formatters = useMemo(() => ({
-    formatValue: (value: string | number | null | undefined, isStrength: boolean = false) => {
+    formatValue: (value: string | number | null | undefined) => {
       if (value === null || value === undefined) return '-';
       return value.toString();
     },
@@ -49,6 +42,12 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
       return value.toString();
     }
   }), []);
+
+  if (!weapons || weapons.length === 0) {
+    return <p>No weapons available.</p>;
+  }
+
+  const pClass = viewMode === 'normal' ? 'p-1' : 'p-px';
 
   const formatStrength = (strength: string | number | null | undefined) => {
     if (strength === null || strength === undefined) return '-';

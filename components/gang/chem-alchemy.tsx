@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Modal from "../ui/modal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -110,10 +110,11 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
   const availableEffects = getEffectsForType(selectedType)
   const totalCost = selectedEffects.reduce((sum, effect) => sum + effect.cost, 0)
 
-  // Update manual cost when effects change
-  useEffect(() => {
+  const [prevTotalCost, setPrevTotalCost] = useState(totalCost)
+  if (totalCost !== prevTotalCost) {
+    setPrevTotalCost(totalCost)
     setManualCost(String(totalCost))
-  }, [totalCost])
+  }
 
   const handleTypeChange = (type: ChemType) => {
     setSelectedType(type)
@@ -350,7 +351,7 @@ export default function ChemAlchemyCreator({ isOpen, onClose, gangCredits, hasAp
           <div className="relative group">
             <ImInfo />
             <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, the elixir's rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
+              When enabled, the elixir&apos;s rating is calculated using its listed cost, even if you paid a different amount. Disable this if you want the rating to reflect the price actually paid.
             </div>
           </div>
         </div>

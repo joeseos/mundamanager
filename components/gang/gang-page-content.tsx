@@ -78,23 +78,16 @@ interface GangDataState {
     battleSessions?: BattleSession[];
   };
   stash: StashItem[];
-  onStashUpdate: (newStash: StashItem[]) => void;
-  onVehicleUpdate: (newVehicles: VehicleProps[]) => void;
-  onFighterUpdate: (updatedFighter: FighterProps) => void;
 }
 
 export default function GangPageContent({ 
-  initialGangData, 
-  gangId, 
-  userId,
-  userPermissions 
+  initialGangData,
+  gangId,
+  userPermissions
 }: GangPageContentProps) {
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
-    stash: initialGangData.stash || [],
-    onStashUpdate: () => {},
-    onVehicleUpdate: () => {},
-    onFighterUpdate: () => {}
+    stash: initialGangData.stash || []
   });
 
   // Move all the callback handlers here from the current page.tsx
@@ -588,11 +581,6 @@ export default function GangPageContent({
     }),
     [openXpModal, openInjuryModal, openVehicleDamageModal, rescueFighter, resurrectFighter, openActionMenuFighterId, setOpenActionMenuFighterId]
   );
-
-  // Update the gang data callbacks
-  gangData.onStashUpdate = handleStashUpdate;
-  gangData.onVehicleUpdate = handleVehicleUpdate;
-  gangData.onFighterUpdate = handleFighterUpdate;
 
   const gangCampaigns = gangData.processedData.campaigns || [];
   const gangCampaignProps = gangCampaigns.length > 0 ? {

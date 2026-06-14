@@ -93,11 +93,6 @@ export default function AddVehicle({
     }
   };
 
-  const getBaseCost = () => {
-    const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId);
-    return selectedVehicleType?.cost || 0;
-  };
-
   const handleAddVehicle = async () => {
     if (!selectedVehicleTypeId) {
       setVehicleError('Please select a vehicle type');
@@ -347,7 +342,7 @@ export default function AddVehicle({
               <div className="relative group">
                 <ImInfo />
                 <div className="absolute bottom-full mb-2 hidden group-hover:block bg-neutral-900 text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-                  When enabled, the vehicle's rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
+                  When enabled, the vehicle&apos;s rating is calculated using its listed cost (from the vehicle list), even if you paid a different amount. This listed cost will be used when the vehicle is assigned to a crew. Disable this if you want the rating to reflect the price actually paid.
                 </div>
               </div>
             </div>

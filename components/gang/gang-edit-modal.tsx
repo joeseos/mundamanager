@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
 import { allianceRank } from "@/utils/allianceRank";
 import { gangVariantRank } from "@/utils/gangVariantRank";
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ResourceUpdate } from '@/types/gang';
 import { deleteGang } from '@/app/actions/delete-gang';
 
@@ -129,8 +129,6 @@ export default function GangEditModal({
   isAdmin = false,
   onSave
 }: GangEditModalProps) {
-  
-  const queryClient = useQueryClient();
   const router = useRouter();
   
   // Get campaign ID and current allegiance if gang is in a campaign
@@ -138,8 +136,7 @@ export default function GangEditModal({
   const currentAllegianceFromCampaign = campaigns?.[0]?.allegiance;
   const effectiveCurrentAllegianceId = currentAllegianceFromCampaign?.id || null;
   
-  // Store initial values in ref (doesn't trigger re-renders)
-  const initialValuesRef = useRef({
+  const [initialValues, setInitialValues] = useState({
     name: gangName,
     alignment: alignment,
     allianceId: allianceId || '',
@@ -209,11 +206,12 @@ export default function GangEditModal({
     gcTime: 10 * 60 * 1000,  // 10 minutes - cache is kept for 10 minutes
   });
   
-  // Initialize form data when modal opens or when allegiance changes
-  useEffect(() => {
+  const resetKey = `${isOpen}-${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangVariants)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
     if (isOpen) {
-      // Update ref with current props
-      initialValuesRef.current = {
+      setInitialValues({
         name: gangName,
         alignment: alignment,
         allianceId: allianceId || '',
@@ -224,9 +222,8 @@ export default function GangEditModal({
         gangOriginId: gangOriginId || '',
         hidden: hidden,
         campaignAllegianceId: effectiveCurrentAllegianceId
-      };
-      
-      // Reset form state (including allegiance)
+      });
+
       setFormState(prev => ({
         ...prev,
         name: gangName,
@@ -242,25 +239,21 @@ export default function GangEditModal({
         hidden: hidden,
         campaignAllegianceId: effectiveCurrentAllegianceId
       }));
-      
-      // Reset resource deltas
+
       setResourceDeltas({});
     }
-  }, [isOpen, gangName, alignment, allianceId, gangColour, gangVariants, gangAffiliationId, gangOriginId, hidden, effectiveCurrentAllegianceId, campaigns]);
+  }
 
-  // Sync allegiance when it changes externally (e.g., from optimistic update)
-  // Only sync if user hasn't made changes (form state still matches initial)
-  // This prevents overwriting user's changes
-  useEffect(() => {
-    if (isOpen && 
-        effectiveCurrentAllegianceId !== formState.campaignAllegianceId &&
-        formState.campaignAllegianceId === initialValuesRef.current.campaignAllegianceId) {
+  const [prevEffectiveAllegianceId, setPrevEffectiveAllegianceId] = useState(effectiveCurrentAllegianceId);
+  if (effectiveCurrentAllegianceId !== prevEffectiveAllegianceId) {
+    setPrevEffectiveAllegianceId(effectiveCurrentAllegianceId);
+    if (isOpen && formState.campaignAllegianceId === initialValues.campaignAllegianceId) {
       setFormState(prev => ({
         ...prev,
         campaignAllegianceId: effectiveCurrentAllegianceId
       }));
     }
-  }, [isOpen, effectiveCurrentAllegianceId]);
+  }
 
   const fetchAlliances = async () => {
     if (allianceListLoaded) return;
@@ -376,7 +369,7 @@ export default function GangEditModal({
 
   const handleSave = async () => {
     const updates: GangUpdates = {};
-    const initial = initialValuesRef.current;
+    const initial = initialValues;
 
     // Only include name if changed
     if (formState.name !== initial.name) {
@@ -825,7 +818,7 @@ export default function GangEditModal({
                     (gangVariantRank[a.variant.toLowerCase()] ?? Infinity) -
                     (gangVariantRank[b.variant.toLowerCase()] ?? Infinity)
                   )
-                  .map((variant, index, arr) => (
+                  .map((variant) => (
                     <React.Fragment key={variant.id}>
                       {/* Insert separator before 'skirmish' */}
                       {variant.variant.toLowerCase() === "skirmish" && (
@@ -993,7 +986,7 @@ export default function GangEditModal({
               </div>
               {isDeleting && (
                 <p className="text-sm text-amber-500">
-                  This action will take a few seconds to complete. You'll be automatically redirected to the home page once it's complete.
+                  This action will take a few seconds to complete. You&apos;ll be automatically redirected to the home page once it&apos;s complete.
                 </p>
               )}
             </div>

@@ -67,13 +67,9 @@ function NoteEditor({
     }
   }, [content, isEditing, onContentChange]);
 
-  // Track when the note has been refreshed from server
-  useEffect(() => {
-    if (isRefreshing && content === savedContent) {
-      // The server has returned our saved content, so refresh is complete
-      setIsRefreshing(false);
-    }
-  }, [content, isRefreshing, savedContent]);
+  if (isRefreshing && content === savedContent) {
+    setIsRefreshing(false);
+  }
 
   // Calculate character count from HTML content (rough estimate)
   const getCharCount = (htmlContent: string) => {
@@ -197,22 +193,27 @@ export function GangNotes({
   const [notePrivate, setNotePrivate] = useState(initialNotePrivate || '');
   const [notePrivateUpdatedAt, setNotePrivateUpdatedAt] = useState<string | undefined>(initialNotePrivateUpdatedAt);
 
-  // Update notes when initial values change
-  useEffect(() => {
+  const [prevInitialNote, setPrevInitialNote] = useState(initialNote);
+  const [prevInitialNoteBackstory, setPrevInitialNoteBackstory] = useState(initialNoteBackstory);
+  const [prevInitialNotePrivate, setPrevInitialNotePrivate] = useState(initialNotePrivate);
+  const [prevInitialNotePrivateUpdatedAt, setPrevInitialNotePrivateUpdatedAt] = useState(initialNotePrivateUpdatedAt);
+
+  if (initialNote !== prevInitialNote) {
+    setPrevInitialNote(initialNote);
     setNote(initialNote || '');
-  }, [initialNote]);
-
-  useEffect(() => {
+  }
+  if (initialNoteBackstory !== prevInitialNoteBackstory) {
+    setPrevInitialNoteBackstory(initialNoteBackstory);
     setNoteBackstory(initialNoteBackstory || '');
-  }, [initialNoteBackstory]);
-
-  useEffect(() => {
+  }
+  if (initialNotePrivate !== prevInitialNotePrivate) {
+    setPrevInitialNotePrivate(initialNotePrivate);
     setNotePrivate(initialNotePrivate || '');
-  }, [initialNotePrivate]);
-
-  useEffect(() => {
+  }
+  if (initialNotePrivateUpdatedAt !== prevInitialNotePrivateUpdatedAt) {
+    setPrevInitialNotePrivateUpdatedAt(initialNotePrivateUpdatedAt);
     setNotePrivateUpdatedAt(initialNotePrivateUpdatedAt);
-  }, [initialNotePrivateUpdatedAt]);
+  }
 
   const handleNoteSave = async () => {
     const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;

@@ -130,9 +130,9 @@ export function SortableCampaignCard({ campaign, onToggleFavourite }: SortableCa
     pointerEvents: 'auto',
   } as const;
 
-  useEffect(() => {
+  if (dndKitIsDragging !== isDraggingState) {
     setIsDraggingState(dndKitIsDragging);
-  }, [dndKitIsDragging]);
+  }
 
   useEffect(() => {
     if (!dndKitIsDragging) return;

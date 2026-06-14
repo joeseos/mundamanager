@@ -47,18 +47,20 @@ export function FighterCardActionMenu({
     strategy: 'fixed',
     middleware: [offset(8), flip(), shift({ padding: 8 })],
   });
+  const setFloatingRef = refs.setFloating;
 
   const closeMenu = useCallback(() => {
     setOpenActionMenuFighterId?.(null);
     setCoords(null);
   }, [setOpenActionMenuFighterId]);
 
-  // Clear local coords when another card's menu opens (only one menu open at a time)
-  useEffect(() => {
+  const [prevOpenMenuFighterId, setPrevOpenMenuFighterId] = useState(modalsContext?.openActionMenuFighterId);
+  if (modalsContext?.openActionMenuFighterId !== prevOpenMenuFighterId) {
+    setPrevOpenMenuFighterId(modalsContext?.openActionMenuFighterId);
     if (modalsContext?.openActionMenuFighterId !== fighterId) {
       setCoords(null);
     }
-  }, [fighterId, modalsContext?.openActionMenuFighterId]);
+  }
 
   // Update floating position when reference element is set
   useEffect(() => {
@@ -99,7 +101,8 @@ export function FighterCardActionMenu({
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('touchstart', handlePointerDown);
     };
-  }, [isOpen, closeMenu, refs.floating]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, closeMenu]);
 
   const openMenuAt = useCallback(
     (clientX: number, clientY: number) => {
@@ -260,7 +263,7 @@ export function FighterCardActionMenu({
 
       {isOpen && coords && (
         <div
-          ref={refs.setFloating}
+          ref={setFloatingRef}
           style={floatingStyles}
           className="z-50 min-w-[12rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md print:hidden"
         >

@@ -2,7 +2,6 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
 import Link from "next/link";
@@ -31,7 +30,7 @@ import { Tooltip } from 'react-tooltip';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 
 interface GangProps {
@@ -114,7 +113,6 @@ export default function Gang({
   gang_type_id,
   custom_gang_type_id,
   gang_type,
-  gang_type_image_url,
   image_url,
   default_gang_image,
   gang_type_default_image_urls,
@@ -153,7 +151,6 @@ export default function Gang({
   username,
   patreon_tier_id,
   patreon_tier_title,
-  patron_status,
   user_id,
   hidden: initialHidden,
 }: GangProps) {
@@ -184,7 +181,7 @@ export default function Gang({
   const [gangAffiliationName, setGangAffiliationName] = useState(gang_affiliation_name);
   const [gangOriginId, setGangOriginId] = useState<string | null>(gang_origin_id || null);
   const [gangOriginName, setGangOriginName] = useState(gang_origin_name || '');
-  const [gangOriginCategoryName, setGangOriginCategoryName] = useState(gang_origin_category_name || '');
+  const [gangOriginCategoryName] = useState(gang_origin_category_name || '');
   const [hidden, setHidden] = useState(initialHidden);
   const [shareHovered, setShareHovered] = useState(false);
   // Track allegiance for optimistic updates
@@ -224,54 +221,55 @@ export default function Gang({
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
-  // Page view mode - default to 'normal' to avoid hydration mismatch
   const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
   const isFirstRender = useRef(true);
 
-  // Get campaign ID if gang is in a campaign
-  const campaignId = campaigns?.[0]?.campaign_id;
-
-
-  // Load from localStorage on mount
-  useEffect(() => {
+  const [viewModeLoaded, setViewModeLoaded] = useState(false);
+  if (!viewModeLoaded && typeof window !== 'undefined') {
+    setViewModeLoaded(true);
     const savedViewMode = localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large';
-    if (savedViewMode && savedViewMode !== viewMode) {
+    if (savedViewMode) {
       setViewMode(savedViewMode);
     }
-  }, []);
+  }
 
-  // Sync fighters state with prop changes from parent
-  useEffect(() => {
+  const [prevInitialFighters, setPrevInitialFighters] = useState(initialFighters);
+  if (initialFighters !== prevInitialFighters) {
+    setPrevInitialFighters(initialFighters);
     setFighters(initialFighters);
-  }, [initialFighters]);
+  }
 
-  // Sync credits state with prop changes from parent
-  useEffect(() => {
+  const [prevInitialCredits, setPrevInitialCredits] = useState(initialCredits);
+  if (initialCredits !== prevInitialCredits) {
+    setPrevInitialCredits(initialCredits);
     setCredits(initialCredits ?? 0);
-  }, [initialCredits]);
+  }
 
-  // Sync rating state with prop changes from parent
-  useEffect(() => {
+  const [prevInitialRating, setPrevInitialRating] = useState(initialRating);
+  if (initialRating !== prevInitialRating) {
+    setPrevInitialRating(initialRating);
     setRating(initialRating ?? 0);
-  }, [initialRating]);
+  }
 
-  // Sync wealth state with prop changes from parent
-  useEffect(() => {
+  const [prevInitialWealth, setPrevInitialWealth] = useState(initialWealth);
+  if (initialWealth !== prevInitialWealth) {
+    setPrevInitialWealth(initialWealth);
     setWealth(initialWealth ?? 0);
-  }, [initialWealth]);
+  }
 
-  // Sync default_gang_image state with prop changes from parent
-  useEffect(() => {
+  const [prevDefaultGangImage, setPrevDefaultGangImage] = useState(default_gang_image);
+  if (default_gang_image !== prevDefaultGangImage) {
+    setPrevDefaultGangImage(default_gang_image);
     setCurrentDefaultGangImage(default_gang_image);
-  }, [default_gang_image]);
+  }
 
-  // Sync allegiance state with prop changes from parent
-  // Only sync if we haven't made an optimistic update (currentAllegiance is undefined)
-  useEffect(() => {
+  const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
+  if (campaigns !== prevCampaigns) {
+    setPrevCampaigns(campaigns);
     if (currentAllegiance === undefined) {
       setCurrentAllegiance(campaigns?.[0]?.allegiance ?? null);
     }
-  }, [campaigns, currentAllegiance]);
+  }
 
   // Calculate the total value of unassigned vehicles including equipment
   const unassignedVehiclesValue = useMemo(() => {
@@ -541,7 +539,7 @@ export default function Gang({
 
       return { snapshot };
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       // Rollback on error
       if (context?.snapshot) {
         const s = context.snapshot;
@@ -632,7 +630,7 @@ export default function Gang({
 
       return { snapshot };
     },
-    onError: (error, variables, context) => {
+    onError: (error, _variables, context) => {
       // Rollback on error
       if (context?.snapshot) {
         setCampaignResources(context.snapshot.campaignResources);
@@ -857,6 +855,15 @@ export default function Gang({
   const handleFightersReorder = (newFighters: FighterProps[]) => {
     setFighters(newFighters);
   };
+
+  const visibleFighters = useMemo(() => {
+    return fighters.filter(fighter => {
+      if (fighter.fighter_class?.toLowerCase().startsWith('exotic beast') && fighter.beast_equipment_stashed) {
+        return false;
+      }
+      return true;
+    });
+  }, [fighters]);
 
   return (
     <div
@@ -1428,21 +1435,9 @@ export default function Gang({
         </div>
       </div>
       <div className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
-        {(() => {
-          // Filter out exotic beasts whose granting equipment is in stash
-          const visibleFighters = useMemo(() => {
-            return fighters.filter(fighter => {
-              // Hide exotic beasts whose granting equipment is in stash
-              if (fighter.fighter_class?.toLowerCase().startsWith('exotic beast') && fighter.beast_equipment_stashed) {
-                return false;
-              }
-              return true;
-            });
-          }, [fighters]);
-
-          return visibleFighters.length > 0 ? (
+        {visibleFighters.length > 0 ? (
           <DraggableFighters
-              fighters={visibleFighters}
+            fighters={visibleFighters}
             onPositionsUpdate={handlePositionsUpdate}
             onFightersReorder={handleFightersReorder}
             initialPositions={positions}
@@ -1451,61 +1446,8 @@ export default function Gang({
           />
         ) : (
           <div className="text-white italic text-center">No fighters added yet.</div>
-          );
-        })()}
+        )}
       </div>
-    </div>
-  );
-}
-
-interface StatItemProps {
-  label: string;
-  value: number | string | null;
-  isEditing: boolean;
-  editedValue: string;
-  onChange: (value: string) => void;
-  type?: 'number' | 'select';
-  options?: string[];
-}
-
-function StatItem({
-  label,
-  value,
-  isEditing,
-  editedValue,
-  onChange,
-  type = 'number',
-  options = []
-}: StatItemProps) {
-  return (
-    <div>
-      <p className="text-muted-foreground text-sm truncate">{label}:</p>
-      {isEditing ? (
-        type === 'select' ? (
-          <select
-            value={editedValue}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full p-2 border rounded-sm font-semibold"
-          >
-            {options.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <Input
-            type="number"
-            value={editedValue}
-            onChange={(e) => onChange(e.target.value)}
-            className="font-semibold w-full"
-          />
-        )
-      ) : (
-        <p className="font-semibold">
-          {value != null ? value : 0}
-        </p>
-      )}
     </div>
   );
 }

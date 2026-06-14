@@ -11,8 +11,7 @@ import { GiHandcuffs, GiImprisoned } from "react-icons/gi";
 import { IoSkull } from "react-icons/io5";
 import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
-import { WeaponProfile, Weapon } from '@/types/equipment';
-import { Badge } from '@/components/ui/badge';
+import { Weapon } from '@/types/equipment';
 import { FighterCardActionMenu } from './fighter-card-action-menu';
 import { CgMoreVerticalO } from "react-icons/cg";
 
@@ -60,14 +59,8 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
 }
 
-type FighterCardData = Omit<FighterProps, 'vehicles'> & {
-  label?: string;
-  note?: string;
-};
-
 const calculateVehicleStats = (
-  baseStats: Vehicle | undefined, 
-  vehicleEquipment: Array<Equipment & Partial<VehicleEquipment>> = []
+  baseStats: Vehicle | undefined,
 ) => {
   if (!baseStats) return null;
 
@@ -227,7 +220,7 @@ const FighterCard = memo(function FighterCard({
   // Only calculate vehicle stats for crew members
   const vehicleStats = useMemo(() => {
     if (!isCrew) return null;
-    return calculateVehicleStats(vehicle, vehicle?.equipment || []);
+    return calculateVehicleStats(vehicle);
   }, [isCrew, vehicle]);
 
   // Get vehicle weapons only for crew members
@@ -499,6 +492,7 @@ const FighterCard = memo(function FighterCard({
           {/* Render image if image_url is present, before credits box */}
           {image_url && (
             <div className="bg-black rounded-full shadow-md border-4 border-black md:size-[85px] size-[64px] relative z-10 print:bg-card print:shadow-none overflow-hidden shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={image_url} alt="Fighter" className="object-cover rounded-full" />
             </div>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { copyGang } from '@/app/actions/copy-gang';
@@ -63,7 +63,7 @@ export default function CopyGangModal({
         <label className="text-sm font-medium">New gang name</label>
         <Input value={name} onChange={e => setName(e.target.value)} placeholder={`${currentName} copy`} />
         {submitting && (
-          <p className="text-sm text-amber-500">This action will take a few seconds to complete. You'll be automatically redirected to the copied gang once it's complete.</p>
+          <p className="text-sm text-amber-500">This action will take a few seconds to complete. You&apos;ll be automatically redirected to the copied gang once it&apos;s complete.</p>
         )}
       </div>
     </Modal>
