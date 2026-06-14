@@ -400,12 +400,16 @@ export default function FighterPage({
       console.error('Error fetching fighter types:', error);
       toast.error('Error', { description: 'Could not fetch fighter types.' });
     }
-  }, [toast]);
+  }, []);
 
   // Sync local state with props when they change
-  useEffect(() => {
+  const [prevInitialFighterData, setPrevInitialFighterData] = useState(initialFighterData);
+  const [prevInitialGangFighters, setPrevInitialGangFighters] = useState(initialGangFighters);
+  if (initialFighterData !== prevInitialFighterData || initialGangFighters !== prevInitialGangFighters) {
+    setPrevInitialFighterData(initialFighterData);
+    setPrevInitialGangFighters(initialGangFighters);
     setFighterData(transformFighterData(initialFighterData, initialGangFighters));
-  }, [initialFighterData, initialGangFighters]);
+  }
 
   // Add conditional rendering based on permissions
   const canShowEditButtons = userPermissions.canEdit;
@@ -533,7 +537,7 @@ export default function FighterPage({
       };
     });
     // Avoid page-wide refresh; keep optimistic update
-  }, [router]);
+  }, []);
 
   // Gang fighters are already provided in initialGangFighters, no need to fetch them again
 

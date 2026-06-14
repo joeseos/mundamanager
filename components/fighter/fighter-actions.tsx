@@ -104,18 +104,25 @@ export function FighterActions({
 
   const campaignIds = useMemo(() =>
     fighter?.campaigns?.map(c => c.campaign_id).filter(Boolean) ?? [],
-    [fighter?.campaigns]
+    [fighter.campaigns]
   );
 
-  useEffect(() => {
-    if (!modals.captured || fighter?.captured || campaignIds.length === 0) {
+  const shouldFetchGangs = modals.captured && !fighter?.captured && campaignIds.length > 0;
+  const [prevShouldFetchGangs, setPrevShouldFetchGangs] = useState(shouldFetchGangs);
+  if (shouldFetchGangs !== prevShouldFetchGangs) {
+    setPrevShouldFetchGangs(shouldFetchGangs);
+    if (!shouldFetchGangs) {
       setCampaignGangs([]);
       setSelectedCapturingGangId('');
-      return;
+    } else {
+      setIsFetchingGangs(true);
     }
+  }
+
+  useEffect(() => {
+    if (!shouldFetchGangs) return;
 
     let cancelled = false;
-    setIsFetchingGangs(true);
 
     const fetchGangs = async () => {
       try {
@@ -151,13 +158,13 @@ export function FighterActions({
 
     fetchGangs();
     return () => { cancelled = true; };
-  }, [modals.captured, fighter?.captured, campaignIds, gang.id]);
+  }, [shouldFetchGangs, campaignIds, gang.id]);
 
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign =>
       campaign.resources?.some(r => r.resource_name.toLowerCase() === 'meat')
     ) ?? false;
-  }, [fighter?.campaigns]);
+  }, [fighter.campaigns]);
 
   const isOwnedExoticBeast = fighter?.fighter_class === 'Exotic Beast' && !!fighter?.owner_name;
 

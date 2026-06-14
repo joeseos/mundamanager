@@ -651,7 +651,7 @@ export function InjuriesList({
     } finally {
       setIsLoadingInjuries(false);
     }
-  }, [isLoadingInjuries, is_spyrer, toast]);
+  }, [isLoadingInjuries, is_spyrer]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -669,30 +669,37 @@ export function InjuriesList({
   }, []);
 
   // When opened from gang card menu, open the Add modal (or add-form-only view) and fetch if needed
-  useEffect(() => {
-    if (!initialOpenAddModal && !addFormOnly) return;
+  const shouldOpenAddModal = initialOpenAddModal || addFormOnly;
+  const [prevShouldOpenAddModal, setPrevShouldOpenAddModal] = useState(false);
+  if (shouldOpenAddModal && !prevShouldOpenAddModal) {
+    setPrevShouldOpenAddModal(true);
     setIsAddModalOpen(true);
     if (localAvailableInjuries.length === 0) {
       fetchAvailableInjuries();
     }
-  // Only run when mounting with initialOpenAddModal or addFormOnly true
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialOpenAddModal, addFormOnly]);
+  }
 
-  useEffect(() => {
-    const needsCampaignGangPicker =
-      campaignIds.length > 0 &&
-      (selectedInjuryRequiresCaptured || selectedInjury?.effect_name === BITTER_ENMITY_EFFECT_NAME);
+  const selectedInjuryEffectName = selectedInjury?.effect_name;
+  const needsCampaignGangPicker =
+    campaignIds.length > 0 &&
+    (selectedInjuryRequiresCaptured || selectedInjuryEffectName === BITTER_ENMITY_EFFECT_NAME);
 
+  const [prevNeedsCampaignGangPicker, setPrevNeedsCampaignGangPicker] = useState(needsCampaignGangPicker);
+  if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
+    setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
     if (!needsCampaignGangPicker) {
       setCampaignGangs([]);
       setSelectedCapturingGangId('');
       setSelectedBitterEnmityGangId('');
-      return;
+    } else {
+      setIsFetchingGangs(true);
     }
+  }
+
+  useEffect(() => {
+    if (!needsCampaignGangPicker) return;
 
     let cancelled = false;
-    setIsFetchingGangs(true);
 
     const fetchGangs = async () => {
       try {
@@ -734,7 +741,7 @@ export function InjuriesList({
 
     fetchGangs();
     return () => { cancelled = true; };
-  }, [selectedInjuryRequiresCaptured, selectedInjury?.effect_name, campaignIds, fighterGangId]);
+  }, [needsCampaignGangPicker, campaignIds, fighterGangId]);
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {

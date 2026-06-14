@@ -154,7 +154,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     };
 
     fetchGangTypes();
-  }, []);
+  }, [gangTypes.length, isLoadingGangTypes]);
 
   // Preload other default images of the selected gang type so cycling with arrows is instant
   useEffect(() => {
@@ -191,34 +191,36 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     };
 
     fetchVariants();
-  }, []);
+  }, [availableVariants.length, isLoadingVariants]);
 
   // Clear affiliation and origin when gang type changes
-  useEffect(() => {
+  const [prevGangType, setPrevGangType] = useState(gangType);
+  if (gangType !== prevGangType) {
+    setPrevGangType(gangType);
     setSelectedAffiliation("");
     setSelectedOrigin("");
-    
-    // Reset image index to default if current index is out of bounds for the new gang type
+
     if (gangType) {
       const imageUrls = gangTypeImageArrays[gangType] || [];
       if (imageUrls.length > 0 && currentImageIndex >= imageUrls.length) {
         setCurrentImageIndex(Math.min(DEFAULT_IMAGE_INDEX, imageUrls.length - 1));
       }
     }
-  }, [gangType, gangTypeImageArrays, currentImageIndex]);
+  }
 
   // Update credits when Wasteland variant is selected/deselected
-  useEffect(() => {
+  const [prevSelectedVariants, setPrevSelectedVariants] = useState(selectedVariants);
+  if (selectedVariants !== prevSelectedVariants) {
+    setPrevSelectedVariants(selectedVariants);
     const wastelandVariant = selectedVariants.find(v => v.variant === 'Wasteland');
     if (wastelandVariant) {
       setCredits("1400");
     } else {
-      // Only reset to 1000 if it was previously set to 1400 due to Wasteland
       if (credits === "1400") {
         setCredits("1000");
       }
     }
-  }, [selectedVariants]);
+  }
 
   // Helper function to check if form is valid
   const isFormValid = () => {
@@ -240,31 +242,6 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     
     return true;
   };
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        const activeElement = document.activeElement;
-        
-        // If we're in an input field and the form isn't valid, let the default behavior happen
-        if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') 
-            && !isFormValid()) {
-          return;
-        }
-        
-        event.preventDefault();
-        // If form is valid, create the gang
-        if (isFormValid()) {
-          handleCreateGang();
-        }
-      } else if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, gangName, gangType, selectedAffiliation, credits, isLoading, gangTypes]);
 
   const handleCreateGang = async () => {
     if (gangName && gangType) {
@@ -328,6 +305,24 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
     }
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      const activeElement = document.activeElement;
+
+      if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA')
+          && !isFormValid()) {
+        return;
+      }
+
+      event.preventDefault();
+      if (isFormValid()) {
+        handleCreateGang();
+      }
+    } else if (event.key === 'Escape') {
+      onClose();
+    }
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -340,9 +335,10 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
+      onKeyDown={handleKeyDown}
     >
       <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
@@ -665,7 +661,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
               </>
             );
           })()}
-          <p className="text-xs text-center text-muted-foreground">You'll be able to upload a custom image once your gang is created.</p>
+          <p className="text-xs text-center text-muted-foreground">You&apos;ll be able to upload a custom image once your gang is created.</p>
 
           {/* Gang Name Input */}
           <div>

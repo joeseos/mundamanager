@@ -484,10 +484,7 @@ export function AdvancementModal({
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
   /** When true, ganger roll UI must not overwrite footer XP/credits from suggested values. */
   const [gangerCostsUserOverride, setGangerCostsUserOverride] = useState(false);
-  const [gangerBuyUi, setGangerBuyUi] = useState<{ canBuy: boolean; pending: boolean }>({
-    canBuy: false,
-    pending: false
-  });
+  // gangerBuyUi is derived via useMemo below (near the original useEffect location)
   const [gangerPurchaseBusy, setGangerPurchaseBusy] = useState(false);
   // Ganger / Exotic Beast advancement roll UI (inline)
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
@@ -741,18 +738,26 @@ export function AdvancementModal({
     };
   }, [fighterId, isGangerOrExoticBeastClass]);
 
-  useEffect(() => {
-    if (gangerSelectedRow?.kind !== 'specialist' || !gangerPendingPromotion?.fighter_type_id) {
+  const gangerPromotionTypeId = gangerPendingPromotion?.fighter_type_id;
+  const shouldFetchPreviewSkillAccess = gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId;
+  const [prevShouldFetchPreview, setPrevShouldFetchPreview] = useState(shouldFetchPreviewSkillAccess);
+  if (shouldFetchPreviewSkillAccess !== prevShouldFetchPreview) {
+    setPrevShouldFetchPreview(shouldFetchPreviewSkillAccess);
+    if (!shouldFetchPreviewSkillAccess) {
       setGangerPreviewSkillAccess([]);
       setGangerPreviewSkillAccessLoading(false);
-      return;
+    } else {
+      setGangerPreviewSkillAccessLoading(true);
     }
+  }
+
+  useEffect(() => {
+    if (!shouldFetchPreviewSkillAccess) return;
     let cancelled = false;
-    setGangerPreviewSkillAccessLoading(true);
     const run = async () => {
       try {
         const res = await fetch(
-          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(gangerPendingPromotion.fighter_type_id)}`
+          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(gangerPromotionTypeId!)}`
         );
         if (!res.ok || cancelled) {
           if (!cancelled) setGangerPreviewSkillAccess([]);
@@ -772,16 +777,23 @@ export function AdvancementModal({
       cancelled = true;
       setGangerPreviewSkillAccessLoading(false);
     };
-  }, [fighterId, gangerSelectedRow?.kind, gangerPendingPromotion?.fighter_type_id]);
+  }, [fighterId, shouldFetchPreviewSkillAccess, gangerPromotionTypeId]);
 
-  useEffect(() => {
-    if (gangerSelectedRow?.kind !== 'specialist') {
+  const shouldFetchSpecialistCategories = gangerSelectedRow?.kind === 'specialist';
+  const [prevShouldFetchCategories, setPrevShouldFetchCategories] = useState(shouldFetchSpecialistCategories);
+  if (shouldFetchSpecialistCategories !== prevShouldFetchCategories) {
+    setPrevShouldFetchCategories(shouldFetchSpecialistCategories);
+    if (!shouldFetchSpecialistCategories) {
       setGangerSpecialistSkillCategories([]);
       setGangerSpecialistCategoriesLoading(false);
-      return;
+    } else {
+      setGangerSpecialistCategoriesLoading(true);
     }
+  }
+
+  useEffect(() => {
+    if (!shouldFetchSpecialistCategories) return;
     let cancelled = false;
-    setGangerSpecialistCategoriesLoading(true);
     const run = async () => {
       try {
         const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
@@ -809,53 +821,67 @@ export function AdvancementModal({
       cancelled = true;
       setGangerSpecialistCategoriesLoading(false);
     };
-  }, [fighterId, gangerSelectedRow?.kind]);
+  }, [fighterId, shouldFetchSpecialistCategories]);
 
-  useEffect(() => {
+  const [prevGangerPairDeps, setPrevGangerPairDeps] = useState({ gangerSelectedRowId, gangerSelectedRow });
+  if (gangerSelectedRowId !== prevGangerPairDeps.gangerSelectedRowId || gangerSelectedRow !== prevGangerPairDeps.gangerSelectedRow) {
+    setPrevGangerPairDeps({ gangerSelectedRowId, gangerSelectedRow });
     if (!gangerSelectedRow) {
       setGangerPairStatName('');
-      return;
+    } else if (gangerSelectedRow.kind === 'pair' && gangerSelectedRow.pairOptions) {
+      const [a, b] = gangerSelectedRow.pairOptions;
+      setGangerPairStatName((prev) => (prev && [a, b].includes(prev) ? prev : a));
     }
-    if (gangerSelectedRow.kind !== 'pair' || !gangerSelectedRow.pairOptions) return;
-    const [a, b] = gangerSelectedRow.pairOptions;
-    setGangerPairStatName((prev) => (prev && [a, b].includes(prev) ? prev : a));
-  }, [gangerSelectedRowId, gangerSelectedRow]);
+  }
 
-  useEffect(() => {
+  const [prevGangerKind, setPrevGangerKind] = useState(gangerSelectedRow?.kind);
+  if (gangerSelectedRow?.kind !== prevGangerKind) {
+    setPrevGangerKind(gangerSelectedRow?.kind);
     if (gangerSelectedRow?.kind !== 'specialist') {
       setGangerPendingPromotion(null);
       setGangerSkillPickRoll(null);
       setGangerSelectedSkillSetId('');
       setGangerSelectedSkillIndex(null);
     }
-  }, [gangerSelectedRow?.kind]);
+  }
 
-  useEffect(() => {
+  const [prevGangerPromotionTypeId, setPrevGangerPromotionTypeId] = useState(gangerPendingPromotion?.fighter_type_id);
+  if (gangerPendingPromotion?.fighter_type_id !== prevGangerPromotionTypeId) {
+    setPrevGangerPromotionTypeId(gangerPendingPromotion?.fighter_type_id);
     setGangerSkillPickRoll(null);
     setGangerSelectedSkillSetId('');
     setGangerSelectedSkillIndex(null);
-  }, [gangerPendingPromotion?.fighter_type_id]);
+  }
 
-  useEffect(() => {
+  const [prevChampionPromotionTypeId, setPrevChampionPromotionTypeId] = useState(championPendingPromotion?.fighter_type_id);
+  if (championPendingPromotion?.fighter_type_id !== prevChampionPromotionTypeId) {
+    setPrevChampionPromotionTypeId(championPendingPromotion?.fighter_type_id);
     setSelectedCategory('');
     setSelectedAdvancement(null);
     setSkillRollResult(null);
     setAvailableAdvancements([]);
-  }, [championPendingPromotion?.fighter_type_id]);
+  }
 
-  useEffect(() => {
-    if (!gangerSelectedSkillSetId || !gangerPendingPromotion?.fighter_type_id) {
+  const shouldFetchGangerSkillsInSet = !!gangerSelectedSkillSetId && !!gangerPromotionTypeId;
+  const [prevShouldFetchSkillsInSet, setPrevShouldFetchSkillsInSet] = useState(shouldFetchGangerSkillsInSet);
+  if (shouldFetchGangerSkillsInSet !== prevShouldFetchSkillsInSet) {
+    setPrevShouldFetchSkillsInSet(shouldFetchGangerSkillsInSet);
+    if (!shouldFetchGangerSkillsInSet) {
       setGangerSkillsInSet([]);
       setGangerSkillsInSetLoading(false);
-      return;
+    } else {
+      setGangerSkillsInSetLoading(true);
     }
+  }
+
+  useEffect(() => {
+    if (!shouldFetchGangerSkillsInSet) return;
     const typeId = gangerSelectedSkillSetId;
     let cancelled = false;
-    setGangerSkillsInSetLoading(true);
     const run = async () => {
       try {
         const res = await fetch(
-          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&skillTypeId=${encodeURIComponent(typeId)}&previewFighterTypeId=${encodeURIComponent(gangerPendingPromotion.fighter_type_id)}`
+          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&skillTypeId=${encodeURIComponent(typeId)}&previewFighterTypeId=${encodeURIComponent(gangerPromotionTypeId!)}`
         );
         if (!res.ok || cancelled) {
           if (!cancelled) setGangerSkillsInSet([]);
@@ -876,7 +902,7 @@ export function AdvancementModal({
       cancelled = true;
       setGangerSkillsInSetLoading(false);
     };
-  }, [fighterId, gangerSelectedSkillSetId, gangerPendingPromotion?.fighter_type_id]);
+  }, [fighterId, shouldFetchGangerSkillsInSet, gangerSelectedSkillSetId, gangerPromotionTypeId]);
 
   const logGangerRollMutation = useMutation({
     mutationFn: async (variables: { outcome_label: string; dice_data: Record<string, unknown> }) => {
@@ -1247,28 +1273,18 @@ export function AdvancementModal({
     [gangerSelectedRow, executeGangerPairPurchase, executeGangerSpecialistPurchase]
   );
 
-  useEffect(() => {
-    if (!gangerModalRollBuy) return;
+  const gangerBuyUi = useMemo(() => {
+    if (!gangerModalRollBuy) return { canBuy: false, pending: false };
     const pending =
       applyGangerSpecialistMutation.isPending ||
       logGangerSubRollMutation.isPending ||
       logGangerRollMutation.isPending;
-    if (!userPermissions?.canEdit) {
-      setGangerBuyUi({ canBuy: false, pending });
-      return;
-    }
-    if (!gangerSelectedRowId || !gangerSelectedRow) {
-      setGangerBuyUi({ canBuy: false, pending });
-      return;
-    }
-    if (editableXpCost < 0 || currentXp < editableXpCost) {
-      setGangerBuyUi({ canBuy: false, pending });
-      return;
-    }
+    if (!userPermissions?.canEdit) return { canBuy: false, pending };
+    if (!gangerSelectedRowId || !gangerSelectedRow) return { canBuy: false, pending };
+    if (editableXpCost < 0 || currentXp < editableXpCost) return { canBuy: false, pending };
     if (gangerSelectedRow.kind === 'pair') {
       const ok = !!(gangerPairStatName && gangerCharMap[gangerPairStatName]?.id);
-      setGangerBuyUi({ canBuy: ok, pending });
-      return;
+      return { canBuy: ok, pending };
     }
     if (gangerSelectedRow.kind === 'specialist') {
       const sk =
@@ -1282,10 +1298,9 @@ export function AdvancementModal({
         gangerSelectedSkillIndex !== null &&
         sk?.available
       );
-      setGangerBuyUi({ canBuy: ok, pending });
-      return;
+      return { canBuy: ok, pending };
     }
-    setGangerBuyUi({ canBuy: false, pending });
+    return { canBuy: false, pending };
   }, [
     gangerModalRollBuy,
     userPermissions?.canEdit,
@@ -1305,33 +1320,25 @@ export function AdvancementModal({
     logGangerRollMutation.isPending
   ]);
 
-  useEffect(() => {
-    if (!gangerModalRollBuy) return;
-    if (!gangerSelectedRow) return;
-    if (gangerSelectedRow.kind === 'pair' && gangerPairStatName) {
-      const det = gangerCharMap[gangerPairStatName];
-      if (det) {
-        if (!gangerCostsUserOverride) {
+  const gangerCostsDepsKey = `${gangerModalRollBuy}-${gangerSelectedRow?.kind}-${gangerPairStatName}-${gangerCostsUserOverride}`;
+  const [prevGangerCostsDeps, setPrevGangerCostsDeps] = useState({ key: gangerCostsDepsKey, gangerCharMap, gangerSpecialistCosts });
+  if (gangerCostsDepsKey !== prevGangerCostsDeps.key || gangerCharMap !== prevGangerCostsDeps.gangerCharMap || gangerSpecialistCosts !== prevGangerCostsDeps.gangerSpecialistCosts) {
+    setPrevGangerCostsDeps({ key: gangerCostsDepsKey, gangerCharMap, gangerSpecialistCosts });
+    if (gangerModalRollBuy && gangerSelectedRow) {
+      if (gangerSelectedRow.kind === 'pair' && gangerPairStatName) {
+        const det = gangerCharMap[gangerPairStatName];
+        if (det && !gangerCostsUserOverride) {
           setEditableXpCost(det.xp_cost ?? 6);
           setEditableCreditsIncrease(det.credits_increase ?? 0);
         }
-      }
-      return;
-    }
-    if (gangerSelectedRow.kind === 'specialist') {
-      if (!gangerCostsUserOverride) {
-        setEditableXpCost(gangerSpecialistCosts.xp_cost);
-        setEditableCreditsIncrease(gangerSpecialistCosts.credits_increase);
+      } else if (gangerSelectedRow.kind === 'specialist') {
+        if (!gangerCostsUserOverride) {
+          setEditableXpCost(gangerSpecialistCosts.xp_cost);
+          setEditableCreditsIncrease(gangerSpecialistCosts.credits_increase);
+        }
       }
     }
-  }, [
-    gangerModalRollBuy,
-    gangerSelectedRow,
-    gangerPairStatName,
-    gangerCharMap,
-    gangerSpecialistCosts,
-    gangerCostsUserOverride
-  ]);
+  }
 
   const rollGangerSkillInSet = () => {
     if (gangerSkillsInSet.length === 0) {
@@ -1870,20 +1877,24 @@ export function AdvancementModal({
     fetchAvailableAdvancements();
   }, [advancementType, selectedCategory, fighterId, currentXp, categories]);
 
-  // Update useEffect to set initial values when an advancement/acquisition type is selected
-  useEffect(() => {
+  // Set initial values when an advancement/acquisition type is selected
+  const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
+  if (selectedAdvancement !== prevSelectedAdvancement) {
+    setPrevSelectedAdvancement(selectedAdvancement);
     if (selectedAdvancement && advancementType !== 'promotion_to_champion') {
       setEditableXpCost(selectedAdvancement.xp_cost);
       setEditableCreditsIncrease(selectedAdvancement.credits_increase || 0);
     }
-  }, [selectedAdvancement, advancementType]);
+  }
 
-  useEffect(() => {
+  const [prevAdvancementType, setPrevAdvancementType] = useState(advancementType);
+  if (advancementType !== prevAdvancementType) {
+    setPrevAdvancementType(advancementType);
     if (advancementType === 'promotion_to_champion') {
       setEditableXpCost(CHAMPION_PROMOTION_XP_COST);
       setEditableCreditsIncrease(CHAMPION_PROMOTION_CREDITS_INCREASE);
     }
-  }, [advancementType]);
+  }
 
   // Add these console.logs to help debug
   // Debug effect removed
@@ -1927,18 +1938,26 @@ export function AdvancementModal({
   }, [advancementType, fighterId]);
 
   // Fetch preview skill access for the target Champion type after promotion is confirmed
-  useEffect(() => {
-    if (advancementType !== 'promotion_to_champion' || !championPendingPromotion?.fighter_type_id) {
+  const championPromotionTypeId = championPendingPromotion?.fighter_type_id;
+  const shouldFetchChampionPreview = advancementType === 'promotion_to_champion' && !!championPromotionTypeId;
+  const [prevShouldFetchChampionPreview, setPrevShouldFetchChampionPreview] = useState(shouldFetchChampionPreview);
+  if (shouldFetchChampionPreview !== prevShouldFetchChampionPreview) {
+    setPrevShouldFetchChampionPreview(shouldFetchChampionPreview);
+    if (!shouldFetchChampionPreview) {
       setChampionPreviewSkillAccess([]);
       setChampionPreviewSkillAccessLoading(false);
-      return;
+    } else {
+      setChampionPreviewSkillAccessLoading(true);
     }
+  }
+
+  useEffect(() => {
+    if (!shouldFetchChampionPreview) return;
     let cancelled = false;
-    setChampionPreviewSkillAccessLoading(true);
     const run = async () => {
       try {
         const res = await fetch(
-          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(championPendingPromotion.fighter_type_id)}`
+          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(championPromotionTypeId!)}`
         );
         if (!res.ok || cancelled) {
           if (!cancelled) setChampionPreviewSkillAccess([]);
@@ -1958,7 +1977,7 @@ export function AdvancementModal({
       cancelled = true;
       setChampionPreviewSkillAccessLoading(false);
     };
-  }, [advancementType, fighterId, championPendingPromotion?.fighter_type_id]);
+  }, [shouldFetchChampionPreview, fighterId, championPromotionTypeId]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -2733,7 +2752,7 @@ export function AdvancementsList({
     },
     onMutate: async (variables) => {
       // Find the advancement being deleted from the combined list
-      const advancementToDelete = allAdvancements.find(adv => adv.id === variables.advancement_id);
+      const advancementToDelete = [...advancements, ...advancementSkills].find(adv => adv.id === variables.advancement_id);
       if (!advancementToDelete) return {};
 
       // Store previous states for rollback
@@ -2860,7 +2879,7 @@ export function AdvancementsList({
     };
   }, [fighterChanges, skills]); // Only recompute when fighterChanges or skills updates
 
-  // Use Object.entries to safely process the skills object
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const advancementSkills = useMemo(() => {
     return Object.entries(skills)
       .filter(([_, skill]) => skill && (skill as any).is_advance)
@@ -2878,19 +2897,9 @@ export function AdvancementsList({
       });
   }, [skills]);
 
-  // Combine regular advancements with skill advancements
-  const allAdvancements = useMemo(() => {
-    return [...advancements, ...advancementSkills];
-  }, [advancements, advancementSkills]);
-
   const handleDeleteAdvancement = (advancementId: string, advancementName: string, advancementType?: string) => {
-    // Determine if this is a skill or characteristic based on the advancement type or name
     const isSkill = advancementType === 'skill' || advancementName.startsWith('Skill: ');
-    
-    // Close modal immediately for instant UX
     setDeleteModalData(null);
-    
-    // Fire mutation with optimistic updates
     deleteAdvancementMutation.mutate({
       fighter_id: fighterId,
       advancement_id: advancementId,
@@ -2898,51 +2907,40 @@ export function AdvancementsList({
     });
   };
 
-
   const handleAdvancementAdded = (advancement: FighterEffectType) => {
-    // This is called by the modal when an advancement is added
-    // The optimistic update is already handled in the mutation's onMutate
-    // So we don't need to do anything here
   };
-
-
 
   // Transform advancements for the List component
   const transformedAdvancements = useMemo(() => {
-    // Filter out optimistic entries if real server data exists for the same advancement
+    const allAdvancements = [...advancements, ...advancementSkills];
     const filteredAdvancements = allAdvancements.filter((advancement) => {
-      // If this is not an optimistic entry, keep it
       if (!advancement.id?.startsWith('optimistic-')) {
         return true;
       }
-      
-      // If this is an optimistic entry, only keep it if there's no real server entry with the same effect_name
-      const hasRealServerEntry = allAdvancements.some(other => 
-        !other.id?.startsWith('optimistic-') && 
+      const hasRealServerEntry = allAdvancements.some(other =>
+        !other.id?.startsWith('optimistic-') &&
         other.effect_name === advancement.effect_name
       );
-      
       return !hasRealServerEntry;
     });
 
     return filteredAdvancements
       .sort((a, b) => {
-        const dateA = a.created_at || ''; 
+        const dateA = a.created_at || '';
         const dateB = b.created_at || '';
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       })
-      .map((advancement) => {
+      .map((advancement, index) => {
         const specificData = typeof advancement.type_specific_data === 'string'
           ? JSON.parse(advancement.type_specific_data || '{}')
           : (advancement.type_specific_data || {});
-          
-        // Determine if this is a skill or characteristic advancement
+
         const isSkill = advancement.effect_name.startsWith('Skill: ');
-          
+
         return {
-          id: advancement.id || `temp-${Math.random()}`,
-          name: advancement.effect_name.startsWith('Skill') ? advancement.effect_name : 
-                advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name : 
+          id: advancement.id || `temp-${index}`,
+          name: advancement.effect_name.startsWith('Skill') ? advancement.effect_name :
+                advancement.effect_name.startsWith('Characteristic') ? advancement.effect_name :
                 `Characteristic: ${advancement.effect_name}`,
           xp_cost: specificData.xp_cost || 0,
           credits_increase: specificData.credits_increase || 0,
@@ -2950,9 +2948,9 @@ export function AdvancementsList({
           advancement_type: isSkill ? 'skill' : 'characteristic'
         };
       });
-  }, [allAdvancements]);
+  }, [advancements, advancementSkills]);
 
-  const advancementCount = allAdvancements.length;
+  const advancementCount = advancements.length + advancementSkills.length;
   const title = (
     <>
       <span className="sm:hidden">Advanc.</span>
@@ -3071,7 +3069,7 @@ export function AdvancementsList({
             <div>
               <p>Are you sure you want to undo <strong>{deleteModalData.name}</strong>?</p>
               <br />
-              <p>XP spent will be refunded and the fighter's value will be adjusted accordingly.</p>
+              <p>XP spent will be refunded and the fighter&apos;s value will be adjusted accordingly.</p>
             </div>
           }
           onClose={() => setDeleteModalData(null)}

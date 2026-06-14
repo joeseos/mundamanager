@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { ListColumn } from '@/components/ui/list';
@@ -40,11 +40,13 @@ export default function LogModal({ fetchUrl, title = 'Activity Logs', emptyMessa
     enabled: isOpen,
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      setCurrentPage(1);
-    }
-  }, [isOpen]);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen && !prevIsOpen) {
+    setCurrentPage(1);
+  }
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+  }
 
   const getActionTypeDisplay = (actionType: string) => getLogTypeLabel(actionType);
 

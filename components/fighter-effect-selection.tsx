@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/utils/supabase/client";
@@ -159,7 +159,7 @@ const FighterEffectSelection = React.forwardRef<
     return false;
   };
 
-  const isValid = () => {
+  const isValid = useCallback(() => {
     // Group effects by category and selection group for validation
     const effectsByCategory = effectTypes.reduce((acc, effect) => {
       const categoryName = effect.fighter_effect_categories?.category_name || 'Uncategorized';
@@ -208,7 +208,7 @@ const FighterEffectSelection = React.forwardRef<
     }
 
     return true;
-  };
+  }, [effectTypes, selectedEffects]);
 
   const handleConfirm = async () => {
     if (targetSelectionOnly) {
@@ -246,7 +246,7 @@ const FighterEffectSelection = React.forwardRef<
         onValidityChange(isValid());
       }
     }
-  }, [selectedEffects, effectTypes, onValidityChange, targetSelectionOnly, selectedTargetId]);
+  }, [selectedEffects, effectTypes, onValidityChange, targetSelectionOnly, selectedTargetId, isValid]);
 
   const renderEffectModifiers = (modifiers: FighterEffectTypeModifier[]) => {
     return modifiers.map(modifier => {

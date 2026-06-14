@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { RichTextEditor } from '../ui/rich-text-editor';
@@ -50,11 +50,13 @@ function NoteEditor({
   });
 
   // Store original content when starting to edit
-  useEffect(() => {
-    if (isEditing) {
-      setOriginalContent(content);
-    }
-  }, [isEditing, content]);
+  const [prevIsEditing, setPrevIsEditing] = useState(isEditing);
+  if (isEditing && !prevIsEditing) {
+    setOriginalContent(content);
+  }
+  if (isEditing !== prevIsEditing) {
+    setPrevIsEditing(isEditing);
+  }
 
   // Calculate character count from HTML content (rough estimate)
   const getCharCount = (htmlContent: string) => {
@@ -165,13 +167,17 @@ export function FighterNotes({
   const [noteBackstory, setNoteBackstory] = useState(initialNoteBackstory || '');
 
   // Update notes when initial values change
-  useEffect(() => {
+  const [prevInitialNote, setPrevInitialNote] = useState(initialNote);
+  if (initialNote !== prevInitialNote) {
+    setPrevInitialNote(initialNote);
     setNote(initialNote || '');
-  }, [initialNote]);
+  }
 
-  useEffect(() => {
+  const [prevInitialNoteBackstory, setPrevInitialNoteBackstory] = useState(initialNoteBackstory);
+  if (initialNoteBackstory !== prevInitialNoteBackstory) {
+    setPrevInitialNoteBackstory(initialNoteBackstory);
     setNoteBackstory(initialNoteBackstory || '');
-  }, [initialNoteBackstory]);
+  }
 
   const handleNoteSave = async (content: string) => {
     const cleanNote = isHtmlEffectivelyEmpty(content) ? '' : content;

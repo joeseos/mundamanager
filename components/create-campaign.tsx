@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -71,33 +71,10 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        const activeElement = document.activeElement;
-        
-        // If we're in an input field and the form isn't valid, let the default behavior happen
-        if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') 
-            && (!campaignName.trim() || !campaignType || isLoading)) {
-          return;
-        }
-        
-        event.preventDefault();
-        // If form is valid, create the campaign
-        if (campaignName.trim() && campaignType && !isLoading) {
-          handleCreateCampaign();
-        }
-      } else if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, campaignName, campaignType, isLoading]);
-
   // Auto-select default trading posts when campaign type changes
-  useEffect(() => {
+  const [prevCampaignType, setPrevCampaignType] = useState(campaignType);
+  if (campaignType !== prevCampaignType) {
+    setPrevCampaignType(campaignType);
     if (campaignType) {
       const selectedCampaignType = campaignTypes.find(type => type.id === campaignType);
       if (selectedCampaignType?.trading_posts && Array.isArray(selectedCampaignType.trading_posts)) {
@@ -108,7 +85,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     } else {
       setSelectedTradingPosts([]);
     }
-  }, [campaignType, campaignTypes]);
+  }
 
   const handleTradingPostToggle = (tradingPostId: string, enabled: boolean) => {
     setSelectedTradingPosts(prev => {
@@ -171,6 +148,24 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     }
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      const activeElement = document.activeElement;
+
+      if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA')
+          && (!campaignName.trim() || !campaignType || isLoading)) {
+        return;
+      }
+
+      event.preventDefault();
+      if (campaignName.trim() && campaignType && !isLoading) {
+        handleCreateCampaign();
+      }
+    } else if (event.key === 'Escape') {
+      onClose();
+    }
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -178,9 +173,10 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
       onMouseDown={handleOverlayClick}
+      onKeyDown={handleKeyDown}
     >
       <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
