@@ -35,7 +35,7 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -760,7 +760,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     if (isResourcePurchase) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id));
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id), { expire: 0 });
     }
 
     // Optimized cache invalidation - use granular approach

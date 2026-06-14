@@ -159,7 +159,7 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     }
 
     // Always refresh the gang vehicles list (covers assigned and unassigned views)
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId));
+    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId), { expire: 0 });
 
     return {
       success: true

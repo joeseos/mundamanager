@@ -7,7 +7,7 @@ import { CACHE_TAGS } from '@/utils/cache-tags';
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_USER_COUNT()) after user registration
+ * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_USER_COUNT(), { expire: 0 }) after user registration
  *
  * @returns The total number of users in the database
  */

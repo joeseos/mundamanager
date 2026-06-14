@@ -88,7 +88,7 @@ export async function toggleFavourite(
       }
     }
 
-    revalidateTag(cacheTag(user.id));
+    revalidateTag(cacheTag(user.id), { expire: 0 });
 
     return { success: true };
   } catch (error) {

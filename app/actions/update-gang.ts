@@ -338,8 +338,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         params.gang_colour !== undefined || params.alliance_id !== undefined ||
         params.gang_affiliation_id !== undefined || params.gang_origin_id !== undefined ||
         params.hidden !== undefined) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
-      revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id));
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id), { expire: 0 });
+      revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.gang_id), { expire: 0 });
     }
     
     // Invalidate credits if changed and update wealth
@@ -363,7 +363,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Invalidate reputation cache if changed
     if (params.reputation !== undefined && params.reputation_operation) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id));
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id), { expire: 0 });
     }
 
     // Invalidate campaign resources cache if resources were updated
@@ -376,18 +376,18 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         .single();
 
       if (campaignGang) {
-        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignGang.campaign_id));
-        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignGang.campaign_id));
+        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignGang.campaign_id), { expire: 0 });
+        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignGang.campaign_id), { expire: 0 });
       }
       
       // Invalidate gang's campaign data cache (includes resources for gang page)
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id));
+      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gang_id), { expire: 0 });
     }
     
     // If gang variants were updated, invalidate fighter types cache and basic gang data
     if (params.gang_variants !== undefined) {
-      revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.gang_id));
-      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id)); // Variants are stored in gang_basic
+      revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.gang_id), { expire: 0 });
+      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gang_id), { expire: 0 }); // Variants are stored in gang_basic
     }
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses specific granular tags
@@ -400,9 +400,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     if (!campaignGangsError && campaignGangs && campaignGangs.length > 0) {
       for (const cg of campaignGangs) {
         const campaignId = cg.campaign_id;
-        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
-        revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
-        revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(campaignId));
+        revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId), { expire: 0 });
+        revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
+        revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(campaignId), { expire: 0 });
       }
     }
 

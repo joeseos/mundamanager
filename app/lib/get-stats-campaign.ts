@@ -7,7 +7,7 @@ import { createServiceRoleClient } from '@/utils/supabase/server';
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT()) after campaign creation/deletion
+ * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT(), { expire: 0 }) after campaign creation/deletion
  *
  * @returns The total number of campaigns in the database, or null if service role key is not available
  */

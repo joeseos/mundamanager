@@ -138,8 +138,8 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
     });
 
     // Also invalidate campaign gangs modal data
-    revalidateTag(`campaign-gangs-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`); // Legacy compatibility
+    revalidateTag(`campaign-gangs-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-${campaignId}`, { expire: 0 }); // Legacy compatibility
     
     const isPending = insertedGang?.status === 'PENDING';
     return {
@@ -239,8 +239,8 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
     });
     
     // Also invalidate campaign gangs modal data
-    revalidateTag(`campaign-gangs-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`); // Legacy compatibility
+    revalidateTag(`campaign-gangs-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-${campaignId}`, { expire: 0 }); // Legacy compatibility
     
     return {
       success: true,
@@ -347,8 +347,8 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
       }
     }
 
-    revalidateTag(`campaign-gangs-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`);
+    revalidateTag(`campaign-gangs-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
 
     return {
       success: true,
@@ -406,8 +406,8 @@ export async function declineGangInvite(params: DeclineGangInviteParams) {
       action: 'leave'
     });
 
-    revalidateTag(`campaign-gangs-${campaignId}`);
-    revalidateTag(`campaign-${campaignId}`);
+    revalidateTag(`campaign-gangs-${campaignId}`, { expire: 0 });
+    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
 
     return {
       success: true,

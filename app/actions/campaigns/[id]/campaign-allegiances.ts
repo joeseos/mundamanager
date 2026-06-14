@@ -99,10 +99,10 @@ export async function createCampaignAllegiance(params: CreateCampaignAllegianceP
     if (error) throw error;
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
     // Also invalidate the specific allegiance cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId), { expire: 0 });
 
     return { success: true, data };
   } catch (error) {
@@ -149,10 +149,10 @@ export async function updateCampaignAllegiance(params: UpdateCampaignAllegianceP
     if (error) throw error;
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
     // Also invalidate the specific allegiance cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId), { expire: 0 });
 
     // Invalidate all gangs in this campaign (allegiance name might have changed)
     const { data: campaignGangs } = await supabase
@@ -162,7 +162,7 @@ export async function updateCampaignAllegiance(params: UpdateCampaignAllegianceP
 
     if (campaignGangs) {
       campaignGangs.forEach(gang => {
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id));
+        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id), { expire: 0 });
       });
     }
 
@@ -222,15 +222,15 @@ export async function deleteCampaignAllegiance(params: DeleteCampaignAllegianceP
     // Any gangs assigned during the race window will have correct data on next fetch.
     if (affectedGangs) {
       affectedGangs.forEach(gang => {
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id));
+        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gang.gang_id), { expire: 0 });
       });
     }
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
     // Also invalidate the specific allegiance cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(params.campaignId), { expire: 0 });
 
     return { success: true };
   } catch (error) {
@@ -316,10 +316,10 @@ export async function updateGangAllegiance(params: UpdateGangAllegianceParams) {
     if (updateError) throw updateError;
 
     // Invalidate caches
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId));
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
+    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(params.campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
 
     return { success: true };
   } catch (error) {

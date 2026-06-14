@@ -23,10 +23,10 @@ export async function updateCampaignImage(campaignId: string, imageUrl: string |
     }
 
     // Invalidate caches for this campaign
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 });
     // Also refresh user's campaigns list
-    revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(user.id));
+    revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(user.id), { expire: 0 });
 
     return { success: true };
   } catch (error) {

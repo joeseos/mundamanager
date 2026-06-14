@@ -2,10 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims } from './utils/auth'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip middleware for server actions - they handle their own auth
+  // Skip proxy for server actions - they handle their own auth
   if (request.headers.get('Next-Action')) {
     return NextResponse.next();
   }

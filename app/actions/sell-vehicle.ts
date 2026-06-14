@@ -189,8 +189,8 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
     }
 
     // Always invalidate vehicle list caches (even for unassigned vehicles)
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId));
-    revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(gangId));
+    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_VEHICLE_COUNT(gangId), { expire: 0 });
 
     return {
       success: true,

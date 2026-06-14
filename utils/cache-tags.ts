@@ -177,7 +177,7 @@ export const CACHE_TAGS = {
  * revalidated when any gang list fields change (e.g. name, variants, rating, last_updated).
  */
 export const invalidateUserGangsList = (userId: string) => {
-  revalidateTag(CACHE_TAGS.USER_GANGS(userId));
+  revalidateTag(CACHE_TAGS.USER_GANGS(userId), { expire: 0 });
 };
 
 /**
@@ -191,28 +191,28 @@ export function invalidateEquipmentPurchase(params: {
   createdBeasts?: Array<{ id: string }>;
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId), { expire: 0 });
   invalidateGangCredits(params.gangId);
   
   // Computed data changes  
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId), { expire: 0 });
   
   // Shared data changes
-  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
-  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId), { expire: 0 });
   
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
   
   // Beast creation handling
   if (params.createdBeasts?.length) {
     params.createdBeasts.forEach(beast => {
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beast.id));
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beast.id), { expire: 0 });
       // Fighter page data changes due to new beast
     });
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId));
-    revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId), { expire: 0 });
   }
 }
 
@@ -229,27 +229,27 @@ export function invalidateFighterAdvancement(params: {
   // Base data changes
   switch (params.advancementType) {
     case 'skill':
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighterId));
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighterId), { expire: 0 });
       break;
     case 'effect':
     case 'injury':
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighterId));
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighterId), { expire: 0 });
       break;
     case 'stat':
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId), { expire: 0 });
       break;
   }
   
   // Computed data changes
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId), { expire: 0 });
 
   // Shared data changes
-  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
-  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId), { expire: 0 });
 
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
 }
 
 /**
@@ -264,22 +264,22 @@ export function invalidateCampaignMembership(params: {
   action: 'join' | 'leave' | 'role_change';
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
+  revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId), { expire: 0 });
   
   // Computed data changes
-  revalidateTag(CACHE_TAGS.COMPUTED_CAMPAIGN_LEADERBOARD(params.campaignId));
+  revalidateTag(CACHE_TAGS.COMPUTED_CAMPAIGN_LEADERBOARD(params.campaignId), { expire: 0 });
   
   // Shared data changes
-  revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(params.campaignId));
+  revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(params.campaignId), { expire: 0 });
   
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
   
   // User-scoped changes
-  revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId));
-  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
+  revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
 }
 
 /**
@@ -292,16 +292,16 @@ export function invalidateGangCreation(params: {
   userId: string;
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.gangId), { expire: 0 });
   invalidateGangCredits(params.gangId);
   // Note: Reputation is in BASE_GANG_BASIC, no separate cache needed
   
   // User-scoped changes
-  revalidateTag(CACHE_TAGS.USER_GANGS(params.userId));
-  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
+  revalidateTag(CACHE_TAGS.USER_GANGS(params.userId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
   
   // Composite data (new gang page)
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
 }
 
 /**
@@ -315,25 +315,25 @@ export function invalidateEquipmentDeletion(params: {
   deletedBeastIds?: string[];
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId), { expire: 0 });
   invalidateGangCredits(params.gangId);
   
   // Computed data changes
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId), { expire: 0 });
   
   // Shared data changes
-  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId), { expire: 0 });
   
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
   
   // Beast deletion handling
   if (params.deletedBeastIds?.length) {
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId));
-    revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
-    revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(params.gangId));
+    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighterId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId), { expire: 0 });
+    revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(params.gangId), { expire: 0 });
   }
 }
 
@@ -348,21 +348,21 @@ export function invalidateFighterAddition(params: {
   userId: string;
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighterId), { expire: 0 });
   invalidateGangCredits(params.gangId);
   
   // Computed data changes
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(params.gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(params.gangId), { expire: 0 });
 
   // Shared data changes
-  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId));
-  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId));
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(params.gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighterId), { expire: 0 });
 
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
 }
 
 /**
@@ -375,11 +375,11 @@ export function invalidateGangStash(params: {
   userId: string;
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_GANG_STASH(params.gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_STASH(params.gangId), { expire: 0 });
   invalidateGangCredits(params.gangId);
   
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
 }
 
 /**
@@ -392,12 +392,12 @@ export function invalidateCampaignTerritory(params: {
   gangId: string;
 }) {
   // Base data changes
-  revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId));
+  revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(params.campaignId), { expire: 0 });
   
   // Composite data changes
-  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(params.campaignId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
 }
 
 /**
@@ -409,11 +409,11 @@ export function invalidateUserCustomizations(params: {
   userId: string;
 }) {
   // User-scoped changes
-  revalidateTag(CACHE_TAGS.USER_CUSTOMIZATIONS(params.userId));
+  revalidateTag(CACHE_TAGS.USER_CUSTOMIZATIONS(params.userId), { expire: 0 });
 
   // Global reference data that includes custom content
-  revalidateTag(CACHE_TAGS.GLOBAL_EQUIPMENT_CATALOG());
-  revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST());
+  revalidateTag(CACHE_TAGS.GLOBAL_EQUIPMENT_CATALOG(), { expire: 0 });
+  revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST(), { expire: 0 });
 }
 
 /**
@@ -426,8 +426,8 @@ export function invalidateCampaignMemberPermissions(params: {
   userId: string;
 }) {
   // Invalidate user's dashboard which might show permission-dependent UI
-  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
-  revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId));
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.USER_CAMPAIGNS(params.userId), { expire: 0 });
 }
 
 /**
@@ -441,10 +441,10 @@ export function invalidateGangPermissionsForUser(params: {
   gangId: string;
 }) {
   // Invalidate specific user-gang permission cache
-  revalidateTag(CACHE_TAGS.USER_GANG_PERMISSIONS(params.userId, params.gangId));
+  revalidateTag(CACHE_TAGS.USER_GANG_PERMISSIONS(params.userId, params.gangId), { expire: 0 });
 
   // Also invalidate user dashboard
-  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId));
+  revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
 }
 
 // =============================================================================
@@ -454,34 +454,34 @@ export function invalidateGangPermissionsForUser(params: {
 // Legacy function names maintained for backward compatibility
 export const invalidateFighterData = (fighterId: string, gangId: string) => {
   invalidateFighterAdvancement({ fighterId, gangId, advancementType: 'stat' });
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId), { expire: 0 });
 };
 
 export const invalidateVehicleData = (vehicleId: string) => {
-  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EQUIPMENT(vehicleId));
-  revalidateTag(CACHE_TAGS.BASE_VEHICLE_BASIC(vehicleId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_VEHICLE_PAGE(vehicleId));
+  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EQUIPMENT(vehicleId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.BASE_VEHICLE_BASIC(vehicleId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPOSITE_VEHICLE_PAGE(vehicleId), { expire: 0 });
 };
 
 export const invalidateGangCredits = (gangId: string) => {
-  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_CREDITS(gangId), { expire: 0 });
 };
 
 export const invalidateGangRating = (gangId: string) => {
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
-  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(gangId), { expire: 0 });
 };
 
 export const invalidateGangFinancials = (gangId: string) => {
   invalidateGangCredits(gangId);
   invalidateGangRating(gangId);
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
-  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId), { expire: 0 });
 };
 
 export const invalidateGangData = (gangId: string) => {
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
-  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId), { expire: 0 });
 };
 
 export const invalidateFighterDataWithFinancials = (fighterId: string, gangId: string) => {
@@ -490,27 +490,27 @@ export const invalidateFighterDataWithFinancials = (fighterId: string, gangId: s
 };
 
 export const invalidateFighterVehicleData = (fighterId: string, gangId: string) => {
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId), { expire: 0 });
   // Gang vehicles list changes when vehicles are assigned/unassigned
-  revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId));
+  revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId), { expire: 0 });
   // Fighter total cost now depends on vehicles, so invalidate it too
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(fighterId));
-  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(fighterId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(fighterId), { expire: 0 });
   // Gang rating depends on fighter costs, so invalidate when vehicle costs change
   invalidateGangRating(gangId);
   // Fighter page data invalidated via granular tags
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 };
 
 export const invalidateVehicleEffects = (vehicleId: string, fighterId: string | undefined, gangId: string) => {
   // Vehicle effects data (where lasting damages and hardpoints are stored)
-  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EFFECTS(vehicleId));
+  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EFFECTS(vehicleId), { expire: 0 });
   // Fighter's vehicle data (includes effects) — skip when vehicle is unassigned
   if (fighterId) {
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId));
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId), { expire: 0 });
   }
   // Gang fighters list (shows vehicle data)
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 };
 
 export const invalidateVehicleRepair = (vehicleId: string, fighterId: string, gangId: string) => {
@@ -524,23 +524,23 @@ export const invalidateFighterEquipment = (fighterId: string, gangId?: string) =
   if (gangId) {
     invalidateEquipmentPurchase({ fighterId, gangId });
   } else {
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(fighterId));
+    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(fighterId), { expire: 0 });
     // Fighter page data invalidated via granular tags
   }
 };
 
 export const addBeastToGangCache = (beastId: string, gangId: string) => {
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beastId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(beastId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 };
 
 export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) => {
-  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerId));
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(ownerId));
-  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
+  revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(ownerId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId), { expire: 0 });
 };
 
 /**
@@ -554,11 +554,11 @@ export function invalidateFighterLoadouts(params: {
   gangId: string;
 }) {
   // Base data changes - loadouts have their own dedicated cache tag
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_LOADOUTS(params.fighterId));
-  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId));  // for active_loadout_id
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_LOADOUTS(params.fighterId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighterId), { expire: 0 });  // for active_loadout_id
 
   // Composite data changes - gang page fighter cards (display only, not rating)
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId));
+  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(params.gangId), { expire: 0 });
 
   // Note: COMPUTED_GANG_RATING and SHARED_GANG_RATING are NOT invalidated here
   // because gang rating uses ALL equipment regardless of loadout selection
@@ -571,7 +571,7 @@ export function invalidateFighterLoadouts(params: {
  * Data changed: Global Patreon supporters list on about page
  */
 export function invalidatePatreonSupporters() {
-  revalidateTag(CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS());
+  revalidateTag(CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS(), { expire: 0 });
 }
 
 /**
@@ -580,7 +580,7 @@ export function invalidatePatreonSupporters() {
  * Data changed: Global user count for homepage display
  */
 export function invalidateUserCount() {
-  revalidateTag(CACHE_TAGS.GLOBAL_USER_COUNT());
+  revalidateTag(CACHE_TAGS.GLOBAL_USER_COUNT(), { expire: 0 });
 }
 
 /**
@@ -589,7 +589,7 @@ export function invalidateUserCount() {
  * Data changed: Global gang count for homepage display
  */
 export function invalidateGangCount() {
-  revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT());
+  revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT(), { expire: 0 });
 }
 
 /**
@@ -598,5 +598,5 @@ export function invalidateGangCount() {
  * Data changed: Global campaign count for homepage display
  */
 export function invalidateCampaignCount() {
-  revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT());
+  revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT(), { expire: 0 });
 }

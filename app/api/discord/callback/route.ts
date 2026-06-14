@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
     console.log('[Discord Callback] DB update success — guildId:', guildId, 'campaignId:', campaignId)
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId))
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId))
+    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), { expire: 0 })
+    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 })
 
     // Return self-closing HTML that notifies the opener window via postMessage
     const origin = new URL(request.url).origin

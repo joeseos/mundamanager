@@ -10,7 +10,7 @@ export type { ActivityStats as GangActivityStats };
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_ACTIVITY()) as needed
+ * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_ACTIVITY(), { expire: 0 }) as needed
  *
  * @returns Counts per period, or null if service role key is not available
  */
