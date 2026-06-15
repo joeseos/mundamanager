@@ -409,21 +409,24 @@ export function WeaponList({
       const selectedEffects = effectTypesData.filter(et => selectedEffectIds.includes(et.id));
 
       // Build optimistic FighterEffect objects (include modifiers for weapon profile updates)
-      const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => ({
-        id: `temp-${Date.now()}-${index}`,
-        effect_name: effect.effect_name,
-        fighter_equipment_id: equipmentData.fighter_equipment_id,
-        fighter_effect_type_id: effect.id,
-        fighter_effect_modifiers: (effect.modifiers || []).map(m => ({
-          id: `temp-mod-${Date.now()}-${index}`,
-          fighter_effect_id: `temp-${Date.now()}-${index}`,
-          stat_name: m.stat_name,
-          numeric_value: m.default_numeric_value ?? 0,
-          operation: m.operation,
-        })),
-        type_specific_data: effect.type_specific_data ?? undefined,
-        sort_order: effect.sort_order ?? null
-      }));
+      const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => {
+        const tempId = `temp-${Date.now()}-${index}`;
+        return {
+          id: tempId,
+          effect_name: effect.effect_name,
+          fighter_equipment_id: equipmentData.fighter_equipment_id,
+          fighter_effect_type_id: effect.id,
+          fighter_effect_modifiers: (effect.modifiers || []).map((m, mi) => ({
+            id: `temp-mod-${tempId}-${mi}`,
+            fighter_effect_id: tempId,
+            stat_name: m.stat_name,
+            numeric_value: m.default_numeric_value ?? 0,
+            operation: m.operation,
+          })),
+          type_specific_data: effect.type_specific_data ?? undefined,
+          sort_order: effect.sort_order ?? null
+        };
+      });
 
       // Apply optimistic update: add effect_names and update weapon profiles
       const optimisticEquipment = equipment.map(item => {
@@ -433,7 +436,7 @@ export function WeaponList({
 
           let updatedProfiles = item.weapon_profiles;
           if (item.equipment_type === 'weapon' && updatedProfiles?.length) {
-            updatedProfiles = applyWeaponModifiers(updatedProfiles, newEffects as Parameters<typeof applyWeaponModifiers>[1]);
+            updatedProfiles = applyWeaponModifiers(updatedProfiles, newEffects);
           }
 
           return {

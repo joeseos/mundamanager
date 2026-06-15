@@ -239,7 +239,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
       const customEquipmentIds = (data || []).filter((item: any) => item.custom_equipment_id).map((item: any) => item.custom_equipment_id);
 
       // Batch fetch all queries in parallel
-      const [targetEffectsData, standardProfilesData, customProfilesData, targetingEffectsData, loadoutAssignmentsData] = await Promise.all([
+      const [targetEffectsData, standardProfilesData, customProfilesData, equipmentEffectsData, loadoutAssignmentsData] = await Promise.all([
         // Batch fetch target relationships (equipment-to-equipment upgrades)
         fighterEquipmentIds.length > 0
           ? supabase
@@ -394,7 +394,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
       // Unified map: key = equipment whose profiles should be modified
       // For targeting effects: key is target_equipment_id; for self-effects: key is fighter_equipment_id
       const weaponEffectsMap = new Map<string, any[]>();
-      (targetingEffectsData.data || []).forEach((effect: any) => {
+      (equipmentEffectsData.data || []).forEach((effect: any) => {
         const appliesTo = effect.target_equipment_id || effect.fighter_equipment_id;
         if (!appliesTo) return;
         if (!weaponEffectsMap.has(appliesTo)) {
