@@ -8,6 +8,7 @@ import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
+import { useIsMounted } from '@/hooks/use-is-mounted'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
@@ -16,7 +17,7 @@ interface CampaignsTabProps {
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
-  const [isMounted] = useState(() => typeof window !== 'undefined');
+  const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);

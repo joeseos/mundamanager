@@ -8,6 +8,7 @@ import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
+import { useIsMounted } from '@/hooks/use-is-mounted'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
 interface GangsTabProps {
@@ -16,7 +17,7 @@ interface GangsTabProps {
 
 export function GangsTab({ gangs }: GangsTabProps) {
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
-  const [isMounted] = useState(() => typeof window !== 'undefined');
+  const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
 
   const [prevGangs, setPrevGangs] = useState(gangs);
