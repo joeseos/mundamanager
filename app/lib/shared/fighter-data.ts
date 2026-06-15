@@ -332,7 +332,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
               .order('profile_name')
           : Promise.resolve({ data: [] }),
 
-        // Batch fetch targeting effects (effects that target equipment)
+        // Batch fetch effects that modify equipment (targeting effects + self-effects)
         fighterEquipmentIds.length > 0
           ? supabase
               .from('fighter_effects')
@@ -343,10 +343,11 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
                 type_specific_data,
                 sort_order,
                 target_equipment_id,
+                fighter_equipment_id,
                 fighter_effect_type:fighter_effect_type_id ( sort_order ),
                 fighter_effect_modifiers ( stat_name, numeric_value, operation )
               `)
-              .in('target_equipment_id', fighterEquipmentIds)
+              .or(`target_equipment_id.in.(${fighterEquipmentIds.join(',')}),and(fighter_equipment_id.in.(${fighterEquipmentIds.join(',')}),target_equipment_id.is.null)`)
           : Promise.resolve({ data: [] }),
 
         // Batch fetch loadout assignments (which loadouts each equipment belongs to)
@@ -390,17 +391,23 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
         customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
       });
 
-      const targetingEffectsMap = new Map<string, any[]>();
+      // Unified map: key = equipment whose profiles should be modified
+      // For targeting effects: key is target_equipment_id; for self-effects: key is fighter_equipment_id
+      const weaponEffectsMap = new Map<string, any[]>();
       (targetingEffectsData.data || []).forEach((effect: any) => {
-        if (!targetingEffectsMap.has(effect.target_equipment_id)) {
-          targetingEffectsMap.set(effect.target_equipment_id, []);
+        const appliesTo = effect.target_equipment_id || effect.fighter_equipment_id;
+        if (!appliesTo) return;
+        if (!weaponEffectsMap.has(appliesTo)) {
+          weaponEffectsMap.set(appliesTo, []);
         }
-        targetingEffectsMap.get(effect.target_equipment_id)!.push(effect);
+        weaponEffectsMap.get(appliesTo)!.push(effect);
       });
-      // Sort effects by sort_order (type as default, instance as override) and build names map
+      // Build names map from targeting effects only (self-effect names are shown via renderEffectRows)
       const targetingEffectNamesMap = new Map<string, string[]>();
-      targetingEffectsMap.forEach((effects, targetId) => {
-        const sorted = [...effects].sort((a: any, b: any) => {
+      weaponEffectsMap.forEach((effects, equipmentId) => {
+        const targetingOnly = effects.filter((e: any) => e.target_equipment_id);
+        if (targetingOnly.length === 0) return;
+        const sorted = [...targetingOnly].sort((a: any, b: any) => {
           const effectTypeA = a.fighter_effect_type as { sort_order?: number | null } | null;
           const effectTypeB = b.fighter_effect_type as { sort_order?: number | null } | null;
           const orderA = effectTypeA?.sort_order ?? a.sort_order ?? Infinity;
@@ -413,7 +420,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             names.push(effect.effect_name);
           }
         });
-        targetingEffectNamesMap.set(targetId, names);
+        targetingEffectNamesMap.set(equipmentId, names);
       });
 
       // Map fighter_equipment_id -> loadout_ids[]
@@ -453,14 +460,11 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
             }
           }
 
-          // If we have profiles, apply equipment-targeted effects from fighter_effects targeting this equipment
+          // If we have profiles, apply effects (targeting effects + self-effects)
           if (weaponProfiles.length > 0) {
-            // Lookup targeting effects from Map (O(1) instead of query)
-            const targetingEffects = targetingEffectsMap.get(fighterEquipmentId) || [];
-
-            if (targetingEffects.length > 0) {
-              // Use shared utility function to apply weapon modifiers
-              weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
+            const weaponEffects = weaponEffectsMap.get(fighterEquipmentId) || [];
+            if (weaponEffects.length > 0) {
+              weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
             }
           }
 
