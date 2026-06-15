@@ -1,7 +1,8 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
+import { useIsMounted } from '@/hooks/use-is-mounted';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
 import { UserPermissions } from '@/types/user-permissions';
@@ -24,7 +25,7 @@ export function DraggableFighters({
   userPermissions,
 }: DraggableFightersProps) {
   const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
-  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const isMounted = useIsMounted();
   
   const [prevFighters, setPrevFighters] = useState(fighters);
   if (fighters !== prevFighters) {

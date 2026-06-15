@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -8,6 +8,7 @@ import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
+import { useIsMounted } from '@/hooks/use-is-mounted'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
@@ -16,7 +17,7 @@ interface CampaignsTabProps {
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
-  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
