@@ -11,6 +11,10 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 function detectPlatform() {
+  if (typeof window === 'undefined') {
+    return { ios: false, android: false, windowsDesktop: false, installed: false };
+  }
+
   const ua = window.navigator.userAgent.toLowerCase();
   const isIOSDevice = /iphone|ipad|ipod/.test(ua);
   const isIPadOS = /macintosh/.test(ua) && navigator.maxTouchPoints > 1;
@@ -125,17 +129,11 @@ export function PwaInstallButton() {
     await deferredPrompt.prompt();
 
     // Wait for the user to respond to the prompt
-    const { outcome } = await deferredPrompt.userChoice;
+    await deferredPrompt.userChoice;
 
     // Clear the deferred prompt
     setDeferredPrompt(null);
     setIsInstallable(false);
-
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    } else {
-      console.log('User dismissed the install prompt');
-    }
   };
 
   // Defer rendering until client-side platform detection completes (avoids hydration mismatch)
