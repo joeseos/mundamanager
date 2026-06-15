@@ -10,53 +10,65 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+function detectPlatform() {
+  if (typeof window === 'undefined') {
+    return { ios: false, android: false, windowsDesktop: false, installed: false };
+  }
+
+  const ua = window.navigator.userAgent.toLowerCase();
+  const isIOSDevice = /iphone|ipad|ipod/.test(ua);
+  const isIPadOS = /macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  const ios = isIOSDevice || isIPadOS;
+  const android = /android/.test(ua);
+  const isWindows = /windows/.test(ua) && !/phone|tablet|mobile/.test(ua);
+  const windowsDesktop = isWindows && !ios && !android;
+  const isStandaloneMode =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches;
+  const isIOSStandalone = ios && (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const installed = isStandaloneMode || isIOSStandalone;
+
+  return { ios, android, windowsDesktop, installed };
+}
+
 export function PwaInstallButton() {
+  const [isReady, setIsReady] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
-                             window.matchMedia('(display-mode: fullscreen)').matches;
-    const ua = window.navigator.userAgent.toLowerCase();
-    const ios = /iphone|ipad|ipod/.test(ua) || (/macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-    const isIOSStandalone = ios && (window.navigator as any).standalone === true;
-    return isStandaloneMode || isIOSStandalone;
-  });
-  const [isIOS] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const ua = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(ua);
-    const isIPadOS = /macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-    return isIOSDevice || isIPadOS;
-  });
-  const [isAndroid] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return /android/.test(window.navigator.userAgent.toLowerCase());
-  });
-  const [isWindowsDesktop] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const ua = window.navigator.userAgent.toLowerCase();
-    const isWindows = /windows/.test(ua) && !/phone|tablet|mobile/.test(ua);
-    return isWindows && !(/iphone|ipad|ipod/.test(ua)) && !(/android/.test(ua));
-  });
-  const [isInstallable, setIsInstallable] = useState(() => isIOS && !isInstalled);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isWindowsDesktop, setIsWindowsDesktop] = useState(false);
+  const [isInstallable, setIsInstallable] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [showAndroidInstructions, setShowAndroidInstructions] = useState(false);
   const [showDesktopInfo, setShowDesktopInfo] = useState(false);
 
   useEffect(() => {
-    if (isInstalled || isIOS) return;
+    const { ios, android, windowsDesktop, installed } = detectPlatform();
+    setIsIOS(ios);
+    setIsAndroid(android);
+    setIsWindowsDesktop(windowsDesktop);
+    setIsInstalled(installed);
+    if (ios && !installed) {
+      setIsInstallable(true);
+    }
+    setIsReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isReady || isInstalled || isIOS) return;
 
     // For development: show button on localhost for testing (Chrome/Edge only)
-    const isLocalhost = window.location.hostname === 'localhost' || 
+    const isLocalhost = window.location.hostname === 'localhost' ||
                        window.location.hostname === '127.0.0.1' ||
                        window.location.hostname.startsWith('192.168.') ||
                        window.location.hostname.endsWith('.local');
-    
+
     // Listen for the beforeinstallprompt event (Android/Desktop)
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      
+
       // Save the event so it can be triggered later
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
@@ -91,7 +103,7 @@ export function PwaInstallButton() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, [isIOS, isInstalled]);
+  }, [isReady, isIOS, isInstalled]);
 
   const handleInstallClick = async () => {
     // For iOS, show instructions
@@ -117,18 +129,17 @@ export function PwaInstallButton() {
     await deferredPrompt.prompt();
 
     // Wait for the user to respond to the prompt
-    const { outcome } = await deferredPrompt.userChoice;
+    await deferredPrompt.userChoice;
 
     // Clear the deferred prompt
     setDeferredPrompt(null);
     setIsInstallable(false);
-
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    } else {
-      console.log('User dismissed the install prompt');
-    }
   };
+
+  // Defer rendering until client-side platform detection completes (avoids hydration mismatch)
+  if (!isReady) {
+    return null;
+  }
 
   // Don't render if already installed
   if (isInstalled) {
