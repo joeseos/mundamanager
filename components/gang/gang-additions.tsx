@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption, DefaultEquipment, NormalizedEquipmentSelection } from '@/types/fighter-type';
@@ -235,28 +235,6 @@ export default function GangAdditions({
 
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (availableSubTypes.length > 0 && !selectedSubTypeId) {
-      const defaultSubType = availableSubTypes.find(
-        (sub) => !sub.sub_type_name || sub.sub_type_name === 'Default'
-      );
-      if (defaultSubType) {
-        setSelectedSubTypeId(defaultSubType.id);
-      } else {
-        const cheapestSubType = availableSubTypes.reduce(
-          (lowest, current) => {
-            const lowestCost = gangAdditionTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
-            const currentCost = gangAdditionTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
-            return currentCost < lowestCost ? current : lowest;
-          },
-          availableSubTypes[0]
-        );
-        setSelectedSubTypeId(cheapestSubType.id);
-      }
-    }
-  }, [availableSubTypes]);
 
   const { data: gangAdditionTypes = [] } = useQuery<FighterType[]>({
     queryKey: ['gang-addition-types', gangTypeId, gangAffiliationId],
@@ -890,33 +868,21 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     return defaults;
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (selectedGangAdditionTypeId) {
-      const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
-      if (selectedType?.equipment_selection) {
-        const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
-        setSelectedEquipment(defaultEquipment);
-        const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
-        setFighterCost(String(baseCost + defaultCost));
-      }
+  const applyDefaultEquipmentAndCost = (fighterTypeId: string) => {
+    const selectedType = gangAdditionTypes.find(t => t.id === fighterTypeId);
+    if (!selectedType) return;
+    setGangAdditionCost(selectedType.total_cost.toString() || '');
+    if (selectedType.equipment_selection) {
+      const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
+      setSelectedEquipment(defaultEquipment);
+      const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+      const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
+      setFighterCost(String(baseCost + defaultCost));
+    } else {
+      setSelectedEquipment([]);
+      setFighterCost(String(selectedType.total_cost || 0));
     }
-  }, [selectedGangAdditionTypeId]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (selectedSubTypeId) {
-      const selectedType = gangAdditionTypes.find(t => t.id === selectedSubTypeId);
-      if (selectedType?.equipment_selection) {
-        const defaultEquipment = getDefaultEquipment(selectedType.equipment_selection);
-        setSelectedEquipment(defaultEquipment);
-        const defaultCost = defaultEquipment.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        const baseCost = (useDelegationCost && selectedType.delegation_cost) ? selectedType.delegation_cost : (selectedType.total_cost || 0);
-        setFighterCost(String(baseCost + defaultCost));
-      }
-    }
-  }, [selectedSubTypeId]);
+  };
 
   const handleAddFighter = async () => {
     if (isAdding) return;
@@ -1352,37 +1318,41 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             const typeId = value;
             setSelectedGangAdditionTypeId(typeId);
             setSelectedFighterTypeId(typeId);
-            setSelectedSubTypeId(''); // Reset sub-type selection
-            setSelectedEquipmentIds([]); // Reset equipment selections when type changes
-            setSelectedEquipment([]); // Reset equipment with costs
-            setUseDelegationCost(false); // Reset delegation cost when type changes
-            
+            setSelectedSubTypeId('');
+            setSelectedEquipmentIds([]);
+            setSelectedEquipment([]);
+            setUseDelegationCost(false);
+
             if (typeId) {
-              // Get all fighters with the same fighter_type name and fighter_class to check for sub-types
               const selectedType = gangAdditionTypes.find(t => t.id === typeId);
-              const fighterTypeGroup = gangAdditionTypes.filter(t => 
+              const fighterTypeGroup = gangAdditionTypes.filter(t =>
                 t.fighter_type === selectedType?.fighter_type &&
                 t.fighter_class === selectedType?.fighter_class
               );
-              
-              // If we have multiple entries with the same fighter_type + class, they have sub-types
+
               if (fighterTypeGroup.length > 1) {
                 const subTypes = fighterTypeGroup.map(ft => ({
                   id: ft.id,
                   sub_type_name: ft.sub_type?.sub_type_name || 'Default',
                   cost: ft.total_cost
                 }));
-                
                 setAvailableSubTypes(subTypes);
-                
-                // Set cost to the fighter with the ID we selected initially
-                setGangAdditionCost(selectedType?.total_cost.toString() || '');
-                setFighterCost(selectedType?.total_cost.toString() || '');
+
+                const defaultSubType = subTypes.find(
+                  (sub) => !sub.sub_type_name || sub.sub_type_name === 'Default'
+                );
+                const autoSelectedId = defaultSubType
+                  ? defaultSubType.id
+                  : subTypes.reduce((lowest, current) => {
+                      const lowestCost = gangAdditionTypes.find(ft => ft.id === lowest.id)?.total_cost ?? Infinity;
+                      const currentCost = gangAdditionTypes.find(ft => ft.id === current.id)?.total_cost ?? Infinity;
+                      return currentCost < lowestCost ? current : lowest;
+                    }, subTypes[0]).id;
+                setSelectedSubTypeId(autoSelectedId);
+                applyDefaultEquipmentAndCost(autoSelectedId);
               } else {
-                // No sub-types, just set the cost directly
-                setGangAdditionCost(selectedType?.total_cost.toString() || '');
-                setFighterCost(selectedType?.total_cost.toString() || '');
                 setAvailableSubTypes([]);
+                applyDefaultEquipmentAndCost(typeId);
               }
             } else {
               setGangAdditionCost('');
@@ -1498,18 +1468,12 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             onValueChange={(value) => {
               const subTypeId = value;
               setSelectedSubTypeId(subTypeId);
-              setSelectedEquipmentIds([]); // Reset equipment selections when sub-type changes
-              setSelectedEquipment([]); // Reset equipment with costs
-              
+              setSelectedEquipmentIds([]);
+              setSelectedEquipment([]);
+
               if (subTypeId) {
-                // Don't change the selectedGangAdditionTypeId, just update the cost
-                const selectedType = gangAdditionTypes.find(t => t.id === subTypeId);
-                if (selectedType) {
-                  setGangAdditionCost(selectedType.total_cost.toString() || '');
-                  setFighterCost(selectedType.total_cost.toString() || '');
-                }
+                applyDefaultEquipmentAndCost(subTypeId);
               } else {
-                // If no sub-type is selected, revert to the main fighter type's cost
                 const mainType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
                 if (mainType) {
                   setGangAdditionCost(mainType.total_cost.toString() || '');
