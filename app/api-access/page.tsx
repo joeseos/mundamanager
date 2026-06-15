@@ -235,7 +235,7 @@ Gang Sympathisers`}</code></pre>
                   You can use a cell reference to dynamically specify the gang ID. In this example, cell <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">A1</code> contains the gang ID:
                 </p>
                 <div className="bg-neutral-900 rounded-lg p-4 my-2 overflow-x-auto">
-                  <code className="text-sm text-gray-400">A1 = "1a18a45f-b1db-42c2-a212-3af060219b78"</code>
+                  <code className="text-sm text-gray-400">A1 = &quot;1a18a45f-b1db-42c2-a212-3af060219b78&quot;</code>
                 </div>
                 <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
                   <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
@@ -256,10 +256,10 @@ Gang Sympathisers`}</code></pre>
               </p>
               <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                 <li className="text-muted-foreground">
-                  <strong className="text-foreground">Fair use:</strong> Avoid excessive requests. If you're polling for updates, consider reasonable intervals (e.g., once every 15 minutes) rather than continuous requests.
+                  <strong className="text-foreground">Fair use:</strong> Avoid excessive requests. If you&apos;re polling for updates, consider reasonable intervals (e.g., once every 15 minutes) rather than continuous requests.
                 </li>
                 <li className="text-muted-foreground">
-                  <strong className="text-foreground">Caching:</strong> Cache responses locally when possible to reduce load on our servers and improve your application's performance.
+                  <strong className="text-foreground">Caching:</strong> Cache responses locally when possible to reduce load on our servers and improve your application&apos;s performance.
                 </li>
                 <li className="text-muted-foreground">
                   <strong className="text-foreground">Attribution:</strong> If you display campaign data publicly, please provide attribution to Munda Manager.

@@ -78,7 +78,7 @@ export default function ContactPage() {
             
             <div className="mb-8">
               <p className="text-muted-foreground mb-2">
-                We'd love to hear from you! Whether you have questions, feedback, bug reports, or just want to say hello, there are several ways to get in touch with the Munda Manager team.
+                We&apos;d love to hear from you! Whether you have questions, feedback, bug reports, or just want to say hello, there are several ways to get in touch with the Munda Manager team.
               </p>
             </div>
 
@@ -156,7 +156,7 @@ export default function ContactPage() {
               <section id="feedback" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Feedback & Suggestions</h2>
                 <p className="text-muted-foreground mb-2">
-                  Your feedback is invaluable to us! We're always looking to improve Munda Manager based on community input. Share your ideas:
+                  Your feedback is invaluable to us! We&apos;re always looking to improve Munda Manager based on community input. Share your ideas:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">Post feature requests in our <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">Discord server</a></li>
@@ -167,7 +167,7 @@ export default function ContactPage() {
               <section id="contributing" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Contributing</h2>
                 <p className="text-muted-foreground mb-2">
-                  Munda Manager is a community-driven project! If you're interested in contributing:
+                  Munda Manager is a community-driven project! If you&apos;re interested in contributing:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">Check out our <Link href="/join-the-team" className="underline hover:text-red-800">Join the Team</Link> page for more information</li>
@@ -179,7 +179,7 @@ export default function ContactPage() {
               <section id="response-time" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Response Time</h2>
                 <p className="text-muted-foreground mb-2">
-                  We're a volunteer-driven community project with an international team and community scattered around the world, which means we're usually available 24/7. Response times may vary but we'll reply as quickly as possible in our Discord server, typically within a few hours to a day. For urgent issues, please mention it in your message.
+                  We&apos;re a volunteer-driven community project with an international team and community scattered around the world, which means we&apos;re usually available 24/7. Response times may vary but we&apos;ll reply as quickly as possible in our Discord server, typically within a few hours to a day. For urgent issues, please mention it in your message.
                 </p>
               </section>
             </div>

@@ -353,14 +353,14 @@ export default async function ContributorsPage() {
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-2 mt-4">
-                  Interested in partnering with us? We'd love to collaborate! <Link href="/contact" className="underline hover:text-red-800">Contact us</Link> to discuss partnership opportunities.
+                  Interested in partnering with us? We&apos;d love to collaborate! <Link href="/contact" className="underline hover:text-red-800">Contact us</Link> to discuss partnership opportunities.
                 </p>
               </section>
 
               <section id="acknowledgments" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Special Acknowledgements</h2>
                 <p className="text-muted-foreground mb-2">
-                  Munda Manager is built on the foundation of the Necromunda community and various open-source projects. We'd like to acknowledge:
+                  Munda Manager is built on the foundation of the Necromunda community and various open-source projects. We&apos;d like to acknowledge:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">The entire Necromunda community for their passion and support</li>

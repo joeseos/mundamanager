@@ -144,10 +144,10 @@ export default function MerchPage() {
             <div className="mb-8">
               <p className="text-muted-foreground mb-4">
                 You enjoy using Munda Manager? Now you can show your support with our <strong className="text-foreground">Munda Manager merchandise</strong>!
-                We've set up a shop on Redbubble featuring a range of products with our distinct logo and text inspired by the grim darkness of the Underhive.
+                We&apos;ve set up a shop on Redbubble featuring a range of products with our distinct logo and text inspired by the grim darkness of the Underhive.
               </p>
               <p className="text-muted-foreground mb-6">
-                Every purchase helps support the continued development of Munda Manager and keeps the servers running. Plus, you'll look great at your next gaming session!
+                Every purchase helps support the continued development of Munda Manager and keeps the servers running. Plus, you&apos;ll look great at your next gaming session!
               </p>
               
               <div className="flex justify-center">
@@ -212,7 +212,7 @@ export default function MerchPage() {
             </div>
 
             <div className="mb-8">
-              <h2 className="text-2xl font-semibold text-foreground mb-4">What's Available</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">What&apos;s Available</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {productCategories.map((category) => (
                   <div 
@@ -246,7 +246,7 @@ export default function MerchPage() {
             <div className="mb-8">
               <h2 className="text-2xl font-semibold text-foreground mb-2">Why Redbubble?</h2>
               <p className="text-muted-foreground mb-4">
-                We went with Redbubble because it makes it easy for us to offer merchandise without having to manage inventory or shipping ourselves. Here's what that means for you:
+                We went with Redbubble because it makes it easy for us to offer merchandise without having to manage inventory or shipping ourselves. Here&apos;s what that means for you:
               </p>
               <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                 <li className="text-muted-foreground">
@@ -256,7 +256,7 @@ export default function MerchPage() {
                   <strong className="text-foreground">Worldwide shipping:</strong> No matter where your campaign takes place, Redbubble can ship to you.
                 </li>
                 <li className="text-muted-foreground">
-                  <strong className="text-foreground">Easy returns:</strong> If something isn't right with your order, Redbubble handles returns directly.
+                  <strong className="text-foreground">Easy returns:</strong> If something isn&apos;t right with your order, Redbubble handles returns directly.
                 </li>
                 <li className="text-muted-foreground">
                   <strong className="text-foreground">Secure Payments:</strong> Safe and secure checkout process is provided by Redbubble.
@@ -267,7 +267,7 @@ export default function MerchPage() {
             <div className="mb-8">
               <h2 className="text-2xl font-semibold text-foreground mb-2">Support Munda Manager</h2>
               <p className="text-muted-foreground mb-4">
-                Purchasing merchandise is a great way to support the project while getting something cool in return. If you'd like to support us in other ways, consider:
+                Purchasing merchandise is a great way to support the project while getting something cool in return. If you&apos;d like to support us in other ways, consider:
               </p>
               <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                 <li className="text-muted-foreground">

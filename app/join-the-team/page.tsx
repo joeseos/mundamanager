@@ -78,10 +78,10 @@ export default function JoinTheTeamPage() {
             
             <div className="mb-8">
               <p className="text-muted-foreground mb-2">
-                Munda Manager is a community-driven project, and we're always looking for passionate individuals to help make it even better! Whether you're a developer, designer, content creator, or just someone who loves Necromunda, there are many ways to contribute.
+                Munda Manager is a community-driven project, and we&apos;re always looking for passionate individuals to help make it even better! Whether you&apos;re a developer, designer, content creator, or just someone who loves Necromunda, there are many ways to contribute.
               </p>
               <p className="text-muted-foreground mb-2">
-                We're looking for people who can take ownership, show initiative, and are keen to contribute! <strong className="text-foreground">Some of these tasks can be time-consuming and may need daily attention</strong>, so please keep that in mind. But if you're passionate about Necromunda and active online, you'll fit right in!
+                We&apos;re looking for people who can take ownership, show initiative, and are keen to contribute! <strong className="text-foreground">Some of these tasks can be time-consuming and may need daily attention</strong>, so please keep that in mind. But if you&apos;re passionate about Necromunda and active online, you&apos;ll fit right in!
               </p>
             </div>
 
@@ -89,7 +89,7 @@ export default function JoinTheTeamPage() {
               <section id="why-contribute" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Why Contribute?</h2>
                 <p className="text-muted-foreground mb-2">
-                  By contributing to Munda Manager, you're helping build a tool that serves the entire Necromunda community. Your contributions help:
+                  By contributing to Munda Manager, you&apos;re helping build a tool that serves the entire Necromunda community. Your contributions help:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">Make gang and campaign management easier for players worldwide</li>
@@ -105,7 +105,7 @@ export default function JoinTheTeamPage() {
                 
                 <h3 className="text-lg font-semibold text-foreground mt-4 mb-2">Development</h3>
                 <p className="text-muted-foreground mb-2">
-                  Help us build and improve Munda Manager's features:
+                  Help us build and improve Munda Manager&apos;s features:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">Fix bugs and improve existing features</li>
@@ -166,10 +166,10 @@ export default function JoinTheTeamPage() {
               <section id="getting-started" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Getting Started</h2>
                 <p className="text-muted-foreground mb-4">
-                  Ready to contribute? Here's how to get started:
+                  Ready to contribute? Here&apos;s how to get started:
                 </p>
                 <ol className="list-decimal pl-6 space-y-2 marker:text-red-800 mb-4">
-                  <li className="text-muted-foreground">Fill out our <a href="https://forms.gle/rkkqyqLEdfV6ZTSc7" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">application form</a> to tell us what you're interested in helping with</li>
+                  <li className="text-muted-foreground">Fill out our <a href="https://forms.gle/rkkqyqLEdfV6ZTSc7" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">application form</a> to tell us what you&apos;re interested in helping with</li>
                   <li className="text-muted-foreground">Join our <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">Discord server</a> and introduce yourself</li>
                   <li className="text-muted-foreground">For developers, check out our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> and read the README</li>
                 </ol>
@@ -178,7 +178,7 @@ export default function JoinTheTeamPage() {
               <section id="code-of-conduct" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">Code of Conduct</h2>
                 <p className="text-muted-foreground mb-2">
-                  We're committed to providing a <strong className="text-foreground">welcoming and inclusive</strong> environment for all. We expect all contributors to:
+                  We&apos;re committed to providing a <strong className="text-foreground">welcoming and inclusive</strong> environment for all. We expect all contributors to:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                   <li className="text-muted-foreground">Be respectful and considerate of others</li>

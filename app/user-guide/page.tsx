@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import Link from 'next/link';
 import { Metadata } from 'next';
 import Script from 'next/script';
@@ -82,7 +83,7 @@ export default function UserGuidePage() {
           
           <div className="mb-8">
             <p className="text-muted-foreground mb-2">
-              Welcome to the Munda Manager user guide! This comprehensive guide will help you make the most of all the features available in Munda Manager. Whether you're creating your first gang, managing a campaign, or exploring advanced mechanics, you'll find detailed instructions and helpful tips below.
+              Welcome to the Munda Manager user guide! This comprehensive guide will help you make the most of all the features available in Munda Manager. Whether you&apos;re creating your first gang, managing a campaign, or exploring advanced mechanics, you&apos;ll find detailed instructions and helpful tips below.
             </p>
           </div>
 
@@ -126,7 +127,7 @@ export default function UserGuidePage() {
                   <li><a href="#add-a-new-gang-player-to-a-campaign" className="underline hover:text-red-800">Add a new Gang/Player to a campaign</a></li>
                   <li><a href="#add-a-custom-territory" className="underline hover:text-red-800">Add a custom territory to a campaign</a></li>
                   <li><a href="#connect-discord-bot" className="underline hover:text-red-800">Connect Discord Bot</a></li>
-                  <li><a href="#change-a-users-role-in-a-campaign" className="underline hover:text-red-800">Change a user's role in a campaign</a></li>
+                  <li><a href="#change-a-users-role-in-a-campaign" className="underline hover:text-red-800">Change a user&apos;s role in a campaign</a></li>
                 </ul>
               </li>
               <li>
@@ -151,7 +152,7 @@ export default function UserGuidePage() {
                 </a>
               </h2>
               <p className="text-muted-foreground mb-2">
-              On many types of phones you have this option in the website's hamburger menu <FiMenu className="inline h-4 w-4 mx-1 text-foreground" /> located at the top right of the page. Using it will set up a website with embedded access which behaves just like an App on your phone.
+              On many types of phones you have this option in the website&apos;s hamburger menu <FiMenu className="inline h-4 w-4 mx-1 text-foreground" /> located at the top right of the page. Using it will set up a website with embedded access which behaves just like an App on your phone.
               </p>
               <div className="my-4 flex justify-center">
                 <img
@@ -205,7 +206,7 @@ export default function UserGuidePage() {
                   />
                 </div>
                 <p className="text-muted-foreground mb-2">
-                  In the gang view, you can drag and drop fighter cards to reorder them by long click or long touch. If it doesn't drag, you haven't pressed long enough!
+                  In the gang view, you can drag and drop fighter cards to reorder them by long click or long touch. If it doesn&apos;t drag, you haven&apos;t pressed long enough!
                 </p>
 
               <h3 id="gang-notes" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
@@ -214,7 +215,7 @@ export default function UserGuidePage() {
                 </a>
               </h3>
                 <p className="text-muted-foreground mb-2">
-                  You've got access to a rich text editor to manage your gang notes on the Notes tab.
+                  You&apos;ve got access to a rich text editor to manage your gang notes on the Notes tab.
                 </p>
                 <div className="my-4 flex justify-center">
                   <img
@@ -251,7 +252,7 @@ export default function UserGuidePage() {
                 </a>
               </h3>
                 <p className="text-muted-foreground mb-2">
-                  For Goliath gangs, Gene-Smithing is available as Equipment in the Fighter's equipment list. Beware that Munda Manager does not limit your selections and you are expected to familiarize yourself with their selection rules.
+                  For Goliath gangs, Gene-Smithing is available as Equipment in the Fighter&apos;s equipment list. Beware that Munda Manager does not limit your selections and you are expected to familiarize yourself with their selection rules.
                 </p>
 
               <h3 id="spyre-hunting-party-spyres-rig-upgrades" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
@@ -272,10 +273,10 @@ export default function UserGuidePage() {
                   Venators fighters can have their Gang Legacy set up in the <strong className="text-foreground">Edit Fighter</strong> window.
                 </p>
                 <p className="text-muted-foreground mb-2">
-                  For Outcast, this is a setting that is determined for the whole gang, hence, it's available in the <strong className="text-foreground">Edit Gang</strong> window.
+                  For Outcast, this is a setting that is determined for the whole gang, hence, it&apos;s available in the <strong className="text-foreground">Edit Gang</strong> window.
                 </p>
                 <p className="text-muted-foreground mb-2">
-                  During creation you're allowed to purchase Weapons and Wargear from your Gang legacy. You can enable the visibility by enabling the switch on the right as below.
+                  During creation you&apos;re allowed to purchase Weapons and Wargear from your Gang legacy. You can enable the visibility by enabling the switch on the right as below.
                 </p>
                 <div className="my-4 flex justify-center">
                   <img
@@ -320,7 +321,7 @@ export default function UserGuidePage() {
                 </a>
               </h3>
                 <p className="text-muted-foreground mb-2">
-                  The Prefecture can be selected either during Gang Creation or after Creation via the Edit Gang option. Selecting any of them will extend the options as they're detailed in the books.
+                  The Prefecture can be selected either during Gang Creation or after Creation via the Edit Gang option. Selecting any of them will extend the options as they&apos;re detailed in the books.
                 </p>
 
               <h3 id="wasteland-crusading-corrupted-or-infested-gangs" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
@@ -337,7 +338,7 @@ export default function UserGuidePage() {
                   />
                 </div>
                 <p className="text-muted-foreground mb-2">
-                  You can set the one or more gang variants of your gang by going into the <strong className="text-foreground">Edit Gang</strong> window if you forgot to do it on Gang Creation. At the bottom of it, you'll see the different variants available. Some Gang Variants unlock extra fighters in the Add Fighter menu. For example, Secundan Incursion adds Spyrers, while Corrupted and Infested gangs gain their own options.
+                  You can set the one or more gang variants of your gang by going into the <strong className="text-foreground">Edit Gang</strong> window if you forgot to do it on Gang Creation. At the bottom of it, you&apos;ll see the different variants available. Some Gang Variants unlock extra fighters in the Add Fighter menu. For example, Secundan Incursion adds Spyrers, while Corrupted and Infested gangs gain their own options.
                 </p>
                 <p className="text-muted-foreground mb-2">
                   This is also the spot where you can mark your gang as a Skirmish gang.
@@ -639,7 +640,7 @@ export default function UserGuidePage() {
                 </a>
               </h3>
                 <p className="text-muted-foreground mb-2">
-                  You can share your custom equipment and fighters with campaigns you're an arbitrator or owner of. Click the share icon to open the share menu.
+                  You can share your custom equipment and fighters with campaigns you&apos;re an arbitrator or owner of. Click the share icon to open the share menu.
                 </p>
                 <div className="my-4 flex justify-center">
                   <img

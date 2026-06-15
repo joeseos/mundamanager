@@ -18,7 +18,8 @@ import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-ma
 
 export default function SignIn() {
   const searchParams = useSearchParams();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const urlError = searchParams.get('error');
+  const [errorMessage, setErrorMessage] = useState<string | null>(urlError);
   const [activeTab, setActiveTab] = useState(0);
   const [userCount, setUserCount] = useState<number | undefined>(undefined);
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
@@ -40,12 +41,6 @@ export default function SignIn() {
     
     checkAuth();
     
-    // Extract error message from URL params on initial load
-    const error = searchParams.get('error');
-    if (error) {
-      setErrorMessage(error);
-    }
-
     // Fetch stats (non-blocking, cached)
     async function fetchStats() {
       try {
@@ -127,7 +122,7 @@ export default function SignIn() {
           })()}
           <h1 className="text-2xl font-medium text-white mb-2">Sign In</h1>
           <p className="text-sm text-white mb-8">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link className="text-white font-medium underline" href="/sign-up">
               Sign up
             </Link>

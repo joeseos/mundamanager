@@ -193,7 +193,7 @@ export default function PrivacyPolicyPage() {
               </section>
 
               <section id="children" className="scroll-mt-24">
-                <h2 className="text-xl font-semibold text-foreground mb-1">8. Children's Privacy</h2>
+                <h2 className="text-xl font-semibold text-foreground mb-1">8. Children&apos;s Privacy</h2>
                 <p className="text-muted-foreground mb-2">
                   Our Service is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us so we can delete such information.
                 </p>
@@ -209,7 +209,7 @@ export default function PrivacyPolicyPage() {
               <section id="changes" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">10. Changes to This Privacy Policy</h2>
                 <p className="text-muted-foreground mb-2">
-                  We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date. You are advised to review this Privacy Policy periodically for any changes.
+                  We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the &quot;Last updated&quot; date. You are advised to review this Privacy Policy periodically for any changes.
                 </p>
               </section>
 

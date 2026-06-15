@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Cropper from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
@@ -45,13 +45,15 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
   );
   const [isSavingDefaultImage, setIsSavingDefaultImage] = useState(false);
 
-  // Reset selected index when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedDefaultImageIndex(currentDefaultImageIndex ?? null);
-      setIsSavingDefaultImage(false);
-    }
-  }, [isOpen, currentDefaultImageIndex]);
+  const derivedIndex = currentDefaultImageIndex ?? null;
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevDerivedIndex, setPrevDerivedIndex] = useState(derivedIndex);
+  if ((isOpen && !prevIsOpen) || (isOpen && derivedIndex !== prevDerivedIndex)) {
+    setSelectedDefaultImageIndex(derivedIndex);
+    setIsSavingDefaultImage(false);
+  }
+  if (isOpen !== prevIsOpen) setPrevIsOpen(isOpen);
+  if (derivedIndex !== prevDerivedIndex) setPrevDerivedIndex(derivedIndex);
 
   const {
     image,
@@ -186,6 +188,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
         {currentImageUrl && showRemoveButton && (
           <div className="mb-4">
             <div className="flex items-center justify-center space-x-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={currentImageUrl}
                 alt="Current"
@@ -217,6 +220,7 @@ export const ImageEditModal: React.FC<ImageEditModalProps> = ({
                   </button>
                 )}
                 
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={displayDefaultImageUrl}
                   alt="Default"

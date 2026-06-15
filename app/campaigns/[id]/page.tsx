@@ -65,8 +65,9 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     }
   }
 
+  let pageProps;
   try {
-    // 🚀 PARALLEL DATA FETCHING - Main campaign data
+    // PARALLEL DATA FETCHING - Main campaign data
     const [
       campaignBasic,
       campaignMembers,
@@ -95,7 +96,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     const campaignMap = campaignMapBundle.map;
     const campaignMapObjects = campaignMapBundle.objects;
 
-    // 🚀 PARALLEL DATA FETCHING - Reference data for territory components
+    // PARALLEL DATA FETCHING - Reference data for territory components
     const [
       campaignTriumphs,
       campaignTypes,
@@ -158,23 +159,17 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       notFound();
     }
     
-    return (
-      <CampaignErrorBoundary>
-        <CampaignPageContent 
-          campaignData={campaignData} 
-          userId={userId} 
-          permissions={permissions}
-          campaignTypes={campaignTypes}
-          allTerritories={allTerritories}
-          tradingPostTypes={tradingPostTypes}
-          customTradingPostTypes={customTradingPostTypes}
-          campaignAllegiances={campaignAllegiances}
-          campaignResources={campaignResources}
-          mapData={campaignMap}
-          mapObjects={campaignMapObjects}
-        />
-      </CampaignErrorBoundary>
-    );
+    pageProps = {
+      campaignData,
+      campaignTypes,
+      allTerritories,
+      tradingPostTypes,
+      customTradingPostTypes,
+      campaignAllegiances,
+      campaignResources,
+      campaignMap,
+      campaignMapObjects,
+    };
   } catch (error) {
     console.error('Error in CampaignPage:', error);
     console.error('Error details:', JSON.stringify(error, null, 2));
@@ -193,4 +188,22 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       </main>
     );
   }
+
+  return (
+    <CampaignErrorBoundary>
+      <CampaignPageContent
+        campaignData={pageProps.campaignData}
+        userId={userId}
+        permissions={permissions}
+        campaignTypes={pageProps.campaignTypes}
+        allTerritories={pageProps.allTerritories}
+        tradingPostTypes={pageProps.tradingPostTypes}
+        customTradingPostTypes={pageProps.customTradingPostTypes}
+        campaignAllegiances={pageProps.campaignAllegiances}
+        campaignResources={pageProps.campaignResources}
+        mapData={pageProps.campaignMap}
+        mapObjects={pageProps.campaignMapObjects}
+      />
+    </CampaignErrorBoundary>
+  );
 } 
