@@ -71,7 +71,7 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=20.20.2"
   },
   "overrides": {
     "@types/react-dom": "$@types/react-dom",
