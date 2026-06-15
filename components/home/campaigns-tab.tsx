@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -16,7 +16,7 @@ interface CampaignsTabProps {
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
-  const [isMounted] = useState(() => typeof window !== 'undefined');
+  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const sensors = useDndSensorsConfig();
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);

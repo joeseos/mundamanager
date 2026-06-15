@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -16,7 +16,7 @@ interface GangsTabProps {
 
 export function GangsTab({ gangs }: GangsTabProps) {
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
-  const [isMounted] = useState(() => typeof window !== 'undefined');
+  const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const sensors = useDndSensorsConfig();
 
   const [prevGangs, setPrevGangs] = useState(gangs);
