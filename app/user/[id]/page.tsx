@@ -210,7 +210,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 Gangs
               </h2>
               <p className="text-muted-foreground">
-                {profile.username}'s gang collection
+                {profile.username}&apos;s gang collection
               </p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
@@ -360,7 +360,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <FaUser className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Public Activity</h3>
             <p className="text-muted-foreground">
-              {profile.username} hasn't created any gangs, joined any campaigns or created any custom assets yet.
+              {profile.username} hasn&apos;t created any gangs, joined any campaigns or created any custom assets yet.
             </p>
           </div>
          )}

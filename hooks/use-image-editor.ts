@@ -62,19 +62,23 @@ export const useImageEditor = ({
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 
-  // Reset modal state when it opens
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen && !prevIsOpen) {
+    setImage(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setIsUploading(false);
+    setIsRemoving(false);
+    setIsProcessing(false);
+  }
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+  }
+
   useEffect(() => {
-    if (isOpen) {
-      setImage(null);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      setCroppedAreaPixels(null);
-      setIsUploading(false);
-      setIsRemoving(false);
-      setIsProcessing(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    if (isOpen && fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   }, [isOpen]);
 

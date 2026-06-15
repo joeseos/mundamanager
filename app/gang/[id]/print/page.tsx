@@ -22,6 +22,7 @@ export default async function PrintGangPage(props: {
     redirect("/sign-in");
   }
 
+  let gangDataForClient;
   try {
     // Fetch gang data using granular shared functions
     const {
@@ -98,7 +99,7 @@ export default async function PrintGangPage(props: {
     const gangTypeConfig = getGangTypeConfig(gangBasic);
 
     // Assemble the gang data structure for the roster view
-    const gangDataForClient = {
+    gangDataForClient = {
       id: gangBasic.id,
       name: gangBasic.name,
       gang_type: gangBasic.gang_type,
@@ -131,15 +132,15 @@ export default async function PrintGangPage(props: {
       positioning: processedPositioning,
       note: gangBasic.note,
     };
-
-    return (
-      <div className="w-full relative">
-        <PrintGang gang={gangDataForClient} />
-      </div>
-    );
   } catch (error) {
     console.error("Error in PrintGangPage:", error);
     throw error;
   }
+
+  return (
+    <div className="w-full relative">
+      <PrintGang gang={gangDataForClient} />
+    </div>
+  );
 }
 

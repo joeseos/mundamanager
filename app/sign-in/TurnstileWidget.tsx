@@ -136,7 +136,8 @@ export default function TurnstileWidget() {
         }
       }
     };
-  }, []); // Empty dependency array - run only once
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="w-full">

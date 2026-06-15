@@ -401,7 +401,7 @@ export function Combobox({
                 className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-hidden flex items-center"
                 onClick={handleCustomValue}
               >
-                <span className="text-blue-600">Custom: "{searchValue}"</span>
+                <span className="text-blue-600">Custom: &quot;{searchValue}&quot;</span>
               </button>
             </div>
           )}

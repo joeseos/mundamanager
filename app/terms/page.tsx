@@ -81,7 +81,7 @@ export default function TermsPage() {
                 Last updated: {new Date().toISOString().split('T')[0]}
               </p>
               <p className="text-muted-foreground mb-2">
-                Please read these Terms of Service ("Terms") carefully before using Munda Manager ("the Service") operated by the Munda Manager Team ("us", "we", or "our").
+                Please read these Terms of Service (&quot;Terms&quot;) carefully before using Munda Manager (&quot;the Service&quot;) operated by the Munda Manager Team (&quot;us&quot;, &quot;we&quot;, or &quot;our&quot;).
               </p>
             </div>
 
@@ -123,7 +123,7 @@ export default function TermsPage() {
               <section id="content" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">4. User Content</h2>
                 <p className="text-muted-foreground mb-2">
-                  You retain ownership of any content you create, upload, or share through the Service ("User Content"). By using the Service, you grant us a worldwide, non-exclusive, royalty-free licence to use, store, and display your User Content solely for the purpose of operating and providing the Service.
+                  You retain ownership of any content you create, upload, or share through the Service (&quot;User Content&quot;). By using the Service, you grant us a worldwide, non-exclusive, royalty-free licence to use, store, and display your User Content solely for the purpose of operating and providing the Service.
                 </p>
                 <p className="text-muted-foreground mb-2">
                   You are solely responsible for your User Content and represent and warrant that:
@@ -141,14 +141,14 @@ export default function TermsPage() {
                   The Service and its original content, features, and functionality are owned by the Munda Manager Team and are protected by international copyright, trade mark, patent, trade secret, and other intellectual property laws.
                 </p>
                 <p className="text-muted-foreground mb-2">
-                  Necromunda is a trade mark of Games Workshop Limited. Munda Manager is not affiliated with, endorsed by, or sponsored by Games Workshop Limited. This Service is provided for the community's use in managing their Necromunda games and campaigns.
+                  Necromunda is a trade mark of Games Workshop Limited. Munda Manager is not affiliated with, endorsed by, or sponsored by Games Workshop Limited. This Service is provided for the community&apos;s use in managing their Necromunda games and campaigns.
                 </p>
               </section>
 
               <section id="disclaimers" className="scroll-mt-24">
                 <h2 className="text-xl font-semibold text-foreground mb-1">6. Disclaimers</h2>
                 <p className="text-muted-foreground mb-2">
-                  The Service is provided on an "as is" and "as available" basis. We make no warranties, expressed or implied, and hereby disclaim all warranties including, without limitation, implied warranties of merchantability, fitness for a particular purpose, or non-infringement.
+                  The Service is provided on an &quot;as is&quot; and &quot;as available&quot; basis. We make no warranties, expressed or implied, and hereby disclaim all warranties including, without limitation, implied warranties of merchantability, fitness for a particular purpose, or non-infringement.
                 </p>
                 <p className="text-muted-foreground mb-2">
                   We do not guarantee that the Service will be available at all times, secure, or error-free. We reserve the right to modify, suspend, or discontinue the Service at any time without prior notice.

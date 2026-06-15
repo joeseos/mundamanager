@@ -59,7 +59,7 @@ export default function ResetPassword() {
             <>
               <h1 className="text-2xl font-medium text-white mb-2">Reset Password</h1>
               <p className="text-sm text-white mb-8">
-                Enter your email address and we'll send you instructions to reset your password.
+                Enter your email address and we&apos;ll send you instructions to reset your password.
               </p>
               <div className="flex flex-col gap-4">
                 <Label htmlFor="email">Email</Label>

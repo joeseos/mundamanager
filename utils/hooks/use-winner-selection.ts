@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 interface UseWinnerSelectionParams {
   initialWinnerIds?: string[];
@@ -85,22 +85,20 @@ export function useWinnerSelection({
     activeWinners.length > 0 &&
     activeWinners.length < maxParticipants;
 
-  // Clear the claimer when they are no longer in the winners list.
-  useEffect(() => {
-    if (claimedByGangId && !activeWinners.includes(claimedByGangId)) {
-      setClaimedByGangId('');
-    }
-  }, [activeWinners, claimedByGangId]);
+  const [prevActiveWinners, setPrevActiveWinners] = useState(activeWinners);
+  const [prevSelectedTerritory, setPrevSelectedTerritory] = useState(selectedTerritory);
 
-  // Auto-fill the claimer for the single-winner + territory case so the user
-  // doesn't have to take any extra action on the common path.
-  useEffect(() => {
+  if (activeWinners !== prevActiveWinners || selectedTerritory !== prevSelectedTerritory) {
+    setPrevActiveWinners(activeWinners);
+    setPrevSelectedTerritory(selectedTerritory);
     if (activeWinners.length === 1 && selectedTerritory) {
       setClaimedByGangId(activeWinners[0]);
     } else if (activeWinners.length === 0 || !selectedTerritory) {
       setClaimedByGangId('');
+    } else if (claimedByGangId && !activeWinners.includes(claimedByGangId)) {
+      setClaimedByGangId('');
     }
-  }, [activeWinners, selectedTerritory]);
+  }
 
   const handleWinnerChange = useCallback((slotIndex: number, value: string) => {
     if (value === 'draw') {

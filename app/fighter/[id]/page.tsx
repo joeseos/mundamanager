@@ -21,6 +21,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     redirect("/sign-in");
   }
 
+  let pageProps;
   try {
     // Fetch fighter data using granular shared functions
     const {
@@ -318,18 +319,18 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       }));
     }
 
-    // Pass fighter data and user permissions to client component
-    return (
-      <FighterPageComponent
-        initialFighterData={fighterData}
-        initialGangFighters={gangFighters}
-        userPermissions={userPermissions}
-        fighterId={id}
-      />
-    );
-
+    pageProps = { fighterData, gangFighters, userPermissions };
   } catch (error) {
     console.error('Error in FighterPage:', error);
     throw error;
   }
+
+  return (
+    <FighterPageComponent
+      initialFighterData={pageProps.fighterData}
+      initialGangFighters={pageProps.gangFighters}
+      userPermissions={pageProps.userPermissions}
+      fighterId={id}
+    />
+  );
 }
