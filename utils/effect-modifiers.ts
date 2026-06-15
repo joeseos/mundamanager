@@ -21,7 +21,7 @@ interface EffectModifier {
 interface Effect {
   id: string;
   effect_name: string;
-  type_specific_data?: TraitModificationData;
+  type_specific_data?: TraitModificationData | string;
   fighter_effect_modifiers?: EffectModifier[];
 }
 
@@ -341,7 +341,7 @@ export function applyWeaponModifiers(
       .filter(Boolean);
 
     effects.forEach((eff) => {
-      const tsd = eff.type_specific_data || {};
+      const tsd = typeof eff.type_specific_data === 'object' ? eff.type_specific_data || {} : {};
       const toRemove: string[] = tsd.traits_to_remove || [];
       const toAdd: string[] = tsd.traits_to_add || [];
 

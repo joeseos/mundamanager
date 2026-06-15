@@ -19,6 +19,7 @@ import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
+import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { FighterLoadout } from '@/types/equipment';
 import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
@@ -407,31 +408,45 @@ export function WeaponList({
       // Build optimistic effect data from selected effects
       const selectedEffects = effectTypesData.filter(et => selectedEffectIds.includes(et.id));
 
-      // Apply optimistic update: add effect_names to equipment
+      // Build optimistic FighterEffect objects (include modifiers for weapon profile updates)
+      const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => {
+        const tempId = `temp-${Date.now()}-${index}`;
+        return {
+          id: tempId,
+          effect_name: effect.effect_name,
+          fighter_equipment_id: equipmentData.fighter_equipment_id,
+          fighter_effect_type_id: effect.id,
+          fighter_effect_modifiers: (effect.modifiers || []).map((m, mi) => ({
+            id: `temp-mod-${tempId}-${mi}`,
+            fighter_effect_id: tempId,
+            stat_name: m.stat_name,
+            numeric_value: m.default_numeric_value ?? 0,
+            operation: m.operation,
+          })),
+          type_specific_data: effect.type_specific_data ?? undefined,
+          sort_order: effect.sort_order ?? null
+        };
+      });
+
+      // Apply optimistic update: add effect_names and update weapon profiles
       const optimisticEquipment = equipment.map(item => {
         if (item.fighter_equipment_id === equipmentData.fighter_equipment_id) {
           const existingEffectNames = item.effect_names || [];
           const newEffectNames = selectedEffects.map(e => e.effect_name);
-          const combinedEffectNames = [...existingEffectNames, ...newEffectNames];
+
+          let updatedProfiles = item.weapon_profiles;
+          if (item.equipment_type === 'weapon' && updatedProfiles?.length) {
+            updatedProfiles = applyWeaponModifiers(updatedProfiles, newEffects);
+          }
 
           return {
             ...item,
-            effect_names: combinedEffectNames
+            effect_names: [...existingEffectNames, ...newEffectNames],
+            weapon_profiles: updatedProfiles,
           };
         }
         return item;
       });
-
-      // Build optimistic FighterEffect objects and add to fighterEffects (include sort_order for display ordering)
-      const newEffects: FighterEffect[] = selectedEffects.map((effect, index) => ({
-        id: `temp-${Date.now()}-${index}`,
-        effect_name: effect.effect_name,
-        fighter_equipment_id: equipmentData.fighter_equipment_id,
-        fighter_effect_type_id: effect.id,
-        fighter_effect_modifiers: [],
-        type_specific_data: effect.type_specific_data ?? undefined,
-        sort_order: effect.sort_order ?? null
-      }));
 
       // Add new effects to 'equipment' category (or create it)
       const updatedFighterEffects = {

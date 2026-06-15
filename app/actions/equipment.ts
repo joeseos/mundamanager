@@ -1463,6 +1463,7 @@ export async function applySelfUpgradesToEquipment(params: {
         gangId: params.gang_id,
         advancementType: 'effect'
       });
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighter_id), { expire: 0 });
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }
@@ -1553,6 +1554,7 @@ export async function deleteEquipmentEffect(
         gangId: params.gang_id,
         advancementType: 'effect'
       });
+      revalidateTag(CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(params.fighter_id), { expire: 0 });
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }
