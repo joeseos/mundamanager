@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption, DefaultEquipment, NormalizedEquipmentSelection } from '@/types/fighter-type';
@@ -236,9 +236,8 @@ export default function GangAdditions({
   // Add state to track selected equipment with costs
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
 
-  const [prevAvailableSubTypes, setPrevAvailableSubTypes] = useState(availableSubTypes);
-  if (availableSubTypes !== prevAvailableSubTypes) {
-    setPrevAvailableSubTypes(availableSubTypes);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
     if (availableSubTypes.length > 0 && !selectedSubTypeId) {
       const defaultSubType = availableSubTypes.find(
         (sub) => !sub.sub_type_name || sub.sub_type_name === 'Default'
@@ -257,7 +256,7 @@ export default function GangAdditions({
         setSelectedSubTypeId(cheapestSubType.id);
       }
     }
-  }
+  }, [availableSubTypes]);
 
   const { data: gangAdditionTypes = [] } = useQuery<FighterType[]>({
     queryKey: ['gang-addition-types', gangTypeId, gangAffiliationId],
@@ -891,9 +890,8 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     return defaults;
   };
 
-  const [prevSelectedGangAdditionTypeId, setPrevSelectedGangAdditionTypeId] = useState(selectedGangAdditionTypeId);
-  if (selectedGangAdditionTypeId !== prevSelectedGangAdditionTypeId) {
-    setPrevSelectedGangAdditionTypeId(selectedGangAdditionTypeId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
     if (selectedGangAdditionTypeId) {
       const selectedType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
       if (selectedType?.equipment_selection) {
@@ -904,11 +902,10 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         setFighterCost(String(baseCost + defaultCost));
       }
     }
-  }
+  }, [selectedGangAdditionTypeId]);
 
-  const [prevSelectedSubTypeId, setPrevSelectedSubTypeId] = useState(selectedSubTypeId);
-  if (selectedSubTypeId !== prevSelectedSubTypeId) {
-    setPrevSelectedSubTypeId(selectedSubTypeId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
     if (selectedSubTypeId) {
       const selectedType = gangAdditionTypes.find(t => t.id === selectedSubTypeId);
       if (selectedType?.equipment_selection) {
@@ -919,7 +916,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
         setFighterCost(String(baseCost + defaultCost));
       }
     }
-  }
+  }, [selectedSubTypeId]);
 
   const handleAddFighter = async () => {
     if (isAdding) return;
