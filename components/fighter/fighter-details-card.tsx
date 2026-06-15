@@ -414,7 +414,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
             }}>
             <div className="absolute z-10 left-0 right-[156px] md:right-[206px] pl-4 sm:pl-8 flex items-center gap-2 overflow-hidden whitespace-nowrap" style={{ height: '62px', marginTop: '0px' }}>
               {label && (
-                <div className="inline-flex items-center rounded-xs bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
+                <div className="inline-flex items-center rounded-sm bg-card px-1 text-sm font-bold font-mono text-foreground uppercase print:border-2 print:border-black">
                   {label}
                 </div>
               )}

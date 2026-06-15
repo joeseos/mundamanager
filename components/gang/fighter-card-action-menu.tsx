@@ -269,7 +269,7 @@ export function FighterCardActionMenu({
         >
           <button
             type="button"
-            className="block w-full rounded-xs px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+            className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
             onClick={handleAddXp}
             onTouchStart={handleMenuTouchStart}
             onTouchEnd={(e) => handleMenuTouchEnd(e, handleAddXp)}
@@ -278,7 +278,7 @@ export function FighterCardActionMenu({
           </button>
           <button
             type="button"
-            className="block w-full rounded-xs px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+            className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
             onClick={handleAddInjury}
             onTouchStart={handleMenuTouchStart}
             onTouchEnd={(e) => handleMenuTouchEnd(e, handleAddInjury)}
@@ -288,7 +288,7 @@ export function FighterCardActionMenu({
           {isCrewWithVehicle && (
             <button
               type="button"
-              className="block w-full rounded-xs px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
               onClick={handleAddVehicleDamage}
               onTouchStart={handleMenuTouchStart}
               onTouchEnd={(e) => handleMenuTouchEnd(e, handleAddVehicleDamage)}
@@ -299,7 +299,7 @@ export function FighterCardActionMenu({
           {isCaptured && (
             <button
               type="button"
-              className="block w-full rounded-xs px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
               onClick={handleRescueFighter}
               onTouchStart={handleMenuTouchStart}
               onTouchEnd={(e) => handleMenuTouchEnd(e, handleRescueFighter)}
@@ -310,7 +310,7 @@ export function FighterCardActionMenu({
           {isKilled && (
             <button
               type="button"
-              className="block w-full rounded-xs px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              className="block w-full rounded-sm px-3 py-2.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
               onClick={handleResurrectFighter}
               onTouchStart={handleMenuTouchStart}
               onTouchEnd={(e) => handleMenuTouchEnd(e, handleResurrectFighter)}
