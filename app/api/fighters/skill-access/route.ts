@@ -2,12 +2,13 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { PermissionService } from '@/app/lib/user-permissions';
 import { getUserIdFromClaims } from '@/utils/auth';
-import {
-  applyGangOriginSkillAccess,
-  escapeForIlikePattern,
-  resolveSkillTypeForOriginName,
-  type FormattedSkillAccess,
-} from '@/app/lib/shared/skill-access';
+
+interface FormattedSkillAccess {
+  skill_type_id: string;
+  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null;
+  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null;
+  skill_type_name: string;
+}
 
 export async function GET(request: Request) {
   try {
@@ -186,6 +187,8 @@ export async function GET(request: Request) {
       }
     }
 
+    // Gang origin can grant 'primary' access to a matching skill set.
+    // Mirrored in get_available_skills.sql — keep in sync.
     const gangData = fighter.gangs as {
       gang_origin_id?: string | null;
       gang_origin?: { origin_name?: string } | null;
@@ -195,17 +198,31 @@ export async function GET(request: Request) {
 
     let skillAccessWithOrigin: FormattedSkillAccess[] = formattedSkillAccess;
     if (gangOriginId && gangOriginName) {
+      const norm = (s: string) => s.trim().toLowerCase();
       const { data: candidateSkillType, error: skillTypeError } = await supabase
         .from('skill_types')
         .select('id, name')
-        .ilike('name', escapeForIlikePattern(gangOriginName))
+        .ilike('name', gangOriginName.replace(/[%_\\]/g, '\\$&'))
         .maybeSingle();
 
       if (skillTypeError) {
         console.error('Error resolving origin skill type:', skillTypeError);
-      } else {
-        const originSkillType = resolveSkillTypeForOriginName(candidateSkillType, gangOriginName);
-        skillAccessWithOrigin = applyGangOriginSkillAccess(formattedSkillAccess, originSkillType);
+      } else if (candidateSkillType && norm(candidateSkillType.name) === norm(gangOriginName)) {
+        const idx = formattedSkillAccess.findIndex(e => e.skill_type_id === candidateSkillType.id);
+        if (idx >= 0) {
+          const existing = formattedSkillAccess[idx];
+          if (existing.access_level !== 'denied') {
+            skillAccessWithOrigin = [...formattedSkillAccess];
+            skillAccessWithOrigin[idx] = { ...existing, access_level: 'primary' };
+          }
+        } else {
+          skillAccessWithOrigin = [...formattedSkillAccess, {
+            skill_type_id: candidateSkillType.id,
+            access_level: 'primary' as const,
+            override_access_level: null,
+            skill_type_name: candidateSkillType.name,
+          }];
+        }
       }
     }
 
