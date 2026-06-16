@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict YW4ehcpDhlkB9h9Cc11ujdizXnRyZfDJoOJJaT0cbcYSw752vbcyENztnwmWsHn
+\restrict iCQB9OdVcFgNxdwGpF80DksDjh7I91DohzciIcfVFodQhwr1ykdzilNu51NIKDU
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -1380,6 +1380,7 @@ DECLARE
     v_gang_id uuid;
     v_fighter_type_id uuid;
     v_custom_fighter_type_id uuid;
+    v_origin_skill_type_id uuid;
 BEGIN
     -- Get fighter class, gang origin ID, gang ID, fighter type IDs, and verify fighter exists
     SELECT f.fighter_class, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id
@@ -1392,6 +1393,13 @@ BEGIN
         RAISE EXCEPTION 'Fighter not found with ID %', get_available_skills.fighter_id;
     END IF;
 
+    -- Skill Set whose name matches the gang Origin (e.g. "Trocken Mining Clan")
+    SELECT st.id
+    INTO v_origin_skill_type_id
+    FROM gang_origins go
+    JOIN skill_types st ON lower(trim(st.name)) = lower(trim(go.origin_name))
+    WHERE go.id = v_gang_origin_id;
+
     -- Build the result as JSON using CTEs to combine standard + custom skills
     WITH standard_skills AS (
         SELECT
@@ -1401,7 +1409,14 @@ BEGIN
             s.skill_type_id,
             st.name AS skill_type_name,
             st.legendary_name,
-            COALESCE(sao.access_level, ftsa.access_level) AS effective_access_level,
+            COALESCE(
+                sao.access_level,
+                ftsa.access_level,
+                CASE
+                    WHEN s.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                    ELSE NULL
+                END
+            ) AS effective_access_level,
             NOT EXISTS (
                 SELECT 1 FROM fighter_skills fs
                 WHERE fs.fighter_id = get_available_skills.fighter_id
@@ -1424,7 +1439,15 @@ BEGIN
             LIMIT 1
         ) skill_effect ON true
         WHERE (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id)
-        AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied'
+        AND COALESCE(
+            sao.access_level,
+            ftsa.access_level,
+            CASE
+                WHEN s.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                ELSE 'none'
+            END,
+            'none'
+        ) != 'denied'
     ),
     visible_custom_skills AS (
         SELECT
@@ -1434,7 +1457,15 @@ BEGIN
             COALESCE(cs.skill_type_id, cs.custom_skill_type_id) AS skill_type_id,
             COALESCE(st.name, cst.name) AS skill_type_name,
             COALESCE(st.legendary_name, false) AS legendary_name,
-            COALESCE(sao.access_level, ftsa.access_level) AS effective_access_level,
+            COALESCE(
+                sao.access_level,
+                ftsa.access_level,
+                -- Origin grants apply to standard skill_types only, not custom_skill_type_id
+                CASE
+                    WHEN cs.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                    ELSE NULL
+                END
+            ) AS effective_access_level,
             NOT EXISTS (
                 SELECT 1 FROM fighter_skills fs
                 WHERE fs.fighter_id = get_available_skills.fighter_id
@@ -1463,7 +1494,16 @@ BEGIN
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
             AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
-        AND COALESCE(sao.access_level, ftsa.access_level, 'none') != 'denied'
+        AND COALESCE(
+            sao.access_level,
+            ftsa.access_level,
+            -- Origin grants apply to standard skill_types only, not custom_skill_type_id
+            CASE
+                WHEN cs.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                ELSE 'none'
+            END,
+            'none'
+        ) != 'denied'
     ),
     all_skills AS (
         SELECT * FROM standard_skills
@@ -11817,5 +11857,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict YW4ehcpDhlkB9h9Cc11ujdizXnRyZfDJoOJJaT0cbcYSw752vbcyENztnwmWsHn
+\unrestrict iCQB9OdVcFgNxdwGpF80DksDjh7I91DohzciIcfVFodQhwr1ykdzilNu51NIKDU
 
