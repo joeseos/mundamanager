@@ -4,6 +4,7 @@ import { PermissionService } from '@/app/lib/user-permissions';
 import { getUserIdFromClaims } from '@/utils/auth';
 import {
   applyGangOriginSkillAccess,
+  escapeForIlikePattern,
   resolveSkillTypeForOriginName,
   type FormattedSkillAccess,
 } from '@/app/lib/shared/skill-access';
@@ -197,7 +198,7 @@ export async function GET(request: Request) {
       const { data: candidateSkillType, error: skillTypeError } = await supabase
         .from('skill_types')
         .select('id, name')
-        .ilike('name', gangOriginName)
+        .ilike('name', escapeForIlikePattern(gangOriginName))
         .maybeSingle();
 
       if (skillTypeError) {

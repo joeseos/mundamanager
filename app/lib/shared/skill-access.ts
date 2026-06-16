@@ -35,10 +35,15 @@ export function normaliseSkillSetName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+/** Escapes `%`, `_`, and `\` for PostgreSQL ILIKE patterns (exact match, no wildcards). */
+export function escapeForIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
+
 /**
  * Confirms a skill_types row exactly matches an origin name after normalisation.
- * Used after `.ilike()` lookup: ilike does not escape LIKE wildcards (%/_), so a strict
- * equality check prevents false positives when origin names contain those characters.
+ * Call after an escaped `.ilike()` lookup; the equality check still guards against
+ * any unexpected wildcard matches.
  */
 export function resolveSkillTypeForOriginName<T extends { id: string; name: string }>(
   candidate: T | null | undefined,
@@ -53,7 +58,9 @@ export function resolveSkillTypeForOriginName<T extends { id: string; name: stri
 /**
  * Merges Skill Set access granted by the gang's Origin into fighter skill access rows.
  * Origin access fills in missing defaults and upgrades weaker defaults; an explicit
- * fighter-type 'denied' default cannot be overridden. Individual overrides are unchanged.
+ * fighter-type 'denied' default cannot be overridden.
+ * Only `access_level` is updated — `override_access_level` is left unchanged and takes
+ * precedence in the UI (override ?? access_level), mirroring SQL COALESCE order.
  */
 export function applyGangOriginSkillAccess(
   skillAccess: FormattedSkillAccess[],

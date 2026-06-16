@@ -1,5 +1,3 @@
-DROP FUNCTION IF EXISTS public.get_available_skills(uuid);
-
 CREATE OR REPLACE FUNCTION public.get_available_skills(
     fighter_id UUID
 )
