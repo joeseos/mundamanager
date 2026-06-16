@@ -95,6 +95,7 @@ BEGIN
             COALESCE(
                 sao.access_level,
                 ftsa.access_level,
+                -- Origin grants apply to standard skill_types only, not custom_skill_type_id
                 CASE
                     WHEN cs.skill_type_id = v_origin_skill_type_id THEN 'primary'
                     ELSE NULL
@@ -131,6 +132,7 @@ BEGIN
         AND COALESCE(
             sao.access_level,
             ftsa.access_level,
+            -- Origin grants apply to standard skill_types only, not custom_skill_type_id
             CASE
                 WHEN cs.skill_type_id = v_origin_skill_type_id THEN 'primary'
                 ELSE 'none'

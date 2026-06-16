@@ -23,8 +23,10 @@ export function pickStrongerSkillAccessLevel(
   a: SkillAccessLevel | null | undefined,
   b: SkillAccessLevel | null | undefined
 ): SkillAccessLevel | null {
-  if (!a || a === 'denied') return b && b !== 'denied' ? b : null;
-  if (!b || b === 'denied') return a;
+  // 'denied' is an explicit fighter-type restriction; origin cannot override it (matches SQL COALESCE)
+  if (a === 'denied' || b === 'denied') return 'denied';
+  if (!a) return b ?? null;
+  if (!b) return a;
 
   return ACCESS_RANK[a] >= ACCESS_RANK[b] ? a : b;
 }
@@ -33,22 +35,25 @@ export function normaliseSkillSetName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-export function findSkillTypeMatchingOriginName<T extends { id: string; name: string }>(
-  skillTypes: T[],
+/**
+ * Confirms a skill_types row exactly matches an origin name after normalisation.
+ * Used after `.ilike()` lookup: ilike does not escape LIKE wildcards (%/_), so a strict
+ * equality check prevents false positives when origin names contain those characters.
+ */
+export function resolveSkillTypeForOriginName<T extends { id: string; name: string }>(
+  candidate: T | null | undefined,
   originName: string | null | undefined
 ): T | null {
-  if (!originName?.trim()) return null;
-
-  const normalisedOrigin = normaliseSkillSetName(originName);
-  return (
-    skillTypes.find((skillType) => normaliseSkillSetName(skillType.name) === normalisedOrigin) ??
-    null
-  );
+  if (!candidate || !originName?.trim()) return null;
+  return normaliseSkillSetName(candidate.name) === normaliseSkillSetName(originName)
+    ? candidate
+    : null;
 }
 
 /**
  * Merges Skill Set access granted by the gang's Origin into fighter skill access rows.
- * Origin access fills in missing defaults and upgrades weaker defaults; overrides are unchanged.
+ * Origin access fills in missing defaults and upgrades weaker defaults; an explicit
+ * fighter-type 'denied' default cannot be overridden. Individual overrides are unchanged.
  */
 export function applyGangOriginSkillAccess(
   skillAccess: FormattedSkillAccess[],
