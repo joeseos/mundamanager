@@ -208,7 +208,7 @@ export default async function RootLayout({
           </div>
         </header>
         {breadcrumb}
-        <main className="min-h-screen flex flex-col items-center pt-24 print:print-reset">
+        <main className="min-h-screen flex flex-col items-center pt-24 print-reset print:pt-0">
           <div className="flex-1 w-full flex flex-col items-center">
             {!hasEnvVars && (
               <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12">
@@ -241,7 +241,7 @@ export default async function RootLayout({
                 </div>
               </nav>
             )}
-            <div id="main-content-wrapper" className="flex flex-col max-w-5xl w-full px-[10px] py-4 print:print-reset">
+            <div id="main-content-wrapper" className="flex flex-col max-w-5xl w-full px-[10px] py-4 print-reset print:p-0">
               {children}
             </div>
           </div>

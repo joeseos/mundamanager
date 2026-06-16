@@ -432,7 +432,7 @@ const FighterCard = memo(function FighterCard({
       id={fighterCardId}
       {...(dragListeners || {})}
       {...(dragAttributes || {})}
-      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print:print-fighter-card print:inline-block
+      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
         ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 shrink-0`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
@@ -453,7 +453,7 @@ const FighterCard = memo(function FighterCard({
       <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
         <div className="flex w-full">
           <div
-            className={`absolute inset-0 bg-no-repeat bg-cover print:bg-none! fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
+            className={`absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
