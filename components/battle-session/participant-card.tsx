@@ -641,12 +641,12 @@ function FighterRow({
                   <span className="text-muted-foreground"> [{loadoutName}]</span>
                 )}
               </span>
-              {gangFighter?.killed && <IoSkull className="text-gray-300" />}
-              {gangFighter?.retired && <MdChair className="text-muted-foreground" />}
-              {gangFighter?.enslaved && <GiCrossedChains className="text-sky-200" />}
-              {gangFighter?.starved && <TbMeatOff className="text-red-500" />}
-              {gangFighter?.recovery && <FaMedkit className="text-blue-500" />}
-              {gangFighter?.captured && <GiHandcuffs className="text-red-600" />}
+              {gangFighter?.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
+              {gangFighter?.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
+              {gangFighter?.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
+              {gangFighter?.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
+              {gangFighter?.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
+              {gangFighter?.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
             </div>
             {fighterDetails && (
               <div className="text-xs text-muted-foreground">{fighterDetails}</div>

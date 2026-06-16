@@ -51,7 +51,7 @@ function getFighterRowClass(f: GangFighterOption, beast: boolean, disabled: bool
     return `${base} cursor-pointer bg-muted hover:bg-accent/40 dark:hover:bg-accent/25`;
   }
   if (beast) {
-    return `${base} ml-6 cursor-default border border-dashed border-border bg-muted/30 dark:bg-neutral-800/50`;
+    return `${base} cursor-default border border-dashed border-border bg-muted/30 dark:bg-neutral-800/50`;
   }
   return `${base} cursor-default border border-dashed border-neutral-300/90 dark:border-neutral-600 bg-neutral-200/80 dark:bg-neutral-900/70`;
 }
@@ -354,9 +354,9 @@ export default function CrewSelectionModal({
       ) : (
         <div className="space-y-2">
           <div className="p-2 bg-muted rounded-md flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <div className="flex items-center justify-between sm:justify-start sm:gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Pick</span>
+            <div className="flex flex-col gap-2 sm:w-full sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-14 text-sm text-muted-foreground">Choose</span>
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)}>
                   <LuMinus className="h-4 w-4" />
                 </Button>
@@ -365,8 +365,8 @@ export default function CrewSelectionModal({
                   <LuPlus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Random</span>
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-14 text-sm text-muted-foreground">Random</span>
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)}>
                   <LuMinus className="h-4 w-4" />
                 </Button>
@@ -374,16 +374,16 @@ export default function CrewSelectionModal({
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)}>
                   <LuPlus className="h-4 w-4" />
                 </Button>
+                <button
+                  className="ml-auto sm:ml-6 px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
+                  onClick={handleRoll}
+                  disabled={randomCount === 0 || rolling}
+                  type="button"
+                >
+                  Roll
+                </button>
               </div>
             </div>
-            <button
-              className="w-full sm:w-auto sm:ml-auto px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
-              onClick={handleRoll}
-              disabled={randomCount === 0 || rolling}
-              type="button"
-            >
-              Roll
-            </button>
           </div>
           {inQuotaMode && (
             <div className="px-2">
@@ -444,12 +444,12 @@ export default function CrewSelectionModal({
                         </span>
                       )}
                     </span>
-                    {f.killed && <IoSkull className="text-gray-300" />}
-                    {f.retired && <MdChair className="text-muted-foreground" />}
-                    {f.enslaved && <GiCrossedChains className="text-sky-200" />}
-                    {f.starved && <TbMeatOff className="text-red-500" />}
-                    {f.recovery && <FaMedkit className="text-blue-500" />}
-                    {f.captured && <GiHandcuffs className="text-red-600" />}
+                    {f.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
+                    {f.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
+                    {f.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
+                    {f.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
+                    {f.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
+                    {f.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
                   </div>
                   {fighterDetails && (
                     <div className={`text-xs ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
