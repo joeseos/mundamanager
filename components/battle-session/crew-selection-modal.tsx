@@ -17,6 +17,8 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 interface GangFighterOption {
   id: string;
   fighter_name: string;
+  label?: string;
+  fighter_type?: string;
   credits: number;
   loadout_id?: string;
   loadout_name?: string;
@@ -34,6 +36,24 @@ interface GangFighterOption {
 function isBeast(f: GangFighterOption) {
   const cls = f.fighter_class?.toLowerCase();
   return cls === 'exotic beast' || cls === 'exotic beast specialist';
+}
+
+function formatFighterDetails(f: GangFighterOption): string {
+  return [
+    f.fighter_type,
+    f.fighter_class ? `(${f.fighter_class})` : '',
+  ].filter(Boolean).join(' ');
+}
+
+function getFighterRowClass(f: GangFighterOption, beast: boolean, disabled: boolean): string {
+  const base = 'flex items-center px-2 py-1 rounded-md';
+  if (!disabled) {
+    return `${base} cursor-pointer bg-muted hover:bg-accent/40 dark:hover:bg-accent/25`;
+  }
+  if (beast) {
+    return `${base} ml-6 cursor-default border border-dashed border-border bg-muted/30 dark:bg-neutral-800/50`;
+  }
+  return `${base} cursor-default border border-dashed border-neutral-300/90 dark:border-neutral-600 bg-neutral-200/80 dark:bg-neutral-900/70`;
 }
 
 interface SortedEntry {
@@ -372,7 +392,8 @@ export default function CrewSelectionModal({
               </span>
             </div>
           )}
-          <div className="flex items-center text-sm font-medium text-muted-foreground px-2">
+          <div className="space-y-1">
+            <div className="flex items-center text-sm font-medium text-muted-foreground px-2">
             {!inQuotaMode && (
               <Checkbox
                 checked={allSelected}
@@ -390,33 +411,59 @@ export default function CrewSelectionModal({
             const isSelected = beast
               ? selected.has(f.id) && entry.parentOwnerId != null && selected.get(entry.parentOwnerId) === entry.parentLoadoutId
               : selected.has(f.id) && selected.get(f.id) === f.loadout_id;
+            const displayName = beast && f.owner_id ? `— ${f.fighter_name}` : f.fighter_name;
+            const fighterDetails = formatFighterDetails(f);
+            const disabled = isDisabled(f);
             return (
               <label
                 key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
-                className={`flex items-center p-2 bg-muted rounded-md ${beast ? 'ml-6 cursor-default opacity-70' : isDisabled(f) ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+                className={getFighterRowClass(f, beast, disabled)}
               >
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggle(f)}
                   className="mr-3"
-                  disabled={isDisabled(f)}
+                  disabled={disabled}
                 />
-                <span className="grow overflow-hidden text-ellipsis flex items-center gap-1">
-                  {f.fighter_name}
-                  {f.loadout_name && (
-                    <span className="text-muted-foreground"> ({f.loadout_name})</span>
+                <div className="grow min-w-0">
+                  <div className={`flex items-center gap-1 flex-wrap ${disabled ? (beast ? 'text-muted-foreground' : 'text-neutral-500 dark:text-neutral-400') : ''}`}>
+                    {f.label && (
+                      <span className={`inline-flex shrink-0 items-center rounded-sm px-1 text-xs font-bold font-mono uppercase border ${
+                        disabled
+                          ? 'bg-neutral-100 border-neutral-300 text-neutral-500 dark:bg-neutral-800 dark:border-neutral-600 dark:text-neutral-400'
+                          : 'bg-card border-border text-foreground'
+                      }`}>
+                        {f.label}
+                      </span>
+                    )}
+                    <span>
+                      {displayName}
+                      {f.loadout_name && (
+                        <span className={disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}>
+                          {' '}[{f.loadout_name}]
+                        </span>
+                      )}
+                    </span>
+                    {f.killed && <IoSkull className="text-gray-300" />}
+                    {f.retired && <MdChair className="text-muted-foreground" />}
+                    {f.enslaved && <GiCrossedChains className="text-sky-200" />}
+                    {f.starved && <TbMeatOff className="text-red-500" />}
+                    {f.recovery && <FaMedkit className="text-blue-500" />}
+                    {f.captured && <GiHandcuffs className="text-red-600" />}
+                  </div>
+                  {fighterDetails && (
+                    <div className={`text-xs ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
+                      {fighterDetails}
+                    </div>
                   )}
-                  {f.killed && <IoSkull className="text-gray-300" />}
-                  {f.retired && <MdChair className="text-muted-foreground" />}
-                  {f.enslaved && <GiCrossedChains className="text-sky-200" />}
-                  {f.starved && <TbMeatOff className="text-red-500" />}
-                  {f.recovery && <FaMedkit className="text-blue-500" />}
-                  {f.captured && <GiHandcuffs className="text-red-600" />}
+                </div>
+                <span className={`text-right whitespace-nowrap ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
+                  {f.credits === 0 ? '*' : f.credits}
                 </span>
-                <span className="text-right text-muted-foreground whitespace-nowrap">{f.credits === 0 ? '*' : f.credits}</span>
               </label>
             );
           })}
+          </div>
         </div>
       )}
     </Modal>
