@@ -1091,8 +1091,8 @@ export default function Gang({
                     </div>
 
                     {/* Gang Origin, ie. Prefecture, Path of Faith */}
-                    {gang_type_has_origin && gang_origin_name && (<div className="flex items-center gap-1">
-                      {gangOriginCategoryName}: <Badge variant="secondary">{gang_origin_name}</Badge>
+                    {gang_type_has_origin && gangOriginName && (<div className="flex items-center gap-1">
+                      {gangOriginCategoryName}: <Badge variant="secondary">{gangOriginName}</Badge>
                     </div>)}
                     
                     {/* Gang Variants */}

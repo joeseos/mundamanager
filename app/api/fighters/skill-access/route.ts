@@ -2,6 +2,11 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { PermissionService } from '@/app/lib/user-permissions';
 import { getUserIdFromClaims } from '@/utils/auth';
+import {
+  applyGangOriginSkillAccess,
+  normaliseSkillSetName,
+  type FormattedSkillAccess,
+} from '@/app/lib/shared/skill-access';
 
 export async function GET(request: Request) {
   try {
@@ -166,10 +171,42 @@ export async function GET(request: Request) {
       }
     }
 
+    // Include Skill Set access granted by the gang's Origin (e.g. Mining Clan skill sets)
+    const { data: gangData } = await supabase
+      .from('gangs')
+      .select(`
+        gang_origin_id,
+        gang_origin:gang_origin_id (
+          origin_name
+        )
+      `)
+      .eq('id', fighter.gang_id)
+      .single();
+
+    const gangOriginId = gangData?.gang_origin_id ?? null;
+    const gangOriginName = (gangData?.gang_origin as { origin_name?: string } | null)?.origin_name;
+
+    let skillAccessWithOrigin: FormattedSkillAccess[] = formattedSkillAccess;
+    if (gangOriginName) {
+      const { data: candidateSkillType } = await supabase
+        .from('skill_types')
+        .select('id, name')
+        .ilike('name', gangOriginName)
+        .maybeSingle();
+
+      const originSkillType =
+        candidateSkillType &&
+        normaliseSkillSetName(candidateSkillType.name) === normaliseSkillSetName(gangOriginName)
+          ? candidateSkillType
+          : null;
+
+      skillAccessWithOrigin = applyGangOriginSkillAccess(formattedSkillAccess, originSkillType);
+    }
+
     // When skillTypeId is provided, also return individual skills for that skill type
     if (skillTypeId) {
       // Verify the requested skill type has "primary" effective access
-      const matchedAccess = formattedSkillAccess.find(
+      const matchedAccess = skillAccessWithOrigin.find(
         (a) => a.skill_type_id === skillTypeId
       );
       const effectiveAccess = matchedAccess
@@ -182,14 +219,6 @@ export async function GET(request: Request) {
           { status: 400 }
         );
       }
-
-      // Fetch gang origin
-      const { data: gangData } = await supabase
-        .from('gangs')
-        .select('gang_origin_id')
-        .eq('id', fighter.gang_id)
-        .single();
-      const gangOriginId = gangData?.gang_origin_id ?? null;
 
       // Fetch skills in this skill type
       const { data: skillsRaw, error: skillsErr } = await supabase
@@ -224,13 +253,13 @@ export async function GET(request: Request) {
       }));
 
       return NextResponse.json({
-        skill_access: formattedSkillAccess,
+        skill_access: skillAccessWithOrigin,
         skills,
       });
     }
 
     return NextResponse.json({
-      skill_access: formattedSkillAccess
+      skill_access: skillAccessWithOrigin
     });
 
   } catch (error) {
