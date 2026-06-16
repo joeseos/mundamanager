@@ -20,12 +20,14 @@ import { rollD66, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
-import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill } from 'react-icons/gi';
-import { IoFlashOutline } from 'react-icons/io5';
+import { GiPieceSkull, GiSpiderWeb, GiHeavyBullets, GiHealthNormal, GiWaterDrop, GiSpill, GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
+import { IoFlashOutline, IoSkull } from 'react-icons/io5';
+import { MdChair } from 'react-icons/md';
+import { TbMeatOff } from 'react-icons/tb';
 import { IoMdEye, IoMdEyeOff } from 'react-icons/io';
 import { PiBeerBottleFill } from 'react-icons/pi';
 import { WiStars } from 'react-icons/wi';
-import { FaRegAddressCard, FaUserCheck } from 'react-icons/fa';
+import { FaRegAddressCard, FaUserCheck, FaMedkit } from 'react-icons/fa';
 import {
   removeParticipant,
   updateParticipantRole,
@@ -615,9 +617,9 @@ function FighterRow({
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
   const fighterType = gangFighter?.fighter_type;
   const fighterClass = gangFighter?.fighter_class;
-  // Second row format: type - selected profile/loadout (class)
+  // Second row format: type (class)
   const fighterDetails = [
-    [fighterType, loadoutName].filter(Boolean).join(' - '),
+    fighterType,
     fighterClass ? `(${fighterClass})` : '',
   ].filter(Boolean).join(' ');
 
@@ -626,10 +628,25 @@ function FighterRow({
       <td className="p-1 md:p-2 w-full align-top">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            {/* First row format: fighter name - cost */}
-            <div>
-              {name}
-              {cost !== undefined && ` - ${cost === 0 ? '*' : cost}`}
+            {/* First row format: label + fighter name [loadout] */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {gangFighter?.label && (
+                <span className="inline-flex shrink-0 items-center rounded-sm bg-card px-1 text-xs font-bold font-mono uppercase border border-border">
+                  {gangFighter.label}
+                </span>
+              )}
+              <span>
+                {name}
+                {loadoutName && (
+                  <span className="text-muted-foreground"> [{loadoutName}]</span>
+                )}
+              </span>
+              {gangFighter?.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
+              {gangFighter?.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
+              {gangFighter?.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
+              {gangFighter?.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
+              {gangFighter?.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
+              {gangFighter?.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
             </div>
             {fighterDetails && (
               <div className="text-xs text-muted-foreground">{fighterDetails}</div>
@@ -671,6 +688,9 @@ function FighterRow({
             )}
           </div>
         </div>
+      </td>
+      <td className="p-1 md:p-2 text-right text-muted-foreground whitespace-nowrap align-top">
+        {cost !== undefined ? (cost === 0 ? '*' : cost) : '—'}
       </td>
       {canInteract ? (
         <td className="p-1 md:p-2 align-top">
@@ -905,6 +925,8 @@ export default function ParticipantCard({
     return gangFightersList.map((gf) => ({
       id: gf.id,
       fighter_name: gf.fighter_name,
+      label: gf.label,
+      fighter_type: gf.fighter_type,
       credits: gf.loadout_cost ?? gf.credits,
       loadout_id: gf.active_loadout_id,
       loadout_name: gf.active_loadout_name,
@@ -1439,13 +1461,14 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
+                  <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Value</th>
                   {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
                 </tr>
               </thead>
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={(canInteract || battleActive) ? 2 : 1} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={(canInteract || battleActive) ? 3 : 2} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
