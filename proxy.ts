@@ -108,6 +108,21 @@ export async function proxy(request: NextRequest) {
   // make the next sign-in land on /account). A query param can't leak across
   // requests like that.
   if (!userId) {
+    // Never redirect a prefetch request. Next.js fires speculative RSC
+    // prefetches for links in the viewport; if the optimistic auth check here
+    // misses (e.g. a transient claims read during token refresh), redirecting
+    // makes Next cache "this link -> /sign-in" and replay it when the user
+    // actually clicks — spuriously logging them out. Returning an empty 204
+    // lets the prefetch resolve to nothing; the real click then performs a
+    // fresh navigation that is auth-checked normally.
+    const isPrefetch =
+      request.headers.get('Next-Router-Prefetch') === '1' ||
+      request.headers.get('purpose') === 'prefetch' ||
+      (request.headers.get('Sec-Purpose')?.includes('prefetch') ?? false);
+    if (isPrefetch) {
+      return new NextResponse(null, { status: 204 });
+    }
+
     // Build a clean redirect path: drop common tracking params
     const cleanUrl = request.nextUrl.clone();
     const trackingParams = [
