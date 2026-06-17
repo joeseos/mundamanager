@@ -19,20 +19,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Never run the auth/session logic for speculative prefetch requests.
-  //
-  // Next.js fires RSC prefetches for in-viewport links *in parallel* with the
-  // real page request. If several of those parallel requests reach
-  // supabase.auth.getClaims() while the access token needs refreshing, they all
-  // try to rotate the *same* refresh token at once. Supabase treats the second
-  // use of an already-rotated refresh token as token reuse (a breach signal)
-  // and revokes the whole session — silently logging the user out on their next
-  // click. This is the root cause of "click a gang -> bounced to /sign-in".
-  //
-  // A prefetch is speculative, so we return an empty 204 here, BEFORE creating
-  // any Supabase client. The real navigation then performs auth and a single,
-  // serial token refresh. NB: this check must run before getClaims() — doing it
-  // afterwards is too late, the damaging refresh has already happened.
+  // Skip the auth/session logic for speculative prefetch requests. A prefetch is
+  // speculative, so there's no point running getClaims() (and a possible token
+  // refresh) for it; we return an empty 204 before creating any Supabase client
+  // and let the real navigation do the work. (The actual "click a gang ->
+  // /sign-in" bug is handled by the optimistic-RSC branch further down — these
+  // failing RSC requests are real navigations, not prefetches.)
   const isPrefetch =
     request.headers.get('Next-Router-Prefetch') === '1' ||
     request.headers.get('purpose') === 'prefetch' ||
@@ -127,17 +119,18 @@ export async function proxy(request: NextRequest) {
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
   const userId = (claimsData?.claims?.sub as string | undefined) ?? null;
 
-  // [AUTH-DIAG] TEMPORARY: capture exactly why an authenticated user can get a
-  // null claims result on a real (non-prefetch) navigation. Remove once the
-  // root cause is confirmed from Vercel function logs.
   if (!userId) {
+    const isRscRequest = request.headers.get('rsc') === '1';
     const sbCookies = request.cookies.getAll().filter((c) => c.name.startsWith('sb-'));
-    console.error('[AUTH-DIAG]', JSON.stringify({
+
+    // [AUTH-DIAG] TEMPORARY: capture exactly why getClaims() returns null. The
+    // same payload is echoed to the browser console via the `authDiag` query
+    // param on the /sign-in redirect (read in app/sign-in/page.tsx). Remove
+    // once the root cause is confirmed.
+    const diag = {
       path: pathname,
       rsc: request.headers.get('rsc'),
       nextRouterPrefetch: request.headers.get('next-router-prefetch'),
-      purpose: request.headers.get('purpose'),
-      secPurpose: request.headers.get('sec-purpose'),
       stateTreeLen: (request.headers.get('next-router-state-tree') || '').length,
       sbCookies: sbCookies.map((c) => ({ name: c.name, len: c.value.length })),
       sbCookieTotalLen: sbCookies.reduce((n, c) => n + c.value.length, 0),
@@ -149,25 +142,31 @@ export async function proxy(request: NextRequest) {
             code: (claimsError as { code?: string }).code,
           }
         : null,
-    }));
-  }
+    };
+    console.error('[AUTH-DIAG]', JSON.stringify(diag));
 
-  // For unauthenticated users accessing root, rewrite to sign-in (server-side, no redirect)
-  if (!userId && request.nextUrl.pathname === '/') {
-    const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = '/sign-in';
-    return withRefreshedCookies(response, NextResponse.rewrite(rewriteUrl));
-  }
+    // Optimistic proxy for RSC requests. On client-side (RSC) navigations the
+    // large `Next-Router-State-Tree` header can push the request past the
+    // middleware layer's header limit, dropping the chunked `sb-*-auth-token`
+    // cookie before getClaims() runs — so the proxy sees no session even though
+    // the user is logged in. The Node page function has a higher limit and reads
+    // the cookie fine, and every protected page re-checks auth itself
+    // (getAuthenticatedUser -> redirect('/sign-in')). So we do NOT 307 RSC
+    // requests (which would also get cached by the router and bounce later
+    // clicks) — we let them through and defer to the authoritative page check.
+    if (isRscRequest) {
+      return response;
+    }
 
-  // Redirect to sign-in if user is not authenticated.
-  // The intended destination travels solely in the `next` query param — i.e.
-  // in the URL the user actually lands on. We deliberately avoid a cookie
-  // fallback: a cookie is shared mutable state that background prefetch/RSC
-  // requests can pollute (e.g. a prefetch of /account after sign-out would
-  // make the next sign-in land on /account). A query param can't leak across
-  // requests like that.
-  if (!userId) {
-    // Build a clean redirect path: drop common tracking params
+    // For unauthenticated users accessing root, rewrite to sign-in (keeps URL as /)
+    if (request.nextUrl.pathname === '/') {
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = '/sign-in';
+      return withRefreshedCookies(response, NextResponse.rewrite(rewriteUrl));
+    }
+
+    // Document request: redirect to sign-in. The intended destination travels in
+    // the `next` query param (the URL the user actually lands on).
     const cleanUrl = request.nextUrl.clone();
     const trackingParams = [
       'fbclid', 'gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'
@@ -180,6 +179,7 @@ export async function proxy(request: NextRequest) {
     redirectUrl.pathname = '/sign-in';
     redirectUrl.search = '';
     redirectUrl.searchParams.set('next', redirectPath);
+    redirectUrl.searchParams.set('authDiag', JSON.stringify(diag)); // TEMPORARY
 
     return withRefreshedCookies(response, NextResponse.redirect(redirectUrl));
   }

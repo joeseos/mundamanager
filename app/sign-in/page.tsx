@@ -30,6 +30,18 @@ export default function SignIn() {
   const supabase = createClient();
   
   useEffect(() => {
+    // [AUTH-DIAG] TEMPORARY: echo the proxy's auth diagnostic to the browser
+    // console when a failed (document) navigation lands here. Remove once the
+    // root cause is confirmed.
+    const authDiag = searchParams.get('authDiag');
+    if (authDiag) {
+      try {
+        console.log('[AUTH-DIAG]', JSON.parse(authDiag));
+      } catch {
+        console.log('[AUTH-DIAG raw]', authDiag);
+      }
+    }
+
     // Check if user is already authenticated and redirect if needed
     async function checkAuth() {
       const { data } = await supabase.auth.getSession();
@@ -37,7 +49,7 @@ export default function SignIn() {
         router.push(safeInternalPath(searchParams.get('next')));
       }
     }
-    
+
     checkAuth();
     
     // Fetch stats (non-blocking, cached)
