@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
 import { createClient } from "@/utils/supabase/client";
-import { safeInternalPath } from "@/utils/safe-path";
+import { safeInternalPath } from "@/utils/utils";
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
 import { LuEye, LuEyeOff } from "react-icons/lu";

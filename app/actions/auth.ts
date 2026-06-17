@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
-import { safeInternalPath } from '@/utils/safe-path';
+import { safeInternalPath } from '@/utils/utils';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");

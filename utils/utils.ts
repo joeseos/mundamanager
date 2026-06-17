@@ -14,3 +14,14 @@ export function encodedRedirect(
 ) {
   return redirect(`${path}?${type}=${encodeURIComponent(message)}`);
 }
+
+/**
+ * Validates a user-supplied post-login redirect target to prevent open
+ * redirects. Returns the path only if it is a same-origin absolute path
+ * (starts with a single "/"), otherwise falls back to the home page.
+ */
+export function safeInternalPath(path?: string | null): string {
+  if (!path) return "/";
+  if (!path.startsWith("/") || path.startsWith("//")) return "/";
+  return path;
+}
