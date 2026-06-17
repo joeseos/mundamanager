@@ -2,12 +2,43 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims } from './utils/auth'
 
+// Carry any cookies a getClaims() refresh wrote onto `response` over to a
+// different response we're about to return (a redirect/rewrite). Per the
+// Supabase SSR docs, failing to do this lets a refreshed token get dropped,
+// desyncing browser and server and terminating the session prematurely.
+function withRefreshedCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach((cookie) => to.cookies.set(cookie));
+  return to;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip proxy for server actions - they handle their own auth
   if (request.headers.get('Next-Action')) {
     return NextResponse.next();
+  }
+
+  // Never run the auth/session logic for speculative prefetch requests.
+  //
+  // Next.js fires RSC prefetches for in-viewport links *in parallel* with the
+  // real page request. If several of those parallel requests reach
+  // supabase.auth.getClaims() while the access token needs refreshing, they all
+  // try to rotate the *same* refresh token at once. Supabase treats the second
+  // use of an already-rotated refresh token as token reuse (a breach signal)
+  // and revokes the whole session — silently logging the user out on their next
+  // click. This is the root cause of "click a gang -> bounced to /sign-in".
+  //
+  // A prefetch is speculative, so we return an empty 204 here, BEFORE creating
+  // any Supabase client. The real navigation then performs auth and a single,
+  // serial token refresh. NB: this check must run before getClaims() — doing it
+  // afterwards is too late, the damaging refresh has already happened.
+  const isPrefetch =
+    request.headers.get('Next-Router-Prefetch') === '1' ||
+    request.headers.get('purpose') === 'prefetch' ||
+    (request.headers.get('Sec-Purpose')?.includes('prefetch') ?? false);
+  if (isPrefetch) {
+    return new NextResponse(null, { status: 204 });
   }
 
   // Auth pages - check if user is already logged in and redirect away
@@ -38,7 +69,7 @@ export async function proxy(request: NextRequest) {
     const userId = await getUserIdFromClaims(supabase);
 
     if (userId) {
-      return NextResponse.redirect(new URL('/', request.url));
+      return withRefreshedCookies(response, NextResponse.redirect(new URL('/', request.url)));
     }
     return response;
   }
@@ -97,7 +128,7 @@ export async function proxy(request: NextRequest) {
   if (!userId && request.nextUrl.pathname === '/') {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = '/sign-in';
-    return NextResponse.rewrite(rewriteUrl);
+    return withRefreshedCookies(response, NextResponse.rewrite(rewriteUrl));
   }
 
   // Redirect to sign-in if user is not authenticated.
@@ -108,21 +139,6 @@ export async function proxy(request: NextRequest) {
   // make the next sign-in land on /account). A query param can't leak across
   // requests like that.
   if (!userId) {
-    // Never redirect a prefetch request. Next.js fires speculative RSC
-    // prefetches for links in the viewport; if the optimistic auth check here
-    // misses (e.g. a transient claims read during token refresh), redirecting
-    // makes Next cache "this link -> /sign-in" and replay it when the user
-    // actually clicks — spuriously logging them out. Returning an empty 204
-    // lets the prefetch resolve to nothing; the real click then performs a
-    // fresh navigation that is auth-checked normally.
-    const isPrefetch =
-      request.headers.get('Next-Router-Prefetch') === '1' ||
-      request.headers.get('purpose') === 'prefetch' ||
-      (request.headers.get('Sec-Purpose')?.includes('prefetch') ?? false);
-    if (isPrefetch) {
-      return new NextResponse(null, { status: 204 });
-    }
-
     // Build a clean redirect path: drop common tracking params
     const cleanUrl = request.nextUrl.clone();
     const trackingParams = [
@@ -137,7 +153,7 @@ export async function proxy(request: NextRequest) {
     redirectUrl.search = '';
     redirectUrl.searchParams.set('next', redirectPath);
 
-    return NextResponse.redirect(redirectUrl);
+    return withRefreshedCookies(response, NextResponse.redirect(redirectUrl));
   }
 
   return response;
