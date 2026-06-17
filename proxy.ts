@@ -39,6 +39,17 @@ function copyResponseCookies(source: NextResponse, target: NextResponse) {
   return target;
 }
 
+async function getProxyUserId(supabase: ReturnType<typeof createServerClient>) {
+  const claimsUserId = await getUserIdFromClaims(supabase);
+
+  if (claimsUserId) {
+    return claimsUserId;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -53,7 +64,7 @@ export async function proxy(request: NextRequest) {
   if (authPages.includes(pathname)) {
     const { supabase, getResponse } = createSupabaseProxyClient(request);
 
-    const userId = await getUserIdFromClaims(supabase);
+    const userId = await getProxyUserId(supabase);
 
     if (userId) {
       const redirectResponse = NextResponse.redirect(new URL('/', request.url));
@@ -91,7 +102,7 @@ export async function proxy(request: NextRequest) {
   const { supabase, getResponse } = createSupabaseProxyClient(request);
 
   // Check authentication
-  const userId = await getUserIdFromClaims(supabase);
+  const userId = await getProxyUserId(supabase);
 
   // For unauthenticated users accessing root, rewrite to sign-in (server-side, no redirect)
   if (!userId && request.nextUrl.pathname === '/') {
