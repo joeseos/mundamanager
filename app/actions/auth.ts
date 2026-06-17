@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
-import { safePath } from '@/utils/auth';
+import { safePostSignInPath } from '@/utils/auth';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -131,13 +131,15 @@ export const signInAction = async (formData: FormData) => {
 
   const cookieStore = await cookies();
   const redirectCookie = cookieStore.get('redirectPath');
+  const redirectCookieDestination = safePostSignInPath(redirectCookie?.value);
   if (redirectCookie) {
     cookieStore.delete('redirectPath');
   }
 
   revalidatePath('/', 'layout');
 
-  const destination = safePath(nextParam);
+  const destination = nextParam ? safePostSignInPath(nextParam) : redirectCookieDestination;
+
   return redirect(destination);
 };
 
@@ -240,4 +242,3 @@ export const updatePasswordAction = async (formData: FormData) => {
     return { error: "Failed to update password. Please try again." };
   }
 };
-

@@ -48,6 +48,14 @@ export function safePath(path?: string | null) {
   return path;
 }
 
+export function safePostSignInPath(path?: string | null) {
+  const safe = safePath(path);
+  if (safe === "/sign-in" || safe === "/sign-up" || safe.startsWith("/auth/")) {
+    return "/";
+  }
+  return safe;
+}
+
 export function signInPath(nextPath: string) {
   return `/sign-in?next=${encodeURIComponent(safePath(nextPath))}`;
 }
