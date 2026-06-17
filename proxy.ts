@@ -121,8 +121,36 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Check authentication
-  const userId = await getUserIdFromClaims(supabase);
+  // Check authentication.
+  // NB: call getClaims() directly (instead of getUserIdFromClaims) so the
+  // temporary diagnostics below can see the actual error, not just a boolean.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const userId = (claimsData?.claims?.sub as string | undefined) ?? null;
+
+  // [AUTH-DIAG] TEMPORARY: capture exactly why an authenticated user can get a
+  // null claims result on a real (non-prefetch) navigation. Remove once the
+  // root cause is confirmed from Vercel function logs.
+  if (!userId) {
+    const sbCookies = request.cookies.getAll().filter((c) => c.name.startsWith('sb-'));
+    console.error('[AUTH-DIAG]', JSON.stringify({
+      path: pathname,
+      rsc: request.headers.get('rsc'),
+      nextRouterPrefetch: request.headers.get('next-router-prefetch'),
+      purpose: request.headers.get('purpose'),
+      secPurpose: request.headers.get('sec-purpose'),
+      stateTreeLen: (request.headers.get('next-router-state-tree') || '').length,
+      sbCookies: sbCookies.map((c) => ({ name: c.name, len: c.value.length })),
+      sbCookieTotalLen: sbCookies.reduce((n, c) => n + c.value.length, 0),
+      claimsError: claimsError
+        ? {
+            name: (claimsError as { name?: string }).name,
+            message: (claimsError as { message?: string }).message,
+            status: (claimsError as { status?: number }).status,
+            code: (claimsError as { code?: string }).code,
+          }
+        : null,
+    }));
+  }
 
   // For unauthenticated users accessing root, rewrite to sign-in (server-side, no redirect)
   if (!userId && request.nextUrl.pathname === '/') {
