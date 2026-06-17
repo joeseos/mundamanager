@@ -122,16 +122,7 @@ export async function proxy(request: NextRequest) {
     redirectUrl.searchParams.set('next', redirectPath);
 
     const redirectResponse = NextResponse.redirect(redirectUrl);
-    copyResponseCookies(getResponse(), redirectResponse);
-
-    // Also set short-lived cookie fallback
-    redirectResponse.cookies.set('redirectPath', redirectPath, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 5 // 5 minutes
-    });
-    return redirectResponse;
+    return copyResponseCookies(getResponse(), redirectResponse);
   }
 
   return getResponse();

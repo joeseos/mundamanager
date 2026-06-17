@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { safePath } from "@/utils/auth";
+import { safePostSignInPath } from "@/utils/auth";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -30,14 +29,6 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  const cookieStore = await cookies();
-  const redirectCookie = cookieStore.get('redirectPath');
-  if (redirectCookie?.value) {
-    cookieStore.delete('redirectPath');
-    const destination = safePath(redirectCookie.value);
-    return NextResponse.redirect(`${origin}${destination}`);
-  }
-
-  // Redirect to the home page by default
-  return NextResponse.redirect(origin);
+  const destination = safePostSignInPath(requestUrl.searchParams.get("next"));
+  return NextResponse.redirect(`${origin}${destination}`);
 }
