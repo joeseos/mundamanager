@@ -1,12 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
-function safePath(p?: string) {
-  if (!p) return "/";
-  if (!p.startsWith("/") || p.startsWith("//")) return "/";
-  return p;
-}
+import { safePath } from "@/utils/auth";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);

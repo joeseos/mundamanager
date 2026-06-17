@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
+import { safePath } from '@/utils/auth';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -134,12 +135,6 @@ export const signInAction = async (formData: FormData) => {
     cookieStore.delete('redirectPath');
   }
 
-  function safePath(p?: string) {
-    if (!p) return "/";
-    if (!p.startsWith("/") || p.startsWith("//")) return "/";
-    return p;
-  }
-
   const destination = safePath(nextParam ?? redirectCookie?.value);
   return redirect(destination);
 };
@@ -206,7 +201,7 @@ export const signOutAction = async () => {
   // in Server Actions due to cookie handling limitations in Server Components
   const allCookies = cookieStore.getAll();
   allCookies.forEach(cookie => {
-    if (cookie.name.startsWith('sb-')) {
+    if (cookie.name.startsWith('sb-') || cookie.name === 'redirectPath') {
       cookieStore.delete(cookie.name);
     }
   });

@@ -9,13 +9,14 @@ import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
 import { ImInfo } from "react-icons/im";
+import { signInPath } from "@/utils/auth";
 // Using full auth user on profile to display email and timestamps
 
 export default async function AccountPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect("/sign-in");
+    redirect(signInPath("/account"));
   }
 
   // Fetch profile data

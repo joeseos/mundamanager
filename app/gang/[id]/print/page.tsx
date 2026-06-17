@@ -3,7 +3,7 @@ import { redirect, notFound, forbidden } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 import { PermissionService } from "@/app/lib/user-permissions";
-import { getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import PrintGang from "@/components/gang/print-gang";
 import type { FighterProps } from "@/types/fighter";
@@ -19,7 +19,7 @@ export default async function PrintGangPage(props: {
   try {
     user = await getAuthenticatedUser(supabase);
   } catch {
-    redirect("/sign-in");
+    redirect(signInPath(`/gang/${params.id}/print`));
   }
 
   let gangDataForClient;

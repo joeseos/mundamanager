@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
 import { PermissionService } from "@/app/lib/user-permissions";
-import { getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
   getGangBasic,
@@ -30,7 +30,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   try {
     user = await getAuthenticatedUser(supabase);
   } catch {
-    redirect("/sign-in");
+    redirect(signInPath(`/gang/${params.id}`));
   }
 
   try {
