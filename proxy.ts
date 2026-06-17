@@ -106,37 +106,56 @@ export async function proxy(request: NextRequest) {
   const userId = (claimsData?.claims?.sub as string | undefined) ?? null;
 
   if (!userId) {
-    // Detect RSC / prefetch requests by the `_rsc` query param. Next.js does NOT
-    // reliably send the `RSC` header on these (browser prefetches of a link
-    // arrive with just `?_rsc=<hash>` and, crucially, sometimes WITHOUT cookies),
-    // so the query param is the dependable signal.
-    const isRsc =
-      request.headers.get('rsc') === '1' || request.nextUrl.searchParams.has('_rsc');
+    // Treat RSC and prefetch requests as "speculative" — never redirect them.
+    // Detection covers: the `_rsc` query param and `RSC` header (client RSC
+    // fetches/prefetches), plus the browser prefetch signals `Sec-Purpose:
+    // prefetch`, `Next-Router-Prefetch`, and `purpose: prefetch` (document-level
+    // prefetches that arrive with NO `_rsc` and, crucially, sometimes WITHOUT
+    // cookies). Only genuine top-level navigations fall through to the redirect.
+    const secPurpose = request.headers.get('sec-purpose') || '';
+    const isSpeculative =
+      request.nextUrl.searchParams.has('_rsc') ||
+      request.headers.get('rsc') === '1' ||
+      secPurpose.includes('prefetch') ||
+      request.headers.get('next-router-prefetch') === '1' ||
+      request.headers.get('purpose') === 'prefetch';
 
-    // [AUTH-DIAG] TEMPORARY: log the cookie/header state on any null-claims
-    // result. Remove once the fix is confirmed in Vercel logs.
-    const sbCookies = request.cookies.getAll().filter((c) => c.name.startsWith('sb-'));
-    console.error('[AUTH-DIAG]', JSON.stringify({
+    // [AUTH-DIAG] TEMPORARY: log the FULL cookie/header state on any null-claims
+    // result — ALL cookie names (not just sb-*) + the raw Cookie header length —
+    // so we can see whether the browser sent any cookies at all on the failing
+    // request. Echoed to the browser via the `authDiag` param / `x-auth-diag`
+    // header. Remove once the fix is confirmed.
+    const allCookies = request.cookies.getAll();
+    const sbCookies = allCookies.filter((c) => c.name.startsWith('sb-'));
+    const diag = {
       path: pathname,
-      isRsc,
+      method: request.method,
+      isSpeculative,
       rscHeader: request.headers.get('rsc'),
       hasRscParam: request.nextUrl.searchParams.has('_rsc'),
-      sbCookies: sbCookies.map((c) => ({ name: c.name, len: c.value.length })),
-      sbCookieTotalLen: sbCookies.reduce((n, c) => n + c.value.length, 0),
+      secPurpose: request.headers.get('sec-purpose'),
+      cookieNames: allCookies.map((c) => c.name),
+      cookieCount: allCookies.length,
+      cookieHeaderLen: (request.headers.get('cookie') || '').length,
+      sbCount: sbCookies.length,
+      sbTotalLen: sbCookies.reduce((n, c) => n + c.value.length, 0),
       claimsError: claimsError
         ? { name: (claimsError as { name?: string }).name, message: (claimsError as { message?: string }).message }
         : null,
-    }));
+    };
+    console.error('[AUTH-DIAG]', JSON.stringify(diag));
 
     // Never return a redirect for an RSC / prefetch request. Next.js caches a
     // redirect response for the link and replays it on the user's actual click —
     // so a single cookie-less prefetch (which fails auth here) poisons the link
     // and bounces the user to /sign-in even though they're logged in. Returning
     // 204 caches nothing; Next falls back to a full document navigation on the
-    // real click, which carries cookies, so the page loads normally. Genuinely
-    // logged-out users still get redirected by the document request below.
-    if (isRsc) {
-      return new NextResponse(null, { status: 204 });
+    // real click. Genuinely logged-out users still get redirected by the
+    // document request below.
+    if (isSpeculative) {
+      const res = new NextResponse(null, { status: 204 });
+      res.headers.set('x-auth-diag', JSON.stringify(diag)); // TEMPORARY
+      return res;
     }
 
     // For unauthenticated users accessing root, rewrite to sign-in (keeps URL as /)
@@ -160,6 +179,7 @@ export async function proxy(request: NextRequest) {
     redirectUrl.pathname = '/sign-in';
     redirectUrl.search = '';
     redirectUrl.searchParams.set('next', redirectPath);
+    redirectUrl.searchParams.set('authDiag', JSON.stringify(diag)); // TEMPORARY
 
     return withRefreshedCookies(response, NextResponse.redirect(redirectUrl));
   }
