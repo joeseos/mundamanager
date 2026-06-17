@@ -2,6 +2,43 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims } from './utils/auth'
 
+function createSupabaseProxyClient(request: NextRequest) {
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  return {
+    supabase,
+    getResponse() {
+      return response;
+    },
+  };
+}
+
+function copyResponseCookies(source: NextResponse, target: NextResponse) {
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie);
+  });
+  return target;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -14,33 +51,15 @@ export async function proxy(request: NextRequest) {
   const authPages = ['/sign-in', '/sign-up'];
 
   if (authPages.includes(pathname)) {
-    let response = NextResponse.next({ request });
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-            response = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
+    const { supabase, getResponse } = createSupabaseProxyClient(request);
 
     const userId = await getUserIdFromClaims(supabase);
 
     if (userId) {
-      return NextResponse.redirect(new URL('/', request.url));
+      const redirectResponse = NextResponse.redirect(new URL('/', request.url));
+      return copyResponseCookies(getResponse(), redirectResponse);
     }
-    return response;
+    return getResponse();
   }
 
   // Public pages - accessible to everyone, no auth check
@@ -69,26 +88,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Create response and Supabase client bound to the incoming request/response (Edge-safe)
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+  const { supabase, getResponse } = createSupabaseProxyClient(request);
 
   // Check authentication
   const userId = await getUserIdFromClaims(supabase);
@@ -97,26 +97,29 @@ export async function proxy(request: NextRequest) {
   if (!userId && request.nextUrl.pathname === '/') {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = '/sign-in';
-    return NextResponse.rewrite(rewriteUrl);
+    const rewriteResponse = NextResponse.rewrite(rewriteUrl);
+    return copyResponseCookies(getResponse(), rewriteResponse);
   }
 
   // Redirect to sign-in if user is not authenticated
   if (!userId) {
     // Build a clean redirect path: drop common tracking params
     const cleanUrl = request.nextUrl.clone();
-    const trackingParams = [
-      'fbclid', 'gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'
+    const ignoredRedirectParams = [
+      '_rsc', 'fbclid', 'gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'
     ];
-    trackingParams.forEach((k) => cleanUrl.searchParams.delete(k));
+    ignoredRedirectParams.forEach((k) => cleanUrl.searchParams.delete(k));
 
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
     // Append next param to sign-in
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
+    redirectUrl.search = '';
     redirectUrl.searchParams.set('next', redirectPath);
 
     const redirectResponse = NextResponse.redirect(redirectUrl);
+    copyResponseCookies(getResponse(), redirectResponse);
 
     // Also set short-lived cookie fallback
     redirectResponse.cookies.set('redirectPath', redirectPath, {
@@ -128,7 +131,7 @@ export async function proxy(request: NextRequest) {
     return redirectResponse;
   }
 
-  return response;
+  return getResponse();
 }
 
 export const config = {
