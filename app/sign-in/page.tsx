@@ -1,7 +1,7 @@
 'use client';
 
 import { signInAction } from "@/app/actions/auth";
-import { safePath } from "@/utils/auth";
+import { safePostSignInPath } from "@/utils/auth";
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
@@ -70,12 +70,10 @@ export default function SignIn() {
 
   async function clientAction(formData: FormData) {
     const result = await signInAction(formData);
-    
-    // If we get a non-redirect result with an error, display it
+
     if (result && 'error' in result) {
       setErrorMessage(result.error);
     }
-    // No return value needed here (void)
   }
 
   return (
@@ -98,11 +96,11 @@ export default function SignIn() {
           className="flex flex-col w-full max-w-sm mx-auto text-white"
           action={clientAction}
         >
-          {/* Carry next through to server action */}
+          {/* Carry next through to the server action */}
           {(() => {
             const nextParam = searchParams.get('next');
-            const safeNext = safePath(nextParam);
-            return nextParam && safeNext === nextParam ? (
+            const safeNext = safePostSignInPath(nextParam);
+            return nextParam && safeNext === nextParam && safeNext !== '/' ? (
               <input type="hidden" name="next" value={safeNext} />
             ) : null;
           })()}

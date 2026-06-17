@@ -102,12 +102,15 @@ export async function proxy(request: NextRequest) {
   // Check authentication
   const userId = await getUserIdFromClaims(supabase);
 
-  // For unauthenticated users accessing root, rewrite to sign-in (server-side, no redirect)
+  // For unauthenticated users accessing root, redirect to the real sign-in URL.
+  // Keeping the browser at "/" while rendering sign-in can make Server Action
+  // auth redirects behave like same-path navigations and fail to persist cookies.
   if (!userId && request.nextUrl.pathname === '/') {
-    const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = '/sign-in';
-    const rewriteResponse = NextResponse.rewrite(rewriteUrl);
-    return copyResponseCookies(getResponse(), rewriteResponse);
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/sign-in';
+    redirectUrl.search = '';
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    return copyResponseCookies(getResponse(), redirectResponse);
   }
 
   // Do not cache sign-in redirects for speculative router prefetches.
