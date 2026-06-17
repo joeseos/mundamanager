@@ -1052,7 +1052,7 @@ export default function Gang({
                   className="print:hidden"
                   title="Print Options"
                 >
-                  <Link href={`/gang/${id}/print`} prefetch={false}>
+                  <Link href={`/gang/${id}/print`}>
                     <FiPrinter className="w-5 h-5" />
                   </Link>
                 </Button>
