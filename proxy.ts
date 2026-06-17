@@ -39,15 +39,6 @@ function copyResponseCookies(source: NextResponse, target: NextResponse) {
   return target;
 }
 
-function isPrefetchRequest(request: NextRequest) {
-  const purpose = request.headers.get('purpose') ?? request.headers.get('sec-purpose') ?? '';
-
-  return (
-    request.headers.get('next-router-prefetch') === '1' ||
-    purpose.toLowerCase().includes('prefetch')
-  );
-}
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -111,11 +102,6 @@ export async function proxy(request: NextRequest) {
     redirectUrl.search = '';
     const redirectResponse = NextResponse.redirect(redirectUrl);
     return copyResponseCookies(getResponse(), redirectResponse);
-  }
-
-  // Do not cache sign-in redirects for speculative router prefetches.
-  if (!userId && isPrefetchRequest(request)) {
-    return copyResponseCookies(getResponse(), new NextResponse(null, { status: 204 }));
   }
 
   // Redirect to sign-in if user is not authenticated
