@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 function safePath(p?: string) {
   if (!p) return "/";
@@ -35,14 +34,9 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  const cookieStore = await cookies();
-  const redirectCookie = cookieStore.get('redirectPath');
-  if (redirectCookie?.value) {
-    cookieStore.delete('redirectPath');
-    const destination = safePath(redirectCookie.value);
-    return NextResponse.redirect(`${origin}${destination}`);
-  }
-
-  // Redirect to the home page by default
-  return NextResponse.redirect(origin);
+  // Honour an optional `next` destination carried through the auth link
+  // (same single source of truth as the rest of the sign-in flow). Defaults
+  // to the home page.
+  const destination = safePath(requestUrl.searchParams.get("next") ?? undefined);
+  return NextResponse.redirect(`${origin}${destination}`);
 }

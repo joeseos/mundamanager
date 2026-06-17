@@ -128,20 +128,13 @@ export const signInAction = async (formData: FormData) => {
     return { error: error.message };
   }
 
-  const cookieStore = await cookies();
-  const redirectCookie = cookieStore.get('redirectPath');
-  if (redirectCookie) {
-    cookieStore.delete('redirectPath');
-  }
-
   function safePath(p?: string) {
     if (!p) return "/";
     if (!p.startsWith("/") || p.startsWith("//")) return "/";
     return p;
   }
 
-  const destination = safePath(nextParam ?? redirectCookie?.value);
-  return redirect(destination);
+  return redirect(safePath(nextParam));
 };
 
 async function verifyTurnstileToken(token: string) {
@@ -210,10 +203,6 @@ export const signOutAction = async () => {
       cookieStore.delete(cookie.name);
     }
   });
-
-  // Clear any stale post-login redirect target so the next sign-in lands on
-  // the home page instead of wherever the user happened to sign out from.
-  cookieStore.delete('redirectPath');
 
   // Revalidate the root layout to clear any cached user data
   revalidatePath('/', 'layout');

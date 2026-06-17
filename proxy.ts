@@ -100,20 +100,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(rewriteUrl);
   }
 
-  // Redirect to sign-in if user is not authenticated
+  // Redirect to sign-in if user is not authenticated.
+  // The intended destination travels solely in the `next` query param — i.e.
+  // in the URL the user actually lands on. We deliberately avoid a cookie
+  // fallback: a cookie is shared mutable state that background prefetch/RSC
+  // requests can pollute (e.g. a prefetch of /account after sign-out would
+  // make the next sign-in land on /account). A query param can't leak across
+  // requests like that.
   if (!userId) {
-    // Only real, top-level navigations should be remembered as the
-    // post-login destination. Background requests (prefetch / RSC fetches
-    // triggered by Next.js, e.g. after a sign-out revalidation) must NOT
-    // write the `redirectPath` cookie or `next` param — otherwise a
-    // prefetch of a protected route like /account would pollute the cookie
-    // and send the user there on their next sign-in.
-    const isBackgroundRequest =
-      request.headers.get('RSC') === '1' ||
-      request.headers.get('Next-Router-Prefetch') === '1' ||
-      request.headers.get('purpose') === 'prefetch' ||
-      (request.headers.get('Sec-Purpose')?.includes('prefetch') ?? false);
-
     // Build a clean redirect path: drop common tracking params
     const cleanUrl = request.nextUrl.clone();
     const trackingParams = [
@@ -123,25 +117,12 @@ export async function proxy(request: NextRequest) {
 
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
-    // Append next param to sign-in (skip for background requests)
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
-    if (!isBackgroundRequest) {
-      redirectUrl.searchParams.set('next', redirectPath);
-    }
+    redirectUrl.search = '';
+    redirectUrl.searchParams.set('next', redirectPath);
 
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-
-    // Also set short-lived cookie fallback (skip for background requests)
-    if (!isBackgroundRequest) {
-      redirectResponse.cookies.set('redirectPath', redirectPath, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 60 * 5 // 5 minutes
-      });
-    }
-    return redirectResponse;
+    return NextResponse.redirect(redirectUrl);
   }
 
   return response;
