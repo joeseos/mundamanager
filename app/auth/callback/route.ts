@@ -1,11 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-
-function safePath(p?: string) {
-  if (!p) return "/";
-  if (!p.startsWith("/") || p.startsWith("//")) return "/";
-  return p;
-}
+import { safeInternalPath } from "@/utils/safe-path";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -37,6 +32,6 @@ export async function GET(request: Request) {
   // Honour an optional `next` destination carried through the auth link
   // (same single source of truth as the rest of the sign-in flow). Defaults
   // to the home page.
-  const destination = safePath(requestUrl.searchParams.get("next") ?? undefined);
+  const destination = safeInternalPath(requestUrl.searchParams.get("next"));
   return NextResponse.redirect(`${origin}${destination}`);
 }

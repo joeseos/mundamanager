@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { invalidateUserCount } from '@/utils/cache-tags';
+import { safeInternalPath } from '@/utils/safe-path';
 
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
@@ -128,13 +129,7 @@ export const signInAction = async (formData: FormData) => {
     return { error: error.message };
   }
 
-  function safePath(p?: string) {
-    if (!p) return "/";
-    if (!p.startsWith("/") || p.startsWith("//")) return "/";
-    return p;
-  }
-
-  return redirect(safePath(nextParam));
+  return redirect(safeInternalPath(nextParam));
 };
 
 async function verifyTurnstileToken(token: string) {

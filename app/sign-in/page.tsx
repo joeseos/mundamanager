@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
 import { createClient } from "@/utils/supabase/client";
+import { safeInternalPath } from "@/utils/safe-path";
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
 import { LuEye, LuEyeOff } from "react-icons/lu";
@@ -33,9 +34,7 @@ export default function SignIn() {
     async function checkAuth() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        const nextParam = searchParams.get('next');
-        const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
-        router.push(isSafe ? nextParam! : '/');
+        router.push(safeInternalPath(searchParams.get('next')));
       }
     }
     
@@ -114,10 +113,9 @@ export default function SignIn() {
         >
           {/* Carry next through to server action */}
           {(() => {
-            const nextParam = searchParams.get('next');
-            const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
-            return isSafe ? (
-              <input type="hidden" name="next" value={nextParam!} />
+            const safeNext = safeInternalPath(searchParams.get('next'));
+            return safeNext !== '/' ? (
+              <input type="hidden" name="next" value={safeNext} />
             ) : null;
           })()}
           <h1 className="text-2xl font-medium text-white mb-2">Sign In</h1>
