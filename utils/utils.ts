@@ -17,11 +17,22 @@ export function encodedRedirect(
 
 /**
  * Validates a user-supplied post-login redirect target to prevent open
- * redirects. Returns the path only if it is a same-origin absolute path
- * (starts with a single "/"), otherwise falls back to the home page.
+ * redirects, returning a safe same-origin relative path (falling back to "/").
+ *
+ * Per OWASP guidance we parse with the URL API rather than string checks: a
+ * naive `startsWith("/")` test misses bypasses such as "/\evil.com", which
+ * browsers normalise to the protocol-relative "//evil.com". Resolving against
+ * a fixed dummy origin and requiring the result to stay on that origin rejects
+ * protocol-relative, absolute and backslash-based inputs alike.
  */
 export function safeInternalPath(path?: string | null): string {
   if (!path) return "/";
-  if (!path.startsWith("/") || path.startsWith("//")) return "/";
-  return path;
+  try {
+    const base = "http://internal.invalid";
+    const url = new URL(path, base);
+    if (url.origin !== base) return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
 }
