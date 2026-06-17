@@ -135,6 +135,8 @@ export const signInAction = async (formData: FormData) => {
     cookieStore.delete('redirectPath');
   }
 
+  revalidatePath('/', 'layout');
+
   const destination = safePath(nextParam);
   return redirect(destination);
 };
