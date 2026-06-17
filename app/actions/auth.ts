@@ -129,16 +129,9 @@ export const signInAction = async (formData: FormData) => {
     return { error: error.message };
   }
 
-  const cookieStore = await cookies();
-  const redirectCookie = cookieStore.get('redirectPath');
-  const redirectCookieDestination = safePostSignInPath(redirectCookie?.value);
-  if (redirectCookie) {
-    cookieStore.delete('redirectPath');
-  }
-
   revalidatePath('/', 'layout');
 
-  const destination = nextParam ? safePostSignInPath(nextParam) : redirectCookieDestination;
+  const destination = safePostSignInPath(nextParam);
 
   return redirect(destination);
 };
@@ -205,7 +198,7 @@ export const signOutAction = async () => {
   // in Server Actions due to cookie handling limitations in Server Components
   const allCookies = cookieStore.getAll();
   allCookies.forEach(cookie => {
-    if (cookie.name.startsWith('sb-') || cookie.name === 'redirectPath') {
+    if (cookie.name.startsWith('sb-')) {
       cookieStore.delete(cookie.name);
     }
   });
@@ -213,9 +206,7 @@ export const signOutAction = async () => {
   // Revalidate the root layout to clear any cached user data
   revalidatePath('/', 'layout');
 
-  // Redirect to root, which will be rewritten to /sign-in by middleware
-  // This keeps the URL as / instead of /sign-in
-  return redirect("/");
+  return redirect("/sign-in");
 };
 
 

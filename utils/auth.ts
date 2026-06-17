@@ -44,8 +44,14 @@ export async function checkAdmin(supabase: SupabaseClient, user?: AuthUser) {
 
 export function safePath(path?: string | null) {
   if (!path) return "/";
-  if (!path.startsWith("/") || path.startsWith("//")) return "/";
-  return path;
+  try {
+    const base = "http://internal.invalid";
+    const url = new URL(path, base);
+    if (url.origin !== base) return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
 }
 
 export function safePostSignInPath(path?: string | null) {

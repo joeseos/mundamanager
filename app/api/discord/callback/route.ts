@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserIdFromClaims } from "@/utils/auth"
+import { getUserIdFromClaims, signInPath } from "@/utils/auth"
 import { revalidateTag } from 'next/cache'
 import { CACHE_TAGS } from '@/utils/cache-tags'
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     console.log('[Discord Callback] userId:', userId)
 
     if (!userId) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return NextResponse.redirect(new URL(signInPath(`/campaigns/${campaignId}`), request.url))
     }
 
     // Verify user is owner/arbitrator of the campaign, or an app-level admin
