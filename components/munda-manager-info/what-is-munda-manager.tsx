@@ -123,16 +123,16 @@ export default function WhatIsMundaManager({ userCount, gangCount, campaignCount
         </div>
       </section>
 
-      <section className="bg-blue-50 p-4 rounded-lg">
-        <h2 className="text-lg font-semibold mb-2 text-blue-900">Ready to Get Started?</h2>
-        <p className="text-blue-800 mb-3">
-          <Link href="/sign-up" className="text-blue-900 font-semibold underline hover:text-blue-700">
+      <section className="bg-muted p-4 rounded-lg">
+        <h2 className="text-lg font-semibold mb-2 text-red-800 dark:text-red-300">Ready to Get Started?</h2>
+        <p className="text-red-800 dark:text-red-300 mb-3">
+          <Link href="/sign-up" className="text-red-400 dark:text-red-100 font-semibold underline hover:text-red-700 dark:hover:text-red-400">
             Sign up
           </Link>{" "}
           now and start managing your gangs and campaigns.
         </p>
         {(userCount !== undefined && userCount !== null || gangCount !== undefined && gangCount !== null || campaignCount !== undefined && campaignCount !== null) && (
-          <div className="text-blue-800 text-sm space-y-1">
+          <div className="text-red-800 dark:text-red-300 text-sm space-y-1">
             {userCount !== undefined && userCount !== null && (
               <p>
                 <strong>{userCount.toLocaleString()}</strong> Necromunda players use Munda Manager
