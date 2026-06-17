@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { safeInternalPath } from "@/utils/utils";
+import { safeInternalPath } from "@/utils/auth";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);

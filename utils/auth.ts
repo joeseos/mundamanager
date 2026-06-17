@@ -41,3 +41,25 @@ export async function checkAdmin(supabase: SupabaseClient, user?: AuthUser) {
     return false;
   }
 }
+
+/**
+ * Validates a user-supplied post-login redirect target to prevent open
+ * redirects, returning a safe same-origin relative path (falling back to "/").
+ *
+ * Per OWASP guidance we parse with the URL API rather than string checks: a
+ * naive `startsWith("/")` test misses bypasses such as "/\evil.com", which
+ * browsers normalise to the protocol-relative "//evil.com". Resolving against
+ * a fixed dummy origin and requiring the result to stay on that origin rejects
+ * protocol-relative, absolute and backslash-based inputs alike.
+ */
+export function safeInternalPath(path?: string | null): string {
+  if (!path) return "/";
+  try {
+    const base = "http://internal.invalid";
+    const url = new URL(path, base);
+    if (url.origin !== base) return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
+}
