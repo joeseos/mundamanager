@@ -211,6 +211,10 @@ export const signOutAction = async () => {
     }
   });
 
+  // Clear any stale post-login redirect target so the next sign-in lands on
+  // the home page instead of wherever the user happened to sign out from.
+  cookieStore.delete('redirectPath');
+
   // Revalidate the root layout to clear any cached user data
   revalidatePath('/', 'layout');
 

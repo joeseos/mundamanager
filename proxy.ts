@@ -102,6 +102,18 @@ export async function proxy(request: NextRequest) {
 
   // Redirect to sign-in if user is not authenticated
   if (!userId) {
+    // Only real, top-level navigations should be remembered as the
+    // post-login destination. Background requests (prefetch / RSC fetches
+    // triggered by Next.js, e.g. after a sign-out revalidation) must NOT
+    // write the `redirectPath` cookie or `next` param — otherwise a
+    // prefetch of a protected route like /account would pollute the cookie
+    // and send the user there on their next sign-in.
+    const isBackgroundRequest =
+      request.headers.get('RSC') === '1' ||
+      request.headers.get('Next-Router-Prefetch') === '1' ||
+      request.headers.get('purpose') === 'prefetch' ||
+      (request.headers.get('Sec-Purpose')?.includes('prefetch') ?? false);
+
     // Build a clean redirect path: drop common tracking params
     const cleanUrl = request.nextUrl.clone();
     const trackingParams = [
@@ -111,20 +123,24 @@ export async function proxy(request: NextRequest) {
 
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
-    // Append next param to sign-in
+    // Append next param to sign-in (skip for background requests)
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
-    redirectUrl.searchParams.set('next', redirectPath);
+    if (!isBackgroundRequest) {
+      redirectUrl.searchParams.set('next', redirectPath);
+    }
 
     const redirectResponse = NextResponse.redirect(redirectUrl);
 
-    // Also set short-lived cookie fallback
-    redirectResponse.cookies.set('redirectPath', redirectPath, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 5 // 5 minutes
-    });
+    // Also set short-lived cookie fallback (skip for background requests)
+    if (!isBackgroundRequest) {
+      redirectResponse.cookies.set('redirectPath', redirectPath, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 60 * 5 // 5 minutes
+      });
+    }
     return redirectResponse;
   }
 
