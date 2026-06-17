@@ -1,15 +1,15 @@
 'use client';
 
 import { signInAction } from "@/app/actions/auth";
+import { safePath } from "@/utils/auth";
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
-import { createClient } from "@/utils/supabase/client";
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
 import { LuEye, LuEyeOff } from "react-icons/lu";
@@ -25,22 +25,8 @@ export default function SignIn() {
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
   
   useEffect(() => {
-    // Check if user is already authenticated and redirect if needed
-    async function checkAuth() {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        const nextParam = searchParams.get('next');
-        const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
-        router.push(isSafe ? nextParam! : '/');
-      }
-    }
-    
-    checkAuth();
-    
     // Fetch stats (non-blocking, cached)
     async function fetchStats() {
       try {
@@ -69,7 +55,7 @@ export default function SignIn() {
     }
 
     fetchStats();
-  }, [searchParams, router, supabase.auth]);
+  }, []);
 
   // Create the appropriate message object based on searchParams
   let topMessage: Message | null = null;
@@ -115,9 +101,9 @@ export default function SignIn() {
           {/* Carry next through to server action */}
           {(() => {
             const nextParam = searchParams.get('next');
-            const isSafe = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//');
-            return isSafe ? (
-              <input type="hidden" name="next" value={nextParam!} />
+            const safeNext = safePath(nextParam);
+            return nextParam && safeNext === nextParam ? (
+              <input type="hidden" name="next" value={safeNext} />
             ) : null;
           })()}
           <h1 className="text-2xl font-medium text-white mb-2">Sign In</h1>

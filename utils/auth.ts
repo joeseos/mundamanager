@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 interface AuthUser {
   id: string;
@@ -40,4 +40,14 @@ export async function checkAdmin(supabase: SupabaseClient, user?: AuthUser) {
   } catch {
     return false;
   }
+}
+
+export function safePath(path?: string | null) {
+  if (!path) return "/";
+  if (!path.startsWith("/") || path.startsWith("//")) return "/";
+  return path;
+}
+
+export function signInPath(nextPath: string) {
+  return `/sign-in?next=${encodeURIComponent(safePath(nextPath))}`;
 }

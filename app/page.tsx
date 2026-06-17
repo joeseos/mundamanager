@@ -8,7 +8,7 @@ import { getUserGangs } from '@/app/lib/get-user-gangs';
 import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { GrHelpBook } from "react-icons/gr";
 import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
@@ -28,7 +28,7 @@ export default async function Home() {
   try {
     user = await getAuthenticatedUser(supabase);
   } catch (error) {
-    redirect("/sign-in");
+    redirect(signInPath("/"));
   }
 
   // Single invocation that gets gangs, campaigns, and customise data

@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
 import { PermissionService } from "@/app/lib/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
-import { getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 
 interface FighterPageProps {
   params: Promise<{ id: string }>;
@@ -18,7 +18,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
   try {
     user = await getAuthenticatedUser(supabase);
   } catch {
-    redirect("/sign-in");
+    redirect(signInPath(`/fighter/${id}`));
   }
 
   let pageProps;

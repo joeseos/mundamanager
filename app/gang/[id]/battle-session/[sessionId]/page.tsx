@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect, notFound } from 'next/navigation';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
@@ -8,14 +8,14 @@ import { PermissionService } from '@/app/lib/user-permissions';
 import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
 
-export async function renderBattleSessionPage(sessionId: string) {
+export async function renderBattleSessionPage(sessionId: string, currentPath: string) {
   const supabase = await createClient();
 
   let user: { id: string };
   try {
     user = await getAuthenticatedUser(supabase);
   } catch {
-    redirect('/sign-in');
+    redirect(signInPath(currentPath));
   }
 
   const session = await getBattleSessionCached(sessionId, supabase);
@@ -84,5 +84,5 @@ export default async function BattleSessionPage(props: {
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const params = await props.params;
-  return renderBattleSessionPage(params.sessionId);
+  return renderBattleSessionPage(params.sessionId, `/gang/${params.id}/battle-session/${params.sessionId}`);
 }

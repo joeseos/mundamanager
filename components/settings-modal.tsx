@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions/auth";
+import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
 import { useFetchNotifications } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
@@ -69,6 +70,8 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
 
   const handleLogout = async () => {
     setOpen(false);
+    const supabase = createClient();
+    await supabase.auth.signOut();
     await signOutAction();
   };
 
