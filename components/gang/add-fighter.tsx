@@ -1019,16 +1019,9 @@ export default function AddFighter({
 
                                 setSelectedEquipment((prev) => {
                                   const currentCategoryOptions = categoryData.options || [];
-                                  const previouslySelectedInThisCategory = selectedEquipmentIds.filter(id =>
-                                    currentCategoryOptions.some((o: any) => `${categoryId}-${o.id}` === id)
+                                  let filtered = prev.filter(item =>
+                                    !currentCategoryOptions.some((o: any) => o.id === item.equipment_id)
                                   );
-                                  let filtered = prev.filter(item => {
-                                    const wasSelectedFromThisCategory = previouslySelectedInThisCategory.some(selectedId => {
-                                      const equipmentIdFromSelected = selectedId.split('-').pop();
-                                      return equipmentIdFromSelected === item.equipment_id;
-                                    });
-                                    return !wasSelectedFromThisCategory;
-                                  });
                                   if (categoryData.select_type === 'optional_single' && categoryData.default && categoryData.default.length > 0) {
                                     categoryData.default.forEach((defaultItem: any) => {
                                       filtered = filtered.filter(item => item.equipment_id !== defaultItem.id);
@@ -1246,9 +1239,8 @@ export default function AddFighter({
       selected_archetype_id: selectedArchetypeId || undefined,
     };
 
-    // Check for editable equipment that needs effect selection
-    const allEquipment = [...selectedEquipment, ...defaultEquipment];
-    const editableEquipment = allEquipment.filter(item => item.is_editable);
+    // Check for editable equipment that needs effect selection (only user-selected, not fighter_defaults)
+    const editableEquipment = selectedEquipment.filter(item => item.is_editable);
 
     if (editableEquipment.length > 0 && fighterTypeForEquipment) {
       const queue: typeof effectSelectionQueue = [];
