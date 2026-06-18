@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { rectSortingStrategy, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
@@ -17,6 +17,54 @@ interface DraggableFightersProps {
   userPermissions?: UserPermissions;
 }
 
+const normalizeFighterPositions = (
+  positions: Record<number, string>,
+  fighters: FighterProps[]
+): Record<number, string> => {
+  const fighterIds = new Set(fighters.map(fighter => fighter.id));
+  const nextPositions = Object.entries(positions)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .reduce<Record<number, string>>((acc, [_, fighterId]) => {
+      if (fighterIds.has(fighterId)) {
+        acc[Object.keys(acc).length] = fighterId;
+      }
+      return acc;
+    }, {});
+  const positionedIds = new Set(Object.values(nextPositions));
+  const unpositionedFighters = fighters.filter(fighter => !positionedIds.has(fighter.id));
+
+  if (unpositionedFighters.length === 0) {
+    return nextPositions;
+  }
+
+  const maxPosition = Object.keys(nextPositions).length > 0
+    ? Math.max(...Object.keys(nextPositions).map(Number))
+    : -1;
+
+  unpositionedFighters.forEach((fighter, index) => {
+    nextPositions[maxPosition + index + 1] = fighter.id;
+  });
+
+  return nextPositions;
+};
+
+const positionsAreEqual = (
+  a: Record<number, string>,
+  b: Record<number, string>
+) => {
+  const aEntries = Object.entries(a);
+  const bEntries = Object.entries(b);
+
+  return aEntries.length === bEntries.length &&
+    aEntries.every(([position, fighterId]) => b[Number(position)] === fighterId);
+};
+
+const positionsSignature = (positions: Record<number, string>) =>
+  Object.entries(positions)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([position, fighterId]) => `${position}:${fighterId}`)
+    .join('|');
+
 export function DraggableFighters({ 
   fighters, 
   onPositionsUpdate,
@@ -25,32 +73,38 @@ export function DraggableFighters({
   viewMode = 'normal',
   userPermissions,
 }: DraggableFightersProps) {
-  const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(initialPositions);
+  const [currentPositions, setCurrentPositions] = useState<Record<number, string>>(() =>
+    normalizeFighterPositions(initialPositions, fighters)
+  );
+  const lastSyncedPositionsSignature = useRef(positionsSignature(initialPositions));
   const isMounted = useIsMounted();
-  
-  const [prevFighters, setPrevFighters] = useState(fighters);
-  if (fighters !== prevFighters) {
-    setPrevFighters(fighters);
-    const unpositionedFighters = fighters.filter(f =>
-      !Object.values(currentPositions).includes(f.id)
-    );
-    if (unpositionedFighters.length > 0) {
-      const maxPosition = Object.keys(currentPositions).length > 0
-        ? Math.max(...Object.keys(currentPositions).map(Number))
-        : -1;
-      const newPositions = { ...currentPositions };
-      unpositionedFighters.forEach((fighter, index) => {
-        newPositions[maxPosition + index + 1] = fighter.id;
-      });
-      setCurrentPositions(newPositions);
-      onPositionsUpdate?.(newPositions);
-    }
+  const canEdit = userPermissions?.canEdit ?? false;
+
+  const normalizedPositions = useMemo(
+    () => normalizeFighterPositions(currentPositions, fighters),
+    [currentPositions, fighters]
+  );
+  if (!positionsAreEqual(currentPositions, normalizedPositions)) {
+    setCurrentPositions(normalizedPositions);
   }
+
+  useEffect(() => {
+    const signature = positionsSignature(normalizedPositions);
+    if (canEdit && signature !== lastSyncedPositionsSignature.current) {
+      lastSyncedPositionsSignature.current = signature;
+      onPositionsUpdate?.(normalizedPositions);
+    }
+  }, [canEdit, normalizedPositions, onPositionsUpdate]);
   
-  const sortedFighters = Object.entries(currentPositions)
+  const sortedPositionedFighters = Object.entries(normalizedPositions)
     .sort(([a], [b]) => Number(a) - Number(b))
     .map(([_, id]) => fighters.find(f => f.id === id))
     .filter(Boolean) as FighterProps[]; // Filter out undefined and null values
+  const sortedPositionedIds = new Set(sortedPositionedFighters.map(fighter => fighter.id));
+  const sortedFighters = [
+    ...sortedPositionedFighters,
+    ...fighters.filter(fighter => !sortedPositionedIds.has(fighter.id))
+  ];
 
   const sensors = useDndSensorsConfig();
 
@@ -65,7 +119,7 @@ export function DraggableFighters({
       // First get the visually sorted fighters based on current positions
       const getSortedFighterIds = () => {
         // Extract position entries and sort them by position number
-        const positionEntries = Object.entries(currentPositions)
+        const positionEntries = Object.entries(normalizedPositions)
           .map(([pos, id]) => ({ pos: parseInt(pos), id }))
           .sort((a, b) => a.pos - b.pos);
         
@@ -126,6 +180,7 @@ export function DraggableFighters({
       
       // Then call the parent callbacks
       onFightersReorder?.(newFighters);
+      lastSyncedPositionsSignature.current = positionsSignature(newPositions);
       onPositionsUpdate?.(newPositions);
     } catch (error) {
       console.error('Error handling drag end:', error);
@@ -137,7 +192,7 @@ export function DraggableFighters({
     return (
       <MyFighters
         fighters={sortedFighters}
-        positions={currentPositions}
+        positions={normalizedPositions}
         viewMode={viewMode}
         userPermissions={userPermissions}
       />
@@ -145,11 +200,11 @@ export function DraggableFighters({
   }
 
   // If user doesn't have edit permissions, render without drag functionality
-  if (!userPermissions?.canEdit) {
+  if (!canEdit) {
     return (
       <MyFighters
         fighters={sortedFighters}
-        positions={currentPositions}
+        positions={normalizedPositions}
         viewMode={viewMode}
         userPermissions={userPermissions}
       />
@@ -168,7 +223,7 @@ export function DraggableFighters({
       >
         <MyFighters
           fighters={sortedFighters}
-          positions={currentPositions}
+          positions={normalizedPositions}
           viewMode={viewMode}
           userPermissions={userPermissions}
         />
