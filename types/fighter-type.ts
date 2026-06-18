@@ -1,3 +1,5 @@
+import type { FighterEffectType } from '@/types/fighter-effect';
+
 export interface EquipmentOption {
   id: string;
   cost: number;
@@ -7,6 +9,7 @@ export interface EquipmentOption {
   equipment_category?: string;
   displayCategory?: string;
   is_editable?: boolean;
+  effects?: FighterEffectType[];
 }
 
 export interface DefaultEquipment {
@@ -17,6 +20,7 @@ export interface DefaultEquipment {
   equipment_category?: string;
   cost?: number;
   is_editable?: boolean;
+  effects?: FighterEffectType[];
 }
 
 export interface WeaponsSelection {

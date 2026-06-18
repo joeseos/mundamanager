@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { FighterType, EquipmentOption, DefaultEquipment, NormalizedEquipmentSelection } from '@/types/fighter-type';
+import type { FighterEffectType } from '@/types/fighter-effect';
+import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { fighterClassRank } from "@/utils/fighterClassRank";
@@ -115,7 +117,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipme
                         equipment_type: item.equipment_type,
                         equipment_category: item.equipment_category,
                         quantity: item.quantity || 1,
-                        is_editable: item.is_editable || false
+                        is_editable: item.is_editable || false,
+                        effects: item.effects || []
                       })),
                       options: allReplacements,
                       ...(replacement_mode ? { replacement_mode } : {})
@@ -133,7 +136,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipme
                         equipment_category: item.equipment_category,
                         cost: item.cost || 0,
                         max_quantity: item.max_quantity || 1,
-                        is_editable: item.is_editable || false
+                        is_editable: item.is_editable || false,
+                        effects: item.effects || []
                       }))
                     };
                   }
@@ -164,7 +168,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipme
                           equipment_category: replacement.equipment_category,
                           cost: replacement.cost || 0,
                           max_quantity: replacement.max_quantity || 1,
-                          is_editable: replacement.is_editable || false
+                          is_editable: replacement.is_editable || false,
+                          effects: replacement.effects || []
                         });
                       }
                     });
@@ -182,7 +187,9 @@ function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipme
                     equipment_name: item.equipment_name,
                     equipment_type: item.equipment_type,
                     equipment_category: item.equipment_category,
-                    quantity: item.quantity || 1
+                    quantity: item.quantity || 1,
+                    is_editable: item.is_editable || false,
+                    effects: item.effects || []
                   })),
                   options: allReplacements,
                   ...(replacement_mode ? { replacement_mode } : {})
@@ -200,7 +207,8 @@ function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipme
                         equipment_category: item.equipment_category,
                         cost: item.cost || 0,
                         max_quantity: item.max_quantity || 1,
-                        is_editable: item.is_editable || false
+                        is_editable: item.is_editable || false,
+                        effects: item.effects || []
                       }))
                 };
               }
@@ -250,7 +258,21 @@ export default function AddFighter({
     cost: number;
     quantity: number;
     is_editable?: boolean;
+    effect_ids?: string[];
   }>>([]);
+
+  // Effect selection state for editable equipment
+  const [showEffectSelection, setShowEffectSelection] = useState(false);
+  const [effectSelectionQueue, setEffectSelectionQueue] = useState<Array<{
+    equipment_id: string;
+    equipment_name: string;
+    effectTypes: FighterEffectType[];
+  }>>([]);
+  const [currentEffectSelectionIndex, setCurrentEffectSelectionIndex] = useState(0);
+  const [collectedEffectSelections, setCollectedEffectSelections] = useState<Map<string, string[]>>(new Map());
+  const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
+  const [pendingMutationParams, setPendingMutationParams] = useState<any>(null);
+  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
 
   const { data: fighterTypes = [] } = useQuery<FighterType[]>({
     queryKey: ['fighter-types', gangId, gangTypeId, customGangTypeId, includeCustomFighters, includeAllFighterTypes, gangAffiliationId, JSON.stringify(gangVariants)],
@@ -428,7 +450,7 @@ export default function AddFighter({
       gang_id: string;
       cost: number;
       selected_equipment: typeof selectedEquipment;
-      default_equipment: Array<{ equipment_id: string; cost: number; quantity: number; is_editable?: boolean }>;
+      default_equipment: Array<{ equipment_id: string; cost: number; quantity: number; is_editable?: boolean; effect_ids?: string[] }>;
       use_base_cost_for_rating: boolean;
       fighter_gang_legacy_id?: string;
       selected_archetype_id?: string;
@@ -1145,6 +1167,49 @@ export default function AddFighter({
     }
   }
 
+  const fireMutation = useCallback((mutationParams: any) => {
+    addFighterMutation.mutate(mutationParams);
+  }, [addFighterMutation]);
+
+  const handleEffectSelectionComplete = useCallback((selectedEffectIds: string[]) => {
+    const currentItem = effectSelectionQueue[currentEffectSelectionIndex];
+    const newSelections = new Map(collectedEffectSelections);
+    newSelections.set(currentItem.equipment_id, selectedEffectIds);
+    setCollectedEffectSelections(newSelections);
+
+    if (currentEffectSelectionIndex < effectSelectionQueue.length - 1) {
+      setCurrentEffectSelectionIndex(prev => prev + 1);
+      setIsEffectSelectionValid(false);
+    } else {
+      // All selections done — attach effect_ids to mutation params and fire
+      const params = { ...pendingMutationParams };
+      params.selected_equipment = params.selected_equipment.map((item: any) => {
+        const effectIds = newSelections.get(item.equipment_id);
+        return effectIds ? { ...item, effect_ids: effectIds } : item;
+      });
+      params.default_equipment = params.default_equipment.map((item: any) => {
+        const effectIds = newSelections.get(item.equipment_id);
+        return effectIds ? { ...item, effect_ids: effectIds } : item;
+      });
+
+      setShowEffectSelection(false);
+      setEffectSelectionQueue([]);
+      setCurrentEffectSelectionIndex(0);
+      setCollectedEffectSelections(new Map());
+      setPendingMutationParams(null);
+      fireMutation(params);
+    }
+  }, [effectSelectionQueue, currentEffectSelectionIndex, collectedEffectSelections, pendingMutationParams, fireMutation]);
+
+  const handleEffectSelectionCancel = useCallback(() => {
+    setShowEffectSelection(false);
+    setEffectSelectionQueue([]);
+    setCurrentEffectSelectionIndex(0);
+    setCollectedEffectSelections(new Map());
+    setIsEffectSelectionValid(false);
+    setPendingMutationParams(null);
+  }, []);
+
   const handleAddFighter = async () => {
     // Validation before mutation fires
     if (!fighterName || !fighterCost) {
@@ -1178,8 +1243,7 @@ export default function AddFighter({
       is_editable: item.is_editable || false
     })) || [];
 
-    // Trigger mutation (optimistic update happens in onMutate)
-    addFighterMutation.mutate({
+    const mutationParams = {
       fighter_name: fighterName,
       fighter_type_id: fighterTypeIdToUse,
       gang_id: gangId,
@@ -1189,9 +1253,81 @@ export default function AddFighter({
       use_base_cost_for_rating: useBaseCostForRating,
       fighter_gang_legacy_id: selectedLegacyId || undefined,
       selected_archetype_id: selectedArchetypeId || undefined,
-    });
+    };
 
+    // Check for editable equipment that needs effect selection
+    const allEquipment = [...selectedEquipment, ...defaultEquipment];
+    const editableEquipment = allEquipment.filter(item => item.is_editable);
+
+    if (editableEquipment.length > 0 && fighterTypeForEquipment) {
+      const queue: typeof effectSelectionQueue = [];
+      const seenEquipmentIds = new Set<string>();
+
+      for (const item of editableEquipment) {
+        if (seenEquipmentIds.has(item.equipment_id)) continue;
+        seenEquipmentIds.add(item.equipment_id);
+
+        const sourceItem = findEquipmentInFighterType(fighterTypeForEquipment, item.equipment_id);
+        const effects = (sourceItem?.effects || []).filter(e => !e.type_specific_data?.is_editable);
+        if (effects.length === 0) continue;
+
+        const hasSelectableEffects = effects.some(e =>
+          e.type_specific_data?.effect_selection === 'single_select' ||
+          e.type_specific_data?.effect_selection === 'multiple_select'
+        );
+
+        if (hasSelectableEffects) {
+          queue.push({
+            equipment_id: item.equipment_id,
+            equipment_name: sourceItem?.equipment_name || 'Equipment',
+            effectTypes: effects,
+          });
+        } else {
+          const fixedIds = effects
+            .filter(e => e.type_specific_data?.effect_selection === 'fixed' || !e.type_specific_data?.effect_selection)
+            .map(e => e.id);
+          if (fixedIds.length > 0) {
+            mutationParams.selected_equipment = mutationParams.selected_equipment.map(se =>
+              se.equipment_id === item.equipment_id ? { ...se, effect_ids: fixedIds } : se
+            );
+            mutationParams.default_equipment = mutationParams.default_equipment.map(de =>
+              de.equipment_id === item.equipment_id ? { ...de, effect_ids: fixedIds } : de
+            );
+          }
+        }
+      }
+
+      if (queue.length > 0) {
+        setEffectSelectionQueue(queue);
+        setCurrentEffectSelectionIndex(0);
+        setCollectedEffectSelections(new Map());
+        setIsEffectSelectionValid(false);
+        setPendingMutationParams(mutationParams);
+        setShowEffectSelection(true);
+        return false;
+      }
+    }
+
+    // No effect selection needed — fire mutation directly
+    addFighterMutation.mutate(mutationParams);
     return true;
+  };
+
+  const findEquipmentInFighterType = (fighterType: FighterType, equipmentId: string): { equipment_name?: string; effects?: FighterEffectType[] } | null => {
+    const defaultItem = fighterType.default_equipment?.find((item: any) => item.id === equipmentId);
+    if (defaultItem) return defaultItem;
+
+    if (fighterType.equipment_selection) {
+      const normalized = normalizeEquipmentSelection(fighterType.equipment_selection);
+      for (const categoryData of Object.values(normalized)) {
+        if (!categoryData) continue;
+        const option = categoryData.options?.find(o => o.id === equipmentId);
+        if (option) return option;
+        const def = categoryData.default?.find((d: any) => d.id === equipmentId);
+        if (def) return def as any;
+      }
+    }
+    return null;
   };
 
   const closeModal = () => {
@@ -1209,6 +1345,12 @@ export default function AddFighter({
     setIncludeCustomFighters(false); // Reset custom fighters checkbox
     setIncludeAllFighterTypes(false); // Reset all fighter types checkbox
     setFetchError(null);
+    setShowEffectSelection(false);
+    setEffectSelectionQueue([]);
+    setCurrentEffectSelectionIndex(0);
+    setCollectedEffectSelections(new Map());
+    setIsEffectSelectionValid(false);
+    setPendingMutationParams(null);
   };
 
   const addFighterModalContent = (
@@ -1662,6 +1804,35 @@ export default function AddFighter({
     </div>
   );
 
+  if (showEffectSelection && effectSelectionQueue.length > 0) {
+    const currentItem = effectSelectionQueue[currentEffectSelectionIndex];
+    return (
+      <Modal
+        title={`Select Effects: ${currentItem.equipment_name}`}
+        helper={effectSelectionQueue.length > 1
+          ? `Step ${currentEffectSelectionIndex + 1} of ${effectSelectionQueue.length}`
+          : undefined}
+        content={
+          <FighterEffectSelection
+            ref={effectSelectionRef}
+            equipmentId={currentItem.equipment_id}
+            effectTypes={currentItem.effectTypes}
+            onSelectionComplete={handleEffectSelectionComplete}
+            onCancel={handleEffectSelectionCancel}
+            onValidityChange={(valid) => setIsEffectSelectionValid(valid)}
+          />
+        }
+        onClose={handleEffectSelectionCancel}
+        onConfirm={async () => {
+          const result = await effectSelectionRef.current?.handleConfirm();
+          return result || false;
+        }}
+        confirmText={currentEffectSelectionIndex < effectSelectionQueue.length - 1 ? 'Next' : 'Add Fighter'}
+        confirmDisabled={!isEffectSelectionValid}
+      />
+    );
+  }
+
   return (
     <Modal
       title="Add Fighter"
@@ -1677,7 +1848,7 @@ export default function AddFighter({
       onClose={closeModal}
       onConfirm={handleAddFighter}
       confirmText="Add Fighter"
-      confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost || 
+      confirmDisabled={!selectedFighterTypeId || !fighterName || !fighterCost ||
         (availableSubTypes.length > 0 && !selectedSubTypeId)}
     />
   );

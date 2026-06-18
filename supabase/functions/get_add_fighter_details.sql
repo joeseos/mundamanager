@@ -1,3 +1,39 @@
+-- Helper function: returns effects JSONB for a given equipment ID
+CREATE OR REPLACE FUNCTION get_equipment_effects_jsonb(p_equipment_id uuid)
+RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT COALESCE(
+        jsonb_agg(
+            jsonb_build_object(
+                'id', eft.id,
+                'effect_name', eft.effect_name,
+                'fighter_effect_category_id', eft.fighter_effect_category_id,
+                'type_specific_data', eft.type_specific_data,
+                'sort_order', eft.sort_order,
+                'fighter_effect_categories', CASE
+                    WHEN efc.id IS NOT NULL THEN jsonb_build_object('id', efc.id, 'category_name', efc.category_name)
+                    ELSE NULL
+                END,
+                'modifiers', COALESCE((
+                    SELECT jsonb_agg(jsonb_build_object(
+                        'id', efm.id,
+                        'fighter_effect_type_id', efm.fighter_effect_type_id,
+                        'stat_name', efm.stat_name,
+                        'default_numeric_value', efm.default_numeric_value,
+                        'operation', efm.operation
+                    ))
+                    FROM fighter_effect_type_modifiers efm
+                    WHERE efm.fighter_effect_type_id = eft.id
+                ), '[]'::jsonb)
+            )
+        ),
+        '[]'::jsonb
+    )
+    FROM fighter_effect_types eft
+    LEFT JOIN fighter_effect_categories efc ON efc.id = eft.fighter_effect_category_id
+    WHERE (eft.type_specific_data->>'equipment_id')::uuid = p_equipment_id;
+$$;
+
 -- Drop the function if it already exists
 DROP FUNCTION IF EXISTS get_add_fighter_details(uuid);
 DROP FUNCTION IF EXISTS get_add_fighter_details(uuid, uuid);
@@ -71,7 +107,8 @@ BEGIN
                         'equipment_category', e.equipment_category,
                         'cost', 0,  -- Always show 0 for default equipment
                         'availability', e.availability,
-                        'is_editable', COALESCE(e.is_editable, false)
+                        'is_editable', COALESCE(e.is_editable, false),
+                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END
                     )
                 )
                 FROM fighter_defaults fd
@@ -104,6 +141,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -146,6 +184,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -195,6 +234,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -237,6 +277,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -288,6 +329,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -330,6 +372,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -379,6 +422,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -421,6 +465,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -472,6 +517,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -514,6 +560,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (
@@ -563,6 +610,7 @@ BEGIN
                                                             'quantity', (item_data->>'quantity')::integer,
                                                             'is_default', (item_data->>'is_default')::boolean,
                                                             'is_editable', COALESCE(e.is_editable, false),
+                                                            'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                             'replacement_mode', item_data->>'replacement_mode',
                                                             'replacements', COALESCE(
                                                                 (
@@ -605,6 +653,7 @@ BEGIN
                                                         'quantity', (item_data->>'quantity')::integer,
                                                         'is_default', (item_data->>'is_default')::boolean,
                                                         'is_editable', COALESCE(e.is_editable, false),
+                                                        'effects', CASE WHEN COALESCE(e.is_editable, false) THEN get_equipment_effects_jsonb(e.id) ELSE '[]'::jsonb END,
                                                         'replacement_mode', item_data->>'replacement_mode',
                                                         'replacements', COALESCE(
                                                             (

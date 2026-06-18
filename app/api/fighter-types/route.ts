@@ -109,7 +109,8 @@ export async function GET(request: Request) {
           available_legacies: [],
           is_custom_fighter: true,
           free_skill: cf.free_skill || false,
-          delegation_cost: cf.delegation_cost ?? null
+          delegation_cost: cf.delegation_cost ?? null,
+
         }));
 
       return NextResponse.json(data);
@@ -324,7 +325,8 @@ export async function GET(request: Request) {
             available_legacies: [],
             is_custom_fighter: true, // Mark as custom fighter
             free_skill: cf.free_skill || false,
-            delegation_cost: cf.delegation_cost ?? null
+            delegation_cost: cf.delegation_cost ?? null,
+  
           }));
 
         // Add custom fighters to the data

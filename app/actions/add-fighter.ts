@@ -816,12 +816,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       }
                     });
 
-                    // Filter to ONLY auto-apply fixed effects (exclude editable effects that user adds later)
+                    // Filter to ONLY auto-apply fixed effects (exclude selectable and editable-after-purchase effects)
                     const fixedEffectsByEquipment = new Map<string, any[]>();
                     Array.from(effectsByEquipment.entries()).forEach(([equipmentId, effects]) => {
                       const fixedEffects = effects.filter((et: any) => {
-                        // Only exclude effects marked as editable (user adds these via edit modal after purchase)
-                        return et?.type_specific_data?.is_editable !== true;
+                        if (et?.type_specific_data?.is_editable === true) return false;
+                        const selection = et?.type_specific_data?.effect_selection;
+                        if (selection === 'single_select' || selection === 'multiple_select') return false;
+                        return true;
                       });
 
                       if (fixedEffects.length > 0) {
@@ -856,6 +858,49 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                   }
                 } catch (batchError) {
                   console.error('Error in batch effect processing:', batchError);
+                }
+              }
+
+              // Apply user-selected editable effects from effect_ids
+              const allEquipmentWithEffectIds = [
+                ...(params.selected_equipment || []),
+                ...(params.default_equipment || [])
+              ].filter(item => item.effect_ids && item.effect_ids.length > 0);
+
+              if (allEquipmentWithEffectIds.length > 0) {
+                for (const equipItem of allEquipmentWithEffectIds) {
+                  const matchingInserted = insertedEquipment.filter(
+                    (ie: any) => ie.equipment_id === equipItem.equipment_id
+                  );
+                  if (matchingInserted.length === 0 || !equipItem.effect_ids) continue;
+
+                  const { data: selectedEffectTypes } = await supabase
+                    .from('fighter_effect_types')
+                    .select(`
+                      id, effect_name, fighter_effect_category_id, type_specific_data, sort_order,
+                      fighter_effect_categories (id, category_name),
+                      fighter_effect_type_modifiers (stat_name, default_numeric_value, operation)
+                    `)
+                    .in('id', equipItem.effect_ids);
+
+                  if (selectedEffectTypes && selectedEffectTypes.length > 0) {
+                    for (const matchedEquip of matchingInserted) {
+                      try {
+                        const effectsResult = await applyEffectsForEquipmentOptimized(
+                          supabase,
+                          selectedEffectTypes,
+                          matchedEquip.id,
+                          fighterId,
+                          effectiveUserId,
+                          false
+                        );
+                        allAppliedEffects.push(...effectsResult.appliedEffects);
+                        totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
+                      } catch (effectError) {
+                        console.error('Error applying user-selected effects for equipment:', equipItem.equipment_id, effectError);
+                      }
+                    }
+                  }
                 }
               }
 
