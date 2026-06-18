@@ -1,4 +1,5 @@
 import React from 'react';
+import { GangViewMode, isFullSizeGangViewMode } from '@/components/gang/ViewModeDropdown';
 
 // Add these types at the top of the file
 type CrewStats = {
@@ -62,7 +63,7 @@ export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement
 interface StatsTableProps {
   data?: StatsType;
   isCrew?: boolean;
-  viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  viewMode?: GangViewMode;
 }
 
 // Add a type for valid stat keys
@@ -73,8 +74,9 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
     return <p>No characteristics available</p>;
   }
 
-  // viewMode
-  const pClass = viewMode === 'normal' ? 'p-1' : 'p-px';
+  const isFullSizeView = isFullSizeGangViewMode(viewMode);
+  const isNormalView = viewMode === 'normal';
+  const pClass = isNormalView ? 'p-1' : 'p-px';
 
   // Define the order of stats based on fighter type
   const statOrder = isCrew
@@ -141,10 +143,10 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
 
   return (
     <div className="w-full">
-      <table className={`w-full text-[11px] border-collapse print:text-[13px] ${viewMode === 'normal' ? 'sm:text-sm' : ''} ${isCrew && viewMode === 'normal' ? '-mt-3' : ''}`}>
+      <table className={`w-full text-[11px] border-collapse print:text-[13px] ${isNormalView ? 'sm:text-sm' : ''} ${isCrew && isNormalView ? '-mt-3' : ''}`}>
         <thead>
           {/* Conditionally Render Toughness Header Row */}
-          {isCrew && viewMode === 'normal' && (
+          {isCrew && isFullSizeView && (
             <tr>
               <th colSpan={1}></th>{/* Empty column before Toughness */}
               <th colSpan={3} className="text-[11px] sm:text-xs font-semibold text-center print:hidden">
@@ -170,14 +172,14 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
                 {columnRenameMap[key] ? (
                   <>
                     {/* Full label: only if normal view and not small screen */}
-                    {viewMode === 'normal' && (
+                    {isFullSizeView && (
                       <span className="hidden sm:inline">{columnRenameMap[key].full}</span>
                     )}
                     {/* Short label: if not normal view, or on small screen */}
-                    {(viewMode !== 'normal') && (
+                    {!isFullSizeView && (
                       <span>{columnRenameMap[key].short}</span>
                     )}
-                    {viewMode === 'normal' && (
+                    {isFullSizeView && (
                       <span className="sm:hidden">{columnRenameMap[key].short}</span>
                     )}
                   </>

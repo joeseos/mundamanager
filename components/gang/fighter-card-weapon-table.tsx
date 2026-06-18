@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import { Weapon, WeaponProfile } from '@/types/equipment';
+import { GangViewMode } from '@/components/gang/ViewModeDropdown';
 
 interface WeaponTableProps {
   weapons: Weapon[];
   entity?: 'crew' | 'vehicle';
-  viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  viewMode?: GangViewMode;
 }
 
 const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) => {
@@ -47,7 +48,15 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
     return <p>No weapons available.</p>;
   }
 
-  const pClass = viewMode === 'normal' ? 'p-1' : 'p-px';
+  const isNormalView = viewMode === 'normal';
+  const pClass = isNormalView ? 'p-1' : 'p-px';
+
+  const rngAccHeaderSizeClass =
+    viewMode === 'print'
+      ? 'text-[8px]'
+      : viewMode === '4-card'
+        ? 'text-[9px] print:text-[8px]'
+        : 'print:text-[8px]';
 
   const formatStrength = (strength: string | number | null | undefined) => {
     if (strength === null || strength === undefined) return '-';
@@ -176,8 +185,8 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode }) 
             <th className={`${pClass} text-left align-bottom`} rowSpan={2}>
               {entity === 'vehicle' ? 'Vehicle Weapon' : entity === 'crew' ? 'Crew Weapon' : 'Weapon'}
             </th>
-            <th className={`${pClass} text-center print:text-[8px] ${viewMode === 'small' ? 'text-[9px]' : ''}`} colSpan={2}>Rng</th>
-            <th className={`${pClass} text-center print:text-[8px] ${viewMode === 'small' ? 'text-[9px]' : ''}`} colSpan={2}>Acc</th>
+            <th className={`${pClass} text-center ${rngAccHeaderSizeClass}`} colSpan={2}>Rng</th>
+            <th className={`${pClass} text-center ${rngAccHeaderSizeClass}`} colSpan={2}>Acc</th>
             <th className={`${pClass} text-center`} colSpan={5}></th>
           </tr>
           <tr>

@@ -20,7 +20,7 @@ import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import LogModal from '../log-modal';
-import { ViewModeDropdown } from './ViewModeDropdown';
+import { ViewModeDropdown, isGangViewMode, type GangPageViewMode } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
@@ -221,14 +221,14 @@ export default function Gang({
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
-  const [viewMode, setViewMode] = useState<'normal' | 'small' | 'medium' | 'large'>('normal');
+  const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
   const isFirstRender = useRef(true);
 
   const [viewModeLoaded, setViewModeLoaded] = useState(false);
   if (!viewModeLoaded && typeof window !== 'undefined') {
     setViewModeLoaded(true);
-    const savedViewMode = localStorage.getItem('gang_view_mode') as 'normal' | 'small' | 'medium' | 'large';
-    if (savedViewMode) {
+    const savedViewMode = localStorage.getItem('gang_view_mode');
+    if (isGangViewMode(savedViewMode)) {
       setViewMode(savedViewMode);
     }
   }
@@ -1434,7 +1434,7 @@ export default function Gang({
           </div>
         </div>
       </div>
-      <div className={`print:visible ${viewMode !== 'normal' ? 'w-full flex flex-wrap gap-2 justify-center items-start px-0 print:gap-0' : ''}`}>
+      <div className={`print:visible ${viewMode !== 'normal' ? 'w-full' : ''}`}>
         {visibleFighters.length > 0 ? (
           <DraggableFighters
             fighters={visibleFighters}
