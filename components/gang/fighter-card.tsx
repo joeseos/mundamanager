@@ -173,14 +173,14 @@ const FighterCard = memo(function FighterCard({
   const isCrew = fighter_class === 'Crew';
   const isLoading = id.startsWith('temp-');
 
-  const isNormalView = viewMode === 'normal';
+  const isNormalView = viewMode === 'normal' || viewMode === undefined;
   const isPrintView = viewMode === 'print';
-  const isCompactView = isCompactGangViewMode(viewMode);
+  const isCompactView = viewMode !== undefined && isCompactGangViewMode(viewMode);
   const isTightLayoutView = isPrintView || isCompactView;
 
   const detailValueClass = `min-w-0 text-sm break-words${isPrintView ? ' [overflow-wrap:anywhere]' : ''}`;
   const detailNoteClass = `${detailValueClass} prose prose-sm max-w-none`;
-  const detailsGridClass = `grid gap-y-2 mt-3 print:gap-y-0 print:mt-1 ${viewMode === '4-card' ? 'gap-y-[2px]' : ''} ${
+  const detailsGridClass = `grid mt-3 print:gap-y-0 print:mt-1 ${viewMode === '4-card' ? 'gap-y-[2px]' : 'gap-y-2'} ${
     isMultiline ? 'grid-cols-[4.5rem_minmax(0,1fr)]' : 'grid-cols-[6rem_minmax(0,1fr)]'
   }`;
 
