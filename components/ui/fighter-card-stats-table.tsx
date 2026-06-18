@@ -75,6 +75,7 @@ export function StatsTable({ data, isCrew, viewMode }: StatsTableProps) {
   }
 
   const isFullSizeView = isFullSizeGangViewMode(viewMode);
+  // Page view only — print and grid modes use tighter cell padding (p-px)
   const isNormalView = viewMode === 'normal';
   const pClass = isNormalView ? 'p-1' : 'p-px';
 

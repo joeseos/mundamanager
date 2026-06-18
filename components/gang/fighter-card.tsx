@@ -17,6 +17,13 @@ import { useViewportWidth } from '@/hooks/use-viewport-width';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
 
+const COMPACT_SCALE_PERCENT = {
+  '4-card': 32,
+  '3-card': 42,
+  '2-card': 65,
+} as const;
+// At this viewport width, scale equals the mode percent (e.g. 2-card → 0.65)
+const COMPACT_DESIGN_WIDTH = 800;
 
 interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_type' | 'vehicles' | 'skills' | 'effects'> {
   name: string;  // maps to fighter_name
@@ -181,14 +188,6 @@ const FighterCard = memo(function FighterCard({
   const cardAspectRatio = 'aspect-[1.448/1]';
   const compactCardSize = `w-full min-w-0 ${cardAspectRatio}`;
   const printCardSize = 'w-[630px] h-[435px] shrink-0';
-
-  const COMPACT_SCALE_PERCENT = {
-    '4-card': 32,
-    '3-card': 42,
-    '2-card': 65,
-  } as const;
-  // At this viewport width, scale equals the mode percent (e.g. 2-card → 0.65)
-  const COMPACT_DESIGN_WIDTH = 800;
 
   const viewportWidth = useViewportWidth();
 
@@ -461,7 +460,7 @@ const FighterCard = memo(function FighterCard({
     router.push(`/fighter/${id}`);
   }, [id, router, isLoading]);
 
-  const cardClassName = `relative rounded-lg overflow-hidden shadow-md ${isNormalView ? '[@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02]' : ''} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
+  const cardClassName = `relative rounded-lg overflow-hidden shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
@@ -844,9 +843,6 @@ const FighterCard = memo(function FighterCard({
       {menuTrigger}
     </div>
   );
-  // This check is needed to prevent the card from being clickable when it's being dragged
-  // Using <a> + onClick instead of <Link> to avoid prefetching on page load and hover
-  const clickableContent = cardContent;
 
   return (
     <FighterCardActionMenu
@@ -857,7 +853,7 @@ const FighterCard = memo(function FighterCard({
       isSpyrer={is_spyrer}
       disableLink={disableLink || isDragging}
     >
-      {clickableContent}
+      {cardContent}
     </FighterCardActionMenu>
   );
 });
