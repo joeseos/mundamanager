@@ -1167,9 +1167,14 @@ export default function AddFighter({
     }
   }
 
-  const fireMutation = useCallback((mutationParams: any) => {
-    addFighterMutation.mutate(mutationParams);
-  }, [addFighterMutation]);
+  const resetEffectSelectionState = useCallback(() => {
+    setShowEffectSelection(false);
+    setEffectSelectionQueue([]);
+    setCurrentEffectSelectionIndex(0);
+    setCollectedEffectSelections(new Map());
+    setIsEffectSelectionValid(false);
+    setPendingMutationParams(null);
+  }, []);
 
   const handleEffectSelectionComplete = useCallback((selectedEffectIds: string[]) => {
     const currentItem = effectSelectionQueue[currentEffectSelectionIndex];
@@ -1181,7 +1186,6 @@ export default function AddFighter({
       setCurrentEffectSelectionIndex(prev => prev + 1);
       setIsEffectSelectionValid(false);
     } else {
-      // All selections done — attach effect_ids to mutation params and fire
       const params = { ...pendingMutationParams };
       params.selected_equipment = params.selected_equipment.map((item: any) => {
         const effectIds = newSelections.get(item.equipment_id);
@@ -1192,23 +1196,10 @@ export default function AddFighter({
         return effectIds ? { ...item, effect_ids: effectIds } : item;
       });
 
-      setShowEffectSelection(false);
-      setEffectSelectionQueue([]);
-      setCurrentEffectSelectionIndex(0);
-      setCollectedEffectSelections(new Map());
-      setPendingMutationParams(null);
-      fireMutation(params);
+      resetEffectSelectionState();
+      addFighterMutation.mutate(params);
     }
-  }, [effectSelectionQueue, currentEffectSelectionIndex, collectedEffectSelections, pendingMutationParams, fireMutation]);
-
-  const handleEffectSelectionCancel = useCallback(() => {
-    setShowEffectSelection(false);
-    setEffectSelectionQueue([]);
-    setCurrentEffectSelectionIndex(0);
-    setCollectedEffectSelections(new Map());
-    setIsEffectSelectionValid(false);
-    setPendingMutationParams(null);
-  }, []);
+  }, [effectSelectionQueue, currentEffectSelectionIndex, collectedEffectSelections, pendingMutationParams, resetEffectSelectionState, addFighterMutation]);
 
   const handleAddFighter = async () => {
     // Validation before mutation fires
@@ -1345,12 +1336,7 @@ export default function AddFighter({
     setIncludeCustomFighters(false); // Reset custom fighters checkbox
     setIncludeAllFighterTypes(false); // Reset all fighter types checkbox
     setFetchError(null);
-    setShowEffectSelection(false);
-    setEffectSelectionQueue([]);
-    setCurrentEffectSelectionIndex(0);
-    setCollectedEffectSelections(new Map());
-    setIsEffectSelectionValid(false);
-    setPendingMutationParams(null);
+    resetEffectSelectionState();
   };
 
   const addFighterModalContent = (
@@ -1818,11 +1804,11 @@ export default function AddFighter({
             equipmentId={currentItem.equipment_id}
             effectTypes={currentItem.effectTypes}
             onSelectionComplete={handleEffectSelectionComplete}
-            onCancel={handleEffectSelectionCancel}
+            onCancel={resetEffectSelectionState}
             onValidityChange={(valid) => setIsEffectSelectionValid(valid)}
           />
         }
-        onClose={handleEffectSelectionCancel}
+        onClose={resetEffectSelectionState}
         onConfirm={async () => {
           const result = await effectSelectionRef.current?.handleConfirm();
           return result || false;
