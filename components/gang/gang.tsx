@@ -20,7 +20,7 @@ import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import LogModal from '../log-modal';
-import { ViewModeDropdown, isGangViewMode, type GangPageViewMode } from './ViewModeDropdown';
+import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
 import GangEditModal from './gang-edit-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
@@ -228,7 +228,7 @@ export default function Gang({
   if (!viewModeLoaded && typeof window !== 'undefined') {
     setViewModeLoaded(true);
     const savedViewMode = localStorage.getItem('gang_view_mode');
-    if (isGangViewMode(savedViewMode)) {
+    if (isGangPageViewMode(savedViewMode)) {
       setViewMode(savedViewMode);
     }
   }

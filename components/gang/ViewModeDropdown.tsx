@@ -8,7 +8,7 @@ export type GangViewMode = GangPageViewMode | 'print';
 
 export const PRINT_GANG_VIEW_MODE = 'print' as const;
 
-export function isGangViewMode(value: string | null): value is GangPageViewMode {
+export function isGangPageViewMode(value: string | null): value is GangPageViewMode {
   return value !== null && (GANG_PAGE_VIEW_MODES as readonly string[]).includes(value);
 }
 
