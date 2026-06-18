@@ -2,7 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  allowedDevOrigins: [], // Local development IP address
   // SEO optimizations
   async headers() {
     return [

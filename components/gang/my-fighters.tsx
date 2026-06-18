@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
