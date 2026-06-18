@@ -13,6 +13,7 @@ import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import FighterCard from "./fighter-card";
+import { PRINT_GANG_VIEW_MODE } from "./ViewModeDropdown";
 import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
@@ -747,7 +748,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          )}
                        </div>
                        <div className="mt-1 [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                         <StatsTable data={stats} isCrew={isCrew} viewMode="small" />
+                         <StatsTable data={stats} isCrew={isCrew} viewMode={PRINT_GANG_VIEW_MODE} />
                        </div>
                        {skillsText && (
                          <div className="mt-1 text-[10px]">
@@ -810,7 +811,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         if (!isCrew && fighter.weapons && fighter.weapons.length > 0) {
                           return (
                             <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                              <WeaponTable weapons={fighter.weapons} viewMode="large" />
+                              <WeaponTable weapons={fighter.weapons} viewMode={PRINT_GANG_VIEW_MODE} />
                             </div>
                           );
                         }
@@ -828,12 +829,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             <div className="space-y-1">
                               {hasCrewWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode="large" />
+                                  <WeaponTable weapons={fighter.weapons} entity="crew" viewMode={PRINT_GANG_VIEW_MODE} />
                                 </div>
                               )}
                               {hasVehicleWeapons && (
                                 <div className="roster-weapons-table [&_table]:text-[9px] [&_th]:text-[9px] [&_td]:text-[9px]">
-                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode="small" />
+                                  <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={PRINT_GANG_VIEW_MODE} />
                                 </div>
                               )}
                             </div>
@@ -1205,19 +1206,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="relative grow w-full">
-                        <div className="text-muted-foreground mb-4">
-                          <div className="flex flex-wrap gap-4">
+                      <div className="relative grow w-full min-w-0 overflow-hidden">
+                        <div className="text-muted-foreground mb-4 min-w-0">
+                          <div className="flex flex-wrap gap-4 min-w-0">
                             {campaigns && campaigns[0]?.territories?.length > 0 && (
-                              <div className="flex gap-1 items-center text-sm flex-wrap">
-                                Territories:
+                              <div className="flex gap-1 items-start text-sm flex-wrap min-w-0 max-w-full">
+                                <span className="shrink-0">Territories:</span>
                                 {[...campaigns[0].territories]
                                   .sort((a: any, b: any) => a.territory_name.localeCompare(b.territory_name))
                                   .map((territory: any) => (
                                     <Badge
                                       key={territory.id}
                                       variant="secondary"
-                                      className="flex items-center gap-1"
+                                      className="max-w-full whitespace-normal break-words [overflow-wrap:anywhere] items-center gap-1"
                                     >
                                       {territory.territory_name}
                                       {territory.ruined && <GiAncientRuins className="text-red-500" />}
@@ -1227,24 +1228,24 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             )}
                           </div>
                           {stash && stash.length > 0 && (
-                            <div className="flex flex-wrap gap-1 items-center text-sm mt-2">
-                              <span>Stash:</span>
+                            <div className="flex flex-wrap gap-1 items-start text-sm mt-2 min-w-0 max-w-full">
+                              <span className="shrink-0">Stash:</span>
                               {stash
                                 .slice()
                                 .sort((a: any, b: any) => (a.equipment_name ?? "").localeCompare(b.equipment_name ?? ""))
                                 .map((item: any) => (
-                                  <Badge key={item.id} variant="outline">
+                                  <Badge key={item.id} variant="outline" className="max-w-full whitespace-normal break-words [overflow-wrap:anywhere]">
                                     {item.equipment_name} ({item.cost} credits)
                                   </Badge>
                                 ))}
                             </div>
                           )}
                           {note && (
-                            <div className="gap-1 text-sm mt-2">
-                              Notes:
-                              <div className="gap-1 text-sm">
+                            <div className="gap-1 text-sm mt-2 min-w-0 max-w-full">
+                              <span className="shrink-0">Notes:</span>
+                              <div className="gap-1 text-sm min-w-0">
                                 <div 
-                                  className="prose prose-sm max-w-none text-wrap"
+                                  className="prose prose-sm max-w-none break-words [overflow-wrap:anywhere]"
                                   dangerouslySetInnerHTML={{ __html: note }}
                                 />
                               </div>
@@ -1331,7 +1332,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         note={fighter.note}
                         vehicle={vehicle}
                         disableLink={true}
-                        viewMode="small"
+                        viewMode={PRINT_GANG_VIEW_MODE}
                         image_url={fighter.image_url}
                         base_stats={fighterBaseStats}
                         current_stats={fighterCurrentStats}
@@ -1643,19 +1644,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       </div>
                     </div>
                   </div>
-                  <div className="relative grow w-full">
-                    <div className="text-muted-foreground mb-4">
-                      <div className="flex flex-wrap gap-4">
+                  <div className="relative grow w-full min-w-0 overflow-hidden">
+                    <div className="text-muted-foreground mb-4 min-w-0">
+                      <div className="flex flex-wrap gap-4 min-w-0">
                         {campaigns && campaigns[0]?.territories?.length > 0 && (
-                          <div className="flex gap-1 items-center text-sm flex-wrap">
-                            Territories:
+                          <div className="flex gap-1 items-start text-sm flex-wrap min-w-0 max-w-full">
+                            <span className="shrink-0">Territories:</span>
                             {[...campaigns[0].territories]
                               .sort((a: any, b: any) => a.territory_name.localeCompare(b.territory_name))
                               .map((territory: any) => (
                                 <Badge
                                   key={territory.id}
                                   variant="secondary"
-                                  className="flex items-center gap-1"
+                                  className="max-w-full whitespace-normal break-words [overflow-wrap:anywhere] items-center gap-1"
                                 >
                                   {territory.territory_name}
                                   {territory.ruined && <GiAncientRuins className="text-red-500" />}
@@ -1665,24 +1666,24 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         )}
                       </div>
                       {stash && stash.length > 0 && (
-                        <div className="flex flex-wrap gap-1 items-center text-sm mt-2">
-                          <span>Stash:</span>
+                        <div className="flex flex-wrap gap-1 items-start text-sm mt-2 min-w-0 max-w-full">
+                          <span className="shrink-0">Stash:</span>
                           {stash
                             .slice()
                             .sort((a: any, b: any) => (a.equipment_name ?? "").localeCompare(b.equipment_name ?? ""))
                             .map((item: any) => (
-                              <Badge key={item.id} variant="outline">
+                              <Badge key={item.id} variant="outline" className="max-w-full whitespace-normal break-words [overflow-wrap:anywhere]">
                                 {item.equipment_name} ({item.cost} credits)
                               </Badge>
                             ))}
                         </div>
                       )}
                       {note && (
-                        <div className="gap-1 text-sm mt-2">
-                          Notes:
-                          <div className="gap-1 text-sm">
+                        <div className="gap-1 text-sm mt-2 min-w-0 max-w-full">
+                          <span className="shrink-0">Notes:</span>
+                          <div className="gap-1 text-sm min-w-0">
                             <div 
-                              className="prose prose-sm max-w-none text-wrap"
+                              className="prose prose-sm max-w-none break-words [overflow-wrap:anywhere]"
                               dangerouslySetInnerHTML={{ __html: note }}
                             />
                           </div>

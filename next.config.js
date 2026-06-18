@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  allowedDevOrigins: ['192.168.1.108'],
   // SEO optimizations
   async headers() {
     return [

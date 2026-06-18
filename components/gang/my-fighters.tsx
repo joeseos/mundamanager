@@ -4,15 +4,15 @@ import { FighterProps } from '@/types/fighter';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { SortableFighter } from './sortable-fighter';
 import { fighterClassRank } from '@/utils/fighterClassRank';
+import { GangPageViewMode } from './ViewModeDropdown';
 import { UserPermissions } from '@/types/user-permissions';
 
-// Add interface definition for MyFightersProps
 interface MyFightersProps {
   fighters: FighterProps[];
   isLoading?: boolean;
   error?: string;
   positions: Record<number, string>;
-  viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  viewMode?: GangPageViewMode;
   userPermissions?: UserPermissions;
 }
 
@@ -104,11 +104,17 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
     return <p className="text-muted-foreground italic">No fighters added yet.</p>;
   }
 
+  const viewModeGridClass = {
+    '4-card': 'grid grid-cols-4 gap-1',
+    '3-card': 'grid grid-cols-3 gap-1',
+    '2-card': 'grid grid-cols-2 gap-1',
+  } as const;
+
   return (
     <div className={
       viewMode === 'normal'
         ? "space-y-4 print:flex print:flex-wrap print:flex-row gap-x-2 print:space-y-0"
-        : "flex flex-wrap gap-1 justify-center items-start px-0 print:justify-start print:gap-0"
+        : `${viewModeGridClass[viewMode]} w-full items-start px-0`
     }>
       {sortedFighters.map((fighter) => (
         <SortableFighter

@@ -5,6 +5,7 @@ import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors';
 import { useIsMounted } from '@/hooks/use-is-mounted';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
+import { GangPageViewMode } from './ViewModeDropdown';
 import { UserPermissions } from '@/types/user-permissions';
 
 interface DraggableFightersProps {
@@ -12,7 +13,7 @@ interface DraggableFightersProps {
   onPositionsUpdate?: (positions: Record<number, string>) => void;
   onFightersReorder?: (newFighters: FighterProps[]) => void;
   initialPositions: Record<number, string>;
-  viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  viewMode?: GangPageViewMode;
   userPermissions?: UserPermissions;
 }
 

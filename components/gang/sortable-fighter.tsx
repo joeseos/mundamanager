@@ -3,13 +3,14 @@ import { CSS } from '@dnd-kit/utilities';
 import FighterCard from './fighter-card';
 import { FighterProps } from '@/types/fighter';
 import { useState, useEffect } from 'react';
+import { GangPageViewMode } from './ViewModeDropdown';
 import { UserPermissions } from '@/types/user-permissions';
 
 interface SortableFighterProps {
   fighter: FighterProps;
   positions: Record<number, string>;
   onFighterDeleted?: (fighterId: string, fighterCost: number) => void;
-  viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  viewMode?: GangPageViewMode;
   userPermissions?: UserPermissions;
 }
 
@@ -61,6 +62,7 @@ export function SortableFighter({ fighter, viewMode = 'normal', userPermissions 
     <div
       ref={setNodeRef}
       style={style}
+      className={viewMode !== 'normal' ? 'min-w-0 w-full' : undefined}
     >
       <FighterCard
         {...fighter}

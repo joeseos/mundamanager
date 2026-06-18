@@ -13,6 +13,8 @@ import { MdChair } from "react-icons/md";
 import { FaMedkit } from "react-icons/fa";
 import { Weapon } from '@/types/equipment';
 import { FighterCardActionMenu } from './fighter-card-action-menu';
+import { useViewportWidth } from '@/hooks/use-viewport-width';
+import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
 
 
@@ -49,7 +51,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   note?: string;
   vehicle?: Vehicle;
   disableLink?: boolean;
-  viewMode?: 'normal' | 'small' | 'medium' | 'large';
+  viewMode?: GangViewMode;
   owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
   captured_by_gang_name?: string;
   image_url?: string;
@@ -164,12 +166,44 @@ const FighterCard = memo(function FighterCard({
   const isCrew = fighter_class === 'Crew';
   const isLoading = id.startsWith('temp-');
 
-  // View Mode card size
-  const sizeStyles = {
-    small: 'w-[520px] aspect-[1.448/1]',
-    medium: 'w-[615px] aspect-[1.448/1]',
-    large: 'w-[800px] aspect-[1.448/1]',
-  };
+  const isNormalView = viewMode === 'normal';
+  const isPrintView = viewMode === 'print';
+  const isCompactView = isCompactGangViewMode(viewMode);
+  const isTightLayoutView = isPrintView || isCompactView;
+
+  const detailValueClass = `min-w-0 text-sm break-words${isPrintView ? ' [overflow-wrap:anywhere]' : ''}`;
+  const detailNoteClass = `${detailValueClass} prose prose-sm max-w-none`;
+  const detailsGridClass = `grid gap-y-2 mt-3 print:gap-y-0 print:mt-1 ${viewMode === '4-card' ? 'gap-y-[2px]' : ''} ${
+    isMultiline ? 'grid-cols-[4.5rem_minmax(0,1fr)]' : 'grid-cols-[6rem_minmax(0,1fr)]'
+  }`;
+
+  // View Mode card size — width comes from the parent grid column (4 / 3 / 2 cols)
+  const cardAspectRatio = 'aspect-[1.448/1]';
+  const compactCardSize = `w-full min-w-0 ${cardAspectRatio}`;
+  const printCardSize = 'w-[630px] h-[435px] shrink-0';
+
+  const COMPACT_SCALE_PERCENT = {
+    '4-card': 32,
+    '3-card': 42,
+    '2-card': 65,
+  } as const;
+  // At this viewport width, scale equals the mode percent (e.g. 2-card → 0.65)
+  const COMPACT_DESIGN_WIDTH = 800;
+
+  const viewportWidth = useViewportWidth();
+
+  const compactScale = isCompactView
+    ? (viewportWidth * COMPACT_SCALE_PERCENT[viewMode]) / (100 * COMPACT_DESIGN_WIDTH)
+    : 1;
+
+  const compactInnerScaleStyle =
+    isCompactView && compactScale > 0
+      ? {
+          transform: `scale(${compactScale})`,
+          transformOrigin: 'top left',
+          width: `${100 / compactScale}%`,
+        }
+      : undefined;
 
   // Move getVehicleWeapons function before its usage
   const getVehicleWeapons = (vehicle: Vehicle | undefined) => {
@@ -427,15 +461,17 @@ const FighterCard = memo(function FighterCard({
     router.push(`/fighter/${id}`);
   }, [id, router, isLoading]);
 
-  const cardContent = (
+  const cardClassName = `relative rounded-lg overflow-hidden shadow-md ${isNormalView ? '[@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02]' : ''} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
+        ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
+        ${isLoading ? 'cursor-default' : ''}
+        ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
+
+  const cardBody = (
     <div
       id={fighterCardId}
       {...(dragListeners || {})}
       {...(dragAttributes || {})}
-      className={`relative rounded-lg overflow-hidden shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
-        ${viewMode === 'normal' ? 'p-4' : `${sizeStyles[viewMode]} p-2 shrink-0`} fighter-card-bg
-        ${isLoading ? 'cursor-default' : ''}
-        ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+      className={cardClassName}
         style={{
           backgroundColor: '#faf9f7',
           backgroundSize: 'cover',
@@ -450,10 +486,12 @@ const FighterCard = memo(function FighterCard({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground" />
         </div>
       )}
-      <div className={`flex ${viewMode === 'normal' ? 'mb-[80px]' : 'mb-[80px]'}`}>
+      <div className={isTightLayoutView ? 'absolute inset-0 overflow-hidden' : 'contents'}>
+      <div className={isTightLayoutView ? 'pl-2 pr-2 min-w-0 w-full h-full' : 'contents'} style={compactInnerScaleStyle}>
+      <div className={`flex ${isNormalView ? 'mb-[80px]' : 'mb-[90px]'}`}>
         <div className="flex w-full">
           <div
-            className={`absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar ${viewMode === 'normal' ? 'mt-4' : 'mt-2'}`}
+            className={`absolute inset-0 bg-no-repeat bg-cover fancy-print-top-bar ${isNormalView ? 'mt-4' : 'mt-2'}`}
             style={{
               backgroundImage: "url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/top-bar-stroke-v3_s97f2k.png')",
               width: '100%',
@@ -480,7 +518,7 @@ const FighterCard = memo(function FighterCard({
             </div>
           </div>
         </div>
-        <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${viewMode === 'normal' ? 'mt-4' : 'mt-[10px]'}`}>
+        <div className={`absolute right-0 md:mr-4 mr-2 md:top-[-10px] top-0 flex items-center z-20 ${isNormalView ? 'mt-4' : 'mt-[10px]'}`}>
           <div className="relative flex flex-col shrink gap-0 z-11 mr-1 md:my-4 my-2 text-2xl max-h-[60px] flex-wrap place-content-center">
             {killed && <IoSkull className="text-gray-300" />}
             {retired && <MdChair className="text-muted-foreground" />}
@@ -553,37 +591,37 @@ const FighterCard = memo(function FighterCard({
 
           {/* Show fighter weapons */}
           {!isCrew && weapons && weapons.length > 0 && (
-            <div className={`${owner_name ? 'mt-0' : (viewMode === 'normal' ? 'mt-2' : 'mt-0')}`}>
+            <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
               <WeaponTable weapons={weapons} viewMode={viewMode}/>
             </div>
           )}
 
           {/* Show crew weapons */}
           {isCrew && weapons && weapons.length > 0 && (
-            <div className={`${owner_name ? 'mt-0' : (viewMode === 'normal' ? 'mt-2' : 'mt-0')}`}>
+            <div className={`${owner_name ? 'mt-0' : (isNormalView ? 'mt-2' : 'mt-0')}`}>
               <WeaponTable weapons={weapons} entity="crew" viewMode={viewMode} />
             </div>
           )}
 
           {/* Add vehicle weapons section */}
           {isCrew && vehicleWeapons.length > 0 && (
-            <div className={`${viewMode === 'normal' ? 'mt-2' : 'mt-0'}`}>
+            <div className={`${isNormalView ? 'mt-2' : 'mt-0'}`}>
               <WeaponTable weapons={vehicleWeapons} entity="vehicle" viewMode={viewMode} />
             </div>
           )}
 
-          <div className={`grid gap-y-2 mt-3 print:gap-y-0 print:mt-1 ${viewMode === 'small' ? 'gap-y-[2px]' : ''} ${isMultiline ? 'grid-cols-[4.5rem_1fr]' : 'grid-cols-[6rem_1fr]'}`}>
+          <div className={detailsGridClass}>
             {isCrew && vehicle && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle</div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {vehicle?.vehicle_name ?? 'Unknown'} - {vehicle?.vehicle_type ?? 'Unknown'}
                 </div>
 
                 {vehicleUpgrades && vehicleUpgrades.length > 0 && (
                   <>
                     <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Equipment</div>
-                    <div className="min-w-[0px] text-sm break-words">
+                    <div className={detailValueClass}>
                       {Object.entries(
                         vehicleUpgrades
                           .slice()
@@ -601,7 +639,7 @@ const FighterCard = memo(function FighterCard({
                 )}
 
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Vehicle Rules</div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {adjustedVehicleRules.join(', ')}
                 </div>
 
@@ -609,7 +647,7 @@ const FighterCard = memo(function FighterCard({
                 {vehicle.effects && vehicle.effects["lasting damages"] && vehicle.effects["lasting damages"].length > 0 && (
                   <>
                     <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Damage</div>
-                    <div className="min-w-[0px] text-sm break-words">
+                    <div className={detailValueClass}>
                       {Object.entries(
                         vehicle.effects["lasting damages"]
                           .slice()
@@ -649,7 +687,7 @@ const FighterCard = memo(function FighterCard({
             {wargear && wargear.length > 0 && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Wargear</div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {Object.entries(
                     wargear
                       .slice() // avoid mutating original array
@@ -670,7 +708,7 @@ const FighterCard = memo(function FighterCard({
               free_skill) && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Skills</div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {(() => {
                     const skillNames = [
                       ...(advancements?.skills ? Object.keys(advancements.skills) : []),
@@ -711,7 +749,7 @@ const FighterCard = memo(function FighterCard({
                     <span className="whitespace-nowrap">Special Rules</span>
                   )}
                 </div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {adjustedSpecialRules.join(', ')}
                 </div>
               </>
@@ -720,7 +758,7 @@ const FighterCard = memo(function FighterCard({
             {effects && effects.injuries && effects.injuries.length > 0 && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Injuries</div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {Object.entries(
                     effects.injuries
                       .slice()
@@ -744,7 +782,7 @@ const FighterCard = memo(function FighterCard({
             {effects && effects['rig-glitches'] && effects['rig-glitches'].length > 0 && (
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Rig Glitches</div>
-                <div className="min-w-[0px] text-sm break-words">
+                <div className={detailValueClass}>
                   {Object.entries(
                     effects['rig-glitches']
                       .slice()
@@ -768,7 +806,7 @@ const FighterCard = memo(function FighterCard({
               <>
                 <div className="min-w-[0px] font-bold text-sm pr-4 whitespace-nowrap">Notes</div>
                 <div 
-                  className="min-w-[0px] text-sm break-words prose prose-sm max-w-none"
+                  className={detailNoteClass}
                   dangerouslySetInnerHTML={{ __html: note }}
                 />
               </>
@@ -776,29 +814,39 @@ const FighterCard = memo(function FighterCard({
           </div>
         </>
       )}
-      
-      {/* Menu trigger (click on icon opens context menu) - only show when not dragging and not disabled */}
-      {!isDragging && !disableLink && dragListeners && dragAttributes && (
-        <div
-          className="absolute bottom-2 right-2 md:right-3 print:hidden cursor-pointer select-none"
-          style={{ WebkitTouchCallout: 'none' }}
-          data-fighter-card-menu-trigger
-        >
-          <CgMoreVerticalO 
-            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer" 
-            title="Click to open action menu"
-          />
-        </div>
-      )}
+      </div>
+      </div>
+    </div>
+  );
+
+  const menuTrigger = !isDragging && !disableLink && dragListeners && dragAttributes ? (
+    <div
+      className="absolute bottom-2 right-2 md:right-3 z-30 print:hidden cursor-pointer select-none"
+      style={{ WebkitTouchCallout: 'none' }}
+      data-fighter-card-menu-trigger
+    >
+      <CgMoreVerticalO
+        className="text-muted-foreground/40 [@media(hover:hover)_and_(pointer:fine)]:hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
+        title="Click to open action menu"
+      />
+    </div>
+  ) : null;
+
+  const cardWithOptionalLink = disableLink ? cardBody : (
+    <a href={isLoading ? '#' : `/fighter/${id}`} onClick={handleCardClick} className="block">
+      {cardBody}
+    </a>
+  );
+
+  const cardContent = (
+    <div className="relative">
+      {cardWithOptionalLink}
+      {menuTrigger}
     </div>
   );
   // This check is needed to prevent the card from being clickable when it's being dragged
   // Using <a> + onClick instead of <Link> to avoid prefetching on page load and hover
-  const clickableContent = disableLink ? cardContent : (
-    <a href={isLoading ? '#' : `/fighter/${id}`} onClick={handleCardClick}>
-      {cardContent}
-    </a>
-  );
+  const clickableContent = cardContent;
 
   return (
     <FighterCardActionMenu
