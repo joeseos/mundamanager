@@ -881,7 +881,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       fighter_effect_categories (id, category_name),
                       fighter_effect_type_modifiers (stat_name, default_numeric_value, operation)
                     `)
-                    .in('id', equipItem.effect_ids);
+                    .in('id', equipItem.effect_ids)
+                    .eq('type_specific_data->>equipment_id', equipItem.equipment_id);
 
                   if (selectedEffectTypes && selectedEffectTypes.length > 0) {
                     for (const matchedEquip of matchingInserted) {
