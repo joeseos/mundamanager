@@ -34,7 +34,7 @@ export async function GET() {
       id: item.id,
       equipment_name: item.equipment_name,
       equipment_category: item.equipment_category,
-      core_equipment: item.core_equipment ?? false,
+      core_equipment: item.core_equipment,
       is_custom: false,
       equipment_type: 'regular'
     }));
