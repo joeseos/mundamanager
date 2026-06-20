@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict p61NILTuOMeOoJkmHxVvn6OGTGdIdLxLrozVOw1DOL2rwBrUGaTLWDFzM6bRj1h
+\restrict 13xnjA4eZd5WeKPXtIp5TMJUEcb52ptYzFNav4BpFGZUt00nw3izkwjEfGWGVJs
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -660,11 +660,11 @@ BEGIN
   INSERT INTO public.custom_trading_post_equipment (id, created_at, user_id, custom_trading_post_id, equipment_id,
                                                     custom_equipment_id, cost_override, availability_override,
                                                     sort_order, cost_type_resource_id, cost_campaign_resource_id,
-                                                    cost_reputation, cost_resource_amount)
+                                                    cost_reputation, cost_resource_amount, banned)
   SELECT (v_map_tpe ->> te.id::text)::uuid, now(), v_user, (v_map_tp ->> te.custom_trading_post_id::text)::uuid,
          te.equipment_id, (v_map_eq ->> te.custom_equipment_id::text)::uuid, te.cost_override, te.availability_override,
          te.sort_order, te.cost_type_resource_id, te.cost_campaign_resource_id,
-         te.cost_reputation, te.cost_resource_amount
+         te.cost_reputation, te.cost_resource_amount, te.banned
   FROM public.custom_trading_post_equipment te WHERE te.custom_trading_post_id = ANY(v_tp);
 
   INSERT INTO public.custom_trading_post_availability (id, created_at, user_id, custom_trading_post_equipment_id,
@@ -1609,7 +1609,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1758,7 +1758,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
             (array_agg(ctpe.cost_reputation ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_reputation))[1] AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
-            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
+            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
+            bool_or(ctpe.banned) AS banned
         FROM custom_trading_post_equipment ctpe
         CROSS JOIN gang_data gd
         LEFT JOIN custom_trading_post_pricing p
@@ -1918,7 +1919,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
              THEN cto.cost_resource_amount
         END AS cost_resource_amount,
         cto.cost_type_resource_id,
-        cto.cost_campaign_resource_id
+        cto.cost_campaign_resource_id,
+
+        COALESCE(cto.banned, false) AS banned
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -2052,7 +2055,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
              THEN custom_tp.cost_resource_amount
         END AS cost_resource_amount,
         custom_tp.cost_type_resource_id,
-        custom_tp.cost_campaign_resource_id
+        custom_tp.cost_campaign_resource_id,
+        COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -2073,7 +2077,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             COALESCE(
                 array_agg(DISTINCT ctp.custom_trading_post_name) FILTER (WHERE ctp.custom_trading_post_name IS NOT NULL),
                 '{}'::text[]
-            ) AS tp_names
+            ) AS tp_names,
+            bool_or(ctpe.banned) AS banned
         FROM custom_trading_post_equipment ctpe
         JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
         CROSS JOIN gang_data gd
@@ -4775,6 +4780,7 @@ CREATE TABLE public.custom_trading_post_equipment (
     cost_campaign_resource_id uuid,
     cost_reputation boolean DEFAULT false NOT NULL,
     cost_resource_amount numeric,
+    banned boolean DEFAULT false NOT NULL,
     CONSTRAINT chk_cost_resource_exclusive CHECK ((num_nonnulls(cost_type_resource_id, cost_campaign_resource_id, NULLIF(cost_reputation, false)) <= 1)),
     CONSTRAINT chk_equipment_exclusive CHECK ((num_nonnulls(equipment_id, custom_equipment_id) = 1))
 );
@@ -11911,5 +11917,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict p61NILTuOMeOoJkmHxVvn6OGTGdIdLxLrozVOw1DOL2rwBrUGaTLWDFzM6bRj1h
+\unrestrict 13xnjA4eZd5WeKPXtIp5TMJUEcb52ptYzFNav4BpFGZUt00nw3izkwjEfGWGVJs
 
