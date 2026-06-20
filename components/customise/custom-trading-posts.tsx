@@ -717,7 +717,7 @@ function EquipmentItemsSection({
               </thead>
               <tbody>
                 {displayItems.map((item) => (
-                  <tr key={item.id} className={`border-b last:border-0 ${item.banned ? 'opacity-50' : ''}`}>
+                  <tr key={item.id} className="border-b last:border-0">
                     <td className="py-2 pr-2">
                       {item.equipment_name}
                       {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
