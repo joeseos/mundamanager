@@ -446,6 +446,10 @@ export default function ActiveSession({
           territories={territories}
           onClose={() => setShowCompleteBattleModal(false)}
           onSuppressRefetch={suppressRefetch}
+          onBroadcast={() => {
+            broadcast();
+            queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+          }}
         />
       )}
     </>
