@@ -585,7 +585,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
               fetch('/api/equipment').then(async (response) => {
                 if (response.ok) {
                   const equipData = await response.json();
-                  setEquipment(equipData);
+                  setEquipment(equipData.filter((e: any) => !e.core_equipment));
                 }
               })
             );

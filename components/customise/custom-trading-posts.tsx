@@ -596,6 +596,7 @@ interface EquipmentOption {
   id: string;
   equipment_name: string;
   equipment_category: string;
+  core_equipment?: boolean;
   is_custom: boolean;
   original_id?: string;
 }
@@ -904,7 +905,8 @@ function useEquipmentData() {
     queryFn: async () => {
       const res = await fetch('/api/equipment');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      return res.json() as Promise<EquipmentOption[]>;
+      const data = await res.json() as EquipmentOption[];
+      return data.filter(e => !e.core_equipment);
     },
     staleTime: 10 * 60 * 1000,
   });
