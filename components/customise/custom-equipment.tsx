@@ -103,7 +103,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       const response = await fetch('/api/equipment');
       if (!response.ok) throw new Error('Failed to fetch equipment');
       const data = await response.json();
-      return data.map((item: any) => ({
+      return data.filter((e: any) => !e.core_equipment).map((item: any) => ({
         id: item.is_custom ? item.original_id : item.id,
         name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
         is_custom: item.is_custom,

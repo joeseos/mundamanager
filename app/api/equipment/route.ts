@@ -17,7 +17,7 @@ export async function GET() {
     const [regularEquipmentResult, customEquipmentResult] = await Promise.all([
       supabase
         .from('equipment')
-        .select('id, equipment_name, equipment_category')
+        .select('id, equipment_name, equipment_category, core_equipment')
         .order('equipment_name'),
       supabase
         .from('custom_equipment')
@@ -34,6 +34,7 @@ export async function GET() {
       id: item.id,
       equipment_name: item.equipment_name,
       equipment_category: item.equipment_category,
+      core_equipment: item.core_equipment ?? false,
       is_custom: false,
       equipment_type: 'regular'
     }));
