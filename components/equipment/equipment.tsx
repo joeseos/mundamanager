@@ -832,7 +832,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       disabled={item.banned}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (!item.banned) setBuyModalData(item);
+                                        setBuyModalData(item);
                                       }}
                                       className={`text-white text-xs py-0.5 px-2 h-6 ${
                                         item.banned
