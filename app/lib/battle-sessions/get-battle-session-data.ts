@@ -1,11 +1,12 @@
 import { unstable_cache } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
 
 async function fetchBattleSessionDirect(
   sessionId: string,
-  supabase: any
+  supabase: SupabaseClient
 ): Promise<BattleSessionFull | null> {
   const { data: session, error: sessionError } = await supabase
     .from('battle_sessions')
@@ -43,34 +44,27 @@ async function fetchBattleSessionDirect(
   const gangIds = participants.map((p: any) => p.gang_id);
   const userIds = participants.map((p: any) => p.user_id);
 
-  const parallelQueries: [
-    Promise<{ data: any }>,
-    Promise<{ data: any }>,
-    Promise<CampaignResource[]>,
-    Promise<{ data: any }>,
-  ] = [
-    supabase
-      .from('gangs')
-      .select('id, name, gang_colour, rating')
-      .in('id', gangIds),
-    supabase
-      .from('profiles')
-      .select('id, username, patreon_tier_id, patreon_tier_title')
-      .in('id', userIds),
-    session.campaign_id
-      ? fetchCampaignResources(session.campaign_id, supabase)
-      : Promise.resolve([]),
-    session.campaign_id
-      ? supabase
-          .from('campaign_gangs')
-          .select('id, gang_id')
-          .eq('campaign_id', session.campaign_id)
-          .in('gang_id', gangIds)
-      : Promise.resolve({ data: [] }),
-  ];
-
   const [{ data: gangs }, { data: profiles }, campaignResources, { data: campaignGangs }] =
-    await Promise.all(parallelQueries);
+    await Promise.all([
+      supabase
+        .from('gangs')
+        .select('id, name, gang_colour, rating')
+        .in('id', gangIds),
+      supabase
+        .from('profiles')
+        .select('id, username, patreon_tier_id, patreon_tier_title')
+        .in('id', userIds),
+      session.campaign_id
+        ? fetchCampaignResources(session.campaign_id, supabase)
+        : Promise.resolve([] as CampaignResource[]),
+      session.campaign_id
+        ? supabase
+            .from('campaign_gangs')
+            .select('id, gang_id')
+            .eq('campaign_id', session.campaign_id)
+            .in('gang_id', gangIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
 
   const campaignGangIds: Record<string, string> = {};
   for (const cg of campaignGangs || []) {
@@ -87,6 +81,7 @@ async function fetchBattleSessionDirect(
     .select('*')
     .eq('battle_session_id', sessionId);
 
+  // Lightweight fighter enrichment — only fetch name and base credits
   let fighterMap = new Map<string, any>();
   if (fighters && fighters.length > 0) {
     const fighterIds = fighters.map((f: any) => f.fighter_id);
@@ -141,9 +136,13 @@ async function fetchBattleSessionDirect(
 
 export { fetchBattleSessionDirect };
 
+// The supabase client is captured in the unstable_cache closure but only
+// used on cache miss (first call or after revalidateTag). On cache hits
+// the parameter is ignored. Safe here because all participants share the
+// same view of the session (no per-user RLS variance).
 export const getBattleSessionCached = async (
   sessionId: string,
-  supabase: any
+  supabase: SupabaseClient
 ): Promise<BattleSessionFull | null> => {
   return unstable_cache(
     () => fetchBattleSessionDirect(sessionId, supabase),
@@ -157,7 +156,7 @@ export const getBattleSessionCached = async (
 
 export const getGangBattleSessionsCached = async (
   gangId: string,
-  supabase: any
+  supabase: SupabaseClient
 ): Promise<BattleSession[]> => {
   return unstable_cache(
     async () => {
