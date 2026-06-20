@@ -14,7 +14,7 @@ import type {
   SessionInjuryRecord,
   SessionRecord,
 } from '@/types/battle-session';
-import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { fetchBattleSessionDirect } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { PermissionService } from '@/app/lib/user-permissions';
 
 // =============================================================================
@@ -23,7 +23,7 @@ import { PermissionService } from '@/app/lib/user-permissions';
 
 export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
   const supabase = await createClient();
-  return getBattleSessionCached(sessionId, supabase);
+  return fetchBattleSessionDirect(sessionId, supabase);
 }
 
 // =============================================================================

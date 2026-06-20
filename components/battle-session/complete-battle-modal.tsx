@@ -34,6 +34,7 @@ interface CompleteBattleModalProps {
   territories?: CompleteBattleTerritory[];
   onClose: () => void;
   onSuppressRefetch?: () => void;
+  onBroadcast?: () => void;
 }
 
 export default function CompleteBattleModal({
@@ -42,6 +43,7 @@ export default function CompleteBattleModal({
   territories = [],
   onClose,
   onSuppressRefetch,
+  onBroadcast,
 }: CompleteBattleModalProps) {
   // Multi-winner state. Prefill from the persisted is_winner / claimed_territory
   // flags (with fallback to the legacy winner_gang_id for older sessions).
@@ -139,6 +141,7 @@ export default function CompleteBattleModal({
     }
 
     toast.success('Battle completed');
+    onBroadcast?.();
     return true;
   };
 
