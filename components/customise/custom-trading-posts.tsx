@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Combobox } from '@/components/ui/combobox';
+import { Checkbox } from '@/components/ui/checkbox';
 import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
 import { ImInfo } from 'react-icons/im';
@@ -49,6 +50,7 @@ interface EquipmentPendingChanges {
   availRules: CustomTPAvailabilityRule[];
   pricingRules: CustomTPPricingRule[];
   rulesModified: boolean;
+  banned: boolean;
 }
 
 interface CustomiseTradingPostsProps {
@@ -319,6 +321,7 @@ export function CustomiseTradingPosts({
                 cost_reputation: changes.costReputation,
                 cost_resource_amount: changes.costResourceAmount,
                 availability_override: changes.availabilityOverride,
+                banned: changes.banned,
               });
               if (!overridesResult.success) {
                 toast.error(overridesResult.error || 'Failed to save equipment overrides');
@@ -647,6 +650,7 @@ function EquipmentItemsSection({
           cost_reputation: pending.costReputation,
           cost_resource_amount: pending.costResourceAmount,
           availability_override: pending.availabilityOverride,
+          banned: pending.banned,
         };
       }),
     ...(pendingAdditions ?? []).map(equip => {
@@ -666,6 +670,7 @@ function EquipmentItemsSection({
         cost_resource_amount: pending?.costResourceAmount ?? null,
         availability_override: pending?.availabilityOverride ?? null,
         sort_order: null,
+        banned: pending?.banned ?? false,
       };
     }),
   ];
@@ -706,12 +711,13 @@ function EquipmentItemsSection({
                   <th className="py-2 pr-2 font-medium">Category</th>
                   <th className="py-2 pr-2 font-medium text-center">Cost</th>
                   <th className="py-2 pr-2 font-medium text-center">AL</th>
+                  <th className="py-2 pr-2 font-medium text-center">Banned</th>
                   {isEditable && <th className="py-2 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {displayItems.map((item) => (
-                  <tr key={item.id} className="border-b last:border-0">
+                  <tr key={item.id} className={`border-b last:border-0 ${item.banned ? 'opacity-50' : ''}`}>
                     <td className="py-2 pr-2">
                       {item.equipment_name}
                       {item.is_custom && <span className="text-xs text-muted-foreground ml-1">(Custom)</span>}
@@ -723,6 +729,30 @@ function EquipmentItemsSection({
                         : item.cost_override != null ? item.cost_override : '-'}
                     </td>
                     <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>
+                    <td className="py-2 pr-2 text-center">
+                      {isEditable && onEquipmentOverrideChange ? (
+                        <Checkbox
+                          checked={item.banned}
+                          onCheckedChange={(checked) => {
+                            const currentPending = pendingOverrides?.get(item.id);
+                            onEquipmentOverrideChange(item.id, {
+                              costOverride: currentPending?.costOverride ?? item.cost_override,
+                              costTypeResourceId: currentPending?.costTypeResourceId ?? item.cost_type_resource_id,
+                              costCampaignResourceId: currentPending?.costCampaignResourceId ?? item.cost_campaign_resource_id,
+                              costReputation: currentPending?.costReputation ?? item.cost_reputation,
+                              costResourceAmount: currentPending?.costResourceAmount ?? item.cost_resource_amount,
+                              availabilityOverride: currentPending?.availabilityOverride ?? item.availability_override,
+                              availRules: currentPending?.availRules ?? [],
+                              pricingRules: currentPending?.pricingRules ?? [],
+                              rulesModified: currentPending?.rulesModified ?? false,
+                              banned: checked === true,
+                            });
+                          }}
+                        />
+                      ) : (
+                        item.banned ? 'Yes' : '-'
+                      )}
+                    </td>
                     {isEditable && (
                       <td className="py-2 text-right">
                         <div className="flex gap-1 justify-end">
@@ -1042,6 +1072,9 @@ function EditEquipmentModal({
   );
   const [availLetter, setAvailLetter] = useState(parsedAvail.letter);
   const [availNumber, setAvailNumber] = useState(parsedAvail.number);
+  const [isBanned, setIsBanned] = useState(
+    pendingChanges ? pendingChanges.banned : item.banned
+  );
   const [localAvailRules, setLocalAvailRules] = useState<CustomTPAvailabilityRule[] | null>(
     pendingChanges ? pendingChanges.availRules : null
   );
@@ -1127,6 +1160,7 @@ function EditEquipmentModal({
       availRules,
       pricingRules,
       rulesModified: localAvailRules !== null || localPricingRules !== null,
+      banned: isBanned,
     });
     return true;
   };
@@ -1178,6 +1212,19 @@ function EditEquipmentModal({
       >
         <div className="space-y-6">
           <div className="space-y-4">
+            <label className="flex items-start space-x-2">
+              <Checkbox
+                checked={isBanned}
+                onCheckedChange={(checked) => setIsBanned(checked === true)}
+                className="mt-1"
+              />
+              <div>
+                <span className="text-sm font-medium">Banned</span>
+                <p className="text-xs text-muted-foreground">
+                  Banned items are visible but cannot be purchased.
+                </p>
+              </div>
+            </label>
             <div>
               <Label>Resource Type</Label>
               <Combobox
