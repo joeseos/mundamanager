@@ -187,7 +187,7 @@ export async function deleteCustomTradingPost(
 const TP_EQUIPMENT_SELECT = `
   id, custom_trading_post_id, equipment_id, custom_equipment_id,
   cost_override, cost_type_resource_id, cost_campaign_resource_id, cost_reputation, cost_resource_amount,
-  availability_override, sort_order,
+  availability_override, sort_order, banned,
   equipment:equipment_id (equipment_name, equipment_category),
   custom_equipment:custom_equipment_id (equipment_name, equipment_category)
 `;
@@ -208,6 +208,7 @@ function mapTPEquipmentRow(row: any): CustomTPEquipment {
     cost_resource_amount: row.cost_resource_amount ?? null,
     availability_override: row.availability_override,
     sort_order: row.sort_order,
+    banned: row.banned ?? false,
   };
 }
 
@@ -241,6 +242,7 @@ export interface CustomTPEquipment {
   cost_resource_amount: number | null;
   availability_override: string | null;
   sort_order: number | null;
+  banned: boolean;
 }
 
 export interface CustomTPAvailabilityRule {
@@ -370,6 +372,7 @@ export async function updateTPEquipment(
     cost_resource_amount?: number | null;
     availability_override?: string | null;
     sort_order?: number | null;
+    banned?: boolean;
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {

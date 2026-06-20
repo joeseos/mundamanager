@@ -199,11 +199,11 @@ BEGIN
   INSERT INTO public.custom_trading_post_equipment (id, created_at, user_id, custom_trading_post_id, equipment_id,
                                                     custom_equipment_id, cost_override, availability_override,
                                                     sort_order, cost_type_resource_id, cost_campaign_resource_id,
-                                                    cost_reputation, cost_resource_amount)
+                                                    cost_reputation, cost_resource_amount, banned)
   SELECT (v_map_tpe ->> te.id::text)::uuid, now(), v_user, (v_map_tp ->> te.custom_trading_post_id::text)::uuid,
          te.equipment_id, (v_map_eq ->> te.custom_equipment_id::text)::uuid, te.cost_override, te.availability_override,
          te.sort_order, te.cost_type_resource_id, te.cost_campaign_resource_id,
-         te.cost_reputation, te.cost_resource_amount
+         te.cost_reputation, te.cost_resource_amount, te.banned
   FROM public.custom_trading_post_equipment te WHERE te.custom_trading_post_id = ANY(v_tp);
 
   INSERT INTO public.custom_trading_post_availability (id, created_at, user_id, custom_trading_post_equipment_id,

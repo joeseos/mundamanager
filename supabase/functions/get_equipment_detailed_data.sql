@@ -39,7 +39,8 @@ RETURNS TABLE (
     cost_resource_name text,
     cost_resource_amount numeric,
     cost_type_resource_id uuid,
-    cost_campaign_resource_id uuid
+    cost_campaign_resource_id uuid,
+    banned boolean
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -191,7 +192,8 @@ AS $$
             (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
             (array_agg(ctpe.cost_reputation ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_reputation))[1] AS cost_reputation,
             (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
-            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost
+            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
+            bool_or(ctpe.banned) AS banned
         FROM custom_trading_post_equipment ctpe
         CROSS JOIN gang_data gd
         LEFT JOIN custom_trading_post_pricing p
@@ -351,7 +353,9 @@ AS $$
              THEN cto.cost_resource_amount
         END AS cost_resource_amount,
         cto.cost_type_resource_id,
-        cto.cost_campaign_resource_id
+        cto.cost_campaign_resource_id,
+
+        COALESCE(cto.banned, false) AS banned
 
     FROM equipment e
     CROSS JOIN gang_data gd
@@ -485,7 +489,8 @@ AS $$
              THEN custom_tp.cost_resource_amount
         END AS cost_resource_amount,
         custom_tp.cost_type_resource_id,
-        custom_tp.cost_campaign_resource_id
+        custom_tp.cost_campaign_resource_id,
+        COALESCE(custom_tp.banned, false) AS banned
     FROM custom_equipment ce
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -506,7 +511,8 @@ AS $$
             COALESCE(
                 array_agg(DISTINCT ctp.custom_trading_post_name) FILTER (WHERE ctp.custom_trading_post_name IS NOT NULL),
                 '{}'::text[]
-            ) AS tp_names
+            ) AS tp_names,
+            bool_or(ctpe.banned) AS banned
         FROM custom_trading_post_equipment ctpe
         JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
         CROSS JOIN gang_data gd

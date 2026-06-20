@@ -73,6 +73,7 @@ interface RawEquipmentData {
   cost_resource_amount?: number | null;
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
+  banned?: boolean;
 }
 
 interface Category {
@@ -765,7 +766,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                               return (
                                 <div
                                   key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
-                                  className="flex items-center justify-between w-full px-4 py-2 text-left hover:bg-muted gap-1"
+                                  className={`flex items-center justify-between w-full px-4 py-2 text-left gap-1 ${item.banned ? 'opacity-40 grayscale' : 'hover:bg-muted'}`}
                                 >
                                   <EquipmentTooltipTrigger
                                     item={item}
@@ -774,10 +775,15 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                   >
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-sm font-medium">
-                                        {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot 
+                                        {item.equipment_type === 'vehicle_upgrade' && item.vehicle_upgrade_slot
                                           ? `${item.vehicle_upgrade_slot}: ${item.equipment_name}`
                                           : item.equipment_name}
                                       </span>
+                                      {item.banned && (
+                                        <Badge variant="destructive" className="px-1 text-[0.6rem]">
+                                          Banned
+                                        </Badge>
+                                      )}
                                       {item.is_custom && (
                                         <Badge variant="discreet" className="px-1 text-[0.6rem]">
                                           Custom
@@ -823,14 +829,17 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       </div>
                                     )}
                                     <Button
+                                      disabled={item.banned}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setBuyModalData(item);
                                       }}
                                       className={`text-white text-xs py-0.5 px-2 h-6 ${
-                                        affordable
-                                          ? "bg-green-500 hover:bg-green-600"
-                                          : "bg-gray-500 hover:bg-gray-600"
+                                        item.banned
+                                          ? "bg-gray-500 cursor-not-allowed"
+                                          : affordable
+                                            ? "bg-green-500 hover:bg-green-600"
+                                            : "bg-gray-500 hover:bg-gray-600"
                                       }`}
                                     >
                                       Buy
