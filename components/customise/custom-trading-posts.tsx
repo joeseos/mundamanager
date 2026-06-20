@@ -729,30 +729,7 @@ function EquipmentItemsSection({
                         : item.cost_override != null ? item.cost_override : '-'}
                     </td>
                     <td className="py-2 pr-2 text-center">{item.availability_override || '-'}</td>
-                    <td className="py-2 pr-2 text-center">
-                      {isEditable && onEquipmentOverrideChange ? (
-                        <Checkbox
-                          checked={item.banned}
-                          onCheckedChange={(checked) => {
-                            const currentPending = pendingOverrides?.get(item.id);
-                            onEquipmentOverrideChange(item.id, {
-                              costOverride: currentPending?.costOverride ?? item.cost_override,
-                              costTypeResourceId: currentPending?.costTypeResourceId ?? item.cost_type_resource_id,
-                              costCampaignResourceId: currentPending?.costCampaignResourceId ?? item.cost_campaign_resource_id,
-                              costReputation: currentPending?.costReputation ?? item.cost_reputation,
-                              costResourceAmount: currentPending?.costResourceAmount ?? item.cost_resource_amount,
-                              availabilityOverride: currentPending?.availabilityOverride ?? item.availability_override,
-                              availRules: currentPending?.availRules ?? [],
-                              pricingRules: currentPending?.pricingRules ?? [],
-                              rulesModified: currentPending?.rulesModified ?? false,
-                              banned: checked === true,
-                            });
-                          }}
-                        />
-                      ) : (
-                        item.banned ? 'Yes' : '-'
-                      )}
-                    </td>
+                    <td className="py-2 pr-2 text-center">{item.banned ? 'Yes' : '-'}</td>
                     {isEditable && (
                       <td className="py-2 text-right">
                         <div className="flex gap-1 justify-end">
