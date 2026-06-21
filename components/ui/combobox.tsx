@@ -49,6 +49,23 @@ interface ComboboxProps {
   dropdownPlacement?: 'auto' | 'down' | 'up'
 }
 
+function getVisualViewportRect() {
+  const visualViewport = window.visualViewport
+  if (visualViewport) {
+    return {
+      offsetTop: visualViewport.offsetTop,
+      offsetLeft: visualViewport.offsetLeft,
+      height: visualViewport.height,
+    }
+  }
+
+  return {
+    offsetTop: 0,
+    offsetLeft: 0,
+    height: window.innerHeight || document.documentElement.clientHeight,
+  }
+}
+
 export function Combobox({
   options,
   value,
@@ -66,7 +83,6 @@ export function Combobox({
   type DropdownDirection = 'up' | 'down'
   type DropdownPosition = {
     top: number
-    bottom: number
     left: number
     width: number
     maxHeight: number
@@ -78,13 +94,13 @@ export function Combobox({
   const [inputValue, setInputValue] = React.useState("")
   const [position, setPosition] = React.useState<DropdownPosition>({
     top: 0,
-    bottom: 0,
     left: 0,
     width: 0,
     maxHeight: 384, // 24rem, matches max-h-96
     direction: 'down'
   })
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const positionFrameRef = React.useRef<number | null>(null)
 
   // Find the selected option; when allowCustom is set, values not in the list still need a display label
   const selectedOption = React.useMemo(() => {
@@ -172,56 +188,48 @@ export function Combobox({
   const updatePosition = React.useCallback(() => {
     if (open && inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect()
+      const viewport = getVisualViewportRect()
 
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight
-      const spaceBelow = viewportHeight - rect.bottom
-      const spaceAbove = rect.top
+      const viewportTop = viewport.offsetTop
+      const viewportBottom = viewport.offsetTop + viewport.height
+      const spaceBelow = viewportBottom - rect.bottom
+      const spaceAbove = rect.top - viewportTop
       const maxDropdownHeight = 384 // px, 24rem
       const viewportMargin = 8 // px padding from viewport edges
+      const offsetTop = viewport.offsetTop
+      const offsetLeft = viewport.offsetLeft
+
       let direction: DropdownDirection = 'down'
-      let top = rect.bottom
+      let top = rect.bottom + offsetTop
       let maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
-      let bottom = 0
 
       if (dropdownPlacement === 'up') {
         direction = 'up'
         maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
-        bottom = viewportHeight - rect.top
-        top = 0
+        top = rect.top + offsetTop
       } else if (dropdownPlacement === 'down') {
         direction = 'down'
-        top = rect.bottom
+        top = rect.bottom + offsetTop
         maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
-        bottom = 0
       } else {
         // auto: flip up when low on space below and more room above
         if (spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow) {
           direction = 'up'
           maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
-          bottom = viewportHeight - rect.top
-          top = 0
+          top = rect.top + offsetTop
         }
       }
 
       // Fallback in extreme edge-cases where computed height is non-positive
       if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
-        if (dropdownPlacement === 'up') {
-          direction = 'down'
-          top = rect.bottom
-          maxHeight = Math.min(maxDropdownHeight, Math.max(1, spaceBelow - viewportMargin))
-          bottom = 0
-        } else {
-          direction = 'down'
-          maxHeight = maxDropdownHeight
-          top = rect.bottom
-          bottom = 0
-        }
+        direction = 'down'
+        top = rect.bottom + offsetTop
+        maxHeight = Math.min(maxDropdownHeight, Math.max(1, spaceBelow - viewportMargin))
       }
 
       setPosition({
         top,
-        bottom,
-        left: rect.left,
+        left: rect.left + offsetLeft,
         width: rect.width,
         maxHeight,
         direction
@@ -229,17 +237,53 @@ export function Combobox({
     }
   }, [open, dropdownPlacement])
 
-  React.useEffect(() => {
-    updatePosition()
-  }, [open, updatePosition])
+  const schedulePositionUpdate = React.useCallback(() => {
+    if (positionFrameRef.current !== null) return
 
-  // Update position on scroll
+    positionFrameRef.current = requestAnimationFrame(() => {
+      positionFrameRef.current = null
+      updatePosition()
+    })
+  }, [updatePosition])
+
   React.useEffect(() => {
-    if (open) {
-      window.addEventListener('scroll', updatePosition, true)
-      return () => window.removeEventListener('scroll', updatePosition, true)
+    if (!open) return
+
+    updatePosition()
+
+    // iOS keyboard animation completes after the initial focus event
+    const keyboardTimer = window.setTimeout(updatePosition, 150)
+    const keyboardTimerFallback = window.setTimeout(updatePosition, 350)
+
+    return () => {
+      window.clearTimeout(keyboardTimer)
+      window.clearTimeout(keyboardTimerFallback)
     }
   }, [open, updatePosition])
+
+  // Reposition on scroll, resize, and visual viewport changes (e.g. iOS keyboard)
+  React.useEffect(() => {
+    if (!open) return
+
+    window.addEventListener('scroll', schedulePositionUpdate, true)
+    window.addEventListener('resize', schedulePositionUpdate)
+
+    const visualViewport = window.visualViewport
+    visualViewport?.addEventListener('resize', schedulePositionUpdate)
+    visualViewport?.addEventListener('scroll', schedulePositionUpdate)
+
+    return () => {
+      window.removeEventListener('scroll', schedulePositionUpdate, true)
+      window.removeEventListener('resize', schedulePositionUpdate)
+      visualViewport?.removeEventListener('resize', schedulePositionUpdate)
+      visualViewport?.removeEventListener('scroll', schedulePositionUpdate)
+
+      if (positionFrameRef.current !== null) {
+        cancelAnimationFrame(positionFrameRef.current)
+        positionFrameRef.current = null
+      }
+    }
+  }, [open, schedulePositionUpdate])
 
   // Handle click outside or on another combobox
   React.useEffect(() => {
@@ -347,23 +391,13 @@ export function Combobox({
             "fixed z-[110] bg-card border border-border rounded-md shadow-lg max-h-96 overflow-auto",
             position.direction === 'up' ? "origin-bottom" : "origin-top"
           )}
-          style={
-            position.direction === 'up'
-              ? {
-                  top: 'auto',
-                  bottom: `${position.bottom}px`,
-                  left: `${position.left}px`,
-                  width: `${position.width}px`,
-                  maxHeight: `${position.maxHeight}px`
-                }
-              : {
-                  top: `${position.top}px`,
-                  bottom: 'auto',
-                  left: `${position.left}px`,
-                  width: `${position.width}px`,
-                  maxHeight: `${position.maxHeight}px`
-                }
-          }
+          style={{
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+            width: `${position.width}px`,
+            maxHeight: `${position.maxHeight}px`,
+            transform: position.direction === 'up' ? 'translateY(-100%)' : undefined,
+          }}
         >
           {filteredOptions.length > 0 ? (
             <div className="py-1">
