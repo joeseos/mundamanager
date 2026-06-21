@@ -191,39 +191,38 @@ export function Combobox({
       const viewport = getVisualViewportRect()
 
       const viewportTop = viewport.offsetTop
-      const viewportBottom = viewport.offsetTop + viewport.height
+      const viewportBottom = viewportTop + viewport.height
       const spaceBelow = viewportBottom - rect.bottom
       const spaceAbove = rect.top - viewportTop
       const maxDropdownHeight = 384 // px, 24rem
       const viewportMargin = 8 // px padding from viewport edges
-      const offsetTop = viewport.offsetTop
       const offsetLeft = viewport.offsetLeft
 
       let direction: DropdownDirection = 'down'
-      let top = rect.bottom + offsetTop
+      let top = rect.bottom + viewportTop
       let maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
 
       if (dropdownPlacement === 'up') {
         direction = 'up'
         maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
-        top = rect.top + offsetTop
+        top = rect.top + viewportTop
       } else if (dropdownPlacement === 'down') {
         direction = 'down'
-        top = rect.bottom + offsetTop
+        top = rect.bottom + viewportTop
         maxHeight = Math.min(maxDropdownHeight, spaceBelow - viewportMargin)
       } else {
         // auto: flip up when low on space below and more room above
         if (spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow) {
           direction = 'up'
           maxHeight = Math.min(maxDropdownHeight, spaceAbove - viewportMargin)
-          top = rect.top + offsetTop
+          top = rect.top + viewportTop
         }
       }
 
       // Fallback in extreme edge-cases where computed height is non-positive
       if (!Number.isFinite(maxHeight) || maxHeight <= 0) {
         direction = 'down'
-        top = rect.bottom + offsetTop
+        top = rect.bottom + viewportTop
         maxHeight = Math.min(maxDropdownHeight, Math.max(1, spaceBelow - viewportMargin))
       }
 
