@@ -18,6 +18,9 @@ let savedBodyStyles: SavedStyles | null = null;
 function lockScroll() {
   if (typeof document === 'undefined') return;
 
+  // Self-heal if state got out of sync
+  if (lockCount > 0 && savedBodyStyles === null) lockCount = 0;
+
   lockCount += 1;
   if (lockCount > 1) return;
 
@@ -39,7 +42,8 @@ function lockScroll() {
   document.body.style.width = '100%';
 
   if (scrollbarWidth > 0) {
-    document.body.style.paddingRight = `${scrollbarWidth}px`;
+    const existingPadding = parseFloat(savedBodyStyles.paddingRight) || 0;
+    document.body.style.paddingRight = `${existingPadding + scrollbarWidth}px`;
   }
 }
 
