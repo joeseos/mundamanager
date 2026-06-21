@@ -38,6 +38,7 @@ import {
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
+import type { EquipmentListItem } from '@/app/api/equipment/route';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
 interface EquipmentPendingChanges {
@@ -592,14 +593,7 @@ export function CustomiseTradingPosts({
 // Equipment Items Section — shared between edit and view modals
 // ---------------------------------------------------------------------------
 
-interface EquipmentOption {
-  id: string;
-  equipment_name: string;
-  equipment_category: string;
-  core_equipment?: boolean;
-  is_custom: boolean;
-  original_id?: string;
-}
+type EquipmentOption = EquipmentListItem;
 
 function EquipmentItemsSection({
   tradingPostId,
@@ -903,10 +897,9 @@ function useEquipmentData() {
   const { data: allEquipment = [], error: equipmentError } = useQuery({
     queryKey: ['equipment'],
     queryFn: async () => {
-      const res = await fetch('/api/equipment');
+      const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      const data = await res.json() as EquipmentOption[];
-      return data.filter(e => !e.core_equipment);
+      return res.json() as Promise<EquipmentOption[]>;
     },
     staleTime: 10 * 60 * 1000,
   });

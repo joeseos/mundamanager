@@ -1,8 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
-export async function GET() {
+export interface EquipmentListItem {
+  id: string;
+  equipment_name: string;
+  equipment_category: string;
+  equipment_type?: string;
+  is_custom: boolean;
+  original_id?: string;
+}
+
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
 
   try {
@@ -13,17 +22,34 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = request.nextUrl;
+    const equipmentType = searchParams.get('equipment_type');
+    const coreEquipment = searchParams.get('core_equipment');
+
     // Fetch regular equipment and user's custom equipment in parallel
+    let regularQuery = supabase
+      .from('equipment')
+      .select('id, equipment_name, equipment_category, equipment_type, core_equipment')
+      .order('equipment_name');
+
+    let customQuery = supabase
+      .from('custom_equipment')
+      .select('id, equipment_name, equipment_category, equipment_type')
+      .eq('user_id', userId)
+      .order('equipment_name');
+
+    if (equipmentType) {
+      regularQuery = regularQuery.eq('equipment_type', equipmentType);
+      customQuery = customQuery.eq('equipment_type', equipmentType);
+    }
+
+    if (coreEquipment === 'false') {
+      regularQuery = regularQuery.or('core_equipment.is.null,core_equipment.eq.false');
+    }
+
     const [regularEquipmentResult, customEquipmentResult] = await Promise.all([
-      supabase
-        .from('equipment')
-        .select('id, equipment_name, equipment_category, core_equipment')
-        .order('equipment_name'),
-      supabase
-        .from('custom_equipment')
-        .select('id, equipment_name, equipment_category')
-        .eq('user_id', userId)
-        .order('equipment_name')
+      regularQuery,
+      customQuery,
     ]);
 
     if (regularEquipmentResult.error) throw regularEquipmentResult.error;
@@ -34,18 +60,17 @@ export async function GET() {
       id: item.id,
       equipment_name: item.equipment_name,
       equipment_category: item.equipment_category,
-      core_equipment: item.core_equipment,
+      equipment_type: item.equipment_type,
       is_custom: false,
-      equipment_type: 'regular'
     }));
 
     const customEquipment = (customEquipmentResult.data || []).map(item => ({
-      id: `custom_${item.id}`, // Prefix custom equipment IDs for easy identification
-      equipment_name: `${item.equipment_name} (Custom)`, // Mark as custom in display
+      id: `custom_${item.id}`,
+      equipment_name: `${item.equipment_name} (Custom)`,
       equipment_category: item.equipment_category,
+      equipment_type: item.equipment_type,
       is_custom: true,
-      equipment_type: 'custom',
-      original_id: item.id // Keep the original ID for database operations
+      original_id: item.id,
     }));
 
     // Combine and sort all equipment by name

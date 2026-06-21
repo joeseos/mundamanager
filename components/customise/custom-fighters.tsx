@@ -25,6 +25,7 @@ import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
+import type { EquipmentListItem } from '@/app/api/equipment/route';
 
 interface CustomiseFightersProps {
   className?: string;
@@ -349,7 +350,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
 
   // Equipment state
-  const [equipment, setEquipment] = useState<Array<{id: string, equipment_name: string, equipment_category: string}>>([]);
+  const [equipment, setEquipment] = useState<EquipmentListItem[]>([]);
 
   // Loading states to prevent duplicate API calls
   const [isLoadingDropdownData, setIsLoadingDropdownData] = useState(false);
@@ -582,10 +583,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           // Fetch equipment if not loaded
           if (equipment.length === 0) {
             promises.push(
-              fetch('/api/equipment').then(async (response) => {
+              fetch('/api/equipment?core_equipment=false').then(async (response) => {
                 if (response.ok) {
-                  const equipData = await response.json();
-                  setEquipment(equipData.filter((e: any) => !e.core_equipment));
+                  const equipData: EquipmentListItem[] = await response.json();
+                  setEquipment(equipData);
                 }
               })
             );
@@ -763,13 +764,11 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
     // Load existing default equipment if they exist
     if (fighter.default_equipment && fighter.default_equipment.length > 0) {
-      const existingEquipment = fighter.default_equipment.map(eq => ({
+      const existingEquipment: EquipmentListItem[] = fighter.default_equipment.map(eq => ({
         id: eq.equipment_id,
         equipment_name: eq.equipment_name,
         equipment_category: '',
-        cost: 0,
-        equipment_type: 'wargear' as 'wargear' | 'weapon',
-        availability: 'C'
+        is_custom: false,
       }));
 
       setEquipment(existingEquipment);
