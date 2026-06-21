@@ -120,6 +120,15 @@ export interface Equipment {
   } | null;
 }
 
+export interface EquipmentListItem {
+  id: string;
+  equipment_name: string;
+  equipment_category: string;
+  equipment_type?: string;
+  is_custom: boolean;
+  original_id?: string;
+}
+
 /**
  * FighterLoadout - represents a fighter's equipment loadout
  */
