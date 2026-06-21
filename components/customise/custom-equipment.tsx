@@ -21,7 +21,7 @@ import { ShareCustomEquipmentModal } from './custom-shared';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
-import type { EquipmentListItem } from '@/app/api/equipment/route';
+import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
 interface CustomiseEquipmentProps {
@@ -99,7 +99,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     (editModalData !== null && editForm.equipment_category.toLowerCase() === 'ammunition');
 
   const { data: availableWeapons = [] } = useQuery<AvailableWeapon[]>({
-    queryKey: ['availableWeapons'],
+    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false }],
     queryFn: async () => {
       const response = await fetch('/api/equipment?equipment_type=weapon&core_equipment=false');
       if (!response.ok) throw new Error('Failed to fetch equipment');

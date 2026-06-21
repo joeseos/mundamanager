@@ -2,15 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
-export interface EquipmentListItem {
-  id: string;
-  equipment_name: string;
-  equipment_category: string;
-  equipment_type?: string;
-  is_custom: boolean;
-  original_id?: string;
-}
-
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
 

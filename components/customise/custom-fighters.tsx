@@ -25,7 +25,7 @@ import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
 import type { UserCampaign } from '@/types/campaign';
-import type { EquipmentListItem } from '@/app/api/equipment/route';
+import type { EquipmentListItem } from '@/types/equipment';
 
 interface CustomiseFightersProps {
   className?: string;

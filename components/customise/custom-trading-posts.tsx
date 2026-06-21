@@ -38,7 +38,7 @@ import {
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import type { UserCampaign } from '@/types/campaign';
-import type { EquipmentListItem } from '@/app/api/equipment/route';
+import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 
 interface EquipmentPendingChanges {
@@ -895,7 +895,7 @@ function useEquipmentData() {
   });
 
   const { data: allEquipment = [], error: equipmentError } = useQuery({
-    queryKey: ['equipment'],
+    queryKey: ['equipment', { core_equipment: false }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
