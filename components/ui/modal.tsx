@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useScrollLock } from '@/hooks/use-scroll-lock';
 
 interface ModalProps {
   title: React.ReactNode;
@@ -17,6 +18,7 @@ interface ModalProps {
   width?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
   onDelete?: () => void;
   deleteLabel?: string;
+  lockBackgroundScroll?: boolean;
 }
 
 export default function Modal({ 
@@ -33,8 +35,11 @@ export default function Modal({
   width = 'md',
   onDelete,
   deleteLabel,
+  lockBackgroundScroll = true,
 }: ModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useScrollLock(lockBackgroundScroll);
 
   const handleConfirm = async (e?: React.MouseEvent) => {
     if (!onConfirm) return;
