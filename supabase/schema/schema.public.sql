@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict NQ6yrc3SBHd8yJAtaXf8QWxeyfpnMqlSVuwE79hCfVy7K2i14odcATTcc1GUabb
+\restrict ZI3ZjttN8hNMTzNHpPvpBoondE719CPw4YLuC1A5OAl7cqSiCpwF7gwEC9LfArd
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -707,6 +707,76 @@ BEGIN
   RETURN v_new_collection;
 END;
 $$;
+
+
+--
+-- Name: custom_access_token_hook(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  DECLARE
+    claims jsonb;
+    profile_row record;
+    campaign_roles_json jsonb;
+  BEGIN
+    claims := event->'claims';
+
+    SELECT
+      user_role,
+      username,
+      patreon_tier_id,
+      patreon_tier_title,
+      patron_status
+    INTO profile_row
+    FROM public.profiles
+    WHERE id = (event->>'user_id')::uuid;
+
+    IF NOT FOUND THEN
+      RETURN event;
+    END IF;
+
+    claims := jsonb_set(
+      claims,
+      '{user_profile}',
+      jsonb_build_object(
+        'user_role', COALESCE(profile_row.user_role, 'user'),
+        'username', profile_row.username,
+        'patreon_tier_id', profile_row.patreon_tier_id,
+        'patreon_tier_title', profile_row.patreon_tier_title,
+        'patron_status', profile_row.patron_status
+      )
+    );
+
+    SELECT COALESCE(jsonb_agg(
+      jsonb_build_object('id', deduped.campaign_id, 'role',
+  deduped.role)
+    ), '[]'::jsonb)
+    INTO campaign_roles_json
+    FROM (
+      SELECT DISTINCT ON (cm.campaign_id)
+        cm.campaign_id, cm.role
+      FROM public.campaign_members cm
+      WHERE cm.user_id = (event->>'user_id')::uuid
+      ORDER BY cm.campaign_id,
+        CASE cm.role
+          WHEN 'OWNER' THEN 1
+          WHEN 'ARBITRATOR' THEN 2
+          WHEN 'MEMBER' THEN 3
+          ELSE 4
+        END
+    ) deduped;
+
+    claims := jsonb_set(claims, '{campaign_roles}',
+  campaign_roles_json);
+
+    event := jsonb_set(event, '{claims}', claims);
+
+    RETURN event;
+  END;
+  $$;
 
 
 --
@@ -11917,5 +11987,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict NQ6yrc3SBHd8yJAtaXf8QWxeyfpnMqlSVuwE79hCfVy7K2i14odcATTcc1GUabb
+\unrestrict ZI3ZjttN8hNMTzNHpPvpBoondE719CPw4YLuC1A5OAl7cqSiCpwF7gwEC9LfArd
 
