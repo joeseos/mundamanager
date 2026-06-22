@@ -50,7 +50,7 @@ export default async function PrintGangPage(props: {
       notFound();
     }
 
-    const gangCampaignIds = campaigns.map(c => c.campaign_id);
+    const gangCampaignIds = campaigns.filter(c => c.status === 'ACCEPTED').map(c => c.campaign_id);
 
     const canView = await canViewHiddenGang(
       user.id,

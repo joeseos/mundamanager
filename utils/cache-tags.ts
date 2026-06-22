@@ -95,9 +95,6 @@ export const CACHE_TAGS = {
   USER_CUSTOMIZATIONS: (userId: string) => `user-custom-${userId}`, // custom equipment/territories
   USER_NOTIFICATIONS: (userId: string) => `user-notifications-${userId}`, // user notifications
 
-  // User permissions
-  USER_GANG_PERMISSIONS: (userId: string, gangId: string) => `user-${userId}-gang-${gangId}-permissions`, // gang permissions for user (also used for fighters)
-
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
   USER_ACTIVITY_FEED: (userId: string) => `user-activity-${userId}`, // user activity feed
@@ -440,10 +437,6 @@ export function invalidateGangPermissionsForUser(params: {
   userId: string;
   gangId: string;
 }) {
-  // Invalidate specific user-gang permission cache
-  revalidateTag(CACHE_TAGS.USER_GANG_PERMISSIONS(params.userId, params.gangId), { expire: 0 });
-
-  // Also invalidate user dashboard
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
 }
 

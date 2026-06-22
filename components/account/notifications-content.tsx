@@ -12,6 +12,7 @@ import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
+import { createClient } from '@/utils/supabase/client';
 import { LuTrash2 } from "react-icons/lu";
 
 type Notification = {
@@ -105,6 +106,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     try {
       const result = await acceptGangInvite(params);
       if (result.success) {
+        await createClient().auth.refreshSession();
         await deleteNotification(notificationId);
         router.refresh();
       } else {

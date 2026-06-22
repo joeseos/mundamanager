@@ -105,7 +105,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     }
 
     const campaigns = gangCampaigns;
-    const gangCampaignIds = campaigns.map((c: any) => c.campaign_id);
+    const gangCampaignIds = campaigns.filter((c: any) => c.status === 'ACCEPTED').map((c: any) => c.campaign_id);
     const userPermissions = await computeGangPermissions(user.id, gangBasic.user_id, gangCampaignIds);
 
     const beastIds = beastDataResult

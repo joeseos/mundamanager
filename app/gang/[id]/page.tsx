@@ -44,7 +44,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       notFound();
     }
 
-    const gangCampaignIds = campaigns.map(c => c.campaign_id);
+    const gangCampaignIds = campaigns.filter(c => c.status === 'ACCEPTED').map(c => c.campaign_id);
 
     // Check if user can view hidden gang (JWT claims, no DB)
     const canView = await canViewHiddenGang(
