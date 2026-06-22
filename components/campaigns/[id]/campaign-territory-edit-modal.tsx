@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
 import { ImInfo } from "react-icons/im"
-import { Tooltip } from "react-tooltip"
+import { Tooltip } from 'react-tooltip';
 import {
   TERRITORY_PLAYING_CARD_NONE,
   TERRITORY_PLAYING_CARD_CUSTOM,
@@ -240,9 +240,7 @@ export default function TerritoryEditModal({
             <span
               className="relative cursor-pointer text-muted-foreground hover:text-foreground"
               data-tooltip-id="territory-description-tooltip"
-              data-tooltip-html={
-                'The territory description is shown as a tooltip in the campaign territories list so participants can read notes about this territory.'
-              }
+              data-tooltip-content="The territory description is shown as a tooltip in the campaign territories list so participants can read notes about this territory."
             >
               <ImInfo />
             </span>

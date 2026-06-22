@@ -15,8 +15,8 @@ import { FiShare2 } from 'react-icons/fi';
 import { ImInfo } from 'react-icons/im';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { ShareCustomTradingPostModal } from '@/components/customise/custom-shared';
-import { escapeHtml } from '@/utils/html';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createCustomTradingPost,
@@ -391,7 +391,8 @@ export function CustomiseTradingPosts({
           <span
             className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
             data-tooltip-id="custom-trading-post-description-tooltip"
-            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.custom_trading_post_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+            data-tooltip-title={item.custom_trading_post_name}
+            data-tooltip-description={item.description}
           >
             <BiSolidNotepad className="text-lg" aria-label="View trading post description" />
           </span>
@@ -578,6 +579,7 @@ export function CustomiseTradingPosts({
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           width: '24rem',
@@ -679,9 +681,6 @@ function EquipmentItemsSection({
             <span
               className="relative cursor-pointer text-muted-foreground hover:text-foreground"
               data-tooltip-id={tooltipId}
-              data-tooltip-html={
-                'To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.<br/><br/>Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang variant</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.'
-              }
             >
               <ImInfo />
             </span>
@@ -784,7 +783,16 @@ function EquipmentItemsSection({
           padding: '6px',
           maxWidth: '20rem'
         }}
-      />
+      >
+        <div>
+          <p>
+            To override the default cost or availability of an item from the official Trading Posts, add the equipment first, then click the edit icon next to its row.
+          </p>
+          <p className="mt-2">
+            Custom rules can also be set per <strong>gang</strong>, <strong>alignment</strong>, <strong>gang variant</strong>, or <strong>allegiance</strong> to apply a dedicated cost or availability for specific groups.
+          </p>
+        </div>
+      </Tooltip>
 
     </>
   );

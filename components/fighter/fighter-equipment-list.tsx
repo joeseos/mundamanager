@@ -24,45 +24,46 @@ import { FighterLoadout } from '@/types/equipment';
 import FighterLoadoutsModal from '@/components/fighter/fighter-loadouts-modal';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
-import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
+import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
 import { Tooltip } from 'react-tooltip';
+import { getTooltipAttribute } from '@/components/ui/tooltip-renderers';
 
-// Escape untrusted strings before inlining into tooltip HTML
-const escapeHtml = (unsafe: string): string =>
-  unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+function renderExoticBeastCostTooltip({ content, activeAnchor }: { content: React.ReactNode; activeAnchor: Element | null }) {
+  const base = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-base');
+  const advancements = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-advancements');
+  const equipment = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-equipment');
+  const total = getTooltipAttribute(activeAnchor, 'data-tooltip-cost-total');
 
-// Build the Exotic Beast Cost Breakdown tooltip HTML, omitting zero-valued lines
-const buildBeastCostTooltipHtml = (breakdown: { base: number; advancements: number; equipment: number; total: number }): string => {
-  const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Cost Breakdown</div>';
+  if (!base || !total) {
+    return content;
+  }
+
   const rows: Array<{ label: string; value: string }> = [
-    { label: 'Base cost', value: String(breakdown.base) },
+    { label: 'Base cost', value: base },
   ];
-  if (breakdown.advancements > 0) {
-    rows.push({ label: 'Advancements', value: `+${breakdown.advancements}` });
+  if (Number(advancements) > 0) {
+    rows.push({ label: 'Advancements', value: `+${advancements}` });
   }
-  if (breakdown.equipment > 0) {
-    rows.push({ label: 'Equipment', value: `+${breakdown.equipment}` });
+  if (Number(equipment) > 0) {
+    rows.push({ label: 'Equipment', value: `+${equipment}` });
   }
-  const rowsHtml = rows
-    .map(({ label, value }) =>
-      `<div style="display:flex;justify-content:space-between;gap:12px;">` +
-        `<span>${escapeHtml(label)}</span>` +
-        `<span>${escapeHtml(value)}</span>` +
-      `</div>`
-    )
-    .join('');
-  const footer =
-    `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
-      `<span>Total:</span>` +
-      `<span>${breakdown.total}</span>` +
-    `</div>`;
-  return `${title}${rowsHtml}${footer}`;
-};
+
+  return (
+    <div>
+      <div className="mb-1.5 text-sm font-semibold">Cost Breakdown</div>
+      {rows.map(({ label, value }) => (
+        <div key={label} className="flex justify-between gap-3">
+          <span>{label}</span>
+          <span>{value}</span>
+        </div>
+      ))}
+      <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+        <span>Total:</span>
+        <span>{total}</span>
+      </div>
+    </div>
+  );
+}
 
 interface WeaponListProps {
   fighterId: string;
@@ -671,7 +672,7 @@ export function WeaponList({
               <div
                 className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
                 data-tooltip-id="exotic-beast-cost-tooltip"
-                data-tooltip-html={escapeHtml(item.cost_resource_name)}
+                data-tooltip-content={item.cost_resource_name}
               >
                 <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
               </div>
@@ -680,7 +681,10 @@ export function WeaponList({
               <span
                 className={`${isChild ? "text-sm" : ""} ${mutedClass} cursor-help`}
                 data-tooltip-id="exotic-beast-cost-tooltip"
-                data-tooltip-html={buildBeastCostTooltipHtml(item.beast_cost_breakdown)}
+                data-tooltip-cost-base={item.beast_cost_breakdown.base}
+                data-tooltip-cost-advancements={item.beast_cost_breakdown.advancements}
+                data-tooltip-cost-equipment={item.beast_cost_breakdown.equipment}
+                data-tooltip-cost-total={item.beast_cost_breakdown.total}
               >
                 {item.cost}*
               </span>
@@ -1047,13 +1051,13 @@ export function WeaponList({
         />
       )}
 
-      <EquipmentTooltip />
       <Tooltip
         id="exotic-beast-cost-tooltip"
         place="top"
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderExoticBeastCostTooltip}
         style={{
           padding: '6px',
           maxWidth: '24rem'

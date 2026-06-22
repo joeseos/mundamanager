@@ -314,60 +314,22 @@ export default function Gang({
     });
   }, [activeFighters]);
 
-  const escapeHtml = (unsafe: string): string =>
-    unsafe
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-
-  const fightersTooltipHtml = useMemo(() => {
-    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Gang Composition</div>';
-    if (fighterTypeClassCounts.length === 0) {
-      return `${title}<div>No fighters</div>`;
-    }
-    const rows = fighterTypeClassCounts
-      .map(({ label, count }) =>
-        `<div style="display:flex;justify-content:space-between;gap:12px;">` +
-          `<span>${escapeHtml(label)}</span>` +
-          `<span>${count}</span>` +
-        `</div>`
-      )
-      .join('');
-    const total = fighterTypeClassCounts.reduce((sum, item) => sum + item.count, 0);
-    const footer =
-      `<div style=\"border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;\">` +
-        `<span>Total :</span>` +
-        `<span>${total}</span>` +
-      `</div>`;
-    return `${title}${rows}${footer}`;
+  const fighterTypeClassTotal = useMemo(() => {
+    return fighterTypeClassCounts.reduce((sum, item) => sum + item.count, 0);
   }, [fighterTypeClassCounts]);
 
-  // Wealth breakdown tooltip HTML
-  const wealthTooltipHtml = useMemo(() => {
-    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Wealth Breakdown</div>';
-    const rows = [
+  const wealthBreakdownRows = useMemo(() => {
+    return [
       { label: 'Gang Rating', value: rating },
       { label: 'Credits', value: credits },
       { label: 'Stash', value: totalStashValue },
       { label: 'Vehicles (without crew)', value: unassignedVehiclesValue },
-    ]
-      .map(({ label, value }) =>
-        `<div style="display:flex;justify-content:space-between;gap:12px;">` +
-          `<span>${escapeHtml(label)}</span>` +
-          `<span>${value}</span>` +
-        `</div>`
-      )
-      .join('');
-    const total = credits + totalStashValue + unassignedVehiclesValue + rating;
-    const footer =
-      `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
-        `<span>Total :</span>` +
-        `<span>${total}</span>` +
-      `</div>`;
-    return `${title}${rows}${footer}`;
+    ];
   }, [credits, totalStashValue, unassignedVehiclesValue, rating]);
+
+  const wealthBreakdownTotal = useMemo(() => {
+    return wealthBreakdownRows.reduce((sum, item) => sum + item.value, 0);
+  }, [wealthBreakdownRows]);
 
 
   // Save to localStorage and update DOM (skip first render)
@@ -1189,7 +1151,6 @@ export default function Gang({
                   <div
                     className="flex justify-between cursor-help"
                     data-tooltip-id="wealth-breakdown-tooltip"
-                    data-tooltip-html={wealthTooltipHtml}
                   >
                     <span className="text-muted-foreground">Wealth:</span>
                     <span className="font-semibold">{wealth ?? 0}</span>
@@ -1217,7 +1178,6 @@ export default function Gang({
                   <div
                     className="flex justify-between cursor-help"
                     data-tooltip-id="gang-composition-tooltip"
-                    data-tooltip-html={fightersTooltipHtml}
                   >
                     <span className="text-muted-foreground">Gang Size:</span>
                     <span className="font-semibold">{activeFighters.length}</span>
@@ -1353,7 +1313,27 @@ export default function Gang({
               padding: '6px',
               maxWidth: '24rem'
             }}
-          />
+          >
+            <div>
+              <div className="mb-1.5 text-sm font-semibold">Gang Composition</div>
+              {fighterTypeClassCounts.length === 0 ? (
+                <div>No fighters</div>
+              ) : (
+                <>
+                  {fighterTypeClassCounts.map(({ label, count }) => (
+                    <div key={label} className="flex justify-between gap-3">
+                      <span>{label}</span>
+                      <span>{count}</span>
+                    </div>
+                  ))}
+                  <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                    <span>Total :</span>
+                    <span>{fighterTypeClassTotal}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </Tooltip>
           <Tooltip
             id="wealth-breakdown-tooltip"
             place="top"
@@ -1364,7 +1344,21 @@ export default function Gang({
               padding: '6px',
               maxWidth: '24rem'
             }}
-          />
+          >
+            <div>
+              <div className="mb-1.5 text-sm font-semibold">Wealth Breakdown</div>
+              {wealthBreakdownRows.map(({ label, value }) => (
+                <div key={label} className="flex justify-between gap-3">
+                  <span>{label}</span>
+                  <span>{value}</span>
+                </div>
+              ))}
+              <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                <span>Total :</span>
+                <span>{wealthBreakdownTotal}</span>
+              </div>
+            </div>
+          </Tooltip>
           {hidden && (
                   <Tooltip
                   id={`share-hidden-tooltip-${id}`}

@@ -11,7 +11,7 @@ import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
 import { campaignRank } from '@/utils/campaigns/campaignRank'
 import { ImInfo } from "react-icons/im"
-import { Tooltip } from 'react-tooltip'
+import { Tooltip } from 'react-tooltip';
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
 
@@ -234,9 +234,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                   <span
                     className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                     data-tooltip-id="trading-posts-tooltip"
-                    data-tooltip-html={
-                      'Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.'
-                    }
+                    data-tooltip-content="Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options."
                   >
                     <ImInfo />
                   </span>

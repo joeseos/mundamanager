@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GiAncientRuins } from "react-icons/gi";
 import { IoHome } from "react-icons/io5";
-import { Tooltip } from "react-tooltip";
+import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import Modal from "@/components/ui/modal";
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
 import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
@@ -397,14 +398,6 @@ export default function CampaignTerritoryList({
   const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang') =>
     sortField === field ? <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span> : null;
 
-  const escapeHtml = (value: string) =>
-    value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-
   // Helper function to group territories for display
   const groupTerritoriesForDisplay = (territories: Territory[]) => {
     const controlledTerritories: Territory[] = [];
@@ -693,7 +686,8 @@ export default function CampaignTerritoryList({
                       <span
                         className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
                         data-tooltip-id="territory-description-tooltip"
-                        data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.territory.territory_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.territory.description)}</div>`}
+                        data-tooltip-title={item.territory.territory_name}
+                        data-tooltip-description={item.territory.description}
                       >
                         <BiSolidNotepad className="text-lg" aria-label="View territory description" />
                       </span>
@@ -824,6 +818,7 @@ export default function CampaignTerritoryList({
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           width: '24rem',

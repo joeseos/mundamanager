@@ -15,12 +15,12 @@ import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { escapeHtml } from '@/utils/html';
 import { filterAllowedFighterClasses } from '@/utils/allowedFighterClasses';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
 import { skillSetRank } from '@/utils/skillSetRank';
@@ -440,7 +440,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
           <span
             className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
             data-tooltip-id="custom-fighter-description-tooltip"
-            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.fighter_type)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+            data-tooltip-title={item.fighter_type}
+            data-tooltip-description={item.description}
           >
             <BiSolidNotepad className="text-lg" aria-label="View fighter description" />
           </span>
@@ -2087,6 +2088,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           width: '24rem',

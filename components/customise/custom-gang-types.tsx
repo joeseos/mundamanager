@@ -10,6 +10,7 @@ import { LuEye, LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import { FiShare2 } from 'react-icons/fi';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { ShareCustomGangTypeModal } from '@/components/customise/custom-shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,7 +21,6 @@ import {
   type CustomGangTypeData,
 } from '@/app/actions/customise/custom-gang-types';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
 
 interface CustomiseGangTypesProps {
@@ -247,7 +247,8 @@ export function CustomiseGangTypes({
           <span
             className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
             data-tooltip-id="custom-gang-type-description-tooltip"
-            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.gang_type)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+            data-tooltip-title={item.gang_type}
+            data-tooltip-description={item.description}
           >
             <BiSolidNotepad className="text-lg" aria-label="View gang type description" />
           </span>
@@ -441,6 +442,7 @@ export function CustomiseGangTypes({
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           width: '24rem',

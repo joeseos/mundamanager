@@ -16,10 +16,10 @@ import { FaRegCopy } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { createClient } from '@/utils/supabase/client';
 import { ShareCustomEquipmentModal } from './custom-shared';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
-import { escapeHtml } from '@/utils/html';
 import type { UserCampaign } from '@/types/campaign';
 import type { EquipmentListItem } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
@@ -228,7 +228,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           <span
             className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
             data-tooltip-id="custom-equipment-description-tooltip"
-            data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(item.equipment_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(item.description)}</div>`}
+            data-tooltip-title={item.equipment_name}
+            data-tooltip-description={item.description}
           >
             <BiSolidNotepad className="text-lg" aria-label="View equipment description" />
           </span>
@@ -1063,6 +1064,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           width: '24rem',

@@ -15,7 +15,7 @@ import { fitWeaponToHardpoint, updateVehicleHardpoint } from '@/app/actions/vehi
 import { MdCurrencyExchange, MdOutlineLinkOff } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
-import { EquipmentTooltipTrigger, EquipmentTooltip } from '@/components/equipment/equipment-tooltip';
+import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
 import { Tooltip } from 'react-tooltip';
 import { Equipment } from '@/types/equipment';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -874,7 +874,7 @@ export function VehicleEquipmentList({
                     <div
                       className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
                       data-tooltip-id="resource-cost-tooltip"
-                      data-tooltip-html={item.cost_resource_name!.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                      data-tooltip-content={item.cost_resource_name}
                     >
                       <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
                     </div>
@@ -1024,7 +1024,6 @@ export function VehicleEquipmentList({
         />
       )}
 
-      <EquipmentTooltip />
       <Tooltip
         id="resource-cost-tooltip"
         place="top"
