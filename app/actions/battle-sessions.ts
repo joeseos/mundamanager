@@ -38,7 +38,7 @@ async function isSessionArbitrator(
   userId: string,
   campaignId: string | null
 ): Promise<boolean> {
-  return isCampaignArbitrator(userId, campaignId);
+  return isCampaignArbitrator(campaignId);
 }
 
 async function canManageSession(

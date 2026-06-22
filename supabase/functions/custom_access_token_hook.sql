@@ -39,13 +39,24 @@ BEGIN
     )
   );
 
-  -- Campaign roles
+  -- Campaign roles — deduplicated to highest-privilege role per campaign
   SELECT COALESCE(jsonb_agg(
-    jsonb_build_object('id', cm.campaign_id, 'role', cm.role)
+    jsonb_build_object('id', deduped.campaign_id, 'role', deduped.role)
   ), '[]'::jsonb)
   INTO campaign_roles_json
-  FROM public.campaign_members cm
-  WHERE cm.user_id = (event->>'user_id')::uuid;
+  FROM (
+    SELECT DISTINCT ON (cm.campaign_id)
+      cm.campaign_id, cm.role
+    FROM public.campaign_members cm
+    WHERE cm.user_id = (event->>'user_id')::uuid
+    ORDER BY cm.campaign_id,
+      CASE cm.role
+        WHEN 'OWNER' THEN 1
+        WHEN 'ARBITRATOR' THEN 2
+        WHEN 'MEMBER' THEN 3
+        ELSE 4
+      END
+  ) deduped;
 
   claims := jsonb_set(claims, '{campaign_roles}', campaign_roles_json);
 
@@ -54,3 +65,10 @@ BEGIN
   RETURN event;
 END;
 $$;
+
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.profiles TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.campaign_members TO supabase_auth_admin;
+
+REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook(jsonb) FROM public, anon, authenticated;

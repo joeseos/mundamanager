@@ -60,7 +60,6 @@ export async function canViewHiddenGang(
 }
 
 export async function isCampaignArbitrator(
-  userId: string,
   campaignId: string | null
 ): Promise<boolean> {
   const supabase = await createClient();

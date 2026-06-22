@@ -34,7 +34,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
 
   // Site admins and campaign OWNERs/ARBITRATORs can manage the session like
   // the creator and edit participants like the gang owners (gang page model)
-  const isArbitrator = await isCampaignArbitrator(user.id, session.campaign_id);
+  const isArbitrator = await isCampaignArbitrator(session.campaign_id);
 
   const uniqueGangIds = Array.from(
     new Set(session.participants.map((p) => p.gang_id))
