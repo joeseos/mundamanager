@@ -5,10 +5,8 @@ SECURITY DEFINER
 SET search_path = public, private
 STABLE
 AS $$
-  SELECT EXISTS (
-    SELECT 1 
-    FROM profiles p 
-    WHERE p.id = auth.uid() 
-    AND p.user_role = 'admin'
+  SELECT coalesce(
+    auth.jwt()->'user_profile'->>'user_role' = 'admin',
+    false
   );
 $$;

@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { notFound } from "next/navigation";
 import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
 import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
-import { PermissionService } from "@/app/lib/user-permissions";
+import { getCampaignPermissions } from "@/app/lib/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
 
@@ -37,8 +37,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
   let permissions: CampaignPermissions | null = null;
   if (userId) {
     try {
-      const permissionService = new PermissionService();
-      permissions = await permissionService.getCampaignPermissions(userId, params.id);
+      permissions = await getCampaignPermissions(userId, params.id);
     } catch (error) {
       console.error('Error calculating permissions:', error);
       // Set default read-only permissions on error

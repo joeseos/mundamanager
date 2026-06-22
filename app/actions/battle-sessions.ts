@@ -15,7 +15,7 @@ import type {
   SessionRecord,
 } from '@/types/battle-session';
 import { fetchBattleSessionDirect } from '@/app/lib/battle-sessions/get-battle-session-data';
-import { PermissionService } from '@/app/lib/user-permissions';
+import { isCampaignArbitrator } from '@/app/lib/user-permissions';
 
 // =============================================================================
 // Data Fetching
@@ -38,7 +38,7 @@ async function isSessionArbitrator(
   userId: string,
   campaignId: string | null
 ): Promise<boolean> {
-  return new PermissionService().isCampaignArbitrator(userId, campaignId);
+  return isCampaignArbitrator(userId, campaignId);
 }
 
 async function canManageSession(

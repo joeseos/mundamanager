@@ -1,11 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 
 export default function EmailChangeConfirmPage() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen flex-col items-center justify-center">
+        <div className="container max-w-md w-full space-y-6 p-6">
+          <div className="bg-card shadow-md rounded-lg p-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-neutral-900 mx-auto mb-4"></div>
+            <h2 className="text-xl font-bold mb-2">Confirming Email Change</h2>
+            <p className="text-muted-foreground">Please wait while we confirm your email change...</p>
+          </div>
+        </div>
+      </main>
+    }>
+      <EmailChangeConfirmContent />
+    </Suspense>
+  );
+}
+
+function EmailChangeConfirmContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const searchParams = useSearchParams();

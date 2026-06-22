@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
-import { useSession } from '@/hooks/use-session';
+import { useClaims } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
@@ -94,7 +94,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(true);
 
-  const session = useSession();
+  const { userId } = useClaims();
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for adding skills
@@ -349,8 +349,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
   const handleSubmit = async () => {
     if (!selectedSkill) return false;
 
-    // Check for session
-    if (!session) {
+    if (!userId) {
       toast.error("Authentication required. Please log in again.");
       return false;
     }

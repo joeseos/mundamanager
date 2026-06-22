@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
-import { PermissionService } from '@/app/lib/user-permissions';
+import { computeGangPermissionsByGangId } from '@/app/lib/user-permissions';
 import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
@@ -44,9 +44,7 @@ export async function saveFighterSkillAccessOverrides(params: {
       return { success: false, error: 'Fighter not found' };
     }
 
-    // Check permissions
-    const permissionService = new PermissionService();
-    const permissions = await permissionService.getGangPermissions(user.id, fighter.gang_id);
+    const permissions = await computeGangPermissionsByGangId(user.id, fighter.gang_id);
     if (!permissions.canEdit) {
       return { success: false, error: 'Access denied' };
     }

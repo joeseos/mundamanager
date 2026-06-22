@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserIdFromClaims, signInPath } from "@/utils/auth"
+import { getUserIdFromClaims, checkAdmin, signInPath } from "@/utils/auth"
 import { revalidateTag } from 'next/cache'
 import { CACHE_TAGS } from '@/utils/cache-tags'
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify user is owner/arbitrator of the campaign, or an app-level admin
-    const [memberResult, profileResult] = await Promise.all([
+    const [memberResult, isAppAdmin] = await Promise.all([
       supabase
         .from('campaign_members')
         .select('role')
@@ -47,18 +47,12 @@ export async function GET(request: NextRequest) {
         .in('role', ['OWNER', 'ARBITRATOR'])
         .limit(1)
         .maybeSingle(),
-      supabase
-        .from('profiles')
-        .select('user_role')
-        .eq('id', userId)
-        .single()
+      checkAdmin(supabase)
     ])
 
-    const isAppAdmin = profileResult.data?.user_role === 'admin'
     const isCampaignAdmin = !!memberResult.data
 
-    // 5. Log auth query results
-    console.log('[Discord Callback] Auth check — userId:', userId, 'isCampaignAdmin:', isCampaignAdmin, 'isAppAdmin:', isAppAdmin, 'memberResult error:', memberResult.error, 'profileResult error:', profileResult.error)
+    console.log('[Discord Callback] Auth check — userId:', userId, 'isCampaignAdmin:', isCampaignAdmin, 'isAppAdmin:', isAppAdmin, 'memberResult error:', memberResult.error)
 
     if (!isCampaignAdmin && !isAppAdmin) {
       // 6. Log unauthorized before redirect

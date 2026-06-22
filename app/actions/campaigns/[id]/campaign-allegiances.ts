@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 
 export interface CreateCampaignAllegianceParams {
   campaignId: string;
@@ -28,20 +28,9 @@ export interface UpdateGangAllegianceParams {
   isCustom: boolean;
 }
 
-/**
- * Check if user is owner or arbitrator of the campaign
- */
 async function checkCampaignPermissions(supabase: any, campaignId: string, userId: string): Promise<boolean> {
-  // Check if user is admin first (most permissive)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_role')
-    .eq('id', userId)
-    .maybeSingle();
+  if (await checkAdmin(supabase)) return true;
 
-  if (profile?.user_role === 'admin') return true;
-
-  // Check campaign members - a user can have multiple member entries
   const { data: members, error } = await supabase
     .from('campaign_members')
     .select('role')
@@ -49,8 +38,7 @@ async function checkCampaignPermissions(supabase: any, campaignId: string, userI
     .eq('user_id', userId);
 
   if (error || !members || members.length === 0) return false;
-  
-  // Check if any of the user's member entries has OWNER or ARBITRATOR role
+
   return members.some((member: { role: string }) => member.role === 'OWNER' || member.role === 'ARBITRATOR');
 }
 

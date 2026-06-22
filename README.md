@@ -79,6 +79,48 @@ For questions about contributing, feel free to ask in our [Discord server](https
    Use the Supabase URL and the and the anon key to connect to it
 
 
+## Authentication & RBAC
+
+Authentication uses Supabase Auth with a custom access token hook (`public.custom_access_token_hook`) that injects user profile data and campaign roles into the JWT on every token issuance.
+
+### JWT Custom Claims
+
+```json
+{
+  "user_profile": {
+    "user_role": "admin",
+    "username": "joesoes",
+    "patreon_tier_id": "...",
+    "patreon_tier_title": "...",
+    "patron_status": "active_patron"
+  },
+  "campaign_roles": [
+    { "id": "campaign-uuid", "role": "OWNER" },
+    { "id": "campaign-uuid", "role": "ARBITRATOR" }
+  ]
+}
+```
+
+### How It Works
+
+- **Server-side**: `getClaims(supabase)` in `utils/auth.ts` reads and parses the JWT. All auth helpers (`getAuthenticatedUser`, `checkAdmin`, `getUserIdFromClaims`) are thin wrappers over it.
+- **Client-side**: `useClaims()` hook in `hooks/use-session.ts` provides reactive JWT data with `onAuthStateChange` listener.
+- **Permission functions**: `computeGangPermissions()`, `getCampaignPermissions()`, `isCampaignArbitrator()` in `app/lib/user-permissions.ts` compute permissions from JWT claims without DB queries.
+- **RLS policies**: `is_admin()` and `is_arb()` SQL functions read from `auth.jwt()` with a DB fallback for old JWTs.
+- **Proxy**: `proxy.ts` uses `getUserIdFromClaims` for auth gating (redirect unauthenticated users to sign-in).
+
+### Permission Hierarchy
+
+| Context | Levels (highest to lowest) |
+|---------|---------------------------|
+| App-wide | `admin` > `user` |
+| Campaign | `OWNER` > `ARBITRATOR` > `MEMBER` > non-member |
+| Gang | admin / owner > campaign arb/owner > regular user |
+
+### Stale Claims
+
+JWT claims refresh on token refresh (~1 hour). Changes to profile or campaign membership are stale until then. Server actions that modify the current user's campaign role call `refreshSession()` to force a fresh JWT.
+
 ## Component Architecture
 
 ### Page Structure

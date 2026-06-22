@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
-import { getUserIdFromClaims } from "@/utils/auth"
+import { getUserIdFromClaims, checkAdmin } from "@/utils/auth"
 
 export async function GET(request: NextRequest) {
   const guildId = request.nextUrl.searchParams.get('guild_id')
@@ -19,21 +19,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify user has access: must be owner/arbitrator/admin of a campaign linked to this guild
-    const [campaignResult, profileResult] = await Promise.all([
+    const [campaignResult, isAppAdmin] = await Promise.all([
       supabase
         .from('campaigns')
         .select('id')
         .eq('discord_guild_id', guildId)
         .limit(1)
         .maybeSingle(),
-      supabase
-        .from('profiles')
-        .select('user_role')
-        .eq('id', userId)
-        .single()
+      checkAdmin(supabase)
     ])
-
-    const isAppAdmin = profileResult.data?.user_role === 'admin'
 
     if (!isAppAdmin && campaignResult.data) {
       // Check if user is owner/arbitrator of the linked campaign

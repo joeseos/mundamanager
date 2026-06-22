@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
-import { getUserIdFromClaims } from "@/utils/auth";
+import { getUserIdFromClaims, checkAdmin } from "@/utils/auth";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -12,14 +12,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if user is admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', userId)
-      .single();
-
-    const isAdmin = profile?.user_role === 'admin';
+    const isAdmin = await checkAdmin(supabase);
 
     // Check for includeAll parameter
     const url = new URL(request.url);

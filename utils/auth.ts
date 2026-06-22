@@ -1,45 +1,52 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { UserProfileClaims, CampaignRoleClaim } from '@/types/user-permissions'
 
-interface AuthUser {
-  id: string;
-  email?: string;
+export interface ParsedClaims {
+  userId: string;
+  email: string | undefined;
+  profile: UserProfileClaims | null;
+  campaignRoles: CampaignRoleClaim[];
 }
 
-export async function getAuthenticatedUser(supabase: SupabaseClient): Promise<AuthUser> {
-  // Use optimized getClaims() for fast JWT verification
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-
-  if (claimsError || !claimsData) {
-    throw new Error('User not authenticated');
-  }
-
-  // Extract user information from JWT claims
+export function extractCustomClaims(claims: Record<string, any>): {
+  profile: UserProfileClaims | null;
+  campaignRoles: CampaignRoleClaim[];
+} {
+  const profile = claims?.user_profile;
+  const roles = claims?.campaign_roles;
   return {
-    id: claimsData.claims.sub as string,
-    email: claimsData.claims.email as string,
+    profile: profile && typeof profile === 'object' ? profile as UserProfileClaims : null,
+    campaignRoles: Array.isArray(roles) ? roles as CampaignRoleClaim[] : [],
   };
 }
 
-// Simple helper for API routes that only need user ID
-export async function getUserIdFromClaims(supabase: SupabaseClient): Promise<string | null> {
-  const { data: claimsData } = await supabase.auth.getClaims();
-  return claimsData?.claims?.sub || null;
+export async function getClaims(supabase: SupabaseClient): Promise<ParsedClaims | null> {
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data) return null;
+
+  const { profile, campaignRoles } = extractCustomClaims(data.claims);
+  return {
+    userId: data.claims.sub as string,
+    email: data.claims.email as string | undefined,
+    profile,
+    campaignRoles,
+  };
 }
 
-export async function checkAdmin(supabase: SupabaseClient, user?: AuthUser) {
-  try {
-    const authUser = user || await getAuthenticatedUser(supabase);
+export async function getAuthenticatedUser(supabase: SupabaseClient): Promise<{ id: string; email?: string }> {
+  const claims = await getClaims(supabase);
+  if (!claims) throw new Error('User not authenticated');
+  return { id: claims.userId, email: claims.email };
+}
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', authUser.id)
-      .single();
+export async function getUserIdFromClaims(supabase: SupabaseClient): Promise<string | null> {
+  const claims = await getClaims(supabase);
+  return claims?.userId ?? null;
+}
 
-    return profile?.user_role === 'admin';
-  } catch {
-    return false;
-  }
+export async function checkAdmin(supabase: SupabaseClient, _user?: { id: string }) {
+  const claims = await getClaims(supabase);
+  return claims?.profile?.user_role === 'admin' || false;
 }
 
 export function safePath(path?: string | null) {

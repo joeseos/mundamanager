@@ -1,15 +1,26 @@
 CREATE OR REPLACE FUNCTION private.is_arb(campaign_id_param uuid)
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, private
 STABLE
 AS $$
-  SELECT EXISTS (
-    SELECT 1 
+BEGIN
+  IF auth.jwt()->'campaign_roles' IS NOT NULL THEN
+    RETURN EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(auth.jwt()->'campaign_roles') AS cr
+      WHERE (cr->>'id')::uuid = campaign_id_param
+      AND cr->>'role' IN ('OWNER', 'ARBITRATOR')
+    );
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
     FROM campaign_members cm
     WHERE cm.campaign_id = campaign_id_param
-    AND cm.user_id = (SELECT auth.uid())
+    AND cm.user_id = auth.uid()
     AND cm.role IN ('OWNER', 'ARBITRATOR')
   );
+END;
 $$;

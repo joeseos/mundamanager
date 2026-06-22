@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
-import { PermissionService } from '@/app/lib/user-permissions';
+import { computeGangPermissionsByGangId } from '@/app/lib/user-permissions';
 import { getUserIdFromClaims } from '@/utils/auth';
 
 interface FormattedSkillAccess {
@@ -56,10 +56,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Fighter not found' }, { status: 404 });
     }
 
-    // Check if user has access to this fighter (either owner or admin)
-    // Use PermissionService to check gang permissions
-    const permissionService = new PermissionService();
-    const permissions = await permissionService.getGangPermissions(userId, fighter.gang_id);
+    const permissions = await computeGangPermissionsByGangId(userId, fighter.gang_id);
 
     if (!permissions.canEdit) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });

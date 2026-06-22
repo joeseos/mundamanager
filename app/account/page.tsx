@@ -9,8 +9,7 @@ import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
 import { ImInfo } from "react-icons/im";
-import { signInPath } from "@/utils/auth";
-// Using full auth user on profile to display email and timestamps
+import { signInPath, getClaims } from "@/utils/auth";
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -19,16 +18,8 @@ export default async function AccountPage() {
     redirect(signInPath("/account"));
   }
 
-  // Fetch profile data
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('username, patreon_tier_id, patreon_tier_title, patron_status')
-    .eq('id', user.id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching profile:', error);
-  }
+  const claims = await getClaims(supabase);
+  const profile = claims?.profile ?? null;
 
   // Fetch all friends and requests
   const friends = await getFriendsAndRequests(user.id);
@@ -68,8 +59,8 @@ export default async function AccountPage() {
                 {profile?.patreon_tier_id && profile?.patron_status === 'active_patron' ? (
                   <Badge variant="outline" className="flex items-center gap-1">
                     <PatreonSupporterIcon
-                      patreonTierId={profile.patreon_tier_id}
-                      patreonTierTitle={profile.patreon_tier_title}
+                      patreonTierId={profile.patreon_tier_id ?? undefined}
+                      patreonTierTitle={profile.patreon_tier_title ?? undefined}
                     />
                     {profile.patreon_tier_title || 'Patreon Supporter'}
                   </Badge>

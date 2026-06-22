@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -312,14 +312,7 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
 
     const user = await getAuthenticatedUser(supabase);
 
-    // Permission check: admin, owner, or arbitrator
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (profile?.user_role !== 'admin') {
+    if (!await checkAdmin(supabase)) {
       const { data: members, error: memberError } = await supabase
         .from('campaign_members')
         .select('role')

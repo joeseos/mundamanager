@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 
 export const dynamic = "force-dynamic";
-import { PermissionService } from "@/app/lib/user-permissions";
+import { canViewHiddenGang } from "@/app/lib/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import PrintGang from "@/components/gang/print-gang";
@@ -40,18 +40,22 @@ export default async function PrintGangPage(props: {
       getUserProfile,
     } = await import("@/app/lib/shared/gang-data");
 
-    // Fetch basic gang data first to check if gang exists
-    const gangBasic = await getGangBasic(params.id, supabase);
+    // Fetch gang + campaigns in parallel (both cached, needed for hidden check)
+    const [gangBasic, campaigns] = await Promise.all([
+      getGangBasic(params.id, supabase),
+      getGangCampaigns(params.id, supabase),
+    ]);
 
     if (!gangBasic) {
       notFound();
     }
 
-    // Check if user can view hidden gang
-    const permissionService = new PermissionService();
-    const canView = await permissionService.canViewHiddenGang(
+    const gangCampaignIds = campaigns.map(c => c.campaign_id);
+
+    const canView = await canViewHiddenGang(
       user.id,
-      params.id,
+      gangBasic.user_id,
+      gangCampaignIds,
       gangBasic.hidden,
     );
 
@@ -65,7 +69,6 @@ export default async function PrintGangPage(props: {
       gangType,
       alliance,
       fighters,
-      campaigns,
       gangCredits,
       gangVariants,
       gangRatingAndWealth,
@@ -76,7 +79,6 @@ export default async function PrintGangPage(props: {
       getGangType(gangBasic, supabase),
       getAlliance(gangBasic.alliance_id, supabase),
       getGangFightersList(params.id, supabase, { expandLoadoutsForPrint: true }),
-      getGangCampaigns(params.id, supabase),
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRatingAndWealth(params.id, supabase),

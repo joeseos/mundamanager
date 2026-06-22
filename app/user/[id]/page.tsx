@@ -20,7 +20,7 @@ import { CustomFighterType } from "@/types/fighter";
 import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
 import { CustomCollectionWithItems } from "@/app/lib/customise/custom-collections";
-import { useSession } from "@/hooks/use-session";
+import { useClaims } from "@/hooks/use-session";
 import { toast } from 'sonner';
 
 import Link from "next/link";
@@ -93,9 +93,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
     gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
-  // Get current user for read-only mode
-  const session = useSession();
-  const currentUserId = session?.user?.id || null;
+  const { userId: currentUserId } = useClaims();
 
   // Scroll to top when component mounts
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
-import { PermissionService } from "@/app/lib/user-permissions";
+import { canViewHiddenGang, computeGangPermissions } from "@/app/lib/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
@@ -34,18 +34,23 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   }
 
   try {
-    // Fetch basic gang data first to check if gang exists
-    const gangBasic = await getGangBasic(params.id, supabase);
+    // Fetch gang + campaigns in parallel (both cached, needed for hidden check + permissions)
+    const [gangBasic, campaigns] = await Promise.all([
+      getGangBasic(params.id, supabase),
+      getGangCampaigns(params.id, supabase),
+    ]);
 
     if (!gangBasic) {
       notFound();
     }
 
-    // Check if user can view hidden gang
-    const permissionService = new PermissionService();
-    const canView = await permissionService.canViewHiddenGang(
+    const gangCampaignIds = campaigns.map(c => c.campaign_id);
+
+    // Check if user can view hidden gang (JWT claims, no DB)
+    const canView = await canViewHiddenGang(
       user.id,
-      params.id,
+      gangBasic.user_id,
+      gangCampaignIds,
       gangBasic.hidden
     );
 
@@ -61,7 +66,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       fighters,
       vehicles,
       stash,
-      campaigns,
       gangCredits,
       gangVariants,
       gangRatingAndWealth,
@@ -75,12 +79,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangFightersList(params.id, supabase),
       getGangVehicles(params.id, supabase),
       getGangStash(params.id, supabase),
-      getGangCampaigns(params.id, supabase),
       getGangCredits(params.id, supabase),
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRatingAndWealth(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
-      permissionService.getGangPermissions(user.id, params.id),
+      computeGangPermissions(user.id, gangBasic.user_id, gangCampaignIds),
       getGangBattleSessionsCached(params.id, supabase)
     ]);
 
