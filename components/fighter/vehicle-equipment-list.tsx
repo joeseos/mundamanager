@@ -874,7 +874,7 @@ export function VehicleEquipmentList({
                     <div
                       className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
                       data-tooltip-id="resource-cost-tooltip"
-                      data-tooltip-html={item.cost_resource_name!.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                      data-tooltip-content={item.cost_resource_name}
                     >
                       <span className="text-[10px] font-medium">{item.cost_resource_amount}</span>
                     </div>

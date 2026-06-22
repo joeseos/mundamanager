@@ -3,8 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { getPlayingCardSortKey } from '@/utils/campaigns/territory-playing-card-options';
-import { escapeHtml } from '@/utils/campaigns/map-markers';
 
 interface Gang {
   id: string;
@@ -25,22 +25,19 @@ interface Territory {
 }
 
 
-function buildTerritoryTooltipHtml(t: Territory): string {
+function getTerritoryTooltipTitle(t: Territory): string {
   const card = t.playing_card?.trim() ? `${t.playing_card.trim()} ` : '';
-  const heading = `<div class="text-sm font-semibold">${escapeHtml(card + t.territory_name)}</div>`;
+  return card + t.territory_name;
+}
 
-  const desc = t.description?.trim()
-    ? `<div class="text-[0.7rem] mt-1 opacity-80" style="white-space: pre-wrap;">${escapeHtml(t.description.trim())}</div>`
-    : '';
-
+function getTerritoryTooltipDescription(t: Territory): string {
   const ref = t.map_hex_coords
     ? `Coords: ${t.map_hex_coords.x}, ${t.map_hex_coords.y}, ${t.map_hex_coords.z}`
     : t.map_object_id
       ? `ID: ${t.map_object_id.slice(0, 8)}`
       : `ID: ${t.id.slice(0, 8)}`;
-  const refLine = `<div class="text-xs mt-1 opacity-60">${escapeHtml(ref)}</div>`;
 
-  return heading + desc + refLine;
+  return [t.description?.trim(), ref].filter(Boolean).join('\n\n');
 }
 
 interface CampaignMapGangSummaryProps {
@@ -110,7 +107,8 @@ export default function CampaignMapGangSummary({ territories, allGangs }: Campai
                         key={t.id}
                         className="cursor-default"
                         data-tooltip-id="gang-summary-territory-tooltip"
-                        data-tooltip-html={buildTerritoryTooltipHtml(t)}
+                        data-tooltip-title={getTerritoryTooltipTitle(t)}
+                        data-tooltip-description={getTerritoryTooltipDescription(t)}
                       >
                         {t.playing_card ? `${t.playing_card} ` : ''}{t.territory_name}
                       </li>
@@ -136,7 +134,8 @@ export default function CampaignMapGangSummary({ territories, allGangs }: Campai
                   key={t.id}
                   className="cursor-default"
                   data-tooltip-id="gang-summary-territory-tooltip"
-                  data-tooltip-html={buildTerritoryTooltipHtml(t)}
+                  data-tooltip-title={getTerritoryTooltipTitle(t)}
+                  data-tooltip-description={getTerritoryTooltipDescription(t)}
                 >
                   {t.playing_card ? `${t.playing_card} ` : ''}{t.territory_name}
                 </li>
@@ -154,6 +153,7 @@ export default function CampaignMapGangSummary({ territories, allGangs }: Campai
       offset={16}
       className="bg-neutral-900! text-white! text-xs! z-[2000]!"
       delayHide={100}
+      render={renderDescriptionTooltip}
       style={{ padding: '8px', maxWidth: '22rem' }}
     />
     </>

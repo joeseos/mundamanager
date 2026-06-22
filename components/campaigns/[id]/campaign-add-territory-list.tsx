@@ -181,9 +181,7 @@ export default function TerritoryList({
           <span
             className="relative cursor-pointer text-muted-foreground hover:text-foreground"
             data-tooltip-id="territories-types-tooltip"
-            data-tooltip-html={
-              'Select the campaign types that you want to add territories for.'
-            }
+            data-tooltip-content="Select the campaign types that you want to add territories for."
           >
             <ImInfo />
           </span>

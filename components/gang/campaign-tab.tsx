@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { fighterClassRank } from '@/utils/fighterClassRank';
 import { createClient } from "@/utils/supabase/client";
 import { Battle } from '@/types/campaign';
@@ -334,69 +335,22 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
   const ooaCaused = fighterStats?.ooa_caused ?? 0;
   const deathsSuffered = fighterStats?.deaths_suffered ?? 0;
 
-  const escapeHtml = (s: string) =>
-    String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  const getClassRank = (fighterClass: string) =>
+    fighterClassRank[fighterClass.toLowerCase().trim()] ?? 99;
 
-  const ooaTooltipHtml = useMemo(() => {
-    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">OOA caused</div>';
+  const ooaBreakdown = useMemo(() => {
     const breakdown = fighterStats?.ooa_breakdown ?? [];
-    if (breakdown.length === 0) {
-      return `${title}<div>No OOA recorded</div>`;
-    }
-    const getClassRank = (c: string) =>
-      fighterClassRank[c.toLowerCase().trim()] ?? 99;
-    const sorted = [...breakdown].sort(
+    return [...breakdown].sort(
       (a, b) => getClassRank(a.fighter_class) - getClassRank(b.fighter_class)
     );
-    const rows = sorted
-      .map(
-        (f) =>
-          `<div style="display:flex;justify-content:space-between;gap:12px;">` +
-          `<span style="text-align:left;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.fighter_name)} - ${escapeHtml(f.fighter_type)} (${escapeHtml(f.fighter_class)})</span>` +
-          `<span style="text-align:right;flex-shrink:0;">${f.kills}</span>` +
-          `</div>`
-      )
-      .join('');
-    const footer =
-      `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
-      `<span style="text-align:left;">Total:</span>` +
-      `<span style="text-align:right;">${ooaCaused}</span>` +
-      `</div>`;
-    return `${title}${rows}${footer}`;
-  }, [fighterStats?.ooa_breakdown, ooaCaused]);
+  }, [fighterStats?.ooa_breakdown]);
 
-  const deathsTooltipHtml = useMemo(() => {
-    const title = '<div style="font-weight:600;margin-bottom:6px;font-size:14px;">Deaths suffered</div>';
+  const deathsBreakdown = useMemo(() => {
     const breakdown = fighterStats?.deaths_breakdown ?? [];
-    if (breakdown.length === 0) {
-      return `${title}<div>No deaths recorded</div>`;
-    }
-    const getClassRank = (c: string) =>
-      fighterClassRank[c.toLowerCase().trim()] ?? 99;
-    const sorted = [...breakdown].sort(
+    return [...breakdown].sort(
       (a, b) => getClassRank(a.fighter_class) - getClassRank(b.fighter_class)
     );
-    const rows = sorted
-      .map(
-        (f) =>
-          `<div style="display:flex;justify-content:space-between;gap:12px;">` +
-          `<span style="text-align:left;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.fighter_name)} - ${escapeHtml(f.fighter_type)} (${escapeHtml(f.fighter_class)})</span>` +
-          `<span style="text-align:right;flex-shrink:0;">1</span>` +
-          `</div>`
-      )
-      .join('');
-    const footer =
-      `<div style="border-top:1px solid #333;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px;">` +
-      `<span style="text-align:left;">Total:</span>` +
-      `<span style="text-align:right;">${deathsSuffered}</span>` +
-      `</div>`;
-    return `${title}${rows}${footer}`;
-  }, [fighterStats?.deaths_breakdown, deathsSuffered]);
+  }, [fighterStats?.deaths_breakdown]);
 
   return (
     <div>
@@ -440,7 +394,6 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                         <div
                           className="flex justify-between cursor-help"
                           data-tooltip-id="ooa-caused-tooltip"
-                          data-tooltip-html={ooaTooltipHtml}
                         >
                           <span className="text-muted-foreground">OOA caused:</span>
                           <span className="font-semibold">{ooaCaused}</span>
@@ -454,7 +407,6 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                         <div
                           className="flex justify-between cursor-help"
                           data-tooltip-id="deaths-suffered-tooltip"
-                          data-tooltip-html={deathsTooltipHtml}
                         >
                           <span className="text-muted-foreground">Deaths suffered:</span>
                           <span className="font-semibold">{deathsSuffered}</span>
@@ -507,7 +459,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
                                   <span
                                     className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
                                     data-tooltip-id="gang-territory-description-tooltip"
-                                    data-tooltip-html={`<div style="font-weight:600;margin-bottom:6px;font-size:14px;">${escapeHtml(territory.territory_name)}</div><div style="white-space:pre-wrap;">${escapeHtml(territory.description)}</div>`}
+                                    data-tooltip-title={territory.territory_name}
+                                    data-tooltip-description={territory.description}
                                   >
                                     <BiSolidNotepad className="h-4 w-4 inline" aria-label="View territory description" />
                                   </span>
@@ -847,7 +800,29 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
           padding: '6px',
           maxWidth: '24rem'
         }}
-      />
+      >
+        <div>
+          <div className="mb-1.5 text-sm font-semibold">OOA caused</div>
+          {ooaBreakdown.length === 0 ? (
+            <div>No OOA recorded</div>
+          ) : (
+            <>
+              {ooaBreakdown.map((fighter) => (
+                <div key={`${fighter.fighter_name}-${fighter.fighter_type}-${fighter.fighter_class}`} className="flex justify-between gap-3">
+                  <span className="flex-1 truncate text-left">
+                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_class})
+                  </span>
+                  <span className="shrink-0 text-right">{fighter.kills}</span>
+                </div>
+              ))}
+              <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                <span>Total:</span>
+                <span>{ooaCaused}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </Tooltip>
       <Tooltip
         id="deaths-suffered-tooltip"
         place="top"
@@ -858,13 +833,36 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
           padding: '6px',
           maxWidth: '24rem'
         }}
-      />
+      >
+        <div>
+          <div className="mb-1.5 text-sm font-semibold">Deaths suffered</div>
+          {deathsBreakdown.length === 0 ? (
+            <div>No deaths recorded</div>
+          ) : (
+            <>
+              {deathsBreakdown.map((fighter) => (
+                <div key={`${fighter.fighter_name}-${fighter.fighter_type}-${fighter.fighter_class}`} className="flex justify-between gap-3">
+                  <span className="flex-1 truncate text-left">
+                    {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_class})
+                  </span>
+                  <span className="shrink-0 text-right">1</span>
+                </div>
+              ))}
+              <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                <span>Total:</span>
+                <span>{deathsSuffered}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </Tooltip>
       <Tooltip
         id="gang-territory-description-tooltip"
         place="top"
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           width: '24rem',

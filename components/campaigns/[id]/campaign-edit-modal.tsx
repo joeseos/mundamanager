@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { deleteCampaign } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { ImInfo } from "react-icons/im";
 import { Tooltip } from 'react-tooltip';
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
@@ -315,9 +316,7 @@ export default function CampaignEditModal({
                   <span
                     className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                     data-tooltip-id="resources-tooltip"
-                    data-tooltip-html={
-                      'Resources are campaign-specific currencies that gangs can accumulate. Predefined resources come from the campaign type (e.g., Exploration Points for Underhells, Meat and Scavenging Rolls for Uprising). Campaign owners and arbitrators can also add custom resources.'
-                    }
+                    data-tooltip-description="Resources are campaign-specific currencies that gangs can accumulate. Predefined resources come from the campaign type (e.g., Exploration Points for Underhells, Meat and Scavenging Rolls for Uprising). Campaign owners and arbitrators can also add custom resources."
                   >
                     <ImInfo />
                   </span>
@@ -356,9 +355,7 @@ export default function CampaignEditModal({
                   <span
                     className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                     data-tooltip-id="resources-tooltip"
-                    data-tooltip-html={
-                      'Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options.'
-                    }
+                    data-tooltip-description="Only selected Trading Posts are available for gangs taking part in this campaign when buying equipment. However, this does not prevent players to access the Unrestricted list options."
                   >
                     <ImInfo />
                   </span>
@@ -434,9 +431,7 @@ export default function CampaignEditModal({
                   <span
                     className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                     data-tooltip-id="resources-tooltip"
-                    data-tooltip-html={
-                      'Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.<br/><br/>When adding a gang to a campaign, an allegiance can be selected for the gang directly. Players can edit their own gang\'s allegiance, and arbitrators can update the allegiance of every gang in a campaign.'
-                    }
+                    data-tooltip-description={"Allegiances represent which side or faction a gang chooses to align with in a campaign. Some campaigns feature opposed forces (such as Imperial House vs House Aranthus, or Order vs Chaos), and while gangs may start Unaligned, they will eventually need to choose a side as the campaign progresses.\n\nWhen adding a gang to a campaign, an allegiance can be selected for the gang directly. Players can edit their own gang's allegiance, and arbitrators can update the allegiance of every gang in a campaign."}
                   >
                     <ImInfo />
                   </span>
@@ -477,7 +472,7 @@ export default function CampaignEditModal({
                   <span
                     className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                     data-tooltip-id="resources-tooltip"
-                    data-tooltip-html="Connect a Discord bot to automatically post battle reports to a channel in your Discord server."
+                    data-tooltip-description="Connect a Discord bot to automatically post battle reports to a channel in your Discord server."
                   >
                     <ImInfo />
                   </span>
@@ -537,9 +532,7 @@ export default function CampaignEditModal({
                   <span
                     className="relative cursor-pointer text-muted-foreground hover:text-foreground"
                     data-tooltip-id="resources-tooltip"
-                    data-tooltip-html={
-                      'The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign.'
-                    }
+                    data-tooltip-description="The campaign description is displayed on the campaign page, providing information about the campaign to all participants. This description appears below the campaign header and is visible to all members of the campaign."
                   >
                     <ImInfo />
                   </span>
@@ -614,6 +607,7 @@ export default function CampaignEditModal({
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={100}
         clickable={true}
+        render={renderDescriptionTooltip}
         style={{
           padding: '6px',
           maxWidth: '20rem'

@@ -21,14 +21,10 @@ function hasProfileData(profile: WeaponProfile): boolean {
   );
 }
 
-/**
- * Builds the tooltip HTML for an equipment item.
- * Shows weapon profiles (table or names) and optionally source info.
- */
-export function getEquipmentTooltipHtml(
+function getEquipmentSourceParts(
   item: Equipment,
   options?: EquipmentTooltipOptions
-): string {
+): string[] {
   const { equipmentListType, isVehicleEquipment = false } = options || {};
   const sourceParts: string[] = [];
 
@@ -45,96 +41,128 @@ export function getEquipmentTooltipHtml(
     }
   }
 
-  const sourceDiv = sourceParts.length > 0
-    ? '<div style="padding:2px;font-size:11px;color:#aaa;">Source: ' + sourceParts.join(', ') + '</div>'
-    : '';
+  return sourceParts;
+}
 
-  const isWeaponWithProfiles = item.equipment_type === 'weapon' && item.weapon_profiles && item.weapon_profiles.length > 0;
+function getSortedWeaponProfiles(item: Equipment): WeaponProfile[] {
+  const seenIds = new Set<string>();
+  const uniqueProfiles = (item.weapon_profiles || []).filter((profile) => {
+    const id = (profile as WeaponProfile & { id?: string }).id ?? profile.profile_name;
+    if (seenIds.has(String(id))) return false;
+    seenIds.add(String(id));
+    return true;
+  });
 
-  if (!isWeaponWithProfiles && sourceParts.length === 0) {
-    return '';
-  }
+  return [...uniqueProfiles].sort((a, b) => {
+    const orderA = (a as WeaponProfile & { sort_order?: number }).sort_order ?? 1;
+    const orderB = (b as WeaponProfile & { sort_order?: number }).sort_order ?? 1;
+    if (orderA !== orderB) return orderA - orderB;
+    return (a.profile_name || '').localeCompare(b.profile_name || '');
+  });
+}
 
-  let html = '';
-  if (isWeaponWithProfiles) {
-    // Deduplicate profiles by id (can occur when profiles match both weapon_id and weapon_group_id)
-    const seenIds = new Set<string>();
-    const uniqueProfiles = (item.weapon_profiles || []).filter((p) => {
-      const id = (p as WeaponProfile & { id?: string }).id ?? p.profile_name;
-      if (seenIds.has(String(id))) return false;
-      seenIds.add(String(id));
-      return true;
-    });
-    const sortedProfiles = [...uniqueProfiles].sort((a, b) => {
-      const orderA = (a as WeaponProfile & { sort_order?: number }).sort_order ?? 1;
-      const orderB = (b as WeaponProfile & { sort_order?: number }).sort_order ?? 1;
-      if (orderA !== orderB) return orderA - orderB;
-      return (a.profile_name || '').localeCompare(b.profile_name || '');
-    });
-    const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
-    if (!hasAnyProfileData) {
-      html = sortedProfiles.map(profile => profile.profile_name).join('<br/>') + sourceDiv;
-    } else {
-      html = '<div style="font-size: 12px;">';
-      html += '<table style="width: 100%; border-collapse: collapse;">';
-      html += '<thead>';
-      html += '<tr>';
-      html += '<th style="text-align: left; min-width: 80px;"></th>';
-      html += '<th style="text-align: center; solid #666;" colspan="2">Rng</th>';
-      html += '<th style="text-align: center; solid #666;" colspan="2">Acc</th>';
-      html += '<th style="text-align: center; solid #666;"></th>';
-      html += '<th style="text-align: center; solid #666;"></th>';
-      html += '<th style="text-align: center; solid #666;"></th>';
-      html += '<th style="text-align: center; solid #666;"></th>';
-      html += '<th style="text-align: left; solid #666;"></th>';
-      html += '</tr>';
-      html += '<tr style="border-bottom: 1px solid #666;">';
-      html += '<th style="text-align: left; padding: 2px; font-size: 10px;">Weapon</th>';
-      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
-      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px; min-width: 25px;">S</th>';
-      html += '<th style="text-align: center; padding: 2px; font-size: 10px; min-width: 25px;">L</th>';
-      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Str</th>';
-      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">AP</th>';
-      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">D</th>';
-      html += '<th style="text-align: center; padding: 2px; border-left: 1px solid #666; font-size: 10px;">Am</th>';
-      html += '<th style="text-align: left; padding: 2px; border-left: 1px solid #666; font-size: 10px; max-width: 22vw;">Traits</th>';
-      html += '</tr>';
-      html += '</thead><tbody>';
-      sortedProfiles.forEach(profile => {
-        const profileHasData = hasProfileData(profile);
-        html += '<tr style="border-bottom: 1px solid #555;">';
-        html += `<td style="padding: 2px; vertical-align: top; font-weight: 500; text-overflow: ellipsis; max-width: 10vw;">${profile.profile_name || '-'}</td>`;
-        if (profileHasData) {
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.range_short ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.range_long ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.acc_short ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center;">${profile.acc_long ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.strength ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ap ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.damage ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; text-align: center; border-left: 1px solid #555;">${profile.ammo ?? '-'}</td>`;
-          html += `<td style="padding: 3px; vertical-align: top; border-left: 1px solid #555; word-break: normal; white-space: normal; max-width: 22vw;">${profile.traits ?? '-'}</td>`;
-        } else {
-          html += '<td style="padding: 3px; text-align: center; border-left: 1px solid #555;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px; text-align: center;"></td>';
-          html += '<td style="padding: 3px;"></td>';
-        }
-        html += '</tr>';
-      });
-      html += '</tbody></table></div>' + sourceDiv;
-    }
-  } else {
-    html = sourceDiv;
-  }
+function hasEquipmentTooltipContent(item: Equipment, options?: EquipmentTooltipOptions): boolean {
+  const isWeaponWithProfiles = item.equipment_type === 'weapon' && !!item.weapon_profiles?.length;
+  return isWeaponWithProfiles || getEquipmentSourceParts(item, options).length > 0;
+}
 
-  return html;
+const TABLE_CELL_PADDING = 'p-0.5 md:p-1 lg:p-1.5';
+
+function statCellClass(showBorderLeft: boolean, extra = '') {
+  return [showBorderLeft ? 'border-l border-neutral-600' : '', TABLE_CELL_PADDING, extra].filter(Boolean).join(' ');
+}
+
+function EquipmentTooltipContent({ item, options }: { item: Equipment; options?: EquipmentTooltipOptions }) {
+  const sourceParts = getEquipmentSourceParts(item, options);
+  const isWeaponWithProfiles = item.equipment_type === 'weapon' && !!item.weapon_profiles?.length;
+  const sortedProfiles = isWeaponWithProfiles ? getSortedWeaponProfiles(item) : [];
+  const hasAnyProfileData = sortedProfiles.some(profile => hasProfileData(profile));
+
+  return (
+    <div className="text-xs">
+      {isWeaponWithProfiles && (
+        hasAnyProfileData ? (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="min-w-20 w-40 text-left"></th>
+                <th className="text-center text-[10px]" colSpan={2}>Rng</th>
+                <th className="text-center text-[10px]" colSpan={2}>Acc</th>
+                <th className="text-center"></th>
+                <th className="text-center"></th>
+                <th className="text-center"></th>
+                <th className="text-center"></th>
+                <th className="text-left"></th>
+              </tr>
+              <tr className="border-b border-neutral-500">
+                <th className={`${TABLE_CELL_PADDING} text-left text-[10px]`}>Weapon</th>
+                <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>S</th>
+                <th className={`min-w-6 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
+                <th className={`min-w-6 border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>S</th>
+                <th className={`min-w-6 ${TABLE_CELL_PADDING} text-center text-[10px]`}>L</th>
+                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Str</th>
+                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>AP</th>
+                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>D</th>
+                <th className={`border-l border-neutral-500 ${TABLE_CELL_PADDING} text-center text-[10px]`}>Am</th>
+                <th className={`max-w-[22vw] border-l border-neutral-500 ${TABLE_CELL_PADDING} text-left text-[10px]`}>Traits</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedProfiles.map((profile) => {
+                const profileHasData = hasProfileData(profile);
+
+                return (
+                  <tr key={(profile as WeaponProfile & { id?: string }).id ?? profile.profile_name} className="border-b border-neutral-600">
+                    <td className={`max-w-[10vw] ${TABLE_CELL_PADDING} align-top font-medium text-ellipsis`}>
+                      {profile.profile_name || '-'}
+                    </td>
+                    {profileHasData ? (
+                      <>
+                        <td className={statCellClass(true, 'text-center align-top')}>{profile.range_short ?? '-'}</td>
+                        <td className={statCellClass(false, 'text-center align-top')}>{profile.range_long ?? '-'}</td>
+                        <td className={statCellClass(true, 'text-center align-top')}>{profile.acc_short ?? '-'}</td>
+                        <td className={statCellClass(false, 'text-center align-top')}>{profile.acc_long ?? '-'}</td>
+                        <td className={statCellClass(true, 'text-center align-top')}>{profile.strength ?? '-'}</td>
+                        <td className={statCellClass(true, 'text-center align-top')}>{profile.ap ?? '-'}</td>
+                        <td className={statCellClass(true, 'text-center align-top')}>{profile.damage ?? '-'}</td>
+                        <td className={statCellClass(true, 'text-center align-top')}>{profile.ammo ?? '-'}</td>
+                        <td className={statCellClass(true, 'max-w-[22vw] whitespace-normal align-top')}>{profile.traits ?? '-'}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className={statCellClass(true, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false, 'text-center')}></td>
+                        <td className={statCellClass(false)}></td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div>
+            {sortedProfiles.map((profile) => (
+              <div key={(profile as WeaponProfile & { id?: string }).id ?? profile.profile_name}>
+                {profile.profile_name}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+      {sourceParts.length > 0 && (
+        <div className={`${TABLE_CELL_PADDING} text-[11px] text-neutral-400`}>
+          Source: {sourceParts.join(', ')}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface EquipmentTooltipTriggerProps {
@@ -145,35 +173,37 @@ interface EquipmentTooltipTriggerProps {
 }
 
 export function EquipmentTooltipTrigger({ item, children, className, options }: EquipmentTooltipTriggerProps) {
-  const html = getEquipmentTooltipHtml(item, options);
-  const hasTooltipContent = html.length > 0;
+  const tooltipId = React.useId();
+  const hasTooltipContent = hasEquipmentTooltipContent(item, options);
 
   if (!hasTooltipContent) {
     return <div className={className}>{children}</div>;
   }
 
   return (
-    <div
-      className={`${className ?? ''} cursor-help`.trim()}
-      data-tooltip-id={EQUIPMENT_TOOLTIP_ID}
-      data-tooltip-html={html}
-    >
-      {children}
-    </div>
+    <>
+      <div
+        className={`${className ?? ''} cursor-help`.trim()}
+        data-tooltip-id={tooltipId}
+      >
+        {children}
+      </div>
+      <Tooltip
+        id={tooltipId}
+        place="top-start"
+        className="bg-neutral-900! text-white! text-xs! z-[60]!"
+        style={{
+          padding: '6px',
+          maxWidth: '97vw',
+          marginLeft: '-10px'
+        }}
+      >
+        <EquipmentTooltipContent item={item} options={options} />
+      </Tooltip>
+    </>
   );
 }
 
 export function EquipmentTooltip() {
-  return (
-    <Tooltip
-      id={EQUIPMENT_TOOLTIP_ID}
-      place="top-start"
-      className="bg-neutral-900! text-white! text-xs! z-[60]!"
-      style={{
-        padding: '6px',
-        maxWidth: '97vw',
-        marginLeft: '-10px'
-      }}
-    />
-  );
+  return null;
 }
