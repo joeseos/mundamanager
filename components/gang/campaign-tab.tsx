@@ -19,6 +19,17 @@ import { LuSwords } from "react-icons/lu";
 import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
 
+function getClassRank(fighterClass: string) {
+  return fighterClassRank[fighterClass.toLowerCase().trim()] ?? 99;
+}
+
+function breakdownRowKey(
+  fighter: { fighter_name: string; fighter_type: string; fighter_class: string },
+  index: number,
+) {
+  return `${fighter.fighter_name}-${fighter.fighter_type}-${fighter.fighter_class}-${index}`;
+}
+
 interface Territory {
   id: string;
   territory_id?: string;
@@ -334,9 +345,6 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
 
   const ooaCaused = fighterStats?.ooa_caused ?? 0;
   const deathsSuffered = fighterStats?.deaths_suffered ?? 0;
-
-  const getClassRank = (fighterClass: string) =>
-    fighterClassRank[fighterClass.toLowerCase().trim()] ?? 99;
 
   const ooaBreakdown = useMemo(() => {
     const breakdown = fighterStats?.ooa_breakdown ?? [];
@@ -807,8 +815,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             <div>No OOA recorded</div>
           ) : (
             <>
-              {ooaBreakdown.map((fighter) => (
-                <div key={`${fighter.fighter_name}-${fighter.fighter_type}-${fighter.fighter_class}`} className="flex justify-between gap-3">
+              {ooaBreakdown.map((fighter, index) => (
+                <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
                     {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_class})
                   </span>
@@ -840,8 +848,8 @@ export default function GangTerritories({ gangId, campaigns = [] }: GangTerritor
             <div>No deaths recorded</div>
           ) : (
             <>
-              {deathsBreakdown.map((fighter) => (
-                <div key={`${fighter.fighter_name}-${fighter.fighter_type}-${fighter.fighter_class}`} className="flex justify-between gap-3">
+              {deathsBreakdown.map((fighter, index) => (
+                <div key={breakdownRowKey(fighter, index)} className="flex justify-between gap-3">
                   <span className="flex-1 truncate text-left">
                     {fighter.fighter_name} - {fighter.fighter_type} ({fighter.fighter_class})
                   </span>

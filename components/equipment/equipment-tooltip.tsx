@@ -4,8 +4,6 @@ import React from 'react';
 import { Tooltip } from 'react-tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
 
-export const EQUIPMENT_TOOLTIP_ID = 'equipment-tooltip';
-
 export interface EquipmentTooltipOptions {
   equipmentListType?: 'fighters-list' | 'fighters-tradingpost' | 'unrestricted';
   isVehicleEquipment?: boolean;
@@ -202,8 +200,4 @@ export function EquipmentTooltipTrigger({ item, children, className, options }: 
       </Tooltip>
     </>
   );
-}
-
-export function EquipmentTooltip() {
-  return null;
 }

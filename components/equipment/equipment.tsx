@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { LuX } from "react-icons/lu";
 import { RangeSlider } from "@/components/ui/range-slider";
-import { EquipmentTooltipTrigger, EquipmentTooltip } from './equipment-tooltip';
+import { EquipmentTooltipTrigger } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
 import { usePurchaseEquipment } from '@/hooks/use-purchase-equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
@@ -887,7 +887,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
           </div>
         </div>
       </div>
-      <EquipmentTooltip />
     </>
   );
 
