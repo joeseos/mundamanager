@@ -7534,12 +7534,6 @@ CREATE INDEX vehicles_vehicle_name_idx ON public.vehicles USING btree (vehicle_n
 CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree (weapon_id);
 
 
---
--- Name: campaign_battles discord-campaign-bot; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER "discord-campaign-bot" AFTER INSERT ON public.campaign_battles FOR EACH ROW EXECUTE FUNCTION supabase_functions.http_request('https://iojoritxhpijprgkjfre.supabase.co/functions/v1/discord-campaign-bot', 'POST', '{"Content-type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlvam9yaXR4aHBpanByZ2tqZnJlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyNTEwODQ3MywiZXhwIjoyMDQwNjg0NDczfQ.99X86eWJFLQQ4cG_cH7I-Cgi3-SPkGQBv67hh6qyA6Q"}', '{}', '5000');
-
 
 --
 -- Name: campaign_gangs on_gang_invite; Type: TRIGGER; Schema: public; Owner: -

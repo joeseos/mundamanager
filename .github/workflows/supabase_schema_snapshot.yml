@@ -62,6 +62,17 @@ jobs:
 
           mv "$tmpfile" "$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
 
+      - name: Sanitize dump
+        run: |
+          set -euo pipefail
+          schema="$SUPABASE_SNAPSHOT_PATH/schema.public.sql"
+
+          # Remove triggers using supabase_functions.http_request (Dashboard webhooks with hardcoded credentials)
+          if grep -q 'supabase_functions\.http_request' "$schema"; then
+            sed -i '/supabase_functions\.http_request/d' "$schema"
+            echo "Sanitized: removed supabase_functions.http_request triggers"
+          fi
+
       - name: Commit if changed
         run: |
           set -euo pipefail
