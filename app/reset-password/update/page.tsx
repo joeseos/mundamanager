@@ -183,7 +183,9 @@ export default function ResetPasswordPage() {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container mx-auto max-w-4xl w-full p-4">
-        <UpdatePasswordFormContent />
+        <Suspense>
+          <UpdatePasswordFormContent />
+        </Suspense>
       </div>
     </main>
   );
