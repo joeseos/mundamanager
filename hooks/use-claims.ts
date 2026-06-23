@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { extractCustomClaims } from '@/utils/auth';
+import { extractProfileClaims } from '@/utils/auth';
 import type { UserProfileClaims } from '@/types/user-permissions';
 
 interface ClaimsState {
@@ -34,7 +34,7 @@ export function useClaims(): ClaimsState {
         return;
       }
 
-      const { profile } = extractCustomClaims(data.claims);
+      const profile = extractProfileClaims(data.claims);
       setState({
         userId: data.claims.sub ?? null,
         email: (data.claims.email as string) ?? null,
@@ -61,7 +61,7 @@ export function useClaims(): ClaimsState {
 
         if (error || !data) return;
 
-        const { profile } = extractCustomClaims(data.claims);
+        const profile = extractProfileClaims(data.claims);
         setState({
           userId: data.claims.sub ?? null,
           email: (data.claims.email as string) ?? null,

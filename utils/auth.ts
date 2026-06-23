@@ -7,24 +7,19 @@ export interface ParsedClaims {
   profile: UserProfileClaims | null;
 }
 
-export function extractCustomClaims(claims: Record<string, any>): {
-  profile: UserProfileClaims | null;
-} {
+export function extractProfileClaims(claims: Record<string, any>): UserProfileClaims | null {
   const profile = claims?.user_profile;
-  return {
-    profile: profile && typeof profile === 'object' ? profile as UserProfileClaims : null,
-  };
+  return profile && typeof profile === 'object' ? profile as UserProfileClaims : null;
 }
 
 export async function getClaims(supabase: SupabaseClient): Promise<ParsedClaims | null> {
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data) return null;
 
-  const { profile } = extractCustomClaims(data.claims);
   return {
     userId: data.claims.sub as string,
     email: data.claims.email as string | undefined,
-    profile,
+    profile: extractProfileClaims(data.claims),
   };
 }
 
