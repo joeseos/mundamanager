@@ -35,4 +35,12 @@ export interface CampaignMember {
   user_id: string;
   role: CampaignRole;
   status: string | null;
+}
+
+export interface UserProfileClaims {
+  user_role: string;
+  username: string | null;
+  patreon_tier_id: string | null;
+  patreon_tier_title: string | null;
+  patron_status: string | null;
 } 

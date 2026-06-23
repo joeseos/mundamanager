@@ -4,14 +4,11 @@ import BackgroundImage from '@/components/background-image';
 import { Inter } from 'next/font/google'
 import Link from 'next/link';
 import Image from 'next/image';
-import { createClient } from "@/utils/supabase/server";
-import { getAuthenticatedUser } from "@/utils/auth";
 import { Toaster } from "@/components/ui/sonner"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
-import SettingsModal from "@/components/settings-modal";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
 import { ClientThemeProvider } from "@/components/client-theme-provider";
-import { ThemeToggleDropdown } from "@/components/theme-toggle";
+import HeaderAuth from "@/components/header-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Footer from "./footer";
@@ -89,38 +86,13 @@ export const metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
   breadcrumb,
 }: {
   children: React.ReactNode;
   breadcrumb: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  let user: { id: string; email?: string } | null = null;
-  try {
-    user = await getAuthenticatedUser(supabase);
-  } catch {}
-
-  // Fetch profile details for header (username, admin flag, patreon tier)
-  let username: string | undefined = undefined;
-  let isAdmin = false;
-  let patreonTierId: string | undefined = undefined;
-  let patreonTierTitle: string | undefined = undefined;
-  let patronStatus: string | undefined = undefined;
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role, username, patreon_tier_id, patreon_tier_title, patron_status')
-      .eq('id', user.id)
-      .single();
-    username = profile?.username;
-    isAdmin = profile?.user_role === 'admin';
-    patreonTierId = profile?.patreon_tier_id;
-    patreonTierTitle = profile?.patreon_tier_title;
-    patronStatus = profile?.patron_status;
-  }
-  
   return (
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
@@ -182,29 +154,7 @@ export default async function RootLayout({
                 Munda Manager
               </span>
             </Link>
-            {user ? (
-              <div className="flex items-center gap-2 mr-2">
-                {/* Theme toggle for easy access */}
-                <ThemeToggleDropdown />
-                
-                {/* Fetch minimal profile info for header */}
-                {/* We intentionally avoid an extra auth call here and use claims (done above) */}
-                {/* SettingsModal expects a Supabase user-like object */}
-                <SettingsModal 
-                  user={{ id: user.id, email: user.email } as any} 
-                  isAdmin={isAdmin} 
-                  username={username}
-                  patreonTierId={patreonTierId}
-                  patreonTierTitle={patreonTierTitle}
-                  patronStatus={patronStatus}
-                />
-              </div>
-            ) : (
-              <div className="mr-2">
-                {/* Theme toggle available even when not logged in */}
-                <ThemeToggleDropdown />
-              </div>
-            )}
+            <HeaderAuth />
           </div>
         </header>
         {breadcrumb}
