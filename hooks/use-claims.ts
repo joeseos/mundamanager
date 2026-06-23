@@ -54,7 +54,14 @@ export function useClaims(): ClaimsState {
           return;
         }
 
-        if (!session) return;
+        if (!session) {
+          const { data, error } = await supabase.auth.getClaims();
+          if (!mounted) return;
+          if (error || !data) {
+            setState({ userId: null, email: null, profile: null, loading: false });
+          }
+          return;
+        }
 
         const { data, error } = await supabase.auth.getClaims();
         if (!mounted) return;
@@ -78,4 +85,4 @@ export function useClaims(): ClaimsState {
   }, [supabase]);
 
   return state;
-} 
+}
