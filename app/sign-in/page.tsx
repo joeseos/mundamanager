@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import TurnstileWidget from './TurnstileWidget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
@@ -17,6 +17,14 @@ import AboutMundaManager from "@/components/munda-manager-info/about-munda-manag
 import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
 
 export default function SignIn() {
+  return (
+    <Suspense>
+      <SignInContent />
+    </Suspense>
+  );
+}
+
+function SignInContent() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get('error');
   const [errorMessage, setErrorMessage] = useState<string | null>(urlError);

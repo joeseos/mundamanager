@@ -35,4 +35,13 @@ export interface CampaignMember {
   user_id: string;
   role: CampaignRole;
   status: string | null;
+}
+
+// Display-only profile data from JWT. Do NOT use for access control — use DB checks (checkAdmin, is_admin, is_arb).
+export interface UserProfileClaims {
+  user_role: string;
+  username: string | null;
+  patreon_tier_id: string | null;
+  patreon_tier_title: string | null;
+  patron_status: string | null;
 } 

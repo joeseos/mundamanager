@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { skillSetRank } from "@/utils/skillSetRank";
-import { useSession } from '@/hooks/use-session';
 import { FighterSkills } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
@@ -47,6 +46,7 @@ interface SkillsListProps {
 // SkillModal Interfaces
 interface SkillModalProps {
   fighterId: string;
+  userId: string;
   gangCredits?: number;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
@@ -84,7 +84,7 @@ interface SkillAccess {
 }
 
 // SkillModal Component
-export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
@@ -94,7 +94,6 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(true);
 
-  const session = useSession();
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for adding skills
@@ -350,7 +349,7 @@ export function SkillModal({ fighterId, gangCredits, onClose, onSkillAdded, onSk
     if (!selectedSkill) return false;
 
     // Check for session
-    if (!session) {
+    if (!userId) {
       toast.error("Authentication required. Please log in again.");
       return false;
     }
@@ -706,6 +705,7 @@ export function SkillsList({
       {isAddSkillModalOpen && (
         <SkillModal
           fighterId={fighterId}
+          userId={userPermissions.userId}
           gangCredits={gangCredits}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}
