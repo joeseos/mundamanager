@@ -59,13 +59,21 @@ For questions about contributing, feel free to ask in our [Discord server](https
    NODE_ENV=development
    ```
 
-3. **Running the environment**
+3. **Database Setup**
+   - Create a free Supabase project at [supabase.com](https://supabase.com)
+   - In the Supabase Dashboard, go to **SQL Editor**
+   - Open and run `supabase/schema/schema.public.sql` — this creates all tables, functions, indexes, RLS policies, and triggers
+   - Then run `supabase/schema/setup-auth-triggers.sql` — this creates the trigger that automatically creates a user profile on sign-up
+
+   > **Note:** The `supabase/migrations/` folder contains incremental changes that are already included in the schema dump. Do not run migrations on a fresh database — they are only for updating an existing one.
+
+4. **Running the environment**
    ```bash
    npm install
    npm run dev
    ```
 
-4. **Mobile device testing**
+5. **Mobile device testing**
    On your desktop, make sure you have the NODE_ENV variable setup with the value 'development'. Then run the following:
    ```bash
    npm run dev --host
@@ -74,7 +82,7 @@ For questions about contributing, feel free to ask in our [Discord server](https
    On your mobile device, when connected to your wifi, access the website using the IP of your desktop on your local network (e.g. 192.168.1.5):
    http://192.168.1.5:3000
 
-5. **Access to the DB Schema**
+6. **Access to the DB Schema**
    The Supabase DB schema can be accessed through https://supabase-schema.vercel.app/
    Use the Supabase URL and the and the anon key to connect to it
 

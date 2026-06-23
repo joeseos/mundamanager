@@ -34,3 +34,4 @@ Syncing of those files is not automatic. If you update a function on Supabase, m
 | notify_campaign_member_added | campaign_members   | Sends notification when member is added   |
 | notify_friend_request_sent   | friends            | Sends notification for friend requests    |
 | notify_gang_invite           | campaign_gangs     | Sends notification for gang invites       |
+| handle_new_user              | auth.users         | Creates profile row for new users         |
