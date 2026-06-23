@@ -438,44 +438,63 @@ export async function advanceRound(
       .select('id, fighter_id, session_record')
       .eq('battle_session_id', sessionId);
 
-    if (fightersError) return { success: false, error: fightersError.message };
-
-    if (fighters && fighters.length > 0) {
+    if (fightersError) {
+      console.error('[advanceRound] Failed to load fighters after round advanced:', {
+        sessionId,
+        newRound: nextRound,
+        error: fightersError.message,
+      });
+    } else if (fighters && fighters.length > 0) {
       const fighterIds = fighters.map((f) => f.fighter_id);
       const { data: fighterDetails, error: fighterDetailsError } = await serviceSupabase
         .from('fighters')
         .select('id, special_rules')
         .in('id', fighterIds);
 
-      if (fighterDetailsError) return { success: false, error: fighterDetailsError.message };
-      const rulesMap = new Map(
-        (fighterDetails ?? []).map((f: any) => [f.id, f.special_rules as string[] | null])
-      );
-      const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
+      if (fighterDetailsError) {
+        console.error('[advanceRound] Failed to load fighter details after round advanced:', {
+          sessionId,
+          newRound: nextRound,
+          error: fighterDetailsError.message,
+        });
+      } else {
+        const rulesMap = new Map(
+          (fighterDetails ?? []).map((f: any) => [f.id, f.special_rules as string[] | null])
+        );
+        const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 
-      const activationResults = await Promise.all(
-        fighters.map((f) => {
-          const rules = rulesMap.get(f.fighter_id);
-          const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
-          // Injured fighters are out of action and get no fresh activation;
-          // players can still grant one manually via updateActivations
-          const isInjured = (f.session_record?.injuries?.length ?? 0) > 0;
-          const record: SessionRecord = {
-            xp_earned: f.session_record?.xp_earned ?? 0,
-            injuries: f.session_record?.injuries ?? [],
-            conditions: f.session_record?.conditions ?? [],
-            note: f.session_record?.note,
-            activations: isInjured ? 0 : isDual ? 2 : 1,
-          };
-          return serviceSupabase
-            .from('battle_session_fighters')
-            .update({ session_record: record })
-            .eq('id', f.id);
-        })
-      );
+        const activationResults = await Promise.all(
+          fighters.map((f) => {
+            const rules = rulesMap.get(f.fighter_id);
+            const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
+            // Injured fighters are out of action and get no fresh activation;
+            // players can still grant one manually via updateActivations
+            const isInjured = (f.session_record?.injuries?.length ?? 0) > 0;
+            const record: SessionRecord = {
+              xp_earned: f.session_record?.xp_earned ?? 0,
+              injuries: f.session_record?.injuries ?? [],
+              conditions: f.session_record?.conditions ?? [],
+              note: f.session_record?.note,
+              activations: isInjured ? 0 : isDual ? 2 : 1,
+            };
+            return serviceSupabase
+              .from('battle_session_fighters')
+              .update({ session_record: record })
+              .eq('id', f.id);
+          })
+        );
 
-      const activationError = activationResults.find((result) => result.error)?.error;
-      if (activationError) return { success: false, error: activationError.message };
+        const activationErrors = activationResults
+          .map((result) => result.error)
+          .filter((error): error is NonNullable<typeof error> => Boolean(error));
+        if (activationErrors.length > 0) {
+          console.error('[advanceRound] Activation refresh failed after round advanced:', {
+            sessionId,
+            newRound: nextRound,
+            errors: activationErrors.map((error) => error.message),
+          });
+        }
+      }
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
