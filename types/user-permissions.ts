@@ -37,6 +37,7 @@ export interface CampaignMember {
   status: string | null;
 }
 
+// Display-only profile data from JWT. Do NOT use for access control — use DB checks (checkAdmin, is_admin, is_arb).
 export interface UserProfileClaims {
   user_role: string;
   username: string | null;
