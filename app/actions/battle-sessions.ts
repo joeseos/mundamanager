@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/utils/supabase/server';
+import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
 import {
@@ -409,12 +409,15 @@ export async function advanceRound(
     const auth = await verifySessionParticipant(supabase, sessionId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
+    const serviceSupabase = createServiceRoleClient();
+
+    const { data: session, error: sessionError } = await serviceSupabase
       .from('battle_sessions')
       .select('status, round')
       .eq('id', sessionId)
       .single();
 
+    if (sessionError) return { success: false, error: sessionError.message };
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'active')
       return { success: false, error: 'Session is not active' };
@@ -423,30 +426,34 @@ export async function advanceRound(
 
     const nextRound = direction === 'forward' ? session.round + 1 : session.round - 1;
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await serviceSupabase
       .from('battle_sessions')
       .update({ round: nextRound, updated_at: new Date().toISOString() })
       .eq('id', sessionId);
 
     if (updateError) return { success: false, error: updateError.message };
 
-    const { data: fighters } = await supabase
+    const { data: fighters, error: fightersError } = await serviceSupabase
       .from('battle_session_fighters')
       .select('id, fighter_id, session_record')
       .eq('battle_session_id', sessionId);
 
+    if (fightersError) return { success: false, error: fightersError.message };
+
     if (fighters && fighters.length > 0) {
       const fighterIds = fighters.map((f) => f.fighter_id);
-      const { data: fighterDetails } = await supabase
+      const { data: fighterDetails, error: fighterDetailsError } = await serviceSupabase
         .from('fighters')
         .select('id, special_rules')
         .in('id', fighterIds);
+
+      if (fighterDetailsError) return { success: false, error: fighterDetailsError.message };
       const rulesMap = new Map(
         (fighterDetails ?? []).map((f: any) => [f.id, f.special_rules as string[] | null])
       );
       const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 
-      await Promise.all(
+      const activationResults = await Promise.all(
         fighters.map((f) => {
           const rules = rulesMap.get(f.fighter_id);
           const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
@@ -460,12 +467,15 @@ export async function advanceRound(
             note: f.session_record?.note,
             activations: isInjured ? 0 : isDual ? 2 : 1,
           };
-          return supabase
+          return serviceSupabase
             .from('battle_session_fighters')
             .update({ session_record: record })
             .eq('id', f.id);
         })
       );
+
+      const activationError = activationResults.find((result) => result.error)?.error;
+      if (activationError) return { success: false, error: activationError.message };
     }
 
     revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
