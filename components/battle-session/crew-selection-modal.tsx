@@ -150,6 +150,7 @@ export default function CrewSelectionModal({
       return result;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: gangLogsQueryKey }),
+    onError: () => undefined,
   });
 
   const isAvailable = (f: GangFighterOption) =>
@@ -256,11 +257,11 @@ export default function CrewSelectionModal({
       setSelected(next);
 
       const pickedNames = picked.map((f) => f.fighter_name).join(', ');
-      await logCrewRollMutation.mutateAsync({
+      logCrewRollMutation.mutate({
         gang_id: gangId,
         action_type: 'crew_roll',
         description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
-      }).catch(() => {});
+      });
     } finally {
       setRolling(false);
     }
