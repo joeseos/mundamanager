@@ -66,6 +66,8 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   active_loadout_name?: string;  // Name of the active loadout
   dragListeners?: any;  // Drag listeners from dnd-kit for icon-only dragging
   dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
+  // Used by constrained modal previews; omit this prop to keep the normal gang-page hover scale/shadow.
+  disableHoverEffects?: boolean;
 }
 
 const calculateVehicleStats = (
@@ -166,6 +168,7 @@ const FighterCard = memo(function FighterCard({
   active_loadout_name,
   dragListeners,
   dragAttributes,
+  disableHoverEffects = false,
   is_spyrer = false,
 }: FighterCardProps) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -460,7 +463,11 @@ const FighterCard = memo(function FighterCard({
     router.push(`/fighter/${id}`);
   }, [id, router, isLoading]);
 
-  const cardClassName = `relative rounded-lg overflow-hidden shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02] transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
+  const hoverEffectClass = disableHoverEffects
+    ? 'shadow-md'
+    : 'shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02]';
+
+  const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
         ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
