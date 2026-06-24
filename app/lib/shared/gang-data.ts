@@ -222,14 +222,14 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           hidden
         `)
         .eq('id', gangId)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        // Return null for not found errors or invalid UUID format
-        if (error.code === 'PGRST116' || error.code === '22P02') return null;
+        // Return null for invalid UUID format; maybeSingle returns null for no rows.
+        if (error.code === '22P02') return null;
         throw error;
       }
-      return data;
+      return data ?? null;
     },
     [`gang-basic-${gangId}`],
     {
