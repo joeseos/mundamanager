@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { FaMedkit } from 'react-icons/fa';
 import { LuMinus, LuPlus } from 'react-icons/lu';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { rollInRange } from '@/utils/dice';
-import { createGangLog } from '@/app/actions/logs/gang-logs';
+import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
 
 interface GangFighterOption {
   id: string;
@@ -140,6 +141,16 @@ export default function CrewSelectionModal({
   const [randomCount, setRandomCount] = useState(0);
   const [randomlySelected, setRandomlySelected] = useState<Set<string>>(new Set());
   const [rolling, setRolling] = useState(false);
+  const queryClient = useQueryClient();
+  const gangLogsQueryKey = ['logs', `/api/gangs/${gangId}/logs`] as const;
+  const logCrewRollMutation = useMutation({
+    mutationFn: async (params: CreateGangLogParams) => {
+      const result = await createGangLog(params);
+      if (!result.success) throw new Error(result.error || 'Failed to log crew roll');
+      return result;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: gangLogsQueryKey }),
+  });
 
   const isAvailable = (f: GangFighterOption) =>
     countsTowardRating(f) && !f.recovery;
@@ -245,7 +256,7 @@ export default function CrewSelectionModal({
       setSelected(next);
 
       const pickedNames = picked.map((f) => f.fighter_name).join(', ');
-      await createGangLog({
+      await logCrewRollMutation.mutateAsync({
         gang_id: gangId,
         action_type: 'crew_roll',
         description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
