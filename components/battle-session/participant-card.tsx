@@ -771,7 +771,7 @@ function FighterRow({
             >
               ×
             </button>
-            <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:hover:scale-100! [&>.fighter-card-bg]:hover:shadow-none! [&>.fighter-card-bg]:shadow-none! [&>.fighter-card-bg]:transition-none!">
+            <div className="max-h-svh overflow-y-auto">
               <FighterCard
                 {...gangFighter}
                 name={gangFighter.fighter_name}
@@ -779,6 +779,8 @@ function FighterRow({
                 skills={gangFighter.skills}
                 effects={gangFighter.effects as any}
                 vehicle={gangFighter.vehicles?.[0]}
+                // Prevent hover scale from creating modal scrollbars; gang-page cards do not pass this prop.
+                disableHoverEffects
                 advancements={{ characteristics: {}, skills: {} }}
                 base_stats={{
                   movement: gangFighter.movement,
