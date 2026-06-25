@@ -1,4 +1,4 @@
--- Permission check RPC functions for app-level authorization.
+-- Permission check RPC for app-level authorization.
 -- RLS helpers (private.is_admin, private.is_arb) stay separate.
 
 CREATE OR REPLACE FUNCTION public.check_permission(
@@ -15,21 +15,12 @@ AS $$
 DECLARE
   v_is_admin BOOLEAN := FALSE;
   v_campaign_role TEXT := NULL;
-  v_resolved_campaign_id UUID := NULL;
 BEGIN
   SELECT (user_role = 'admin') INTO v_is_admin
   FROM profiles
   WHERE id = p_user_id;
 
   v_is_admin := COALESCE(v_is_admin, FALSE);
-
-  IF p_campaign_id IS NOT NULL THEN
-    v_resolved_campaign_id := p_campaign_id;
-  ELSIF p_gang_id IS NOT NULL THEN
-    -- Resolve campaign_id via campaign_gangs (ACCEPTED only)
-    -- If gang is in multiple campaigns, we check all of them below
-    v_resolved_campaign_id := NULL;
-  END IF;
 
   IF p_campaign_id IS NOT NULL THEN
     SELECT
@@ -70,4 +61,4 @@ GRANT EXECUTE ON FUNCTION public.check_permission(UUID, UUID, UUID) TO authentic
 GRANT EXECUTE ON FUNCTION public.check_permission(UUID, UUID, UUID) TO service_role;
 
 COMMENT ON FUNCTION public.check_permission(UUID, UUID, UUID) IS
-'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used by PermissionService for all app-level permission checks.';
+'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used for all app-level permission checks.';

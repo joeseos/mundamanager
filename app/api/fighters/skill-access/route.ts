@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Fighter not found' }, { status: 404 });
     }
 
-    const gangOwnerId = (fighter.gangs as any)?.user_id ?? '';
+    const gangOwnerId = (fighter.gangs as any)?.user_id ?? null;
     const permissions = await checkPermissionCached(userId, fighter.gang_id, gangOwnerId);
 
     if (!permissions.canEdit) {

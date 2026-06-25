@@ -31,12 +31,12 @@ export async function checkPermission(
 export async function checkPermissionCached(
   userId: string,
   gangId: string,
-  gangOwnerId: string
+  gangOwnerId: string | null
 ): Promise<UserPermissions> {
   const supabase = await createClient();
 
   return unstable_cache(
-    async (uid: string, gid: string, ownerId: string) => {
+    async (uid: string, gid: string, ownerId: string | null) => {
       try {
         const { data, error } = await supabase.rpc('check_permission', {
           p_user_id: uid,
@@ -69,7 +69,7 @@ export function isArbitrator(result: CheckPermissionResult): boolean {
 
 export function deriveGangPermissions(
   userId: string,
-  gangOwnerId: string,
+  gangOwnerId: string | null,
   result: CheckPermissionResult
 ): UserPermissions {
   const isOwner = gangOwnerId === userId;

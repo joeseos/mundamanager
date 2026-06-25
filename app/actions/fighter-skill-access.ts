@@ -44,8 +44,8 @@ export async function saveFighterSkillAccessOverrides(params: {
       return { success: false, error: 'Fighter not found' };
     }
 
-    const gangOwnerId = (fighter.gangs as any)?.user_id;
-    const permissions = await checkPermissionCached(user.id, fighter.gang_id, gangOwnerId ?? '');
+    const gangOwnerId = (fighter.gangs as any)?.user_id ?? null;
+    const permissions = await checkPermissionCached(user.id, fighter.gang_id, gangOwnerId);
     if (!permissions.canEdit) {
       return { success: false, error: 'Access denied' };
     }
