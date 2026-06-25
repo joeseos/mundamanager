@@ -1734,9 +1734,8 @@ export default function ParticipantCard({
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-nowrap">
-                  <button
-                    type="button"
-                    className="px-3 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 shrink-0"
+                  <Button
+                    size="sm"
                     onClick={() => {
                       const result = rollNd6Outcome(2);
                       const mod = parseInt(tradingPostModifier) || 0;
@@ -1758,10 +1757,10 @@ export default function ParticipantCard({
                     }}
                   >
                     Roll
-                  </button>
+                  </Button>
                   <input
                     type="tel"
-                    inputMode="numeric"
+                    inputMode="url"
                     value={tradingPostModifier}
                     onChange={(e) => setTradingPostModifier(e.target.value)}
                     placeholder="Modifier"
