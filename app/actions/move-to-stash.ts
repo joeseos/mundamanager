@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -56,9 +56,6 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin (optimized)
-    const isAdmin = await checkAdmin(supabase, user);
-    
     // Get the equipment data first
     const { data: equipmentData, error: equipmentError } = await supabase
       .from('fighter_equipment')
@@ -173,20 +170,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       gangOwnerUserId = gangOwner?.user_id ?? null;
     }
 
-    // If user is not an admin, check if they have permission for this gang
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', gangId)
-        .single();
-
-      if (gangError || !gang) {
-        throw new Error('Gang not found');
-      }
-    }
-
-    // Note: Authorization is enforced by RLS policies on fighter_equipment table
+    // Authorization is enforced by RLS policies on fighter_equipment table
 
     // Remove associated fighter effects first (since equipment is being moved to stash)
     if (associatedEffects && associatedEffects.length > 0) {
