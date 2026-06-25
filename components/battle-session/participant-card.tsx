@@ -1587,6 +1587,8 @@ export default function ParticipantCard({
                 const failed = results.filter((r) => !r.success);
                 if (failed.length > 0) {
                   toast.error('Failed to update participation XP');
+                } else {
+                  toast.success(`Participation XP updated for ${entries.length} fighter${entries.length !== 1 ? 's' : ''}`);
                 }
                 onBroadcast?.();
               });
