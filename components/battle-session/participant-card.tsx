@@ -1719,13 +1719,13 @@ export default function ParticipantCard({
         </div>
 
           {canPostBattle && (
-            <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 space-y-3">
+            <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 gap-3">
               <div>
                 <label className="mb-1 block text-sm text-neutral-500">
                   Reputation Change
                   <span className="text-xs text-muted-foreground"> (Current: {localRepChange})</span>
                 </label>
-                <div className="flex items-center gap-2 max-w-[250px]">
+                <div className="flex items-center gap-2">
                   <input
                     type="tel"
                     inputMode="url"
@@ -1749,7 +1749,7 @@ export default function ParticipantCard({
                   Credits Earned
                   <span className="text-xs text-muted-foreground"> (Current: {localCreditsEarned})</span>
                 </label>
-                <div className="flex items-center gap-2 max-w-[250px]">
+                <div className="flex items-center gap-2">
                   <input
                     type="tel"
                     inputMode="url"
@@ -1757,7 +1757,7 @@ export default function ParticipantCard({
                     value={creditsDelta}
                     onChange={(e) => setCreditsDelta(e.target.value)}
                     placeholder="+/-"
-                    className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                    className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
                   />
                   <Button
                     size="sm"
@@ -1777,7 +1777,7 @@ export default function ParticipantCard({
                       {res.resource_name}
                       <span className="text-xs text-muted-foreground"> (Current: {currentDelta})</span>
                     </label>
-                    <div className="flex items-center gap-2 max-w-[250px]">
+                    <div className="flex items-center gap-2">
                       <input
                         type="tel"
                         inputMode="url"
@@ -1785,7 +1785,7 @@ export default function ParticipantCard({
                         value={resourceDeltas[res.id] ?? ''}
                         onChange={(e) => setResourceDeltas((cur) => ({ ...cur, [res.id]: e.target.value }))}
                         placeholder="+/-"
-                        className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-800"
+                        className="w-full rounded-sm border border-neutral-300 px-3 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800"
                       />
                       <Button
                         size="sm"
