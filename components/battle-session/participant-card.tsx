@@ -16,7 +16,7 @@ import Modal from '@/components/ui/modal';
 import CrewSelectionModal from '@/components/battle-session/crew-selection-modal';
 import DiceRoller from '@/components/dice-roller';
 import { FighterXpModal } from '@/components/fighter/fighter-xp-modal';
-import { rollD66, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from '@/utils/dice';
+import { rollD66, rollNd6Outcome, resolveInjuryFromUtil, resolveInjuryRangeFromUtilByName } from '@/utils/dice';
 import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { CgMoreVerticalO } from 'react-icons/cg';
 import { BsFire, BsFillExclamationCircleFill } from 'react-icons/bs';
@@ -44,6 +44,7 @@ import {
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
+import { createGangLog } from '@/app/actions/logs/gang-logs';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
@@ -989,6 +990,8 @@ export default function ParticipantCard({
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
+  const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
+  const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
 
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
@@ -1720,6 +1723,51 @@ export default function ParticipantCard({
 
           {canPostBattle && (
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="col-span-full">
+                <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                  <span className="text-sm text-neutral-500">Trading Post Roll</span>
+                  {tradingPostRoll && (
+                    <span className="text-xs text-muted-foreground">
+                      Roll {tradingPostRoll.total} ({tradingPostRoll.dice.join(', ')})
+                      {tradingPostRoll.modifier !== 0 && ` ${tradingPostRoll.modifier > 0 ? '+' : ''}${tradingPostRoll.modifier} = ${tradingPostRoll.grandTotal}`}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-nowrap">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const result = rollNd6Outcome(2);
+                      const mod = parseInt(tradingPostModifier) || 0;
+                      const grandTotal = result.total + mod;
+                      setTradingPostRoll({
+                        dice: result.dice,
+                        total: result.total,
+                        modifier: mod,
+                        grandTotal,
+                      });
+                      const desc = mod !== 0
+                        ? `Roll ${result.total} (${result.dice.join(', ')}) ${mod > 0 ? '+' : ''}${mod} = ${grandTotal}`
+                        : `Roll ${result.total} (${result.dice.join(', ')})`;
+                      createGangLog({
+                        gang_id: participant.gang_id,
+                        action_type: 'trading_post_roll',
+                        description: desc,
+                      });
+                    }}
+                  >
+                    Roll
+                  </Button>
+                  <input
+                    type="tel"
+                    inputMode="url"
+                    value={tradingPostModifier}
+                    onChange={(e) => setTradingPostModifier(e.target.value)}
+                    placeholder="Modifier"
+                    className="w-20 rounded-sm border border-neutral-300 px-2 py-2 text-base md:text-sm dark:border-neutral-600 dark:bg-neutral-800 shrink-0"
+                  />
+                </div>
+              </div>
               <div>
                 <label className="mb-1 block text-sm text-neutral-500">
                   Reputation Change
