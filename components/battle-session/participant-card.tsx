@@ -44,6 +44,7 @@ import {
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
+import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterCard from '@/components/gang/fighter-card';
 import type { BattleSessionFull, BattleSessionParticipant, BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 
@@ -572,6 +573,7 @@ function FighterRow({
   injuryCount,
   canInteract,
   battleActive,
+  postBattleInteract,
   isSpyrer,
   gangFighter,
   onXpChanged,
@@ -589,6 +591,7 @@ function FighterRow({
   injuryCount: number;
   canInteract: boolean;
   battleActive: boolean;
+  postBattleInteract: boolean;
   isSpyrer: boolean;
   gangFighter: GangFighter | undefined;
   onXpChanged: (delta: number) => void;
@@ -602,6 +605,8 @@ function FighterRow({
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+  const [showDirectXp, setShowDirectXp] = useState(false);
+  const [directXpData, setDirectXpData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
   const injuries = fighter.session_record?.injuries ?? [];
   const conditions = fighter.session_record?.conditions ?? [];
   const note = fighter.session_record?.note ?? '';
@@ -612,6 +617,21 @@ function FighterRow({
   const toggleReady = () => {
     const next = activations > 0 ? activations - 1 : maxActivations;
     onActivationsChange(next);
+  };
+
+  const openDirectXp = async () => {
+    try {
+      const { createClient } = await import('@/utils/supabase/client');
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('fighters')
+        .select('xp, kills, kill_count')
+        .eq('id', fighter.fighter_id)
+        .single();
+      if (data) { setDirectXpData(data); setShowDirectXp(true); }
+    } catch {
+      toast.error('Failed to load fighter data');
+    }
   };
 
   const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
@@ -755,7 +775,44 @@ function FighterRow({
             )}
           </div>
         </td>
+      ) : postBattleInteract ? (
+        <td className="p-1 md:p-2 align-top">
+          <div className="flex items-start justify-end gap-2.5">
+            {gangFighter && (
+              <FaRegAddressCard
+                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
+                title="View fighter card"
+                onClick={() => setShowInfoModal(true)}
+              />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={openDirectXp}
+            >
+              Add XP
+            </Button>
+          </div>
+        </td>
       ) : null}
+      {showDirectXp && directXpData && createPortal(
+        <FighterXpModal
+          isOpen
+          fighterId={fighter.fighter_id}
+          currentXp={directXpData.xp}
+          currentTotalXp={directXpData.xp}
+          currentKills={directXpData.kills}
+          currentKillCount={directXpData.kill_count}
+          onClose={() => setShowDirectXp(false)}
+          onXpUpdated={(newXp) => {
+            const delta = newXp - (directXpData?.xp ?? 0);
+            onXpChanged(delta);
+            setShowDirectXp(false);
+          }}
+        />,
+        document.body
+      )}
       {showInfoModal && gangFighter && createPortal(
         <div
           className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
@@ -851,6 +908,77 @@ function FighterRow({
 }
 
 // ---------------------------------------------------------------------------
+// BattleParticipationModal — bulk +1 XP for battle participation
+// ---------------------------------------------------------------------------
+
+function BattleParticipationModal({
+  fighters,
+  gangFightersList,
+  onConfirm,
+  onClose,
+}: {
+  fighters: BattleSessionFighter[];
+  gangFightersList: GangFighter[];
+  onConfirm: (selectedIds: string[]) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(fighters.map((f) => [f.id, true]))
+  );
+
+  const toggle = (id: string) =>
+    setSelected((cur) => ({ ...cur, [id]: !cur[id] }));
+
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+
+  return (
+    <Modal
+      title="Award Battle Participation"
+      onClose={onClose}
+      onConfirm={async () => {
+        const ids = Object.entries(selected)
+          .filter(([, on]) => on)
+          .map(([id]) => id);
+        onConfirm(ids);
+        return true;
+      }}
+      confirmText="Confirm"
+      confirmDisabled={selectedCount === 0}
+    >
+      <p className="text-sm text-muted-foreground mb-4">
+        Give every fighter who took part <strong>+1 XP</strong>. Toggle off anyone who did not participate.
+      </p>
+      <div className="space-y-3">
+        {fighters.map((f) => {
+          const match = gangFightersList.find(
+            (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
+          ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
+          const name = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
+          const details = [match?.fighter_type, match?.fighter_class ? `(${match.fighter_class})` : ''].filter(Boolean).join(' ');
+          return (
+            <div key={f.id} className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium">{name}</div>
+                {details && <div className="text-xs text-muted-foreground">{details}</div>}
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={selected[f.id]}
+                onClick={() => toggle(f.id)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${selected[f.id] ? 'bg-primary' : 'bg-input'}`}
+              >
+                <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${selected[f.id] ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ParticipantCard
 // ---------------------------------------------------------------------------
 
@@ -890,6 +1018,7 @@ export default function ParticipantCard({
   const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
+  const [showParticipationModal, setShowParticipationModal] = useState(false);
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
 
   const [readyOverride, setReadyOverride] = useState<boolean | null>(null);
@@ -1343,6 +1472,14 @@ export default function ParticipantCard({
           </div>
           {(canEdit || canPostBattle || ((canManage || isMyGang) && editable && !isPostBattle)) && (
             <div className="flex gap-2 self-end sm:self-auto">
+              {canPostBattle && localFighters.length > 0 && (
+                <Button
+                  variant="default"
+                  onClick={() => setShowParticipationModal(true)}
+                >
+                  Award Battle Participation
+                </Button>
+              )}
               {(canEdit || canPostBattle) && (
                 <>
                   <Button
@@ -1452,9 +1589,45 @@ export default function ParticipantCard({
             }}
           />
         )}
+        {showParticipationModal && (
+          <BattleParticipationModal
+            fighters={localFighters}
+            gangFightersList={gangFightersList}
+            onClose={() => setShowParticipationModal(false)}
+            onConfirm={(selectedIds) => {
+              const snapshot = [...localFighters];
+              setLocalFighters((cur) =>
+                cur.map((f) =>
+                  selectedIds.includes(f.id)
+                    ? { ...f, session_record: { ...f.session_record, xp_earned: (f.session_record?.xp_earned ?? 0) + 1 } }
+                    : f
+                )
+              );
+              Promise.all(
+                selectedIds.flatMap((id) => {
+                  const f = localFighters.find((lf) => lf.id === id);
+                  const totalXp = (f?.session_record?.xp_earned ?? 0) + 1;
+                  return [
+                    updateSessionXp({ session_fighter_id: id, xp_earned: totalXp }),
+                    f ? updateFighterXp({ fighter_id: f.fighter_id, xp_to_add: 1 }) : Promise.resolve({ success: true }),
+                  ];
+                })
+              ).then((results) => {
+                const failed = results.filter((r) => !r.success);
+                if (failed.length > 0) {
+                  setLocalFighters(snapshot);
+                  toast.error('Failed to award participation XP');
+                } else {
+                  toast.success(`Awarded +1 XP to ${selectedIds.length} fighter${selectedIds.length !== 1 ? 's' : ''}`);
+                  onBroadcast?.();
+                }
+              });
+              setShowParticipationModal(false);
+            }}
+          />
+        )}
       </div>
 
-      {!isPostBattle && (
       <div className="pb-6">
           <div className="rounded-md border overflow-x-auto">
             <table className="w-full text-xs md:text-sm">
@@ -1462,13 +1635,13 @@ export default function ParticipantCard({
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
                   <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Value</th>
-                  {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
+                  {(canInteract || battleActive || canPostBattle) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract || canPostBattle ? 'Actions' : 'Status'}</th>}
                 </tr>
               </thead>
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={(canInteract || battleActive) ? 3 : 2} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={(canInteract || battleActive || canPostBattle) ? 3 : 2} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -1500,6 +1673,7 @@ export default function ParticipantCard({
                         injuryCount={injuryCount}
                         canInteract={canInteract}
                         battleActive={battleActive}
+                        postBattleInteract={canPostBattle}
                         isSpyrer={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
                         onXpChanged={(delta) => {
@@ -1572,7 +1746,6 @@ export default function ParticipantCard({
             </div>
           )}
         </div>
-      )}
 
           {canPostBattle && (
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 space-y-3">
