@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { checkCampaignArbitrator } from '@/utils/user-permissions';
 
 export interface CreateCampaignAllegianceParams {
   campaignId: string;
@@ -29,32 +30,6 @@ export interface UpdateGangAllegianceParams {
 }
 
 /**
- * Check if user is owner or arbitrator of the campaign
- */
-async function checkCampaignPermissions(supabase: any, campaignId: string, userId: string): Promise<boolean> {
-  // Check if user is admin first (most permissive)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_role')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profile?.user_role === 'admin') return true;
-
-  // Check campaign members - a user can have multiple member entries
-  const { data: members, error } = await supabase
-    .from('campaign_members')
-    .select('role')
-    .eq('campaign_id', campaignId)
-    .eq('user_id', userId);
-
-  if (error || !members || members.length === 0) return false;
-  
-  // Check if any of the user's member entries has OWNER or ARBITRATOR role
-  return members.some((member: { role: string }) => member.role === 'OWNER' || member.role === 'ARBITRATOR');
-}
-
-/**
  * Create a custom allegiance for a campaign (arbitrator/owner only)
  */
 export async function createCampaignAllegiance(params: CreateCampaignAllegianceParams) {
@@ -63,7 +38,7 @@ export async function createCampaignAllegiance(params: CreateCampaignAllegianceP
     const user = await getAuthenticatedUser(supabase);
 
     // Check permissions
-    const hasPermission = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const hasPermission = await checkCampaignArbitrator(user.id, params.campaignId);
     if (!hasPermission) {
       return {
         success: false,
@@ -123,7 +98,7 @@ export async function updateCampaignAllegiance(params: UpdateCampaignAllegianceP
     const user = await getAuthenticatedUser(supabase);
 
     // Check permissions
-    const hasPermission = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const hasPermission = await checkCampaignArbitrator(user.id, params.campaignId);
     if (!hasPermission) {
       return {
         success: false,
@@ -185,7 +160,7 @@ export async function deleteCampaignAllegiance(params: DeleteCampaignAllegianceP
     const user = await getAuthenticatedUser(supabase);
 
     // Check permissions
-    const hasPermission = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const hasPermission = await checkCampaignArbitrator(user.id, params.campaignId);
     if (!hasPermission) {
       return {
         success: false,
@@ -267,7 +242,7 @@ export async function updateGangAllegiance(params: UpdateGangAllegianceParams) {
 
     // Check if user owns the gang or is an arbitrator/owner
     const isGangOwner = gang.user_id === user.id;
-    const isCampaignAdmin = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const isCampaignAdmin = await checkCampaignArbitrator(user.id, params.campaignId);
 
     if (!isGangOwner && !isCampaignAdmin) {
       return {

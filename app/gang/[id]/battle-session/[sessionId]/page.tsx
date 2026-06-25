@@ -4,7 +4,7 @@ import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { getGangFightersList, getGangPositioning, type GangFighter } from '@/app/lib/shared/gang-data';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
-import { PermissionService } from '@/app/lib/user-permissions';
+import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import ActiveSession from '@/components/battle-session/active-session';
 import CompletedSession from '@/components/battle-session/completed-session';
 
@@ -34,7 +34,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
 
   // Site admins and campaign OWNERs/ARBITRATORs can manage the session like
   // the creator and edit participants like the gang owners (gang page model)
-  const isArbitrator = await new PermissionService().isCampaignArbitrator(
+  const isArb = await checkCampaignArbitrator(
     user.id,
     session.campaign_id
   );
@@ -65,7 +65,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
       <ActiveSession
         session={session}
         userId={user.id}
-        isArbitrator={isArbitrator}
+        isArbitrator={isArb}
         scenarios={scenarios || []}
         gangFightersMap={gangFightersMap}
         gangPositioningMap={gangPositioningMap}

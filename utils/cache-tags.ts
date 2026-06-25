@@ -96,7 +96,7 @@ export const CACHE_TAGS = {
   USER_NOTIFICATIONS: (userId: string) => `user-notifications-${userId}`, // user notifications
 
   // User permissions
-  USER_GANG_PERMISSIONS: (userId: string, gangId: string) => `user-${userId}-gang-${gangId}-permissions`, // gang permissions for user (also used for fighters)
+  CHECK_PERMISSION: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
 
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
@@ -434,16 +434,12 @@ export function invalidateCampaignMemberPermissions(params: {
  * Gang Permissions Invalidation Pattern
  * Triggered when: Specific gang's permission context changes
  * Data changed: Permissions for specific user-gang combination
- * Note: Also handles fighter permissions since fighters use gang permissions
  */
-export function invalidateGangPermissionsForUser(params: {
+export function invalidatePermissionForUser(params: {
   userId: string;
   gangId: string;
 }) {
-  // Invalidate specific user-gang permission cache
-  revalidateTag(CACHE_TAGS.USER_GANG_PERMISSIONS(params.userId, params.gangId), { expire: 0 });
-
-  // Also invalidate user dashboard
+  revalidateTag(CACHE_TAGS.CHECK_PERMISSION(params.userId, params.gangId), { expire: 0 });
   revalidateTag(CACHE_TAGS.USER_DASHBOARD(params.userId), { expire: 0 });
 }
 

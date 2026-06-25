@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import FighterPageComponent from "@/components/fighter/fighter-page";
-import { PermissionService } from "@/app/lib/user-permissions";
+import { checkPermissionCached } from "@/utils/user-permissions";
 import { getGangFighters } from "@/app/lib/fighter-advancements";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 
@@ -104,9 +104,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       notFound();
     }
 
-    // Check user permissions BEFORE fetching additional data
-    const permissionService = new PermissionService();
-    const userPermissions = await permissionService.getGangPermissions(user.id, fighterBasic.gang_id);
+    const userPermissions = await checkPermissionCached(user.id, fighterBasic.gang_id, gangBasic.user_id);
 
     // Permissions: All authenticated users can view fighters (canView is always true)
     // Edit/delete permissions are enforced in FighterPageComponent

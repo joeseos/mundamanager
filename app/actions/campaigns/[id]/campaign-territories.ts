@@ -5,6 +5,7 @@ import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { checkCampaignArbitrator } from '@/utils/user-permissions';
 
 export interface AssignGangToTerritoryParams {
   campaignId: string;
@@ -312,30 +313,9 @@ export async function createCustomCampaignTerritory(params: CreateCustomCampaign
 
     const user = await getAuthenticatedUser(supabase);
 
-    // Permission check: admin, owner, or arbitrator
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_role')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (profile?.user_role !== 'admin') {
-      const { data: members, error: memberError } = await supabase
-        .from('campaign_members')
-        .select('role')
-        .eq('campaign_id', campaignId)
-        .eq('user_id', user.id);
-
-      if (memberError || !members || members.length === 0) {
-        return { success: false, error: 'Only campaign owners and arbitrators can create custom territories' };
-      }
-
-      const hasPermission = members.some(
-        (m: { role: string }) => m.role === 'OWNER' || m.role === 'ARBITRATOR'
-      );
-      if (!hasPermission) {
-        return { success: false, error: 'Only campaign owners and arbitrators can create custom territories' };
-      }
+    const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
+    if (!hasPermission) {
+      return { success: false, error: 'Only campaign owners and arbitrators can create custom territories' };
     }
 
     const { error } = await supabase

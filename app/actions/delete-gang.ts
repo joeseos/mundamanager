@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateGangCount, invalidateGangPermissionsForUser, invalidateCampaignMembership } from '@/utils/cache-tags';
+import { CACHE_TAGS, invalidateGangCount, invalidatePermissionForUser, invalidateCampaignMembership } from '@/utils/cache-tags';
 
 export async function deleteGang(gangId: string) {
   console.log('[deleteGang] Starting:', gangId);
@@ -97,7 +97,7 @@ export async function deleteGang(gangId: string) {
     revalidateTag(CACHE_TAGS.USER_DASHBOARD(gang.user_id), { expire: 0 });
 
     // Invalidate gang permissions cache
-    invalidateGangPermissionsForUser({
+    invalidatePermissionForUser({
       userId: gang.user_id,
       gangId: gangId
     });

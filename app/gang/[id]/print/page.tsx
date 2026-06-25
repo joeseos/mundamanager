@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 
 export const dynamic = "force-dynamic";
-import { PermissionService } from "@/app/lib/user-permissions";
+import { canViewHiddenGang } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import PrintGang from "@/components/gang/print-gang";
@@ -48,10 +48,10 @@ export default async function PrintGangPage(props: {
     }
 
     // Check if user can view hidden gang
-    const permissionService = new PermissionService();
-    const canView = await permissionService.canViewHiddenGang(
+    const canView = await canViewHiddenGang(
       user.id,
       params.id,
+      gangBasic.user_id,
       gangBasic.hidden,
     );
 

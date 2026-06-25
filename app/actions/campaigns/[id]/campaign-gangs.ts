@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { invalidateCampaignMembership, invalidateCampaignTerritory, invalidateGangPermissionsForUser } from "@/utils/cache-tags";
+import { invalidateCampaignMembership, invalidateCampaignTerritory, invalidatePermissionForUser } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AddGangToCampaignDirectParams {
@@ -132,7 +132,7 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
     });
 
     // Invalidate permission cache
-    invalidateGangPermissionsForUser({
+    invalidatePermissionForUser({
       userId: userId,
       gangId: gangId
     });
@@ -207,7 +207,7 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
     });
 
     // Invalidate permission cache for gang owner
-    invalidateGangPermissionsForUser({
+    invalidatePermissionForUser({
       userId: gangData.user_id,
       gangId: gangId
     });
@@ -224,7 +224,7 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
       for (const arbitrator of campaignArbitrators) {
         // Skip gang owner - already invalidated above
         if (arbitrator.user_id !== gangData.user_id) {
-          invalidateGangPermissionsForUser({
+          invalidatePermissionForUser({
             userId: arbitrator.user_id,
             gangId: gangId
           });
@@ -322,7 +322,7 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
       action: 'join'
     });
 
-    invalidateGangPermissionsForUser({
+    invalidatePermissionForUser({
       userId: user.id,
       gangId: gangId
     });
@@ -339,7 +339,7 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
       for (const arbitrator of campaignArbitrators) {
         // Skip gang owner - already invalidated above
         if (arbitrator.user_id !== user.id) {
-          invalidateGangPermissionsForUser({
+          invalidatePermissionForUser({
             userId: arbitrator.user_id,
             gangId: gangId
           });
