@@ -63,7 +63,7 @@ GRANT EXECUTE ON FUNCTION public.check_permission(UUID, UUID, UUID) TO authentic
 GRANT EXECUTE ON FUNCTION public.check_permission(UUID, UUID, UUID) TO service_role;
 
 COMMENT ON FUNCTION public.check_permission(UUID, UUID, UUID) IS
-'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used by PermissionService for all app-level permission checks.';
+'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used for all app-level permission checks.';
 
 -- Drop the old function (replaced by check_permission + ownership field checks)
 DROP FUNCTION IF EXISTS public.get_gang_permissions(UUID, UUID);
