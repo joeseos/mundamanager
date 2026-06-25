@@ -74,11 +74,7 @@ export function useBattleSessionRealtime(sessionId: string) {
   }, [sessionId, queryClient]);
 
   const broadcast = useCallback(() => {
-    broadcastChannelRef.current?.send({
-      type: 'broadcast',
-      event: 'refresh',
-      payload: {},
-    });
+    broadcastChannelRef.current?.httpSend('refresh', {});
   }, []);
 
   const suppressRefetch = useCallback(() => {
