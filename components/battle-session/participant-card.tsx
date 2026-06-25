@@ -1564,7 +1564,6 @@ export default function ParticipantCard({
             onClose={() => setShowParticipationModal(false)}
             onConfirm={(xpByFighterId) => {
               const entries = Object.entries(xpByFighterId);
-              const snapshot = [...localFighters];
               setLocalFighters((cur) =>
                 cur.map((f) => {
                   const xp = xpByFighterId[f.fighter_id];
@@ -1587,12 +1586,9 @@ export default function ParticipantCard({
               Promise.all(calls).then((results) => {
                 const failed = results.filter((r) => !r.success);
                 if (failed.length > 0) {
-                  setLocalFighters(snapshot);
                   toast.error('Failed to update participation XP');
-                } else {
-                  toast.success(`Participation XP updated for ${entries.length} fighter${entries.length !== 1 ? 's' : ''}`);
-                  onBroadcast?.();
                 }
+                onBroadcast?.();
               });
               setShowParticipationModal(false);
             }}
