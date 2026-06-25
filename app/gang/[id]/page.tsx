@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
 import GangPageContent from "@/components/gang/gang-page-content";
-import { PermissionService } from "@/app/lib/user-permissions";
+import { canViewHiddenGang, checkPermissionCached } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
@@ -41,11 +41,10 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       notFound();
     }
 
-    // Check if user can view hidden gang
-    const permissionService = new PermissionService();
-    const canView = await permissionService.canViewHiddenGang(
+    const canView = await canViewHiddenGang(
       user.id,
       params.id,
+      gangBasic.user_id,
       gangBasic.hidden
     );
 
@@ -80,7 +79,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangVariants(gangBasic.gang_variants || [], supabase),
       getGangRatingAndWealth(params.id, supabase),
       getUserProfile(gangBasic.user_id, supabase),
-      permissionService.getGangPermissions(user.id, params.id),
+      checkPermissionCached(user.id, params.id, gangBasic.user_id),
       getGangBattleSessionsCached(params.id, supabase)
     ]);
 

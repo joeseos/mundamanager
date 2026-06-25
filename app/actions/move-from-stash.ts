@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
 import {
   invalidateFighterData,
@@ -77,7 +77,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     }
 
     const user = await getAuthenticatedUser(supabase);
-    const isAdmin = await checkAdmin(supabase, user);
+
 
     // Fetch all stash items in one query
     const stashIds = params.items.map(i => i.stash_id);
@@ -150,16 +150,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     }
 
     if (!fighterOwnerId) throw new Error('Could not determine equipment owner');
-
-    if (!isAdmin) {
-      const { data: gang, error: gangError } = await supabase
-        .from('gangs')
-        .select('user_id')
-        .eq('id', gangId)
-        .single();
-
-      if (gangError || !gang) throw new Error('Gang not found');
-    }
 
     // Check fighter active status (once)
     let fighterIsActive = false;

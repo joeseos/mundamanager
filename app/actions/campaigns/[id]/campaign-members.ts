@@ -2,7 +2,7 @@
 
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { CACHE_TAGS, invalidateCampaignMembership, invalidateGangPermissionsForUser, invalidateCampaignMemberPermissions } from "@/utils/cache-tags";
+import { CACHE_TAGS, invalidateCampaignMembership, invalidatePermissionForUser, invalidateCampaignMemberPermissions } from "@/utils/cache-tags";
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -183,7 +183,7 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
     });
 
     // Invalidate permission cache
-    invalidateGangPermissionsForUser({
+    invalidatePermissionForUser({
       userId: userId,
       gangId: gangId
     });
@@ -422,7 +422,7 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
 
     // Invalidate permission cache
     if (gangData?.user_id) {
-      invalidateGangPermissionsForUser({
+      invalidatePermissionForUser({
         userId: gangData.user_id,
         gangId: gangId
       });
@@ -551,7 +551,7 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     // Invalidate permission caches for the promoted/demoted user across ALL gangs in the campaign
     if (allCampaignGangs && allCampaignGangs.length > 0) {
       allCampaignGangs.forEach(gang => {
-        invalidateGangPermissionsForUser({
+        invalidatePermissionForUser({
           userId: userId,  // The user whose role changed
           gangId: gang.gang_id
         });

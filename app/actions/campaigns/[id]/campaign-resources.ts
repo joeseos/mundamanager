@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import { getAuthenticatedUser } from '@/utils/auth';
+import { checkCampaignArbitrator } from '@/utils/user-permissions';
 
 export interface CreateCampaignResourceParams {
   campaignId: string;
@@ -22,32 +23,6 @@ export interface DeleteCampaignResourceParams {
 }
 
 /**
- * Check if user is owner or arbitrator of the campaign
- */
-async function checkCampaignPermissions(supabase: any, campaignId: string, userId: string): Promise<boolean> {
-  // Check if user is admin first (most permissive)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('user_role')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profile?.user_role === 'admin') return true;
-
-  // Check campaign members - a user can have multiple member entries
-  const { data: members, error } = await supabase
-    .from('campaign_members')
-    .select('role')
-    .eq('campaign_id', campaignId)
-    .eq('user_id', userId);
-
-  if (error || !members || members.length === 0) return false;
-  
-  // Check if any of the user's member entries has OWNER or ARBITRATOR role
-  return members.some((member: { role: string }) => member.role === 'OWNER' || member.role === 'ARBITRATOR');
-}
-
-/**
  * Create a custom resource for a campaign (arbitrator/owner only)
  */
 export async function createCampaignResource(params: CreateCampaignResourceParams) {
@@ -56,7 +31,7 @@ export async function createCampaignResource(params: CreateCampaignResourceParam
     const user = await getAuthenticatedUser(supabase);
 
     // Check permissions
-    const hasPermission = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const hasPermission = await checkCampaignArbitrator(user.id, params.campaignId);
     if (!hasPermission) {
       return {
         success: false,
@@ -116,7 +91,7 @@ export async function updateCampaignResource(params: UpdateCampaignResourceParam
     const user = await getAuthenticatedUser(supabase);
 
     // Check permissions
-    const hasPermission = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const hasPermission = await checkCampaignArbitrator(user.id, params.campaignId);
     if (!hasPermission) {
       return {
         success: false,
@@ -168,7 +143,7 @@ export async function deleteCampaignResource(params: DeleteCampaignResourceParam
     const user = await getAuthenticatedUser(supabase);
 
     // Check permissions
-    const hasPermission = await checkCampaignPermissions(supabase, params.campaignId, user.id);
+    const hasPermission = await checkCampaignArbitrator(user.id, params.campaignId);
     if (!hasPermission) {
       return {
         success: false,

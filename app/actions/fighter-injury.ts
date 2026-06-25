@@ -5,7 +5,7 @@ import { invalidateFighterData } from '@/utils/cache-tags';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
 import { logFighterAction } from './logs/fighter-logs';
-import { getAuthenticatedUser, checkAdmin } from '@/utils/auth';
+import { getAuthenticatedUser } from '@/utils/auth';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
@@ -115,9 +115,6 @@ export async function addFighterInjury(
     
     // Check authentication with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
-
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase
@@ -352,9 +349,6 @@ export async function deleteFighterInjury(
     
     // Check authentication with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
-
-    // Check if user is an admin
-    const isAdmin = await checkAdmin(supabase, user);
 
     // Verify fighter ownership
     const { data: fighter, error: fighterError } = await supabase

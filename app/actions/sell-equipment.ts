@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { checkAdmin, getAuthenticatedUser } from "@/utils/auth";
+import { getAuthenticatedUser } from "@/utils/auth";
 import { invalidateFighterData, invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
@@ -68,9 +68,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Check if user is an admin (optimized)
-    const isAdmin = await checkAdmin(supabase, user);
-    
     // Get the equipment data first
     const { data: equipmentData, error: equipmentError } = await supabase
       .from('fighter_equipment')
