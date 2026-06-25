@@ -771,7 +771,7 @@ function FighterRow({
             >
               ×
             </button>
-            <div className="max-h-svh overflow-y-auto [&>.fighter-card-bg]:shadow-none!">
+            <div className="max-h-svh overflow-y-auto">
               <FighterCard
                 {...gangFighter}
                 name={gangFighter.fighter_name}

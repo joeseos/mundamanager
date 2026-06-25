@@ -66,8 +66,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   active_loadout_name?: string;  // Name of the active loadout
   dragListeners?: any;  // Drag listeners from dnd-kit for icon-only dragging
   dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
-  // Used by constrained modal previews; omit this prop to keep the normal gang-page hover scale/shadow.
-  disableHoverEffects?: boolean;
+  disableHoverEffects?: boolean;  // Used by constrained modal previews; omit to keep normal gang-page hover scale/shadow.
 }
 
 const calculateVehicleStats = (
@@ -464,7 +463,7 @@ const FighterCard = memo(function FighterCard({
   }, [id, router, isLoading]);
 
   const hoverEffectClass = disableHoverEffects
-    ? 'shadow-md'
+    ? 'shadow-none'
     : 'shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02]';
 
   const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
