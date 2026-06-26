@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateGangStash, invalidateUserCustomizations, invalidateGangCredits } from '@/utils/cache-tags';
+import { invalidateGangStash, invalidateGangCredits } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logEquipmentAction } from '@/app/actions/logs/equipment-logs';
 
@@ -138,9 +138,6 @@ export async function createChemAlchemy({
       gangId: gangId,
       userId: user.id
     });
-    
-    // Invalidate user customizations since we created custom equipment
-    invalidateUserCustomizations();
     
     return { 
       success: true, 

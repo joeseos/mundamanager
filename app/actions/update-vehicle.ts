@@ -138,7 +138,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
           console.warn('No stat adjustments were applied');
         } else if (params.assignedFighterId) {
           // Invalidate vehicle effects cache when effects are successfully applied
-          invalidateVehicleEffects(params.vehicleId, params.assignedFighterId, params.gangId);
+          invalidateVehicleEffects(params.assignedFighterId, params.gangId);
         }
       } catch (error) {
         console.error('Error applying stat adjustments:', error);

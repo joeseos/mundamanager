@@ -152,7 +152,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     }
 
     // Invalidate cache for vehicle effects
-    invalidateVehicleEffects(params.vehicleId, params.fighterId, params.gangId);
+    invalidateVehicleEffects(params.fighterId, params.gangId);
 
     return {
       success: true,

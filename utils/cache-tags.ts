@@ -32,7 +32,7 @@ export const CACHE_TAGS = {
   BASE_FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`, // effects/injuries
   BASE_FIGHTER_VEHICLES: (id: string) => `base-fighter-vehicles-${id}`, // assigned vehicles
   BASE_FIGHTER_OWNED_BEASTS: (id: string) => `base-fighter-owned-beasts-${id}`, // exotic beasts owned by fighter
-  BASE_FIGHTER_EXOTIC_BEAST: (id: string) => `fighter-exotic-beast-${id}`, // individual exotic beast data
+  BASE_FIGHTER_EXOTIC_BEAST: (id: string) => `base-fighter-exotic-beast-${id}`, // individual exotic beast data
   BASE_FIGHTER_LOADOUTS: (id: string) => `base-fighter-loadouts-${id}`, // fighter equipment loadouts
   
   // Campaign base data
@@ -437,16 +437,15 @@ export const invalidateFighterVehicleData = (fighterId: string, gangId: string) 
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 };
 
-export const invalidateVehicleEffects = (vehicleId: string, fighterId: string | undefined, gangId: string) => {
+export const invalidateVehicleEffects = (fighterId: string | undefined, gangId: string) => {
   if (fighterId) {
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId), { expire: 0 });
   }
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 };
 
-export const invalidateVehicleRepair = (vehicleId: string, fighterId: string, gangId: string) => {
-  // Vehicle effects (damages removed)
-  invalidateVehicleEffects(vehicleId, fighterId, gangId);
+export const invalidateVehicleRepair = (fighterId: string, gangId: string) => {
+  invalidateVehicleEffects(fighterId, gangId);
   // Gang credits (repair costs money)
   invalidateGangCredits(gangId);
 };

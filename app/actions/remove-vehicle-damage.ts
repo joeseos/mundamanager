@@ -107,7 +107,7 @@ export async function removeVehicleDamage(params: RemoveVehicleDamageParams): Pr
 
     // Invalidate cache for vehicle effects
     if (effectRow?.vehicle_id) {
-      invalidateVehicleEffects(effectRow.vehicle_id, params.fighterId, params.gangId);
+      invalidateVehicleEffects(params.fighterId, params.gangId);
     }
 
     return {
@@ -259,7 +259,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     }
 
     // Invalidate cache for vehicle effects and gang credits
-    invalidateVehicleRepair(params.vehicleId, params.fighterId, params.gangId);
+    invalidateVehicleRepair(params.fighterId, params.gangId);
 
     return {
       success: true
