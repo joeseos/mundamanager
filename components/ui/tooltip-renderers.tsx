@@ -1,10 +1,9 @@
 'use client';
 
-import type { ITooltip } from 'react-tooltip';
 
 type TooltipRenderArgs = {
-  content: ITooltip['content'];
-  activeAnchor: Element | null;
+  content: string | null;
+  activeAnchor: HTMLElement | null;
 };
 
 export function getTooltipAttribute(activeAnchor: Element | null, name: string) {
