@@ -46,7 +46,7 @@ export const getGangFighters = async (gangId: string, supabase: any) => {
     },
     [`gang-fighters-${gangId}`],
     {
-      tags: [CACHE_TAGS.GANG_FIGHTERS_LIST(gangId), 'gang-fighters', `gang-fighters-${gangId}`],
+      tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
       revalidate: false
     }
   )();

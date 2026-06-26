@@ -1265,7 +1265,7 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
     },
     [`fighter-ownership-${fighterPetId}`],
     {
-      tags: [`fighter-exotic-beast-${fighterPetId}`],
+      tags: [CACHE_TAGS.BASE_FIGHTER_EXOTIC_BEAST(fighterPetId)],
       revalidate: false
     }
   )();

@@ -796,7 +796,7 @@ export const getAllTerritories = async () => {
     },
     ['territories-list'],
     {
-      tags: ['territories-list'],
+      tags: [CACHE_TAGS.GLOBAL_TERRITORIES_LIST()],
       revalidate: false
     }
   )();

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateVehicleData, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
@@ -312,8 +312,6 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         }
       }
       
-      // Also invalidate vehicle-specific cache tags
-      invalidateVehicleData(equipmentData.vehicle_id);
     }
     
     // Log equipment moved to stash

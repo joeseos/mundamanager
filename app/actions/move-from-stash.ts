@@ -10,7 +10,6 @@ import {
   addBeastToGangCache,
   invalidateGangStash,
   invalidateFighterAdvancement,
-  invalidateVehicleData,
   CACHE_TAGS,
   invalidateUserGangsList
 } from '@/utils/cache-tags';
@@ -555,7 +554,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     }
 
     if (params.vehicle_id) {
-      invalidateVehicleData(params.vehicle_id);
       const { data: vehicle } = await supabase
         .from('vehicles')
         .select('fighter_id')

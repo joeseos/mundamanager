@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createAuthClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
-import { invalidatePatreonSupporters } from '@/utils/cache-tags';
+import { invalidatePatreonSupporters, invalidateUserProfile } from '@/utils/cache-tags';
 
 /**
  * Rate limiting storage (in production, use Redis or database)
@@ -316,6 +316,7 @@ async function updateUserPatreonData(userId: string, patreonData: DatabaseUserDa
     return false;
   }
 
+  invalidateUserProfile(userId);
   return true;
 }
 
@@ -353,6 +354,7 @@ async function clearUserPatreonData(userId: string, patronStatus: string | null 
     return false;
   }
 
+  invalidateUserProfile(userId);
   return true;
 }
 

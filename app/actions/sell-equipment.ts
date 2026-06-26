@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateVehicleData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterVehicleData, invalidateEquipmentDeletion, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -342,8 +342,6 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         }
       }
       
-      // Also invalidate vehicle-specific cache tags
-      invalidateVehicleData(equipmentData.vehicle_id);
     } else {
       // For stash equipment, invalidate stash cache
       invalidateGangStash({ gangId, userId: user.id });
