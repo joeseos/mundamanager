@@ -56,7 +56,6 @@ export const CACHE_TAGS = {
   // Fighter computed values
   COMPUTED_FIGHTER_TOTAL_COST: (id: string) => `computed-fighter-cost-${id}`,     // base + equipment + skills + effects
   COMPUTED_FIGHTER_BEAST_COSTS: (id: string) => `computed-fighter-beasts-${id}`,  // owned exotic beasts costs
-  COMPUTED_FIGHTER_ADVANCEMENT_XP: (id: string) => `computed-fighter-xp-${id}`,   // available advancement XP
   
   // Gang computed values
   COMPUTED_GANG_RATING: (id: string) => `computed-gang-rating-${id}`,             // sum of all fighter costs
@@ -67,7 +66,6 @@ export const CACHE_TAGS = {
   
   // Campaign computed values
   COMPUTED_CAMPAIGN_LEADERBOARD: (id: string) => `computed-campaign-leaderboard-${id}`, // gang rankings
-  COMPUTED_CAMPAIGN_STATISTICS: (id: string) => `computed-campaign-stats-${id}`,   // campaign statistics
   
   // =============================================================================
   // 3. COMPOSITE DATA TAGS - Multi-entity aggregated data
@@ -82,8 +80,6 @@ export const CACHE_TAGS = {
   
   // Cross-entity relationships
   COMPOSITE_GANG_CAMPAIGNS: (id: string) => `composite-gang-campaigns-${id}`,       // campaigns this gang is in
-  COMPOSITE_FIGHTER_GANG_DATA: (id: string) => `composite-fighter-gang-${id}`,      // fighter with gang context
-  COMPOSITE_CAMPAIGN_GANG_DATA: (campaignId: string, gangId: string) => `composite-campaign-${campaignId}-gang-${gangId}`,
   
   // =============================================================================
   // 4. USER-SCOPED TAGS - User-specific data isolated per user
@@ -93,14 +89,12 @@ export const CACHE_TAGS = {
   USER_GANGS: (userId: string) => `user-gangs-${userId}`,           // user's gang list
   USER_CAMPAIGNS: (userId: string) => `user-campaigns-${userId}`,   // user's campaigns
   USER_CUSTOMIZATIONS: (userId: string) => `user-custom-${userId}`, // custom equipment/territories
-  USER_NOTIFICATIONS: (userId: string) => `user-notifications-${userId}`, // user notifications
 
   // User permissions
   CHECK_PERMISSION: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
 
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
-  USER_ACTIVITY_FEED: (userId: string) => `user-activity-${userId}`, // user activity feed
   
   // =============================================================================
   // 5. SHARED DATA TAGS - Cross-page consistent data
@@ -121,7 +115,6 @@ export const CACHE_TAGS = {
   GLOBAL_EQUIPMENT_CATALOG: () => `global-equipment-catalog`,         // equipment options
   GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
-  GLOBAL_SKILL_CATEGORIES: () => `global-skill-categories`,           // skill categories
   GLOBAL_PATREON_SUPPORTERS: () => `global-patreon-supporters`,       // patreon supporters list
   GLOBAL_USER_COUNT: () => `global-user-count`,                       // total user count for homepage
   GLOBAL_GANG_COUNT: () => `global-gang-count`,                       // total gang count for homepage
@@ -135,7 +128,6 @@ export const CACHE_TAGS = {
 
   // Gang-specific reference data
   GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
-  GANG_EQUIPMENT_OPTIONS: (id: string) => `gang-equipment-options-${id}`, // equipment available to gang
   
   // =============================================================================
   // 7. LEGACY COMPATIBILITY TAGS - For smooth migration
@@ -144,26 +136,6 @@ export const CACHE_TAGS = {
   // Maintained for backward compatibility during migration
   // REMOVED: FIGHTER_PAGE, GANG_OVERVIEW - use granular functions instead
   GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`, // → COMPOSITE_GANG_FIGHTERS_LIST
-  GANG_CREDITS: (id: string) => `base-gang-credits-${id}`,            // → BASE_GANG_CREDITS
-  GANG_RATING: (id: string) => `computed-gang-rating-${id}`,          // → COMPUTED_GANG_RATING
-  VEHICLE_PAGE: (id: string) => `composite-vehicle-page-${id}`,       // → COMPOSITE_VEHICLE_PAGE
-  FIGHTER_VEHICLE_DATA: (id: string) => `base-fighter-vehicles-${id}`, // → BASE_FIGHTER_VEHICLES
-  
-  // Legacy granular tags
-  FIGHTER_DATA: (id: string) => `base-fighter-basic-${id}`,           // → BASE_FIGHTER_BASIC
-  FIGHTER_EQUIPMENT: (id: string) => `base-fighter-equipment-${id}`,  // → BASE_FIGHTER_EQUIPMENT
-  FIGHTER_SKILLS: (id: string) => `base-fighter-skills-${id}`,        // → BASE_FIGHTER_SKILLS
-  FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`,      // → BASE_FIGHTER_EFFECTS
-  FIGHTER_OWNED_BEASTS: (id: string) => `computed-fighter-beasts-${id}`, // → COMPUTED_FIGHTER_BEAST_COSTS
-  
-  // Legacy vehicle tags
-  VEHICLE_EQUIPMENT: (id: string) => `base-vehicle-equipment-${id}`,  // → BASE_VEHICLE_EQUIPMENT
-  VEHICLE_STATS: (id: string) => `base-vehicle-basic-${id}`,          // → BASE_VEHICLE_BASIC
-  
-  // Legacy gang composition tags
-  GANG_FIGHTER_COUNT: (id: string) => `computed-gang-fighter-count-${id}`, // → COMPUTED_GANG_FIGHTER_COUNT
-  GANG_BEAST_COUNT: (id: string) => `computed-gang-beast-count-${id}`,     // → COMPUTED_GANG_BEAST_COUNT
-  FIGHTER_TYPES_FOR_GANG: (id: string) => `gang-fighter-types-${id}`,      // → GANG_FIGHTER_TYPES
 } as const;
 
 // =============================================================================
