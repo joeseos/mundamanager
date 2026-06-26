@@ -116,8 +116,6 @@ export const CACHE_TAGS = {
   BASE_BATTLE_SESSION: (id: string) => `base-battle-session-${id}`,
   GANG_BATTLE_SESSIONS: (gangId: string) => `gang-battle-sessions-${gangId}`,
 
-  // Gang-specific reference data
-  GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
   
 } as const;
 
@@ -389,10 +387,9 @@ export function invalidatePermissionForUser(params: {
 }
 
 // =============================================================================
-// LEGACY COMPATIBILITY FUNCTIONS - For smooth migration
+// HELPER INVALIDATION FUNCTIONS - Composable, multi-tag invalidation
 // =============================================================================
 
-// Legacy function names maintained for backward compatibility
 export const invalidateFighterData = (fighterId: string, gangId: string) => {
   invalidateFighterAdvancement({ fighterId, gangId, advancementType: 'stat' });
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId), { expire: 0 });
@@ -411,12 +408,6 @@ export const invalidateGangFinancials = (gangId: string) => {
   invalidateGangCredits(gangId);
   invalidateGangRating(gangId);
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId), { expire: 0 });
-};
-
-export const invalidateGangData = (gangId: string) => {
-  revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(gangId), { expire: 0 });
 };
 
 export const invalidateFighterDataWithFinancials = (fighterId: string, gangId: string) => {

@@ -259,11 +259,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.id), { expire: 0 });
     }
 
-    // Invalidate gang variants if changed
-    if (gang_variants !== undefined) {
-      revalidateTag(CACHE_TAGS.GANG_FIGHTER_TYPES(params.id), { expire: 0 });
-    }
-
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags
 
     return NextResponse.json(updatedGang);
