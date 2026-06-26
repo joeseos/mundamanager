@@ -131,20 +131,25 @@ export default function CampaignTerritoryList({
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [listDefaultTerritories, setListDefaultTerritories] = useState<boolean | null>(() => {
+  const [listDefaultTerritories, setListDefaultTerritories] = useState<boolean | null>(null);
+
+  useEffect(() => {
     try {
-      if (typeof window === 'undefined') return null;
       const storedList = window.localStorage.getItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY);
       if (storedList === 'true' || storedList === 'false') {
-        return storedList === 'true';
+        setListDefaultTerritories(storedList === 'true');
+        return;
       }
       const legacyHide = window.localStorage.getItem(LEGACY_HIDE_DEFAULT_TERRITORIES_STORAGE_KEY);
-      if (legacyHide === 'true') return false;
-      return true;
+      if (legacyHide === 'true') {
+        setListDefaultTerritories(false);
+        return;
+      }
+      setListDefaultTerritories(true);
     } catch {
-      return true;
+      setListDefaultTerritories(true);
     }
-  });
+  }, []);
 
   useEffect(() => {
     if (listDefaultTerritories === null) return;
