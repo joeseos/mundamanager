@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -102,6 +102,33 @@ interface CampaignTerritoryListProps {
 
 const LIST_DEFAULT_TERRITORIES_STORAGE_KEY = 'campaign-list-default-territories';
 const LEGACY_HIDE_DEFAULT_TERRITORIES_STORAGE_KEY = 'campaign-hide-default-territories';
+const TERRITORY_PREF_EVENT = 'territory-pref-change';
+
+function subscribeToTerritoryPref(callback: () => void) {
+  window.addEventListener(TERRITORY_PREF_EVENT, callback);
+  return () => window.removeEventListener(TERRITORY_PREF_EVENT, callback);
+}
+
+function getTerritoryPrefSnapshot(): boolean {
+  try {
+    const stored = localStorage.getItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY);
+    if (stored === 'true' || stored === 'false') return stored === 'true';
+    const legacy = localStorage.getItem(LEGACY_HIDE_DEFAULT_TERRITORIES_STORAGE_KEY);
+    if (legacy === 'true') return false;
+    return true;
+  } catch { return true; }
+}
+
+function getTerritoryPrefServerSnapshot(): boolean {
+  return true;
+}
+
+function setTerritoryPref(value: boolean) {
+  try {
+    localStorage.setItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY, String(value));
+  } catch {}
+  window.dispatchEvent(new Event(TERRITORY_PREF_EVENT));
+}
 
 export default function CampaignTerritoryList({
   territories,
@@ -131,33 +158,12 @@ export default function CampaignTerritoryList({
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
   const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [listDefaultTerritories, setListDefaultTerritories] = useState<boolean | null>(() => {
-    try {
-      if (typeof window === 'undefined') return null;
-      const storedList = window.localStorage.getItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY);
-      if (storedList === 'true' || storedList === 'false') {
-        return storedList === 'true';
-      }
-      const legacyHide = window.localStorage.getItem(LEGACY_HIDE_DEFAULT_TERRITORIES_STORAGE_KEY);
-      if (legacyHide === 'true') return false;
-      return true;
-    } catch {
-      return true;
-    }
-  });
+  const listDefaultTerritories = useSyncExternalStore(
+    subscribeToTerritoryPref,
+    getTerritoryPrefSnapshot,
+    getTerritoryPrefServerSnapshot
+  );
 
-  useEffect(() => {
-    if (listDefaultTerritories === null) return;
-
-    try {
-      window.localStorage.setItem(
-        LIST_DEFAULT_TERRITORIES_STORAGE_KEY,
-        listDefaultTerritories ? 'true' : 'false'
-      );
-    } catch {
-      // Ignore storage access issues (e.g. privacy mode restrictions).
-    }
-  }, [listDefaultTerritories]);
 
   // Helper function to get gang details from members data
   const getGangDetails = (gangId: string) => {
@@ -531,9 +537,7 @@ export default function CampaignTerritoryList({
     });
   };
 
-  const listDefaultTerritoriesEnabled = listDefaultTerritories ?? true;
-
-  const visibleTerritories = listDefaultTerritoriesEnabled
+  const visibleTerritories = listDefaultTerritories
     ? territories
     : territories.filter((territory) => !territory.default_gang_territory);
 
@@ -548,9 +552,8 @@ export default function CampaignTerritoryList({
           
           <label className="inline-flex items-center sm:items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <Checkbox
-              checked={listDefaultTerritoriesEnabled}
-              onCheckedChange={(checked) => setListDefaultTerritories(checked === true)}
-              disabled={listDefaultTerritories === null}
+              checked={listDefaultTerritories}
+              onCheckedChange={(checked) => setTerritoryPref(checked === true)}
             />
             <span className="min-w-0 max-w-[5rem] leading-none sm:max-w-none sm:whitespace-nowrap sm:leading-normal">
               List Default Territories
@@ -592,16 +595,10 @@ export default function CampaignTerritoryList({
             </tr>
           </thead>
           <tbody>
-            {listDefaultTerritories === null ? (
+            {visibleTerritories.length === 0 ? (
               <tr>
                 <td colSpan={5} className="text-muted-foreground italic text-center py-4">
-                  Loading territories...
-                </td>
-              </tr>
-            ) : visibleTerritories.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="text-muted-foreground italic text-center py-4">
-                  {!listDefaultTerritoriesEnabled
+                  {!listDefaultTerritories
                     ? 'No territories to show with default territories hidden'
                     : 'No territories in this campaign'}
                 </td>

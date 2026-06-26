@@ -1,9 +1,9 @@
 'use client';
 
-import type { ITooltip } from 'react-tooltip';
+import type { ReactNode } from 'react';
 
 type TooltipRenderArgs = {
-  content: ITooltip['content'];
+  content: ReactNode;
   activeAnchor: Element | null;
 };
 
