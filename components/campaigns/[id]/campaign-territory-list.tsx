@@ -123,6 +123,13 @@ function getTerritoryPrefServerSnapshot(): boolean {
   return true;
 }
 
+function setTerritoryPref(value: boolean) {
+  try {
+    localStorage.setItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY, String(value));
+  } catch {}
+  window.dispatchEvent(new Event(TERRITORY_PREF_EVENT));
+}
+
 export default function CampaignTerritoryList({
   territories,
   campaignId,
@@ -157,12 +164,6 @@ export default function CampaignTerritoryList({
     getTerritoryPrefServerSnapshot
   );
 
-  const setListDefaultTerritories = useCallback((value: boolean) => {
-    try {
-      localStorage.setItem(LIST_DEFAULT_TERRITORIES_STORAGE_KEY, String(value));
-    } catch {}
-    window.dispatchEvent(new Event(TERRITORY_PREF_EVENT));
-  }, []);
 
   // Helper function to get gang details from members data
   const getGangDetails = (gangId: string) => {
@@ -552,7 +553,7 @@ export default function CampaignTerritoryList({
           <label className="inline-flex items-center sm:items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <Checkbox
               checked={listDefaultTerritories}
-              onCheckedChange={(checked) => setListDefaultTerritories(checked === true)}
+              onCheckedChange={(checked) => setTerritoryPref(checked === true)}
             />
             <span className="min-w-0 max-w-[5rem] leading-none sm:max-w-none sm:whitespace-nowrap sm:leading-normal">
               List Default Territories
