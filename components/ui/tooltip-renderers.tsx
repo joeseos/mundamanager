@@ -1,9 +1,10 @@
 'use client';
 
+import type { ReactNode } from 'react';
 
 type TooltipRenderArgs = {
-  content: string | null;
-  activeAnchor: HTMLElement | null;
+  content: ReactNode;
+  activeAnchor: Element | null;
 };
 
 export function getTooltipAttribute(activeAnchor: Element | null, name: string) {
