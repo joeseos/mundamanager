@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 8iNpKEvkEpfaBgfD8n8NnVTT1mlMs1UHkvJLh2XCGXvArBOgj671fvq7BHfvk3R
+\restrict ssyDmqh6KXf7wr9ILNskB9MKeV37Knr3C7r04B8mjoIIvYItciOluZA9R8Am88h
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -462,6 +462,65 @@ BEGIN
     );
 END;
 $$;
+
+
+--
+-- Name: check_permission(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.check_permission(p_user_id uuid, p_campaign_id uuid DEFAULT NULL::uuid, p_gang_id uuid DEFAULT NULL::uuid) RETURNS json
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_is_admin BOOLEAN := FALSE;
+  v_campaign_role TEXT := NULL;
+BEGIN
+  SELECT (user_role = 'admin') INTO v_is_admin
+  FROM profiles
+  WHERE id = p_user_id;
+
+  v_is_admin := COALESCE(v_is_admin, FALSE);
+
+  IF p_campaign_id IS NOT NULL THEN
+    SELECT
+      CASE
+        WHEN bool_or(cm.role = 'OWNER') THEN 'OWNER'
+        WHEN bool_or(cm.role = 'ARBITRATOR') THEN 'ARBITRATOR'
+        WHEN bool_or(cm.role = 'MEMBER') THEN 'MEMBER'
+        ELSE NULL
+      END INTO v_campaign_role
+    FROM campaign_members cm
+    WHERE cm.campaign_id = p_campaign_id
+      AND cm.user_id = p_user_id;
+
+  ELSIF p_gang_id IS NOT NULL THEN
+    SELECT
+      CASE
+        WHEN bool_or(cm.role = 'OWNER') THEN 'OWNER'
+        WHEN bool_or(cm.role = 'ARBITRATOR') THEN 'ARBITRATOR'
+        WHEN bool_or(cm.role = 'MEMBER') THEN 'MEMBER'
+        ELSE NULL
+      END INTO v_campaign_role
+    FROM campaign_gangs cg
+    INNER JOIN campaign_members cm ON cm.campaign_id = cg.campaign_id AND cm.user_id = p_user_id
+    WHERE cg.gang_id = p_gang_id
+      AND cg.status = 'ACCEPTED';
+  END IF;
+
+  RETURN json_build_object(
+    'is_admin', v_is_admin,
+    'campaign_role', v_campaign_role
+  );
+END;
+$$;
+
+
+--
+-- Name: FUNCTION check_permission(p_user_id uuid, p_campaign_id uuid, p_gang_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.check_permission(p_user_id uuid, p_campaign_id uuid, p_gang_id uuid) IS 'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used for all app-level permission checks.';
 
 
 --
@@ -11963,5 +12022,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 8iNpKEvkEpfaBgfD8n8NnVTT1mlMs1UHkvJLh2XCGXvArBOgj671fvq7BHfvk3R
+\unrestrict ssyDmqh6KXf7wr9ILNskB9MKeV37Knr3C7r04B8mjoIIvYItciOluZA9R8Am88h
 
