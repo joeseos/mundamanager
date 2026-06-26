@@ -1477,7 +1477,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       // Only invalidate if this fighter actually owns exotic beasts
       if (ownedBeasts && ownedBeasts.length > 0) {
         ownedBeasts.forEach(beast => {
-          revalidateTag(`fighter-exotic-beast-${beast.id}`, { expire: 0 });
+          revalidateTag(CACHE_TAGS.BASE_FIGHTER_EXOTIC_BEAST(beast.id), { expire: 0 });
         });
       }
     }

@@ -4,7 +4,6 @@ import { createClient } from "@/utils/supabase/server";
 import {
   invalidateFighterData,
   invalidateFighterDataWithFinancials,
-  invalidateVehicleData,
   invalidateFighterVehicleData,
   invalidateEquipmentPurchase,
   invalidateEquipmentDeletion,
@@ -786,7 +785,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         invalidateFighterDataWithFinancials(vehicleAssignedFighterId, params.gang_id);
         invalidateFighterVehicleData(vehicleAssignedFighterId, params.gang_id);
       }
-      invalidateVehicleData(params.vehicle_id);
     } else {
       // Gang stash purchases
       invalidateGangStash({

@@ -140,9 +140,7 @@ export async function createChemAlchemy({
     });
     
     // Invalidate user customizations since we created custom equipment
-    invalidateUserCustomizations({
-      userId: user.id
-    });
+    invalidateUserCustomizations();
     
     return { 
       success: true, 

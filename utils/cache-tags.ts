@@ -32,6 +32,7 @@ export const CACHE_TAGS = {
   BASE_FIGHTER_EFFECTS: (id: string) => `base-fighter-effects-${id}`, // effects/injuries
   BASE_FIGHTER_VEHICLES: (id: string) => `base-fighter-vehicles-${id}`, // assigned vehicles
   BASE_FIGHTER_OWNED_BEASTS: (id: string) => `base-fighter-owned-beasts-${id}`, // exotic beasts owned by fighter
+  BASE_FIGHTER_EXOTIC_BEAST: (id: string) => `fighter-exotic-beast-${id}`, // individual exotic beast data
   BASE_FIGHTER_LOADOUTS: (id: string) => `base-fighter-loadouts-${id}`, // fighter equipment loadouts
   
   // Campaign base data
@@ -40,12 +41,7 @@ export const CACHE_TAGS = {
   BASE_CAMPAIGN_TERRITORIES: (id: string) => `base-campaign-territories-${id}`, // territory control
   BASE_CAMPAIGN_ALLEGIANCES: (id: string) => `base-campaign-allegiances-${id}`, // campaign allegiances (predefined and custom)
   BASE_CAMPAIGN_RESOURCES: (id: string) => `base-campaign-resources-${id}`, // campaign resources (predefined and custom)
-  
-  // Vehicle base data
-  BASE_VEHICLE_BASIC: (id: string) => `base-vehicle-basic-${id}`,     // vehicle stats
-  BASE_VEHICLE_EQUIPMENT: (id: string) => `base-vehicle-equipment-${id}`, // vehicle equipment
-  BASE_VEHICLE_EFFECTS: (id: string) => `base-vehicle-effects-${id}`, // vehicle effects
-  
+
   // User base data
   BASE_USER_PROFILE: (id: string) => `base-user-profile-${id}`,       // username, role
   
@@ -63,10 +59,7 @@ export const CACHE_TAGS = {
   COMPUTED_GANG_VEHICLE_COUNT: (id: string) => `computed-gang-vehicle-count-${id}`, // vehicle count
   COMPUTED_GANG_BEAST_COUNT: (id: string) => `computed-gang-beast-count-${id}`,   // exotic beast count
   COMPUTED_GANG_FIGHTER_STATS: (id: string) => `computed-gang-fighter-stats-${id}`, // OOA caused + deaths suffered
-  
-  // Campaign computed values
-  COMPUTED_CAMPAIGN_LEADERBOARD: (id: string) => `computed-campaign-leaderboard-${id}`, // gang rankings
-  
+
   // =============================================================================
   // 3. COMPOSITE DATA TAGS - Multi-entity aggregated data
   // =============================================================================
@@ -76,7 +69,6 @@ export const CACHE_TAGS = {
   // Kept here for backward compatibility with existing invalidation helpers. Safe to remove in future cleanup.
   COMPOSITE_GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`,    // all fighters with equipment
   COMPOSITE_CAMPAIGN_OVERVIEW: (id: string) => `composite-campaign-overview-${id}`, // complete campaign data
-  COMPOSITE_VEHICLE_PAGE: (id: string) => `composite-vehicle-page-${id}`,           // complete vehicle page data
   
   // Cross-entity relationships
   COMPOSITE_GANG_CAMPAIGNS: (id: string) => `composite-gang-campaigns-${id}`,       // campaigns this gang is in
@@ -88,7 +80,6 @@ export const CACHE_TAGS = {
   // User-specific collections
   USER_GANGS: (userId: string) => `user-gangs-${userId}`,           // user's gang list
   USER_CAMPAIGNS: (userId: string) => `user-campaigns-${userId}`,   // user's campaigns
-  USER_CUSTOMIZATIONS: (userId: string) => `user-custom-${userId}`, // custom equipment/territories
 
   // User permissions
   CHECK_PERMISSION: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
@@ -112,7 +103,6 @@ export const CACHE_TAGS = {
   
   // Global reference data (rarely changes)
   GLOBAL_GANG_TYPES: () => `global-gang-types`,                       // gang type options
-  GLOBAL_EQUIPMENT_CATALOG: () => `global-equipment-catalog`,         // equipment options
   GLOBAL_FIGHTER_TYPES: () => `global-fighter-types`,                 // fighter type options
   GLOBAL_TERRITORIES_LIST: () => `global-territories-list`,           // territory options
   GLOBAL_PATREON_SUPPORTERS: () => `global-patreon-supporters`,       // patreon supporters list
@@ -129,13 +119,6 @@ export const CACHE_TAGS = {
   // Gang-specific reference data
   GANG_FIGHTER_TYPES: (id: string) => `gang-fighter-types-${id}`,     // fighter types available to gang
   
-  // =============================================================================
-  // 7. LEGACY COMPATIBILITY TAGS - For smooth migration
-  // =============================================================================
-  
-  // Maintained for backward compatibility during migration
-  // REMOVED: FIGHTER_PAGE, GANG_OVERVIEW - use granular functions instead
-  GANG_FIGHTERS_LIST: (id: string) => `composite-gang-fighters-${id}`, // → COMPOSITE_GANG_FIGHTERS_LIST
 } as const;
 
 // =============================================================================
@@ -238,10 +221,7 @@ export function invalidateCampaignMembership(params: {
   // Base data changes
   revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(params.campaignId), { expire: 0 });
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(params.gangId), { expire: 0 });
-  
-  // Computed data changes
-  revalidateTag(CACHE_TAGS.COMPUTED_CAMPAIGN_LEADERBOARD(params.campaignId), { expire: 0 });
-  
+
   // Shared data changes
   revalidateTag(CACHE_TAGS.SHARED_CAMPAIGN_GANG_LIST(params.campaignId), { expire: 0 });
   
@@ -374,17 +354,10 @@ export function invalidateCampaignTerritory(params: {
 
 /**
  * User Customization Invalidation Pattern
- * Triggered when: User creates/updates custom equipment/territories
- * Data changed: User customizations
+ * Triggered when: User creates/updates custom territories
+ * Data changed: Global territories list
  */
-export function invalidateUserCustomizations(params: {
-  userId: string;
-}) {
-  // User-scoped changes
-  revalidateTag(CACHE_TAGS.USER_CUSTOMIZATIONS(params.userId), { expire: 0 });
-
-  // Global reference data that includes custom content
-  revalidateTag(CACHE_TAGS.GLOBAL_EQUIPMENT_CATALOG(), { expire: 0 });
+export function invalidateUserCustomizations() {
   revalidateTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST(), { expire: 0 });
 }
 
@@ -423,12 +396,6 @@ export function invalidatePermissionForUser(params: {
 export const invalidateFighterData = (fighterId: string, gangId: string) => {
   invalidateFighterAdvancement({ fighterId, gangId, advancementType: 'stat' });
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId), { expire: 0 });
-};
-
-export const invalidateVehicleData = (vehicleId: string) => {
-  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EQUIPMENT(vehicleId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.BASE_VEHICLE_BASIC(vehicleId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.COMPOSITE_VEHICLE_PAGE(vehicleId), { expire: 0 });
 };
 
 export const invalidateGangCredits = (gangId: string) => {
@@ -471,13 +438,9 @@ export const invalidateFighterVehicleData = (fighterId: string, gangId: string) 
 };
 
 export const invalidateVehicleEffects = (vehicleId: string, fighterId: string | undefined, gangId: string) => {
-  // Vehicle effects data (where lasting damages and hardpoints are stored)
-  revalidateTag(CACHE_TAGS.BASE_VEHICLE_EFFECTS(vehicleId), { expire: 0 });
-  // Fighter's vehicle data (includes effects) — skip when vehicle is unassigned
   if (fighterId) {
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId), { expire: 0 });
   }
-  // Gang fighters list (shows vehicle data)
   revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
 };
 
@@ -506,6 +469,7 @@ export const addBeastToGangCache = (beastId: string, gangId: string) => {
 };
 
 export const invalidateFighterOwnedBeasts = (ownerId: string, gangId: string) => {
+  revalidateTag(CACHE_TAGS.BASE_FIGHTER_OWNED_BEASTS(ownerId), { expire: 0 });
   revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerId), { expire: 0 });
   revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(ownerId), { expire: 0 });
   revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId), { expire: 0 });
@@ -567,4 +531,8 @@ export function invalidateGangCount() {
  */
 export function invalidateCampaignCount() {
   revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_COUNT(), { expire: 0 });
+}
+
+export function invalidateUserProfile(userId: string) {
+  revalidateTag(CACHE_TAGS.BASE_USER_PROFILE(userId), { expire: 0 });
 }
