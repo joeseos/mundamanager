@@ -100,6 +100,7 @@ export default function UserGuidePage() {
                   <li><a href="#gang-notes" className="underline hover:text-red-800">Gang Notes</a></li>
                   <li><a href="#house-escher-chem-alchemy" className="underline hover:text-red-800">House Escher: Chem-Alchemy</a></li>
                   <li><a href="#house-goliath-gene-smithing" className="underline hover:text-red-800">House Goliath: Gene-Smithing</a></li>
+                  <li><a href="#house-van-saar-archaeo-cyberteknika" className="underline hover:text-red-800">House Van Saar: Archaeo-Cyberteknika</a></li>
                   <li><a href="#spyre-hunting-party-spyres-rig-upgrades" className="underline hover:text-red-800">Spyre Hunting Party: Spyres Rig Upgrades</a></li>
                   <li><a href="#venator-gang-legacy-outcast-gang-affiliation" className="underline hover:text-red-800">Venator: Gang Legacy & Outcast Gang Affiliation</a></li>
                   <li><a href="#outcast-elevating-a-fighter-to-leader" className="underline hover:text-red-800">Outcast: Elevating a fighter to Leader &amp; setting Archetypes</a></li>
@@ -254,6 +255,37 @@ export default function UserGuidePage() {
                 <p className="text-muted-foreground mb-2">
                   For Goliath gangs, Gene-Smithing is available as Equipment in the Fighter&apos;s equipment list. Beware that Munda Manager does not limit your selections and you are expected to familiarize yourself with their selection rules.
                 </p>
+
+              <h3 id="house-van-saar-archaeo-cyberteknika" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
+                <a href="#house-van-saar-archaeo-cyberteknika" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
+                  House Van Saar: Archaeo-Cyberteknika
+                </a>
+              </h3>
+                <p className="text-muted-foreground mb-2">
+                  For Van Saar gangs, Archaeo-Cyberteknika are available as equipment on the fighter&apos;s page. You can add Cyberteknika from the fighter&apos;s equipment menu, where they will modify the fighter&apos;s characteristics accordingly.
+                </p>
+                <p className="text-muted-foreground mb-2">
+                  Archeoteks receive one free Cyberteknika. To add it without cost, set the cost to <strong className="text-foreground">0</strong> and uncheck <strong className="text-foreground">Use Listed Cost for Rating</strong>{' '}so it doesn&apos;t affect the fighter&apos;s cost and gang rating.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/buy-cyberteknika.webp"
+                    alt="Cyberteknika purchase dialog showing cost set to 0 and Use listed cost for rating unchecked for a free Archeotek upgrade"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  Then, select the <strong className="text-foreground">Standard Enhancement</strong> to apply the Cyberteknika to the fighter.
+                </p>
+                <div className="my-4 flex justify-center">
+                  <img
+                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/user-guide/buy-cyberteknika-effect.webp"
+                    alt="Cyberteknika effect selection dialog showing the Standard Enhancement option for a Van Saar fighter"
+                    className="rounded-lg"
+                    style={{ maxWidth: '450px', width: '100%', height: 'auto' }}
+                  />
+                </div>
 
               <h3 id="spyre-hunting-party-spyres-rig-upgrades" className="text-lg font-semibold text-foreground mt-6 mb-1 scroll-mt-24">
                 <a href="#spyre-hunting-party-spyres-rig-upgrades" className="inline-flex items-center hover:text-red-800 transition-colors after:content-['#'] after:ml-2 after:text-sm after:text-muted-foreground after:opacity-0 hover:after:opacity-100 focus-visible:after:opacity-100 after:transition-opacity">
