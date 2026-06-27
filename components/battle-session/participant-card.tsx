@@ -542,6 +542,7 @@ function InjuryPickerModal({
           onClose={() => setMode('main')}
           onConfirm={async () => { commit(true, false); return false; }}
           confirmText="Yes"
+          confirmDisabled={addMut.isPending}
         >
           <p>Send this fighter into Recovery?</p>
         </Modal>
@@ -553,6 +554,7 @@ function InjuryPickerModal({
           onClose={() => setMode('main')}
           onConfirm={async () => { commit(false, true); return false; }}
           confirmText="Yes"
+          confirmDisabled={addMut.isPending}
         >
           <p>This injury results in the fighter being captured. Mark as Captured?</p>
         </Modal>
