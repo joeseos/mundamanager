@@ -57,7 +57,6 @@ interface AdvancementModalProps {
     total_cost: number;
     sub_type?: { id: string; sub_type_name: string } | null;
   }>;
-  onEnsureFighterTypes?: () => Promise<void>;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -193,7 +192,6 @@ interface AdvancementsListProps {
     total_cost: number;
     sub_type?: { id: string; sub_type_name: string } | null;
   }>;
-  onEnsureFighterTypes?: () => Promise<void>;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -462,7 +460,6 @@ export function AdvancementModal({
   onCharacteristicUpdate,
   userPermissions,
   preFetchedFighterTypes = [],
-  onEnsureFighterTypes,
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -692,7 +689,6 @@ export function AdvancementModal({
   const gangerModalRollBuy =
     isGangerOrExoticBeastClass &&
     !!userPermissions &&
-    !!onEnsureFighterTypes &&
     !!onFighterDetailsUpdate;
 
   useEffect(() => {
@@ -2134,7 +2130,6 @@ export function AdvancementModal({
           </div>
 
           {userPermissions &&
-            onEnsureFighterTypes &&
             onFighterDetailsUpdate &&
             (fighterClass === 'Ganger' || fighterClass === 'Exotic Beast') && (
               <div className="mb-4 space-y-4">
@@ -2232,10 +2227,7 @@ export function AdvancementModal({
                         type="button"
                         variant="default"
                         className="w-full sm:w-auto"
-                        onClick={async () => {
-                          await onEnsureFighterTypes();
-                          setGangerPromotionOpen(true);
-                        }}
+                        onClick={() => setGangerPromotionOpen(true)}
                         disabled={!userPermissions.canEdit}
                       >
                         Promote to Specialist
@@ -2374,11 +2366,8 @@ export function AdvancementModal({
                     type="button"
                     variant="default"
                     className="w-full sm:w-auto"
-                    onClick={async () => {
-                      await onEnsureFighterTypes?.();
-                      setChampionPromotionOpen(true);
-                    }}
-                    disabled={!userPermissions?.canEdit || !onEnsureFighterTypes}
+                    onClick={() => setChampionPromotionOpen(true)}
+                    disabled={!userPermissions?.canEdit}
                   >
                     Promote to Champion
                   </Button>
@@ -2467,7 +2456,7 @@ export function AdvancementModal({
                     </div>
                   )}
 
-                {onEnsureFighterTypes && onFighterDetailsUpdate && (
+                {onFighterDetailsUpdate && (
                   <FighterPromotionModal
                     currentClass={fighterClass}
                     currentSpecialRules={fighterSpecialRules}
@@ -2680,7 +2669,6 @@ export function AdvancementsList({
   onXpCreditsUpdate,
   onCharacteristicUpdate,
   preFetchedFighterTypes = [],
-  onEnsureFighterTypes,
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -3007,10 +2995,7 @@ export function AdvancementsList({
               type="button"
               variant="outline"
               disabled={!userPermissions.canEdit || standalonePromotionMutation.isPending}
-              onClick={async () => {
-                await onEnsureFighterTypes?.();
-                setIsStandalonePromotionOpen(true);
-              }}
+              onClick={() => setIsStandalonePromotionOpen(true)}
             >
               Promote
             </Button>
@@ -3053,7 +3038,6 @@ export function AdvancementsList({
           onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
           preFetchedFighterTypes={preFetchedFighterTypes}
-          onEnsureFighterTypes={onEnsureFighterTypes}
           fighterSpecialRules={fighterSpecialRules}
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}

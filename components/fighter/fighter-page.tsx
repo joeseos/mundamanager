@@ -6,6 +6,7 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import ItemModal from "@/components/equipment/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
@@ -374,33 +375,30 @@ export default function FighterPage({
 
   const router = useRouter();
   
-  const [preFetchedFighterTypes, setPreFetchedFighterTypes] = useState<any[]>([]);
-  const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
-  const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
+  const gangId = fighterData.gang?.id || '';
+  const gangTypeId = fighterData.gang?.gang_type_id || '';
+  const customGangTypeId = fighterData.gang?.custom_gang_type_id || '';
 
-  // Fetch fighter types for edit modal
-  const fetchFighterTypes = useCallback(async (gangId: string, gangTypeId?: string | null, customGangTypeId?: string | null) => {
-    try {
+  const { data: preFetchedFighterTypes = [] } = useQuery({
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryFn: async () => {
       const params = new URLSearchParams({
         gang_id: gangId,
         is_gang_addition: 'false'
       });
       if (gangTypeId) params.set('gang_type_id', gangTypeId);
       if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
-      
+
       const response = await fetch(`/api/fighter-types?${params}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch fighter types');
-      }
-      
-      const data = await response.json();
-      setPreFetchedFighterTypes(data);
-    } catch (error) {
-      console.error('Error fetching fighter types:', error);
-      toast.error('Error', { description: 'Could not fetch fighter types.' });
-    }
-  }, []);
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      return response.json();
+    },
+    enabled: !!gangId && !!(gangTypeId || customGangTypeId),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
+  const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
 
   // Sync local state with props when they change
   const [prevInitialFighterData, setPrevInitialFighterData] = useState(initialFighterData);
@@ -567,22 +565,7 @@ export default function FighterPage({
     }));
   }, [fighterId]);
 
-  // Update modal handlers
   const handleModalToggle = (modalName: keyof UIState['modals'], value: boolean) => {
-    // If opening the Edit Fighter modal, fetch fighter types first
-    if (modalName === 'editFighter' && value && fighterData.gang?.id && (fighterData.gang?.gang_type_id || fighterData.gang?.custom_gang_type_id)) {
-      fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id, fighterData.gang.custom_gang_type_id).then(() => {
-        setUiState(prev => ({
-          ...prev,
-          modals: {
-            ...prev.modals,
-            [modalName]: value
-          }
-        }));
-      });
-      return;
-    }
-    
     setUiState(prev => ({
       ...prev,
       modals: {
@@ -855,11 +838,6 @@ export default function FighterPage({
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
             preFetchedFighterTypes={preFetchedFighterTypes}
-            onEnsureFighterTypes={async () => {
-              if (fighterData.gang?.id && (fighterData.gang?.gang_type_id || fighterData.gang?.custom_gang_type_id)) {
-                await fetchFighterTypes(fighterData.gang.id, fighterData.gang.gang_type_id, fighterData.gang.custom_gang_type_id);
-              }
-            }}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
