@@ -656,7 +656,7 @@ function FighterRow({
               <div className="text-xs text-muted-foreground">{fighterDetails}</div>
             )}
             {(xp > 0 || injuryCount > 0 || conditions.length > 0 || (!canInteract && !battleActive && injuries.length > 0)) && (
-              <div className="flex flex-wrap gap-1 mt-0.5">
+              <div className="flex flex-wrap items-center gap-1 mt-0.5">
                 {xp > 0 && (
                   <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                     +{xp} XP
