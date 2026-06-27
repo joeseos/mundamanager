@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ssyDmqh6KXf7wr9ILNskB9MKeV37Knr3C7r04B8mjoIIvYItciOluZA9R8Am88h
+\restrict wLVdnhJjlb34Zsz0KRX34cUbjmMzmCnOTJigdngIkET69VB3TTWnfbe5yJ72b70
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -5673,8 +5673,6 @@ CREATE TABLE public.gangs (
     credits numeric,
     last_updated timestamp with time zone,
     reputation numeric,
-    "OLDmeat" numeric DEFAULT '0'::numeric,
-    "OLDexploration_points" numeric DEFAULT '0'::numeric,
     rating numeric,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     gang_type_id uuid,
@@ -5684,15 +5682,11 @@ CREATE TABLE public.gangs (
     alliance_id uuid,
     gang_variants jsonb,
     gang_colour text,
-    "OLDscavenging_rolls" numeric DEFAULT '0'::numeric,
     image_url text,
     note_backstory text,
     gang_affiliation_id uuid,
     gang_origin_id uuid,
     wealth numeric,
-    "OLDpower" numeric,
-    "OLDsustenance" numeric,
-    "OLDsalvage" numeric,
     hidden boolean DEFAULT false,
     default_gang_image numeric,
     is_favourite boolean DEFAULT false NOT NULL,
@@ -12022,5 +12016,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ssyDmqh6KXf7wr9ILNskB9MKeV37Knr3C7r04B8mjoIIvYItciOluZA9R8Am88h
+\unrestrict wLVdnhJjlb34Zsz0KRX34cUbjmMzmCnOTJigdngIkET69VB3TTWnfbe5yJ72b70
 
