@@ -11,7 +11,7 @@ import { skillSetRank } from "@/utils/skillSetRank";
 import { characteristicRank } from "@/utils/characteristicRank";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
@@ -48,15 +48,9 @@ interface AdvancementModalProps {
   onAdvancementUpdate: (updatedAdvancements: FighterEffectType[]) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
   userPermissions?: UserPermissions;
-  preFetchedFighterTypes?: Array<{
-    id: string;
-    fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
-    special_rules?: string[];
-    total_cost: number;
-    sub_type?: { id: string; sub_type_name: string } | null;
-  }>;
+  gangId?: string;
+  gangTypeId?: string;
+  customGangTypeId?: string;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -183,15 +177,9 @@ interface AdvancementsListProps {
   onSkillUpdate?: (updatedSkills: FighterSkills) => void;
   onXpCreditsUpdate?: (xpChange: number, creditsChange: number) => void;
   onCharacteristicUpdate?: (characteristicName: string, changeAmount: number) => void;
-  preFetchedFighterTypes?: Array<{
-    id: string;
-    fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
-    special_rules?: string[];
-    total_cost: number;
-    sub_type?: { id: string; sub_type_name: string } | null;
-  }>;
+  gangId?: string;
+  gangTypeId?: string;
+  customGangTypeId?: string;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -459,7 +447,9 @@ export function AdvancementModal({
   onAdvancementUpdate,
   onCharacteristicUpdate,
   userPermissions,
-  preFetchedFighterTypes = [],
+  gangId = '',
+  gangTypeId = '',
+  customGangTypeId = '',
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -690,6 +680,24 @@ export function AdvancementModal({
     isGangerOrExoticBeastClass &&
     !!userPermissions &&
     !!onFighterDetailsUpdate;
+
+  const { data: preFetchedFighterTypes = [] } = useQuery({
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        is_gang_addition: 'false'
+      });
+      if (gangTypeId) params.set('gang_type_id', gangTypeId);
+      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
+
+      const response = await fetch(`/api/fighter-types?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      return response.json();
+    },
+    enabled: !!gangId && !!(gangTypeId || customGangTypeId) && (gangerPromotionOpen || championPromotionOpen),
+    staleTime: 10 * 60 * 1000,
+  });
 
   useEffect(() => {
     if (!isGangerOrExoticBeastClass || !fighterId) return;
@@ -2668,7 +2676,9 @@ export function AdvancementsList({
   onSkillUpdate,
   onXpCreditsUpdate,
   onCharacteristicUpdate,
-  preFetchedFighterTypes = [],
+  gangId = '',
+  gangTypeId = '',
+  customGangTypeId = '',
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -2681,8 +2691,26 @@ export function AdvancementsList({
 
   const showPromoteButton = ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(fighterClass);
 
+  const { data: preFetchedFighterTypes = [] } = useQuery({
+    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        gang_id: gangId,
+        is_gang_addition: 'false'
+      });
+      if (gangTypeId) params.set('gang_type_id', gangTypeId);
+      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
+
+      const response = await fetch(`/api/fighter-types?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch fighter types');
+      return response.json();
+    },
+    enabled: !!gangId && !!(gangTypeId || customGangTypeId) && isStandalonePromotionOpen,
+    staleTime: 10 * 60 * 1000,
+  });
+
   const currentPromotionSubType = useMemo(() => {
-    const match = preFetchedFighterTypes.find((ft) => ft.id === fighterTypeId);
+    const match = preFetchedFighterTypes.find((ft: any) => ft.id === fighterTypeId);
     return {
       fighter_sub_type: match?.sub_type?.sub_type_name ?? null,
       fighter_sub_type_id: fighterSubTypeId || (match?.sub_type?.id ?? null),
@@ -3037,7 +3065,9 @@ export function AdvancementsList({
           onAdvancementUpdate={onAdvancementUpdate}
           onCharacteristicUpdate={onCharacteristicUpdate}
           userPermissions={userPermissions}
-          preFetchedFighterTypes={preFetchedFighterTypes}
+          gangId={gangId}
+          gangTypeId={gangTypeId}
+          customGangTypeId={customGangTypeId}
           fighterSpecialRules={fighterSpecialRules}
           fighterTypeName={fighterTypeName}
           fighterTypeId={fighterTypeId}

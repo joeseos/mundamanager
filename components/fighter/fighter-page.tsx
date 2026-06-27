@@ -6,7 +6,6 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import ItemModal from "@/components/equipment/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
@@ -374,28 +373,6 @@ export default function FighterPage({
   });
 
   const router = useRouter();
-  
-  const gangId = fighterData.gang?.id || '';
-  const gangTypeId = fighterData.gang?.gang_type_id || '';
-  const customGangTypeId = fighterData.gang?.custom_gang_type_id || '';
-
-  const { data: preFetchedFighterTypes = [] } = useQuery({
-    queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        gang_id: gangId,
-        is_gang_addition: 'false'
-      });
-      if (gangTypeId) params.set('gang_type_id', gangTypeId);
-      if (customGangTypeId) params.set('custom_gang_type_id', customGangTypeId);
-
-      const response = await fetch(`/api/fighter-types?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch fighter types');
-      return response.json();
-    },
-    enabled: !!gangId && !!(gangTypeId || customGangTypeId),
-    staleTime: 10 * 60 * 1000,
-  });
 
   const purchaseHandlerRef = useRef<((payload: { params: any; item: Equipment }) => void) | null>(null);
   const vehiclePurchaseHandlerRef = useRef<((payload: { params: any; item: any }) => void) | null>(null);
@@ -837,7 +814,9 @@ export default function FighterPage({
             advancements={fighterData.fighter?.effects?.advancements || []}
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
-            preFetchedFighterTypes={preFetchedFighterTypes}
+            gangId={fighterData.gang?.id || ''}
+            gangTypeId={fighterData.gang?.gang_type_id || ''}
+            customGangTypeId={fighterData.gang?.custom_gang_type_id || ''}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
@@ -1297,7 +1276,6 @@ export default function FighterPage({
               gangTypeId={fighterData.gang?.gang_type_id}
               customGangTypeId={fighterData.gang?.custom_gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
-              preFetchedFighterTypes={preFetchedFighterTypes}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {
                 const snapshot = structuredClone(fighterData);
