@@ -5,7 +5,6 @@ import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { copyFighter } from '@/app/actions/copy-fighter';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ImInfo } from 'react-icons/im';
 
@@ -21,6 +20,7 @@ interface CopyFighterModalProps {
   currentGangId: string;
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   fighterBaseCost: number;
   fighterFullCost: number;
   vehicles?: VehicleInfo[];
@@ -34,6 +34,7 @@ export default function CopyFighterModal({
   currentGangId,
   isOpen,
   onClose,
+  onSuccess,
   fighterBaseCost,
   fighterFullCost,
   vehicles,
@@ -45,7 +46,6 @@ export default function CopyFighterModal({
   const [deductCredits, setDeductCredits] = useState(true);
   const [copyAsExperienced, setCopyAsExperienced] = useState(false);
   const [copyVehicles, setCopyVehicles] = useState(true);
-  const router = useRouter();
   
 
   // Computed values for vehicles
@@ -112,7 +112,7 @@ export default function CopyFighterModal({
 
     resetModalState();
     onClose();
-    router.refresh();
+    onSuccess?.();
 
     return true;
   };

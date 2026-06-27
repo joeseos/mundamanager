@@ -155,9 +155,6 @@ export default function FriendsSearchBar({
       toast(`Friend request sent to ${friend.username}`);
       setQuery('');
       setSearchResults([]);
-      // Optionally refetch friends
-      // await fetchAcceptedFriends();
-      startTransition(() => router.refresh());
     } catch (error) {
       console.error('Error adding friend:', error);
       toast.error("Failed to send friend request");
@@ -176,12 +173,13 @@ export default function FriendsSearchBar({
       await deleteFriend(userId, friendToDelete.id);
       toast(`Removed ${friendToDelete.username} from your friends.`);
       setFriendToDelete(null);
-      startTransition(() => router.refresh());
       return true;
     } catch (error) {
       toast.error('Failed to remove friend.');
+      startTransition(() => {
+        updateOptimisticFriends({ type: 'add', friend: friendToDelete });
+      });
       setFriendToDelete(null);
-      startTransition(() => router.refresh()); // Revert optimistic update
       return false;
     }
   };

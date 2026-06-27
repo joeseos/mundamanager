@@ -225,7 +225,6 @@ export function FighterActions({
         return;
       }
           
-      router.refresh();
       onFighterUpdate?.();
 
       const prev = (ctx as any)?.prevFlags as {
@@ -616,6 +615,7 @@ export function FighterActions({
           currentGangId={gang.id}
           isOpen={modals.copy}
           onClose={() => handleModalToggle('copy', false)}
+          onSuccess={() => onFighterUpdate?.()}
           fighterBaseCost={fighter.base_copy_cost ?? fighter.base_credits ?? 0}
           fighterFullCost={fighter.credits || 0}
           vehicles={fighter.vehicles?.map(v => ({
