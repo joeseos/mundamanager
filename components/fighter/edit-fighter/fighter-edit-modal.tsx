@@ -56,21 +56,6 @@ interface EditFighterModalProps {
   gangTypeId?: string | null;
   customGangTypeId?: string | null;
   is_spyrer?: boolean;
-  preFetchedFighterTypes?: Array<{
-    id: string;
-    fighter_type: string;
-    fighter_class: string;
-    fighter_class_id?: string;
-    special_rules?: string[];
-    gang_type_id: string;
-    total_cost: number;
-    typeClassKey?: string;
-    is_gang_variant?: boolean;
-    gang_variant_name?: string;
-    fighter_sub_type?: string;
-    fighter_sub_type_id?: string;
-    available_legacies?: Array<{id: string; name: string}>;
-  }>;
   onClose: () => void;
   onSubmit?: (values: {
     name: string;
@@ -102,7 +87,6 @@ export function EditFighterModal({
   gangId,
   gangTypeId,
   customGangTypeId,
-  preFetchedFighterTypes,
   onClose,
   onSubmit,
   onStatsUpdate,
@@ -126,8 +110,6 @@ export function EditFighterModal({
     stats: {} as Record<string, number>
   });
   
-  // Fetch fighter types when modal opens and no pre-fetched data is available
-  const needsFetch = isOpen && (!preFetchedFighterTypes || preFetchedFighterTypes.length === 0);
   const { data: fetchedFighterTypes } = useQuery({
     queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId],
     queryFn: async () => {
@@ -142,7 +124,7 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter types');
       return response.json();
     },
-    enabled: needsFetch,
+    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -164,9 +146,8 @@ export function EditFighterModal({
   };
 
   const fighterTypes: FighterTypeEntry[] = useMemo(() => {
-    const raw = preFetchedFighterTypes?.length ? preFetchedFighterTypes : fetchedFighterTypes;
-    if (!raw?.length) return [];
-    return raw.map((type: any) => ({
+    if (!fetchedFighterTypes?.length) return [];
+    return fetchedFighterTypes.map((type: any) => ({
       id: type.id,
       fighter_type: type.fighter_type,
       fighter_class: type.fighter_class,
@@ -183,7 +164,7 @@ export function EditFighterModal({
       available_legacies: type.available_legacies || [],
       is_custom_fighter: type.is_custom_fighter || false
     }));
-  }, [preFetchedFighterTypes, fetchedFighterTypes]);
+  }, [fetchedFighterTypes]);
 
   
   // Add state for special rule combobox selection

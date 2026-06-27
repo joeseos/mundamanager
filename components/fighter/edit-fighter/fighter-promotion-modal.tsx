@@ -175,11 +175,8 @@ export function FighterPromotionModal({
       setNewRuleInput('');
     } else {
       setIncludeAllGangFighterTypes(false);
-      const firstType = eligibleTypes.length > 0 ? eligibleTypes[0] : null;
-      setSelectedTypeId(firstType?.id || '');
-      setNewSpecialRules(
-        firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
-      );
+      setSelectedTypeId('');
+      setNewSpecialRules([]);
       setNewRuleInput('');
     }
   }
@@ -189,14 +186,8 @@ export function FighterPromotionModal({
 
   const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
     setIncludeAllGangFighterTypes(checked);
-    const types = checked
-      ? sortPromotionFighterTypes(fighterTypes)
-      : eligibleTypes;
-    const firstType = types.length > 0 ? types[0] : null;
-    setSelectedTypeId(firstType?.id || '');
-    setNewSpecialRules(
-      firstType?.special_rules ? normalizeSpecialRules(firstType.special_rules) : []
-    );
+    setSelectedTypeId('');
+    setNewSpecialRules([]);
   };
 
   // When selection changes, update new special rules from the selected type
