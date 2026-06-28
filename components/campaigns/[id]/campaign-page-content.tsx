@@ -902,6 +902,16 @@ export default function CampaignPageContent({
                   campaignId={campaignData.id}
                   userId={userId}
                   canAdd={safePermissions.canAddBattleLogs}
+                  campaignGangs={campaignData.members.flatMap((m: Member) =>
+                    m.gangs
+                      .filter((g) => g.status === 'ACCEPTED')
+                      .map((g) => ({
+                        id: g.id,
+                        name: g.name,
+                        user_id: m.user_id,
+                        owner_username: m.username,
+                      }))
+                  )}
                 />
               </div>
             ) : null}

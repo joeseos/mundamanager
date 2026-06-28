@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import CreateBattleModal from '@/components/battle-session/create-battle-modal';
+import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
 import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
 
@@ -14,6 +15,7 @@ interface BattleSessionsListProps {
   campaignId?: string;
   canAdd?: boolean;
   userId?: string;
+  campaignGangs?: CampaignGang[];
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
@@ -26,6 +28,7 @@ export default function BattleSessionsList({
   campaignId,
   canAdd,
   userId,
+  campaignGangs,
   variant = 'cards',
   sessionUrl,
   wrapper,
@@ -137,6 +140,7 @@ export default function BattleSessionsList({
           gangName={gangName}
           userId={userId}
           campaignId={campaignId}
+          campaignGangs={campaignGangs}
           onClose={() => setShowCreateModal(false)}
         />
       )}

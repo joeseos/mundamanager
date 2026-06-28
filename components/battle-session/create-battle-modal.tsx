@@ -12,18 +12,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 import type { Scenario } from '@/types/campaign';
 
-interface CreateBattleModalProps {
-  // Optional: arbitrators can add players to a session without having a gang in it
-  gangId?: string;
-  gangName?: string;
-  userId?: string;
-  campaignId?: string;
-  existingSessionId?: string;
-  existingGangIds?: string[];
-  onClose: () => void;
-}
-
-interface CampaignGang {
+export interface CampaignGang {
   id: string;
   name: string;
   user_id: string | null;
@@ -42,10 +31,20 @@ export default function CreateBattleModal({
   gangName,
   userId,
   campaignId,
+  campaignGangs: campaignGangsProp,
   existingSessionId,
   existingGangIds = [],
   onClose,
-}: CreateBattleModalProps) {
+}: {
+  gangId?: string;
+  gangName?: string;
+  userId?: string;
+  campaignId?: string;
+  campaignGangs?: CampaignGang[];
+  existingSessionId?: string;
+  existingGangIds?: string[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const isAddMode = !!existingSessionId;
 
@@ -80,17 +79,18 @@ export default function CreateBattleModal({
     },
   });
 
-  const { data: campaignGangs } = useQuery({
+  const { data: campaignGangsFetched } = useQuery({
     queryKey: ['campaign-gangs', campaignId],
     queryFn: async () => {
       const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
       if (!res.ok) throw new Error('Failed to fetch campaign gangs');
       return res.json() as Promise<CampaignGang[]>;
     },
-    enabled: !!campaignId,
-    // Other players join/leave campaigns; refetch on every modal open
+    enabled: !!campaignId && !campaignGangsProp,
     staleTime: 0,
   });
+
+  const campaignGangs = campaignGangsProp ?? campaignGangsFetched;
 
   const myGangs = campaignId && userId
     ? (campaignGangs ?? []).filter((g) => g.user_id === userId)
