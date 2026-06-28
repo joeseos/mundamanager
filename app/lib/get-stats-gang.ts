@@ -13,7 +13,7 @@ import { createServiceRoleClient } from '@/utils/supabase/server';
  */
 const getCachedGangCount = unstable_cache(
   async () => {
-    if (!process.env.SUPABASE_SECRET_KEY) {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return null;
     }
 
