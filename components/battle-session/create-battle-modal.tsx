@@ -96,14 +96,8 @@ export default function CreateBattleModal({
     ? (campaignGangs ?? []).filter((g) => g.user_id === userId)
     : [];
 
-  useEffect(() => {
-    if (gangId || !campaignId) return;
-    if (myGangs.length === 1 && selectedMyGangId !== myGangs[0].id) {
-      setSelectedMyGangId(myGangs[0].id);
-    }
-  }, [gangId, campaignId, myGangs, selectedMyGangId]);
-
-  const effectiveGangId = gangId ?? (selectedMyGangId || undefined);
+  const effectiveGangId = gangId
+    ?? (myGangs.length === 1 ? myGangs[0].id : (selectedMyGangId || undefined));
   const effectiveGangName = gangId
     ? gangName
     : myGangs.find((g) => g.id === selectedMyGangId)?.name;
@@ -253,6 +247,10 @@ export default function CreateBattleModal({
         allGangIds.push(...selectedCampaignGangIds);
       } else {
         allGangIds.push(...opponents.map((o) => o.gangId));
+      }
+
+      if (allGangIds.length === 0) {
+        return { success: false, error: 'At least one gang is required' };
       }
 
       return createBattleSession({

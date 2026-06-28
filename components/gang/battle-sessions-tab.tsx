@@ -33,6 +33,7 @@ export default function BattleSessionsList({
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const showAddButton = canAdd ?? !!(gangId && gangName);
 
   const filteredSessions = filter === 'active'
     ? sessions.filter((s) => s.status !== 'completed')
@@ -42,7 +43,7 @@ export default function BattleSessionsList({
     <>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
-        {(canAdd ?? (gangId && gangName)) && (
+        {showAddButton && (
           <Button
             onClick={() => setShowCreateModal(true)}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
@@ -130,7 +131,7 @@ export default function BattleSessionsList({
         </div>
       )}
 
-      {showCreateModal && (canAdd ?? (gangId && gangName)) && (
+      {showCreateModal && showAddButton && (
         <CreateBattleModal
           gangId={gangId}
           gangName={gangName}
