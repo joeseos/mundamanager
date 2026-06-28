@@ -16,7 +16,7 @@ export type { ActivityStats as CampaignActivityStats };
  */
 const getCachedCampaignActivityStats = unstable_cache(
   async () => {
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env.SUPABASE_SECRET_KEY) {
       return null;
     }
 

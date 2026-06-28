@@ -2,9 +2,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!);
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SECRET_KEY")!
+  secretKeys.secret
 );
 
 const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!

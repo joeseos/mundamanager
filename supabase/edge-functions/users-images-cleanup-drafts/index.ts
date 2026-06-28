@@ -2,14 +2,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
-const serviceRoleKey = Deno.env.get("SUPABASE_SECRET_KEY");
+const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
 
 // Safety: require envs
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error("Missing SUPABASE_URL or SUPABASE_SECRET_KEY");
+if (!supabaseUrl || !secretKeys.secret) {
+  throw new Error("Missing SUPABASE_URL or SUPABASE_SECRET_KEYS");
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
+const supabase = createClient(supabaseUrl, secretKeys.secret, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
