@@ -2,11 +2,12 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { revalidateTag } from 'next/cache';
+import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export async function acceptFriendRequest(requester_id: string, addressee_id: string) {
   const supabase = await createClient();
-  
-  // Authenticate user
+
   await getAuthenticatedUser(supabase);
   const { error } = await supabase
     .from('friends')
@@ -17,13 +18,16 @@ export async function acceptFriendRequest(requester_id: string, addressee_id: st
   if (error) {
     throw new Error(error.message);
   }
+
+  revalidateTag(CACHE_TAGS.USER_FRIENDS(requester_id), { expire: 0 });
+  revalidateTag(CACHE_TAGS.USER_FRIENDS(addressee_id), { expire: 0 });
+
   return { success: true };
 }
 
 export async function declineFriendRequest(requester_id: string, addressee_id: string) {
   const supabase = await createClient();
-  
-  // Authenticate user
+
   await getAuthenticatedUser(supabase);
   const { error } = await supabase
     .from('friends')
@@ -34,15 +38,17 @@ export async function declineFriendRequest(requester_id: string, addressee_id: s
   if (error) {
     throw new Error(error.message);
   }
+
+  revalidateTag(CACHE_TAGS.USER_FRIENDS(requester_id), { expire: 0 });
+  revalidateTag(CACHE_TAGS.USER_FRIENDS(addressee_id), { expire: 0 });
+
   return { success: true };
 }
 
 export async function deleteFriend(userId: string, friendId: string) {
   const supabase = await createClient();
-  
-  // Authenticate user
+
   await getAuthenticatedUser(supabase);
-  // Remove the friend relationship in either direction
   const { error } = await supabase
     .from('friends')
     .delete()
@@ -51,5 +57,9 @@ export async function deleteFriend(userId: string, friendId: string) {
   if (error) {
     throw new Error(error.message);
   }
+
+  revalidateTag(CACHE_TAGS.USER_FRIENDS(userId), { expire: 0 });
+  revalidateTag(CACHE_TAGS.USER_FRIENDS(friendId), { expire: 0 });
+
   return { success: true };
 } 

@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import Modal from '@/components/ui/modal'
 import { deleteFriend } from '@/app/actions/friends'
 import { HiX } from "react-icons/hi";
-import { useTransition, useOptimistic } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Friend {
@@ -44,20 +43,12 @@ export default function FriendsSearchBar({
   const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null)
   const supabase = createClient()
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  // Optimistic state for accepted friends
-  const [optimisticFriends, updateOptimisticFriends] = useOptimistic(
-    initialFriends,
-    (state: Friend[], action: { type: 'delete' | 'add', friend: Friend }) => {
-      if (action.type === 'delete') {
-        return state.filter(f => f.id !== action.friend.id)
-      } else if (action.type === 'add') {
-        if (state.some(f => f.id === action.friend.id)) return state;
-        return [...state, action.friend]
-      }
-      return state;
-    }
-  );
+  const [localFriends, setLocalFriends] = useState(initialFriends);
+  const [prevFriends, setPrevFriends] = useState(initialFriends);
+  if (initialFriends !== prevFriends) {
+    setPrevFriends(initialFriends);
+    setLocalFriends(initialFriends);
+  }
 
   // Search functionality
   useEffect(() => {
@@ -136,16 +127,9 @@ export default function FriendsSearchBar({
 
       if (error) throw error;
 
-      // Optimistically add the pending outgoing request
-      startTransition(() => {
-        updateOptimisticFriends({
-          type: 'add',
-          friend: {
-            ...friend,
-            status: 'pending',
-            direction: 'outgoing',
-          }
-        });
+      setLocalFriends(prev => {
+        if (prev.some(f => f.id === friend.id)) return prev;
+        return [...prev, { ...friend, status: 'pending', direction: 'outgoing' }];
       });
 
       if (onFriendAdd) {
@@ -165,10 +149,8 @@ export default function FriendsSearchBar({
 
   const handleDeleteFriend = async () => {
     if (!friendToDelete) return false;
-    // Optimistically remove friend inside a transition
-    startTransition(() => {
-      updateOptimisticFriends({ type: 'delete', friend: friendToDelete });
-    });
+    const previousFriends = localFriends;
+    setLocalFriends(prev => prev.filter(f => f.id !== friendToDelete.id));
     try {
       await deleteFriend(userId, friendToDelete.id);
       toast(`Removed ${friendToDelete.username} from your friends.`);
@@ -176,18 +158,16 @@ export default function FriendsSearchBar({
       return true;
     } catch (error) {
       toast.error('Failed to remove friend.');
-      startTransition(() => {
-        updateOptimisticFriends({ type: 'add', friend: friendToDelete });
-      });
+      setLocalFriends(previousFriends);
       setFriendToDelete(null);
       return false;
     }
   };
 
   // Split friends into accepted and pending (incoming/outgoing)
-  const acceptedFriends = optimisticFriends.filter(f => f.status === 'accepted');
-  const pendingIncoming = optimisticFriends.filter(f => f.status === 'pending' && f.direction === 'incoming');
-  const pendingOutgoing = optimisticFriends.filter(f => f.status === 'pending' && f.direction === 'outgoing');
+  const acceptedFriends = localFriends.filter(f => f.status === 'accepted');
+  const pendingIncoming = localFriends.filter(f => f.status === 'pending' && f.direction === 'incoming');
+  const pendingOutgoing = localFriends.filter(f => f.status === 'pending' && f.direction === 'outgoing');
 
   // Use programmatic navigation to avoid Link prefetching
   const handleUserClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, userId: string) => {
