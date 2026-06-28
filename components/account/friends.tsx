@@ -3,10 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/utils/supabase/client"
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal'
-import { deleteFriend } from '@/app/actions/friends'
+import { deleteFriend, sendFriendRequest } from '@/app/actions/friends'
 import { HiX } from "react-icons/hi";
 import { useRouter } from 'next/navigation'
 
@@ -41,7 +40,6 @@ export default function FriendsSearchBar({
   const [isLoading, setIsLoading] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null)
-  const supabase = createClient()
   const router = useRouter()
   const [localFriends, setLocalFriends] = useState(initialFriends);
   const [prevFriends, setPrevFriends] = useState(initialFriends);
@@ -100,32 +98,13 @@ export default function FriendsSearchBar({
   const handleAddFriend = async (friend: Friend) => {
     setIsAdding(true)
     try {
-      // Prevent duplicate friend requests
-      const { data: existing, error: checkError } = await supabase
-        .from('friends')
-        .select('id, status')
-        .or(`and(requester_id.eq.${userId},addressee_id.eq.${friend.id}),and(requester_id.eq.${friend.id},addressee_id.eq.${userId})`)
-        .limit(1);
+      const result = await sendFriendRequest(userId, friend.id);
 
-      if (checkError) throw checkError;
-      if (existing && existing.length > 0) {
+      if (!result.success) {
         toast.error(`A friend request already exists or you are already friends with ${friend.username}`);
         setIsAdding(false);
         return;
       }
-
-      // Add friend relationship to the database using correct columns
-      const { error } = await supabase
-        .from('friends')
-        .insert({
-          requester_id: userId,
-          addressee_id: friend.id,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
 
       setLocalFriends(prev => {
         if (prev.some(f => f.id === friend.id)) return prev;
