@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { createClient } from '@/utils/supabase/server';
 import type { UserPermissions, CampaignPermissions } from '@/types/user-permissions';
 import type { CampaignRole } from '@/types/user-permissions';
