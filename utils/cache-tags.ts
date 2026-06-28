@@ -80,6 +80,7 @@ export const CACHE_TAGS = {
   // User-specific collections
   USER_GANGS: (userId: string) => `user-gangs-${userId}`,           // user's gang list
   USER_CAMPAIGNS: (userId: string) => `user-campaigns-${userId}`,   // user's campaigns
+  USER_FRIENDS: (userId: string) => `user-friends-${userId}`,       // user's friends & requests
 
   // User permissions
   CHECK_PERMISSION: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,

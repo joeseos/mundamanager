@@ -54,7 +54,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     try {
       await acceptFriendRequest(senderId, userId);
       await deleteNotification(notificationId);
-      router.refresh();
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
     } catch (error) {
       console.error('Error accepting friend request:', error);
     } finally {
@@ -68,7 +68,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     try {
       await declineFriendRequest(senderId, userId);
       await deleteNotification(notificationId);
-      router.refresh();
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
     } catch (error) {
       console.error('Error declining friend request:', error);
     } finally {
@@ -106,7 +106,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       const result = await acceptGangInvite(params);
       if (result.success) {
         await deleteNotification(notificationId);
-        router.refresh();
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
       } else {
         console.error('Error accepting gang invite:', result.error);
       }
@@ -130,7 +130,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       const result = await declineGangInvite(params);
       if (result.success) {
         await deleteNotification(notificationId);
-        router.refresh();
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
       } else {
         console.error('Error declining gang invite:', result.error);
       }
