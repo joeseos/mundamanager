@@ -12,6 +12,7 @@ interface BattleSessionsListProps {
   gangId?: string;
   gangName?: string;
   campaignId?: string;
+  canAdd?: boolean;
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
@@ -22,6 +23,7 @@ export default function BattleSessionsList({
   gangId,
   gangName,
   campaignId,
+  canAdd,
   variant = 'cards',
   sessionUrl,
   wrapper,
@@ -38,7 +40,7 @@ export default function BattleSessionsList({
     <>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
-        {gangId && gangName && (
+        {(canAdd ?? (gangId && gangName)) && (
           <Button
             onClick={() => setShowCreateModal(true)}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
@@ -126,7 +128,7 @@ export default function BattleSessionsList({
         </div>
       )}
 
-      {showCreateModal && gangId && gangName && (
+      {showCreateModal && (canAdd ?? (gangId && gangName)) && (
         <CreateBattleModal
           gangId={gangId}
           gangName={gangName}

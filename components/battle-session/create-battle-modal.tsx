@@ -248,7 +248,10 @@ export default function CreateBattleModal({
           onClose();
         } else if ('session_id' in result && result.session_id) {
           setNavigating(true);
-          router.push(`/gang/${gangId}/battle-session/${result.session_id}`);
+          const url = campaignId && !gangId
+            ? `/campaigns/${campaignId}/battle-session/${result.session_id}`
+            : `/gang/${gangId}/battle-session/${result.session_id}`;
+          router.push(url);
         }
       } else {
         toast.error(result.error || 'Failed');

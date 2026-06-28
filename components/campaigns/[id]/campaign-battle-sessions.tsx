@@ -8,11 +8,13 @@ export default function CampaignBattleSessions({
   campaignId,
   userGangId,
   gangName,
+  canAdd,
 }: {
   sessions: BattleSession[];
   campaignId: string;
   userGangId: string | undefined;
   gangName: string | undefined;
+  canAdd?: boolean;
 }) {
   return (
     <BattleSessionsList
@@ -20,6 +22,7 @@ export default function CampaignBattleSessions({
       gangId={userGangId}
       gangName={gangName}
       campaignId={campaignId}
+      canAdd={canAdd}
       variant="table"
       sessionUrl={(id) => `/campaigns/${campaignId}/battle-session/${id}`}
       wrapper={(children) => <div className="mb-6">{children}</div>}

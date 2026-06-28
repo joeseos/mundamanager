@@ -902,6 +902,7 @@ export default function CampaignPageContent({
                   campaignId={campaignData.id}
                   userGangId={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.id}
                   gangName={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.name}
+                  canAdd={safePermissions.canAddBattleLogs}
                 />
               </div>
             ) : null}
