@@ -900,8 +900,18 @@ export default function CampaignPageContent({
                 <CampaignBattleSessions
                   sessions={campaignData.battleSessions || []}
                   campaignId={campaignData.id}
-                  userGangId={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.id}
-                  gangName={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.name}
+                  userId={userId}
+                  canAdd={safePermissions.canAddBattleLogs}
+                  campaignGangs={campaignData.members.flatMap((m: Member) =>
+                    m.gangs
+                      .filter((g) => g.status === 'ACCEPTED')
+                      .map((g) => ({
+                        id: g.id,
+                        name: g.name,
+                        user_id: m.user_id,
+                        owner_username: m.username,
+                      }))
+                  )}
                 />
               </div>
             ) : null}

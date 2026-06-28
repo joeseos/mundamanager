@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import CreateBattleModal from '@/components/battle-session/create-battle-modal';
+import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
 import { statusLabels, formatBattleSessionDate } from '@/types/battle-session';
 import type { BattleSession } from '@/types/battle-session';
 
@@ -12,6 +13,9 @@ interface BattleSessionsListProps {
   gangId?: string;
   gangName?: string;
   campaignId?: string;
+  canAdd?: boolean;
+  userId?: string;
+  campaignGangs?: CampaignGang[];
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
@@ -22,6 +26,9 @@ export default function BattleSessionsList({
   gangId,
   gangName,
   campaignId,
+  canAdd,
+  userId,
+  campaignGangs,
   variant = 'cards',
   sessionUrl,
   wrapper,
@@ -29,6 +36,7 @@ export default function BattleSessionsList({
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const showAddButton = canAdd ?? !!(gangId && gangName);
 
   const filteredSessions = filter === 'active'
     ? sessions.filter((s) => s.status !== 'completed')
@@ -38,7 +46,7 @@ export default function BattleSessionsList({
     <>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
-        {gangId && gangName && (
+        {showAddButton && (
           <Button
             onClick={() => setShowCreateModal(true)}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
@@ -126,11 +134,13 @@ export default function BattleSessionsList({
         </div>
       )}
 
-      {showCreateModal && gangId && gangName && (
+      {showCreateModal && showAddButton && (
         <CreateBattleModal
           gangId={gangId}
           gangName={gangName}
+          userId={userId}
           campaignId={campaignId}
+          campaignGangs={campaignGangs}
           onClose={() => setShowCreateModal(false)}
         />
       )}
