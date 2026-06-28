@@ -6,23 +6,20 @@ import type { BattleSession } from '@/types/battle-session';
 export default function CampaignBattleSessions({
   sessions,
   campaignId,
-  userGangId,
-  gangName,
+  userId,
   canAdd,
 }: {
   sessions: BattleSession[];
   campaignId: string;
-  userGangId: string | undefined;
-  gangName: string | undefined;
+  userId?: string;
   canAdd?: boolean;
 }) {
   return (
     <BattleSessionsList
       sessions={sessions}
-      gangId={userGangId}
-      gangName={gangName}
       campaignId={campaignId}
       canAdd={canAdd}
+      userId={userId}
       variant="table"
       sessionUrl={(id) => `/campaigns/${campaignId}/battle-session/${id}`}
       wrapper={(children) => <div className="mb-6">{children}</div>}

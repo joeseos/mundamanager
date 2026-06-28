@@ -900,8 +900,7 @@ export default function CampaignPageContent({
                 <CampaignBattleSessions
                   sessions={campaignData.battleSessions || []}
                   campaignId={campaignData.id}
-                  userGangId={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.id}
-                  gangName={campaignData.members.find((m: any) => m.user_id === userId)?.gangs?.[0]?.name}
+                  userId={userId}
                   canAdd={safePermissions.canAddBattleLogs}
                 />
               </div>

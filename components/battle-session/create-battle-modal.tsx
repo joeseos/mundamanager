@@ -16,6 +16,7 @@ interface CreateBattleModalProps {
   // Optional: arbitrators can add players to a session without having a gang in it
   gangId?: string;
   gangName?: string;
+  userId?: string;
   campaignId?: string;
   existingSessionId?: string;
   existingGangIds?: string[];
@@ -39,6 +40,7 @@ interface Opponent {
 export default function CreateBattleModal({
   gangId,
   gangName,
+  userId,
   campaignId,
   existingSessionId,
   existingGangIds = [],
@@ -64,6 +66,9 @@ export default function CreateBattleModal({
   // Campaign: multi-select opponent gangs
   const [selectedCampaignGangIds, setSelectedCampaignGangIds] = useState<string[]>([]);
 
+  // Campaign: user's own gang selection (when user has multiple gangs or none)
+  const [selectedMyGangId, setSelectedMyGangId] = useState<string>(gangId ?? '');
+
   const { data: battleData, isLoading: isLoadingBattleData } = useQuery({
     queryKey: ['battle-data', campaignId],
     queryFn: async () => {
@@ -87,6 +92,22 @@ export default function CreateBattleModal({
     staleTime: 0,
   });
 
+  const myGangs = campaignId && userId
+    ? (campaignGangs ?? []).filter((g) => g.user_id === userId)
+    : [];
+
+  useEffect(() => {
+    if (gangId || !campaignId) return;
+    if (myGangs.length === 1 && selectedMyGangId !== myGangs[0].id) {
+      setSelectedMyGangId(myGangs[0].id);
+    }
+  }, [gangId, campaignId, myGangs, selectedMyGangId]);
+
+  const effectiveGangId = gangId ?? (selectedMyGangId || undefined);
+  const effectiveGangName = gangId
+    ? gangName
+    : myGangs.find((g) => g.id === selectedMyGangId)?.name;
+
   const { data: selectedUserGangs, isLoading: loadingGangs } = useQuery({
     queryKey: ['user-gangs', selectedUser?.id],
     queryFn: async () => {
@@ -109,7 +130,8 @@ export default function CreateBattleModal({
 
   const opponentCampaignGangs = (campaignGangs ?? []).filter(
     (g) =>
-      g.id !== gangId &&
+      g.id !== effectiveGangId &&
+      !myGangs.some((mg) => mg.id === g.id) &&
       !selectedCampaignGangIds.includes(g.id) &&
       !existingGangIds.includes(g.id)
   );
@@ -178,7 +200,7 @@ export default function CreateBattleModal({
   // Filter out gangs already added as opponents or already in the session
   const availableUserGangs = (selectedUserGangs ?? []).filter(
     (g) =>
-      g.id !== gangId &&
+      g.id !== effectiveGangId &&
       !opponents.some((o) => o.gangId === g.id) &&
       !existingGangIds.includes(g.id)
   );
@@ -222,12 +244,10 @@ export default function CreateBattleModal({
         return { success: true };
       }
 
-      // Create mode — gangId may only be absent in add mode (arbitrators),
-      // but guard anyway so a session is never created with an undefined gang
       const scenarioName = selectedScenario === 'custom'
         ? customScenario.trim()
         : sortedScenarios.find((s) => s.id === selectedScenario)?.scenario_name;
-      const allGangIds = gangId ? [gangId] : [];
+      const allGangIds = effectiveGangId ? [effectiveGangId] : [];
 
       if (campaignId) {
         allGangIds.push(...selectedCampaignGangIds);
@@ -248,9 +268,9 @@ export default function CreateBattleModal({
           onClose();
         } else if ('session_id' in result && result.session_id) {
           setNavigating(true);
-          const url = campaignId && !gangId
+          const url = campaignId
             ? `/campaigns/${campaignId}/battle-session/${result.session_id}`
-            : `/gang/${gangId}/battle-session/${result.session_id}`;
+            : `/gang/${effectiveGangId}/battle-session/${result.session_id}`;
           router.push(url);
         }
       } else {
@@ -281,8 +301,8 @@ export default function CreateBattleModal({
       width="md"
     >
       <div className="space-y-4">
-        {/* Your Gang (hidden for arbitrators without a gang in the session) */}
-        {gangId && (
+        {/* Your Gang: static for single gang, dropdown for multiple, hidden for none */}
+        {gangId ? (
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Your Gang
@@ -291,7 +311,31 @@ export default function CreateBattleModal({
               {gangName}
             </div>
           </div>
-        )}
+        ) : myGangs.length === 1 ? (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Your Gang
+            </label>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800">
+              {myGangs[0].name}
+            </div>
+          </div>
+        ) : myGangs.length > 1 ? (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Your Gang
+            </label>
+            <Combobox
+              options={myGangs.map((g) => ({
+                value: g.id,
+                label: g.name,
+              }))}
+              value={selectedMyGangId}
+              onValueChange={setSelectedMyGangId}
+              placeholder="Select your gang..."
+            />
+          </div>
+        ) : null}
 
         {/* Opponent selection */}
         {campaignId ? (

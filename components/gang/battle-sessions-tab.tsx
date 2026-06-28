@@ -13,6 +13,7 @@ interface BattleSessionsListProps {
   gangName?: string;
   campaignId?: string;
   canAdd?: boolean;
+  userId?: string;
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
@@ -24,6 +25,7 @@ export default function BattleSessionsList({
   gangName,
   campaignId,
   canAdd,
+  userId,
   variant = 'cards',
   sessionUrl,
   wrapper,
@@ -132,6 +134,7 @@ export default function BattleSessionsList({
         <CreateBattleModal
           gangId={gangId}
           gangName={gangName}
+          userId={userId}
           campaignId={campaignId}
           onClose={() => setShowCreateModal(false)}
         />
