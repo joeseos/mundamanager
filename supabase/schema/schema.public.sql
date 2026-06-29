@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict J5rk0g0IztOQPaqMeNreaah3FVbcvNSCXJLqyfhaJBGhNj3OBTwwgrB11B4B7Af
+\restrict t8O2FipX1Rws5ZdRIkbp6hP8etrpY20AKFG2NO6N5BjYWGU9JJS58Oq7uP71rCn
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -4633,13 +4633,7 @@ CREATE TABLE public.campaign_types (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     campaign_type_name text,
     description text,
-    "OLDhas_meat" boolean DEFAULT false NOT NULL,
-    "OLDhas_exploration_points" boolean DEFAULT false NOT NULL,
-    "OLDhas_scavenging_rolls" boolean DEFAULT false NOT NULL,
     image_url text,
-    "OLDhas_power" boolean DEFAULT false,
-    "OLDhas_sustenance" boolean DEFAULT false,
-    "OLDhas_salvage" boolean DEFAULT false,
     trading_posts jsonb
 );
 
@@ -12016,5 +12010,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict J5rk0g0IztOQPaqMeNreaah3FVbcvNSCXJLqyfhaJBGhNj3OBTwwgrB11B4B7Af
+\unrestrict t8O2FipX1Rws5ZdRIkbp6hP8etrpY20AKFG2NO6N5BjYWGU9JJS58Oq7uP71rCn
 
