@@ -8,7 +8,6 @@ import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
-import { useIsMounted } from '@/hooks/use-is-mounted'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
 interface GangsTabProps {
@@ -17,7 +16,6 @@ interface GangsTabProps {
 
 export function GangsTab({ gangs }: GangsTabProps) {
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
-  const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
 
   const [prevGangs, setPrevGangs] = useState(gangs);
@@ -104,39 +102,26 @@ export function GangsTab({ gangs }: GangsTabProps) {
           {favouriteGangs.length > 0 && (
             <>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Favourites</h3>
-              {isMounted ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={favouriteGangs.map(g => g.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <SortableContext
-                    items={favouriteGangs.map(g => g.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="space-y-3">
-                      {favouriteGangs.map(gang => (
-                        <SortableGangCard
-                          key={gang.id}
-                          gang={gang}
-                          onToggleFavourite={handleToggleFavourite}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              ) : (
-                <ul className="space-y-3">
-                  {favouriteGangs.map(gang => (
-                    <li key={gang.id}>
-                      <GangCardContent
+                  <ul className="space-y-3">
+                    {favouriteGangs.map(gang => (
+                      <SortableGangCard
+                        key={gang.id}
                         gang={gang}
                         onToggleFavourite={handleToggleFavourite}
                       />
-                    </li>
-                  ))}
-                </ul>
-              )}
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
               {nonFavouriteGangs.length > 0 && (
                 <hr className="border-border my-4" />
               )}

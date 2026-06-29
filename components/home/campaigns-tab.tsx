@@ -8,7 +8,6 @@ import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
 import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
-import { useIsMounted } from '@/hooks/use-is-mounted'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
@@ -17,7 +16,6 @@ interface CampaignsTabProps {
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
-  const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
@@ -104,39 +102,26 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
           {favouriteCampaigns.length > 0 && (
             <>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Favourites</h3>
-              {isMounted ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleCampaignDragEnd}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleCampaignDragEnd}
+              >
+                <SortableContext
+                  items={favouriteCampaigns.map(c => c.campaign_member_id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <SortableContext
-                    items={favouriteCampaigns.map(c => c.campaign_member_id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="space-y-3">
-                      {favouriteCampaigns.map(campaign => (
-                        <SortableCampaignCard
-                          key={campaign.campaign_member_id}
-                          campaign={campaign}
-                          onToggleFavourite={handleToggleCampaignFavourite}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              ) : (
-                <ul className="space-y-3">
-                  {favouriteCampaigns.map(campaign => (
-                    <li key={campaign.campaign_member_id}>
-                      <CampaignCardContent
+                  <ul className="space-y-3">
+                    {favouriteCampaigns.map(campaign => (
+                      <SortableCampaignCard
+                        key={campaign.campaign_member_id}
                         campaign={campaign}
                         onToggleFavourite={handleToggleCampaignFavourite}
                       />
-                    </li>
-                  ))}
-                </ul>
-              )}
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
               {nonFavouriteCampaigns.length > 0 && (
                 <hr className="border-border my-4" />
               )}
