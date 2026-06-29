@@ -4,15 +4,26 @@ import React from 'react';
 import { Tooltip, type TooltipRefProps } from 'react-tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
 
+const COARSE_MQ = '(hover: none) and (pointer: coarse)';
+let _coarseMql: MediaQueryList | null = null;
+const getCoarseMql = () => {
+  if (typeof window === 'undefined') return null;
+  return (_coarseMql ??= window.matchMedia(COARSE_MQ));
+};
+
+const subscribeCoarsePointer = (onStoreChange: () => void) => {
+  const mql = getCoarseMql();
+  mql?.addEventListener('change', onStoreChange);
+  return () => mql?.removeEventListener('change', onStoreChange);
+};
+const getCoarsePointerSnapshot = () => getCoarseMql()?.matches ?? false;
+const getCoarsePointerServerSnapshot = () => false;
+
 function useCoarsePointer() {
   return React.useSyncExternalStore(
-    (onStoreChange) => {
-      const mediaQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
-      mediaQuery.addEventListener('change', onStoreChange);
-      return () => mediaQuery.removeEventListener('change', onStoreChange);
-    },
-    () => window.matchMedia('(hover: none) and (pointer: coarse)').matches,
-    () => false,
+    subscribeCoarsePointer,
+    getCoarsePointerSnapshot,
+    getCoarsePointerServerSnapshot,
   );
 }
 
@@ -233,7 +244,7 @@ export function EquipmentTooltipTrigger({ item, children, className, options }: 
         clickable={isCoarsePointer}
         openOnClick={isCoarsePointer}
         delayHide={isCoarsePointer ? 100 : undefined}
-        positionStrategy="fixed"
+        positionStrategy={isCoarsePointer ? 'fixed' : 'absolute'}
         style={{
           padding: '6px',
           maxWidth: '97vw',
