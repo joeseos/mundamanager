@@ -202,6 +202,7 @@ export function EquipmentTooltipTrigger({ item, children, className, options }: 
 
   const handleMobileTooltipTouchStart = React.useCallback((event: React.TouchEvent) => {
     const touch = event.changedTouches[0];
+    if (!touch) return;
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
   }, []);
 
@@ -211,6 +212,7 @@ export function EquipmentTooltipTrigger({ item, children, className, options }: 
     }
 
     const touch = event.changedTouches[0];
+    if (!touch) return;
     const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
     const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
     touchStartRef.current = null;
