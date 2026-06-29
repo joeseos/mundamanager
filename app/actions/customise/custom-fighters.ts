@@ -513,6 +513,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
     };
 
     invalidateUserCustomFighters(user.id);
+    invalidateUserCustomCollections(user.id);
     return { success: true, data: transformedFighter };
   } catch (error) {
     console.error('Error in updateCustomFighter:', error);

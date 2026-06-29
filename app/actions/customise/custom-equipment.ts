@@ -80,6 +80,7 @@ export async function updateCustomEquipment(
   }
 
   invalidateUserCustomEquipment(user.id);
+  invalidateUserCustomCollections(user.id);
 
   return data;
 }

@@ -129,6 +129,7 @@ export async function updateCustomSkill(
   }
 
   invalidateUserCustomSkills(user.id);
+  invalidateUserCustomCollections(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
@@ -221,6 +222,7 @@ export async function updateCustomSkillType(
   }
 
   invalidateUserCustomSkills(user.id);
+  invalidateUserCustomCollections(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {

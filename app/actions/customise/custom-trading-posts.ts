@@ -102,6 +102,7 @@ export async function updateCustomTradingPost(
     }
 
     invalidateUserCustomTradingPosts(user.id);
+    invalidateUserCustomCollections(user.id);
     return { success: true, data: updated };
   } catch (error) {
     console.error('Error in updateCustomTradingPost:', error);

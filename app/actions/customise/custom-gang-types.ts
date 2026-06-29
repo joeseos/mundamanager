@@ -117,6 +117,7 @@ export async function updateCustomGangType(
 
     invalidateUserCustomGangTypes(user.id);
     invalidateUserCustomFighters(user.id);
+    invalidateUserCustomCollections(user.id);
     return { success: true, data: updated };
   } catch (error) {
     console.error('Error in updateCustomGangType:', error);
