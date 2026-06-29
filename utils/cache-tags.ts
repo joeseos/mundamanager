@@ -87,6 +87,14 @@ export const CACHE_TAGS = {
 
   // User dashboard data
   USER_DASHBOARD: (userId: string) => `user-dashboard-${userId}`,    // home page data
+
+  // User custom content
+  USER_CUSTOM_EQUIPMENT: (userId: string) => `user-custom-equipment-${userId}`,
+  USER_CUSTOM_SKILLS: (userId: string) => `user-custom-skills-${userId}`,
+  USER_CUSTOM_FIGHTERS: (userId: string) => `user-custom-fighters-${userId}`,
+  USER_CUSTOM_GANG_TYPES: (userId: string) => `user-custom-gang-types-${userId}`,
+  USER_CUSTOM_TRADING_POSTS: (userId: string) => `user-custom-trading-posts-${userId}`,
+  USER_CUSTOM_COLLECTIONS: (userId: string) => `user-custom-collections-${userId}`,
   
   // =============================================================================
   // 5. SHARED DATA TAGS - Cross-page consistent data
@@ -527,3 +535,40 @@ export function invalidateCampaignCount() {
 export function invalidateUserProfile(userId: string) {
   revalidateTag(CACHE_TAGS.BASE_USER_PROFILE(userId), { expire: 0 });
 }
+
+// =============================================================================
+// CUSTOM CONTENT INVALIDATION HELPERS
+// =============================================================================
+
+export const invalidateUserCustomEquipment = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_CUSTOM_EQUIPMENT(userId), { expire: 0 });
+};
+
+export const invalidateUserCustomSkills = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_CUSTOM_SKILLS(userId), { expire: 0 });
+};
+
+export const invalidateUserCustomFighters = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_CUSTOM_FIGHTERS(userId), { expire: 0 });
+};
+
+export const invalidateUserCustomGangTypes = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_CUSTOM_GANG_TYPES(userId), { expire: 0 });
+};
+
+export const invalidateUserCustomTradingPosts = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_CUSTOM_TRADING_POSTS(userId), { expire: 0 });
+};
+
+export const invalidateUserCustomCollections = (userId: string) => {
+  revalidateTag(CACHE_TAGS.USER_CUSTOM_COLLECTIONS(userId), { expire: 0 });
+};
+
+export const invalidateAllUserCustomContent = (userId: string) => {
+  invalidateUserCustomEquipment(userId);
+  invalidateUserCustomSkills(userId);
+  invalidateUserCustomFighters(userId);
+  invalidateUserCustomGangTypes(userId);
+  invalidateUserCustomTradingPosts(userId);
+  invalidateUserCustomCollections(userId);
+};

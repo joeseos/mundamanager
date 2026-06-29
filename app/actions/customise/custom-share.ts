@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
 /**
@@ -111,8 +111,6 @@ export async function shareCustomFighter(customFighterTypeId: string, campaignId
       }
     }
 
-    // Ensure the home page (customise tab) reflects new sharing state
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomFighter:', error);
@@ -274,7 +272,6 @@ export async function shareCustomGangType(customGangTypeId: string, campaignIds:
       }
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomGangType:', error);
@@ -335,8 +332,6 @@ export async function shareCustomEquipment(customEquipmentId: string, campaignId
       }
     }
 
-    // Ensure the home page (customise tab) reflects new sharing state
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomEquipment:', error);
@@ -397,7 +392,6 @@ export async function shareCustomSkill(customSkillId: string, campaignIds: strin
       }
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomSkill:', error);
@@ -484,7 +478,6 @@ export async function shareCustomTradingPost(customTradingPostId: string, campai
       }
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCustomTradingPost:', error);
@@ -691,7 +684,6 @@ export async function shareCollection(collectionId: string, campaignIds: string[
     for (const cid of campaignIds) {
       revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(cid), { expire: 0 });
     }
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in shareCollection:', error);

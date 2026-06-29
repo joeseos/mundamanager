@@ -2,8 +2,8 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidatePath, revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { revalidateTag } from 'next/cache';
+import { CACHE_TAGS, invalidateUserCustomTradingPosts, invalidateUserCustomCollections } from '@/utils/cache-tags';
 import { removeItemFromAllCollections } from './custom-collections';
 
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
@@ -49,7 +49,7 @@ export async function createCustomTradingPost(
       return { success: false, error: `Failed to create custom trading post: ${insertError.message}` };
     }
 
-    revalidatePath('/');
+    invalidateUserCustomTradingPosts(user.id);
     return { success: true, data: newTradingPost };
   } catch (error) {
     console.error('Error in createCustomTradingPost:', error);
@@ -101,7 +101,7 @@ export async function updateCustomTradingPost(
       return { success: false, error: `Failed to update custom trading post: ${updateError.message}` };
     }
 
-    revalidatePath('/');
+    invalidateUserCustomTradingPosts(user.id);
     return { success: true, data: updated };
   } catch (error) {
     console.error('Error in updateCustomTradingPost:', error);
@@ -169,7 +169,8 @@ export async function deleteCustomTradingPost(
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'trading_post', id }]);
 
-    revalidatePath('/');
+    invalidateUserCustomTradingPosts(user.id);
+    invalidateUserCustomCollections(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomTradingPost:', error);
@@ -347,7 +348,6 @@ export async function addTPEquipmentBatch(
 
     if (insertError) throw insertError;
 
-    revalidatePath('/');
     return {
       success: true,
       data: (inserted ?? []).map(r => ({
@@ -393,7 +393,6 @@ export async function updateTPEquipment(
       return { success: false, error: error.message };
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in updateTPEquipment:', error);
@@ -419,7 +418,6 @@ export async function removeTPEquipment(
       return { success: false, error: error.message };
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in removeTPEquipment:', error);
@@ -526,7 +524,6 @@ export async function addAvailabilityRule(
       return { success: false, error: error.message };
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in addAvailabilityRule:', error);
@@ -552,7 +549,6 @@ export async function deleteAvailabilityRule(
       return { success: false, error: error.message };
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in deleteAvailabilityRule:', error);
@@ -649,7 +645,6 @@ export async function addPricingRule(
       return { success: false, error: error.message };
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in addPricingRule:', error);
@@ -675,7 +670,6 @@ export async function deletePricingRule(
       return { success: false, error: error.message };
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in deletePricingRule:', error);
@@ -762,7 +756,6 @@ export async function saveEquipmentRules(
       if (error) throw error;
     }
 
-    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Error in saveEquipmentRules:', error);

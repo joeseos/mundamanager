@@ -2,8 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidatePath } from "next/cache";
-import { invalidateFighterAdvancement } from "@/utils/cache-tags";
+import { invalidateFighterAdvancement, invalidateUserCustomSkills, invalidateUserCustomCollections } from "@/utils/cache-tags";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
 
@@ -50,7 +49,7 @@ export async function createCustomSkill(data: {
     throw new Error(`Failed to create skill: ${error.message}`);
   }
 
-  revalidatePath('/');
+  invalidateUserCustomSkills(user.id);
 
   return {
     ...newSkill,
@@ -129,7 +128,7 @@ export async function updateCustomSkill(
     throw new Error(`Failed to update skill: ${error.message}`);
   }
 
-  revalidatePath('/');
+  invalidateUserCustomSkills(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
@@ -168,7 +167,7 @@ export async function createCustomSkillType(data: {
     throw new Error(`Failed to create skill set: ${error.message}`);
   }
 
-  revalidatePath('/');
+  invalidateUserCustomSkills(user.id);
 
   return newType;
 }
@@ -221,7 +220,7 @@ export async function updateCustomSkillType(
     throw new Error(`Failed to update skill set: ${error.message}`);
   }
 
-  revalidatePath('/');
+  invalidateUserCustomSkills(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {
@@ -273,7 +272,8 @@ export async function deleteCustomSkillType(skillTypeId: string) {
     await removeItemFromAllCollections(supabase, user.id, skillIds.map(id => ({ type: 'skill' as const, id })));
   }
 
-  revalidatePath('/');
+  invalidateUserCustomSkills(user.id);
+  invalidateUserCustomCollections(user.id);
 
   for (const row of affectedFighters) {
     invalidateFighterAdvancement({
@@ -309,7 +309,8 @@ export async function deleteCustomSkill(skillId: string) {
 
   await removeItemFromAllCollections(supabase, user.id, [{ type: 'skill', id: skillId }]);
 
-  revalidatePath('/');
+  invalidateUserCustomSkills(user.id);
+  invalidateUserCustomCollections(user.id);
 
   if (affectedFighters && affectedFighters.length > 0) {
     for (const row of affectedFighters) {

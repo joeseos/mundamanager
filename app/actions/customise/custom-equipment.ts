@@ -2,10 +2,10 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidatePath } from "next/cache";
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
+import { invalidateUserCustomEquipment, invalidateUserCustomCollections } from '@/utils/cache-tags';
 
 export async function updateCustomEquipment(
   equipmentId: string,
@@ -79,9 +79,8 @@ export async function updateCustomEquipment(
     throw new Error(`Failed to update equipment: ${error.message}`);
   }
 
-  // Revalidate the home page (customise tab) to show updated data
-  revalidatePath('/');
-  
+  invalidateUserCustomEquipment(user.id);
+
   return data;
 }
 
@@ -106,7 +105,8 @@ export async function deleteCustomEquipment(equipmentId: string) {
 
   await removeItemFromAllCollections(supabase, user.id, [{ type: 'equipment', id: equipmentId }]);
 
-  revalidatePath('/');
+  invalidateUserCustomEquipment(user.id);
+  invalidateUserCustomCollections(user.id);
 
   return { success: true };
 }
@@ -180,8 +180,7 @@ export async function createCustomEquipment(data: {
     throw new Error(`Failed to create equipment: ${error.message}`);
   }
 
-  // Revalidate the home page (customise tab) to show new data
-  revalidatePath('/');
-  
+  invalidateUserCustomEquipment(user.id);
+
   return newEquipment;
 } 

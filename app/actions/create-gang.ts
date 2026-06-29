@@ -1,9 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateGangCreation, invalidateGangCount } from '@/utils/cache-tags';
+import { invalidateGangCreation, invalidateGangCount, invalidateAllUserCustomContent } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidatePath } from 'next/cache';
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 
 interface CreateGangParams {
@@ -50,7 +49,7 @@ export async function createGang({
       if (cgt && cgt.user_id !== user.id) {
         const result = await duplicateCustomGangType(supabase, customGangTypeId, user.id);
         effectiveCustomGangTypeId = result.newCustomGangTypeId;
-        revalidatePath('/');
+        invalidateAllUserCustomContent(user.id);
       }
     }
 

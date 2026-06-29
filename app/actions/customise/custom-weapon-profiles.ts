@@ -1,7 +1,6 @@
 'use server';
 
 import { createClient } from "@/utils/supabase/server";
-import { revalidatePath } from "next/cache";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { CustomWeaponProfileData } from "@/types/equipment";
 
@@ -76,9 +75,6 @@ export async function saveCustomWeaponProfiles(
       }
     }
 
-    // Revalidate the customize page
-    revalidatePath('/');
-    
     return { success: true };
   } catch (error) {
     console.error('Error saving weapon profiles:', error);
