@@ -1,8 +1,31 @@
 'use client';
 
 import React from 'react';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip, type TooltipRefProps } from 'react-tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
+
+const COARSE_MQ = '(hover: none) and (pointer: coarse)';
+let _coarseMql: MediaQueryList | null = null;
+const getCoarseMql = () => {
+  if (typeof window === 'undefined') return null;
+  return (_coarseMql ??= window.matchMedia(COARSE_MQ));
+};
+
+const subscribeCoarsePointer = (onStoreChange: () => void) => {
+  const mql = getCoarseMql();
+  mql?.addEventListener('change', onStoreChange);
+  return () => mql?.removeEventListener('change', onStoreChange);
+};
+const getCoarsePointerSnapshot = () => getCoarseMql()?.matches ?? false;
+const getCoarsePointerServerSnapshot = () => false;
+
+function useCoarsePointer() {
+  return React.useSyncExternalStore(
+    subscribeCoarsePointer,
+    getCoarsePointerSnapshot,
+    getCoarsePointerServerSnapshot,
+  );
+}
 
 export interface EquipmentTooltipOptions {
   equipmentListType?: 'fighters-list' | 'fighters-tradingpost' | 'unrestricted';
@@ -172,7 +195,36 @@ interface EquipmentTooltipTriggerProps {
 
 export function EquipmentTooltipTrigger({ item, children, className, options }: EquipmentTooltipTriggerProps) {
   const tooltipId = React.useId();
+  const tooltipRef = React.useRef<TooltipRefProps>(null);
+  const touchStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  const isCoarsePointer = useCoarsePointer();
   const hasTooltipContent = hasEquipmentTooltipContent(item, options);
+
+  const handleMobileTooltipTouchStart = React.useCallback((event: React.TouchEvent) => {
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }, []);
+
+  const handleMobileTooltipTouchEnd = React.useCallback((event: React.TouchEvent) => {
+    if (!touchStartRef.current) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+    touchStartRef.current = null;
+
+    if (deltaX > 10 || deltaY > 10) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    tooltipRef.current?.close();
+  }, []);
 
   if (!hasTooltipContent) {
     return <div className={className}>{children}</div>;
@@ -187,16 +239,27 @@ export function EquipmentTooltipTrigger({ item, children, className, options }: 
         {children}
       </div>
       <Tooltip
+        ref={tooltipRef}
         id={tooltipId}
         place="top-start"
         className="bg-neutral-900! text-white! text-xs! z-[60]!"
+        clickable={isCoarsePointer}
+        openOnClick={isCoarsePointer}
+        delayHide={isCoarsePointer ? 100 : undefined}
+        positionStrategy={isCoarsePointer ? 'fixed' : 'absolute'}
         style={{
           padding: '6px',
           maxWidth: '97vw',
           marginLeft: '-10px'
         }}
       >
-        <EquipmentTooltipContent item={item} options={options} />
+        <div
+          className={isCoarsePointer ? 'cursor-pointer' : undefined}
+          onTouchStart={isCoarsePointer ? handleMobileTooltipTouchStart : undefined}
+          onTouchEnd={isCoarsePointer ? handleMobileTooltipTouchEnd : undefined}
+        >
+          <EquipmentTooltipContent item={item} options={options} />
+        </div>
       </Tooltip>
     </>
   );
