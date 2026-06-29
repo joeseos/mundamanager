@@ -2,8 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateGangCreation } from '@/utils/cache-tags';
-import { revalidatePath } from 'next/cache';
+import { invalidateGangCreation, invalidateAllUserCustomContent } from '@/utils/cache-tags';
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 
 interface CopyGangInput {
@@ -600,9 +599,8 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     // 12) Invalidate caches for the new gang
     invalidateGangCreation({ gangId: newGangId, userId: user.id });
 
-    // Invalidate home page so custom assets tab shows duplicated assets
     if (newCustomGangTypeId) {
-      revalidatePath('/');
+      invalidateAllUserCustomContent(user.id);
     }
 
     return { success: true, newGangId };
