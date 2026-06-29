@@ -1,7 +1,7 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from "@/utils/supabase/server";
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 
@@ -26,9 +26,7 @@ const RESOLVE: Record<CollectionItemType, { table: string; nameColumn: string }>
  * Fetch a user's collections and resolve each item's display name. Item ids that no
  * longer resolve (e.g. the underlying custom item was deleted) are skipped.
  */
-export async function getUserCustomCollections(userId: string): Promise<CustomCollectionWithItems[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomCollections(userId: string, supabase: SupabaseClient): Promise<CustomCollectionWithItems[]> {
   return unstable_cache(
     async () => {
       const { data: collections, error } = await supabase

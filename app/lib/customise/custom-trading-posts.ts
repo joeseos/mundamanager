@@ -1,11 +1,9 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from "@/utils/supabase/server";
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getUserCustomTradingPosts(userId: string): Promise<CustomTradingPost[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomTradingPosts(userId: string, supabase: SupabaseClient): Promise<CustomTradingPost[]> {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase

@@ -1,11 +1,9 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from "@/utils/supabase/server";
 import { CustomFighterType } from "@/types/fighter";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getUserCustomFighterTypes(userId: string): Promise<CustomFighterType[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomFighterTypes(userId: string, supabase: SupabaseClient): Promise<CustomFighterType[]> {
   return unstable_cache(
     async () => {
       const { data: customFighterTypes, error } = await supabase

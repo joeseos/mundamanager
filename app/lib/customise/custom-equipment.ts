@@ -2,13 +2,12 @@ import { unstable_cache } from 'next/cache';
 import { createClient } from "@/utils/supabase/server";
 import { CustomEquipment } from "@/types/equipment";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Re-export for backward compatibility
 export type { CustomEquipment } from "@/types/equipment";
 
-export async function getUserCustomEquipment(userId: string): Promise<CustomEquipment[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomEquipment(userId: string, supabase: SupabaseClient): Promise<CustomEquipment[]> {
   return unstable_cache(
     async () => {
       const { data: customEquipment, error } = await supabase

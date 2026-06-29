@@ -157,7 +157,7 @@ export async function GET(
     // Fetch the user's collections (with resolved item names)
     let customCollections: Awaited<ReturnType<typeof getUserCustomCollections>> = []
     try {
-      customCollections = await getUserCustomCollections(userId)
+      customCollections = await getUserCustomCollections(userId, supabase)
     } catch (collectionsError) {
       console.error('Error fetching custom collections:', collectionsError)
     }

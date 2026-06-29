@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from "@/utils/supabase/server";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface CustomSkillType {
   id: string;
@@ -10,9 +10,7 @@ export interface CustomSkillType {
   updated_at?: string;
 }
 
-export async function getUserCustomSkillTypes(userId: string): Promise<CustomSkillType[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomSkillTypes(userId: string, supabase: SupabaseClient): Promise<CustomSkillType[]> {
   const { data, error } = await supabase
     .from('custom_skill_types')
     .select('id, user_id, name, created_at, updated_at')
@@ -39,9 +37,7 @@ export interface CustomSkill {
   updated_at?: string;
 }
 
-export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomSkills(userId: string, supabase: SupabaseClient): Promise<CustomSkill[]> {
   return unstable_cache(
     async () => {
       const { data: customSkills, error } = await supabase

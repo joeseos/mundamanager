@@ -1,11 +1,9 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from "@/utils/supabase/server";
 import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getUserCustomGangTypes(userId: string): Promise<CustomGangType[]> {
-  const supabase = await createClient();
-
+export async function getUserCustomGangTypes(userId: string, supabase: SupabaseClient): Promise<CustomGangType[]> {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
