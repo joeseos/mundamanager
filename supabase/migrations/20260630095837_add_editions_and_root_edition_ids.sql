@@ -64,6 +64,7 @@ DECLARE
     'gang_affiliation',
     'equipment',
     'skill_types',
+    'skills',
     'fighter_effect_types',
     'fighter_classes',
     'territories',
