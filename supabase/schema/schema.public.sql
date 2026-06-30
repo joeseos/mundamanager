@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict t8O2FipX1Rws5ZdRIkbp6hP8etrpY20AKFG2NO6N5BjYWGU9JJS58Oq7uP71rCn
+\restrict CcNlLgZmIfF1qV0f0HlEhbbBwTogs9NTnR9ovt6WvknQTMSZxMyJvG7BtXMrWoe
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -5427,7 +5427,7 @@ CREATE TABLE public.fighter_types (
     intelligence numeric,
     attacks numeric,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    gang_type_id uuid,
+    gang_type_id uuid NOT NULL,
     special_rules jsonb[],
     free_skill boolean,
     fighter_class text,
@@ -7027,6 +7027,13 @@ CREATE INDEX fighter_types_fighter_type_idx ON public.fighter_types USING btree 
 
 
 --
+-- Name: fighter_types_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_types_gang_type_id_idx ON public.fighter_types USING btree (gang_type_id);
+
+
+--
 -- Name: fighter_types_gang_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8623,6 +8630,14 @@ ALTER TABLE ONLY public.fighter_type_skill_access
 
 ALTER TABLE ONLY public.fighter_types
     ADD CONSTRAINT fighter_types_fighter_sub_type_id_fkey FOREIGN KEY (fighter_sub_type_id) REFERENCES public.fighter_sub_types(id);
+
+
+--
+-- Name: fighter_types fighter_types_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_types
+    ADD CONSTRAINT fighter_types_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
 
 
 --
@@ -12010,5 +12025,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict t8O2FipX1Rws5ZdRIkbp6hP8etrpY20AKFG2NO6N5BjYWGU9JJS58Oq7uP71rCn
+\unrestrict CcNlLgZmIfF1qV0f0HlEhbbBwTogs9NTnR9ovt6WvknQTMSZxMyJvG7BtXMrWoe
 
