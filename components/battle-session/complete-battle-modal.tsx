@@ -21,6 +21,8 @@ import {
 } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/utils/hooks/use-winner-selection';
 
+const reportCharLimit = 1024;
+
 interface CompleteBattleTerritory {
   id: string;
   name: string;
@@ -55,6 +57,7 @@ export default function CompleteBattleModal({
   const [selectedTerritory, setSelectedTerritory] = useState('');
   const [cycle, setCycle] = useState('');
   const [notes, setNotes] = useState('');
+  const isReportOverLimit = notes.length > reportCharLimit;
   const [submitting, setSubmitting] = useState(false);
 
   const gangNameMap = useMemo(
@@ -99,6 +102,11 @@ export default function CompleteBattleModal({
     const territoryClaimed = !isDraw && selectedTerritory;
     if (territoryClaimed && activeWinners.length > 1 && !claimedByGangId) {
       toast.error('Please select which winner claims the Territory');
+      return false;
+    }
+
+    if (isReportOverLimit) {
+      toast.error(`Report cannot exceed ${reportCharLimit} characters`);
       return false;
     }
 
@@ -161,7 +169,7 @@ export default function CompleteBattleModal({
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Complete Battle"
-      confirmDisabled={!hasAnyWinnerSelected || submitting}
+      confirmDisabled={!hasAnyWinnerSelected || submitting || isReportOverLimit}
     >
       <div className="space-y-4">
         {session.scenario && (
@@ -411,8 +419,14 @@ export default function CompleteBattleModal({
                 placeholder="Add any additional details about the battle..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                maxLength={reportCharLimit}
                 className="min-h-[100px] bg-muted"
               />
+              <div className="mt-1 flex justify-end">
+                <span className={`text-sm ${isReportOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {notes.length}/{reportCharLimit} characters
+                </span>
+              </div>
             </div>
             <p className="text-sm text-neutral-500">
               A battle log entry will be created for the campaign.

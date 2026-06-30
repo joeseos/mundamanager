@@ -32,6 +32,8 @@ interface CampaignBattleLogModalProps {
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
 
+const reportCharLimit = 1024;
+
 type GangRole = 'none' | 'attacker' | 'defender';
 
 type GangEntry = {
@@ -62,6 +64,7 @@ const CampaignBattleLogModal = ({
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
+  const isReportOverLimit = notes.length > reportCharLimit;
 
   const selectedGangs = useMemo(
     () => gangsInBattle.filter((entry) => !!entry.gangId),
@@ -1091,16 +1094,22 @@ const CampaignBattleLogModal = ({
               placeholder="Add any additional details about the battle..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              maxLength={reportCharLimit}
               className="min-h-[100px] bg-muted"
               disabled={isLoadingBattleData}
             />
+            <div className="mt-1 flex justify-end">
+              <span className={`text-sm ${isReportOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+                {notes.length}/{reportCharLimit} characters
+              </span>
+            </div>
           </div>
         </div>
       }
       onClose={handleClose}
       onConfirm={handleSaveBattle}
       confirmText={isEditMode ? "Update" : "Add Battle Report"}
-      confirmDisabled={isLoadingBattleData || !formValid}
+      confirmDisabled={isLoadingBattleData || !formValid || isReportOverLimit}
     />
   );
 };
