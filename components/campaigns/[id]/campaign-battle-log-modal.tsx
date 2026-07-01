@@ -1087,8 +1087,11 @@ const CampaignBattleLogModal = ({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Report
+            <label className="mb-1 flex items-center justify-between text-sm font-medium text-muted-foreground">
+              <span>Report</span>
+              <span className={`text-sm ${isReportOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+                {notes.length}/{reportCharLimit} characters
+              </span>
             </label>
             <Textarea
               placeholder="Add any additional details about the battle..."
@@ -1098,11 +1101,6 @@ const CampaignBattleLogModal = ({
               className="min-h-[100px] bg-muted"
               disabled={isLoadingBattleData}
             />
-            <div className="mt-1 flex justify-end">
-              <span className={`text-sm ${isReportOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
-                {notes.length}/{reportCharLimit} characters
-              </span>
-            </div>
           </div>
         </div>
       }

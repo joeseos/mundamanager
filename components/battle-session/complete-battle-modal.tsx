@@ -412,8 +412,11 @@ export default function CompleteBattleModal({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-muted-foreground">
-                Report
+              <label className="mb-1 flex items-center justify-between text-sm font-medium text-muted-foreground">
+                <span>Report</span>
+                <span className={`text-sm ${isReportOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {notes.length}/{reportCharLimit} characters
+                </span>
               </label>
               <Textarea
                 placeholder="Add any additional details about the battle..."
@@ -422,11 +425,6 @@ export default function CompleteBattleModal({
                 maxLength={reportCharLimit}
                 className="min-h-[100px] bg-muted"
               />
-              <div className="mt-1 flex justify-end">
-                <span className={`text-sm ${isReportOverLimit ? 'text-red-500' : 'text-muted-foreground'}`}>
-                  {notes.length}/{reportCharLimit} characters
-                </span>
-              </div>
             </div>
             <p className="text-sm text-neutral-500">
               A battle log entry will be created for the campaign.
