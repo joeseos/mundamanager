@@ -11,6 +11,15 @@ const supabase = createClient(
 const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!
 
 const DISCORD_CHANNEL_TYPES = { TEXT: 0, FORUM: 15 } as const;
+const discordEmbedDescriptionLimit = 4096;
+
+const truncateDiscordEmbedDescription = (value: string) => {
+  if (value.length <= discordEmbedDescriptionLimit) {
+    return value;
+  }
+
+  return `${value.slice(0, discordEmbedDescriptionLimit - 1)}…`;
+};
 
 Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization");
@@ -194,12 +203,9 @@ Deno.serve(async (req) => {
       fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
     }
 
-    if (battle.note) {
-      fields.push({ name: "📝 Report", value: battle.note, inline: false });
-    }
-
     const embed = {
       title: `Battle Report — ${campaign.campaign_name}`,
+      description: battle.note ? truncateDiscordEmbedDescription(battle.note) : undefined,
       color: 0xd4a017,
       fields,
       timestamp: battle.created_at,
