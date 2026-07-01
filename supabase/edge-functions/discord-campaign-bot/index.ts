@@ -12,13 +12,38 @@ const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!
 
 const DISCORD_CHANNEL_TYPES = { TEXT: 0, FORUM: 15 } as const;
 const discordEmbedDescriptionLimit = 4096;
+const discordEmbedTotalLimit = 6000;
 
-const truncateDiscordEmbedDescription = (value: string) => {
-  if (value.length <= discordEmbedDescriptionLimit) {
+const getCharacterCount = (value?: string) => Array.from(value ?? "").length;
+
+const truncateDiscordEmbedDescription = (value: string, limit: number) => {
+  const characters = Array.from(value);
+
+  if (characters.length <= limit) {
     return value;
   }
 
-  return `${value.slice(0, discordEmbedDescriptionLimit - 1)}…`;
+  return `${characters.slice(0, limit - 1).join("")}…`;
+};
+
+const getDiscordEmbedCharacterCount = (embed: {
+  title?: string;
+  description?: string;
+  fields?: { name: string; value: string }[];
+  footer?: { text?: string };
+}) => {
+  const fieldsTotal = embed.fields?.reduce(
+    (total, field) =>
+      total + getCharacterCount(field.name) + getCharacterCount(field.value),
+    0
+  ) ?? 0;
+
+  return (
+    getCharacterCount(embed.title) +
+    getCharacterCount(embed.description) +
+    fieldsTotal +
+    getCharacterCount(embed.footer?.text)
+  );
 };
 
 Deno.serve(async (req) => {
@@ -203,13 +228,28 @@ Deno.serve(async (req) => {
       fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
     }
 
+    const title = `Battle Report — ${campaign.campaign_name}`;
+    const footer = { text: "MundaManager" };
+    const descriptionLimit = Math.min(
+      discordEmbedDescriptionLimit,
+      Math.max(
+        0,
+        discordEmbedTotalLimit -
+          getDiscordEmbedCharacterCount({ title, fields, footer })
+      )
+    );
+    const description =
+      battle.note && descriptionLimit > 0
+        ? truncateDiscordEmbedDescription(battle.note, descriptionLimit)
+        : undefined;
+
     const embed = {
-      title: `Battle Report — ${campaign.campaign_name}`,
-      description: battle.note ? truncateDiscordEmbedDescription(battle.note) : undefined,
+      title,
+      description,
       color: 0xd4a017,
       fields,
       timestamp: battle.created_at,
-      footer: { text: "MundaManager" },
+      footer,
     };
 
     let discordRes: Response
