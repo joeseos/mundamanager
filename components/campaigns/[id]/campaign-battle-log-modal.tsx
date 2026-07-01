@@ -32,7 +32,7 @@ interface CampaignBattleLogModalProps {
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 }
 
-const reportCharLimit = 4096;
+const reportCharLimit = 1024;
 
 type GangRole = 'none' | 'attacker' | 'defender';
 
