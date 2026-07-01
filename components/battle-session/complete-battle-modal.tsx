@@ -21,7 +21,7 @@ import {
 } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/utils/hooks/use-winner-selection';
 
-const reportCharLimit = 1024;
+const reportCharLimit = 4096;
 
 interface CompleteBattleTerritory {
   id: string;
