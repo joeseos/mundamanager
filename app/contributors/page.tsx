@@ -6,7 +6,7 @@ import { TbDiamondFilled } from 'react-icons/tb';
 import { getPatreonTierConfig } from '@/utils/patreon';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { createClient } from '@supabase/supabase-js';
-import { unstable_cache } from 'next/cache';
+import { cacheTag, cacheLife } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
@@ -45,32 +45,30 @@ type PatreonSupporter = {
   patreon_tier_title?: string;
 };
 
-export default async function ContributorsPage() {
-  // Fetch Patreon supporters with cache tag
-  const getCachedPatreonSupporters = unstable_cache(
-    async () => {
-      // Use anon key for static generation (RLS controls access)
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      
-      const { data: patreonSupporters } = await supabase
-        .from('profiles')
-        .select('username, patreon_tier_id, patreon_tier_title')
-        .not('patreon_tier_id', 'is', null)
-        .eq('patron_status', 'active_patron')
-        .order('patreon_tier_id', { ascending: false })
-        .order('username', { ascending: true });
-      
-      return patreonSupporters;
-    },
-    ['global-patreon-supporters'],
-    {
-      tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()]
-    }
+// Fetch Patreon supporters with cache tag
+async function getCachedPatreonSupporters(): Promise<PatreonSupporter[] | null> {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS());
+
+  // Use anon key for static generation (RLS controls access)
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  const { data: patreonSupporters } = await supabase
+    .from('profiles')
+    .select('username, patreon_tier_id, patreon_tier_title')
+    .not('patreon_tier_id', 'is', null)
+    .eq('patron_status', 'active_patron')
+    .order('patreon_tier_id', { ascending: false })
+    .order('username', { ascending: true });
+
+  return patreonSupporters;
+}
+
+export default async function ContributorsPage() {
   const patreonSupporters: PatreonSupporter[] = await getCachedPatreonSupporters() || [];
   const tierConfig = getPatreonTierConfig();
 

@@ -4,8 +4,7 @@ import { cookies } from 'next/headers';
 import { invalidateGangCredits } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
-// Add Edge Function configurations
-export const runtime = 'edge';
+// Edge runtime is not compatible with nextConfig.experimental.useCache; runs as a Node function.
 export const dynamic = 'force-dynamic';
 
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
@@ -49,8 +48,8 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
 
     // Calculate fighter total cost for rating/wealth update
     const { getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
-    const fighterCost = await getFighterTotalCost(params.id, supabase);
-    
+    const fighterCost = await getFighterTotalCost(params.id);
+
     // Check if fighter was active (counts toward rating)
     const { countsTowardRating } = await import('@/utils/fighter-status');
     const wasActive = countsTowardRating(fighter);
@@ -177,7 +176,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
         // Calculate fighter cost for rating update
         const { getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
-        const fighterCost = await getFighterTotalCost(params.id, supabase);
+        const fighterCost = await getFighterTotalCost(params.id);
         
         // Check if fighter is active (counts toward rating)
         const { countsTowardRating } = await import('@/utils/fighter-status');

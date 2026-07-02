@@ -175,7 +175,7 @@ export async function addFighterInjury(
     let preInjuryCost = 0;
     if (shouldSetKilled && !fighter.killed && countsTowardRating(fighter)) {
       try {
-        preInjuryCost = await getFighterTotalCost(params.fighter_id, supabase);
+        preInjuryCost = await getFighterTotalCost(params.fighter_id);
       } catch (e) {
         console.error('Failed to compute pre-injury fighter total cost for killed injury rating adjustment:', e);
       }
@@ -227,7 +227,7 @@ export async function addFighterInjury(
 
     if (shouldSetKilled && !fighter.killed) {
       if (countsTowardRating(fighter)) {
-        // Use pre-write cost to avoid stale unstable_cache reads within this request.
+        // Use pre-write cost to avoid stale cached reads within this request.
         killedRatingDelta = -preInjuryCost;
       }
     }
@@ -379,7 +379,7 @@ export async function deleteFighterInjury(
 
     if (removedKilledStatusEffect && fighter.killed && willBeActiveAfterResurrection) {
       try {
-        preDeletionCost = await getFighterTotalCost(params.fighter_id, supabase);
+        preDeletionCost = await getFighterTotalCost(params.fighter_id);
       } catch (e) {
         console.error('Failed to compute pre-deletion fighter total cost for killed injury removal rating adjustment:', e);
       }
