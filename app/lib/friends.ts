@@ -1,5 +1,5 @@
-import { unstable_cache } from 'next/cache';
-import { createClient } from '@/utils/supabase/server';
+import { cacheTag, cacheLife } from 'next/cache';
+import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export async function getAcceptedFriends(userId: string) {
@@ -34,46 +34,42 @@ export async function getAcceptedFriends(userId: string) {
   });
 }
 
-export const getFriendsAndRequests = async (userId: string, supabase: any) => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('friends')
-        .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')
-        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-        .in('status', ['accepted', 'pending']);
+export const getFriendsAndRequests = async (userId: string) => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.USER_FRIENDS(userId));
 
-      if (error) {
-        throw new Error(error.message);
-      }
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('friends')
+    .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+    .in('status', ['accepted', 'pending']);
 
-      return (data || []).map((row: any) => {
-        let friendProfile, direction;
-        if (row.requester_id === userId) {
-          friendProfile = row.addressee_profile;
-          direction = 'outgoing';
-        } else {
-          friendProfile = row.profiles;
-          direction = 'incoming';
-        }
-        return {
-          id: friendProfile.id,
-          username: friendProfile.username,
-          profile: {
-            id: friendProfile.id,
-            username: friendProfile.username,
-            updated_at: friendProfile.updated_at ?? '',
-            user_role: friendProfile.user_role ?? 'user',
-          },
-          status: row.status,
-          direction,
-        };
-      });
-    },
-    [`user-friends-${userId}`],
-    {
-      tags: [CACHE_TAGS.USER_FRIENDS(userId)],
-      revalidate: false
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data || []).map((row: any) => {
+    let friendProfile, direction;
+    if (row.requester_id === userId) {
+      friendProfile = row.addressee_profile;
+      direction = 'outgoing';
+    } else {
+      friendProfile = row.profiles;
+      direction = 'incoming';
     }
-  )();
-}; 
+    return {
+      id: friendProfile.id,
+      username: friendProfile.username,
+      profile: {
+        id: friendProfile.id,
+        username: friendProfile.username,
+        updated_at: friendProfile.updated_at ?? '',
+        user_role: friendProfile.user_role ?? 'user',
+      },
+      status: row.status,
+      direction,
+    };
+  });
+};

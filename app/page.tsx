@@ -42,14 +42,14 @@ export default async function Home() {
     customTradingPosts,
     customCollections
   ] = await Promise.all([
-    getUserGangs(user.id, supabase),
-    getUserCampaigns(user.id, supabase),
-    getUserCustomEquipment(user.id, supabase),
-    getUserCustomFighterTypes(user.id, supabase),
-    getUserCustomSkills(user.id, supabase),
-    getUserCustomGangTypes(user.id, supabase),
-    getUserCustomTradingPosts(user.id, supabase),
-    getUserCustomCollections(user.id, supabase)
+    getUserGangs(user.id),
+    getUserCampaigns(user.id),
+    getUserCustomEquipment(user.id),
+    getUserCustomFighterTypes(user.id),
+    getUserCustomSkills(user.id),
+    getUserCustomGangTypes(user.id),
+    getUserCustomTradingPosts(user.id),
+    getUserCustomCollections(user.id)
   ]);
   
   // Fetch campaign types and trading post types for the create campaign modal
