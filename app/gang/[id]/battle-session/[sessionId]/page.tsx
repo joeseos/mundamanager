@@ -18,7 +18,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     redirect(signInPath(currentPath));
   }
 
-  const session = await getBattleSessionCached(sessionId, supabase);
+  const session = await getBattleSessionCached(sessionId);
 
   if (!session) {
     notFound();
@@ -44,13 +44,13 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
   );
 
   const [gangFighterLists, gangPositioningList, { data: scenarios }, campaignTerritories] = await Promise.all([
-    Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
-    Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
+    Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, { expandLoadoutsForPrint: true }))),
+    Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId))),
     supabase
       .from('scenarios')
       .select('id, scenario_name, scenario_number')
       .order('scenario_number'),
-    session.campaign_id ? getCampaignTerritories(session.campaign_id, supabase) : Promise.resolve([]),
+    session.campaign_id ? getCampaignTerritories(session.campaign_id) : Promise.resolve([]),
   ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};

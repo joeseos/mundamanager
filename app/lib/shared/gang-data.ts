@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
+import { cacheTag, cacheLife } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
@@ -174,117 +175,106 @@ export interface GangFighter {
  * Get gang basic information (name, type, reputation, etc. - excludes credits)
  * Cache: BASE_GANG_BASIC
  */
-export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic | null> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select(`
-          id,
-          name,
-          gang_type,
-          gang_type_id,
-          gang_colour,
-          reputation,
-          alignment,
-          note,
-          note_backstory,
-          note_private,
-          note_private_updated_at,
-          created_at,
-          last_updated,
-          alliance_id,
-          gang_variants,
-          user_id,
-          gang_affiliation_id,
-          gang_affiliation:gang_affiliation_id (
-            id,
-            name
-          ),
-          gang_origin_id,
-          gang_origin:gang_origin_id (
-            id,
-            origin_name,
-            gang_origin_categories!gang_origin_category_id (
-              category_name
-            )
-          ),
-          gang_types!gang_type_id(
-            affiliation,
-            gang_origin_category_id,
-            gang_origin_categories!gang_origin_category_id (
-              category_name
-            )
-          ),
-          custom_gang_type_id,
-          image_url,
-          default_gang_image,
-          hidden
-        `)
-        .eq('id', gangId)
-        .maybeSingle();
+export const getGangBasic = async (gangId: string): Promise<GangBasic | null> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_GANG_BASIC(gangId));
 
-      if (error) {
-        // Return null for invalid UUID format; maybeSingle returns null for no rows.
-        if (error.code === '22P02') return null;
-        throw error;
-      }
-      return data ?? null;
-    },
-    [`gang-basic-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_BASIC(gangId)],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('gangs')
+    .select(`
+      id,
+      name,
+      gang_type,
+      gang_type_id,
+      gang_colour,
+      reputation,
+      alignment,
+      note,
+      note_backstory,
+      note_private,
+      note_private_updated_at,
+      created_at,
+      last_updated,
+      alliance_id,
+      gang_variants,
+      user_id,
+      gang_affiliation_id,
+      gang_affiliation:gang_affiliation_id (
+        id,
+        name
+      ),
+      gang_origin_id,
+      gang_origin:gang_origin_id (
+        id,
+        origin_name,
+        gang_origin_categories!gang_origin_category_id (
+          category_name
+        )
+      ),
+      gang_types!gang_type_id(
+        affiliation,
+        gang_origin_category_id,
+        gang_origin_categories!gang_origin_category_id (
+          category_name
+        )
+      ),
+      custom_gang_type_id,
+      image_url,
+      default_gang_image,
+      hidden
+    `)
+    .eq('id', gangId)
+    .maybeSingle();
+
+  if (error) {
+    // Return null for invalid UUID format; maybeSingle returns null for no rows.
+    if (error.code === '22P02') return null;
+    throw error;
+  }
+  // Supabase types single-row joins as arrays; the shape at runtime matches GangBasic
+  return (data ?? null) as GangBasic | null;
 };
 
 /**
  * Get gang credits only
  * Cache: BASE_GANG_CREDITS
  */
-export const getGangCredits = async (gangId: string, supabase: any): Promise<number> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('credits')
-        .eq('id', gangId)
-        .single();
+export const getGangCredits = async (gangId: string): Promise<number> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_GANG_CREDITS(gangId));
 
-      if (error) throw error;
-      return data.credits;
-    },
-    [`gang-credits-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_CREDITS(gangId)],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('gangs')
+    .select('credits')
+    .eq('id', gangId)
+    .single();
+
+  if (error) throw error;
+  return data.credits;
 };
 
 /**
  * Get gang positioning data only
  * Cache: BASE_GANG_POSITIONING
  */
-export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('positioning')
-        .eq('id', gangId)
-        .single();
+export const getGangPositioning = async (gangId: string): Promise<Record<string, any> | null> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_GANG_POSITIONING(gangId));
 
-      if (error) throw error;
-      return data.positioning || null;
-    },
-    [`gang-positioning-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('gangs')
+    .select('positioning')
+    .eq('id', gangId)
+    .single();
+
+  if (error) throw error;
+  return data.positioning || null;
 };
 
 
@@ -292,107 +282,91 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
  * Get gang stash equipment
  * Cache: BASE_GANG_STASH
  */
-export const getGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('fighter_equipment')
-        .select(`
-          id,
-          created_at,
-          equipment_id,
-          custom_equipment_id,
-          purchase_cost,
-          cost_resource,
-          equipment:equipment_id (
-            equipment_name,
-            equipment_type,
-            equipment_category
-          ),
-          custom_equipment:custom_equipment_id (
-            equipment_name,
-            equipment_type,
-            equipment_category
-          )
-        `)
-        .eq('gang_id', gangId)
-        .eq('gang_stash', true);
+export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_GANG_STASH(gangId));
 
-      if (error) throw error;
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('fighter_equipment')
+    .select(`
+      id,
+      created_at,
+      equipment_id,
+      custom_equipment_id,
+      purchase_cost,
+      cost_resource,
+      equipment:equipment_id (
+        equipment_name,
+        equipment_type,
+        equipment_category
+      ),
+      custom_equipment:custom_equipment_id (
+        equipment_name,
+        equipment_type,
+        equipment_category
+      )
+    `)
+    .eq('gang_id', gangId)
+    .eq('gang_stash', true);
 
-      return (data || []).map((item: any) => ({
-        id: item.id,
-        created_at: item.created_at,
-        equipment_id: item.equipment_id,
-        custom_equipment_id: item.custom_equipment_id,
-        equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-        equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
-        equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-        cost: item.purchase_cost,
-        type: 'equipment' as const,
-        cost_resource: item.cost_resource ?? null
-      }));
-    },
-    [`gang-stash-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_STASH(gangId)],
-      revalidate: false
-    }
-  )();
+  if (error) throw error;
+
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    created_at: item.created_at,
+    equipment_id: item.equipment_id,
+    custom_equipment_id: item.custom_equipment_id,
+    equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
+    equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
+    equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+    cost: item.purchase_cost,
+    type: 'equipment' as const,
+    cost_resource: item.cost_resource ?? null
+  }));
 };
 
 /**
  * Get gang type information, resolving between system and custom gang types
  * Cache: GLOBAL_GANG_TYPES (shared, 1 hour revalidation)
  */
-export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<GangType> => {
-  if (gangBasic.custom_gang_type_id) {
-    return unstable_cache(
-      async () => {
-        const { data, error } = await supabase
-          .from('custom_gang_types')
-          .select('id, gang_type, default_image_urls')
-          .eq('id', gangBasic.custom_gang_type_id)
-          .single();
+export const getGangType = async (gangTypeId: string, customGangTypeId?: string | null): Promise<GangType> => {
+  'use cache: remote';
+  cacheLife('hours');
+  cacheTag(CACHE_TAGS.GLOBAL_GANG_TYPES());
 
-        if (error) throw error;
-        return {
-          id: data.id,
-          gang_type: data.gang_type,
-          image_url: '',
-          default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
-        };
-      },
-      [`custom-gang-type-${gangBasic.custom_gang_type_id}`],
-      {
-        tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
-        revalidate: 3600
-      }
-    )();
+  const supabase = createServiceRoleClient();
+
+  if (customGangTypeId) {
+    const { data, error } = await supabase
+      .from('custom_gang_types')
+      .select('id, gang_type, default_image_urls')
+      .eq('id', customGangTypeId)
+      .single();
+
+    if (error) throw error;
+    return {
+      id: data.id,
+      gang_type: data.gang_type,
+      image_url: '',
+      default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
+    };
   }
 
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gang_types')
-        .select('gang_type_id, gang_type, image_url, default_image_urls')
-        .eq('gang_type_id', gangBasic.gang_type_id)
-        .single();
+  const { data, error } = await supabase
+    .from('gang_types')
+    .select('gang_type_id, gang_type, image_url, default_image_urls')
+    .eq('gang_type_id', gangTypeId)
+    .single();
 
-      if (error) throw error;
-      return {
-        id: data.gang_type_id,
-        gang_type: data.gang_type,
-        image_url: data.image_url,
-        default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
-      };
-    },
-    [`gang-type-${gangBasic.gang_type_id}`],
-    {
-      tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
-      revalidate: 3600
-    }
-  )();
+  if (error) throw error;
+  return {
+    id: data.gang_type_id,
+    gang_type: data.gang_type,
+    image_url: data.image_url,
+    default_image_urls: normaliseDefaultImageUrls(data.default_image_urls)
+  };
 };
 
 /**
@@ -405,51 +379,42 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
  * Get alliance information
  * Cache: Shared alliance data
  */
-export const getAlliance = async (allianceId: string | undefined, supabase: any): Promise<Alliance | null> => {
+export const getAlliance = async (allianceId: string | undefined): Promise<Alliance | null> => {
+  'use cache: remote';
+  cacheLife('hours'); // alliances rarely change
   if (!allianceId) return null;
-  
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('alliances')
-        .select('id, alliance_name, alliance_type')
-        .eq('id', allianceId)
-        .single();
+  cacheTag(`alliance-${allianceId}`);
 
-      if (error) return null;
-      return data;
-    },
-    [`alliance-${allianceId}`],
-    {
-      tags: [`alliance-${allianceId}`],
-      revalidate: 3600 // 1 hour - alliances rarely change
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('alliances')
+    .select('id, alliance_name, alliance_type')
+    .eq('id', allianceId)
+    .single();
+
+  if (error) return null;
+  return data;
 };
 
 /**
  * Get gang variants
  * Cache: GLOBAL_GANG_TYPES (shared since variants rarely change)
  */
-export const getGangVariants = async (gangVariantIds: string[], supabase: any): Promise<GangVariant[]> => {
-  if (!gangVariantIds || gangVariantIds.length === 0) return [];
-  
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gang_variant_types')
-        .select('id, variant')
-        .in('id', gangVariantIds);
+export const getGangVariants = async (gangVariantIds: string[]): Promise<GangVariant[]> => {
+  'use cache: remote';
+  cacheLife('hours'); // variants rarely change
+  cacheTag(CACHE_TAGS.GLOBAL_GANG_TYPES());
 
-      if (error) return [];
-      return data || [];
-    },
-    [`gang-variants-${gangVariantIds.join('-')}`],
-    {
-      tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
-      revalidate: 3600 // 1 hour - variants rarely change
-    }
-  )();
+  if (!gangVariantIds || gangVariantIds.length === 0) return [];
+
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('gang_variant_types')
+    .select('id, variant')
+    .in('id', gangVariantIds);
+
+  if (error) return [];
+  return data || [];
 };
 
 /**
@@ -471,314 +436,311 @@ function groupBy<T extends Record<string, any>>(
  * Get gang campaigns
  * Cache: COMPOSITE_GANG_CAMPAIGNS
  */
-export const getGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('campaign_gangs')
-        .select(`
-          id,
-          user_id,
-          campaign_type_allegiance_id,
-          campaign_allegiance_id,
-          campaign_members!campaign_member_id (
-            role,
-            status,
-            invited_at,
-            invited_by
-          ),
-          campaigns!campaign_id (
-            id,
-            campaign_name,
-            campaign_type_id,
-            trading_posts,
-            custom_trading_posts
-          )
-        `)
-        .eq('gang_id', gangId);
+export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId));
 
-      if (error) {
-        console.error('Error fetching gang campaigns:', error);
-        return [];
-      }
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('campaign_gangs')
+    .select(`
+      id,
+      user_id,
+      campaign_type_allegiance_id,
+      campaign_allegiance_id,
+      campaign_members!campaign_member_id (
+        role,
+        status,
+        invited_at,
+        invited_by
+      ),
+      campaigns!campaign_id (
+        id,
+        campaign_name,
+        campaign_type_id,
+        trading_posts,
+        custom_trading_posts
+      )
+    `)
+    .eq('gang_id', gangId);
 
-      // Get all campaign IDs and campaign_gang IDs first
-      const campaignIds = (data || [])
-        .map((cg: any) => (cg.campaigns as any)?.id)
-        .filter(Boolean);
-      
-      const campaignGangIds = (data || [])
-        .map((cg: any) => cg.id)
-        .filter(Boolean);
+  if (error) {
+    console.error('Error fetching gang campaigns:', error);
+    return [];
+  }
 
-      // Single batch query for all territories
-      const { data: allTerritories } = await supabase
-        .from('campaign_territories')
-        .select(`
-          id,
-          campaign_id,
-          created_at,
-          territory_id,
-          territory_name,
-          playing_card,
-          description,
-          ruined,
-          default_gang_territory
-        `)
-        .in('campaign_id', campaignIds)
-        .eq('gang_id', gangId);
+  // Get all campaign IDs and campaign_gang IDs first
+  const campaignIds = (data || [])
+    .map((cg: any) => (cg.campaigns as any)?.id)
+    .filter(Boolean);
+  
+  const campaignGangIds = (data || [])
+    .map((cg: any) => cg.id)
+    .filter(Boolean);
 
-      // Create lookup map
-      const territoriesByCampaign = groupBy(allTerritories || [], 'campaign_id');
+  // Single batch query for all territories
+  const { data: allTerritories } = await supabase
+    .from('campaign_territories')
+    .select(`
+      id,
+      campaign_id,
+      created_at,
+      territory_id,
+      territory_name,
+      playing_card,
+      description,
+      ruined,
+      default_gang_territory
+    `)
+    .in('campaign_id', campaignIds)
+    .eq('gang_id', gangId);
 
-      const campaigns: GangCampaign[] = [];
+  // Create lookup map
+  const territoriesByCampaign = groupBy(allTerritories || [], 'campaign_id');
 
-      // Collect all trading post IDs across all campaigns for batch fetch
-      const allTradingPostIds = (data || [])
-        .map((cg: any) => (cg.campaigns as any)?.trading_posts)
-        .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-        .flat();
+  const campaigns: GangCampaign[] = [];
 
-      // Batch fetch trading post names
-      let tradingPostNamesMap: Record<string, string> = {};
-      if (allTradingPostIds.length > 0) {
-        const uniqueIds = Array.from(new Set(allTradingPostIds));
-        const { data: tradingPostTypes } = await supabase
-          .from('trading_post_types')
-          .select('id, trading_post_name')
-          .in('id', uniqueIds);
+  // Collect all trading post IDs across all campaigns for batch fetch
+  const allTradingPostIds = (data || [])
+    .map((cg: any) => (cg.campaigns as any)?.trading_posts)
+    .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
+    .flat();
 
-        if (tradingPostTypes) {
-          tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
-            acc[tp.id] = tp.trading_post_name;
-            return acc;
-          }, {});
-        }
-      }
+  // Batch fetch trading post names
+  let tradingPostNamesMap: Record<string, string> = {};
+  if (allTradingPostIds.length > 0) {
+    const uniqueIds = Array.from(new Set(allTradingPostIds));
+    const { data: tradingPostTypes } = await supabase
+      .from('trading_post_types')
+      .select('id, trading_post_name')
+      .in('id', uniqueIds);
 
-      // Collect all custom trading post IDs across all campaigns for batch fetch
-      const allCustomTradingPostIds = (data || [])
-        .map((cg: any) => (cg.campaigns as any)?.custom_trading_posts)
-        .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-        .flat();
-
-      let customTradingPostNamesMap: Record<string, string> = {};
-      if (allCustomTradingPostIds.length > 0) {
-        const uniqueIds = Array.from(new Set(allCustomTradingPostIds));
-        const { data: customTradingPosts } = await supabase
-          .from('custom_trading_posts')
-          .select('id, custom_trading_post_name')
-          .in('id', uniqueIds);
-
-        if (customTradingPosts) {
-          customTradingPostNamesMap = customTradingPosts.reduce((acc: Record<string, string>, tp: any) => {
-            acc[tp.id] = tp.custom_trading_post_name;
-            return acc;
-          }, {});
-        }
-      }
-
-      // Collect all allegiance IDs for batch fetch
-      const customAllegianceIds = (data || [])
-        .map((cg: any) => cg.campaign_allegiance_id)
-        .filter(Boolean);
-      const typeAllegianceIds = (data || [])
-        .map((cg: any) => cg.campaign_type_allegiance_id)
-        .filter(Boolean);
-
-      // Batch fetch allegiance names
-      let allegianceNamesMap: Record<string, string> = {};
-      
-      if (customAllegianceIds.length > 0) {
-        const { data: customAllegiances } = await supabase
-          .from('campaign_allegiances')
-          .select('id, allegiance_name')
-          .in('id', customAllegianceIds);
-
-        if (customAllegiances) {
-          customAllegiances.forEach((a: any) => {
-            allegianceNamesMap[a.id] = a.allegiance_name;
-          });
-        }
-      }
-
-      if (typeAllegianceIds.length > 0) {
-        const { data: typeAllegiances } = await supabase
-          .from('campaign_type_allegiances')
-          .select('id, allegiance_name')
-          .in('id', typeAllegianceIds);
-
-        if (typeAllegiances) {
-          typeAllegiances.forEach((a: any) => {
-            allegianceNamesMap[a.id] = a.allegiance_name;
-          });
-        }
-      }
-
-      // Fetch ALL available resources for campaigns and gang's current quantities
-      let resourcesByCampaignGang: Record<string, GangCampaignResource[]> = {};
-      
-      if (campaignGangIds.length > 0 && campaignIds.length > 0) {
-        // Get campaign_type_ids for fetching predefined resources
-        const campaignTypeIds = (data || [])
-          .map((cg: any) => (cg.campaigns as any)?.campaign_type_id)
-          .filter(Boolean);
-        
-        // Fetch predefined resources for all campaign types
-        let predefinedResources: Array<{ id: string; resource_name: string; campaign_type_id: string }> = [];
-        if (campaignTypeIds.length > 0) {
-          const { data: typeResources } = await supabase
-            .from('campaign_type_resources')
-            .select('id, resource_name, campaign_type_id')
-            .in('campaign_type_id', campaignTypeIds);
-          predefinedResources = typeResources || [];
-        }
-        
-        // Fetch custom resources for all campaigns
-        let customResources: Array<{ id: string; resource_name: string; campaign_id: string }> = [];
-        if (campaignIds.length > 0) {
-          const { data: campResources } = await supabase
-            .from('campaign_resources')
-            .select('id, resource_name, campaign_id')
-            .in('campaign_id', campaignIds);
-          customResources = campResources || [];
-        }
-        
-        // Fetch gang's current resource quantities
-        const { data: gangResources } = await supabase
-          .from('campaign_gang_resources')
-          .select(`
-            id,
-            campaign_gang_id,
-            campaign_type_resource_id,
-            campaign_resource_id,
-            quantity
-          `)
-          .in('campaign_gang_id', campaignGangIds);
-        
-        // Build quantity lookup: resourceId -> { campaignGangId -> quantity }
-        const quantityLookup: Record<string, Record<string, number>> = {};
-        (gangResources || []).forEach((gr: any) => {
-          const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
-          if (resourceId) {
-            if (!quantityLookup[resourceId]) {
-              quantityLookup[resourceId] = {};
-            }
-            quantityLookup[resourceId][gr.campaign_gang_id] = Number(gr.quantity) || 0;
-          }
-        });
-        
-        // Build resources for each campaign_gang
-        for (const cg of data || []) {
-          const campaignGangId = cg.id;
-          const campaignTypeId = (cg.campaigns as any)?.campaign_type_id;
-          const campaignId = (cg.campaigns as any)?.id;
-          
-          if (!resourcesByCampaignGang[campaignGangId]) {
-            resourcesByCampaignGang[campaignGangId] = [];
-          }
-          
-          // Add predefined resources for this campaign's type
-          const relevantPredefined = predefinedResources.filter(r => r.campaign_type_id === campaignTypeId);
-          for (const resource of relevantPredefined) {
-            const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
-            resourcesByCampaignGang[campaignGangId].push({
-              resource_id: resource.id,
-              resource_name: resource.resource_name,
-              quantity,
-              is_custom: false
-            });
-          }
-          
-          // Add custom resources for this campaign
-          const relevantCustom = customResources.filter(r => r.campaign_id === campaignId);
-          for (const resource of relevantCustom) {
-            const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
-            resourcesByCampaignGang[campaignGangId].push({
-              resource_id: resource.id,
-              resource_name: resource.resource_name,
-              quantity,
-              is_custom: true
-            });
-          }
-        }
-      }
-
-      for (const cg of data || []) {
-        if (cg.campaigns) {
-          // Get member data - need to fetch ALL entries for this user in this campaign
-          // to determine the highest role (in case they have multiple gangs)
-          let memberData = cg.campaign_members;
-
-          if (!memberData || !(memberData as any)?.role) {
-            // Fallback: query all campaign_members entries for this user in this campaign
-            const { data: allMemberEntries } = await supabase
-              .from('campaign_members')
-              .select('role, status, invited_at, invited_by')
-              .eq('campaign_id', (cg.campaigns as any).id)
-              .eq('user_id', (cg as any).user_id);
-
-            if (allMemberEntries && allMemberEntries.length > 0) {
-              // Find the highest role (OWNER > ARBITRATOR > MEMBER)
-              const roleHierarchy: Record<string, number> = {
-                'OWNER': 3,
-                'ARBITRATOR': 2,
-                'MEMBER': 1
-              };
-
-              type MemberEntry = { role: string; status: string | null; invited_at: string; invited_by: string };
-              memberData = allMemberEntries.reduce((highest: MemberEntry, current: MemberEntry) => {
-                const currentRank = roleHierarchy[current.role] || 0;
-                const highestRank = roleHierarchy[highest.role] || 0;
-                return currentRank > highestRank ? current : highest;
-              }, allMemberEntries[0]);
-            }
-          }
-
-          // Get trading post names for this campaign
-          const tradingPosts = (cg.campaigns as any).trading_posts || [];
-          const trading_post_names = tradingPosts
-            .map((id: string) => tradingPostNamesMap[id])
-            .filter(Boolean);
-
-          const customTradingPosts = (cg.campaigns as any).custom_trading_posts || [];
-          const custom_trading_post_names = customTradingPosts
-            .map((id: string) => customTradingPostNamesMap[id])
-            .filter(Boolean);
-
-          // Get allegiance (custom takes precedence over type)
-          const allegianceId = (cg as any).campaign_allegiance_id || (cg as any).campaign_type_allegiance_id;
-          const allegiance = allegianceId && allegianceNamesMap[allegianceId]
-            ? { id: allegianceId, name: allegianceNamesMap[allegianceId] }
-            : null;
-
-          campaigns.push({
-            campaign_id: (cg.campaigns as any).id,
-            campaign_gang_id: cg.id,
-            campaign_name: (cg.campaigns as any).campaign_name,
-            role: (memberData as any)?.role,
-            status: (memberData as any)?.status,
-            invited_at: (memberData as any)?.invited_at,
-            invited_by: (memberData as any)?.invited_by,
-            trading_posts: tradingPosts,
-            trading_post_names,
-            custom_trading_posts: customTradingPosts,
-            custom_trading_post_names,
-            territories: territoriesByCampaign[(cg.campaigns as any).id] || [],
-            allegiance,
-            resources: resourcesByCampaignGang[cg.id] || []
-          });
-        }
-      }
-
-      return campaigns;
-    },
-    [`gang-campaigns-${gangId}`],
-    {
-      tags: [CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId)],
-      revalidate: false
+    if (tradingPostTypes) {
+      tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
+        acc[tp.id] = tp.trading_post_name;
+        return acc;
+      }, {});
     }
-  )();
+  }
+
+  // Collect all custom trading post IDs across all campaigns for batch fetch
+  const allCustomTradingPostIds = (data || [])
+    .map((cg: any) => (cg.campaigns as any)?.custom_trading_posts)
+    .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
+    .flat();
+
+  let customTradingPostNamesMap: Record<string, string> = {};
+  if (allCustomTradingPostIds.length > 0) {
+    const uniqueIds = Array.from(new Set(allCustomTradingPostIds));
+    const { data: customTradingPosts } = await supabase
+      .from('custom_trading_posts')
+      .select('id, custom_trading_post_name')
+      .in('id', uniqueIds);
+
+    if (customTradingPosts) {
+      customTradingPostNamesMap = customTradingPosts.reduce((acc: Record<string, string>, tp: any) => {
+        acc[tp.id] = tp.custom_trading_post_name;
+        return acc;
+      }, {});
+    }
+  }
+
+  // Collect all allegiance IDs for batch fetch
+  const customAllegianceIds = (data || [])
+    .map((cg: any) => cg.campaign_allegiance_id)
+    .filter(Boolean);
+  const typeAllegianceIds = (data || [])
+    .map((cg: any) => cg.campaign_type_allegiance_id)
+    .filter(Boolean);
+
+  // Batch fetch allegiance names
+  let allegianceNamesMap: Record<string, string> = {};
+  
+  if (customAllegianceIds.length > 0) {
+    const { data: customAllegiances } = await supabase
+      .from('campaign_allegiances')
+      .select('id, allegiance_name')
+      .in('id', customAllegianceIds);
+
+    if (customAllegiances) {
+      customAllegiances.forEach((a: any) => {
+        allegianceNamesMap[a.id] = a.allegiance_name;
+      });
+    }
+  }
+
+  if (typeAllegianceIds.length > 0) {
+    const { data: typeAllegiances } = await supabase
+      .from('campaign_type_allegiances')
+      .select('id, allegiance_name')
+      .in('id', typeAllegianceIds);
+
+    if (typeAllegiances) {
+      typeAllegiances.forEach((a: any) => {
+        allegianceNamesMap[a.id] = a.allegiance_name;
+      });
+    }
+  }
+
+  // Fetch ALL available resources for campaigns and gang's current quantities
+  let resourcesByCampaignGang: Record<string, GangCampaignResource[]> = {};
+  
+  if (campaignGangIds.length > 0 && campaignIds.length > 0) {
+    // Get campaign_type_ids for fetching predefined resources
+    const campaignTypeIds = (data || [])
+      .map((cg: any) => (cg.campaigns as any)?.campaign_type_id)
+      .filter(Boolean);
+    
+    // Fetch predefined resources for all campaign types
+    let predefinedResources: Array<{ id: string; resource_name: string; campaign_type_id: string }> = [];
+    if (campaignTypeIds.length > 0) {
+      const { data: typeResources } = await supabase
+        .from('campaign_type_resources')
+        .select('id, resource_name, campaign_type_id')
+        .in('campaign_type_id', campaignTypeIds);
+      predefinedResources = typeResources || [];
+    }
+    
+    // Fetch custom resources for all campaigns
+    let customResources: Array<{ id: string; resource_name: string; campaign_id: string }> = [];
+    if (campaignIds.length > 0) {
+      const { data: campResources } = await supabase
+        .from('campaign_resources')
+        .select('id, resource_name, campaign_id')
+        .in('campaign_id', campaignIds);
+      customResources = campResources || [];
+    }
+    
+    // Fetch gang's current resource quantities
+    const { data: gangResources } = await supabase
+      .from('campaign_gang_resources')
+      .select(`
+        id,
+        campaign_gang_id,
+        campaign_type_resource_id,
+        campaign_resource_id,
+        quantity
+      `)
+      .in('campaign_gang_id', campaignGangIds);
+    
+    // Build quantity lookup: resourceId -> { campaignGangId -> quantity }
+    const quantityLookup: Record<string, Record<string, number>> = {};
+    (gangResources || []).forEach((gr: any) => {
+      const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
+      if (resourceId) {
+        if (!quantityLookup[resourceId]) {
+          quantityLookup[resourceId] = {};
+        }
+        quantityLookup[resourceId][gr.campaign_gang_id] = Number(gr.quantity) || 0;
+      }
+    });
+    
+    // Build resources for each campaign_gang
+    for (const cg of data || []) {
+      const campaignGangId = cg.id;
+      const campaignTypeId = (cg.campaigns as any)?.campaign_type_id;
+      const campaignId = (cg.campaigns as any)?.id;
+      
+      if (!resourcesByCampaignGang[campaignGangId]) {
+        resourcesByCampaignGang[campaignGangId] = [];
+      }
+      
+      // Add predefined resources for this campaign's type
+      const relevantPredefined = predefinedResources.filter(r => r.campaign_type_id === campaignTypeId);
+      for (const resource of relevantPredefined) {
+        const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
+        resourcesByCampaignGang[campaignGangId].push({
+          resource_id: resource.id,
+          resource_name: resource.resource_name,
+          quantity,
+          is_custom: false
+        });
+      }
+      
+      // Add custom resources for this campaign
+      const relevantCustom = customResources.filter(r => r.campaign_id === campaignId);
+      for (const resource of relevantCustom) {
+        const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
+        resourcesByCampaignGang[campaignGangId].push({
+          resource_id: resource.id,
+          resource_name: resource.resource_name,
+          quantity,
+          is_custom: true
+        });
+      }
+    }
+  }
+
+  for (const cg of data || []) {
+    if (cg.campaigns) {
+      // Get member data - need to fetch ALL entries for this user in this campaign
+      // to determine the highest role (in case they have multiple gangs)
+      // Supabase types the single-row join as an array; runtime shape is a single object
+      let memberData: any = cg.campaign_members;
+
+      if (!memberData || !(memberData as any)?.role) {
+        // Fallback: query all campaign_members entries for this user in this campaign
+        const { data: allMemberEntries } = await supabase
+          .from('campaign_members')
+          .select('role, status, invited_at, invited_by')
+          .eq('campaign_id', (cg.campaigns as any).id)
+          .eq('user_id', (cg as any).user_id);
+
+        if (allMemberEntries && allMemberEntries.length > 0) {
+          // Find the highest role (OWNER > ARBITRATOR > MEMBER)
+          const roleHierarchy: Record<string, number> = {
+            'OWNER': 3,
+            'ARBITRATOR': 2,
+            'MEMBER': 1
+          };
+
+          type MemberEntry = { role: string; status: string | null; invited_at: string; invited_by: string };
+          memberData = allMemberEntries.reduce((highest: MemberEntry, current: MemberEntry) => {
+            const currentRank = roleHierarchy[current.role] || 0;
+            const highestRank = roleHierarchy[highest.role] || 0;
+            return currentRank > highestRank ? current : highest;
+          }, allMemberEntries[0]);
+        }
+      }
+
+      // Get trading post names for this campaign
+      const tradingPosts = (cg.campaigns as any).trading_posts || [];
+      const trading_post_names = tradingPosts
+        .map((id: string) => tradingPostNamesMap[id])
+        .filter(Boolean);
+
+      const customTradingPosts = (cg.campaigns as any).custom_trading_posts || [];
+      const custom_trading_post_names = customTradingPosts
+        .map((id: string) => customTradingPostNamesMap[id])
+        .filter(Boolean);
+
+      // Get allegiance (custom takes precedence over type)
+      const allegianceId = (cg as any).campaign_allegiance_id || (cg as any).campaign_type_allegiance_id;
+      const allegiance = allegianceId && allegianceNamesMap[allegianceId]
+        ? { id: allegianceId, name: allegianceNamesMap[allegianceId] }
+        : null;
+
+      campaigns.push({
+        campaign_id: (cg.campaigns as any).id,
+        campaign_gang_id: cg.id,
+        campaign_name: (cg.campaigns as any).campaign_name,
+        role: (memberData as any)?.role,
+        status: (memberData as any)?.status,
+        invited_at: (memberData as any)?.invited_at,
+        invited_by: (memberData as any)?.invited_by,
+        trading_posts: tradingPosts,
+        trading_post_names,
+        custom_trading_posts: customTradingPosts,
+        custom_trading_post_names,
+        territories: territoriesByCampaign[(cg.campaigns as any).id] || [],
+        allegiance,
+        resources: resourcesByCampaignGang[cg.id] || []
+      });
+    }
+  }
+
+  return campaigns;
 };
 
 // =============================================================================
@@ -789,30 +751,24 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
  * Get stored gang rating and wealth from columns (gangs.rating, gangs.wealth)
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  */
-export const getGangRatingAndWealth = async (gangId: string, supabase: any): Promise<{ rating: number; wealth: number }> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', gangId)
-        .single();
+export const getGangRatingAndWealth = async (gangId: string): Promise<{ rating: number; wealth: number }> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
+  cacheTag(CACHE_TAGS.SHARED_GANG_RATING(gangId));
 
-      if (error) throw error;
-      return {
-        rating: (data?.rating ?? 0) as number,
-        wealth: (data?.wealth ?? 0) as number
-      };
-    },
-    [`gang-rating-wealth-${gangId}`],
-    {
-      tags: [
-        CACHE_TAGS.COMPUTED_GANG_RATING(gangId),
-        CACHE_TAGS.SHARED_GANG_RATING(gangId)
-      ],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('gangs')
+    .select('rating, wealth')
+    .eq('id', gangId)
+    .single();
+
+  if (error) throw error;
+  return {
+    rating: (data?.rating ?? 0) as number,
+    wealth: (data?.wealth ?? 0) as number
+  };
 };
 
 /**
@@ -820,8 +776,8 @@ export const getGangRatingAndWealth = async (gangId: string, supabase: any): Pro
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  * @deprecated Use getGangRatingAndWealth() for better performance (single query)
  */
-export const getGangRating = async (gangId: string, supabase: any): Promise<number> => {
-  const { rating } = await getGangRatingAndWealth(gangId, supabase);
+export const getGangRating = async (gangId: string): Promise<number> => {
+  const { rating } = await getGangRatingAndWealth(gangId);
   return rating;
 };
 
@@ -830,8 +786,8 @@ export const getGangRating = async (gangId: string, supabase: any): Promise<numb
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  * @deprecated Use getGangRatingAndWealth() for better performance (single query)
  */
-export const getGangWealth = async (gangId: string, supabase: any): Promise<number> => {
-  const { wealth } = await getGangRatingAndWealth(gangId, supabase);
+export const getGangWealth = async (gangId: string): Promise<number> => {
+  const { wealth } = await getGangRatingAndWealth(gangId);
   return wealth;
 };
 
@@ -839,55 +795,47 @@ export const getGangWealth = async (gangId: string, supabase: any): Promise<numb
  * Get gang fighter count
  * Cache: COMPUTED_GANG_FIGHTER_COUNT
  */
-export const getGangFighterCount = async (gangId: string, supabase: any): Promise<number> => {
-  return unstable_cache(
-    async () => {
-      const { count, error } = await supabase
-        .from('fighters')
-        .select('*', { count: 'exact', head: true })
-        .eq('gang_id', gangId)
-        .eq('killed', false)
-        .eq('retired', false)
-        .eq('enslaved', false)
-        .eq('captured', false);
+export const getGangFighterCount = async (gangId: string): Promise<number> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId));
 
-      if (error) throw error;
-      return count || 0;
-    },
-    [`gang-fighter-count-${gangId}`],
-    {
-      tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId)],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { count, error } = await supabase
+    .from('fighters')
+    .select('*', { count: 'exact', head: true })
+    .eq('gang_id', gangId)
+    .eq('killed', false)
+    .eq('retired', false)
+    .eq('enslaved', false)
+    .eq('captured', false);
+
+  if (error) throw error;
+  return count || 0;
 };
 
 /**
  * Get gang beast count
  * Cache: COMPUTED_GANG_BEAST_COUNT
  */
-export const getGangBeastCount = async (gangId: string, supabase: any): Promise<number> => {
-  return unstable_cache(
-    async () => {
-      const { count, error } = await supabase
-        .from('fighters')
-        .select('*', { count: 'exact', head: true })
-        .eq('gang_id', gangId)
-        .eq('fighter_class', 'exotic beast')
-        .eq('killed', false)
-        .eq('retired', false)
-        .eq('enslaved', false)
-        .eq('captured', false);
+export const getGangBeastCount = async (gangId: string): Promise<number> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId));
 
-      if (error) throw error;
-      return count || 0;
-    },
-    [`gang-beast-count-${gangId}`],
-    {
-      tags: [CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId)],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { count, error } = await supabase
+    .from('fighters')
+    .select('*', { count: 'exact', head: true })
+    .eq('gang_id', gangId)
+    .eq('fighter_class', 'exotic beast')
+    .eq('killed', false)
+    .eq('retired', false)
+    .eq('enslaved', false)
+    .eq('captured', false);
+
+  if (error) throw error;
+  return count || 0;
 };
 
 // =============================================================================
@@ -913,128 +861,385 @@ export interface GetGangFightersListOptions {
 
 export const getGangFightersList = async (
   gangId: string,
-  supabase: any,
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId));
+
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
-  const cacheKey = expandLoadoutsForPrint ? `gang-fighters-list-print-${gangId}` : `gang-fighters-list-${gangId}`;
+  const supabase = createServiceRoleClient();
+  // Step 1: Fetch ALL fighters for the gang in ONE query with joins
+  const { data: fighters, error: fightersError } = await supabase
+    .from('fighters')
+    .select(`
+      id,
+      fighter_name,
+      label,
+      note,
+      note_backstory,
+      credits,
+      cost_adjustment,
+      movement,
+      weapon_skill,
+      ballistic_skill,
+      strength,
+      toughness,
+      wounds,
+      initiative,
+      attacks,
+      leadership,
+      cool,
+      willpower,
+      intelligence,
+      xp,
+      special_rules,
+      fighter_class,
+      fighter_class_id,
+      fighter_type,
+      fighter_type_id,
+      custom_fighter_type_id,
+      fighter_gang_legacy_id,
+      fighter_gang_legacy:fighter_gang_legacy_id (
+        id,
+        fighter_type_id,
+        name
+      ),
+      fighter_sub_type_id,
+      killed,
+      starved,
+      retired,
+      enslaved,
+      recovery,
+      captured,
+      captured_by_gang_id,
+      free_skill,
+      kills,
+      kill_count,
+      fighter_pet_id,
+      image_url,
+      position,
+      active_loadout_id,
+      fighter_types!fighter_type_id (
+        fighter_type,
+        alliance_crew_name,
+        cost,
+        is_spyrer
+      ),
+      fighter_sub_types!fighter_sub_type_id (
+        id,
+        sub_type_name
+      )
+    `)
+    .eq('gang_id', gangId);
 
-  return unstable_cache(
-    async () => {
-      // Step 1: Fetch ALL fighters for the gang in ONE query with joins
-      const { data: fighters, error: fightersError } = await supabase
-        .from('fighters')
-        .select(`
-          id,
-          fighter_name,
-          label,
-          note,
-          note_backstory,
-          credits,
-          cost_adjustment,
-          movement,
-          weapon_skill,
-          ballistic_skill,
-          strength,
-          toughness,
-          wounds,
-          initiative,
-          attacks,
-          leadership,
-          cool,
-          willpower,
-          intelligence,
-          xp,
-          special_rules,
-          fighter_class,
-          fighter_class_id,
-          fighter_type,
-          fighter_type_id,
-          custom_fighter_type_id,
-          fighter_gang_legacy_id,
-          fighter_gang_legacy:fighter_gang_legacy_id (
+  if (fightersError || !fighters || fighters.length === 0) {
+    return [];
+  }
+
+  // Extract all fighter IDs for batch queries
+  const fighterIds = fighters.map((f: any) => f.id);
+
+  // Collect loadout IDs for batch fetch (active only for normal view, all for print expansion)
+  const activeLoadoutIds = fighters
+    .map((f: any) => f.active_loadout_id)
+    .filter((id: any) => id != null);
+
+  // When expanding for print, fetch all loadouts first to get their IDs for equipment fetch
+  let allLoadoutIdsForFetch = activeLoadoutIds;
+  let loadoutsByFighterForPrint = new Map<string, any[]>();
+  if (expandLoadoutsForPrint) {
+    const { data: allLoadoutsData } = await supabase
+      .from('fighter_loadouts')
+      .select('id, fighter_id, loadout_name')
+      .in('fighter_id', fighterIds)
+      .order('created_at', { ascending: true });
+    const allLoadoutsList = allLoadoutsData || [];
+    allLoadoutIdsForFetch = allLoadoutsList.map((l: any) => l.id);
+    allLoadoutsList.forEach((loadout: any) => {
+      if (!loadoutsByFighterForPrint.has(loadout.fighter_id)) {
+        loadoutsByFighterForPrint.set(loadout.fighter_id, []);
+      }
+      loadoutsByFighterForPrint.get(loadout.fighter_id)!.push(loadout);
+    });
+  }
+
+  // Step 2: Batch fetch ALL related data in parallel
+  const [
+    allEquipment,
+    allSkills,
+    allEffects,
+    allVehicles,
+    allBeastRelationships,
+    allBeastOwnershipInfo,
+    allEquipmentTargetingEffects,
+    allLoadoutEquipment,
+    allLoadouts,
+    allCapturedByGangs
+  ] = await Promise.all([
+    // Batch fetch all equipment for all fighters
+    supabase
+      .from('fighter_equipment')
+      .select(`
+        id,
+        fighter_id,
+        equipment_id,
+        custom_equipment_id,
+        purchase_cost,
+        is_master_crafted,
+        equipment:equipment_id (
+          equipment_name,
+          equipment_type,
+          equipment_category,
+          weapon_profiles (
             id,
-            fighter_type_id,
-            name
-          ),
-          fighter_sub_type_id,
-          killed,
-          starved,
-          retired,
-          enslaved,
-          recovery,
-          captured,
-          captured_by_gang_id,
-          free_skill,
-          kills,
-          kill_count,
-          fighter_pet_id,
-          image_url,
-          position,
-          active_loadout_id,
-          fighter_types!fighter_type_id (
-            fighter_type,
-            alliance_crew_name,
-            cost,
-            is_spyrer
-          ),
-          fighter_sub_types!fighter_sub_type_id (
-            id,
-            sub_type_name
+            weapon_id,
+            weapon_group_id,
+            profile_name,
+            range_short,
+            range_long,
+            acc_short,
+            acc_long,
+            strength,
+            ap,
+            damage,
+            ammo,
+            traits,
+            sort_order
           )
-        `)
-        .eq('gang_id', gangId);
+        ),
+        custom_equipment:custom_equipment_id (
+          equipment_name,
+          equipment_type,
+          equipment_category,
+          custom_weapon_profiles (
+            id,
+            custom_equipment_id,
+            weapon_group_id,
+            profile_name,
+            range_short,
+            range_long,
+            acc_short,
+            acc_long,
+            strength,
+            ap,
+            damage,
+            ammo,
+            traits,
+            sort_order
+          )
+        )
+      `)
+      .in('fighter_id', fighterIds)
+      .is('vehicle_id', null),
 
-      if (fightersError || !fighters || fighters.length === 0) {
-        return [];
-      }
+    // Batch fetch all skills for all fighters
+    supabase
+      .from('fighter_skills')
+      .select(`
+        id,
+        fighter_id,
+        credits_increase,
+        xp_cost,
+        is_advance,
+        fighter_effect_skill_id,
+        custom_skill_id,
+        created_at,
+        skill:skill_id (
+          name
+        ),
+        custom_skill:custom_skill_id (
+          skill_name
+        ),
+        fighter_effect_skills!fighter_effect_skill_id (
+          fighter_effects (
+            effect_name,
+            type_specific_data
+          )
+        )
+      `)
+      .in('fighter_id', fighterIds),
 
-      // Extract all fighter IDs for batch queries
-      const fighterIds = fighters.map((f: any) => f.id);
+    // Batch fetch all effects for all fighters
+    supabase
+      .from('fighter_effects')
+      .select(`
+        id,
+        fighter_id,
+        fighter_equipment_id,
+        effect_name,
+        type_specific_data,
+        sort_order,
+        created_at,
+        updated_at,
+        fighter_effect_type:fighter_effect_type_id (
+          sort_order,
+          fighter_effect_category:fighter_effect_category_id (
+            category_name
+          )
+        ),
+        fighter_effect_modifiers (
+          id,
+          fighter_effect_id,
+          stat_name,
+          numeric_value,
+          operation
+        )
+      `)
+      .in('fighter_id', fighterIds)
+      .is('vehicle_id', null)
+      .order('sort_order', { ascending: true, nullsFirst: false }),
 
-      // Collect loadout IDs for batch fetch (active only for normal view, all for print expansion)
-      const activeLoadoutIds = fighters
-        .map((f: any) => f.active_loadout_id)
-        .filter((id: any) => id != null);
+    // Batch fetch all vehicles for all fighters
+    supabase
+      .from('vehicles')
+      .select(`
+        id,
+        fighter_id,
+        created_at,
+        movement,
+        front,
+        side,
+        rear,
+        hull_points,
+        handling,
+        save,
+        body_slots,
+        drive_slots,
+        engine_slots,
+        special_rules,
+        vehicle_name,
+        vehicle_type_id,
+        vehicle_type,
+        cost
+      `)
+      .in('fighter_id', fighterIds),
 
-      // When expanding for print, fetch all loadouts first to get their IDs for equipment fetch
-      let allLoadoutIdsForFetch = activeLoadoutIds;
-      let loadoutsByFighterForPrint = new Map<string, any[]>();
-      if (expandLoadoutsForPrint) {
-        const { data: allLoadoutsData } = await supabase
+    // Batch fetch beast relationships (fighters that own other fighters)
+    supabase
+      .from('fighter_exotic_beasts')
+      .select('fighter_owner_id, fighter_pet_id')
+      .in('fighter_owner_id', fighterIds),
+
+    // Batch fetch beast ownership info (for fighters that ARE owned)
+    supabase
+      .from('fighter_exotic_beasts')
+      .select(`
+        id,
+        fighter_pet_id,
+        fighter_owner_id,
+        fighter_equipment_id,
+        fighters!fighter_owner_id (
+          fighter_name
+        ),
+        fighter_equipment!fighter_equipment_id (
+          gang_stash
+        )
+      `)
+      .in('fighter_pet_id', fighterIds),
+
+    // Batch fetch effects that target equipment (with modifiers for weapon profile modifications)
+    // fighter_equipment_id: which equipment receives the effect (target)
+    // target_equipment_id: which equipment adds the effect (source, for equipment-to-equipment effects)
+    supabase
+      .from('fighter_effects')
+      .select(`
+        id,
+        fighter_effect_type_id,
+        effect_name,
+        type_specific_data,
+        sort_order,
+        fighter_equipment_id,
+        target_equipment_id,
+        fighter_effect_type:fighter_effect_type_id ( sort_order ),
+        fighter_effect_modifiers ( stat_name, numeric_value, operation )
+      `)
+      .in('fighter_id', fighterIds)
+      .not('fighter_equipment_id', 'is', null),
+
+    // Batch fetch loadout equipment assignments (active loadouts for normal view, all for print)
+    allLoadoutIdsForFetch.length > 0
+      ? supabase
+          .from('fighter_loadout_equipment')
+          .select('loadout_id, fighter_equipment_id')
+          .in('loadout_id', allLoadoutIdsForFetch)
+      : Promise.resolve({ data: [] }),
+
+    // Batch fetch loadout names (active for normal view, all for print)
+    allLoadoutIdsForFetch.length > 0
+      ? supabase
           .from('fighter_loadouts')
-          .select('id, fighter_id, loadout_name')
-          .in('fighter_id', fighterIds)
-          .order('created_at', { ascending: true });
-        const allLoadoutsList = allLoadoutsData || [];
-        allLoadoutIdsForFetch = allLoadoutsList.map((l: any) => l.id);
-        allLoadoutsList.forEach((loadout: any) => {
-          if (!loadoutsByFighterForPrint.has(loadout.fighter_id)) {
-            loadoutsByFighterForPrint.set(loadout.fighter_id, []);
-          }
-          loadoutsByFighterForPrint.get(loadout.fighter_id)!.push(loadout);
-        });
-      }
+          .select('id, loadout_name')
+          .in('id', allLoadoutIdsForFetch)
+      : Promise.resolve({ data: [] }),
 
-      // Step 2: Batch fetch ALL related data in parallel
-      const [
-        allEquipment,
-        allSkills,
-        allEffects,
-        allVehicles,
-        allBeastRelationships,
-        allBeastOwnershipInfo,
-        allEquipmentTargetingEffects,
-        allLoadoutEquipment,
-        allLoadouts,
-        allCapturedByGangs
-      ] = await Promise.all([
-        // Batch fetch all equipment for all fighters
-        supabase
+    // Batch fetch captured-by gang names
+    (() => {
+      const capturedByGangIds = Array.from(new Set((fighters || []).filter((f: any) => f.captured_by_gang_id).map((f: any) => f.captured_by_gang_id)));
+      return capturedByGangIds.length > 0
+        ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
+        : Promise.resolve({ data: [] });
+    })()
+  ]);
+
+  // Step 3: Build weapon profile maps from nested data in allEquipment
+  type RawWeaponProfile = WeaponProfile & { weapon_id: string };
+  type RawCustomWeaponProfile = WeaponProfile & { custom_equipment_id: string };
+
+  const standardProfilesMap = new Map<string, WeaponProfile[]>();
+  const standardAmmoByParentWeapon = new Map<string, WeaponProfile[]>();
+  const customProfilesMap = new Map<string, WeaponProfile[]>();
+  const customAmmoByParentWeapon = new Map<string, WeaponProfile[]>();
+
+  const seenStdIds = new Set<string>();
+  const seenCustIds = new Set<string>();
+
+  (allEquipment.data || []).forEach((item: any) => {
+    if (item.equipment_id && item.equipment?.equipment_type === 'weapon') {
+      for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
+        if (seenStdIds.has(p.id)) continue;
+        seenStdIds.add(p.id);
+        if (!standardProfilesMap.has(p.weapon_id)) standardProfilesMap.set(p.weapon_id, []);
+        standardProfilesMap.get(p.weapon_id)!.push(p);
+        if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
+          if (!standardAmmoByParentWeapon.has(p.weapon_group_id)) standardAmmoByParentWeapon.set(p.weapon_group_id, []);
+          standardAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
+        }
+      }
+    }
+    if (item.custom_equipment_id && item.custom_equipment?.equipment_type === 'weapon') {
+      for (const p of (item.custom_equipment.custom_weapon_profiles || []) as RawCustomWeaponProfile[]) {
+        if (seenCustIds.has(p.id)) continue;
+        seenCustIds.add(p.id);
+        if (!customProfilesMap.has(p.custom_equipment_id)) customProfilesMap.set(p.custom_equipment_id, []);
+        customProfilesMap.get(p.custom_equipment_id)!.push(p);
+        if (p.weapon_group_id && p.weapon_group_id !== p.custom_equipment_id) {
+          if (!customAmmoByParentWeapon.has(p.weapon_group_id)) customAmmoByParentWeapon.set(p.weapon_group_id, []);
+          customAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
+        }
+      }
+    }
+  });
+
+  const sortProfiles = (profiles: WeaponProfile[]) =>
+    profiles.sort((a, b) => {
+      const so = (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity);
+      return so !== 0 ? so : (a.profile_name ?? '').localeCompare(b.profile_name ?? '');
+    });
+  standardProfilesMap.forEach(sortProfiles);
+  standardAmmoByParentWeapon.forEach(sortProfiles);
+  customProfilesMap.forEach(sortProfiles);
+  customAmmoByParentWeapon.forEach(sortProfiles);
+
+  // Step 3.5: Batch fetch vehicle equipment and effects for cost calculation
+  const vehicleIds = (allVehicles.data || []).map((v: any) => v.id);
+  const [allVehicleEquipment, allVehicleEffects] = await Promise.all([
+    vehicleIds.length > 0
+      ? supabase
           .from('fighter_equipment')
           .select(`
             id,
-            fighter_id,
+            vehicle_id,
             equipment_id,
             custom_equipment_id,
             purchase_cost,
@@ -1082,42 +1287,15 @@ export const getGangFightersList = async (
               )
             )
           `)
-          .in('fighter_id', fighterIds)
-          .is('vehicle_id', null),
+          .in('vehicle_id', vehicleIds)
+      : Promise.resolve({ data: [] }),
 
-        // Batch fetch all skills for all fighters
-        supabase
-          .from('fighter_skills')
-          .select(`
-            id,
-            fighter_id,
-            credits_increase,
-            xp_cost,
-            is_advance,
-            fighter_effect_skill_id,
-            custom_skill_id,
-            created_at,
-            skill:skill_id (
-              name
-            ),
-            custom_skill:custom_skill_id (
-              skill_name
-            ),
-            fighter_effect_skills!fighter_effect_skill_id (
-              fighter_effects (
-                effect_name,
-                type_specific_data
-              )
-            )
-          `)
-          .in('fighter_id', fighterIds),
-
-        // Batch fetch all effects for all fighters
-        supabase
+    vehicleIds.length > 0
+      ? supabase
           .from('fighter_effects')
           .select(`
             id,
-            fighter_id,
+            vehicle_id,
             fighter_equipment_id,
             effect_name,
             type_specific_data,
@@ -1138,971 +1316,731 @@ export const getGangFightersList = async (
               operation
             )
           `)
-          .in('fighter_id', fighterIds)
-          .is('vehicle_id', null)
-          .order('sort_order', { ascending: true, nullsFirst: false }),
-
-        // Batch fetch all vehicles for all fighters
-        supabase
-          .from('vehicles')
-          .select(`
-            id,
-            fighter_id,
-            created_at,
-            movement,
-            front,
-            side,
-            rear,
-            hull_points,
-            handling,
-            save,
-            body_slots,
-            drive_slots,
-            engine_slots,
-            special_rules,
-            vehicle_name,
-            vehicle_type_id,
-            vehicle_type,
-            cost
-          `)
-          .in('fighter_id', fighterIds),
-
-        // Batch fetch beast relationships (fighters that own other fighters)
-        supabase
-          .from('fighter_exotic_beasts')
-          .select('fighter_owner_id, fighter_pet_id')
-          .in('fighter_owner_id', fighterIds),
-
-        // Batch fetch beast ownership info (for fighters that ARE owned)
-        supabase
-          .from('fighter_exotic_beasts')
-          .select(`
-            id,
-            fighter_pet_id,
-            fighter_owner_id,
-            fighter_equipment_id,
-            fighters!fighter_owner_id (
-              fighter_name
-            ),
-            fighter_equipment!fighter_equipment_id (
-              gang_stash
-            )
-          `)
-          .in('fighter_pet_id', fighterIds),
-
-        // Batch fetch effects that target equipment (with modifiers for weapon profile modifications)
-        // fighter_equipment_id: which equipment receives the effect (target)
-        // target_equipment_id: which equipment adds the effect (source, for equipment-to-equipment effects)
-        supabase
-          .from('fighter_effects')
-          .select(`
-            id,
-            fighter_effect_type_id,
-            effect_name,
-            type_specific_data,
-            sort_order,
-            fighter_equipment_id,
-            target_equipment_id,
-            fighter_effect_type:fighter_effect_type_id ( sort_order ),
-            fighter_effect_modifiers ( stat_name, numeric_value, operation )
-          `)
-          .in('fighter_id', fighterIds)
-          .not('fighter_equipment_id', 'is', null),
-
-        // Batch fetch loadout equipment assignments (active loadouts for normal view, all for print)
-        allLoadoutIdsForFetch.length > 0
-          ? supabase
-              .from('fighter_loadout_equipment')
-              .select('loadout_id, fighter_equipment_id')
-              .in('loadout_id', allLoadoutIdsForFetch)
-          : Promise.resolve({ data: [] }),
-
-        // Batch fetch loadout names (active for normal view, all for print)
-        allLoadoutIdsForFetch.length > 0
-          ? supabase
-              .from('fighter_loadouts')
-              .select('id, loadout_name')
-              .in('id', allLoadoutIdsForFetch)
-          : Promise.resolve({ data: [] }),
-
-        // Batch fetch captured-by gang names
-        (() => {
-          const capturedByGangIds = Array.from(new Set((fighters || []).filter((f: any) => f.captured_by_gang_id).map((f: any) => f.captured_by_gang_id)));
-          return capturedByGangIds.length > 0
-            ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
-            : Promise.resolve({ data: [] });
-        })()
-      ]);
-
-      // Step 3: Build weapon profile maps from nested data in allEquipment
-      type RawWeaponProfile = WeaponProfile & { weapon_id: string };
-      type RawCustomWeaponProfile = WeaponProfile & { custom_equipment_id: string };
-
-      const standardProfilesMap = new Map<string, WeaponProfile[]>();
-      const standardAmmoByParentWeapon = new Map<string, WeaponProfile[]>();
-      const customProfilesMap = new Map<string, WeaponProfile[]>();
-      const customAmmoByParentWeapon = new Map<string, WeaponProfile[]>();
-
-      const seenStdIds = new Set<string>();
-      const seenCustIds = new Set<string>();
-
-      (allEquipment.data || []).forEach((item: any) => {
-        if (item.equipment_id && item.equipment?.equipment_type === 'weapon') {
-          for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
-            if (seenStdIds.has(p.id)) continue;
-            seenStdIds.add(p.id);
-            if (!standardProfilesMap.has(p.weapon_id)) standardProfilesMap.set(p.weapon_id, []);
-            standardProfilesMap.get(p.weapon_id)!.push(p);
-            if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
-              if (!standardAmmoByParentWeapon.has(p.weapon_group_id)) standardAmmoByParentWeapon.set(p.weapon_group_id, []);
-              standardAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
-            }
-          }
-        }
-        if (item.custom_equipment_id && item.custom_equipment?.equipment_type === 'weapon') {
-          for (const p of (item.custom_equipment.custom_weapon_profiles || []) as RawCustomWeaponProfile[]) {
-            if (seenCustIds.has(p.id)) continue;
-            seenCustIds.add(p.id);
-            if (!customProfilesMap.has(p.custom_equipment_id)) customProfilesMap.set(p.custom_equipment_id, []);
-            customProfilesMap.get(p.custom_equipment_id)!.push(p);
-            if (p.weapon_group_id && p.weapon_group_id !== p.custom_equipment_id) {
-              if (!customAmmoByParentWeapon.has(p.weapon_group_id)) customAmmoByParentWeapon.set(p.weapon_group_id, []);
-              customAmmoByParentWeapon.get(p.weapon_group_id)!.push(p);
-            }
-          }
-        }
-      });
-
-      const sortProfiles = (profiles: WeaponProfile[]) =>
-        profiles.sort((a, b) => {
-          const so = (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity);
-          return so !== 0 ? so : (a.profile_name ?? '').localeCompare(b.profile_name ?? '');
-        });
-      standardProfilesMap.forEach(sortProfiles);
-      standardAmmoByParentWeapon.forEach(sortProfiles);
-      customProfilesMap.forEach(sortProfiles);
-      customAmmoByParentWeapon.forEach(sortProfiles);
-
-      // Step 3.5: Batch fetch vehicle equipment and effects for cost calculation
-      const vehicleIds = (allVehicles.data || []).map((v: any) => v.id);
-      const [allVehicleEquipment, allVehicleEffects] = await Promise.all([
-        vehicleIds.length > 0
-          ? supabase
-              .from('fighter_equipment')
-              .select(`
-                id,
-                vehicle_id,
-                equipment_id,
-                custom_equipment_id,
-                purchase_cost,
-                is_master_crafted,
-                equipment:equipment_id (
-                  equipment_name,
-                  equipment_type,
-                  equipment_category,
-                  weapon_profiles (
-                    id,
-                    weapon_id,
-                    weapon_group_id,
-                    profile_name,
-                    range_short,
-                    range_long,
-                    acc_short,
-                    acc_long,
-                    strength,
-                    ap,
-                    damage,
-                    ammo,
-                    traits,
-                    sort_order
-                  )
-                ),
-                custom_equipment:custom_equipment_id (
-                  equipment_name,
-                  equipment_type,
-                  equipment_category,
-                  custom_weapon_profiles (
-                    id,
-                    custom_equipment_id,
-                    weapon_group_id,
-                    profile_name,
-                    range_short,
-                    range_long,
-                    acc_short,
-                    acc_long,
-                    strength,
-                    ap,
-                    damage,
-                    ammo,
-                    traits,
-                    sort_order
-                  )
-                )
-              `)
-              .in('vehicle_id', vehicleIds)
-          : Promise.resolve({ data: [] }),
-
-        vehicleIds.length > 0
-          ? supabase
-              .from('fighter_effects')
-              .select(`
-                id,
-                vehicle_id,
-                fighter_equipment_id,
-                effect_name,
-                type_specific_data,
-                sort_order,
-                created_at,
-                updated_at,
-                fighter_effect_type:fighter_effect_type_id (
-                  sort_order,
-                  fighter_effect_category:fighter_effect_category_id (
-                    category_name
-                  )
-                ),
-                fighter_effect_modifiers (
-                  id,
-                  fighter_effect_id,
-                  stat_name,
-                  numeric_value,
-                  operation
-                )
-              `)
-              .in('vehicle_id', vehicleIds)
-              .order('sort_order', { ascending: true, nullsFirst: false })
-          : Promise.resolve({ data: [] })
-      ]);
-
-      // Step 3.6: Build vehicle weapon profile maps from nested data in allVehicleEquipment
-      const vehicleStandardProfilesMap = new Map<string, WeaponProfile[]>();
-      const vehicleStandardAmmoByParent = new Map<string, WeaponProfile[]>();
-      const vehicleCustomProfilesMap = new Map<string, WeaponProfile[]>();
-      const vehicleCustomAmmoByParent = new Map<string, WeaponProfile[]>();
-
-      const seenVehicleStdIds = new Set<string>();
-      const seenVehicleCustIds = new Set<string>();
-
-      (allVehicleEquipment.data || []).forEach((item: any) => {
-        if (item.equipment_id && item.equipment?.equipment_type === 'weapon') {
-          for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
-            if (seenVehicleStdIds.has(p.id)) continue;
-            seenVehicleStdIds.add(p.id);
-            if (!vehicleStandardProfilesMap.has(p.weapon_id)) vehicleStandardProfilesMap.set(p.weapon_id, []);
-            vehicleStandardProfilesMap.get(p.weapon_id)!.push(p);
-            if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
-              if (!vehicleStandardAmmoByParent.has(p.weapon_group_id)) vehicleStandardAmmoByParent.set(p.weapon_group_id, []);
-              vehicleStandardAmmoByParent.get(p.weapon_group_id)!.push(p);
-            }
-          }
-        }
-        if (item.custom_equipment_id && item.custom_equipment?.equipment_type === 'weapon') {
-          for (const p of (item.custom_equipment.custom_weapon_profiles || []) as RawCustomWeaponProfile[]) {
-            if (seenVehicleCustIds.has(p.id)) continue;
-            seenVehicleCustIds.add(p.id);
-            if (!vehicleCustomProfilesMap.has(p.custom_equipment_id)) vehicleCustomProfilesMap.set(p.custom_equipment_id, []);
-            vehicleCustomProfilesMap.get(p.custom_equipment_id)!.push(p);
-            if (p.weapon_group_id && p.weapon_group_id !== p.custom_equipment_id) {
-              if (!vehicleCustomAmmoByParent.has(p.weapon_group_id)) vehicleCustomAmmoByParent.set(p.weapon_group_id, []);
-              vehicleCustomAmmoByParent.get(p.weapon_group_id)!.push(p);
-            }
-          }
-        }
-      });
-
-      vehicleStandardProfilesMap.forEach(sortProfiles);
-      vehicleStandardAmmoByParent.forEach(sortProfiles);
-      vehicleCustomProfilesMap.forEach(sortProfiles);
-      vehicleCustomAmmoByParent.forEach(sortProfiles);
-
-      // Step 4: Create lookup Maps for O(1) access
-      const equipmentByFighter = groupBy(allEquipment.data || [], 'fighter_id');
-      const skillsByFighter = groupBy(allSkills.data || [], 'fighter_id');
-      const effectsByFighter = groupBy(allEffects.data || [], 'fighter_id');
-      const vehiclesByFighter = groupBy(allVehicles.data || [], 'fighter_id');
-      const beastsByOwner = groupBy(allBeastRelationships.data || [], 'fighter_owner_id');
-
-      // Create ownership info map (petId -> ownership info)
-      const ownershipInfoMap = new Map();
-      (allBeastOwnershipInfo.data || []).forEach((info: any) => {
-        ownershipInfoMap.set(info.fighter_pet_id, {
-          owner_id: info.fighter_owner_id,
-          owner_name: (info.fighters as any)?.fighter_name,
-          beast_equipment_stashed: info.fighter_equipment?.gang_stash || false
-        });
-      });
-
-      // Create equipment targeting effects map (targetEquipmentId -> effects with modifiers)
-      // Two cases:
-      // 1. Rig glitches: fighter_equipment_id = target weapon, target_equipment_id = NULL
-      // 2. Equipment-to-equipment (e.g., hotshot laspack): fighter_equipment_id = source, target_equipment_id = target weapon
-      const equipmentTargetingEffectsMap = new Map<string, any[]>();
-      (allEquipmentTargetingEffects.data || []).forEach((effect: any) => {
-        // Use target_equipment_id if present (equipment-to-equipment), otherwise fighter_equipment_id (rig glitches)
-        const targetId = effect.target_equipment_id || effect.fighter_equipment_id;
-        if (!targetId) return;
-        if (!equipmentTargetingEffectsMap.has(targetId)) {
-          equipmentTargetingEffectsMap.set(targetId, []);
-        }
-        equipmentTargetingEffectsMap.get(targetId)!.push(effect);
-      });
-      // Sort effects by sort_order (type as default, instance as override) and build names map
-      const equipmentTargetingEffectNamesMap = new Map<string, string[]>();
-      equipmentTargetingEffectsMap.forEach((effects, targetId) => {
-        const sorted = [...effects].sort((a: any, b: any) => {
-          const effectTypeA = a.fighter_effect_type as { sort_order?: number | null } | null;
-          const effectTypeB = b.fighter_effect_type as { sort_order?: number | null } | null;
-          const orderA = effectTypeA?.sort_order ?? a.sort_order ?? Infinity;
-          const orderB = effectTypeB?.sort_order ?? b.sort_order ?? Infinity;
-          return orderA - orderB;
-        });
-        const names: string[] = [];
-        sorted.forEach((effect: any) => {
-          if (effect.effect_name && !names.includes(effect.effect_name)) {
-            names.push(effect.effect_name);
-          }
-        });
-        equipmentTargetingEffectNamesMap.set(targetId, names);
-      });
-
-      // Create loadout equipment map: loadout_id -> Set<fighter_equipment_id>
-      const loadoutEquipmentMap = new Map<string, Set<string>>();
-      (allLoadoutEquipment.data || []).forEach((assignment: any) => {
-        if (!loadoutEquipmentMap.has(assignment.loadout_id)) {
-          loadoutEquipmentMap.set(assignment.loadout_id, new Set());
-        }
-        loadoutEquipmentMap.get(assignment.loadout_id)!.add(assignment.fighter_equipment_id);
-      });
-
-      // Create loadout name map: loadout_id -> loadout_name
-      const loadoutNameMap = new Map<string, string>();
-      (allLoadouts.data || []).forEach((loadout: any) => {
-        loadoutNameMap.set(loadout.id, loadout.loadout_name);
-      });
-
-      // Create captured-by gang name map: gang_id -> name
-      const capturedByGangNameMap = new Map<string, string>();
-      (allCapturedByGangs?.data || []).forEach((g: any) => {
-        capturedByGangNameMap.set(g.id, g.name);
-      });
-
-      // Create fighter lookup map for O(1) beast lookups
-      const fighterLookup = new Map(fighters.map((f: any) => [f.id, f]));
-
-
-      // Step 5: Transform each fighter using pre-fetched data
-      const results: any[] = [];
-      for (const fighter of fighters) {
-        try {
-          const fighterId = fighter.id;
-
-          // Get fighter-specific data from Maps
-          const equipment = equipmentByFighter[fighterId] || [];
-          const skillsData = skillsByFighter[fighterId] || [];
-          const effectsData = effectsByFighter[fighterId] || [];
-          const vehicles = vehiclesByFighter[fighterId] || [];
-          const ownedBeasts = beastsByOwner[fighterId] || [];
-          const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
-
-          // Build list of loadout contexts to process (one for normal, multiple when expanding for print)
-          type LoadoutContext = { loadoutId: string | null; loadoutName?: string; isActiveLoadout: boolean };
-          const loadoutContexts: LoadoutContext[] = [];
-          if (expandLoadoutsForPrint) {
-            const fighterLoadouts = loadoutsByFighterForPrint.get(fighterId) || [];
-            const activeId = fighter.active_loadout_id;
-            if (fighterLoadouts.length === 0) {
-              // No loadouts: show all equipment in one card
-              loadoutContexts.push({ loadoutId: null, isActiveLoadout: true });
-            } else if (!activeId) {
-              // Has loadouts but no active: emit "all equipment" (for unchecked) + per-loadout (for checked)
-              loadoutContexts.push({ loadoutId: null, isActiveLoadout: true });
-              fighterLoadouts.forEach((l: any) => {
-                loadoutContexts.push({
-                  loadoutId: l.id,
-                  loadoutName: l.loadout_name,
-                  isActiveLoadout: false
-                });
-              });
-            } else {
-              const sorted = [...fighterLoadouts].sort((a, b) => {
-                if (a.id === activeId) return -1;
-                if (b.id === activeId) return 1;
-                return 0;
-              });
-              sorted.forEach((l) => {
-                loadoutContexts.push({
-                  loadoutId: l.id,
-                  loadoutName: l.loadout_name,
-                  isActiveLoadout: l.id === activeId
-                });
-              });
-            }
-          } else {
-            loadoutContexts.push({
-              loadoutId: fighter.active_loadout_id,
-              loadoutName: fighter.active_loadout_id ? loadoutNameMap.get(fighter.active_loadout_id) : undefined,
-              isActiveLoadout: true
-            });
-          }
-
-          for (const loadoutCtx of loadoutContexts) {
-            const activeLoadoutId = loadoutCtx.loadoutId;
-            const activeLoadoutEquipmentIds = activeLoadoutId
-              ? loadoutEquipmentMap.get(activeLoadoutId) || new Set<string>()
-              : null;
-
-        // Process skills into the expected format
-        const skills: Record<string, any> = {};
-        skillsData.forEach((skillData: any) => {
-          const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
-          if (skillName) {
-            const fe = skillData.fighter_effect_skills?.fighter_effects;
-            const injuryName = fe?.effect_name;
-            const tsd =
-              fe?.type_specific_data && typeof fe.type_specific_data === 'object'
-                ? (fe.type_specific_data as Record<string, unknown>)
-                : null;
-            const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
-            const bitterId =
-              isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
-                ? tsd.bitter_enmity_target_gang_id
-                : undefined;
-            const bitterName =
-              isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
-                ? tsd.bitter_enmity_target_gang_name
-                : undefined;
-            const bitterColour =
-              isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
-                ? (tsd.bitter_enmity_target_gang_colour as string | null)
-                : undefined;
-
-            skills[skillName] = {
-              id: skillData.id,
-              name: skillName,
-              credits_increase: skillData.credits_increase || 0,
-              xp_cost: skillData.xp_cost || 0,
-              is_advance: skillData.is_advance || false,
-              custom_skill_id: skillData.custom_skill_id || undefined,
-              fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
-              injury_name: injuryName || undefined,
-              acquired_at: skillData.created_at,
-              ...(bitterId
-                ? {
-                    bitter_enmity_target_gang_id: bitterId,
-                    bitter_enmity_target_gang_name: bitterName,
-                    bitter_enmity_target_gang_colour: bitterColour ?? null
-                  }
-                : {})
-            };
-          }
-        });
-
-        // Process effects into the expected format (grouped by category)
-        const effects: Record<string, any[]> = {};
-        effectsData.forEach((effectData: any) => {
-          const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-          if (!effects[categoryName]) {
-            effects[categoryName] = [];
-          }
-          const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
-          effects[categoryName].push({
-            id: effectData.id,
-            effect_name: effectData.effect_name,
-            fighter_equipment_id: effectData.fighter_equipment_id,
-            type_specific_data: effectData.type_specific_data,
-            sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
-            created_at: effectData.created_at,
-            updated_at: effectData.updated_at,
-            fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
-          });
-        });
-
-        // Calculate unfiltered effects cost for gang rating (before filtering)
-        const unfilteredEffectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
-          return sum + (effect.type_specific_data?.credits_increase || 0);
-        }, 0);
-
-        // Filter effects by active loadout (for display and stats)
-        if (activeLoadoutEquipmentIds !== null) {
-          Object.keys(effects).forEach(categoryName => {
-            effects[categoryName] = effects[categoryName].filter((effect: any) => {
-              // Always show effects without equipment parent (injuries, advancements, etc.)
-              if (!effect.fighter_equipment_id) {
-                return true;
-              }
-              // Only show effects whose parent equipment is in active loadout
-              return activeLoadoutEquipmentIds.has(effect.fighter_equipment_id);
-            });
-          });
-        }
-
-        // Get THIS fighter's equipment IDs for ammo ownership check
-        const fighterStandardIds = new Set(
-          equipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id)
-        );
-        const fighterCustomIds = new Set(
-          equipment.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
-        );
-
-        // When a loadout is active, set of catalog equipment_id/custom_equipment_id in that loadout (for ammo profile filtering)
-        const loadoutEquipmentIds: Set<string> | null = activeLoadoutEquipmentIds
-          ? new Set(
-              equipment
-                .filter((e: any) => activeLoadoutEquipmentIds!.has(e.id))
-                .flatMap((e: any) => [
-                  ...(e.equipment_id ? [e.equipment_id] : []),
-                  ...(e.custom_equipment_id ? [e.custom_equipment_id] : [])
-                ])
-            )
-          : null;
-
-        // Process equipment and add weapon profiles
-        const processedEquipment = equipment.map((item: any) => {
-          const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
-          let weaponProfiles: any[] = [];
-
-          if (equipmentType === 'weapon') {
-            if (item.equipment_id) {
-              // Get base profiles for this weapon
-              const baseProfiles = standardProfilesMap.get(item.equipment_id) || [];
-
-              // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
-              const standardAmmo = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
-              const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
-                .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
-
-              // Combine and deduplicate
-              const seenIds = new Set<string>();
-              weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
-                .filter((p: any) => {
-                  if (seenIds.has(p.id)) return false;
-                  seenIds.add(p.id);
-                  return true;
-                })
-                .map((profile: any) => ({
-                  ...profile,
-                  is_master_crafted: item.is_master_crafted || false
-                }));
-            } else if (item.custom_equipment_id) {
-              // Get base profiles for this custom weapon
-              const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
-
-              // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
-              const customAmmo = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
-                .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
-              const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
-                .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
-
-              // Combine and deduplicate
-              const seenIds = new Set<string>();
-              weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
-                .filter((p: any) => {
-                  if (seenIds.has(p.id)) return false;
-                  seenIds.add(p.id);
-                  return true;
-                })
-                .map((profile: any) => ({
-                  ...profile,
-                  is_master_crafted: item.is_master_crafted || false
-                }));
-            }
-          }
-
-          // Apply equipment-targeted effect modifiers to weapon profiles
-          if (weaponProfiles.length > 0) {
-            const targetingEffects = equipmentTargetingEffectsMap.get(item.id) || [];
-            if (targetingEffects.length > 0) {
-              weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
-            }
-          }
-
-          // Get effect names that target this equipment
-          const effect_names = equipmentTargetingEffectNamesMap.get(item.id) || [];
-
-          return {
-            fighter_equipment_id: item.id,
-            equipment_id: item.equipment_id || undefined,
-            custom_equipment_id: item.custom_equipment_id || undefined,
-            equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-            equipment_type: equipmentType || 'unknown',
-            equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-            purchase_cost: item.purchase_cost || 0,
-            is_master_crafted: item.is_master_crafted || false,
-            weapon_profiles: weaponProfiles,
-            effect_names: effect_names.length > 0 ? effect_names : undefined
-          };
-        });
-
-        // Calculate beast costs (fighters owned by this fighter)
-        const beastCosts = ownedBeasts.reduce((total: number, beastRel: any) => {
-          // Find the beast fighter using O(1) lookup
-          const beastFighter: any = fighterLookup.get(beastRel.fighter_pet_id);
-          if (!beastFighter || beastFighter.killed || beastFighter.retired || beastFighter.enslaved || beastFighter.captured) {
-            return total;
-          }
-
-          // Get beast's equipment, skills, effects
-          const beastEquipment = equipmentByFighter[beastRel.fighter_pet_id] || [];
-          const beastSkills = skillsByFighter[beastRel.fighter_pet_id] || [];
-          const beastEffects = effectsByFighter[beastRel.fighter_pet_id] || [];
-
-          const equipmentCost = beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
-          const skillsCost = beastSkills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
-          const effectsCost = beastEffects.reduce((sum: number, effect: any) => {
-            return sum + (effect.type_specific_data?.credits_increase || 0);
-          }, 0);
-
-          const baseBeastCost = (beastFighter.fighter_types as any)?.cost || 0;
-
-          return total + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beastFighter.cost_adjustment || 0);
-        }, 0);
-
-        // Calculate total cost
-        let totalCost = 0;
-        const isOwnedBeast = !!ownershipInfo;
-
-        // Process vehicles with equipment and effects for display
-        const processedVehicles = vehicles.map((vehicle: any) => {
-          // Get THIS vehicle's equipment IDs for ammo ownership check
-          const vehicleEquipmentData = (allVehicleEquipment.data || []).filter((e: any) => e.vehicle_id === vehicle.id);
-          const vehicleStandardIds = new Set(
-            vehicleEquipmentData.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id)
-          );
-          const vehicleCustomIds = new Set(
-            vehicleEquipmentData.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
-          );
-
-          // Process equipment with weapon profiles
-          const vehicleEquipment = vehicleEquipmentData.map((item: any) => {
-            const equipmentType = item.equipment?.equipment_type || item.custom_equipment?.equipment_type;
-            let weaponProfiles: any[] = [];
-
-            if (equipmentType === 'weapon') {
-              if (item.equipment_id) {
-                const baseProfiles = vehicleStandardProfilesMap.get(item.equipment_id) || [];
-                const standardAmmo = (vehicleStandardAmmoByParent.get(item.equipment_id) || [])
-                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
-                const customAmmo = (vehicleCustomAmmoByParent.get(item.equipment_id) || [])
-                  .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
-
-                const seenIds = new Set<string>();
-                weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
-                  .filter((p: any) => {
-                    if (seenIds.has(p.id)) return false;
-                    seenIds.add(p.id);
-                    return true;
-                  })
-                  .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
-              } else if (item.custom_equipment_id) {
-                const baseProfiles = vehicleCustomProfilesMap.get(item.custom_equipment_id) || [];
-                const customAmmo = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
-                  .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
-                const standardAmmo = (vehicleStandardAmmoByParent.get(item.custom_equipment_id) || [])
-                  .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
-
-                const seenIds = new Set<string>();
-                weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
-                  .filter((p: any) => {
-                    if (seenIds.has(p.id)) return false;
-                    seenIds.add(p.id);
-                    return true;
-                  })
-                  .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
-              }
-            }
-
-            return {
-              vehicle_weapon_id: item.id,
-              equipment_id: item.equipment_id || item.custom_equipment_id,
-              custom_equipment_id: item.custom_equipment_id,
-              equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
-              equipment_type: equipmentType || 'unknown',
-              equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
-              purchase_cost: item.purchase_cost || 0,
-              weapon_profiles: weaponProfiles
-            };
-          });
-
-          // Process effects grouped by category
-          const vehicleEffectsData = (allVehicleEffects.data || []).filter((e: any) => e.vehicle_id === vehicle.id);
-          const vehicleEffects: Record<string, any[]> = {};
-          vehicleEffectsData.forEach((effectData: any) => {
-            const categoryName = effectData.fighter_effect_type?.fighter_effect_category?.category_name || 'uncategorized';
-            const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
-            if (!vehicleEffects[categoryName]) {
-              vehicleEffects[categoryName] = [];
-            }
-            vehicleEffects[categoryName].push({
-              id: effectData.id,
-              fighter_equipment_id: effectData.fighter_equipment_id,
-              effect_name: effectData.effect_name,
-              type_specific_data: effectData.type_specific_data,
-              sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
-              created_at: effectData.created_at,
-              updated_at: effectData.updated_at,
-              fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
-            });
-          });
-
-          return {
-            ...vehicle,
-            equipment: vehicleEquipment,
-            effects: vehicleEffects
-          };
-        });
-
-        // Helper to check if equipment is in active loadout
-        const isInActiveLoadout = (fighterEquipmentId: string) =>
-          activeLoadoutEquipmentIds === null || activeLoadoutEquipmentIds.has(fighterEquipmentId);
-
-        // Calculate loadout cost for display (only equipment in active loadout)
-        const loadoutEquipmentCost = processedEquipment
-          .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
-          .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
-
-        if (!isOwnedBeast) {
-          // All equipment cost - for gang rating (never filtered by loadout)
-          const allEquipmentCost = processedEquipment
-            .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
-          const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
-          // Use unfiltered effects cost for gang rating (calculated before filtering)
-          const effectsCost = unfilteredEffectsCost;
-
-          // Calculate vehicle costs including equipment and effects
-          const vehicleCost = processedVehicles.reduce((sum: number, vehicle: any) => {
-            let vehicleTotal = vehicle.cost || 0;
-
-            if (vehicle.equipment) {
-              vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
-                return equipSum + (eq.purchase_cost || 0);
-              }, 0);
-            }
-
-            if (vehicle.effects) {
-              vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
-                return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
-              }, 0);
-            }
-
-            return sum + vehicleTotal;
-          }, 0);
-
-          // Total cost for gang rating uses ALL equipment (not filtered by loadout)
-          totalCost = fighter.credits + allEquipmentCost + skillsCost + effectsCost + vehicleCost +
-                      (fighter.cost_adjustment || 0) + beastCosts;
-        }
-
-        // Separate equipment into weapons and wargear (filtered by active loadout if set)
-        const weapons: WeaponProps[] = processedEquipment
-          .filter((item: any) => item.equipment_type === 'weapon' && isInActiveLoadout(item.fighter_equipment_id))
-          .map((item: any) => ({
-            fighter_weapon_id: item.fighter_equipment_id,
-            weapon_id: item.equipment_id || item.custom_equipment_id || '',
-            weapon_name: item.equipment_name,
-            cost: item.purchase_cost || 0,
-            weapon_profiles: item.weapon_profiles || [],
-            is_master_crafted: item.is_master_crafted || false,
-            equipment_category: item.equipment_category || undefined,
-            effect_names: item.effect_names
-          }));
-
-        const wargear: WargearItem[] = processedEquipment
-          .filter((item: any) => item.equipment_type === 'wargear' && isInActiveLoadout(item.fighter_equipment_id))
-          .map((item: any) => ({
-            fighter_weapon_id: item.fighter_equipment_id,
-            wargear_id: item.equipment_id || item.custom_equipment_id || '',
-            wargear_name: item.equipment_name,
-            cost: item.purchase_cost || 0,
-            is_master_crafted: item.is_master_crafted || false
-          }));
-
-        // Get fighter type info from the join
-        const fighterTypeInfo = fighter.fighter_types || {};
-        const fighterSubTypeInfo = fighter.fighter_sub_types || null;
-
-        // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
-        // This shows what the fighter costs with the current loadout
-        const skillsCostForDisplay = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
-        const effectsCostForDisplay = Object.values(effects).flat().reduce((sum: number, effect: any) => {
-          return sum + (effect.type_specific_data?.credits_increase || 0);
-        }, 0);
-        const vehicleCostForDisplay = processedVehicles.reduce((sum: number, vehicle: any) => {
-          let vehicleTotal = vehicle.cost || 0;
-          if (vehicle.equipment) {
-            vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => equipSum + (eq.purchase_cost || 0), 0);
-          }
-          if (vehicle.effects) {
-            vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
-              return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
-            }, 0);
-          }
-          return sum + vehicleTotal;
-        }, 0);
-
-        // Loadout cost for fighter card display (only active loadout equipment)
-        const displayLoadoutCost = !isOwnedBeast
-          ? fighter.credits + loadoutEquipmentCost + skillsCostForDisplay + effectsCostForDisplay + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts
-          : 0;
-
-        const result = {
-          id: fighter.id,
-          fighter_name: fighter.fighter_name,
-          label: fighter.label,
-          fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
-          fighter_class: fighter.fighter_class || 'Unknown',
-          fighter_sub_type: fighterSubTypeInfo ? {
-            fighter_sub_type: fighterSubTypeInfo.sub_type_name,
-            fighter_sub_type_id: fighterSubTypeInfo.id
-          } : undefined,
-          alliance_crew_name: fighterTypeInfo.alliance_crew_name,
-          is_spyrer: fighterTypeInfo.is_spyrer ?? false,
-          kill_count: fighter.kill_count ?? 0,
-          position: fighter.position,
-          xp: fighter.xp,
-          kills: fighter.kills || 0,
-          credits: totalCost,
-          loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
-          movement: fighter.movement,
-          weapon_skill: fighter.weapon_skill,
-          ballistic_skill: fighter.ballistic_skill,
-          strength: fighter.strength,
-          toughness: fighter.toughness,
-          wounds: fighter.wounds,
-          initiative: fighter.initiative,
-          attacks: fighter.attacks,
-          leadership: fighter.leadership,
-          cool: fighter.cool,
-          willpower: fighter.willpower,
-          intelligence: fighter.intelligence,
-          weapons,
-          wargear,
-          effects,
-          skills,
-          vehicles: processedVehicles,
-          cost_adjustment: fighter.cost_adjustment,
-          special_rules: fighter.special_rules || [],
-          note: fighter.note,
-          killed: fighter.killed || false,
-          starved: fighter.starved || false,
-          retired: fighter.retired || false,
-          enslaved: fighter.enslaved || false,
-          recovery: fighter.recovery || false,
-          captured: fighter.captured || false,
-          free_skill: fighter.free_skill || false,
-          image_url: fighter.image_url,
-          captured_by_gang_name: fighter.captured_by_gang_id ? capturedByGangNameMap.get(fighter.captured_by_gang_id) : undefined,
-          owner_id: ownershipInfo?.owner_id,
-          owner_name: ownershipInfo?.owner_name,
-          beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
-          active_loadout_id: activeLoadoutId || undefined,
-          active_loadout_name: activeLoadoutId ? (loadoutCtx.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,
-          isActiveLoadoutForPrint: loadoutCtx.isActiveLoadout
-        };
-            results.push(result);
-          }
-        } catch (error) {
-          console.error(`Error processing fighter ${fighter.id}:`, error);
+          .in('vehicle_id', vehicleIds)
+          .order('sort_order', { ascending: true, nullsFirst: false })
+      : Promise.resolve({ data: [] })
+  ]);
+
+  // Step 3.6: Build vehicle weapon profile maps from nested data in allVehicleEquipment
+  const vehicleStandardProfilesMap = new Map<string, WeaponProfile[]>();
+  const vehicleStandardAmmoByParent = new Map<string, WeaponProfile[]>();
+  const vehicleCustomProfilesMap = new Map<string, WeaponProfile[]>();
+  const vehicleCustomAmmoByParent = new Map<string, WeaponProfile[]>();
+
+  const seenVehicleStdIds = new Set<string>();
+  const seenVehicleCustIds = new Set<string>();
+
+  (allVehicleEquipment.data || []).forEach((item: any) => {
+    if (item.equipment_id && item.equipment?.equipment_type === 'weapon') {
+      for (const p of (item.equipment.weapon_profiles || []) as RawWeaponProfile[]) {
+        if (seenVehicleStdIds.has(p.id)) continue;
+        seenVehicleStdIds.add(p.id);
+        if (!vehicleStandardProfilesMap.has(p.weapon_id)) vehicleStandardProfilesMap.set(p.weapon_id, []);
+        vehicleStandardProfilesMap.get(p.weapon_id)!.push(p);
+        if (p.weapon_group_id && p.weapon_group_id !== p.weapon_id) {
+          if (!vehicleStandardAmmoByParent.has(p.weapon_group_id)) vehicleStandardAmmoByParent.set(p.weapon_group_id, []);
+          vehicleStandardAmmoByParent.get(p.weapon_group_id)!.push(p);
         }
       }
-      return results.filter((f: any) => f !== null);
-    },
-    [cacheKey],
-    {
-      tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
-      revalidate: false
     }
-  )();
+    if (item.custom_equipment_id && item.custom_equipment?.equipment_type === 'weapon') {
+      for (const p of (item.custom_equipment.custom_weapon_profiles || []) as RawCustomWeaponProfile[]) {
+        if (seenVehicleCustIds.has(p.id)) continue;
+        seenVehicleCustIds.add(p.id);
+        if (!vehicleCustomProfilesMap.has(p.custom_equipment_id)) vehicleCustomProfilesMap.set(p.custom_equipment_id, []);
+        vehicleCustomProfilesMap.get(p.custom_equipment_id)!.push(p);
+        if (p.weapon_group_id && p.weapon_group_id !== p.custom_equipment_id) {
+          if (!vehicleCustomAmmoByParent.has(p.weapon_group_id)) vehicleCustomAmmoByParent.set(p.weapon_group_id, []);
+          vehicleCustomAmmoByParent.get(p.weapon_group_id)!.push(p);
+        }
+      }
+    }
+  });
+
+  vehicleStandardProfilesMap.forEach(sortProfiles);
+  vehicleStandardAmmoByParent.forEach(sortProfiles);
+  vehicleCustomProfilesMap.forEach(sortProfiles);
+  vehicleCustomAmmoByParent.forEach(sortProfiles);
+
+  // Step 4: Create lookup Maps for O(1) access
+  const equipmentByFighter = groupBy(allEquipment.data || [], 'fighter_id');
+  const skillsByFighter = groupBy(allSkills.data || [], 'fighter_id');
+  const effectsByFighter = groupBy(allEffects.data || [], 'fighter_id');
+  const vehiclesByFighter = groupBy(allVehicles.data || [], 'fighter_id');
+  const beastsByOwner = groupBy(allBeastRelationships.data || [], 'fighter_owner_id');
+
+  // Create ownership info map (petId -> ownership info)
+  const ownershipInfoMap = new Map();
+  (allBeastOwnershipInfo.data || []).forEach((info: any) => {
+    ownershipInfoMap.set(info.fighter_pet_id, {
+      owner_id: info.fighter_owner_id,
+      owner_name: (info.fighters as any)?.fighter_name,
+      beast_equipment_stashed: info.fighter_equipment?.gang_stash || false
+    });
+  });
+
+  // Create equipment targeting effects map (targetEquipmentId -> effects with modifiers)
+  // Two cases:
+  // 1. Rig glitches: fighter_equipment_id = target weapon, target_equipment_id = NULL
+  // 2. Equipment-to-equipment (e.g., hotshot laspack): fighter_equipment_id = source, target_equipment_id = target weapon
+  const equipmentTargetingEffectsMap = new Map<string, any[]>();
+  (allEquipmentTargetingEffects.data || []).forEach((effect: any) => {
+    // Use target_equipment_id if present (equipment-to-equipment), otherwise fighter_equipment_id (rig glitches)
+    const targetId = effect.target_equipment_id || effect.fighter_equipment_id;
+    if (!targetId) return;
+    if (!equipmentTargetingEffectsMap.has(targetId)) {
+      equipmentTargetingEffectsMap.set(targetId, []);
+    }
+    equipmentTargetingEffectsMap.get(targetId)!.push(effect);
+  });
+  // Sort effects by sort_order (type as default, instance as override) and build names map
+  const equipmentTargetingEffectNamesMap = new Map<string, string[]>();
+  equipmentTargetingEffectsMap.forEach((effects, targetId) => {
+    const sorted = [...effects].sort((a: any, b: any) => {
+      const effectTypeA = a.fighter_effect_type as { sort_order?: number | null } | null;
+      const effectTypeB = b.fighter_effect_type as { sort_order?: number | null } | null;
+      const orderA = effectTypeA?.sort_order ?? a.sort_order ?? Infinity;
+      const orderB = effectTypeB?.sort_order ?? b.sort_order ?? Infinity;
+      return orderA - orderB;
+    });
+    const names: string[] = [];
+    sorted.forEach((effect: any) => {
+      if (effect.effect_name && !names.includes(effect.effect_name)) {
+        names.push(effect.effect_name);
+      }
+    });
+    equipmentTargetingEffectNamesMap.set(targetId, names);
+  });
+
+  // Create loadout equipment map: loadout_id -> Set<fighter_equipment_id>
+  const loadoutEquipmentMap = new Map<string, Set<string>>();
+  (allLoadoutEquipment.data || []).forEach((assignment: any) => {
+    if (!loadoutEquipmentMap.has(assignment.loadout_id)) {
+      loadoutEquipmentMap.set(assignment.loadout_id, new Set());
+    }
+    loadoutEquipmentMap.get(assignment.loadout_id)!.add(assignment.fighter_equipment_id);
+  });
+
+  // Create loadout name map: loadout_id -> loadout_name
+  const loadoutNameMap = new Map<string, string>();
+  (allLoadouts.data || []).forEach((loadout: any) => {
+    loadoutNameMap.set(loadout.id, loadout.loadout_name);
+  });
+
+  // Create captured-by gang name map: gang_id -> name
+  const capturedByGangNameMap = new Map<string, string>();
+  (allCapturedByGangs?.data || []).forEach((g: any) => {
+    capturedByGangNameMap.set(g.id, g.name);
+  });
+
+  // Create fighter lookup map for O(1) beast lookups
+  const fighterLookup = new Map(fighters.map((f: any) => [f.id, f]));
+
+
+  // Step 5: Transform each fighter using pre-fetched data
+  const results: any[] = [];
+  for (const fighter of fighters) {
+    try {
+      const fighterId = fighter.id;
+
+      // Get fighter-specific data from Maps
+      const equipment = equipmentByFighter[fighterId] || [];
+      const skillsData = skillsByFighter[fighterId] || [];
+      const effectsData = effectsByFighter[fighterId] || [];
+      const vehicles = vehiclesByFighter[fighterId] || [];
+      const ownedBeasts = beastsByOwner[fighterId] || [];
+      const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
+
+      // Build list of loadout contexts to process (one for normal, multiple when expanding for print)
+      type LoadoutContext = { loadoutId: string | null; loadoutName?: string; isActiveLoadout: boolean };
+      const loadoutContexts: LoadoutContext[] = [];
+      if (expandLoadoutsForPrint) {
+        const fighterLoadouts = loadoutsByFighterForPrint.get(fighterId) || [];
+        const activeId = fighter.active_loadout_id;
+        if (fighterLoadouts.length === 0) {
+          // No loadouts: show all equipment in one card
+          loadoutContexts.push({ loadoutId: null, isActiveLoadout: true });
+        } else if (!activeId) {
+          // Has loadouts but no active: emit "all equipment" (for unchecked) + per-loadout (for checked)
+          loadoutContexts.push({ loadoutId: null, isActiveLoadout: true });
+          fighterLoadouts.forEach((l: any) => {
+            loadoutContexts.push({
+              loadoutId: l.id,
+              loadoutName: l.loadout_name,
+              isActiveLoadout: false
+            });
+          });
+        } else {
+          const sorted = [...fighterLoadouts].sort((a, b) => {
+            if (a.id === activeId) return -1;
+            if (b.id === activeId) return 1;
+            return 0;
+          });
+          sorted.forEach((l) => {
+            loadoutContexts.push({
+              loadoutId: l.id,
+              loadoutName: l.loadout_name,
+              isActiveLoadout: l.id === activeId
+            });
+          });
+        }
+      } else {
+        loadoutContexts.push({
+          loadoutId: fighter.active_loadout_id,
+          loadoutName: fighter.active_loadout_id ? loadoutNameMap.get(fighter.active_loadout_id) : undefined,
+          isActiveLoadout: true
+        });
+      }
+
+      for (const loadoutCtx of loadoutContexts) {
+        const activeLoadoutId = loadoutCtx.loadoutId;
+        const activeLoadoutEquipmentIds = activeLoadoutId
+          ? loadoutEquipmentMap.get(activeLoadoutId) || new Set<string>()
+          : null;
+
+    // Process skills into the expected format
+    const skills: Record<string, any> = {};
+    skillsData.forEach((skillData: any) => {
+      const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
+      if (skillName) {
+        const fe = skillData.fighter_effect_skills?.fighter_effects;
+        const injuryName = fe?.effect_name;
+        const tsd =
+          fe?.type_specific_data && typeof fe.type_specific_data === 'object'
+            ? (fe.type_specific_data as Record<string, unknown>)
+            : null;
+        const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
+        const bitterId =
+          isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
+            ? tsd.bitter_enmity_target_gang_id
+            : undefined;
+        const bitterName =
+          isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
+            ? tsd.bitter_enmity_target_gang_name
+            : undefined;
+        const bitterColour =
+          isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
+            ? (tsd.bitter_enmity_target_gang_colour as string | null)
+            : undefined;
+
+        skills[skillName] = {
+          id: skillData.id,
+          name: skillName,
+          credits_increase: skillData.credits_increase || 0,
+          xp_cost: skillData.xp_cost || 0,
+          is_advance: skillData.is_advance || false,
+          custom_skill_id: skillData.custom_skill_id || undefined,
+          fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
+          injury_name: injuryName || undefined,
+          acquired_at: skillData.created_at,
+          ...(bitterId
+            ? {
+                bitter_enmity_target_gang_id: bitterId,
+                bitter_enmity_target_gang_name: bitterName,
+                bitter_enmity_target_gang_colour: bitterColour ?? null
+              }
+            : {})
+        };
+      }
+    });
+
+    // Process effects into the expected format (grouped by category)
+    const effects: Record<string, any[]> = {};
+    effectsData.forEach((effectData: any) => {
+      const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
+      if (!effects[categoryName]) {
+        effects[categoryName] = [];
+      }
+      const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
+      effects[categoryName].push({
+        id: effectData.id,
+        effect_name: effectData.effect_name,
+        fighter_equipment_id: effectData.fighter_equipment_id,
+        type_specific_data: effectData.type_specific_data,
+        sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
+        created_at: effectData.created_at,
+        updated_at: effectData.updated_at,
+        fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
+      });
+    });
+
+    // Calculate unfiltered effects cost for gang rating (before filtering)
+    const unfilteredEffectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+      return sum + (effect.type_specific_data?.credits_increase || 0);
+    }, 0);
+
+    // Filter effects by active loadout (for display and stats)
+    if (activeLoadoutEquipmentIds !== null) {
+      Object.keys(effects).forEach(categoryName => {
+        effects[categoryName] = effects[categoryName].filter((effect: any) => {
+          // Always show effects without equipment parent (injuries, advancements, etc.)
+          if (!effect.fighter_equipment_id) {
+            return true;
+          }
+          // Only show effects whose parent equipment is in active loadout
+          return activeLoadoutEquipmentIds.has(effect.fighter_equipment_id);
+        });
+      });
+    }
+
+    // Get THIS fighter's equipment IDs for ammo ownership check
+    const fighterStandardIds = new Set(
+      equipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id)
+    );
+    const fighterCustomIds = new Set(
+      equipment.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
+    );
+
+    // When a loadout is active, set of catalog equipment_id/custom_equipment_id in that loadout (for ammo profile filtering)
+    const loadoutEquipmentIds: Set<string> | null = activeLoadoutEquipmentIds
+      ? new Set(
+          equipment
+            .filter((e: any) => activeLoadoutEquipmentIds!.has(e.id))
+            .flatMap((e: any) => [
+              ...(e.equipment_id ? [e.equipment_id] : []),
+              ...(e.custom_equipment_id ? [e.custom_equipment_id] : [])
+            ])
+        )
+      : null;
+
+    // Process equipment and add weapon profiles
+    const processedEquipment = equipment.map((item: any) => {
+      const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
+      let weaponProfiles: any[] = [];
+
+      if (equipmentType === 'weapon') {
+        if (item.equipment_id) {
+          // Get base profiles for this weapon
+          const baseProfiles = standardProfilesMap.get(item.equipment_id) || [];
+
+          // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
+          const standardAmmo = (standardAmmoByParentWeapon.get(item.equipment_id) || [])
+            .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+          const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
+            .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
+
+          // Combine and deduplicate
+          const seenIds = new Set<string>();
+          weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
+            .filter((p: any) => {
+              if (seenIds.has(p.id)) return false;
+              seenIds.add(p.id);
+              return true;
+            })
+            .map((profile: any) => ({
+              ...profile,
+              is_master_crafted: item.is_master_crafted || false
+            }));
+        } else if (item.custom_equipment_id) {
+          // Get base profiles for this custom weapon
+          const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
+
+          // Get ammo profiles ONLY if THIS fighter owns the ammo and (when loadout active) ammo is in loadout
+          const customAmmo = (customAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+            .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.custom_equipment_id)));
+          const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
+            .filter((p: any) => fighterStandardIds.has(p.weapon_id) && (loadoutEquipmentIds === null || loadoutEquipmentIds.has(p.weapon_id)));
+
+          // Combine and deduplicate
+          const seenIds = new Set<string>();
+          weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
+            .filter((p: any) => {
+              if (seenIds.has(p.id)) return false;
+              seenIds.add(p.id);
+              return true;
+            })
+            .map((profile: any) => ({
+              ...profile,
+              is_master_crafted: item.is_master_crafted || false
+            }));
+        }
+      }
+
+      // Apply equipment-targeted effect modifiers to weapon profiles
+      if (weaponProfiles.length > 0) {
+        const targetingEffects = equipmentTargetingEffectsMap.get(item.id) || [];
+        if (targetingEffects.length > 0) {
+          weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
+        }
+      }
+
+      // Get effect names that target this equipment
+      const effect_names = equipmentTargetingEffectNamesMap.get(item.id) || [];
+
+      return {
+        fighter_equipment_id: item.id,
+        equipment_id: item.equipment_id || undefined,
+        custom_equipment_id: item.custom_equipment_id || undefined,
+        equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
+        equipment_type: equipmentType || 'unknown',
+        equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+        purchase_cost: item.purchase_cost || 0,
+        is_master_crafted: item.is_master_crafted || false,
+        weapon_profiles: weaponProfiles,
+        effect_names: effect_names.length > 0 ? effect_names : undefined
+      };
+    });
+
+    // Calculate beast costs (fighters owned by this fighter)
+    const beastCosts = ownedBeasts.reduce((total: number, beastRel: any) => {
+      // Find the beast fighter using O(1) lookup
+      const beastFighter: any = fighterLookup.get(beastRel.fighter_pet_id);
+      if (!beastFighter || beastFighter.killed || beastFighter.retired || beastFighter.enslaved || beastFighter.captured) {
+        return total;
+      }
+
+      // Get beast's equipment, skills, effects
+      const beastEquipment = equipmentByFighter[beastRel.fighter_pet_id] || [];
+      const beastSkills = skillsByFighter[beastRel.fighter_pet_id] || [];
+      const beastEffects = effectsByFighter[beastRel.fighter_pet_id] || [];
+
+      const equipmentCost = beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
+      const skillsCost = beastSkills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
+      const effectsCost = beastEffects.reduce((sum: number, effect: any) => {
+        return sum + (effect.type_specific_data?.credits_increase || 0);
+      }, 0);
+
+      const baseBeastCost = (beastFighter.fighter_types as any)?.cost || 0;
+
+      return total + baseBeastCost + equipmentCost + skillsCost + effectsCost + (beastFighter.cost_adjustment || 0);
+    }, 0);
+
+    // Calculate total cost
+    let totalCost = 0;
+    const isOwnedBeast = !!ownershipInfo;
+
+    // Process vehicles with equipment and effects for display
+    const processedVehicles = vehicles.map((vehicle: any) => {
+      // Get THIS vehicle's equipment IDs for ammo ownership check
+      const vehicleEquipmentData = (allVehicleEquipment.data || []).filter((e: any) => e.vehicle_id === vehicle.id);
+      const vehicleStandardIds = new Set(
+        vehicleEquipmentData.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id)
+      );
+      const vehicleCustomIds = new Set(
+        vehicleEquipmentData.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
+      );
+
+      // Process equipment with weapon profiles
+      const vehicleEquipment = vehicleEquipmentData.map((item: any) => {
+        const equipmentType = item.equipment?.equipment_type || item.custom_equipment?.equipment_type;
+        let weaponProfiles: any[] = [];
+
+        if (equipmentType === 'weapon') {
+          if (item.equipment_id) {
+            const baseProfiles = vehicleStandardProfilesMap.get(item.equipment_id) || [];
+            const standardAmmo = (vehicleStandardAmmoByParent.get(item.equipment_id) || [])
+              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+            const customAmmo = (vehicleCustomAmmoByParent.get(item.equipment_id) || [])
+              .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+
+            const seenIds = new Set<string>();
+            weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
+              .filter((p: any) => {
+                if (seenIds.has(p.id)) return false;
+                seenIds.add(p.id);
+                return true;
+              })
+              .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+          } else if (item.custom_equipment_id) {
+            const baseProfiles = vehicleCustomProfilesMap.get(item.custom_equipment_id) || [];
+            const customAmmo = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
+              .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+            const standardAmmo = (vehicleStandardAmmoByParent.get(item.custom_equipment_id) || [])
+              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+
+            const seenIds = new Set<string>();
+            weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
+              .filter((p: any) => {
+                if (seenIds.has(p.id)) return false;
+                seenIds.add(p.id);
+                return true;
+              })
+              .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+          }
+        }
+
+        return {
+          vehicle_weapon_id: item.id,
+          equipment_id: item.equipment_id || item.custom_equipment_id,
+          custom_equipment_id: item.custom_equipment_id,
+          equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
+          equipment_type: equipmentType || 'unknown',
+          equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
+          purchase_cost: item.purchase_cost || 0,
+          weapon_profiles: weaponProfiles
+        };
+      });
+
+      // Process effects grouped by category
+      const vehicleEffectsData = (allVehicleEffects.data || []).filter((e: any) => e.vehicle_id === vehicle.id);
+      const vehicleEffects: Record<string, any[]> = {};
+      vehicleEffectsData.forEach((effectData: any) => {
+        const categoryName = effectData.fighter_effect_type?.fighter_effect_category?.category_name || 'uncategorized';
+        const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
+        if (!vehicleEffects[categoryName]) {
+          vehicleEffects[categoryName] = [];
+        }
+        vehicleEffects[categoryName].push({
+          id: effectData.id,
+          fighter_equipment_id: effectData.fighter_equipment_id,
+          effect_name: effectData.effect_name,
+          type_specific_data: effectData.type_specific_data,
+          sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
+          created_at: effectData.created_at,
+          updated_at: effectData.updated_at,
+          fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
+        });
+      });
+
+      return {
+        ...vehicle,
+        equipment: vehicleEquipment,
+        effects: vehicleEffects
+      };
+    });
+
+    // Helper to check if equipment is in active loadout
+    const isInActiveLoadout = (fighterEquipmentId: string) =>
+      activeLoadoutEquipmentIds === null || activeLoadoutEquipmentIds.has(fighterEquipmentId);
+
+    // Calculate loadout cost for display (only equipment in active loadout)
+    const loadoutEquipmentCost = processedEquipment
+      .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
+      .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+
+    if (!isOwnedBeast) {
+      // All equipment cost - for gang rating (never filtered by loadout)
+      const allEquipmentCost = processedEquipment
+        .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+      const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+      // Use unfiltered effects cost for gang rating (calculated before filtering)
+      const effectsCost = unfilteredEffectsCost;
+
+      // Calculate vehicle costs including equipment and effects
+      const vehicleCost = processedVehicles.reduce((sum: number, vehicle: any) => {
+        let vehicleTotal = vehicle.cost || 0;
+
+        if (vehicle.equipment) {
+          vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
+            return equipSum + (eq.purchase_cost || 0);
+          }, 0);
+        }
+
+        if (vehicle.effects) {
+          vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+            return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
+          }, 0);
+        }
+
+        return sum + vehicleTotal;
+      }, 0);
+
+      // Total cost for gang rating uses ALL equipment (not filtered by loadout)
+      totalCost = fighter.credits + allEquipmentCost + skillsCost + effectsCost + vehicleCost +
+                  (fighter.cost_adjustment || 0) + beastCosts;
+    }
+
+    // Separate equipment into weapons and wargear (filtered by active loadout if set)
+    const weapons: WeaponProps[] = processedEquipment
+      .filter((item: any) => item.equipment_type === 'weapon' && isInActiveLoadout(item.fighter_equipment_id))
+      .map((item: any) => ({
+        fighter_weapon_id: item.fighter_equipment_id,
+        weapon_id: item.equipment_id || item.custom_equipment_id || '',
+        weapon_name: item.equipment_name,
+        cost: item.purchase_cost || 0,
+        weapon_profiles: item.weapon_profiles || [],
+        is_master_crafted: item.is_master_crafted || false,
+        equipment_category: item.equipment_category || undefined,
+        effect_names: item.effect_names
+      }));
+
+    const wargear: WargearItem[] = processedEquipment
+      .filter((item: any) => item.equipment_type === 'wargear' && isInActiveLoadout(item.fighter_equipment_id))
+      .map((item: any) => ({
+        fighter_weapon_id: item.fighter_equipment_id,
+        wargear_id: item.equipment_id || item.custom_equipment_id || '',
+        wargear_name: item.equipment_name,
+        cost: item.purchase_cost || 0,
+        is_master_crafted: item.is_master_crafted || false
+      }));
+
+    // Get fighter type info from the join
+    // Supabase types single-row joins as arrays; runtime shape is a single object
+    const fighterTypeInfo: any = fighter.fighter_types || {};
+    const fighterSubTypeInfo: any = fighter.fighter_sub_types || null;
+
+    // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
+    // This shows what the fighter costs with the current loadout
+    const skillsCostForDisplay = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+    const effectsCostForDisplay = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+      return sum + (effect.type_specific_data?.credits_increase || 0);
+    }, 0);
+    const vehicleCostForDisplay = processedVehicles.reduce((sum: number, vehicle: any) => {
+      let vehicleTotal = vehicle.cost || 0;
+      if (vehicle.equipment) {
+        vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => equipSum + (eq.purchase_cost || 0), 0);
+      }
+      if (vehicle.effects) {
+        vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+          return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
+        }, 0);
+      }
+      return sum + vehicleTotal;
+    }, 0);
+
+    // Loadout cost for fighter card display (only active loadout equipment)
+    const displayLoadoutCost = !isOwnedBeast
+      ? fighter.credits + loadoutEquipmentCost + skillsCostForDisplay + effectsCostForDisplay + vehicleCostForDisplay + (fighter.cost_adjustment || 0) + beastCosts
+      : 0;
+
+    const result = {
+      id: fighter.id,
+      fighter_name: fighter.fighter_name,
+      label: fighter.label,
+      fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
+      fighter_class: fighter.fighter_class || 'Unknown',
+      fighter_sub_type: fighterSubTypeInfo ? {
+        fighter_sub_type: fighterSubTypeInfo.sub_type_name,
+        fighter_sub_type_id: fighterSubTypeInfo.id
+      } : undefined,
+      alliance_crew_name: fighterTypeInfo.alliance_crew_name,
+      is_spyrer: fighterTypeInfo.is_spyrer ?? false,
+      kill_count: fighter.kill_count ?? 0,
+      position: fighter.position,
+      xp: fighter.xp,
+      kills: fighter.kills || 0,
+      credits: totalCost,
+      loadout_cost: activeLoadoutId ? displayLoadoutCost : undefined, // Only set when loadout is active
+      movement: fighter.movement,
+      weapon_skill: fighter.weapon_skill,
+      ballistic_skill: fighter.ballistic_skill,
+      strength: fighter.strength,
+      toughness: fighter.toughness,
+      wounds: fighter.wounds,
+      initiative: fighter.initiative,
+      attacks: fighter.attacks,
+      leadership: fighter.leadership,
+      cool: fighter.cool,
+      willpower: fighter.willpower,
+      intelligence: fighter.intelligence,
+      weapons,
+      wargear,
+      effects,
+      skills,
+      vehicles: processedVehicles,
+      cost_adjustment: fighter.cost_adjustment,
+      special_rules: fighter.special_rules || [],
+      note: fighter.note,
+      killed: fighter.killed || false,
+      starved: fighter.starved || false,
+      retired: fighter.retired || false,
+      enslaved: fighter.enslaved || false,
+      recovery: fighter.recovery || false,
+      captured: fighter.captured || false,
+      free_skill: fighter.free_skill || false,
+      image_url: fighter.image_url,
+      captured_by_gang_name: fighter.captured_by_gang_id ? capturedByGangNameMap.get(fighter.captured_by_gang_id) : undefined,
+      owner_id: ownershipInfo?.owner_id,
+      owner_name: ownershipInfo?.owner_name,
+      beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+      active_loadout_id: activeLoadoutId || undefined,
+      active_loadout_name: activeLoadoutId ? (loadoutCtx.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,
+      isActiveLoadoutForPrint: loadoutCtx.isActiveLoadout
+    };
+        results.push(result);
+      }
+    } catch (error) {
+      console.error(`Error processing fighter ${fighter.id}:`, error);
+    }
+  }
+  return results.filter((f: any) => f !== null);
 };
 
 /**
  * Get gang vehicles (not assigned to specific fighters)
  * Cache: BASE_GANG_VEHICLES (these are gang-owned vehicles)
  */
-export const getGangVehicles = async (gangId: string, supabase: any): Promise<any[]> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select(`
-          id,
-          created_at,
-          vehicle_type_id,
-          vehicle_type,
-          cost,
-          vehicle_name,
-          movement,
-          front,
-          side,
-          rear,
-          hull_points,
-          handling,
-          save,
-          body_slots,
-          drive_slots,
-          engine_slots,
-          body_slots_occupied,
-          drive_slots_occupied,
-          engine_slots_occupied,
-          special_rules
-        `)
-        .eq('gang_id', gangId)
-        .is('fighter_id', null);
+export const getGangVehicles = async (gangId: string): Promise<any[]> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId));
 
-      if (error) {
-        console.error('🚗 Database error:', error);
-        return [];
-      }
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select(`
+      id,
+      created_at,
+      vehicle_type_id,
+      vehicle_type,
+      cost,
+      vehicle_name,
+      movement,
+      front,
+      side,
+      rear,
+      hull_points,
+      handling,
+      save,
+      body_slots,
+      drive_slots,
+      engine_slots,
+      body_slots_occupied,
+      drive_slots_occupied,
+      engine_slots_occupied,
+      special_rules
+    `)
+    .eq('gang_id', gangId)
+    .is('fighter_id', null);
 
-      // Get equipment and effects for each gang vehicle using helper functions
-      const vehiclesWithDetails = await Promise.all(
-        (data || []).map(async (vehicle: any) => {
-          const [equipment, effects] = await Promise.all([
-            getVehicleEquipment(vehicle.id, supabase),
-            getVehicleEffects(vehicle.id, supabase)
-          ]);
+  if (error) {
+    console.error('🚗 Database error:', error);
+    return [];
+  }
 
-          const equipmentCost = equipment.reduce((sum: number, eq: any) => sum + (eq.cost || 0), 0);
-          const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
-            return sum + (effect.type_specific_data?.credits_increase || 0);
-          }, 0);
+  // Get equipment and effects for each gang vehicle using helper functions
+  const vehiclesWithDetails = await Promise.all(
+    (data || []).map(async (vehicle: any) => {
+      const [equipment, effects] = await Promise.all([
+        getVehicleEquipment(vehicle.id, supabase),
+        getVehicleEffects(vehicle.id, supabase)
+      ]);
 
-          return {
-            id: vehicle.id,
-            created_at: vehicle.created_at,
-            vehicle_type_id: vehicle.vehicle_type_id,
-            vehicle_type: vehicle.vehicle_type,
-            cost: vehicle.cost,
-            vehicle_name: vehicle.vehicle_name,
-            movement: vehicle.movement,
-            front: vehicle.front,
-            side: vehicle.side,
-            rear: vehicle.rear,
-            hull_points: vehicle.hull_points,
-            handling: vehicle.handling,
-            save: vehicle.save,
-            body_slots: vehicle.body_slots,
-            drive_slots: vehicle.drive_slots,
-            engine_slots: vehicle.engine_slots,
-            body_slots_occupied: vehicle.body_slots_occupied,
-            drive_slots_occupied: vehicle.drive_slots_occupied,
-            engine_slots_occupied: vehicle.engine_slots_occupied,
-            special_rules: vehicle.special_rules || [],
-            equipment,
-            total_equipment_cost: equipmentCost,
-            effects,
-            total_effect_credits: effectsCost
-          };
-        })
-      );
+      const equipmentCost = equipment.reduce((sum: number, eq: any) => sum + (eq.cost || 0), 0);
+      const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+        return sum + (effect.type_specific_data?.credits_increase || 0);
+      }, 0);
 
-      return vehiclesWithDetails;
-    },
-    [`base-gang-vehicles-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_VEHICLES(gangId)],
-      revalidate: false
-    }
-  )();
+      return {
+        id: vehicle.id,
+        created_at: vehicle.created_at,
+        vehicle_type_id: vehicle.vehicle_type_id,
+        vehicle_type: vehicle.vehicle_type,
+        cost: vehicle.cost,
+        vehicle_name: vehicle.vehicle_name,
+        movement: vehicle.movement,
+        front: vehicle.front,
+        side: vehicle.side,
+        rear: vehicle.rear,
+        hull_points: vehicle.hull_points,
+        handling: vehicle.handling,
+        save: vehicle.save,
+        body_slots: vehicle.body_slots,
+        drive_slots: vehicle.drive_slots,
+        engine_slots: vehicle.engine_slots,
+        body_slots_occupied: vehicle.body_slots_occupied,
+        drive_slots_occupied: vehicle.drive_slots_occupied,
+        engine_slots_occupied: vehicle.engine_slots_occupied,
+        special_rules: vehicle.special_rules || [],
+        equipment,
+        total_equipment_cost: equipmentCost,
+        effects,
+        total_effect_credits: effectsCost
+      };
+    })
+  );
+
+  return vehiclesWithDetails;
 };
 
 // =============================================================================
@@ -2248,29 +2186,25 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
+export const getUserProfile = async (userId: string): Promise<{
   username: string;
   patreon_tier_id?: string;
   patreon_tier_title?: string;
   patron_status?: string;
 } | null> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, patreon_tier_id, patreon_tier_title, patron_status')
-        .eq('id', userId)
-        .single();
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_USER_PROFILE(userId));
 
-      if (error) return null;
-      return data;
-    },
-    [`user-profile-${userId}`],
-    {
-      tags: [CACHE_TAGS.BASE_USER_PROFILE(userId)],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('username, patreon_tier_id, patreon_tier_title, patron_status')
+    .eq('id', userId)
+    .single();
+
+  if (error) return null;
+  return data;
 };
 
 export interface OoaBreakdownItem {
@@ -2294,56 +2228,51 @@ export interface GangFighterStats {
 }
 
 export const getGangFighterStats = async (
-  gangId: string,
-  supabase: any
+  gangId: string
 ): Promise<GangFighterStats> => {
-  return unstable_cache(
-    async () => {
-      const { data: fighters, error } = await supabase
-        .from('fighters')
-        .select('fighter_name, fighter_type, fighter_class, kills, killed')
-        .eq('gang_id', gangId);
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId));
 
-      if (error) throw error;
+  const supabase = createServiceRoleClient();
+  const { data: fighters, error } = await supabase
+    .from('fighters')
+    .select('fighter_name, fighter_type, fighter_class, kills, killed')
+    .eq('gang_id', gangId);
 
-      const fighterList = fighters || [];
-      const ooaCaused = fighterList.reduce(
-        (sum: number, f: { kills: number }) => sum + (Number(f.kills) || 0),
-        0
-      );
-      const deathsSuffered = fighterList.filter(
-        (f: { killed: boolean }) => f.killed === true
-      ).length;
+  if (error) throw error;
 
-      const ooaBreakdown: OoaBreakdownItem[] = fighterList
-        .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string; kills: number }) => ({
-          fighter_name: f.fighter_name || 'Unknown',
-          fighter_type: f.fighter_type || '—',
-          fighter_class: f.fighter_class || '—',
-          kills: Number(f.kills) || 0
-        }))
-        .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
+  const fighterList = fighters || [];
+  const ooaCaused = fighterList.reduce(
+    (sum: number, f: { kills: number }) => sum + (Number(f.kills) || 0),
+    0
+  );
+  const deathsSuffered = fighterList.filter(
+    (f: { killed: boolean }) => f.killed === true
+  ).length;
 
-      const deathsBreakdown: DeathsBreakdownItem[] = fighterList
-        .filter((f: { killed: boolean }) => f.killed === true)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string }) => ({
-          fighter_name: f.fighter_name || 'Unknown',
-          fighter_type: f.fighter_type || '—',
-          fighter_class: f.fighter_class || '—'
-        }));
+  const ooaBreakdown: OoaBreakdownItem[] = fighterList
+    .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
+    .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string; kills: number }) => ({
+      fighter_name: f.fighter_name || 'Unknown',
+      fighter_type: f.fighter_type || '—',
+      fighter_class: f.fighter_class || '—',
+      kills: Number(f.kills) || 0
+    }))
+    .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
 
-      return {
-        ooa_caused: ooaCaused,
-        deaths_suffered: deathsSuffered,
-        ooa_breakdown: ooaBreakdown,
-        deaths_breakdown: deathsBreakdown
-      };
-    },
-    [`gang-fighter-stats-${gangId}`],
-    {
-      tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId)],
-      revalidate: false
-    }
-  )();
+  const deathsBreakdown: DeathsBreakdownItem[] = fighterList
+    .filter((f: { killed: boolean }) => f.killed === true)
+    .map((f: { fighter_name: string; fighter_type?: string; fighter_class?: string }) => ({
+      fighter_name: f.fighter_name || 'Unknown',
+      fighter_type: f.fighter_type || '—',
+      fighter_class: f.fighter_class || '—'
+    }));
+
+  return {
+    ooa_caused: ooaCaused,
+    deaths_suffered: deathsSuffered,
+    ooa_breakdown: ooaBreakdown,
+    deaths_breakdown: deathsBreakdown
+  };
 };

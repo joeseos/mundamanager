@@ -48,8 +48,8 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
 
     // Calculate fighter total cost for rating/wealth update
     const { getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
-    const fighterCost = await getFighterTotalCost(params.id, supabase);
-    
+    const fighterCost = await getFighterTotalCost(params.id);
+
     // Check if fighter was active (counts toward rating)
     const { countsTowardRating } = await import('@/utils/fighter-status');
     const wasActive = countsTowardRating(fighter);
@@ -176,7 +176,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
         // Calculate fighter cost for rating update
         const { getFighterTotalCost } = await import('@/app/lib/shared/fighter-data');
-        const fighterCost = await getFighterTotalCost(params.id, supabase);
+        const fighterCost = await getFighterTotalCost(params.id);
         
         // Check if fighter is active (counts toward rating)
         const { countsTowardRating } = await import('@/utils/fighter-status');

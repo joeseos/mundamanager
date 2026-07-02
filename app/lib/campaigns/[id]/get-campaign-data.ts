@@ -1,5 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
-import { unstable_cache } from 'next/cache';
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
+import { cacheTag, cacheLife } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
@@ -569,31 +569,25 @@ async function _getCampaignTriumphs(campaignTypeId: string, supabase: SupabaseCl
   return triumphs || [];
 }
 
-// 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING unstable_cache()
+// 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING 'use cache'
 
 /**
  * Get gang IDs for a campaign (cached)
  * Used internally to build cache tags for getCampaignMembers
  */
-const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) => {
-  return unstable_cache(
-    async () => {
-      const { data: campaignGangs } = await supabase
-        .from('campaign_gangs')
-        .select('gang_id')
-        .eq('campaign_id', campaignId);
+const getCampaignGangIds = async (campaignId: string): Promise<string[]> => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+  cacheTag(`campaign-gangs-${campaignId}`);
 
-      return campaignGangs?.map(cg => cg.gang_id) || [];
-    },
-    [`campaign-gang-ids-${campaignId}`],
-    {
-      tags: [
-        CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId),
-        `campaign-gangs-${campaignId}`
-      ],
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  const { data: campaignGangs } = await supabase
+    .from('campaign_gangs')
+    .select('gang_id')
+    .eq('campaign_id', campaignId);
+
+  return campaignGangs?.map(cg => cg.gang_id) || [];
 };
 
 /**
@@ -601,23 +595,16 @@ const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) 
  * Cache key: campaign-basic-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBasic = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
-  return unstable_cache(
-    async () => {
-      return _getCampaignBasic(campaignId, supabase);
-    },
-    [`campaign-basic-${campaignId}`],
-    {
-      tags: [
-        CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId),
-        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
-        // Keep legacy tag for backward compatibility during transition
-        `campaign-${campaignId}`
-      ],
-      revalidate: false
-    }
-  )();
+export const getCampaignBasic = async (campaignId: string) => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
+  cacheTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+  // Keep legacy tag for backward compatibility during transition
+  cacheTag(`campaign-${campaignId}`);
+
+  const supabase = createServiceRoleClient();
+  return _getCampaignBasic(campaignId, supabase);
 };
 
 /**
@@ -625,34 +612,24 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
  * Cache key: campaign-members-{campaignId}
  * Invalidation: Server actions + gang cache tags
  */
-export const getCampaignMembers = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignMembers = async (campaignId: string) => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId));
+  cacheTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+  // Keep legacy tag for backward compatibility during transition
+  cacheTag(`campaign-${campaignId}`);
 
-  // Get gang IDs using cached helper - only hits DB on cache miss
-  const gangIds = await getCampaignGangIds(campaignId, supabase);
+  // Add gang cache tags so campaign data updates when gang data changes
+  // NOTE: No need for COMPOSITE_GANG_FIGHTERS_LIST - rating comes from gangs table directly
+  const gangIds = await getCampaignGangIds(campaignId);
+  for (const gangId of gangIds) {
+    cacheTag(CACHE_TAGS.SHARED_GANG_RATING(gangId));
+    cacheTag(CACHE_TAGS.COMPUTED_GANG_RATING(gangId));
+  }
 
-  // Build cache tags that include gang overview and rating tags
-  const cacheTags = [
-    CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId),
-    CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
-    // Keep legacy tag for backward compatibility during transition
-    `campaign-${campaignId}`,
-    // Add gang cache tags so campaign data updates when gang data changes
-    // NOTE: No need for COMPOSITE_GANG_FIGHTERS_LIST - rating comes from gangs table directly
-    ...gangIds.map(gangId => CACHE_TAGS.SHARED_GANG_RATING(gangId)),
-    ...gangIds.map(gangId => CACHE_TAGS.COMPUTED_GANG_RATING(gangId))
-  ];
-
-  return unstable_cache(
-    async () => {
-      return _getCampaignMembers(campaignId, supabase);
-    },
-    [`campaign-members-${campaignId}`],
-    {
-      tags: cacheTags,
-      revalidate: false
-    }
-  )();
+  const supabase = createServiceRoleClient();
+  return _getCampaignMembers(campaignId, supabase);
 };
 
 /**
@@ -660,23 +637,16 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
  * Cache key: campaign-territories-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignTerritories = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
-  return unstable_cache(
-    async () => {
-      return _getCampaignTerritories(campaignId, supabase);
-    },
-    [`campaign-territories-${campaignId}`],
-    {
-      tags: [
-        CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId),
-        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
-        // Keep legacy tag for backward compatibility during transition
-        `campaign-${campaignId}`
-      ],
-      revalidate: false
-    }
-  )();
+export const getCampaignTerritories = async (campaignId: string) => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId));
+  cacheTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+  // Keep legacy tag for backward compatibility during transition
+  cacheTag(`campaign-${campaignId}`);
+
+  const supabase = createServiceRoleClient();
+  return _getCampaignTerritories(campaignId, supabase);
 };
 
 /**
@@ -684,24 +654,17 @@ export const getCampaignTerritories = async (campaignId: string, supabaseClient?
  * Cache key: campaign-battles-{campaignId}-{limit}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBattles = async (campaignId: string, limit = 100, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
-  return unstable_cache(
-    async () => {
-      return _getCampaignBattles(campaignId, supabase, limit);
-    },
-    [`campaign-battles-${campaignId}-${limit}`],
-    {
-      tags: [
-        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
-        // Keep legacy tag for backward compatibility during transition
-        `campaign-${campaignId}`,
-        // Battles don't have a specific BASE tag yet, but could be added to taxonomy
-        `campaign-battles-${campaignId}`
-      ],
-      revalidate: false
-    }
-  )();
+export const getCampaignBattles = async (campaignId: string, limit = 100) => {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+  // Keep legacy tag for backward compatibility during transition
+  cacheTag(`campaign-${campaignId}`);
+  // Battles don't have a specific BASE tag yet, but could be added to taxonomy
+  cacheTag(`campaign-battles-${campaignId}`);
+
+  const supabase = createServiceRoleClient();
+  return _getCampaignBattles(campaignId, supabase, limit);
 };
 
 /**
@@ -710,17 +673,13 @@ export const getCampaignBattles = async (campaignId: string, limit = 100, supaba
  * Invalidation: Server actions only via revalidateTag()
  */
 export const getCampaignTriumphs = async (campaignTypeId: string) => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      return _getCampaignTriumphs(campaignTypeId, supabase);
-    },
-    [`campaign-triumphs-${campaignTypeId}`],
-    {
-      tags: ['campaign-triumphs', `campaign-triumphs-${campaignTypeId}`],
-      revalidate: false
-    }
-  )();
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag('campaign-triumphs');
+  cacheTag(`campaign-triumphs-${campaignTypeId}`);
+
+  const supabase = createServiceRoleClient();
+  return _getCampaignTriumphs(campaignTypeId, supabase);
 };
 
 // 🎯 CACHE TAG UTILITIES
@@ -756,23 +715,18 @@ export function createCampaignTypeTag(campaignTypeId: string): string {
  * Used by territory selection components
  */
 export const getCampaignTypes = async () => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('campaign_types')
-        .select('id, campaign_type_name')
-        .order('campaign_type_name');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    ['campaign-types'],
-    {
-      tags: ['campaign-types'],
-      revalidate: false
-    }
-  )();
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag('campaign-types');
+
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('campaign_types')
+    .select('id, campaign_type_name')
+    .order('campaign_type_name');
+
+  if (error) throw error;
+  return data || [];
 };
 
 /**
@@ -780,26 +734,21 @@ export const getCampaignTypes = async () => {
  * Used by territory selection components
  */
 export const getAllTerritories = async () => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('territories')
-        .select('id, territory_name, campaign_type_id, playing_card')
-        .order('territory_name');
-      
-      if (error) throw error;
-      return (data || []).map(territory => ({
-        ...territory,
-        territory_id: territory.id
-      }));
-    },
-    ['territories-list'],
-    {
-      tags: [CACHE_TAGS.GLOBAL_TERRITORIES_LIST()],
-      revalidate: false
-    }
-  )();
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.GLOBAL_TERRITORIES_LIST());
+
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from('territories')
+    .select('id, territory_name, campaign_type_id, playing_card')
+    .order('territory_name');
+
+  if (error) throw error;
+  return (data || []).map(territory => ({
+    ...territory,
+    territory_id: territory.id
+  }));
 };
 
 /**
@@ -807,88 +756,82 @@ export const getAllTerritories = async () => {
  * Used by territory gang modal
  */
 export const getCampaignGangsForModal = async (campaignId: string) => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      // Get campaign gangs
-      const { data: campaignGangs, error: campaignGangsError } = await supabase
-        .from('campaign_gangs')
-        .select(`
-          id,
-          gang_id,
-          user_id,
-          campaign_member_id
-        `)
-        .eq('campaign_id', campaignId);
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag('campaign-gangs');
+  cacheTag(`campaign-gangs-${campaignId}`);
+  cacheTag(`campaign-${campaignId}`);
 
-      if (campaignGangsError) throw campaignGangsError;
+  const supabase = createServiceRoleClient();
+  // Get campaign gangs
+  const { data: campaignGangs, error: campaignGangsError } = await supabase
+    .from('campaign_gangs')
+    .select(`
+      id,
+      gang_id,
+      user_id,
+      campaign_member_id
+    `)
+    .eq('campaign_id', campaignId);
 
-      const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
-      let gangsData: any[] = [];
+  if (campaignGangsError) throw campaignGangsError;
 
-      if (gangIds.length > 0) {
-        const { data: gangs, error: gangsError } = await supabase
-          .from('gangs')
-          .select(`
-            id,
-            name,
-            gang_type,
-            gang_colour
-          `)
-          .in('id', gangIds);
+  const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
+  let gangsData: any[] = [];
 
-        if (gangsError) throw gangsError;
-        gangsData = gangs || [];
-      }
+  if (gangIds.length > 0) {
+    const { data: gangs, error: gangsError } = await supabase
+      .from('gangs')
+      .select(`
+        id,
+        name,
+        gang_type,
+        gang_colour
+      `)
+      .in('id', gangIds);
 
-      // Combine campaign gangs with gang details
-      const availableGangs = campaignGangs?.map(cg => {
-        const gangDetails = gangsData.find(g => g.id === cg.gang_id);
-        return {
-          campaign_gang_id: cg.id,
-          campaign_member_id: cg.campaign_member_id,
-          user_id: cg.user_id,
-          id: cg.gang_id,
-          name: gangDetails?.name || 'Unknown',
-          gang_type: gangDetails?.gang_type || '',
-          gang_colour: gangDetails?.gang_colour || '#000000'
-        };
-      }) || [];
+    if (gangsError) throw gangsError;
+    gangsData = gangs || [];
+  }
 
-      return availableGangs;
-    },
-    [`campaign-gangs-modal-${campaignId}`],
-    {
-      tags: ['campaign-gangs', `campaign-gangs-${campaignId}`, `campaign-${campaignId}`],
-      revalidate: false
-    }
-  )();
+  // Combine campaign gangs with gang details
+  const availableGangs = campaignGangs?.map(cg => {
+    const gangDetails = gangsData.find(g => g.id === cg.gang_id);
+    return {
+      campaign_gang_id: cg.id,
+      campaign_member_id: cg.campaign_member_id,
+      user_id: cg.user_id,
+      id: cg.gang_id,
+      name: gangDetails?.name || 'Unknown',
+      gang_type: gangDetails?.gang_type || '',
+      gang_colour: gangDetails?.gang_colour || '#000000'
+    };
+  }) || [];
+
+  return availableGangs;
 };
 
 /**
  * Get available allegiances for a campaign
  * Returns custom allegiances for custom campaigns, or predefined allegiances for other campaign types
  */
-export async function getCampaignAllegiances(campaignId: string, supabase: SupabaseClient) {
-  return unstable_cache(
-    async () => {
-      try {
-        return await fetchCampaignAllegiances(campaignId, supabase);
-      } catch (error) {
-        // Return empty array if campaign not found (graceful degradation for server-side)
-        if (error instanceof Error && error.message === 'Campaign not found') {
-          return [];
-        }
-        // Re-throw other errors
-        throw error;
-      }
-    },
-    [CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
-    {
-      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
-      revalidate: false
+export async function getCampaignAllegiances(campaignId: string) {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId));
+
+  const supabase = createServiceRoleClient();
+  try {
+    return await fetchCampaignAllegiances(campaignId, supabase);
+  } catch (error) {
+    // Return empty array if campaign not found (graceful degradation for server-side)
+    if (error instanceof Error && error.message === 'Campaign not found') {
+      return [];
     }
-  )();
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 /**
@@ -955,26 +898,23 @@ export async function getCampaignCaptives(campaignId: string, supabaseClient?: S
  * Get available resources for a campaign
  * Returns predefined campaign type resources and custom campaign resources
  */
-export async function getCampaignResources(campaignId: string, supabase: SupabaseClient) {
-  return unstable_cache(
-    async () => {
-      try {
-        return await fetchCampaignResources(campaignId, supabase);
-      } catch (error) {
-        // Return empty array if campaign not found (graceful degradation for server-side)
-        if (error instanceof Error && error.message === 'Campaign not found') {
-          return [];
-        }
-        // Re-throw other errors
-        throw error;
-      }
-    },
-    [CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId)],
-    {
-      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId)],
-      revalidate: false
+export async function getCampaignResources(campaignId: string) {
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId));
+  cacheTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId));
+
+  const supabase = createServiceRoleClient();
+  try {
+    return await fetchCampaignResources(campaignId, supabase);
+  } catch (error) {
+    // Return empty array if campaign not found (graceful degradation for server-side)
+    if (error instanceof Error && error.message === 'Campaign not found') {
+      return [];
     }
-  )();
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1049,18 +989,13 @@ async function _getCampaignMapWithObjects(
 }
 
 export const getCampaignMapWithObjects = async (
-  campaignId: string,
-  supabaseClient?: SupabaseClient
+  campaignId: string
 ): Promise<CampaignMapBundle> => {
-  const supabase = supabaseClient ?? await createClient();
-  return unstable_cache(
-    async () => {
-      return _getCampaignMapWithObjects(campaignId, supabase);
-    },
-    [`campaign-map-${campaignId}`],
-    {
-      tags: [`campaign-map-${campaignId}`, CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId)],
-      revalidate: false
-    }
-  )();
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(`campaign-map-${campaignId}`);
+  cacheTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId));
+
+  const supabase = createServiceRoleClient();
+  return _getCampaignMapWithObjects(campaignId, supabase);
 };

@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
+import { cacheTag, cacheLife } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
@@ -136,53 +137,43 @@ async function fetchBattleSessionDirect(
 
 export { fetchBattleSessionDirect };
 
-// The supabase client is captured in the unstable_cache closure but only
-// used on cache miss (first call or after revalidateTag). On cache hits
-// the parameter is ignored. Safe here because all participants share the
-// same view of the session (no per-user RLS variance).
+// All participants share the same view of the session (no per-user RLS
+// variance), so the cached result is safe to serve to any viewer.
 export const getBattleSessionCached = async (
-  sessionId: string,
-  supabase: SupabaseClient
+  sessionId: string
 ): Promise<BattleSessionFull | null> => {
-  return unstable_cache(
-    () => fetchBattleSessionDirect(sessionId, supabase),
-    [`battle-session-${sessionId}`],
-    {
-      tags: [CACHE_TAGS.BASE_BATTLE_SESSION(sessionId)],
-      revalidate: false,
-    }
-  )();
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId));
+
+  const supabase = createServiceRoleClient();
+  return fetchBattleSessionDirect(sessionId, supabase);
 };
 
 export const getGangBattleSessionsCached = async (
-  gangId: string,
-  supabase: SupabaseClient
+  gangId: string
 ): Promise<BattleSession[]> => {
-  return unstable_cache(
-    async () => {
-      const { data: participantSessions } = await supabase
-        .from('battle_session_participants')
-        .select('battle_session_id')
-        .eq('gang_id', gangId);
+  'use cache: remote';
+  cacheLife('max');
+  cacheTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(gangId));
 
-      const sessionIds = Array.from(
-        new Set((participantSessions || []).map((p: any) => p.battle_session_id))
-      ) as string[];
+  const supabase = createServiceRoleClient();
+  const { data: participantSessions } = await supabase
+    .from('battle_session_participants')
+    .select('battle_session_id')
+    .eq('gang_id', gangId);
 
-      if (sessionIds.length === 0) return [];
+  const sessionIds = Array.from(
+    new Set((participantSessions || []).map((p: any) => p.battle_session_id))
+  ) as string[];
 
-      const { data: sessions } = await supabase
-        .from('battle_sessions')
-        .select('*')
-        .in('id', sessionIds)
-        .order('updated_at', { ascending: false });
+  if (sessionIds.length === 0) return [];
 
-      return sessions || [];
-    },
-    [`gang-battle-sessions-${gangId}`],
-    {
-      tags: [CACHE_TAGS.GANG_BATTLE_SESSIONS(gangId)],
-      revalidate: false,
-    }
-  )();
+  const { data: sessions } = await supabase
+    .from('battle_sessions')
+    .select('*')
+    .in('id', sessionIds)
+    .order('updated_at', { ascending: false });
+
+  return sessions || [];
 };
