@@ -1,5 +1,6 @@
 import { LuHouse } from "react-icons/lu";
-import { createClient } from "@/utils/supabase/server";
+import { getGangBasic } from "@/app/lib/shared/gang-data";
+import { getBattleSessionCached } from "@/app/lib/battle-sessions/get-battle-session-data";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -80,15 +81,10 @@ export default async function BattleSessionBreadcrumb({
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const { id, sessionId } = await params;
-  const supabase = await createClient();
-
-  const [{ data: gangData }, { data: session }] = await Promise.all([
-    supabase.from("gangs").select("name").eq("id", id).maybeSingle(),
-    supabase
-      .from("battle_sessions")
-      .select("created_at")
-      .eq("id", sessionId)
-      .maybeSingle(),
+  // Cached reads — warmed by the battle-session page on the same navigation
+  const [gangData, session] = await Promise.all([
+    getGangBasic(id),
+    getBattleSessionCached(sessionId),
   ]);
 
   return (

@@ -1,5 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { createClient } from "@/utils/supabase/server"
+import { getGangBasic } from "@/app/lib/shared/gang-data"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,13 +16,8 @@ export default async function GangBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-  
-  const { data: gangData } = await supabase
-    .from('gangs')
-    .select('name')
-    .eq('id', id)
-    .maybeSingle()
+  // Cached read — warmed by the gang page on the same navigation
+  const gangData = await getGangBasic(id)
 
   return (
     <div 

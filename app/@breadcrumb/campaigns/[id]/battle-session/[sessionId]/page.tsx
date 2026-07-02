@@ -1,4 +1,5 @@
-import { createClient } from "@/utils/supabase/server";
+import { getCampaignBasic } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { getBattleSessionCached } from "@/app/lib/battle-sessions/get-battle-session-data";
 import { BattleSessionBreadcrumbLayout } from "@/app/@breadcrumb/gang/[id]/battle-session/[sessionId]/page";
 
 export default async function CampaignBattleSessionBreadcrumb({
@@ -7,15 +8,10 @@ export default async function CampaignBattleSessionBreadcrumb({
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const { id, sessionId } = await params;
-  const supabase = await createClient();
-
-  const [{ data: campaignData }, { data: session }] = await Promise.all([
-    supabase.from("campaigns").select("campaign_name").eq("id", id).maybeSingle(),
-    supabase
-      .from("battle_sessions")
-      .select("created_at")
-      .eq("id", sessionId)
-      .maybeSingle(),
+  // Cached reads — warmed by the battle-session page on the same navigation
+  const [campaignData, session] = await Promise.all([
+    getCampaignBasic(id),
+    getBattleSessionCached(sessionId),
   ]);
 
   return (

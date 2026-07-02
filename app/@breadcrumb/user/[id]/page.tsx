@@ -7,7 +7,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { createClient } from '@/utils/supabase/server'
+import { getUserProfile } from '@/app/lib/shared/gang-data'
 
 interface UserBreadcrumbProps {
   params: Promise<{ id: string }>
@@ -15,15 +15,9 @@ interface UserBreadcrumbProps {
 
 export default async function UserBreadcrumb({ params }: UserBreadcrumbProps) {
   const { id } = await params;
-  
-  // Fetch the username for the breadcrumb
-  const supabase = await createClient();
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', id)
-    .single();
 
+  // Cached read — warmed by the user profile page on the same navigation
+  const profile = await getUserProfile(id);
   const username = profile?.username || 'Unknown User';
 
   return (
