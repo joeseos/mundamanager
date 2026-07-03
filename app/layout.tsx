@@ -99,20 +99,6 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  const theme = localStorage.getItem('mundamanager-theme');
-                  const isDark = theme === 'dark' || ((theme === 'system' || !theme) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                  const currentClass = document.documentElement.className;
-                  document.documentElement.className = currentClass + (isDark ? ' dark' : '');
-                } catch (_) {}
-              })();
-            `,
-          }}
-        />
         {process.env.NODE_ENV === 'development' && (
           <script
             dangerouslySetInnerHTML={{
