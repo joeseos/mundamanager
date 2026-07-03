@@ -16,7 +16,8 @@ interface UserBreadcrumbProps {
 export default async function UserBreadcrumb({ params }: UserBreadcrumbProps) {
   const { id } = await params;
 
-  // Cached read — warmed by the user profile page on the same navigation.
+  // Cached read (shared with the gang pages, which cache owner profiles under
+  // the same tag; the user profile page itself fetches client-side via the API).
   // A breadcrumb must never throw: degrade to the fallback label on any error.
   const profile = await getUserProfile(id).catch(() => null);
   const username = profile?.username || 'Unknown User';
