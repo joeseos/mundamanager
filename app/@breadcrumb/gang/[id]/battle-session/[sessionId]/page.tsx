@@ -81,10 +81,10 @@ export default async function BattleSessionBreadcrumb({
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const { id, sessionId } = await params;
-  // Cached reads — warmed by the battle-session page on the same navigation
+  // Cached reads. A breadcrumb must never throw: degrade to fallback labels on any error.
   const [gangData, session] = await Promise.all([
-    getGangBasic(id),
-    getBattleSessionCached(sessionId),
+    getGangBasic(id).catch(() => null),
+    getBattleSessionCached(sessionId).catch(() => null),
   ]);
 
   return (

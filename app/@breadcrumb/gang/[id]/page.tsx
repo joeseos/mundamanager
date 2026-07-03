@@ -16,8 +16,9 @@ export default async function GangBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  // Cached read — warmed by the gang page on the same navigation
-  const gangData = await getGangBasic(id)
+  // Cached read — warmed by the gang page on the same navigation.
+  // A breadcrumb must never throw: degrade to the fallback label on any error.
+  const gangData = await getGangBasic(id).catch(() => null)
 
   return (
     <div 

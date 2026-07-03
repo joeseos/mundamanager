@@ -17,9 +17,10 @@ export default async function FighterBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  // Cached reads — warmed by the fighter page on the same navigation
-  const fighterData = await getFighterBasic(id)
-  const gangData = fighterData?.gang_id ? await getGangBasic(fighterData.gang_id) : null
+  // Cached reads — warmed by the fighter page on the same navigation.
+  // A breadcrumb must never throw: degrade to fallback labels on any error.
+  const fighterData = await getFighterBasic(id).catch(() => null)
+  const gangData = fighterData?.gang_id ? await getGangBasic(fighterData.gang_id).catch(() => null) : null
   const gangName = gangData?.name || ''
 
   return (
