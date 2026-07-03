@@ -1,8 +1,17 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { FaDiscord, FaPatreon, FaGithub, FaInstagram } from "react-icons/fa6";
+import { cacheLife } from 'next/cache';
 
 const SITE_DESCRIPTION = "Gang & Campaign management tool for Necromunda";
+
+// Reading the current time during prerender is not allowed under
+// cacheComponents; cache the copyright year instead (refreshes daily).
+async function CopyrightYear() {
+  'use cache';
+  cacheLife('days');
+  return new Date().getFullYear();
+}
 
 export default function Footer() {
   return (
@@ -110,7 +119,7 @@ export default function Footer() {
         {/* Copyright Section */}
         <div className="border-t border-border mt-8 pt-6">
           <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-xs text-muted-foreground">
-            <span>© {new Date().getFullYear()} Munda Manager</span>
+            <span>© <CopyrightYear /> Munda Manager</span>
             <span className="text-muted-foreground">/</span>
             <Link href="/terms" prefetch={false} className="text-muted-foreground hover:text-primary transition-colors">
               Terms

@@ -3,6 +3,7 @@ import { Metadata } from 'next';
 import Script from 'next/script';
 import { LuCodeXml } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
+import { getStructuredDataModifiedDate } from '@/app/lib/structured-data';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -35,7 +36,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ApiAccessPage() {
+export default async function ApiAccessPage() {
+  const modifiedDate = await getStructuredDataModifiedDate();
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -54,7 +56,7 @@ export default function ApiAccessPage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": modifiedDate,
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/api-access`

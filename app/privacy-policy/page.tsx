@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Metadata } from 'next';
 import Script from 'next/script';
+import { getStructuredDataModifiedDate } from '@/app/lib/structured-data';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -32,7 +33,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function PrivacyPolicyPage() {
+export default async function PrivacyPolicyPage() {
+  const modifiedDate = await getStructuredDataModifiedDate();
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -51,7 +53,7 @@ export default function PrivacyPolicyPage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": modifiedDate,
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/privacy-policy`
@@ -78,7 +80,7 @@ export default function PrivacyPolicyPage() {
             
             <div className="mb-8">
               <p className="text-sm text-muted-foreground mb-6">
-                Last updated: {new Date().toISOString().split('T')[0]}
+                Last updated: {modifiedDate}
               </p>
               <p className="text-muted-foreground mb-2">
                 At Munda Manager, we are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Service.

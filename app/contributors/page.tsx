@@ -8,6 +8,7 @@ import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { createClient } from '@supabase/supabase-js';
 import { cacheTag, cacheLife } from 'next/cache';
 import { CACHE_TAGS } from '@/utils/cache-tags';
+import { getStructuredDataModifiedDate } from '@/app/lib/structured-data';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -69,6 +70,7 @@ async function getCachedPatreonSupporters(): Promise<PatreonSupporter[] | null> 
 }
 
 export default async function ContributorsPage() {
+  const modifiedDate = await getStructuredDataModifiedDate();
   const patreonSupporters: PatreonSupporter[] = await getCachedPatreonSupporters() || [];
   const tierConfig = getPatreonTierConfig();
 
@@ -132,7 +134,7 @@ export default async function ContributorsPage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": modifiedDate,
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/contributors`
