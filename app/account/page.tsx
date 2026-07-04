@@ -31,7 +31,7 @@ export default async function AccountPage() {
   }
 
   // Fetch all friends and requests
-  const friends = await getFriendsAndRequests(user.id);
+  const friends = await getFriendsAndRequests(user.id, supabase);
 
   return (
     <main className="flex min-h-screen flex-col items-center">

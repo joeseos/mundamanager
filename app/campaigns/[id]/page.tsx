@@ -6,7 +6,7 @@ import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
 
-// Import the cached data loaders
+// Import the optimized functions with unstable_cache
 import { 
   getCampaignBasic, 
   getCampaignMembers, 
@@ -75,11 +75,11 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignMapBundle,
       battleSessionsResult
     ] = await Promise.all([
-      getCampaignBasic(params.id),
-      getCampaignMembers(params.id),
-      getCampaignTerritories(params.id),
-      getCampaignBattles(params.id, 100),
-      getCampaignMapWithObjects(params.id),
+      getCampaignBasic(params.id, supabase),
+      getCampaignMembers(params.id, supabase),
+      getCampaignTerritories(params.id, supabase),
+      getCampaignBattles(params.id, 100, supabase),
+      getCampaignMapWithObjects(params.id, supabase),
       supabase
         .from('battle_sessions')
         .select('*')
@@ -113,8 +113,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         .from('trading_post_types')
         .select('id, trading_post_name')
         .order('trading_post_name'),
-      getCampaignAllegiances(params.id),
-      getCampaignResources(params.id),
+      getCampaignAllegiances(params.id, supabase),
+      getCampaignResources(params.id, supabase),
       getCampaignCaptives(params.id, supabase),
       supabase
         .from('custom_shared')

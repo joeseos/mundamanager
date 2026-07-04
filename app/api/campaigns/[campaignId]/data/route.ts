@@ -426,11 +426,11 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaignBattles,
       campaignResources
     ] = await Promise.all([
-      getCampaignBasic(campaignId),
-      getCampaignMembers(campaignId),
-      getCampaignTerritories(campaignId),
-      getCampaignBattles(campaignId, 100),
-      getCampaignResources(campaignId)
+      getCampaignBasic(campaignId, supabase),
+      getCampaignMembers(campaignId, supabase),
+      getCampaignTerritories(campaignId, supabase),
+      getCampaignBattles(campaignId, 100, supabase),
+      getCampaignResources(campaignId, supabase)
     ]);
 
     // Return 404 if campaign not found
