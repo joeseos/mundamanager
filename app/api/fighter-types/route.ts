@@ -270,8 +270,12 @@ export async function GET(request: Request) {
       }
     }
 
-    // Add custom fighter types if requested
-    if (includeCustomFighters && !isGangAddition) {
+    // Add custom fighter types if requested.
+    // Skip for custom gangs: their custom fighters are already appended in the
+    // includeAllTypes branch (matched by custom_gang_type_id). Running this block for a
+    // custom gang would over-match, because gangTypeId is null and custom-gang fighters
+    // also have gang_type_id === null (null === null matches every custom-gang fighter).
+    if (includeCustomFighters && !isGangAddition && !customGangTypeId) {
       try {
         const allCustomFighters = await getCombinedCustomFighters(supabase, userId);
 
