@@ -1,6 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { getGangBasic } from "@/app/lib/shared/gang-data";
-import { getBattleSessionCached } from "@/app/lib/battle-sessions/get-battle-session-data";
+import { createClient } from "@/utils/supabase/server";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -81,10 +80,15 @@ export default async function BattleSessionBreadcrumb({
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const { id, sessionId } = await params;
-  // Cached reads. A breadcrumb must never throw: degrade to fallback labels on any error.
-  const [gangData, session] = await Promise.all([
-    getGangBasic(id).catch(() => null),
-    getBattleSessionCached(sessionId).catch(() => null),
+  const supabase = await createClient();
+
+  const [{ data: gangData }, { data: session }] = await Promise.all([
+    supabase.from("gangs").select("name").eq("id", id).maybeSingle(),
+    supabase
+      .from("battle_sessions")
+      .select("created_at")
+      .eq("id", sessionId)
+      .maybeSingle(),
   ]);
 
   return (
