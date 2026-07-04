@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Metadata } from 'next';
 import Script from 'next/script';
+import { getStructuredDataModifiedDate } from '@/app/lib/structured-data';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -32,7 +33,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function JoinTheTeamPage() {
+export default async function JoinTheTeamPage() {
+  const modifiedDate = await getStructuredDataModifiedDate();
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -51,7 +53,7 @@ export default function JoinTheTeamPage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": modifiedDate,
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/join-the-team`

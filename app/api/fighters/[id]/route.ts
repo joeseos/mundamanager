@@ -4,9 +4,6 @@ import { cookies } from 'next/headers';
 import { invalidateGangCredits } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
-// Edge runtime is not compatible with nextConfig.experimental.useCache; runs as a Node function.
-export const dynamic = 'force-dynamic';
-
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();

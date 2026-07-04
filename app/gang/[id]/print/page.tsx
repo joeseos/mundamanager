@@ -1,7 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound, forbidden } from "next/navigation";
-
-export const dynamic = "force-dynamic";
 import { canViewHiddenGang } from "@/utils/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";

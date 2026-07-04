@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Metadata } from 'next';
 import Script from 'next/script';
+import { getStructuredDataModifiedDate } from '@/app/lib/structured-data';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -32,7 +33,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const modifiedDate = await getStructuredDataModifiedDate();
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -51,7 +53,7 @@ export default function TermsPage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": modifiedDate,
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/terms`
@@ -78,7 +80,7 @@ export default function TermsPage() {
             
             <div className="mb-8">
               <p className="text-sm text-muted-foreground mb-6">
-                Last updated: {new Date().toISOString().split('T')[0]}
+                Last updated: {modifiedDate}
               </p>
               <p className="text-muted-foreground mb-2">
                 Please read these Terms of Service (&quot;Terms&quot;) carefully before using Munda Manager (&quot;the Service&quot;) operated by the Munda Manager Team (&quot;us&quot;, &quot;we&quot;, or &quot;our&quot;).

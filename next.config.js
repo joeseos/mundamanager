@@ -50,14 +50,15 @@ const nextConfig = {
       },
     ],
   },
+  // EXPERIMENT (this branch only): full Cache Components model — 'use cache'
+  // plus PPR/dynamic-by-default semantics. Every dynamic route needs a Suspense
+  // boundary (loading.tsx); fallbacks show during navigation. Main stays on
+  // experimental.useCache until this UX is evaluated in preview.
+  cacheComponents: true,
   experimental: {
     optimizePackageImports: ['@/components/ui'],
     scrollRestoration: false,
     authInterrupts: true,
-    // Enables the 'use cache' directive without cacheComponents/PPR semantics.
-    // Undocumented backwards-compat flag; if removed in a future major, either
-    // adopt cacheComponents (requires Suspense fallbacks) or revert to unstable_cache.
-    useCache: true,
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',

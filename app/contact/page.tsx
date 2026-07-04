@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import Script from 'next/script';
 import { FaDiscord, FaPatreon, FaGithub, FaInstagram } from "react-icons/fa6";
+import { getStructuredDataModifiedDate } from '@/app/lib/structured-data';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
@@ -33,7 +34,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const modifiedDate = await getStructuredDataModifiedDate();
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "ContactPage",
@@ -52,7 +54,7 @@ export default function ContactPage() {
       }
     },
     "datePublished": "2024-01-01",
-    "dateModified": new Date().toISOString().split('T')[0],
+    "dateModified": modifiedDate,
     "mainEntityOfPage": {
       "@type": "WebPage",
       "@id": `${defaultUrl}/contact`
