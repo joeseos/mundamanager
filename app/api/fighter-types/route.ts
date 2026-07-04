@@ -4,6 +4,90 @@ import { gangVariantFighterModifiers } from '@/utils/gangVariantMap';
 import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 import { getUserIdFromClaims } from "@/utils/auth";
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+// Fetch the user's own custom fighters plus any shared with them through campaigns,
+// de-duplicated by id.
+async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId: string) {
+  const customFighters = await getUserCustomFighterTypes(userId, supabase);
+
+  // Fetch shared custom fighters from campaigns the user is a member of
+  const { data: campaignMembers } = await supabase
+    .from('campaign_members')
+    .select('campaign_id')
+    .eq('user_id', userId);
+
+  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
+
+  let sharedCustomFighters: any[] = [];
+  if (campaignIds.length > 0) {
+    const { data: sharedFighterIds } = await supabase
+      .from('custom_shared')
+      .select('custom_fighter_type_id')
+      .in('campaign_id', campaignIds);
+
+    const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id).filter(Boolean) || [];
+
+    if (fighterIds.length > 0) {
+      const { data: sharedFighters } = await supabase
+        .from('custom_fighter_types')
+        .select('*')
+        .in('id', fighterIds);
+
+      sharedCustomFighters = sharedFighters || [];
+    }
+  }
+
+  // Combine own and shared, removing duplicates
+  const allCustomFighters: any[] = [...customFighters];
+  sharedCustomFighters.forEach(shared => {
+    if (!allCustomFighters.some(cf => cf.id === shared.id)) {
+      allCustomFighters.push(shared);
+    }
+  });
+
+  return allCustomFighters;
+}
+
+// Map a raw custom fighter row to the FighterType shape returned by this endpoint.
+function transformCustomFighter(cf: any) {
+  return {
+    id: cf.id,
+    fighter_type: cf.fighter_type,
+    fighter_class: cf.fighter_class || 'Custom',
+    gang_type: cf.gang_type,
+    cost: cf.cost,
+    gang_type_id: cf.gang_type_id,
+    special_rules: cf.special_rules || [],
+    total_cost: cf.cost,
+    movement: cf.movement,
+    weapon_skill: cf.weapon_skill,
+    ballistic_skill: cf.ballistic_skill,
+    strength: cf.strength,
+    toughness: cf.toughness,
+    wounds: cf.wounds,
+    initiative: cf.initiative,
+    leadership: cf.leadership,
+    cool: cf.cool,
+    willpower: cf.willpower,
+    intelligence: cf.intelligence,
+    attacks: cf.attacks,
+    limitation: null,
+    alignment: null,
+    default_equipment: [],
+    is_gang_addition: false,
+    alliance_id: '',
+    alliance_crew_name: '',
+    equipment_selection: null,
+    sub_type: null,
+    fighter_sub_type_id: null,
+    available_legacies: [],
+    is_custom_fighter: true,
+    free_skill: cf.free_skill || false,
+    delegation_cost: cf.delegation_cost ?? null
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const gangId = searchParams.get('gang_id');
@@ -30,44 +114,12 @@ export async function GET(request: Request) {
 
     let data;
 
-    // For custom gang types, skip system RPCs and only return custom fighters
-    if (customGangTypeId) {
-      const customFighters = await getUserCustomFighterTypes(userId, supabase);
-
-      // Fetch shared custom fighters from campaigns
-      const { data: campaignMembers } = await supabase
-        .from('campaign_members')
-        .select('campaign_id')
-        .eq('user_id', userId);
-
-      const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
-
-      let sharedCustomFighters: any[] = [];
-      if (campaignIds.length > 0) {
-        const { data: sharedFighterIds } = await supabase
-          .from('custom_shared')
-          .select('custom_fighter_type_id')
-          .in('campaign_id', campaignIds);
-
-        const fighterIds = sharedFighterIds?.map(sf => sf.custom_fighter_type_id).filter(Boolean) || [];
-
-        if (fighterIds.length > 0) {
-          const { data: sharedFighters } = await supabase
-            .from('custom_fighter_types')
-            .select('*')
-            .in('id', fighterIds);
-
-          sharedCustomFighters = sharedFighters || [];
-        }
-      }
-
-      // Combine own and shared, removing duplicates
-      const allCustomFighters = [...customFighters];
-      sharedCustomFighters.forEach(shared => {
-        if (!allCustomFighters.some(cf => cf.id === shared.id)) {
-          allCustomFighters.push(shared);
-        }
-      });
+    // For custom gang types, skip system RPCs and only return custom fighters.
+    // When the caller also asks for all fighter types, fall through to the
+    // includeAllTypes branch below (which returns every system fighter type and
+    // additionally appends this custom gang's own fighters).
+    if (customGangTypeId && !includeAllTypes) {
+      const allCustomFighters = await getCombinedCustomFighters(supabase, userId);
 
       // Filter to fighters matching this custom gang type, or "Available to All"
       data = allCustomFighters
@@ -76,41 +128,7 @@ export async function GET(request: Request) {
           if (includeAllGangType && cf.gang_type?.toLowerCase().includes('available to all')) return true;
           return false;
         })
-        .map(cf => ({
-          id: cf.id,
-          fighter_type: cf.fighter_type,
-          fighter_class: cf.fighter_class || 'Custom',
-          gang_type: cf.gang_type,
-          cost: cf.cost,
-          gang_type_id: cf.gang_type_id,
-          special_rules: cf.special_rules || [],
-          total_cost: cf.cost,
-          movement: cf.movement,
-          weapon_skill: cf.weapon_skill,
-          ballistic_skill: cf.ballistic_skill,
-          strength: cf.strength,
-          toughness: cf.toughness,
-          wounds: cf.wounds,
-          initiative: cf.initiative,
-          leadership: cf.leadership,
-          cool: cf.cool,
-          willpower: cf.willpower,
-          intelligence: cf.intelligence,
-          attacks: cf.attacks,
-          limitation: null,
-          alignment: null,
-          default_equipment: [],
-          is_gang_addition: false,
-          alliance_id: '',
-          alliance_crew_name: '',
-          equipment_selection: null,
-          sub_type: null,
-          fighter_sub_type_id: null,
-          available_legacies: [],
-          is_custom_fighter: true,
-          free_skill: cf.free_skill || false,
-          delegation_cost: cf.delegation_cost ?? null
-        }));
+        .map(transformCustomFighter);
 
       return NextResponse.json(data);
     }
@@ -144,6 +162,21 @@ export async function GET(request: Request) {
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
         const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
         data = data.filter((fighter: any) => !hiddenIds.has(fighter.gang_type_id));
+      }
+
+      // For a custom gang, keep its own custom fighters in the list alongside the
+      // full set of system fighter types (mirrors how a regular gang's own fighters
+      // are a subset of the "all types" result).
+      if (customGangTypeId) {
+        const allCustomFighters = await getCombinedCustomFighters(supabase, userId);
+        const customData = allCustomFighters
+          .filter(cf => {
+            if (cf.custom_gang_type_id === customGangTypeId) return true;
+            if (includeAllGangType && cf.gang_type?.toLowerCase().includes('available to all')) return true;
+            return false;
+          })
+          .map(transformCustomFighter);
+        data = [...data, ...customData];
       }
     } else if (isGangAddition) {
       // Use get_fighter_types_with_cost for gang additions (same as server action)
@@ -240,45 +273,7 @@ export async function GET(request: Request) {
     // Add custom fighter types if requested
     if (includeCustomFighters && !isGangAddition) {
       try {
-        // Fetch user's own custom fighters
-        const customFighters = await getUserCustomFighterTypes(userId, supabase);
-
-        // Fetch shared custom fighters from campaigns where user is a member (any role)
-        const { data: campaignMembers } = await supabase
-          .from('campaign_members')
-          .select('campaign_id')
-          .eq('user_id', userId);
-
-        const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
-
-        let sharedCustomFighters: any[] = [];
-        if (campaignIds.length > 0) {
-          // Get shared custom fighter IDs for these campaigns
-          const { data: sharedFighterIds } = await supabase
-            .from('custom_shared')
-            .select('custom_fighter_type_id')
-            .in('campaign_id', campaignIds);
-
-          const fighterIds = (sharedFighterIds?.map(sf => sf.custom_fighter_type_id) || []).filter(Boolean);
-
-          if (fighterIds.length > 0) {
-            // Fetch the actual custom fighter data
-            const { data: sharedFighters } = await supabase
-              .from('custom_fighter_types')
-              .select('*')
-              .in('id', fighterIds);
-
-            sharedCustomFighters = sharedFighters || [];
-          }
-        }
-
-        // Combine own and shared custom fighters, removing duplicates
-        const allCustomFighters = [...customFighters];
-        sharedCustomFighters.forEach(shared => {
-          if (!allCustomFighters.some(cf => cf.id === shared.id)) {
-            allCustomFighters.push(shared);
-          }
-        });
+        const allCustomFighters = await getCombinedCustomFighters(supabase, userId);
 
         // Transform custom fighters to match the FighterType interface
         const transformedCustomFighters = allCustomFighters
@@ -291,41 +286,7 @@ export async function GET(request: Request) {
 
             return false;
           })
-          .map(cf => ({
-            id: cf.id,
-            fighter_type: cf.fighter_type,
-            fighter_class: cf.fighter_class || 'Custom',
-            gang_type: cf.gang_type,
-            cost: cf.cost,
-            gang_type_id: cf.gang_type_id,
-            special_rules: cf.special_rules || [],
-            total_cost: cf.cost, // Use the cost as total_cost
-            movement: cf.movement,
-            weapon_skill: cf.weapon_skill,
-            ballistic_skill: cf.ballistic_skill,
-            strength: cf.strength,
-            toughness: cf.toughness,
-            wounds: cf.wounds,
-            initiative: cf.initiative,
-            leadership: cf.leadership,
-            cool: cf.cool,
-            willpower: cf.willpower,
-            intelligence: cf.intelligence,
-            attacks: cf.attacks,
-            limitation: null,
-            alignment: null,
-            default_equipment: [],
-            is_gang_addition: false,
-            alliance_id: '',
-            alliance_crew_name: '',
-            equipment_selection: null,
-            sub_type: null,
-            fighter_sub_type_id: null,
-            available_legacies: [],
-            is_custom_fighter: true, // Mark as custom fighter
-            free_skill: cf.free_skill || false,
-            delegation_cost: cf.delegation_cost ?? null
-          }));
+          .map(transformCustomFighter);
 
         // Add custom fighters to the data
         data = [...data, ...transformedCustomFighters];
