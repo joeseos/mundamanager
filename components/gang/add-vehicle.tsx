@@ -214,6 +214,12 @@ export default function AddVehicle({
               vehicles: [assignedVehicle],
             });
           }
+          // Sync gang wealth from the server-authoritative value returned by the
+          // assignment step (handles the inactive-fighter case where wealth
+          // decreases but rating stays unchanged).
+          if (typeof onGangWealthUpdate === 'function' && typeof assignResult.data?.gang_wealth === 'number') {
+            onGangWealthUpdate(assignResult.data.gang_wealth);
+          }
           toast.success(`${successMessage} and assigned to ${crewFighter?.fighter_name ?? 'crew'}`);
         } else {
           toast.error(`Vehicle created but crew assignment failed: ${assignResult.error ?? 'unknown error'}`);
