@@ -25,7 +25,7 @@ import Modal from "@/components/ui/modal";
 import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
-import { hasKilledStatusFlag } from '@/utils/fighter-status';
+import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 
 interface GangPageContentProps {
   initialGangData: any; // We'll type this properly based on the processed data structure
@@ -184,9 +184,11 @@ export default function GangPageContent({
       
       // If fighter now has a vehicle that it didn't have before
       if (nextFighter.vehicles?.length && (!prevFighter?.vehicles || prevFighter.vehicles.length === 0)) {
-        // Add the vehicle's cost to the rating - we know it's a VehicleProps
+        // Only active fighters contribute to gang rating
         const vehicleCost = (nextFighter.vehicles[0] as unknown as VehicleProps).cost || 0;
-        ratingChange += vehicleCost;
+        if (countsTowardRating(nextFighter)) {
+          ratingChange += vehicleCost;
+        }
         // Sync fighter credits
         nextFighter.credits = (prevFighter.credits || 0) + vehicleCost;
         vehicleChanged = true;
