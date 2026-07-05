@@ -483,16 +483,16 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 />
                 <label
                   htmlFor="master-crafted"
-                  className="text-sm font-medium text-muted-foreground cursor-pointer"
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground cursor-pointer"
                 >
-                  Master-crafted (+25%)
-                </label>
-                <div className="relative group">
-                  <ImInfo />
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-2 rounded-sm w-48 -left-24 z-50">
-                    Master-crafted weapons are Rare (10).
+                  Master-crafted
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary text-primary-foreground px-1.5">
+                    <span className="text-[10px] font-medium">25%</span>
                   </div>
-                </div>
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-sky-500 text-white">
+                    <span className="text-[10px] font-medium">R10</span>
+                  </div>
+                </label>
               </div>
             )}
 
