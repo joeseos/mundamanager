@@ -326,6 +326,12 @@ export default function GangVehicles({
         }
       }
 
+      // Sync gang wealth from the server-authoritative value (handles the
+      // inactive-fighter case where wealth decreases but rating stays flat).
+      if (typeof data?.gang_wealth === 'number' && onGangWealthUpdate) {
+        onGangWealthUpdate(data.gang_wealth);
+      }
+
     } catch (error) {
       console.error('Error moving vehicle:', error);
       
