@@ -17,6 +17,8 @@ import { MdCurrencyExchange } from 'react-icons/md';
 import { unassignVehicle } from '@/app/actions/unassign-vehicle';
 import { HiUserRemove } from "react-icons/hi";
 import VehicleEdit from '@/components/gang/vehicle-edit';
+import { Combobox } from '@/components/ui/combobox';
+import { useCrewFighterOptions } from '@/utils/crew-fighter-combobox-options';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -32,6 +34,7 @@ interface GangVehiclesProps {
   onGangWealthUpdate?: (newWealth: number) => void;
   currentRating?: number;
   currentWealth?: number;
+  positioning?: Record<number, string>;
 }
 
 // Update the type to match VehicleProps
@@ -53,7 +56,8 @@ export default function GangVehicles({
   onGangRatingUpdate,
   onGangWealthUpdate,
   currentRating,
-  currentWealth
+  currentWealth,
+  positioning
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -159,11 +163,7 @@ export default function GangVehicles({
     }
   };
 
-  // Filter for only Crew fighters who don't have vehicles assigned
-  const crewFighters = fighters.filter(fighter => 
-    fighter.fighter_class === 'Crew' && 
-    (!fighter.vehicles || fighter.vehicles.length === 0)
-  );
+  const crewFighterOptions = useCrewFighterOptions(fighters, positioning);
 
   // Get all vehicles, including those assigned to fighters
   const allVehicles = useMemo<CombinedVehicleProps[]>(() => {
@@ -324,6 +324,12 @@ export default function GangVehicles({
             onFighterUpdate(fighterWithUpdatedCost);
           }
         }
+      }
+
+      // Sync gang wealth from the server-authoritative value (handles the
+      // inactive-fighter case where wealth decreases but rating stays flat).
+      if (typeof data?.gang_wealth === 'number' && onGangWealthUpdate) {
+        onGangWealthUpdate(data.gang_wealth);
       }
 
     } catch (error) {
@@ -783,22 +789,18 @@ export default function GangVehicles({
                   <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
                     Assign Vehicle to a Crew
                   </label>
-                  <select
+                  <Combobox
                     id="fighter-select"
+                    options={crewFighterOptions}
                     value={selectedFighter}
-                    onChange={(e) => setSelectedFighter(e.target.value)}
-                    className="w-full p-2 border rounded-md border-border focus:outline-hidden focus:ring-2 focus:ring-black mb-4"
-                  >
-                    <option value="">Select a Crew</option>
-                    {crewFighters.map((fighter) => (
-                      <option
-                        key={fighter.id}
-                        value={fighter.id}
-                      >
-                        {fighter.fighter_name}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setSelectedFighter}
+                    placeholder="Select a Crew"
+                    noResultsText="No Crew available without a vehicle"
+                    className="mb-4"
+                    clearable
+                    dropdownPlacement="down"
+                    disabled={!userPermissions?.canEdit}
+                  />
 
                   <Button
                     onClick={handleMoveToFighter}

@@ -3,12 +3,16 @@ import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { VehicleProps } from '@/types/vehicle';
+import { FighterProps } from '@/types/fighter';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
+import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { getAllowedLocomotionOptions } from '@/utils/vehicle-locomotion';
+import { UserPermissions } from '@/types/user-permissions';
+import { useCrewFighterOptions } from '@/utils/crew-fighter-combobox-options';
 
 interface VehicleType {
   id: string;
@@ -35,6 +39,10 @@ interface AddVehicleProps {
   onVehicleAdd: (newVehicle: VehicleProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
+  fighters?: FighterProps[];
+  positioning?: Record<number, string>;
+  onFighterUpdate?: (updatedFighter: FighterProps) => void;
+  userPermissions?: UserPermissions;
 }
 
 export default function AddVehicle({ 
@@ -44,7 +52,11 @@ export default function AddVehicle({
   initialCredits,
   onVehicleAdd,
   onGangCreditsUpdate,
-  onGangWealthUpdate
+  onGangWealthUpdate,
+  fighters = [],
+  positioning,
+  onFighterUpdate,
+  userPermissions,
 }: AddVehicleProps) {
   
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
@@ -54,12 +66,15 @@ export default function AddVehicle({
   const [vehicleName, setVehicleName] = useState('');
   const [useBaseCost, setUseBaseCost] = useState<boolean>(true);
   const [locomotionChoice, setLocomotionChoice] = useState('');
+  const [selectedCrewId, setSelectedCrewId] = useState('');
 
   const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId) ?? null;
   const locomotionRequired = selectedVehicleType?.special_rules?.includes('Locomotion') ?? false;
   const allowedLocomotionOptions = selectedVehicleType
     ? getAllowedLocomotionOptions(selectedVehicleType.vehicle_type)
     : [];
+
+  const crewFighterOptions = useCrewFighterOptions(fighters, positioning);
 
   // Fetch vehicle types when component mounts
   useEffect(() => {
@@ -164,15 +179,12 @@ export default function AddVehicle({
         payment_cost: paymentCost // Track what was actually paid
       };
       
-      // Call the parent component's callback
-      onVehicleAdd(newVehicle);
-
-      // Also update credits from server authoritative value if provided
+      // Update credits from server authoritative value
       if (typeof onGangCreditsUpdate === 'function' && typeof result.gangCredits === 'number') {
         onGangCreditsUpdate(result.gangCredits);
       }
 
-      // Update wealth from server authoritative value if provided
+      // Update wealth from server authoritative value
       if (typeof onGangWealthUpdate === 'function' && typeof result.gangWealth === 'number') {
         onGangWealthUpdate(result.gangWealth);
       }
@@ -182,8 +194,41 @@ export default function AddVehicle({
       if (useBaseCost && paymentCost !== ratingCost) {
         successMessage = `${name} added for ${paymentCost} credits (base value: ${ratingCost} credits)`;
       }
-      
-      toast.success(successMessage);
+
+      if (selectedCrewId) {
+        const assignResult = await assignVehicleToFighter({
+          vehicleId: data.id,
+          fighterId: selectedCrewId,
+          gangId,
+        });
+
+        if (assignResult.success) {
+          const crewFighter = fighters.find(f => f.id === selectedCrewId);
+          if (crewFighter && onFighterUpdate) {
+            // Spread newVehicle, strip fields that don't belong on Vehicle, and
+            // initialise effects to an empty map so the types align.
+            const { gang_id: _g, fighter_id: _f, payment_cost: _p, effects: _e, ...vehicleBase } = newVehicle;
+            const assignedVehicle = { ...vehicleBase, effects: {} };
+            onFighterUpdate({
+              ...crewFighter,
+              vehicles: [assignedVehicle],
+            });
+          }
+          // Sync gang wealth from the server-authoritative value returned by the
+          // assignment step (handles the inactive-fighter case where wealth
+          // decreases but rating stays unchanged).
+          if (typeof onGangWealthUpdate === 'function' && typeof assignResult.data?.gang_wealth === 'number') {
+            onGangWealthUpdate(assignResult.data.gang_wealth);
+          }
+          toast.success(`${successMessage} and assigned to ${crewFighter?.fighter_name ?? 'crew'}`);
+        } else {
+          toast.error(`Vehicle created but crew assignment failed: ${assignResult.error ?? 'unknown error'}`);
+          onVehicleAdd(newVehicle);
+        }
+      } else {
+        onVehicleAdd(newVehicle);
+        toast.success(successMessage);
+      }
 
       // Reset form and close modal
       handleClose();
@@ -203,6 +248,7 @@ export default function AddVehicle({
     setVehicleError(null);
     setUseBaseCost(true);
     setLocomotionChoice('');
+    setSelectedCrewId('');
   };
 
   return (
@@ -346,6 +392,28 @@ export default function AddVehicle({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Assign Vehicle to a Crew */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-muted-foreground">
+              Assign Vehicle to a Crew
+            </label>
+            <Combobox
+              value={selectedCrewId}
+              onValueChange={setSelectedCrewId}
+              options={crewFighterOptions}
+              placeholder="Select a Crew"
+              noResultsText="No Crew available without a vehicle"
+              clearable
+              dropdownPlacement="down"
+              disabled={!userPermissions?.canEdit}
+            />
+            {!selectedCrewId && (
+              <p className="text-amber-500 text-xs">
+                This vehicle can later be assigned or reassigned to a crew on the Gang page in the Vehicles tab.
+              </p>
+            )}
           </div>
 
           {/* Vehicle Name */}

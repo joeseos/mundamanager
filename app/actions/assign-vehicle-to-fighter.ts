@@ -18,6 +18,7 @@ interface AssignVehicleToFighterResult {
   data?: {
     removed_from?: any;  // Used by frontend for vehicle swap handling
     vehicle_cost?: number;
+    gang_wealth?: number;
   };
   error?: string;
 }
@@ -200,7 +201,8 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       success: true,
       data: {
         removed_from: removedFromVehicle, // For frontend vehicle swap handling
-        vehicle_cost: vehicleCost
+        vehicle_cost: vehicleCost,
+        gang_wealth: financialResult?.newValues?.wealth
       }
     };
 
