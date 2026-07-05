@@ -1,14 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { VehicleProps } from '@/types/vehicle';
+import { FighterProps } from '@/types/fighter';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import { ImInfo } from "react-icons/im";
 import { vehicleTypeRank } from "@/utils/vehicleTypeRank";
 import { addGangVehicle } from '@/app/actions/add-gang-vehicle';
+import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter';
 import { getAllowedLocomotionOptions } from '@/utils/vehicle-locomotion';
+import { UserPermissions } from '@/types/user-permissions';
+import { IoSkull } from 'react-icons/io5';
+import { MdChair } from 'react-icons/md';
+import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
+import { TbMeatOff } from 'react-icons/tb';
+import { FaMedkit } from 'react-icons/fa';
 
 interface VehicleType {
   id: string;
@@ -35,6 +43,10 @@ interface AddVehicleProps {
   onVehicleAdd: (newVehicle: VehicleProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
+  fighters?: FighterProps[];
+  positioning?: Record<number, string>;
+  onFighterUpdate?: (updatedFighter: FighterProps) => void;
+  userPermissions?: UserPermissions;
 }
 
 export default function AddVehicle({ 
@@ -44,7 +56,11 @@ export default function AddVehicle({
   initialCredits,
   onVehicleAdd,
   onGangCreditsUpdate,
-  onGangWealthUpdate
+  onGangWealthUpdate,
+  fighters = [],
+  positioning,
+  onFighterUpdate,
+  userPermissions,
 }: AddVehicleProps) {
   
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
@@ -54,12 +70,52 @@ export default function AddVehicle({
   const [vehicleName, setVehicleName] = useState('');
   const [useBaseCost, setUseBaseCost] = useState<boolean>(true);
   const [locomotionChoice, setLocomotionChoice] = useState('');
+  const [selectedCrewId, setSelectedCrewId] = useState('');
 
   const selectedVehicleType = vehicleTypes.find(v => v.id === selectedVehicleTypeId) ?? null;
   const locomotionRequired = selectedVehicleType?.special_rules?.includes('Locomotion') ?? false;
   const allowedLocomotionOptions = selectedVehicleType
     ? getAllowedLocomotionOptions(selectedVehicleType.vehicle_type)
     : [];
+
+  const crewFighters = fighters.filter(fighter =>
+    fighter.fighter_class === 'Crew' &&
+    (!fighter.vehicles || fighter.vehicles.length === 0)
+  );
+
+  const crewFighterOptions = useMemo(() => {
+    return [...crewFighters]
+      .sort((a, b) => {
+        if (!positioning) return 0;
+        const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+        const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+        const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+        const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+        return posA - posB;
+      })
+      .map((f) => {
+        const statusIcons = [];
+        if (f.killed) statusIcons.push(<IoSkull className="text-gray-400 w-4 h-4" key="killed" />);
+        if (f.retired) statusIcons.push(<MdChair className="text-muted-foreground w-4 h-4" key="retired" />);
+        if (f.enslaved) statusIcons.push(<GiCrossedChains className="text-sky-200 w-4 h-4" key="enslaved" />);
+        if (f.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
+        if (f.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
+        if (f.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
+
+        const displayText = `${f.fighter_name} - ${f.fighter_type}${f.xp !== undefined ? ` (${f.xp} XP)` : ''}`;
+
+        return {
+          value: f.id,
+          displayValue: displayText,
+          label: (
+            <span className="flex items-center gap-1">
+              <span>{displayText}</span>
+              {statusIcons.length > 0 && <span className="flex items-center gap-0.5">{statusIcons}</span>}
+            </span>
+          ),
+        };
+      });
+  }, [crewFighters, positioning]);
 
   // Fetch vehicle types when component mounts
   useEffect(() => {
@@ -164,15 +220,12 @@ export default function AddVehicle({
         payment_cost: paymentCost // Track what was actually paid
       };
       
-      // Call the parent component's callback
-      onVehicleAdd(newVehicle);
-
-      // Also update credits from server authoritative value if provided
+      // Update credits from server authoritative value
       if (typeof onGangCreditsUpdate === 'function' && typeof result.gangCredits === 'number') {
         onGangCreditsUpdate(result.gangCredits);
       }
 
-      // Update wealth from server authoritative value if provided
+      // Update wealth from server authoritative value
       if (typeof onGangWealthUpdate === 'function' && typeof result.gangWealth === 'number') {
         onGangWealthUpdate(result.gangWealth);
       }
@@ -182,8 +235,55 @@ export default function AddVehicle({
       if (useBaseCost && paymentCost !== ratingCost) {
         successMessage = `${name} added for ${paymentCost} credits (base value: ${ratingCost} credits)`;
       }
-      
-      toast.success(successMessage);
+
+      if (selectedCrewId) {
+        const assignResult = await assignVehicleToFighter({
+          vehicleId: data.id,
+          fighterId: selectedCrewId,
+          gangId,
+        });
+
+        if (assignResult.success) {
+          const crewFighter = fighters.find(f => f.id === selectedCrewId);
+          if (crewFighter && onFighterUpdate) {
+            const assignedVehicle = {
+              id: newVehicle.id,
+              created_at: newVehicle.created_at,
+              vehicle_name: newVehicle.vehicle_name,
+              vehicle_type_id: newVehicle.vehicle_type_id,
+              vehicle_type: newVehicle.vehicle_type,
+              cost: newVehicle.cost,
+              movement: newVehicle.movement,
+              front: newVehicle.front,
+              side: newVehicle.side,
+              rear: newVehicle.rear,
+              hull_points: newVehicle.hull_points,
+              handling: newVehicle.handling,
+              save: newVehicle.save,
+              body_slots: newVehicle.body_slots,
+              body_slots_occupied: newVehicle.body_slots_occupied,
+              drive_slots: newVehicle.drive_slots,
+              drive_slots_occupied: newVehicle.drive_slots_occupied,
+              engine_slots: newVehicle.engine_slots,
+              engine_slots_occupied: newVehicle.engine_slots_occupied,
+              special_rules: newVehicle.special_rules || [],
+              equipment: newVehicle.equipment || [],
+              effects: {},
+            };
+            onFighterUpdate({
+              ...crewFighter,
+              vehicles: [assignedVehicle],
+            });
+          }
+          toast.success(`${successMessage} and assigned to ${crewFighter?.fighter_name ?? 'crew'}`);
+        } else {
+          toast.error(`Vehicle created but crew assignment failed: ${assignResult.error ?? 'unknown error'}`);
+          onVehicleAdd(newVehicle);
+        }
+      } else {
+        onVehicleAdd(newVehicle);
+        toast.success(successMessage);
+      }
 
       // Reset form and close modal
       handleClose();
@@ -203,6 +303,7 @@ export default function AddVehicle({
     setVehicleError(null);
     setUseBaseCost(true);
     setLocomotionChoice('');
+    setSelectedCrewId('');
   };
 
   return (
@@ -346,6 +447,28 @@ export default function AddVehicle({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Assign Vehicle to a Crew */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-muted-foreground">
+              Assign Vehicle to a Crew
+            </label>
+            <Combobox
+              value={selectedCrewId}
+              onValueChange={setSelectedCrewId}
+              options={crewFighterOptions}
+              placeholder="Select a Crew"
+              noResultsText="No Crew available without a vehicle"
+              clearable
+              dropdownPlacement="down"
+              disabled={!userPermissions?.canEdit}
+            />
+            {!selectedCrewId && (
+              <p className="text-amber-500 text-xs">
+                This vehicle can later be assigned or reassigned to a crew on the Gang page in the Vehicles tab.
+              </p>
+            )}
           </div>
 
           {/* Vehicle Name */}

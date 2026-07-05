@@ -93,6 +93,7 @@ interface GangProps {
   onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
   onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
   onFighterReconcile?: (tempFighterId: string, realFighter: FighterProps) => void;
+  onFighterUpdate?: (updatedFighter: FighterProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
   positioning: Record<number, string>;
@@ -142,6 +143,7 @@ export default function Gang({
   onFighterAdd,
   onFighterRollback,
   onFighterReconcile,
+  onFighterUpdate,
   onGangCreditsUpdate,
   onGangWealthUpdate,
   positioning,
@@ -1267,6 +1269,10 @@ export default function Gang({
               onVehicleAdd={handleVehicleAdded}
               onGangCreditsUpdate={onGangCreditsUpdate}
               onGangWealthUpdate={onGangWealthUpdate}
+              fighters={fighters}
+              positioning={positioning}
+              onFighterUpdate={onFighterUpdate}
+              userPermissions={userPermissions}
             />
           )}
 

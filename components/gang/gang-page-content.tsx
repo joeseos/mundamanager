@@ -869,6 +869,7 @@ export default function GangPageContent({
             onFighterAdd={handleFighterAdd}
             onFighterRollback={handleFighterRollback}
             onFighterReconcile={handleFighterReconcile}
+            onFighterUpdate={handleFighterUpdate}
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
             gang_variants={gangData.processedData.gang_variants}
@@ -907,6 +908,7 @@ export default function GangPageContent({
           onGangWealthUpdate={handleGangWealthUpdate}
           currentRating={gangData.processedData.rating}
           currentWealth={gangData.processedData.wealth}
+          positioning={gangData.processedData.positioning}
         />
         <div className="bg-card shadow-md rounded-lg p-4">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Campaign</h2>

@@ -47,6 +47,8 @@ interface ComboboxProps {
    * "up" always opens above the input (max height limited by space above).
    */
   dropdownPlacement?: 'auto' | 'down' | 'up'
+  /** Text shown when the filtered options list is empty. Defaults to "No results found". */
+  noResultsText?: string
 }
 
 function getVisualViewportRect() {
@@ -78,7 +80,8 @@ export function Combobox({
   customPlaceholder = "Enter custom value...",
   clearable = false,
   onFocus,
-  dropdownPlacement = 'auto'
+  dropdownPlacement = 'auto',
+  noResultsText = 'No results found'
 }: ComboboxProps) {
   type DropdownDirection = 'up' | 'down'
   type DropdownPosition = {
@@ -423,7 +426,7 @@ export function Combobox({
             </div>
           ) : (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              No results found
+              {noResultsText}
             </div>
           )}
           

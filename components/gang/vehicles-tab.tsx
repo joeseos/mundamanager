@@ -13,10 +13,15 @@ import { deleteVehicle } from '@/app/actions/delete-vehicle';
 import { sellVehicle } from '@/app/actions/sell-vehicle';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuSquarePen } from 'react-icons/lu';
-import { MdCurrencyExchange } from 'react-icons/md';
+import { MdCurrencyExchange, MdChair } from 'react-icons/md';
 import { unassignVehicle } from '@/app/actions/unassign-vehicle';
 import { HiUserRemove } from "react-icons/hi";
 import VehicleEdit from '@/components/gang/vehicle-edit';
+import { Combobox } from '@/components/ui/combobox';
+import { IoSkull } from 'react-icons/io5';
+import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
+import { TbMeatOff } from 'react-icons/tb';
+import { FaMedkit } from 'react-icons/fa';
 
 interface GangVehiclesProps {
   vehicles: VehicleProps[];
@@ -32,6 +37,7 @@ interface GangVehiclesProps {
   onGangWealthUpdate?: (newWealth: number) => void;
   currentRating?: number;
   currentWealth?: number;
+  positioning?: Record<number, string>;
 }
 
 // Update the type to match VehicleProps
@@ -53,7 +59,8 @@ export default function GangVehicles({
   onGangRatingUpdate,
   onGangWealthUpdate,
   currentRating,
-  currentWealth
+  currentWealth,
+  positioning
 }: GangVehiclesProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
@@ -164,6 +171,40 @@ export default function GangVehicles({
     fighter.fighter_class === 'Crew' && 
     (!fighter.vehicles || fighter.vehicles.length === 0)
   );
+
+  const crewFighterOptions = useMemo(() => {
+    return [...crewFighters]
+      .sort((a, b) => {
+        if (!positioning) return 0;
+        const indexA = Object.entries(positioning).find(([, id]) => id === a.id)?.[0];
+        const indexB = Object.entries(positioning).find(([, id]) => id === b.id)?.[0];
+        const posA = indexA !== undefined ? parseInt(indexA) : Infinity;
+        const posB = indexB !== undefined ? parseInt(indexB) : Infinity;
+        return posA - posB;
+      })
+      .map((f) => {
+        const statusIcons = [];
+        if (f.killed) statusIcons.push(<IoSkull className="text-gray-400 w-4 h-4" key="killed" />);
+        if (f.retired) statusIcons.push(<MdChair className="text-muted-foreground w-4 h-4" key="retired" />);
+        if (f.enslaved) statusIcons.push(<GiCrossedChains className="text-sky-200 w-4 h-4" key="enslaved" />);
+        if (f.starved) statusIcons.push(<TbMeatOff className="text-red-500 w-4 h-4" key="starved" />);
+        if (f.recovery) statusIcons.push(<FaMedkit className="text-blue-500 w-4 h-4" key="recovery" />);
+        if (f.captured) statusIcons.push(<GiHandcuffs className="text-red-600 w-4 h-4" key="captured" />);
+
+        const displayText = `${f.fighter_name} - ${f.fighter_type}${f.xp !== undefined ? ` (${f.xp} XP)` : ''}`;
+
+        return {
+          value: f.id,
+          displayValue: displayText,
+          label: (
+            <span className="flex items-center gap-1">
+              <span>{displayText}</span>
+              {statusIcons.length > 0 && <span className="flex items-center gap-0.5">{statusIcons}</span>}
+            </span>
+          ),
+        };
+      });
+  }, [crewFighters, positioning]);
 
   // Get all vehicles, including those assigned to fighters
   const allVehicles = useMemo<CombinedVehicleProps[]>(() => {
@@ -783,22 +824,18 @@ export default function GangVehicles({
                   <label htmlFor="fighter-select" className="block text-sm font-medium text-muted-foreground mb-2">
                     Assign Vehicle to a Crew
                   </label>
-                  <select
+                  <Combobox
                     id="fighter-select"
+                    options={crewFighterOptions}
                     value={selectedFighter}
-                    onChange={(e) => setSelectedFighter(e.target.value)}
-                    className="w-full p-2 border rounded-md border-border focus:outline-hidden focus:ring-2 focus:ring-black mb-4"
-                  >
-                    <option value="">Select a Crew</option>
-                    {crewFighters.map((fighter) => (
-                      <option
-                        key={fighter.id}
-                        value={fighter.id}
-                      >
-                        {fighter.fighter_name}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setSelectedFighter}
+                    placeholder="Select a Crew"
+                    noResultsText="No Crew available without a vehicle"
+                    className="mb-4"
+                    clearable
+                    dropdownPlacement="down"
+                    disabled={!userPermissions?.canEdit}
+                  />
 
                   <Button
                     onClick={handleMoveToFighter}
