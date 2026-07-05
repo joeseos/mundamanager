@@ -1,6 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { getFighterBasic } from "@/app/lib/shared/fighter-data"
-import { getGangBasic } from "@/app/lib/shared/gang-data"
+import { createClient } from "@/utils/supabase/server"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,11 +16,25 @@ export default async function FighterBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  // Cached reads — warmed by the fighter page on the same navigation.
-  // A breadcrumb must never throw: degrade to fallback labels on any error.
-  const fighterData = await getFighterBasic(id).catch(() => null)
-  const gangData = fighterData?.gang_id ? await getGangBasic(fighterData.gang_id).catch(() => null) : null
-  const gangName = gangData?.name || ''
+  const supabase = await createClient()
+  
+  const { data: fighterData } = await supabase
+    .from('fighters')
+    .select(`
+      fighter_name,
+      gang_id,
+      gang:gang_id (
+        name
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  const gangName = fighterData?.gang 
+    ? Array.isArray(fighterData.gang) 
+      ? (fighterData.gang[0] as any)?.name || '' 
+      : (fighterData.gang as any)?.name || ''
+    : ''
 
   return (
     <div 

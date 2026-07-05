@@ -1,5 +1,5 @@
 import { LuHouse } from "react-icons/lu";
-import { getCampaignBasic } from "@/app/lib/campaigns/[id]/get-campaign-data"
+import { createClient } from "@/utils/supabase/server"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,9 +16,13 @@ export default async function CampaignBreadcrumb({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  // Cached read — warmed by the campaign page on the same navigation.
-  // A breadcrumb must never throw: degrade to the fallback label on any error.
-  const campaignData = await getCampaignBasic(id).catch(() => null)
+  const supabase = await createClient()
+  
+  const { data: campaignData } = await supabase
+    .from('campaigns')
+    .select('campaign_name')
+    .eq('id', id)
+    .single()
 
   return (
     <div 
