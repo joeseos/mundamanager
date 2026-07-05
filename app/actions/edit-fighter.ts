@@ -210,7 +210,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
     const getEffectiveCost = async () => {
       try {
-        return await getFighterTotalCost(params.fighter_id);
+        return await getFighterTotalCost(params.fighter_id, supabase);
       } catch (e) {
         console.error('Failed to compute fighter total cost for rating adjustment:', e);
         return 0;

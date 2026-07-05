@@ -1,5 +1,6 @@
 'use server'
 
+import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { getGangRating } from "@/app/lib/shared/gang-data";
 import { formatRollOutcomeLine } from "@/utils/dice";
@@ -92,9 +93,9 @@ interface FighterRecoveryLogParams {
 
 // Gang rating calculation now uses cached getGangRating function
 
-async function calculateGangRating(gangId: string): Promise<number> {
+async function calculateGangRating(supabase: any, gangId: string): Promise<number> {
   try {
-    return await getGangRating(gangId);
+    return await getGangRating(gangId, supabase);
   } catch (error) {
     console.error('Failed to get cached gang rating:', error);
     return 0;
@@ -103,10 +104,12 @@ async function calculateGangRating(gangId: string): Promise<number> {
 
 export async function logCharacteristicAdvancement(params: CharacteristicAdvancementLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
     let description = `Fighter "${params.fighter_name}" advanced "${params.characteristic_name}" for ${params.xp_cost} XP (+${params.credits_increase} credits). Remaining XP: ${params.remaining_xp}`;
     
     if (params.include_gang_rating) {
-      const gangRating = await calculateGangRating(params.gang_id);
+      const gangRating = await calculateGangRating(supabase, params.gang_id);
       description += `. New gang rating: ${gangRating}`;
     }
 
@@ -172,6 +175,8 @@ export async function logSkillAdvancement(params: SkillAdvancementLogParams): Pr
 
 export async function logSkillAdvancementDeletion(params: AdvancementDeletionLogParams): Promise<GangLogActionResult> {
   try {
+    const supabase = await createClient();
+    
     let description = `Fighter "${params.fighter_name}" removed ${params.advancement_type} "${params.advancement_name}" (refunded ${params.xp_refunded} XP). New XP total: ${params.new_xp_total}`;
 
     if (params.credits_refunded && params.credits_refunded > 0) {
@@ -179,7 +184,7 @@ export async function logSkillAdvancementDeletion(params: AdvancementDeletionLog
     }
 
     if (params.include_gang_rating) {
-      const gangRating = await calculateGangRating(params.gang_id);
+      const gangRating = await calculateGangRating(supabase, params.gang_id);
       description += `. New gang rating: ${gangRating}`;
     }
 

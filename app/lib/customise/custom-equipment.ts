@@ -1,29 +1,34 @@
-import { cacheTag, cacheLife } from 'next/cache';
-import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
+import { unstable_cache } from 'next/cache';
+import { createClient } from "@/utils/supabase/server";
 import { CustomEquipment } from "@/types/equipment";
 import { CACHE_TAGS } from "@/utils/cache-tags";
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Re-export for backward compatibility
 export type { CustomEquipment } from "@/types/equipment";
 
-export async function getUserCustomEquipment(userId: string): Promise<CustomEquipment[]> {
-  'use cache: remote';
-  cacheLife('max');
-  cacheTag(CACHE_TAGS.USER_CUSTOM_EQUIPMENT(userId));
+export async function getUserCustomEquipment(userId: string, supabase: SupabaseClient): Promise<CustomEquipment[]> {
+  return unstable_cache(
+    async () => {
+      const { data: customEquipment, error } = await supabase
+        .from('custom_equipment')
+        .select('*')
+        .eq('user_id', userId)
+        .order('equipment_name', { ascending: true });
 
-  const supabase = createServiceRoleClient();
-  const { data: customEquipment, error } = await supabase
-    .from('custom_equipment')
-    .select('*')
-    .eq('user_id', userId)
-    .order('equipment_name', { ascending: true });
+      if (error) {
+        console.error('Error fetching custom equipment:', error);
+        throw new Error(`Failed to fetch custom equipment: ${error.message}`);
+      }
 
-  if (error) {
-    console.error('Error fetching custom equipment:', error);
-    throw new Error(`Failed to fetch custom equipment: ${error.message}`);
-  }
-
-  return customEquipment || [];
+      return customEquipment || [];
+    },
+    [`user-custom-equipment-${userId}`],
+    {
+      tags: [CACHE_TAGS.USER_CUSTOM_EQUIPMENT(userId)],
+      revalidate: false,
+    }
+  )();
 }
 
 export async function getUserCustomEquipmentByCategory(category?: string): Promise<CustomEquipment[]> {

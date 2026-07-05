@@ -54,10 +54,6 @@ const nextConfig = {
     optimizePackageImports: ['@/components/ui'],
     scrollRestoration: false,
     authInterrupts: true,
-    // Enables the 'use cache' directive without cacheComponents/PPR semantics.
-    // Undocumented backwards-compat flag; if removed in a future major, either
-    // adopt cacheComponents (requires Suspense fallbacks) or revert to unstable_cache.
-    useCache: true,
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',

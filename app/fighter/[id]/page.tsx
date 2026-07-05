@@ -46,7 +46,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
     } = await import('@/app/lib/shared/gang-data');
 
     // Fetch basic fighter data first to check if fighter exists
-    const fighterBasic = await getFighterBasic(id);
+    const fighterBasic = await getFighterBasic(id, supabase);
 
     if (!fighterBasic) {
       notFound();
@@ -71,32 +71,32 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       loadouts
     ] = await Promise.all([
       // Gang data
-      getGangBasic(fighterBasic.gang_id),
-      getGangPositioning(fighterBasic.gang_id),
-      getGangCredits(fighterBasic.gang_id),
+      getGangBasic(fighterBasic.gang_id, supabase),
+      getGangPositioning(fighterBasic.gang_id, supabase),
+      getGangCredits(fighterBasic.gang_id, supabase),
       // Fighter data
-      getFighterEquipment(id),
-      getFighterSkills(id),
-      getFighterEffects(id),
-      getFighterVehicles(id),
-      getFighterOwnedBeastsCost(id),
+      getFighterEquipment(id, supabase),
+      getFighterSkills(id, supabase),
+      getFighterEffects(id, supabase),
+      getFighterVehicles(id, supabase),
+      getFighterOwnedBeastsCost(id, supabase),
       // Fighter type data (using cached helpers)
-      getFighterTypeInfo(fighterBasic.fighter_type_id),
+      getFighterTypeInfo(fighterBasic.fighter_type_id, supabase),
       fighterBasic.fighter_sub_type_id ?
-        getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id) :
+        getFighterSubTypeInfo(fighterBasic.fighter_sub_type_id, supabase) :
         Promise.resolve(null),
       // Campaign data (gang-level cache using COMPOSITE_GANG_CAMPAIGNS)
-      getGangCampaigns(fighterBasic.gang_id),
+      getGangCampaigns(fighterBasic.gang_id, supabase),
       // Beast ownership data (using cached helper)
-      getFighterOwnedBeastsData(id),
+      getFighterOwnedBeastsData(id, supabase),
       // Owner check (if this fighter is a beast, using cached helper)
       fighterBasic.fighter_pet_id ?
-        getFighterOwnershipInfo(fighterBasic.fighter_pet_id) :
+        getFighterOwnershipInfo(fighterBasic.fighter_pet_id, supabase) :
         Promise.resolve(null),
       // Gang fighters list
-      getGangFighters(fighterBasic.gang_id),
+      getGangFighters(fighterBasic.gang_id, supabase),
       // Fighter loadouts
-      getFighterLoadouts(id)
+      getFighterLoadouts(id, supabase)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
