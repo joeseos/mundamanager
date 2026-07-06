@@ -35,7 +35,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
 
   try {
     // Fetch basic gang data first to check if gang exists
-    const gangBasic = await getGangBasic(params.id, supabase);
+    const gangBasic = await getGangBasic(params.id);
 
     if (!gangBasic) {
       notFound();
@@ -68,19 +68,19 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       userPermissions,
       battleSessions
     ] = await Promise.all([
-      getGangPositioning(params.id, supabase),
-      getGangType(gangBasic, supabase),
-      getAlliance(gangBasic.alliance_id, supabase),
-      getGangFightersList(params.id, supabase),
-      getGangVehicles(params.id, supabase),
-      getGangStash(params.id, supabase),
-      getGangCampaigns(params.id, supabase),
-      getGangCredits(params.id, supabase),
-      getGangVariants(gangBasic.gang_variants || [], supabase),
-      getGangRatingAndWealth(params.id, supabase),
-      getUserProfile(gangBasic.user_id, supabase),
+      getGangPositioning(params.id),
+      getGangType(gangBasic),
+      getAlliance(gangBasic.alliance_id),
+      getGangFightersList(params.id),
+      getGangVehicles(params.id),
+      getGangStash(params.id),
+      getGangCampaigns(params.id),
+      getGangCredits(params.id),
+      getGangVariants(gangBasic.gang_variants || []),
+      getGangRatingAndWealth(params.id),
+      getUserProfile(gangBasic.user_id),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
-      getGangBattleSessionsCached(params.id, supabase)
+      getGangBattleSessionsCached(params.id)
     ]);
 
     // Initialize positioning if needed (lazy initialization only)

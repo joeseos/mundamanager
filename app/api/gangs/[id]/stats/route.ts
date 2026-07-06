@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getGangFighterStats } from "@/app/lib/shared/gang-data";
 
@@ -12,7 +11,6 @@ export async function GET(
   props: { params: Promise<{ id: string }> }
 ) {
   const params = await props.params;
-  const supabase = await createClient();
   const { id: gangId } = params;
 
   if (!gangId) {
@@ -23,7 +21,7 @@ export async function GET(
   }
 
   try {
-    const stats = await getGangFighterStats(gangId, supabase);
+    const stats = await getGangFighterStats(gangId);
     return NextResponse.json(stats);
   } catch (error: any) {
     console.error('Error fetching gang fighter stats:', error);

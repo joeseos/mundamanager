@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
 // Internal helper functions
@@ -39,10 +40,10 @@ async function _getAdvancementCategories(advancementType: 'characteristic' | 'sk
  * Cache key: gang-fighters-{gangId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getGangFighters = async (gangId: string, supabase: any) => {
+export const getGangFighters = async (gangId: string) => {
   return unstable_cache(
     async () => {
-      return _getGangFighters(gangId, supabase);
+      return _getGangFighters(gangId, createServiceRoleClient());
     },
     [`gang-fighters-${gangId}`],
     {
@@ -52,10 +53,10 @@ export const getGangFighters = async (gangId: string, supabase: any) => {
   )();
 };
 
-export async function getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: any) {
+export async function getAdvancementCategories(advancementType: 'characteristic' | 'skill') {
   return unstable_cache(
     async () => {
-      return _getAdvancementCategories(advancementType, supabase);
+      return _getAdvancementCategories(advancementType, createServiceRoleClient());
     },
     [`advancement-categories-${advancementType}`],
     {
@@ -73,10 +74,10 @@ async function _getFighterAvailableAdvancements(fighterId: string, supabase: any
   return data;
 }
 
-export async function getFighterAvailableAdvancements(fighterId: string, supabase: any) {
+export async function getFighterAvailableAdvancements(fighterId: string) {
   return unstable_cache(
     async () => {
-      return _getFighterAvailableAdvancements(fighterId, supabase);
+      return _getFighterAvailableAdvancements(fighterId, createServiceRoleClient());
     },
     [`fighter-available-advancements-${fighterId}`],
     {
@@ -117,10 +118,10 @@ async function _getAvailableInjuries(supabase: any) {
   return data;
 }
 
-export async function getAvailableInjuries(supabase: any) {
+export async function getAvailableInjuries() {
   return unstable_cache(
     async () => {
-      return _getAvailableInjuries(supabase);
+      return _getAvailableInjuries(createServiceRoleClient());
     },
     ['available-injuries'],
     {

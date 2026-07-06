@@ -22,8 +22,7 @@ import { checkCampaignArbitrator } from '@/utils/user-permissions';
 // =============================================================================
 
 export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
-  const supabase = await createClient();
-  return fetchBattleSessionDirect(sessionId, supabase);
+  return fetchBattleSessionDirect(sessionId);
 }
 
 // =============================================================================

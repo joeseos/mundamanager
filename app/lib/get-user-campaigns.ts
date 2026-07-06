@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export type Campaign = {
@@ -18,9 +19,10 @@ export type Campaign = {
   favourite_order: number | null;
 };
 
-export const getUserCampaigns = async (userId: string, supabase: any): Promise<Campaign[]> => {
+export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       console.log("Server: Fetching user campaigns");
       try {
         const { data: campaignMembers, error: membersError } = await supabase

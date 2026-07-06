@@ -1,13 +1,14 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BattleSession, BattleSessionFull } from '@/types/battle-session';
 import { fetchCampaignResources, type CampaignResource } from '@/utils/campaigns/resources';
 
 async function fetchBattleSessionDirect(
-  sessionId: string,
-  supabase: SupabaseClient
+  sessionId: string
 ): Promise<BattleSessionFull | null> {
+  const supabase = createServiceRoleClient();
   const { data: session, error: sessionError } = await supabase
     .from('battle_sessions')
     .select('*')
@@ -136,16 +137,11 @@ async function fetchBattleSessionDirect(
 
 export { fetchBattleSessionDirect };
 
-// The supabase client is captured in the unstable_cache closure but only
-// used on cache miss (first call or after revalidateTag). On cache hits
-// the parameter is ignored. Safe here because all participants share the
-// same view of the session (no per-user RLS variance).
 export const getBattleSessionCached = async (
-  sessionId: string,
-  supabase: SupabaseClient
+  sessionId: string
 ): Promise<BattleSessionFull | null> => {
   return unstable_cache(
-    () => fetchBattleSessionDirect(sessionId, supabase),
+    () => fetchBattleSessionDirect(sessionId),
     [`battle-session-${sessionId}`],
     {
       tags: [CACHE_TAGS.BASE_BATTLE_SESSION(sessionId)],
@@ -155,11 +151,11 @@ export const getBattleSessionCached = async (
 };
 
 export const getGangBattleSessionsCached = async (
-  gangId: string,
-  supabase: SupabaseClient
+  gangId: string
 ): Promise<BattleSession[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data: participantSessions } = await supabase
         .from('battle_session_participants')
         .select('battle_session_id')

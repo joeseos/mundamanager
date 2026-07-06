@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { TypeSpecificData } from '@/types/fighter-effect';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
@@ -59,9 +60,10 @@ type FighterWithRating = {
   rating: number;
 };
 
-export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[]> => {
+export const getUserGangs = async (userId: string): Promise<Gang[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       console.log("Server: Fetching user gangs");
       try {
         const { data, error: gangsError } = await supabase
