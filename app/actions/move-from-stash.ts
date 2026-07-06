@@ -532,7 +532,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     let updatedGangRating: number | undefined;
     try {
       const { getGangRating } = await import('@/app/lib/shared/gang-data');
-      updatedGangRating = await getGangRating(gangId, supabase);
+      updatedGangRating = await getGangRating(gangId);
     } catch (error) {
       // Silently continue
     }

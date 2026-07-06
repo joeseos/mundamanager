@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from '@/utils/supabase/server';
+import { createServiceRoleClient, createClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 
 export async function getAcceptedFriends(userId: string) {
@@ -34,9 +34,10 @@ export async function getAcceptedFriends(userId: string) {
   });
 }
 
-export const getFriendsAndRequests = async (userId: string, supabase: any) => {
+export const getFriendsAndRequests = async (userId: string) => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('friends')
         .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')

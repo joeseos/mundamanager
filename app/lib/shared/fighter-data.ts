@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
@@ -119,9 +120,10 @@ export interface FighterSkill {
  * Get fighter basic information (stats, name, type, etc.)
  * Cache: BASE_FIGHTER_BASIC
  */
-export const getFighterBasic = async (fighterId: string, supabase: any): Promise<FighterBasic | null> => {
+export const getFighterBasic = async (fighterId: string): Promise<FighterBasic | null> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighters')
         .select(`
@@ -187,7 +189,8 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
         if (error.code === 'PGRST116' || error.code === '22P02') return null;
         throw error;
       }
-      return data;
+      // Supabase types single-row joins as arrays; the shape at runtime matches FighterBasic
+      return data as unknown as FighterBasic;
     },
     [`fighter-basic-${fighterId}`],
     {
@@ -201,9 +204,10 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
  * Get fighter equipment with weapon profiles
  * Cache: BASE_FIGHTER_EQUIPMENT
  */
-export const getFighterEquipment = async (fighterId: string, supabase: any): Promise<FighterEquipment[]> => {
+export const getFighterEquipment = async (fighterId: string): Promise<FighterEquipment[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_equipment')
         .select(`
@@ -509,9 +513,10 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
  * Get fighter skills
  * Cache: BASE_FIGHTER_SKILLS
  */
-export const getFighterSkills = async (fighterId: string, supabase: any): Promise<Record<string, FighterSkill>> => {
+export const getFighterSkills = async (fighterId: string): Promise<Record<string, FighterSkill>> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_skills')
         .select(`
@@ -598,9 +603,10 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
  * Get fighter effects/injuries
  * Cache: BASE_FIGHTER_EFFECTS
  */
-export const getFighterEffects = async (fighterId: string, supabase: any): Promise<Record<string, FighterEffect[]>> => {
+export const getFighterEffects = async (fighterId: string): Promise<Record<string, FighterEffect[]>> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_effects')
         .select(`
@@ -667,9 +673,10 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
  * Get fighter vehicles (fighters have 0-1 vehicles)
  * Cache: BASE_FIGHTER_VEHICLES
  */
-export const getFighterVehicles = async (fighterId: string, supabase: any): Promise<any[]> => {
+export const getFighterVehicles = async (fighterId: string): Promise<any[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data: vehicle, error } = await supabase
         .from('vehicles')
         .select(`
@@ -948,9 +955,10 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
  * Get fighter loadouts with equipment IDs
  * Cache: BASE_FIGHTER_LOADOUTS (dedicated tag to avoid over-invalidation)
  */
-export const getFighterLoadouts = async (fighterId: string, supabase: any): Promise<FighterLoadout[]> => {
+export const getFighterLoadouts = async (fighterId: string): Promise<FighterLoadout[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       // Fetch all loadouts for this fighter
       const { data: loadouts, error: loadoutsError } = await supabase
         .from('fighter_loadouts')
@@ -1006,17 +1014,18 @@ export const getFighterLoadouts = async (fighterId: string, supabase: any): Prom
  * Calculate fighter's total cost (base + equipment + skills + effects + vehicles + beasts)
  * Cache: COMPUTED_FIGHTER_TOTAL_COST
  */
-export const getFighterTotalCost = async (fighterId: string, supabase: any): Promise<number> => {
+export const getFighterTotalCost = async (fighterId: string): Promise<number> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       // Get all cost components in parallel
       const [fighterBasic, equipment, skills, effects, vehicles, beastCosts] = await Promise.all([
-        getFighterBasic(fighterId, supabase),
-        getFighterEquipment(fighterId, supabase),
-        getFighterSkills(fighterId, supabase),
-        getFighterEffects(fighterId, supabase),
-        getFighterVehicles(fighterId, supabase),
-        getFighterOwnedBeastsCost(fighterId, supabase)
+        getFighterBasic(fighterId),
+        getFighterEquipment(fighterId),
+        getFighterSkills(fighterId),
+        getFighterEffects(fighterId),
+        getFighterVehicles(fighterId),
+        getFighterOwnedBeastsCost(fighterId)
       ]);
 
       // Return 0 if fighter not found
@@ -1091,9 +1100,10 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
  * Returns total cost (for rating) and per-equipment beast equipment costs (for sell value)
  * Cache: COMPUTED_FIGHTER_BEAST_COSTS
  */
-export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any): Promise<{ total: number; byEquipmentId: Record<string, { equipment: number; advancements: number }> }> => {
+export const getFighterOwnedBeastsCost = async (fighterId: string): Promise<{ total: number; byEquipmentId: Record<string, { equipment: number; advancements: number }> }> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_exotic_beasts')
         .select('fighter_pet_id, fighter_equipment_id')
@@ -1173,7 +1183,7 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
  * Get fighter type information (cached globally)
  * Cache: GLOBAL_FIGHTER_TYPES
  */
-export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase: any): Promise<{
+export const getFighterTypeInfo = async (fighterTypeId: string | null): Promise<{
   id: string;
   fighter_type: string;
   alliance_crew_name?: string;
@@ -1183,6 +1193,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
 
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_types')
         .select('id, fighter_type, alliance_crew_name, is_spyrer')
@@ -1204,12 +1215,13 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
  * Get fighter sub-type information (cached globally)
  * Cache: GLOBAL_FIGHTER_TYPES
  */
-export const getFighterSubTypeInfo = async (fighterSubTypeId: string, supabase: any): Promise<{
+export const getFighterSubTypeInfo = async (fighterSubTypeId: string): Promise<{
   fighter_sub_type: string;
   fighter_sub_type_id: string;
 } | null> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_sub_types')
         .select('id, sub_type_name')
@@ -1235,12 +1247,13 @@ export const getFighterSubTypeInfo = async (fighterSubTypeId: string, supabase: 
  * Get exotic beast ownership information
  * Cache: fighter-exotic-beast-{petId}
  */
-export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: any): Promise<{
+export const getFighterOwnershipInfo = async (fighterPetId: string): Promise<{
   owner_name?: string;
   beast_equipment_stashed: boolean;
 } | null> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -1260,7 +1273,7 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
 
       return {
         owner_name: (data.fighters as any)?.fighter_name,
-        beast_equipment_stashed: data.fighter_equipment?.gang_stash || false
+        beast_equipment_stashed: (data.fighter_equipment as any)?.gang_stash || false
       };
     },
     [`fighter-ownership-${fighterPetId}`],
@@ -1275,9 +1288,10 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
  * Get fighter's owned exotic beasts with equipment names
  * Cache: BASE_FIGHTER_OWNED_BEASTS
  */
-export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any): Promise<any[]> => {
+export const getFighterOwnedBeastsData = async (fighterId: string): Promise<any[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_exotic_beasts')
         .select(`

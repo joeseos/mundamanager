@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     // For custom gang types, skip system RPCs and only return custom fighters
     if (customGangTypeId) {
-      const customFighters = await getUserCustomFighterTypes(userId, supabase);
+      const customFighters = await getUserCustomFighterTypes(userId);
 
       // Fetch shared custom fighters from campaigns
       const { data: campaignMembers } = await supabase
@@ -241,7 +241,7 @@ export async function GET(request: Request) {
     if (includeCustomFighters && !isGangAddition) {
       try {
         // Fetch user's own custom fighters
-        const customFighters = await getUserCustomFighterTypes(userId, supabase);
+        const customFighters = await getUserCustomFighterTypes(userId);
 
         // Fetch shared custom fighters from campaigns where user is a member (any role)
         const { data: campaignMembers } = await supabase

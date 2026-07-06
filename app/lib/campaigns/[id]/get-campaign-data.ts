@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CACHE_TAGS } from '@/utils/cache-tags';
@@ -575,9 +575,10 @@ async function _getCampaignTriumphs(campaignTypeId: string, supabase: SupabaseCl
  * Get gang IDs for a campaign (cached)
  * Used internally to build cache tags for getCampaignMembers
  */
-const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) => {
+const getCampaignGangIds = async (campaignId: string) => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data: campaignGangs } = await supabase
         .from('campaign_gangs')
         .select('gang_id')
@@ -601,11 +602,10 @@ const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) 
  * Cache key: campaign-basic-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBasic = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignBasic = async (campaignId: string) => {
   return unstable_cache(
     async () => {
-      return _getCampaignBasic(campaignId, supabase);
+      return _getCampaignBasic(campaignId, createServiceRoleClient());
     },
     [`campaign-basic-${campaignId}`],
     {
@@ -625,11 +625,9 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
  * Cache key: campaign-members-{campaignId}
  * Invalidation: Server actions + gang cache tags
  */
-export const getCampaignMembers = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
-
+export const getCampaignMembers = async (campaignId: string) => {
   // Get gang IDs using cached helper - only hits DB on cache miss
-  const gangIds = await getCampaignGangIds(campaignId, supabase);
+  const gangIds = await getCampaignGangIds(campaignId);
 
   // Build cache tags that include gang overview and rating tags
   const cacheTags = [
@@ -645,7 +643,7 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
 
   return unstable_cache(
     async () => {
-      return _getCampaignMembers(campaignId, supabase);
+      return _getCampaignMembers(campaignId, createServiceRoleClient());
     },
     [`campaign-members-${campaignId}`],
     {
@@ -660,11 +658,10 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
  * Cache key: campaign-territories-{campaignId}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignTerritories = async (campaignId: string, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignTerritories = async (campaignId: string) => {
   return unstable_cache(
     async () => {
-      return _getCampaignTerritories(campaignId, supabase);
+      return _getCampaignTerritories(campaignId, createServiceRoleClient());
     },
     [`campaign-territories-${campaignId}`],
     {
@@ -684,11 +681,10 @@ export const getCampaignTerritories = async (campaignId: string, supabaseClient?
  * Cache key: campaign-battles-{campaignId}-{limit}
  * Invalidation: Server actions only via revalidateTag()
  */
-export const getCampaignBattles = async (campaignId: string, limit = 100, supabaseClient?: SupabaseClient) => {
-  const supabase = supabaseClient ?? await createClient();
+export const getCampaignBattles = async (campaignId: string, limit = 100) => {
   return unstable_cache(
     async () => {
-      return _getCampaignBattles(campaignId, supabase, limit);
+      return _getCampaignBattles(campaignId, createServiceRoleClient(), limit);
     },
     [`campaign-battles-${campaignId}-${limit}`],
     {
@@ -710,10 +706,9 @@ export const getCampaignBattles = async (campaignId: string, limit = 100, supaba
  * Invalidation: Server actions only via revalidateTag()
  */
 export const getCampaignTriumphs = async (campaignTypeId: string) => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
-      return _getCampaignTriumphs(campaignTypeId, supabase);
+      return _getCampaignTriumphs(campaignTypeId, createServiceRoleClient());
     },
     [`campaign-triumphs-${campaignTypeId}`],
     {
@@ -756,9 +751,9 @@ export function createCampaignTypeTag(campaignTypeId: string): string {
  * Used by territory selection components
  */
 export const getCampaignTypes = async () => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('campaign_types')
         .select('id, campaign_type_name')
@@ -780,9 +775,9 @@ export const getCampaignTypes = async () => {
  * Used by territory selection components
  */
 export const getAllTerritories = async () => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('territories')
         .select('id, territory_name, campaign_type_id, playing_card')
@@ -807,9 +802,9 @@ export const getAllTerritories = async () => {
  * Used by territory gang modal
  */
 export const getCampaignGangsForModal = async (campaignId: string) => {
-  const supabase = await createClient();
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       // Get campaign gangs
       const { data: campaignGangs, error: campaignGangsError } = await supabase
         .from('campaign_gangs')
@@ -869,11 +864,11 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
  * Get available allegiances for a campaign
  * Returns custom allegiances for custom campaigns, or predefined allegiances for other campaign types
  */
-export async function getCampaignAllegiances(campaignId: string, supabase: SupabaseClient) {
+export async function getCampaignAllegiances(campaignId: string) {
   return unstable_cache(
     async () => {
       try {
-        return await fetchCampaignAllegiances(campaignId, supabase);
+        return await fetchCampaignAllegiances(campaignId, createServiceRoleClient());
       } catch (error) {
         // Return empty array if campaign not found (graceful degradation for server-side)
         if (error instanceof Error && error.message === 'Campaign not found') {
@@ -955,11 +950,11 @@ export async function getCampaignCaptives(campaignId: string, supabaseClient?: S
  * Get available resources for a campaign
  * Returns predefined campaign type resources and custom campaign resources
  */
-export async function getCampaignResources(campaignId: string, supabase: SupabaseClient) {
+export async function getCampaignResources(campaignId: string) {
   return unstable_cache(
     async () => {
       try {
-        return await fetchCampaignResources(campaignId, supabase);
+        return await fetchCampaignResources(campaignId, createServiceRoleClient());
       } catch (error) {
         // Return empty array if campaign not found (graceful degradation for server-side)
         if (error instanceof Error && error.message === 'Campaign not found') {
@@ -1049,13 +1044,11 @@ async function _getCampaignMapWithObjects(
 }
 
 export const getCampaignMapWithObjects = async (
-  campaignId: string,
-  supabaseClient?: SupabaseClient
+  campaignId: string
 ): Promise<CampaignMapBundle> => {
-  const supabase = supabaseClient ?? await createClient();
   return unstable_cache(
     async () => {
-      return _getCampaignMapWithObjects(campaignId, supabase);
+      return _getCampaignMapWithObjects(campaignId, createServiceRoleClient());
     },
     [`campaign-map-${campaignId}`],
     {

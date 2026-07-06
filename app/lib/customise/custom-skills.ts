@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from "@/utils/cache-tags";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -37,9 +38,10 @@ export interface CustomSkill {
   updated_at?: string;
 }
 
-export async function getUserCustomSkills(userId: string, supabase: SupabaseClient): Promise<CustomSkill[]> {
+export async function getUserCustomSkills(userId: string): Promise<CustomSkill[]> {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data: customSkills, error } = await supabase
         .from('custom_skills')
         .select(`

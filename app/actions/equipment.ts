@@ -1148,7 +1148,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // Get fresh fighter total cost after deletion for accurate response
     let freshFighterTotalCost = null;
     try {
-      freshFighterTotalCost = await getFighterTotalCost(params.fighter_id, supabase);
+      freshFighterTotalCost = await getFighterTotalCost(params.fighter_id);
     } catch (fighterRefreshError) {
       console.warn('Could not refresh fighter total cost:', fighterRefreshError);
     }

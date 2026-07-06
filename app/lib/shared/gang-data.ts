@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache';
+import { createServiceRoleClient } from '@/utils/supabase/server';
 import { CACHE_TAGS } from '@/utils/cache-tags';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { WeaponProps, WargearItem } from '@/types/fighter';
@@ -174,9 +175,10 @@ export interface GangFighter {
  * Get gang basic information (name, type, reputation, etc. - excludes credits)
  * Cache: BASE_GANG_BASIC
  */
-export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic | null> => {
+export const getGangBasic = async (gangId: string): Promise<GangBasic | null> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gangs')
         .select(`
@@ -229,7 +231,8 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
         if (error.code === '22P02') return null;
         throw error;
       }
-      return data ?? null;
+      // Supabase types single-row joins as arrays; the shape at runtime matches GangBasic
+      return (data ?? null) as GangBasic | null;
     },
     [`gang-basic-${gangId}`],
     {
@@ -243,9 +246,10 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
  * Get gang credits only
  * Cache: BASE_GANG_CREDITS
  */
-export const getGangCredits = async (gangId: string, supabase: any): Promise<number> => {
+export const getGangCredits = async (gangId: string): Promise<number> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gangs')
         .select('credits')
@@ -267,9 +271,10 @@ export const getGangCredits = async (gangId: string, supabase: any): Promise<num
  * Get gang positioning data only
  * Cache: BASE_GANG_POSITIONING
  */
-export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
+export const getGangPositioning = async (gangId: string): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gangs')
         .select('positioning')
@@ -292,9 +297,10 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
  * Get gang stash equipment
  * Cache: BASE_GANG_STASH
  */
-export const getGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
+export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('fighter_equipment')
         .select(`
@@ -345,10 +351,11 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
  * Get gang type information, resolving between system and custom gang types
  * Cache: GLOBAL_GANG_TYPES (shared, 1 hour revalidation)
  */
-export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<GangType> => {
+export const getGangType = async (gangBasic: GangBasic): Promise<GangType> => {
   if (gangBasic.custom_gang_type_id) {
     return unstable_cache(
       async () => {
+        const supabase = createServiceRoleClient();
         const { data, error } = await supabase
           .from('custom_gang_types')
           .select('id, gang_type, default_image_urls')
@@ -373,6 +380,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
 
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gang_types')
         .select('gang_type_id, gang_type, image_url, default_image_urls')
@@ -405,11 +413,12 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
  * Get alliance information
  * Cache: Shared alliance data
  */
-export const getAlliance = async (allianceId: string | undefined, supabase: any): Promise<Alliance | null> => {
+export const getAlliance = async (allianceId: string | undefined): Promise<Alliance | null> => {
   if (!allianceId) return null;
   
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('alliances')
         .select('id, alliance_name, alliance_type')
@@ -431,11 +440,12 @@ export const getAlliance = async (allianceId: string | undefined, supabase: any)
  * Get gang variants
  * Cache: GLOBAL_GANG_TYPES (shared since variants rarely change)
  */
-export const getGangVariants = async (gangVariantIds: string[], supabase: any): Promise<GangVariant[]> => {
+export const getGangVariants = async (gangVariantIds: string[]): Promise<GangVariant[]> => {
   if (!gangVariantIds || gangVariantIds.length === 0) return [];
   
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gang_variant_types')
         .select('id, variant')
@@ -471,9 +481,10 @@ function groupBy<T extends Record<string, any>>(
  * Get gang campaigns
  * Cache: COMPOSITE_GANG_CAMPAIGNS
  */
-export const getGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
+export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('campaign_gangs')
         .select(`
@@ -708,7 +719,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         if (cg.campaigns) {
           // Get member data - need to fetch ALL entries for this user in this campaign
           // to determine the highest role (in case they have multiple gangs)
-          let memberData = cg.campaign_members;
+          let memberData: any = cg.campaign_members;
 
           if (!memberData || !(memberData as any)?.role) {
             // Fallback: query all campaign_members entries for this user in this campaign
@@ -789,9 +800,10 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
  * Get stored gang rating and wealth from columns (gangs.rating, gangs.wealth)
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  */
-export const getGangRatingAndWealth = async (gangId: string, supabase: any): Promise<{ rating: number; wealth: number }> => {
+export const getGangRatingAndWealth = async (gangId: string): Promise<{ rating: number; wealth: number }> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('gangs')
         .select('rating, wealth')
@@ -820,8 +832,8 @@ export const getGangRatingAndWealth = async (gangId: string, supabase: any): Pro
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  * @deprecated Use getGangRatingAndWealth() for better performance (single query)
  */
-export const getGangRating = async (gangId: string, supabase: any): Promise<number> => {
-  const { rating } = await getGangRatingAndWealth(gangId, supabase);
+export const getGangRating = async (gangId: string): Promise<number> => {
+  const { rating } = await getGangRatingAndWealth(gangId);
   return rating;
 };
 
@@ -830,8 +842,8 @@ export const getGangRating = async (gangId: string, supabase: any): Promise<numb
  * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
  * @deprecated Use getGangRatingAndWealth() for better performance (single query)
  */
-export const getGangWealth = async (gangId: string, supabase: any): Promise<number> => {
-  const { wealth } = await getGangRatingAndWealth(gangId, supabase);
+export const getGangWealth = async (gangId: string): Promise<number> => {
+  const { wealth } = await getGangRatingAndWealth(gangId);
   return wealth;
 };
 
@@ -839,9 +851,10 @@ export const getGangWealth = async (gangId: string, supabase: any): Promise<numb
  * Get gang fighter count
  * Cache: COMPUTED_GANG_FIGHTER_COUNT
  */
-export const getGangFighterCount = async (gangId: string, supabase: any): Promise<number> => {
+export const getGangFighterCount = async (gangId: string): Promise<number> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { count, error } = await supabase
         .from('fighters')
         .select('*', { count: 'exact', head: true })
@@ -866,9 +879,10 @@ export const getGangFighterCount = async (gangId: string, supabase: any): Promis
  * Get gang beast count
  * Cache: COMPUTED_GANG_BEAST_COUNT
  */
-export const getGangBeastCount = async (gangId: string, supabase: any): Promise<number> => {
+export const getGangBeastCount = async (gangId: string): Promise<number> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { count, error } = await supabase
         .from('fighters')
         .select('*', { count: 'exact', head: true })
@@ -913,7 +927,6 @@ export interface GetGangFightersListOptions {
 
 export const getGangFightersList = async (
   gangId: string,
-  supabase: any,
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
@@ -921,6 +934,7 @@ export const getGangFightersList = async (
 
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       // Step 1: Fetch ALL fighters for the gang in ONE query with joins
       const { data: fighters, error: fightersError } = await supabase
         .from('fighters')
@@ -1917,8 +1931,9 @@ export const getGangFightersList = async (
           }));
 
         // Get fighter type info from the join
-        const fighterTypeInfo = fighter.fighter_types || {};
-        const fighterSubTypeInfo = fighter.fighter_sub_types || null;
+        // Single-row join typed as array by Supabase; runtime shape is an object
+        const fighterTypeInfo = (fighter.fighter_types || {}) as any;
+        const fighterSubTypeInfo = (fighter.fighter_sub_types || null) as any;
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -2018,9 +2033,10 @@ export const getGangFightersList = async (
  * Get gang vehicles (not assigned to specific fighters)
  * Cache: BASE_GANG_VEHICLES (these are gang-owned vehicles)
  */
-export const getGangVehicles = async (gangId: string, supabase: any): Promise<any[]> => {
+export const getGangVehicles = async (gangId: string): Promise<any[]> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('vehicles')
         .select(`
@@ -2057,8 +2073,8 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
       const vehiclesWithDetails = await Promise.all(
         (data || []).map(async (vehicle: any) => {
           const [equipment, effects] = await Promise.all([
-            getVehicleEquipment(vehicle.id, supabase),
-            getVehicleEffects(vehicle.id, supabase)
+            getVehicleEquipment(vehicle.id),
+            getVehicleEffects(vehicle.id)
           ]);
 
           const equipmentCost = equipment.reduce((sum: number, eq: any) => sum + (eq.cost || 0), 0);
@@ -2112,7 +2128,8 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
 /**
  * Get vehicle equipment (shared helper for gang and fighter vehicles)
  */
-const getVehicleEquipment = async (vehicleId: string, supabase: any): Promise<any[]> => {
+const getVehicleEquipment = async (vehicleId: string): Promise<any[]> => {
+  const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from('fighter_equipment')
     .select(`
@@ -2189,7 +2206,8 @@ const getVehicleEquipment = async (vehicleId: string, supabase: any): Promise<an
 /**
  * Get vehicle effects (shared helper for gang and fighter vehicles)
  */
-const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Record<string, any[]>> => {
+const getVehicleEffects = async (vehicleId: string): Promise<Record<string, any[]>> => {
+  const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from('fighter_effects')
     .select(`
@@ -2248,7 +2266,7 @@ const getVehicleEffects = async (vehicleId: string, supabase: any): Promise<Reco
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
+export const getUserProfile = async (userId: string): Promise<{ 
   username: string;
   patreon_tier_id?: string;
   patreon_tier_title?: string;
@@ -2256,6 +2274,7 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
 } | null> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data, error } = await supabase
         .from('profiles')
         .select('username, patreon_tier_id, patreon_tier_title, patron_status')
@@ -2294,11 +2313,11 @@ export interface GangFighterStats {
 }
 
 export const getGangFighterStats = async (
-  gangId: string,
-  supabase: any
+  gangId: string
 ): Promise<GangFighterStats> => {
   return unstable_cache(
     async () => {
+      const supabase = createServiceRoleClient();
       const { data: fighters, error } = await supabase
         .from('fighters')
         .select('fighter_name, fighter_type, fighter_class, kills, killed')

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createClient } from '@/utils/supabase/server';
+import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import type { UserPermissions, CampaignPermissions } from '@/types/user-permissions';
 import type { CampaignRole } from '@/types/user-permissions';
 import { unstable_cache } from 'next/cache';
@@ -35,11 +35,10 @@ export async function checkPermissionCached(
   gangId: string,
   gangOwnerId: string | null
 ): Promise<UserPermissions> {
-  const supabase = await createClient();
-
   return unstable_cache(
     async (uid: string, gid: string, ownerId: string | null) => {
       try {
+        const supabase = createServiceRoleClient();
         const { data, error } = await supabase.rpc('check_permission', {
           p_user_id: uid,
           p_campaign_id: null,
