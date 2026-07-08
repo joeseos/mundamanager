@@ -1,24 +1,23 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Gang } from '@/app/lib/get-user-gangs'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useSortable } from '@dnd-kit/react/sortable'
+import { closestCenter } from '@dnd-kit/collision'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
 
 export interface GangCardProps {
   gang: Gang;
   onToggleFavourite: (gangId: string, isFavourite: boolean) => void;
-  dragListeners?: Record<string, unknown>;
-  dragAttributes?: Record<string, unknown>;
+  draggable?: boolean;
   isDragging?: boolean;
   disableLink?: boolean;
 }
 
-export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: GangCardProps) {
+export function GangCardContent({ gang, onToggleFavourite, draggable = false, isDragging, disableLink = false }: GangCardProps) {
   let imageUrl: string | null = null;
 
   if (gang.image_url) {
@@ -85,9 +84,8 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   return (
     <div
-      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
-      {...(dragListeners || {})}
-      {...(dragAttributes || {})}
+      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card shadow-lg' : ''} ${draggable ? 'cursor-grab select-none' : ''}`}
+      style={draggable ? { touchAction: 'manipulation', WebkitTouchCallout: 'none' } : undefined}
     >
       {disableLink ? (
         <div className="flex items-center grow min-w-0">
@@ -116,54 +114,35 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
 interface SortableGangCardProps {
   gang: Gang;
+  index: number;
   onToggleFavourite: (gangId: string, isFavourite: boolean) => void;
 }
 
-export function SortableGangCard({ gang, onToggleFavourite }: SortableGangCardProps) {
-  const [isDraggingState, setIsDraggingState] = useState(false);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: dndKitIsDragging,
-  } = useSortable({
+export function SortableGangCard({ gang, index, onToggleFavourite }: SortableGangCardProps) {
+  const { ref, isDragging } = useSortable({
     id: gang.id,
-    animateLayoutChanges: () => false,
+    index,
+    // Same collision strategy as the legacy DndContext used (closestCenter)
+    collisionDetector: closestCenter,
   });
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    zIndex: dndKitIsDragging ? 50 : 'auto',
-    position: 'relative',
-    pointerEvents: 'auto',
-  } as const;
-
-  if (dndKitIsDragging !== isDraggingState) {
-    setIsDraggingState(dndKitIsDragging);
-  }
-
   useEffect(() => {
-    if (!dndKitIsDragging) return;
+    if (!isDragging) return;
     const prevCursor = document.body.style.cursor;
     document.body.style.cursor = 'grabbing';
     return () => {
       document.body.style.cursor = prevCursor;
     };
-  }, [dndKitIsDragging]);
+  }, [isDragging]);
 
   return (
-    <li ref={setNodeRef} style={style}>
+    <li ref={ref} style={{ position: 'relative', zIndex: isDragging ? 50 : undefined }}>
       <GangCardContent
         gang={gang}
         onToggleFavourite={onToggleFavourite}
-        dragListeners={listeners as unknown as Record<string, unknown>}
-        dragAttributes={attributes as unknown as Record<string, unknown>}
-        isDragging={dndKitIsDragging}
-        disableLink={isDraggingState}
+        draggable
+        isDragging={isDragging}
+        disableLink={isDragging}
       />
     </li>
   );

@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import type { Gang } from '@/app/lib/get-user-gangs'
-import { DndContext, closestCenter } from '@dnd-kit/core'
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react'
+import { move } from '@dnd-kit/helpers'
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
-import { useIsMounted } from '@/hooks/use-is-mounted'
+import { dndSensors } from '@/utils/dnd-sensors'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
 interface GangsTabProps {
@@ -17,8 +16,21 @@ interface GangsTabProps {
 
 export function GangsTab({ gangs }: GangsTabProps) {
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
-  const isMounted = useIsMounted();
-  const sensors = useDndSensorsConfig();
+  const [pendingReorder, setPendingReorder] = useState<string[] | null>(null);
+
+  // Persist from an effect, after the drop's React transition has committed.
+  // Dispatching the server action any earlier (even via setTimeout) entangles
+  // its pending transition with the drop's, freezing the card until the POST
+  // + revalidation round-trip resolves.
+  useEffect(() => {
+    if (!pendingReorder) return;
+    setPendingReorder(null);
+    reorderFavourites({ type: 'gang', ids: pendingReorder }).then(result => {
+      if (!result.success) {
+        toast.error(result.error || 'Failed to reorder favourites');
+      }
+    });
+  }, [pendingReorder]);
 
   const [prevGangs, setPrevGangs] = useState(gangs);
   if (gangs !== prevGangs) {
@@ -66,15 +78,15 @@ export function GangsTab({ gangs }: GangsTabProps) {
     }
   }, [localGangs]);
 
-  const handleDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  // Must stay synchronous: the drop animation waits for this handler's React
+  // transition to settle, so awaiting the server action here freezes the drop
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    if (event.canceled) return;
 
-    const oldIndex = favouriteGangs.findIndex(g => g.id === active.id);
-    const newIndex = favouriteGangs.findIndex(g => g.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(favouriteGangs, oldIndex, newIndex);
+    // move() resolves the drop from the event's sortable metadata and
+    // returns the same array reference when nothing changed
+    const reordered = move(favouriteGangs, event);
+    if (reordered === favouriteGangs) return;
     const newGangIds = reordered.map(g => g.id);
 
     setLocalGangs(prev => {
@@ -88,10 +100,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
       return updated;
     });
 
-    const result = await reorderFavourites({ type: 'gang', ids: newGangIds });
-    if (!result.success) {
-      toast.error(result.error || 'Failed to reorder favourites');
-    }
+    setPendingReorder(newGangIds);
   }, [favouriteGangs]);
 
   return (
@@ -104,39 +113,18 @@ export function GangsTab({ gangs }: GangsTabProps) {
           {favouriteGangs.length > 0 && (
             <>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Favourites</h3>
-              {isMounted ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={favouriteGangs.map(g => g.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="space-y-3">
-                      {favouriteGangs.map(gang => (
-                        <SortableGangCard
-                          key={gang.id}
-                          gang={gang}
-                          onToggleFavourite={handleToggleFavourite}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              ) : (
+              <DragDropProvider sensors={dndSensors} onDragEnd={handleDragEnd}>
                 <ul className="space-y-3">
-                  {favouriteGangs.map(gang => (
-                    <li key={gang.id}>
-                      <GangCardContent
-                        gang={gang}
-                        onToggleFavourite={handleToggleFavourite}
-                      />
-                    </li>
+                  {favouriteGangs.map((gang, index) => (
+                    <SortableGangCard
+                      key={gang.id}
+                      gang={gang}
+                      index={index}
+                      onToggleFavourite={handleToggleFavourite}
+                    />
                   ))}
                 </ul>
-              )}
+              </DragDropProvider>
               {nonFavouriteGangs.length > 0 && (
                 <hr className="border-border my-4" />
               )}

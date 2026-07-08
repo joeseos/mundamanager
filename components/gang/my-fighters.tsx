@@ -116,10 +116,11 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
         ? "space-y-4 print:flex print:flex-wrap print:flex-row gap-x-2 print:space-y-0"
         : `${viewModeGridClass[viewMode]} w-full items-start px-0`
     }>
-      {sortedFighters.map((fighter) => (
+      {sortedFighters.map((fighter, index) => (
         <SortableFighter
           key={fighter.id}
           fighter={fighter}
+          index={index}
           positions={positions}
           viewMode={viewMode}
           userPermissions={userPermissions}

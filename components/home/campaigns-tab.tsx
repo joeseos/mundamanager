@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
-import { DndContext, closestCenter } from '@dnd-kit/core'
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react'
+import { move } from '@dnd-kit/helpers'
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig } from '@/hooks/use-dnd-sensors'
-import { useIsMounted } from '@/hooks/use-is-mounted'
+import { dndSensors } from '@/utils/dnd-sensors'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
@@ -17,8 +16,21 @@ interface CampaignsTabProps {
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
-  const isMounted = useIsMounted();
-  const sensors = useDndSensorsConfig();
+  const [pendingReorder, setPendingReorder] = useState<string[] | null>(null);
+
+  // Persist from an effect, after the drop's React transition has committed.
+  // Dispatching the server action any earlier (even via setTimeout) entangles
+  // its pending transition with the drop's, freezing the card until the POST
+  // + revalidation round-trip resolves.
+  useEffect(() => {
+    if (!pendingReorder) return;
+    setPendingReorder(null);
+    reorderFavourites({ type: 'campaign', ids: pendingReorder }).then(result => {
+      if (!result.success) {
+        toast.error(result.error || 'Failed to reorder favourites');
+      }
+    });
+  }, [pendingReorder]);
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
   if (campaigns !== prevCampaigns) {
@@ -66,15 +78,15 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     }
   }, [localCampaigns]);
 
-  const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null }) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  // Must stay synchronous: the drop animation waits for this handler's React
+  // transition to settle, so awaiting the server action here freezes the drop
+  const handleCampaignDragEnd = useCallback((event: DragEndEvent) => {
+    if (event.canceled) return;
 
-    const oldIndex = favouriteCampaigns.findIndex(c => c.campaign_member_id === active.id);
-    const newIndex = favouriteCampaigns.findIndex(c => c.campaign_member_id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(favouriteCampaigns, oldIndex, newIndex);
+    // move() resolves the drop from the event's sortable metadata and
+    // returns the same array reference when nothing changed
+    const reordered = move(favouriteCampaigns, event);
+    if (reordered === favouriteCampaigns) return;
     const newMemberIds = reordered.map(c => c.campaign_member_id);
 
     setLocalCampaigns(prev => {
@@ -88,10 +100,7 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
       return updated;
     });
 
-    const result = await reorderFavourites({ type: 'campaign', ids: newMemberIds });
-    if (!result.success) {
-      toast.error(result.error || 'Failed to reorder favourites');
-    }
+    setPendingReorder(newMemberIds);
   }, [favouriteCampaigns]);
 
   return (
@@ -104,39 +113,18 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
           {favouriteCampaigns.length > 0 && (
             <>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Favourites</h3>
-              {isMounted ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleCampaignDragEnd}
-                >
-                  <SortableContext
-                    items={favouriteCampaigns.map(c => c.campaign_member_id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="space-y-3">
-                      {favouriteCampaigns.map(campaign => (
-                        <SortableCampaignCard
-                          key={campaign.campaign_member_id}
-                          campaign={campaign}
-                          onToggleFavourite={handleToggleCampaignFavourite}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              ) : (
+              <DragDropProvider sensors={dndSensors} onDragEnd={handleCampaignDragEnd}>
                 <ul className="space-y-3">
-                  {favouriteCampaigns.map(campaign => (
-                    <li key={campaign.campaign_member_id}>
-                      <CampaignCardContent
-                        campaign={campaign}
-                        onToggleFavourite={handleToggleCampaignFavourite}
-                      />
-                    </li>
+                  {favouriteCampaigns.map((campaign, index) => (
+                    <SortableCampaignCard
+                      key={campaign.campaign_member_id}
+                      campaign={campaign}
+                      index={index}
+                      onToggleFavourite={handleToggleCampaignFavourite}
+                    />
                   ))}
                 </ul>
-              )}
+              </DragDropProvider>
               {nonFavouriteCampaigns.length > 0 && (
                 <hr className="border-border my-4" />
               )}
