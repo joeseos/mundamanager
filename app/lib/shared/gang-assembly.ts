@@ -844,3 +844,486 @@ export function assembleGangVehicles(bundle: GangFightersBundle): any[] {
     };
   });
 }
+
+// =============================================================================
+// FIGHTER PAGE VIEW - assembled from the same bundle the gang page uses
+// =============================================================================
+
+const byProfileOrder = (a: any, b: any) => {
+  const so = (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity);
+  return so !== 0 ? so : (a.profile_name ?? '').localeCompare(b.profile_name ?? '');
+};
+
+export interface FighterView {
+  equipment: any[];
+  skills: Record<string, any>;
+  effects: Record<string, any[]>;
+  vehicles: any[];
+  beastCosts: { total: number; byEquipmentId: Record<string, { equipment: number; advancements: number }> };
+  ownedBeastsData: any[];
+  beastFighters: any[];
+  ownershipInfo: { owner_name?: string; beast_equipment_stashed: boolean } | null;
+  loadouts: Array<{ id: string; fighter_id: string; loadout_name: string; equipment_ids: string[] }>;
+  capturedByGangName: string | null;
+  fighterTypeData: { id: string; fighter_type: string; alliance_crew_name?: string; is_spyrer?: boolean } | null;
+  fighterSubTypeData: { fighter_sub_type: string; fighter_sub_type_id: string } | null;
+}
+
+/**
+ * Assemble the fighter page's data slices for one fighter from the gang
+ * bundle. Shapes and semantics mirror the previous per-fighter cached
+ * functions (getFighterEquipment/Skills/Effects/Vehicles/Loadouts/
+ * OwnedBeastsCost/OwnedBeastsData/OwnershipInfo) so the page renders
+ * identically while reading the same cache entry as the gang page.
+ */
+export function assembleFighterView(bundle: GangFightersBundle, fighterId: string): FighterView {
+  const fighterRow = bundle.fighters.find((f: any) => f.id === fighterId) || null;
+
+  // ---- Equipment (previous getFighterEquipment semantics) ----
+  const myEquipment = bundle.equipment.filter((e: any) => e.fighter_id === fighterId && !e.vehicle_id);
+  const myEquipmentIds = new Set(myEquipment.map((e: any) => e.id));
+  const ownedStandardIds = new Set(myEquipment.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id));
+
+  // Target relationships (equipment-to-equipment upgrades)
+  const targetEffectsMap = new Map<string, string>();
+  // Effects that modify equipment profiles: targeting effects + self-effects
+  const weaponEffectsMap = new Map<string, any[]>();
+  bundle.effects.forEach((effect: any) => {
+    if (effect.fighter_equipment_id && myEquipmentIds.has(effect.fighter_equipment_id) && effect.target_equipment_id) {
+      targetEffectsMap.set(effect.fighter_equipment_id, effect.target_equipment_id);
+    }
+    const isTargeting = effect.target_equipment_id && myEquipmentIds.has(effect.target_equipment_id);
+    const isSelf = effect.fighter_equipment_id && myEquipmentIds.has(effect.fighter_equipment_id) && !effect.target_equipment_id;
+    if (!isTargeting && !isSelf) return;
+    const appliesTo = effect.target_equipment_id || effect.fighter_equipment_id;
+    if (!weaponEffectsMap.has(appliesTo)) weaponEffectsMap.set(appliesTo, []);
+    weaponEffectsMap.get(appliesTo)!.push(effect);
+  });
+
+  // Names shown on the card come from targeting effects only
+  const targetingEffectNamesMap = new Map<string, string[]>();
+  weaponEffectsMap.forEach((effects, equipmentId) => {
+    const targetingOnly = effects.filter((e: any) => e.target_equipment_id);
+    if (targetingOnly.length === 0) return;
+    const sorted = [...targetingOnly].sort((a: any, b: any) => {
+      const orderA = (a.fighter_effect_type as any)?.sort_order ?? a.sort_order ?? Infinity;
+      const orderB = (b.fighter_effect_type as any)?.sort_order ?? b.sort_order ?? Infinity;
+      return orderA - orderB;
+    });
+    const names: string[] = [];
+    sorted.forEach((effect: any) => {
+      if (effect.effect_name && !names.includes(effect.effect_name)) names.push(effect.effect_name);
+    });
+    targetingEffectNamesMap.set(equipmentId, names);
+  });
+
+  // Loadout assignment map: fighter_equipment_id -> loadout_ids[]
+  const myLoadouts = bundle.loadouts.filter((l: any) => l.fighter_id === fighterId);
+  const loadoutAssignmentsMap = new Map<string, string[]>();
+  myLoadouts.forEach((loadout: any) => {
+    (loadout.fighter_loadout_equipment || []).forEach((assignment: any) => {
+      if (!loadoutAssignmentsMap.has(assignment.fighter_equipment_id)) {
+        loadoutAssignmentsMap.set(assignment.fighter_equipment_id, []);
+      }
+      loadoutAssignmentsMap.get(assignment.fighter_equipment_id)!.push(loadout.id);
+    });
+  });
+
+  // Standard profile map from nested profiles of the fighter's own equipment;
+  // each profile is also aliased under its weapon_group_id (grouped weapons,
+  // e.g. smoke grenades) when the fighter owns the profile's weapon.
+  const stdProfiles: any[] = [];
+  const seenStd = new Set<string>();
+  myEquipment.forEach((item: any) => {
+    for (const p of (item.equipment?.weapon_profiles || [])) {
+      if (!seenStd.has(p.id)) {
+        seenStd.add(p.id);
+        stdProfiles.push(p);
+      }
+    }
+  });
+  stdProfiles.sort(byProfileOrder);
+  const standardProfilesMap = new Map<string, any[]>();
+  stdProfiles.forEach((profile: any) => {
+    if (!standardProfilesMap.has(profile.weapon_id)) standardProfilesMap.set(profile.weapon_id, []);
+    standardProfilesMap.get(profile.weapon_id)!.push(profile);
+    if (profile.weapon_group_id && ownedStandardIds.has(profile.weapon_id)) {
+      if (!standardProfilesMap.has(profile.weapon_group_id)) standardProfilesMap.set(profile.weapon_group_id, []);
+      standardProfilesMap.get(profile.weapon_group_id)!.push(profile);
+    }
+  });
+
+  const custProfiles: any[] = [];
+  const seenCust = new Set<string>();
+  myEquipment.forEach((item: any) => {
+    for (const p of (item.custom_equipment?.custom_weapon_profiles || [])) {
+      if (!seenCust.has(p.id)) {
+        seenCust.add(p.id);
+        custProfiles.push(p);
+      }
+    }
+  });
+  custProfiles.sort(byProfileOrder);
+  const customProfilesMap = new Map<string, any[]>();
+  custProfiles.forEach((profile: any) => {
+    if (!customProfilesMap.has(profile.custom_equipment_id)) customProfilesMap.set(profile.custom_equipment_id, []);
+    customProfilesMap.get(profile.custom_equipment_id)!.push(profile);
+  });
+
+  const equipment = myEquipment.map((item: any) => {
+    const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
+    let weaponProfiles: any[] = [];
+
+    if (equipmentType === 'weapon') {
+      if (item.equipment_id) {
+        weaponProfiles = (standardProfilesMap.get(item.equipment_id) || []).map((profile: any) => ({
+          ...profile,
+          is_master_crafted: item.is_master_crafted || false
+        }));
+      } else if (item.custom_equipment_id) {
+        weaponProfiles = (customProfilesMap.get(item.custom_equipment_id) || []).map((profile: any) => ({
+          ...profile,
+          is_master_crafted: item.is_master_crafted || false
+        }));
+      }
+    }
+
+    if (weaponProfiles.length > 0) {
+      const weaponEffects = weaponEffectsMap.get(item.id) || [];
+      if (weaponEffects.length > 0) {
+        weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
+      }
+    }
+
+    const effectNames = targetingEffectNamesMap.get(item.id) || [];
+    const loadoutIds = loadoutAssignmentsMap.get(item.id) || [];
+
+    return {
+      fighter_equipment_id: item.id,
+      equipment_id: item.equipment_id || undefined,
+      custom_equipment_id: item.custom_equipment_id || undefined,
+      equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
+      equipment_type: equipmentType || 'unknown',
+      equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+      purchase_cost: item.purchase_cost || 0,
+      original_cost: item.original_cost,
+      is_master_crafted: item.is_master_crafted || false,
+      is_editable: item.is_editable || false,
+      weapon_profiles: weaponProfiles,
+      target_equipment_id: targetEffectsMap.get(item.id) || null,
+      effect_names: effectNames.length > 0 ? effectNames : undefined,
+      loadout_ids: loadoutIds.length > 0 ? loadoutIds : undefined,
+      is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
+      cost_resource: item.cost_resource ?? null
+    };
+  });
+
+  // ---- Skills (previous getFighterSkills semantics) ----
+  const skills: Record<string, any> = {};
+  bundle.skills.filter((s: any) => s.fighter_id === fighterId).forEach((skillData: any) => {
+    const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
+    if (skillName) {
+      const fe = skillData.fighter_effect_skills?.fighter_effects;
+      const injuryName = fe?.effect_name;
+      const tsd =
+        fe?.type_specific_data && typeof fe.type_specific_data === 'object'
+          ? (fe.type_specific_data as Record<string, unknown>)
+          : null;
+      const isBitterEnmity = injuryName === BITTER_ENMITY_EFFECT_NAME;
+      const bitterId =
+        isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_id === 'string'
+          ? tsd.bitter_enmity_target_gang_id
+          : undefined;
+      const bitterName =
+        isBitterEnmity && typeof tsd?.bitter_enmity_target_gang_name === 'string'
+          ? tsd.bitter_enmity_target_gang_name
+          : undefined;
+      const bitterColour =
+        isBitterEnmity && tsd && 'bitter_enmity_target_gang_colour' in tsd
+          ? (tsd.bitter_enmity_target_gang_colour as string | null)
+          : undefined;
+
+      skills[skillName] = {
+        id: skillData.id,
+        name: skillName,
+        credits_increase: skillData.credits_increase || 0,
+        xp_cost: skillData.xp_cost || 0,
+        is_advance: skillData.is_advance || false,
+        fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
+        injury_name: injuryName || undefined,
+        acquired_at: skillData.created_at,
+        custom_skill_id: skillData.custom_skill_id || undefined,
+        ...(bitterId
+          ? {
+              bitter_enmity_target_gang_id: bitterId,
+              bitter_enmity_target_gang_name: bitterName,
+              bitter_enmity_target_gang_colour: bitterColour ?? null
+            }
+          : {})
+      };
+    }
+  });
+
+  // ---- Effects (previous getFighterEffects semantics) ----
+  const effects: Record<string, any[]> = {};
+  bundle.effects
+    .filter((e: any) => e.fighter_id === fighterId && !e.vehicle_id)
+    .forEach((effectData: any) => {
+      const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
+      if (!effects[categoryName]) effects[categoryName] = [];
+      const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
+      effects[categoryName].push({
+        id: effectData.id,
+        effect_name: effectData.effect_name,
+        type_specific_data: effectData.type_specific_data,
+        sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
+        created_at: effectData.created_at,
+        updated_at: effectData.updated_at || undefined,
+        fighter_equipment_id: effectData.fighter_equipment_id || undefined,
+        fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
+      });
+    });
+
+  // ---- Vehicles (previous getFighterVehicles semantics) ----
+  const vehicles = bundle.vehicles
+    .filter((v: any) => v.fighter_id === fighterId)
+    .map((vehicle: any) => {
+      const vehicleEquipmentRows = bundle.equipment.filter((e: any) => e.vehicle_id === vehicle.id);
+      const vehicleStandardIds = new Set(
+        vehicleEquipmentRows.filter((e: any) => e.equipment_id).map((e: any) => e.equipment_id)
+      );
+      const vehicleCustomIds = new Set(
+        vehicleEquipmentRows.filter((e: any) => e.custom_equipment_id).map((e: any) => e.custom_equipment_id)
+      );
+
+      // Base + ammo maps from the vehicle's own equipment's nested profiles
+      const vStd: any[] = [];
+      const vSeenStd = new Set<string>();
+      const vCust: any[] = [];
+      const vSeenCust = new Set<string>();
+      vehicleEquipmentRows.forEach((item: any) => {
+        for (const p of (item.equipment?.weapon_profiles || [])) {
+          if (!vSeenStd.has(p.id)) { vSeenStd.add(p.id); vStd.push(p); }
+        }
+        for (const p of (item.custom_equipment?.custom_weapon_profiles || [])) {
+          if (!vSeenCust.has(p.id)) { vSeenCust.add(p.id); vCust.push(p); }
+        }
+      });
+      vStd.sort(byProfileOrder);
+      vCust.sort(byProfileOrder);
+
+      const vStdBase = new Map<string, any[]>();
+      const vStdAmmo = new Map<string, any[]>();
+      vStd.forEach((profile: any) => {
+        if (profile.weapon_id) {
+          if (!vStdBase.has(profile.weapon_id)) vStdBase.set(profile.weapon_id, []);
+          vStdBase.get(profile.weapon_id)!.push(profile);
+        }
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.weapon_id) {
+          if (!vStdAmmo.has(profile.weapon_group_id)) vStdAmmo.set(profile.weapon_group_id, []);
+          vStdAmmo.get(profile.weapon_group_id)!.push(profile);
+        }
+      });
+      const vCustBase = new Map<string, any[]>();
+      const vCustAmmo = new Map<string, any[]>();
+      vCust.forEach((profile: any) => {
+        if (profile.custom_equipment_id) {
+          if (!vCustBase.has(profile.custom_equipment_id)) vCustBase.set(profile.custom_equipment_id, []);
+          vCustBase.get(profile.custom_equipment_id)!.push(profile);
+        }
+        if (profile.weapon_group_id && profile.weapon_group_id !== profile.custom_equipment_id) {
+          if (!vCustAmmo.has(profile.weapon_group_id)) vCustAmmo.set(profile.weapon_group_id, []);
+          vCustAmmo.get(profile.weapon_group_id)!.push(profile);
+        }
+      });
+
+      const processedEquipment = vehicleEquipmentRows.map((item: any) => {
+        const equipmentType = (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type;
+        let weaponProfiles: any[] = [];
+
+        if (equipmentType === 'weapon') {
+          if (item.equipment_id) {
+            const baseProfiles = vStdBase.get(item.equipment_id) || [];
+            const standardAmmo = (vStdAmmo.get(item.equipment_id) || [])
+              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+            const customAmmo = (vCustAmmo.get(item.equipment_id) || [])
+              .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+            const seenIds = new Set<string>();
+            weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
+              .filter((p: any) => {
+                if (seenIds.has(p.id)) return false;
+                seenIds.add(p.id);
+                return true;
+              })
+              .map((profile: any) => ({
+                ...profile,
+                is_master_crafted: item.is_master_crafted || false
+              }));
+          } else if (item.custom_equipment_id) {
+            const baseProfiles = vCustBase.get(item.custom_equipment_id) || [];
+            const customAmmo = (vCustAmmo.get(item.custom_equipment_id) || [])
+              .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
+            const standardAmmo = (vStdAmmo.get(item.custom_equipment_id) || [])
+              .filter((p: any) => vehicleStandardIds.has(p.weapon_id));
+            const seenIds = new Set<string>();
+            weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
+              .filter((p: any) => {
+                if (seenIds.has(p.id)) return false;
+                seenIds.add(p.id);
+                return true;
+              })
+              .map((profile: any) => ({
+                ...profile,
+                is_master_crafted: item.is_master_crafted || false
+              }));
+          }
+        }
+
+        return {
+          vehicle_weapon_id: item.id,
+          equipment_id: item.equipment_id || item.custom_equipment_id,
+          custom_equipment_id: item.custom_equipment_id,
+          equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
+          equipment_type: equipmentType || 'unknown',
+          equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
+          purchase_cost: item.purchase_cost || 0,
+          is_editable: item.is_editable || false,
+          weapon_profiles: weaponProfiles,
+          is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
+          cost_resource: item.cost_resource ?? null
+        };
+      });
+
+      const processedEffects: Record<string, any[]> = {};
+      bundle.effects
+        .filter((e: any) => e.vehicle_id === vehicle.id)
+        .forEach((effectData: any) => {
+          const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
+          const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
+          if (!processedEffects[categoryName]) processedEffects[categoryName] = [];
+          processedEffects[categoryName].push({
+            id: effectData.id,
+            effect_name: effectData.effect_name,
+            fighter_equipment_id: effectData.fighter_equipment_id,
+            type_specific_data: effectData.type_specific_data,
+            sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
+            created_at: effectData.created_at,
+            updated_at: effectData.updated_at,
+            fighter_effect_modifiers: effectData.fighter_effect_modifiers || [],
+          });
+        });
+
+      return {
+        ...vehicle,
+        equipment: processedEquipment,
+        effects: processedEffects
+      };
+    });
+
+  // ---- Owned beasts: costs + display data (previous getFighterOwnedBeastsCost/Data) ----
+  const myBeastLinks = bundle.beastsOwned.filter((b: any) => b.fighter_owner_id === fighterId);
+  const fighterById = new Map(bundle.fighters.map((f: any) => [f.id, f]));
+
+  const byEquipmentId: Record<string, { equipment: number; advancements: number }> = {};
+  let beastTotal = 0;
+  myBeastLinks.forEach((link: any) => {
+    const beast: any = fighterById.get(link.fighter_pet_id);
+    if (!beast || beast.killed || beast.retired || beast.enslaved || beast.captured) return;
+
+    const beastEquipment = bundle.equipment.filter((e: any) => e.fighter_id === beast.id && !e.vehicle_id);
+    const beastSkills = bundle.skills.filter((s: any) => s.fighter_id === beast.id);
+    const beastEffects = bundle.effects.filter((e: any) => e.fighter_id === beast.id && !e.vehicle_id);
+
+    const equipmentCost = beastEquipment.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0);
+    const skillsCost = beastSkills.reduce((s: number, skill: any) => s + (skill.credits_increase || 0), 0);
+    const effectsCost = beastEffects.reduce((s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0);
+    const baseBeastCost = (beast.fighter_types as any)?.cost || 0;
+    const advancementsCost = skillsCost + effectsCost + (beast.cost_adjustment || 0);
+
+    if (link.fighter_equipment_id) {
+      byEquipmentId[link.fighter_equipment_id] = {
+        equipment: equipmentCost,
+        advancements: advancementsCost
+      };
+    }
+    beastTotal += baseBeastCost + equipmentCost + skillsCost + effectsCost + (beast.cost_adjustment || 0);
+  });
+
+  const ownedBeastsData = myBeastLinks.map((link: any) => ({
+    fighter_pet_id: link.fighter_pet_id,
+    fighter_equipment_id: link.fighter_equipment_id,
+    fighter_equipment: link.fighter_equipment
+      ? {
+          equipment: link.fighter_equipment.equipment || null,
+          custom_equipment: link.fighter_equipment.custom_equipment || null
+        }
+      : null
+  }));
+
+  const beastFighters = myBeastLinks
+    .map((link: any) => fighterById.get(link.fighter_pet_id))
+    .filter(Boolean)
+    .map((beast: any) => ({
+      id: beast.id,
+      fighter_name: beast.fighter_name,
+      fighter_type: beast.fighter_type,
+      fighter_class: beast.fighter_class,
+      credits: beast.credits,
+      created_at: beast.created_at,
+      retired: beast.retired
+    }));
+
+  // ---- Ownership info (if this fighter IS a beast) ----
+  const petRow = bundle.beastsPetOf.find((info: any) => info.fighter_pet_id === fighterId) || null;
+  const ownershipInfo = petRow
+    ? {
+        owner_name: (petRow.fighters as any)?.fighter_name,
+        beast_equipment_stashed: petRow.fighter_equipment?.gang_stash || false
+      }
+    : null;
+
+  // ---- Loadouts (previous getFighterLoadouts shape) ----
+  const loadouts = myLoadouts.map((loadout: any) => ({
+    id: loadout.id,
+    fighter_id: loadout.fighter_id,
+    loadout_name: loadout.loadout_name,
+    equipment_ids: (loadout.fighter_loadout_equipment || []).map((a: any) => a.fighter_equipment_id)
+  }));
+
+  // ---- Captured-by gang name ----
+  const capturedByGangName = fighterRow?.captured_by_gang_id
+    ? (bundle.capturedByGangs.find((g: any) => g.id === fighterRow.captured_by_gang_id)?.name ?? null)
+    : null;
+
+  // ---- Type / sub-type info (from the bundle's fighter row joins) ----
+  const fighterTypeData = fighterRow?.fighter_type_id && fighterRow.fighter_types
+    ? {
+        id: fighterRow.fighter_type_id,
+        fighter_type: (fighterRow.fighter_types as any).fighter_type,
+        alliance_crew_name: (fighterRow.fighter_types as any).alliance_crew_name,
+        is_spyrer: (fighterRow.fighter_types as any).is_spyrer
+      }
+    : null;
+
+  const fighterSubTypeData = fighterRow?.fighter_sub_types
+    ? {
+        fighter_sub_type: (fighterRow.fighter_sub_types as any).sub_type_name,
+        fighter_sub_type_id: (fighterRow.fighter_sub_types as any).id
+      }
+    : null;
+
+  return {
+    equipment,
+    skills,
+    effects,
+    vehicles,
+    beastCosts: { total: beastTotal, byEquipmentId },
+    ownedBeastsData,
+    beastFighters,
+    ownershipInfo,
+    loadouts,
+    capturedByGangName,
+    fighterTypeData,
+    fighterSubTypeData
+  };
+}

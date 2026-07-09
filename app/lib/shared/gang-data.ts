@@ -1042,11 +1042,15 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         equipment_id,
         custom_equipment_id,
         purchase_cost,
+        original_cost,
         is_master_crafted,
+        is_editable,
+        cost_resource,
         equipment:equipment_id (
           equipment_name,
           equipment_type,
           equipment_category,
+          is_consumable,
           weapon_profiles (
             id,
             weapon_id,
@@ -1068,6 +1072,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
           equipment_name,
           equipment_type,
           equipment_category,
+          is_consumable,
           custom_weapon_profiles (
             id,
             custom_equipment_id,
@@ -1185,7 +1190,20 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
         fighterIds.length > 0
           ? supabase
               .from('fighter_exotic_beasts')
-              .select('fighter_owner_id, fighter_pet_id')
+              .select(`
+                fighter_owner_id,
+                fighter_pet_id,
+                fighter_equipment_id,
+                fighter_equipment!fighter_equipment_id (
+                  gang_stash,
+                  equipment!equipment_id (
+                    equipment_name
+                  ),
+                  custom_equipment!custom_equipment_id (
+                    equipment_name
+                  )
+                )
+              `)
               .in('fighter_owner_id', fighterIds)
           : Promise.resolve({ data: [] }),
         fighterIds.length > 0
