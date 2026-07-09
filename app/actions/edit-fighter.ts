@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangCredits, CACHE_TAGS, invalidateGangRating } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangCredits, CACHE_TAGS, invalidateGangRating, invalidateGang } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -852,6 +852,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // The capturing gang's pages show this fighter as captured
+        if (params.captured_by_gang_id) {
+          invalidateGang(params.captured_by_gang_id);
+        }
 
         return {
           success: true,
@@ -933,6 +937,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         invalidateFighterData(params.fighter_id, gangId);
         revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
+        // The gang that held this fighter no longer shows it as captured
+        if (fighter.captured_by_gang_id) {
+          invalidateGang(fighter.captured_by_gang_id);
+        }
 
         return {
           success: true,

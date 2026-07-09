@@ -585,12 +585,9 @@ const getCampaignGangIds = async (campaignId: string, supabase: SupabaseClient) 
 
       return campaignGangs?.map(cg => cg.gang_id) || [];
     },
-    [`campaign-gang-ids-${campaignId}`],
+    [`campaign-gang-ids-v2-${campaignId}`],
     {
-      tags: [
-        CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId),
-        `campaign-gangs-${campaignId}`
-      ],
+      tags: [CACHE_TAGS.BASE_CAMPAIGN_MEMBERS(campaignId)],
       revalidate: false
     }
   )();
@@ -607,7 +604,7 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
     async () => {
       return _getCampaignBasic(campaignId, supabase);
     },
-    [`campaign-basic-${campaignId}`],
+    [`campaign-basic-v2-${campaignId}`],
     {
       tags: [
         CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId),
@@ -637,17 +634,18 @@ export const getCampaignMembers = async (campaignId: string, supabaseClient?: Su
     CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
     // Keep legacy tag for backward compatibility during transition
     `campaign-${campaignId}`,
-    // Add gang cache tags so campaign data updates when gang data changes
-    // NOTE: No need for COMPOSITE_GANG_FIGHTERS_LIST - rating comes from gangs table directly
-    ...gangIds.map(gangId => CACHE_TAGS.SHARED_GANG_RATING(gangId)),
-    ...gangIds.map(gangId => CACHE_TAGS.COMPUTED_GANG_RATING(gangId))
+    // Per-gang overview tags: standings refresh when a member gang's
+    // rating/wealth/credits/name actually change (fired by the
+    // updateGangFinancials choke point), NOT on every fighter edit —
+    // xp ticks during battles must not rebuild campaign pages.
+    ...gangIds.map(gangId => CACHE_TAGS.SHARED_GANG_RATING(gangId))
   ];
 
   return unstable_cache(
     async () => {
       return _getCampaignMembers(campaignId, supabase);
     },
-    [`campaign-members-${campaignId}`],
+    [`campaign-members-v2-${campaignId}`],
     {
       tags: cacheTags,
       revalidate: false
@@ -666,7 +664,7 @@ export const getCampaignTerritories = async (campaignId: string, supabaseClient?
     async () => {
       return _getCampaignTerritories(campaignId, supabase);
     },
-    [`campaign-territories-${campaignId}`],
+    [`campaign-territories-v2-${campaignId}`],
     {
       tags: [
         CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId),
@@ -690,15 +688,9 @@ export const getCampaignBattles = async (campaignId: string, limit = 100, supaba
     async () => {
       return _getCampaignBattles(campaignId, supabase, limit);
     },
-    [`campaign-battles-${campaignId}-${limit}`],
+    [`campaign-battles-v2-${campaignId}-${limit}`],
     {
-      tags: [
-        CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId),
-        // Keep legacy tag for backward compatibility during transition
-        `campaign-${campaignId}`,
-        // Battles don't have a specific BASE tag yet, but could be added to taxonomy
-        `campaign-battles-${campaignId}`
-      ],
+      tags: [CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId)],
       revalidate: false
     }
   )();
@@ -857,9 +849,9 @@ export const getCampaignGangsForModal = async (campaignId: string) => {
 
       return availableGangs;
     },
-    [`campaign-gangs-modal-${campaignId}`],
+    [`campaign-gangs-modal-v2-${campaignId}`],
     {
-      tags: ['campaign-gangs', `campaign-gangs-${campaignId}`, `campaign-${campaignId}`],
+      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId)],
       revalidate: false
     }
   )();
@@ -883,7 +875,7 @@ export async function getCampaignAllegiances(campaignId: string, supabase: Supab
         throw error;
       }
     },
-    [CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
+    [`campaign-allegiances-v2-${campaignId}`],
     {
       tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_ALLEGIANCES(campaignId)],
       revalidate: false
@@ -969,7 +961,7 @@ export async function getCampaignResources(campaignId: string, supabase: Supabas
         throw error;
       }
     },
-    [CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId)],
+    [`campaign-resources-v2-${campaignId}`],
     {
       tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId)],
       revalidate: false
@@ -1057,9 +1049,9 @@ export const getCampaignMapWithObjects = async (
     async () => {
       return _getCampaignMapWithObjects(campaignId, supabase);
     },
-    [`campaign-map-${campaignId}`],
+    [`campaign-map-v2-${campaignId}`],
     {
-      tags: [`campaign-map-${campaignId}`, CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId)],
+      tags: [CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId)],
       revalidate: false
     }
   )();

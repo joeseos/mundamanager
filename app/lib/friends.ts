@@ -70,7 +70,7 @@ export const getFriendsAndRequests = async (userId: string, supabase: any) => {
         };
       });
     },
-    [`user-friends-${userId}`],
+    [`user-friends-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_FRIENDS(userId)],
       revalidate: false

@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { CACHE_TAGS, TAGS } from '@/utils/cache-tags';
 
 // Internal helper functions
 async function _getGangFighters(gangId: string, supabase: any) {
@@ -44,7 +44,7 @@ export const getGangFighters = async (gangId: string, supabase: any) => {
     async () => {
       return _getGangFighters(gangId, supabase);
     },
-    [`gang-fighters-${gangId}`],
+    [`gang-fighters-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
       revalidate: false
@@ -59,7 +59,7 @@ export async function getAdvancementCategories(advancementType: 'characteristic'
     },
     [`advancement-categories-${advancementType}`],
     {
-      tags: ['advancement-categories', `advancement-categories-${advancementType}`],
+      tags: [TAGS.advancementCategories()],
       revalidate: 3600 // 1 hour for reference data
     }
   )();
@@ -78,9 +78,11 @@ export async function getFighterAvailableAdvancements(fighterId: string, supabas
     async () => {
       return _getFighterAvailableAdvancements(fighterId, supabase);
     },
-    [`fighter-available-advancements-${fighterId}`],
+    [`fighter-available-advancements-v2-${fighterId}`],
     {
-      tags: ['fighter-available-advancements', `fighter-available-advancements-${fighterId}`],
+      // fighter-{id} so gaining xp/advancements actually refreshes this
+      // (the old ad-hoc tags were never fired by any mutation).
+      tags: [TAGS.fighter(fighterId), TAGS.advancementCategories()],
       revalidate: false
     }
   )();
@@ -99,9 +101,11 @@ export async function getAvailableSkills(fighterId: string, supabase: any) {
     async () => {
       return _getAvailableSkills(fighterId, supabase);
     },
-    [`available-skills-${fighterId}`],
+    [`available-skills-v2-${fighterId}`],
     {
-      tags: ['available-skills', `available-skills-${fighterId}`],
+      // fighter-{id} so learning a skill actually refreshes this
+      // (the old ad-hoc tags were never fired by any mutation).
+      tags: [TAGS.fighter(fighterId), TAGS.availableSkills()],
       revalidate: false
     }
   )();
@@ -124,7 +128,7 @@ export async function getAvailableInjuries(supabase: any) {
     },
     ['available-injuries'],
     {
-      tags: ['available-injuries'],
+      tags: [TAGS.availableInjuries()],
       revalidate: 3600 // 1 hour for reference data
     }
   )();

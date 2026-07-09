@@ -74,7 +74,7 @@ export async function getUserCustomSkills(userId: string, supabase: SupabaseClie
         updated_at: skill.updated_at,
       }));
     },
-    [`user-custom-skills-${userId}`],
+    [`user-custom-skills-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CUSTOM_SKILLS(userId)],
       revalidate: false,

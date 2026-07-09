@@ -23,7 +23,7 @@ export async function getUserCustomEquipment(userId: string, supabase: SupabaseC
 
       return customEquipment || [];
     },
-    [`user-custom-equipment-${userId}`],
+    [`user-custom-equipment-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CUSTOM_EQUIPMENT(userId)],
       revalidate: false,

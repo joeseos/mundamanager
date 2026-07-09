@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
+import { revalidateTag } from "next/cache";
+import { TAGS } from "@/utils/cache-tags";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -283,7 +285,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function _POST(request: NextRequest) {
   const supabase = await createClient();
   
   try {
@@ -440,7 +442,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PATCH(request: NextRequest) {
+async function _PATCH(request: NextRequest) {
   const supabase = await createClient();
 
   try {
@@ -502,7 +504,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function _DELETE(request: NextRequest) {
   const supabase = await createClient();
 
   try {
@@ -600,3 +602,23 @@ export async function DELETE(request: NextRequest) {
     }, { status: 500 });
   }
 } 
+
+// Admin edits change global reference data that is cached app-wide; fire the
+// matching tags once per successful mutation (previously nothing was fired,
+// so admin edits never showed up until caches expired).
+function withReferenceInvalidation(
+  handler: (...args: any[]) => Promise<Response>
+) {
+  return async (...args: any[]) => {
+    const response = await handler(...args);
+    if (response.ok) {
+      revalidateTag(TAGS.availableInjuries(), { expire: 0 });
+      revalidateTag(TAGS.advancementCategories(), { expire: 0 });
+    }
+    return response;
+  };
+}
+
+export const POST = withReferenceInvalidation(_POST);
+export const PATCH = withReferenceInvalidation(_PATCH);
+export const DELETE = withReferenceInvalidation(_DELETE);

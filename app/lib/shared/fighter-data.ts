@@ -189,7 +189,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
       }
       return data;
     },
-    [`fighter-basic-${fighterId}`],
+    [`fighter-basic-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId)],
       revalidate: false
@@ -497,7 +497,7 @@ export const getFighterEquipment = async (fighterId: string, supabase: any): Pro
 
       return equipmentWithProfiles;
     },
-    [`fighter-equipment-${fighterId}`],
+    [`fighter-equipment-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_EQUIPMENT(fighterId)],
       revalidate: false
@@ -586,7 +586,7 @@ export const getFighterSkills = async (fighterId: string, supabase: any): Promis
 
       return skills;
     },
-    [`fighter-skills-${fighterId}`],
+    [`fighter-skills-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_SKILLS(fighterId)],
       revalidate: false
@@ -655,7 +655,7 @@ export const getFighterEffects = async (fighterId: string, supabase: any): Promi
 
       return effectsByCategory;
     },
-    [`fighter-effects-${fighterId}`],
+    [`fighter-effects-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_EFFECTS(fighterId)],
       revalidate: false
@@ -936,7 +936,7 @@ export const getFighterVehicles = async (fighterId: string, supabase: any): Prom
         effects: processedEffects
       }];
     },
-    [`fighter-vehicles-${fighterId}`],
+    [`fighter-vehicles-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_VEHICLES(fighterId)],
       revalidate: false
@@ -990,7 +990,7 @@ export const getFighterLoadouts = async (fighterId: string, supabase: any): Prom
         equipment_ids: equipmentByLoadout.get(loadout.id) || []
       }));
     },
-    [`fighter-loadouts-${fighterId}`],
+    [`fighter-loadouts-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_LOADOUTS(fighterId)],
       revalidate: false
@@ -1074,7 +1074,7 @@ export const getFighterTotalCost = async (fighterId: string, supabase: any): Pro
       return fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
              (fighterBasic.cost_adjustment || 0) + beastCosts.total;
     },
-    [`fighter-total-cost-${fighterId}`],
+    [`fighter-total-cost-v2-${fighterId}`],
     {
       tags: [
         CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(fighterId),
@@ -1157,7 +1157,7 @@ export const getFighterOwnedBeastsCost = async (fighterId: string, supabase: any
 
       return { total, byEquipmentId };
     },
-    [`fighter-beast-costs-${fighterId}`],
+    [`fighter-beast-costs-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(fighterId)],
       revalidate: false
@@ -1263,7 +1263,7 @@ export const getFighterOwnershipInfo = async (fighterPetId: string, supabase: an
         beast_equipment_stashed: data.fighter_equipment?.gang_stash || false
       };
     },
-    [`fighter-ownership-${fighterPetId}`],
+    [`fighter-ownership-v2-${fighterPetId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_EXOTIC_BEAST(fighterPetId)],
       revalidate: false
@@ -1297,7 +1297,7 @@ export const getFighterOwnedBeastsData = async (fighterId: string, supabase: any
       if (error) return [];
       return data || [];
     },
-    [`fighter-owned-beasts-${fighterId}`],
+    [`fighter-owned-beasts-v2-${fighterId}`],
     {
       tags: [CACHE_TAGS.BASE_FIGHTER_OWNED_BEASTS(fighterId)],
       revalidate: false

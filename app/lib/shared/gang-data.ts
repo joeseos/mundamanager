@@ -231,7 +231,7 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
       }
       return data ?? null;
     },
-    [`gang-basic-${gangId}`],
+    [`gang-basic-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_BASIC(gangId)],
       revalidate: false
@@ -255,7 +255,7 @@ export const getGangCredits = async (gangId: string, supabase: any): Promise<num
       if (error) throw error;
       return data.credits;
     },
-    [`gang-credits-${gangId}`],
+    [`gang-credits-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_CREDITS(gangId)],
       revalidate: false
@@ -279,7 +279,7 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
       if (error) throw error;
       return data.positioning || null;
     },
-    [`gang-positioning-${gangId}`],
+    [`gang-positioning-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
       revalidate: false
@@ -333,7 +333,7 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
         cost_resource: item.cost_resource ?? null
       }));
     },
-    [`gang-stash-${gangId}`],
+    [`gang-stash-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_STASH(gangId)],
       revalidate: false
@@ -773,7 +773,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
       return campaigns;
     },
-    [`gang-campaigns-${gangId}`],
+    [`gang-campaigns-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId)],
       revalidate: false
@@ -804,7 +804,7 @@ export const getGangRatingAndWealth = async (gangId: string, supabase: any): Pro
         wealth: (data?.wealth ?? 0) as number
       };
     },
-    [`gang-rating-wealth-${gangId}`],
+    [`gang-rating-wealth-v2-${gangId}`],
     {
       tags: [
         CACHE_TAGS.COMPUTED_GANG_RATING(gangId),
@@ -854,7 +854,7 @@ export const getGangFighterCount = async (gangId: string, supabase: any): Promis
       if (error) throw error;
       return count || 0;
     },
-    [`gang-fighter-count-${gangId}`],
+    [`gang-fighter-count-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId)],
       revalidate: false
@@ -882,7 +882,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
       if (error) throw error;
       return count || 0;
     },
-    [`gang-beast-count-${gangId}`],
+    [`gang-beast-count-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId)],
       revalidate: false
@@ -917,7 +917,7 @@ export const getGangFightersList = async (
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
-  const cacheKey = expandLoadoutsForPrint ? `gang-fighters-list-print-${gangId}` : `gang-fighters-list-${gangId}`;
+  const cacheKey = expandLoadoutsForPrint ? `gang-fighters-list-print-v2-${gangId}` : `gang-fighters-list-v2-${gangId}`;
 
   return unstable_cache(
     async () => {
@@ -2097,7 +2097,7 @@ export const getGangVehicles = async (gangId: string, supabase: any): Promise<an
 
       return vehiclesWithDetails;
     },
-    [`base-gang-vehicles-${gangId}`],
+    [`base-gang-vehicles-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_VEHICLES(gangId)],
       revalidate: false
@@ -2265,7 +2265,7 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
       if (error) return null;
       return data;
     },
-    [`user-profile-${userId}`],
+    [`user-profile-v2-${userId}`],
     {
       tags: [CACHE_TAGS.BASE_USER_PROFILE(userId)],
       revalidate: false
@@ -2340,7 +2340,7 @@ export const getGangFighterStats = async (
         deaths_breakdown: deathsBreakdown
       };
     },
-    [`gang-fighter-stats-${gangId}`],
+    [`gang-fighter-stats-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId)],
       revalidate: false

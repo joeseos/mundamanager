@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from "next/cache";
+import { TAGS } from "@/utils/cache-tags";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -460,7 +462,7 @@ export async function GET(request: Request) {
 }
 
 // Add PUT handler to the existing file
-export async function PUT(request: Request) {
+async function _PUT(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -760,7 +762,7 @@ export async function PUT(request: Request) {
 }
 
 // Add POST handler if it doesn't exist, or update the existing one
-export async function POST(request: Request) {
+async function _POST(request: Request) {
   const supabase = await createClient();
 
   try {
@@ -899,7 +901,7 @@ export async function POST(request: Request) {
 }
 
 // Add PATCH method specifically for is_gang_addition
-export async function PATCH(request: Request) {
+async function _PATCH(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -946,3 +948,22 @@ export async function PATCH(request: Request) {
     );
   }
 } 
+
+// Admin edits change global reference data that is cached app-wide; fire the
+// matching tags once per successful mutation (previously nothing was fired,
+// so admin edits never showed up until caches expired).
+function withReferenceInvalidation(
+  handler: (...args: any[]) => Promise<Response>
+) {
+  return async (...args: any[]) => {
+    const response = await handler(...args);
+    if (response.ok) {
+      revalidateTag(TAGS.globalFighterTypes(), { expire: 0 });
+    }
+    return response;
+  };
+}
+
+export const POST = withReferenceInvalidation(_POST);
+export const PUT = withReferenceInvalidation(_PUT);
+export const PATCH = withReferenceInvalidation(_PATCH);

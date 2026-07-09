@@ -91,7 +91,7 @@ export async function getUserCustomCollections(userId: string, supabase: Supabas
           .filter((i): i is ResolvedCollectionItem => i !== null),
       }));
     },
-    [`user-custom-collections-${userId}`],
+    [`user-custom-collections-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CUSTOM_COLLECTIONS(userId)],
       revalidate: false,

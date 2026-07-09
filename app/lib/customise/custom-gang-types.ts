@@ -19,7 +19,7 @@ export async function getUserCustomGangTypes(userId: string, supabase: SupabaseC
 
       return data || [];
     },
-    [`user-custom-gang-types-${userId}`],
+    [`user-custom-gang-types-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CUSTOM_GANG_TYPES(userId)],
       revalidate: false,

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
+import { revalidateTag } from "next/cache";
+import { TAGS } from "@/utils/cache-tags";
 
 export async function GET(request: Request) {
   console.log('Fighter sub-types API endpoint called');
@@ -50,7 +52,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function _POST(request: Request) {
   console.log('POST fighter sub-type API endpoint called');
   
   const supabase = await createClient();
@@ -130,7 +132,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function _PUT(request: Request) {
   console.log('PUT fighter sub-type API endpoint called');
   
   const supabase = await createClient();
@@ -211,7 +213,26 @@ export async function PUT(request: Request) {
   }
 }
 
+// NOTE: pre-existing stub left unwrapped — it performs no mutation.
 export async function DELETE(request: Request) {
   const supabase = await createClient();
   // ... existing code ...
-} 
+}
+
+// Admin edits change global reference data that is cached app-wide; fire the
+// matching tags once per successful mutation (previously nothing was fired,
+// so admin edits never showed up until caches expired).
+function withReferenceInvalidation(
+  handler: (...args: any[]) => Promise<Response>
+) {
+  return async (...args: any[]) => {
+    const response = await handler(...args);
+    if (response.ok) {
+      revalidateTag(TAGS.globalFighterTypes(), { expire: 0 });
+    }
+    return response;
+  };
+}
+
+export const POST = withReferenceInvalidation(_POST);
+export const PUT = withReferenceInvalidation(_PUT);

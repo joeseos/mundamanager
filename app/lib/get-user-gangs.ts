@@ -187,7 +187,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
         return [];
       }
     },
-    [`user-gangs-${userId}`],
+    [`user-gangs-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_GANGS(userId)],
       revalidate: false

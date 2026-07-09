@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData } from '@/utils/cache-tags';
+import { invalidateFighterData, invalidateGang } from '@/utils/cache-tags';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
 import { logFighterAction } from './logs/fighter-logs';
@@ -303,6 +303,11 @@ export async function addFighterInjury(
     // Invalidate fighter cache
     invalidateFighterData(params.fighter_id, fighter.gang_id);
     revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+
+    // The capturing gang's pages show this fighter as captured
+    if (params.set_captured && params.captured_by_gang_id) {
+      invalidateGang(params.captured_by_gang_id);
+    }
 
     // If injury grants a skill, invalidate skills cache
     if (injuryData?.type_specific_data?.skill_id) {

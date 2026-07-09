@@ -165,7 +165,7 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
 
       return fightersWithExtendedData;
     },
-    [`user-custom-fighters-${userId}`],
+    [`user-custom-fighters-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CUSTOM_FIGHTERS(userId)],
       revalidate: false,

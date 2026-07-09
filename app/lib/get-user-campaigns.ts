@@ -139,7 +139,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         return [];
       }
     },
-    [`user-campaigns-${userId}`],
+    [`user-campaigns-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CAMPAIGNS(userId)],
       revalidate: false

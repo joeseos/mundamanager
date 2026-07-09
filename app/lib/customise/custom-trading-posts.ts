@@ -19,7 +19,7 @@ export async function getUserCustomTradingPosts(userId: string, supabase: Supaba
 
       return data || [];
     },
-    [`user-custom-trading-posts-${userId}`],
+    [`user-custom-trading-posts-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CUSTOM_TRADING_POSTS(userId)],
       revalidate: false,
