@@ -170,11 +170,21 @@ export interface GangFighter {
 // BASE DATA FUNCTIONS - Raw database queries with proper cache tags
 // =============================================================================
 
+export interface GangCore extends GangBasic {
+  credits: number;
+  rating: number;
+  wealth: number;
+  alliance: Alliance | null;
+}
+
 /**
- * Get gang basic information (name, type, reputation, etc. - excludes credits)
- * Cache: BASE_GANG_BASIC
+ * Get the full gang row (basic info + credits + rating + wealth + alliance).
+ * One cache entry and one query replace the previous four parallel gangs-row
+ * reads (basic/credits/rating-wealth) plus the alliance lookup. Positioning
+ * is deliberately excluded — it changes on every drag and has its own entry.
+ * Cache: gang-{id}
  */
-export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic | null> => {
+export const getGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -193,7 +203,15 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
           note_private_updated_at,
           created_at,
           last_updated,
+          credits,
+          rating,
+          wealth,
           alliance_id,
+          alliance:alliance_id (
+            id,
+            alliance_name,
+            alliance_type
+          ),
           gang_variants,
           user_id,
           gang_affiliation_id,
@@ -229,9 +247,15 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
         if (error.code === '22P02') return null;
         throw error;
       }
-      return data ?? null;
+      if (!data) return null;
+      return {
+        ...data,
+        rating: (data.rating ?? 0) as number,
+        wealth: (data.wealth ?? 0) as number,
+        alliance: data.alliance ?? null,
+      };
     },
-    [`gang-basic-v2-${gangId}`],
+    [`gang-core-v2-${gangId}`],
     {
       tags: [CACHE_TAGS.BASE_GANG_BASIC(gangId)],
       revalidate: false
@@ -240,27 +264,19 @@ export const getGangBasic = async (gangId: string, supabase: any): Promise<GangB
 };
 
 /**
- * Get gang credits only
- * Cache: BASE_GANG_CREDITS
+ * Get gang basic information — selector over getGangCore (same cache entry).
+ */
+export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic | null> => {
+  return getGangCore(gangId, supabase);
+};
+
+/**
+ * Get gang credits only — selector over getGangCore (same cache entry).
  */
 export const getGangCredits = async (gangId: string, supabase: any): Promise<number> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('credits')
-        .eq('id', gangId)
-        .single();
-
-      if (error) throw error;
-      return data.credits;
-    },
-    [`gang-credits-v2-${gangId}`],
-    {
-      tags: [CACHE_TAGS.BASE_GANG_CREDITS(gangId)],
-      revalidate: false
-    }
-  )();
+  const core = await getGangCore(gangId, supabase);
+  if (!core) throw new Error('Gang not found');
+  return core.credits;
 };
 
 /**
@@ -400,32 +416,6 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
  */
 export const getGangTypeConfig = (gangBasic: GangBasic) =>
   gangBasic.gang_types ?? gangBasic.custom_gang_types ?? null;
-
-/**
- * Get alliance information
- * Cache: Shared alliance data
- */
-export const getAlliance = async (allianceId: string | undefined, supabase: any): Promise<Alliance | null> => {
-  if (!allianceId) return null;
-  
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('alliances')
-        .select('id, alliance_name, alliance_type')
-        .eq('id', allianceId)
-        .single();
-
-      if (error) return null;
-      return data;
-    },
-    [`alliance-${allianceId}`],
-    {
-      tags: [`alliance-${allianceId}`],
-      revalidate: 3600 // 1 hour - alliances rarely change
-    }
-  )();
-};
 
 /**
  * Get gang variants
@@ -704,21 +694,37 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         }
       }
 
+      // Batch the member fallback: rows whose embedded campaign_members join
+      // returned no role used to trigger one awaited query per campaign inside
+      // the loop below. Fetch all candidate entries in a single query instead.
+      type MemberEntry = { campaign_id?: string; user_id?: string; role: string; status: string | null; invited_at: string; invited_by: string };
+      const fallbackRows = (data || []).filter(
+        (cg: any) => cg.campaigns && (!cg.campaign_members || !(cg.campaign_members as any)?.role)
+      );
+      const fallbackMembersByPair: Record<string, MemberEntry[]> = {};
+      if (fallbackRows.length > 0) {
+        const { data: allMemberEntries } = await supabase
+          .from('campaign_members')
+          .select('campaign_id, user_id, role, status, invited_at, invited_by')
+          .in('campaign_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg.campaigns as any).id))))
+          .in('user_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg as any).user_id))));
+
+        for (const entry of (allMemberEntries || []) as MemberEntry[]) {
+          const key = `${entry.campaign_id}:${entry.user_id}`;
+          (fallbackMembersByPair[key] ||= []).push(entry);
+        }
+      }
+
       for (const cg of data || []) {
         if (cg.campaigns) {
-          // Get member data - need to fetch ALL entries for this user in this campaign
-          // to determine the highest role (in case they have multiple gangs)
+          // Get member data - need to consider ALL entries for this user in
+          // this campaign to determine the highest role (in case they have
+          // multiple gangs)
           let memberData = cg.campaign_members;
 
           if (!memberData || !(memberData as any)?.role) {
-            // Fallback: query all campaign_members entries for this user in this campaign
-            const { data: allMemberEntries } = await supabase
-              .from('campaign_members')
-              .select('role, status, invited_at, invited_by')
-              .eq('campaign_id', (cg.campaigns as any).id)
-              .eq('user_id', (cg as any).user_id);
-
-            if (allMemberEntries && allMemberEntries.length > 0) {
+            const entries = fallbackMembersByPair[`${(cg.campaigns as any).id}:${(cg as any).user_id}`];
+            if (entries && entries.length > 0) {
               // Find the highest role (OWNER > ARBITRATOR > MEMBER)
               const roleHierarchy: Record<string, number> = {
                 'OWNER': 3,
@@ -726,12 +732,11 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
                 'MEMBER': 1
               };
 
-              type MemberEntry = { role: string; status: string | null; invited_at: string; invited_by: string };
-              memberData = allMemberEntries.reduce((highest: MemberEntry, current: MemberEntry) => {
+              memberData = entries.reduce((highest: MemberEntry, current: MemberEntry) => {
                 const currentRank = roleHierarchy[current.role] || 0;
                 const highestRank = roleHierarchy[highest.role] || 0;
                 return currentRank > highestRank ? current : highest;
-              }, allMemberEntries[0]);
+              }, entries[0]);
             }
           }
 
@@ -786,33 +791,12 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 // =============================================================================
 
 /**
- * Get stored gang rating and wealth from columns (gangs.rating, gangs.wealth)
- * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
+ * Get stored gang rating and wealth — selector over getGangCore (same cache entry).
  */
 export const getGangRatingAndWealth = async (gangId: string, supabase: any): Promise<{ rating: number; wealth: number }> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('rating, wealth')
-        .eq('id', gangId)
-        .single();
-
-      if (error) throw error;
-      return {
-        rating: (data?.rating ?? 0) as number,
-        wealth: (data?.wealth ?? 0) as number
-      };
-    },
-    [`gang-rating-wealth-v2-${gangId}`],
-    {
-      tags: [
-        CACHE_TAGS.COMPUTED_GANG_RATING(gangId),
-        CACHE_TAGS.SHARED_GANG_RATING(gangId)
-      ],
-      revalidate: false
-    }
-  )();
+  const core = await getGangCore(gangId, supabase);
+  if (!core) throw new Error('Gang not found');
+  return { rating: core.rating, wealth: core.wealth };
 };
 
 /**
