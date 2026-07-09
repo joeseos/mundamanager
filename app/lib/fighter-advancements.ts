@@ -1,15 +1,6 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS, TAGS } from '@/utils/cache-tags';
-
-// Internal helper functions
-async function _getGangFighters(gangId: string, supabase: any) {
-  const { data, error } = await supabase
-    .from('fighters')
-    .select('id, fighter_name, fighter_type, xp, killed, retired, enslaved, starved, recovery, captured')
-    .eq('gang_id', gangId);
-  if (error) throw error;
-  return data;
-}
+import { TAGS } from '@/utils/cache-tags';
+import { getGangFightersBundle } from '@/app/lib/shared/gang-data';
 
 async function _getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: any) {
   if (advancementType === 'characteristic') {
@@ -35,21 +26,24 @@ async function _getAdvancementCategories(advancementType: 'characteristic' | 'sk
 // 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING unstable_cache()
 
 /**
- * Get gang fighters with persistent caching
- * Cache key: gang-fighters-{gangId}
- * Invalidation: Server actions only via revalidateTag()
+ * Get gang fighters (id/name/status columns) — selector over the shared
+ * gang fighters bundle, so it reads the same cache entry as the gang page
+ * instead of maintaining a duplicate copy of the gang's fighter list.
  */
 export const getGangFighters = async (gangId: string, supabase: any) => {
-  return unstable_cache(
-    async () => {
-      return _getGangFighters(gangId, supabase);
-    },
-    [`gang-fighters-v2-${gangId}`],
-    {
-      tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
-      revalidate: false
-    }
-  )();
+  const bundle = await getGangFightersBundle(gangId, supabase);
+  return bundle.fighters.map((f: any) => ({
+    id: f.id,
+    fighter_name: f.fighter_name,
+    fighter_type: f.fighter_type,
+    xp: f.xp,
+    killed: f.killed,
+    retired: f.retired,
+    enslaved: f.enslaved,
+    starved: f.starved,
+    recovery: f.recovery,
+    captured: f.captured
+  }));
 };
 
 export async function getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: any) {
