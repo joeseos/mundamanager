@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { CACHE_TAGS, TAGS } from '@/utils/cache-tags';
 import { assembleGangFighters, assembleGangVehicles, type GangFightersBundle } from './gang-assembly';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { WeaponProps, WargearItem } from '@/types/fighter';
@@ -459,10 +459,37 @@ function groupBy<T extends Record<string, any>>(
 }
 
 /**
- * Get gang campaigns
- * Cache: COMPOSITE_GANG_CAMPAIGNS
+ * Cached list of campaign ids a gang belongs to. Exists so getGangCampaigns
+ * can tag its entry with campaign-{id} per campaign (dynamic tags must be
+ * known before the cached call). Busted on join/leave via gang-campaigns-{id}.
+ */
+const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<string[]> => {
+  return unstable_cache(
+    async () => {
+      const { data } = await supabase
+        .from('campaign_gangs')
+        .select('campaign_id')
+        .eq('gang_id', gangId);
+      return (data || []).map((cg: any) => cg.campaign_id).filter(Boolean);
+    },
+    [`gang-campaign-ids-v2-${gangId}`],
+    {
+      tags: [CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get gang campaigns (the gang page campaign tab bundle).
+ * Tags: gang-campaigns-{id} (join/leave/allegiance) + campaign-{cid} per
+ * campaign (content changes: territories, resources, allegiances, settings).
+ * Deliberately NOT gang-{id}: nothing here is fighter-dependent, so fighter
+ * edits never rebuild it.
  */
 export const getGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
+  const campaignIdsForTags = await getGangCampaignIdsCached(gangId, supabase);
+
   return unstable_cache(
     async () => {
       const { data, error } = await supabase
@@ -493,83 +520,29 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         return [];
       }
 
-      // Get all campaign IDs and campaign_gang IDs first
+      // Collect ids for the batched lookups
       const campaignIds = (data || [])
         .map((cg: any) => (cg.campaigns as any)?.id)
         .filter(Boolean);
-      
+
       const campaignGangIds = (data || [])
         .map((cg: any) => cg.id)
         .filter(Boolean);
 
-      // Single batch query for all territories
-      const { data: allTerritories } = await supabase
-        .from('campaign_territories')
-        .select(`
-          id,
-          campaign_id,
-          created_at,
-          territory_id,
-          territory_name,
-          playing_card,
-          description,
-          ruined,
-          default_gang_territory
-        `)
-        .in('campaign_id', campaignIds)
-        .eq('gang_id', gangId);
+      const campaignTypeIds = (data || [])
+        .map((cg: any) => (cg.campaigns as any)?.campaign_type_id)
+        .filter(Boolean);
 
-      // Create lookup map
-      const territoriesByCampaign = groupBy(allTerritories || [], 'campaign_id');
-
-      const campaigns: GangCampaign[] = [];
-
-      // Collect all trading post IDs across all campaigns for batch fetch
-      const allTradingPostIds = (data || [])
+      const allTradingPostIds = Array.from(new Set((data || [])
         .map((cg: any) => (cg.campaigns as any)?.trading_posts)
         .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-        .flat();
+        .flat()));
 
-      // Batch fetch trading post names
-      let tradingPostNamesMap: Record<string, string> = {};
-      if (allTradingPostIds.length > 0) {
-        const uniqueIds = Array.from(new Set(allTradingPostIds));
-        const { data: tradingPostTypes } = await supabase
-          .from('trading_post_types')
-          .select('id, trading_post_name')
-          .in('id', uniqueIds);
-
-        if (tradingPostTypes) {
-          tradingPostNamesMap = tradingPostTypes.reduce((acc: Record<string, string>, tp: any) => {
-            acc[tp.id] = tp.trading_post_name;
-            return acc;
-          }, {});
-        }
-      }
-
-      // Collect all custom trading post IDs across all campaigns for batch fetch
-      const allCustomTradingPostIds = (data || [])
+      const allCustomTradingPostIds = Array.from(new Set((data || [])
         .map((cg: any) => (cg.campaigns as any)?.custom_trading_posts)
         .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-        .flat();
+        .flat()));
 
-      let customTradingPostNamesMap: Record<string, string> = {};
-      if (allCustomTradingPostIds.length > 0) {
-        const uniqueIds = Array.from(new Set(allCustomTradingPostIds));
-        const { data: customTradingPosts } = await supabase
-          .from('custom_trading_posts')
-          .select('id, custom_trading_post_name')
-          .in('id', uniqueIds);
-
-        if (customTradingPosts) {
-          customTradingPostNamesMap = customTradingPosts.reduce((acc: Record<string, string>, tp: any) => {
-            acc[tp.id] = tp.custom_trading_post_name;
-            return acc;
-          }, {});
-        }
-      }
-
-      // Collect all allegiance IDs for batch fetch
       const customAllegianceIds = (data || [])
         .map((cg: any) => cg.campaign_allegiance_id)
         .filter(Boolean);
@@ -577,144 +550,177 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
         .map((cg: any) => cg.campaign_type_allegiance_id)
         .filter(Boolean);
 
-      // Batch fetch allegiance names
-      let allegianceNamesMap: Record<string, string> = {};
-      
-      if (customAllegianceIds.length > 0) {
-        const { data: customAllegiances } = await supabase
-          .from('campaign_allegiances')
-          .select('id, allegiance_name')
-          .in('id', customAllegianceIds);
-
-        if (customAllegiances) {
-          customAllegiances.forEach((a: any) => {
-            allegianceNamesMap[a.id] = a.allegiance_name;
-          });
-        }
-      }
-
-      if (typeAllegianceIds.length > 0) {
-        const { data: typeAllegiances } = await supabase
-          .from('campaign_type_allegiances')
-          .select('id, allegiance_name')
-          .in('id', typeAllegianceIds);
-
-        if (typeAllegiances) {
-          typeAllegiances.forEach((a: any) => {
-            allegianceNamesMap[a.id] = a.allegiance_name;
-          });
-        }
-      }
-
-      // Fetch ALL available resources for campaigns and gang's current quantities
-      let resourcesByCampaignGang: Record<string, GangCampaignResource[]> = {};
-      
-      if (campaignGangIds.length > 0 && campaignIds.length > 0) {
-        // Get campaign_type_ids for fetching predefined resources
-        const campaignTypeIds = (data || [])
-          .map((cg: any) => (cg.campaigns as any)?.campaign_type_id)
-          .filter(Boolean);
-        
-        // Fetch predefined resources for all campaign types
-        let predefinedResources: Array<{ id: string; resource_name: string; campaign_type_id: string }> = [];
-        if (campaignTypeIds.length > 0) {
-          const { data: typeResources } = await supabase
-            .from('campaign_type_resources')
-            .select('id, resource_name, campaign_type_id')
-            .in('campaign_type_id', campaignTypeIds);
-          predefinedResources = typeResources || [];
-        }
-        
-        // Fetch custom resources for all campaigns
-        let customResources: Array<{ id: string; resource_name: string; campaign_id: string }> = [];
-        if (campaignIds.length > 0) {
-          const { data: campResources } = await supabase
-            .from('campaign_resources')
-            .select('id, resource_name, campaign_id')
-            .in('campaign_id', campaignIds);
-          customResources = campResources || [];
-        }
-        
-        // Fetch gang's current resource quantities
-        const { data: gangResources } = await supabase
-          .from('campaign_gang_resources')
-          .select(`
-            id,
-            campaign_gang_id,
-            campaign_type_resource_id,
-            campaign_resource_id,
-            quantity
-          `)
-          .in('campaign_gang_id', campaignGangIds);
-        
-        // Build quantity lookup: resourceId -> { campaignGangId -> quantity }
-        const quantityLookup: Record<string, Record<string, number>> = {};
-        (gangResources || []).forEach((gr: any) => {
-          const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
-          if (resourceId) {
-            if (!quantityLookup[resourceId]) {
-              quantityLookup[resourceId] = {};
-            }
-            quantityLookup[resourceId][gr.campaign_gang_id] = Number(gr.quantity) || 0;
-          }
-        });
-        
-        // Build resources for each campaign_gang
-        for (const cg of data || []) {
-          const campaignGangId = cg.id;
-          const campaignTypeId = (cg.campaigns as any)?.campaign_type_id;
-          const campaignId = (cg.campaigns as any)?.id;
-          
-          if (!resourcesByCampaignGang[campaignGangId]) {
-            resourcesByCampaignGang[campaignGangId] = [];
-          }
-          
-          // Add predefined resources for this campaign's type
-          const relevantPredefined = predefinedResources.filter(r => r.campaign_type_id === campaignTypeId);
-          for (const resource of relevantPredefined) {
-            const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
-            resourcesByCampaignGang[campaignGangId].push({
-              resource_id: resource.id,
-              resource_name: resource.resource_name,
-              quantity,
-              is_custom: false
-            });
-          }
-          
-          // Add custom resources for this campaign
-          const relevantCustom = customResources.filter(r => r.campaign_id === campaignId);
-          for (const resource of relevantCustom) {
-            const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
-            resourcesByCampaignGang[campaignGangId].push({
-              resource_id: resource.id,
-              resource_name: resource.resource_name,
-              quantity,
-              is_custom: true
-            });
-          }
-        }
-      }
-
-      // Batch the member fallback: rows whose embedded campaign_members join
-      // returned no role used to trigger one awaited query per campaign inside
-      // the loop below. Fetch all candidate entries in a single query instead.
+      // Rows whose embedded campaign_members join returned no role need a
+      // fallback lookup considering ALL of the user's member entries.
       type MemberEntry = { campaign_id?: string; user_id?: string; role: string; status: string | null; invited_at: string; invited_by: string };
       const fallbackRows = (data || []).filter(
         (cg: any) => cg.campaigns && (!cg.campaign_members || !(cg.campaign_members as any)?.role)
       );
-      const fallbackMembersByPair: Record<string, MemberEntry[]> = {};
-      if (fallbackRows.length > 0) {
-        const { data: allMemberEntries } = await supabase
-          .from('campaign_members')
-          .select('campaign_id, user_id, role, status, invited_at, invited_by')
-          .in('campaign_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg.campaigns as any).id))))
-          .in('user_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg as any).user_id))));
 
-        for (const entry of (allMemberEntries || []) as MemberEntry[]) {
-          const key = `${entry.campaign_id}:${entry.user_id}`;
-          (fallbackMembersByPair[key] ||= []).push(entry);
+      // ALL remaining lookups are independent of each other: one parallel batch
+      const [
+        territoriesRes,
+        tradingPostTypesRes,
+        customTradingPostsRes,
+        customAllegiancesRes,
+        typeAllegiancesRes,
+        typeResourcesRes,
+        campResourcesRes,
+        gangResourcesRes,
+        fallbackMembersRes
+      ] = await Promise.all([
+        campaignIds.length > 0
+          ? supabase
+              .from('campaign_territories')
+              .select(`
+                id,
+                campaign_id,
+                created_at,
+                territory_id,
+                territory_name,
+                playing_card,
+                description,
+                ruined,
+                default_gang_territory
+              `)
+              .in('campaign_id', campaignIds)
+              .eq('gang_id', gangId)
+          : Promise.resolve({ data: [] }),
+        allTradingPostIds.length > 0
+          ? supabase
+              .from('trading_post_types')
+              .select('id, trading_post_name')
+              .in('id', allTradingPostIds)
+          : Promise.resolve({ data: [] }),
+        allCustomTradingPostIds.length > 0
+          ? supabase
+              .from('custom_trading_posts')
+              .select('id, custom_trading_post_name')
+              .in('id', allCustomTradingPostIds)
+          : Promise.resolve({ data: [] }),
+        customAllegianceIds.length > 0
+          ? supabase
+              .from('campaign_allegiances')
+              .select('id, allegiance_name')
+              .in('id', customAllegianceIds)
+          : Promise.resolve({ data: [] }),
+        typeAllegianceIds.length > 0
+          ? supabase
+              .from('campaign_type_allegiances')
+              .select('id, allegiance_name')
+              .in('id', typeAllegianceIds)
+          : Promise.resolve({ data: [] }),
+        campaignTypeIds.length > 0 && campaignGangIds.length > 0
+          ? supabase
+              .from('campaign_type_resources')
+              .select('id, resource_name, campaign_type_id')
+              .in('campaign_type_id', campaignTypeIds)
+          : Promise.resolve({ data: [] }),
+        campaignIds.length > 0 && campaignGangIds.length > 0
+          ? supabase
+              .from('campaign_resources')
+              .select('id, resource_name, campaign_id')
+              .in('campaign_id', campaignIds)
+          : Promise.resolve({ data: [] }),
+        campaignGangIds.length > 0 && campaignIds.length > 0
+          ? supabase
+              .from('campaign_gang_resources')
+              .select(`
+                id,
+                campaign_gang_id,
+                campaign_type_resource_id,
+                campaign_resource_id,
+                quantity
+              `)
+              .in('campaign_gang_id', campaignGangIds)
+          : Promise.resolve({ data: [] }),
+        fallbackRows.length > 0
+          ? supabase
+              .from('campaign_members')
+              .select('campaign_id, user_id, role, status, invited_at, invited_by')
+              .in('campaign_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg.campaigns as any).id))))
+              .in('user_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg as any).user_id))))
+          : Promise.resolve({ data: [] })
+      ]);
+
+      // Build lookup maps
+      const territoriesByCampaign = groupBy(territoriesRes.data || [], 'campaign_id');
+
+      const tradingPostNamesMap: Record<string, string> = {};
+      (tradingPostTypesRes.data || []).forEach((tp: any) => {
+        tradingPostNamesMap[tp.id] = tp.trading_post_name;
+      });
+
+      const customTradingPostNamesMap: Record<string, string> = {};
+      (customTradingPostsRes.data || []).forEach((tp: any) => {
+        customTradingPostNamesMap[tp.id] = tp.custom_trading_post_name;
+      });
+
+      const allegianceNamesMap: Record<string, string> = {};
+      (customAllegiancesRes.data || []).forEach((a: any) => {
+        allegianceNamesMap[a.id] = a.allegiance_name;
+      });
+      (typeAllegiancesRes.data || []).forEach((a: any) => {
+        allegianceNamesMap[a.id] = a.allegiance_name;
+      });
+
+      const fallbackMembersByPair: Record<string, MemberEntry[]> = {};
+      for (const entry of (fallbackMembersRes.data || []) as MemberEntry[]) {
+        const key = `${entry.campaign_id}:${entry.user_id}`;
+        (fallbackMembersByPair[key] ||= []).push(entry);
+      }
+
+      // Build resources for each campaign_gang
+      const predefinedResources = (typeResourcesRes.data || []) as Array<{ id: string; resource_name: string; campaign_type_id: string }>;
+      const customResources = (campResourcesRes.data || []) as Array<{ id: string; resource_name: string; campaign_id: string }>;
+
+      const quantityLookup: Record<string, Record<string, number>> = {};
+      (gangResourcesRes.data || []).forEach((gr: any) => {
+        const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
+        if (resourceId) {
+          if (!quantityLookup[resourceId]) {
+            quantityLookup[resourceId] = {};
+          }
+          quantityLookup[resourceId][gr.campaign_gang_id] = Number(gr.quantity) || 0;
+        }
+      });
+
+      const resourcesByCampaignGang: Record<string, GangCampaignResource[]> = {};
+      for (const cg of data || []) {
+        const campaignGangId = cg.id;
+        const campaignTypeId = (cg.campaigns as any)?.campaign_type_id;
+        const campaignId = (cg.campaigns as any)?.id;
+
+        if (!resourcesByCampaignGang[campaignGangId]) {
+          resourcesByCampaignGang[campaignGangId] = [];
+        }
+
+        // Add predefined resources for this campaign's type
+        const relevantPredefined = predefinedResources.filter(r => r.campaign_type_id === campaignTypeId);
+        for (const resource of relevantPredefined) {
+          const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
+          resourcesByCampaignGang[campaignGangId].push({
+            resource_id: resource.id,
+            resource_name: resource.resource_name,
+            quantity,
+            is_custom: false
+          });
+        }
+
+        // Add custom resources for this campaign
+        const relevantCustom = customResources.filter(r => r.campaign_id === campaignId);
+        for (const resource of relevantCustom) {
+          const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
+          resourcesByCampaignGang[campaignGangId].push({
+            resource_id: resource.id,
+            resource_name: resource.resource_name,
+            quantity,
+            is_custom: true
+          });
         }
       }
+
+      const campaigns: GangCampaign[] = [];
 
       for (const cg of data || []) {
         if (cg.campaigns) {
@@ -781,7 +787,10 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
     },
     [`gang-campaigns-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId)],
+      tags: [
+        CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId),
+        ...campaignIdsForTags.map(id => TAGS.campaign(id))
+      ],
       revalidate: false
     }
   )();
