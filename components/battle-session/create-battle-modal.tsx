@@ -15,6 +15,7 @@ import type { Scenario } from '@/types/campaign';
 export interface CampaignGang {
   id: string;
   name: string;
+  gang_colour?: string;
   user_id: string | null;
   owner_username: string;
 }

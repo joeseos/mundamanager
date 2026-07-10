@@ -99,7 +99,7 @@ export function FighterActions({
   });
 
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; owner_username?: string }>>([]);
+  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string }>>([]);
   const [isFetchingGangs, setIsFetchingGangs] = useState(false);
 
   const campaignIds = useMemo(() =>
@@ -126,7 +126,7 @@ export function FighterActions({
 
     const fetchGangs = async () => {
       try {
-        const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
+        const allGangs: Array<{ id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string }> = [];
         const seenIds = new Set<string>();
 
         const gangResults = await Promise.all(
@@ -141,7 +141,7 @@ export function FighterActions({
           for (const g of gangs) {
             if (g.id !== gang.id && !seenIds.has(g.id)) {
               seenIds.add(g.id);
-              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, owner_username: g.owner_username });
+              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, gang_colour: g.gang_colour, owner_username: g.owner_username });
             }
           }
         }
