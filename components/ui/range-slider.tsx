@@ -40,8 +40,8 @@ export function RangeSlider({
         step={step}
         minStepsBetweenThumbs={0}
       >
-        <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-gray-400">
-          <SliderPrimitive.Range className="absolute h-full bg-primary" />
+        <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-muted">
+          <SliderPrimitive.Range className="absolute h-full bg-green-600" />
         </SliderPrimitive.Track>
 
         {/* First thumb (minimum value) */}
