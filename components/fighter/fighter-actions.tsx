@@ -14,6 +14,7 @@ import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 
 interface Fighter {
   id: string;
@@ -99,7 +100,7 @@ export function FighterActions({
   });
 
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; owner_username?: string }>>([]);
+  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string }>>([]);
   const [isFetchingGangs, setIsFetchingGangs] = useState(false);
 
   const campaignIds = useMemo(() =>
@@ -126,7 +127,7 @@ export function FighterActions({
 
     const fetchGangs = async () => {
       try {
-        const allGangs: Array<{ id: string; name: string; gang_type: string; owner_username?: string }> = [];
+        const allGangs: Array<{ id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string }> = [];
         const seenIds = new Set<string>();
 
         const gangResults = await Promise.all(
@@ -141,7 +142,7 @@ export function FighterActions({
           for (const g of gangs) {
             if (g.id !== gang.id && !seenIds.has(g.id)) {
               seenIds.add(g.id);
-              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, owner_username: g.owner_username });
+              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, gang_colour: g.gang_colour, owner_username: g.owner_username });
             }
           }
         }
@@ -552,19 +553,7 @@ export function FighterActions({
                       options={campaignGangs
                         .slice()
                         .sort((a, b) => a.name.localeCompare(b.name))
-                        .map(g => {
-                          const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                          return {
-                            value: g.id,
-                            label: (
-                              <span>
-                                <span>{g.name}</span>
-                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                              </span>
-                            ),
-                            displayValue: `${g.name}${owner}`,
-                          };
-                        })
+                        .map(g => buildGangComboboxOption(g))
                       }
                       value={selectedCapturingGangId}
                       onValueChange={setSelectedCapturingGangId}

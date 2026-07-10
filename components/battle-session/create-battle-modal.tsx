@@ -9,12 +9,14 @@ import { HiX } from 'react-icons/hi';
 import { createBattleSession, addParticipant } from '@/app/actions/battle-sessions';
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Button } from '@/components/ui/button';
 import type { Scenario } from '@/types/campaign';
 
 export interface CampaignGang {
   id: string;
   name: string;
+  gang_colour?: string;
   user_id: string | null;
   owner_username: string;
 }
@@ -324,10 +326,7 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs.map((g) => ({
-                value: g.id,
-                label: g.name,
-              }))}
+              options={myGangs.map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
               onValueChange={setSelectedMyGangId}
               placeholder="Select your gang..."
@@ -342,18 +341,7 @@ export default function CreateBattleModal({
               Opponent Gang
             </label>
             <Combobox
-              options={opponentCampaignGangs.map((g) => ({
-                value: g.id,
-                label: (
-                  <span>
-                    <span>{g.name}</span>
-                    {g.owner_username && (
-                      <span className="text-xs text-muted-foreground"> • {g.owner_username}</span>
-                    )}
-                  </span>
-                ),
-                displayValue: `${g.name} • ${g.owner_username}`,
-              }))}
+              options={opponentCampaignGangs.map(g => buildGangComboboxOption(g))}
               value=""
               onValueChange={addCampaignGang}
               placeholder="Select opponent gang..."

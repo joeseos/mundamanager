@@ -63,6 +63,7 @@ export interface Battle {
 export interface CampaignGang {
   id: string;
   name: string;
+  gang_colour?: string;
   campaign_member_id?: string;
   user_id?: string;
   owner_username?: string;

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
@@ -838,20 +839,7 @@ const CampaignBattleLogModal = ({
                       placeholder="Select a Gang"
                       options={[
                         { value: "", label: "No gang selected" },
-                        ...availableGangsForThisEntry.map((gang) => {
-                          const owner = gang.owner_username ? ` • ${gang.owner_username}` : "";
-                          const displayValue = `${gang.name}${owner}`;
-                          return {
-                            value: gang.id,
-                            label: owner ? (
-                              <span>
-                                <span>{gang.name}</span>
-                                <span className="text-xs text-muted-foreground">{owner}</span>
-                              </span>
-                            ) : gang.name,
-                            displayValue,
-                          };
-                        }),
+                        ...availableGangsForThisEntry.map(gang => buildGangComboboxOption(gang)),
                       ]}
                     />
 
@@ -942,18 +930,12 @@ const CampaignBattleLogModal = ({
                   .filter((entry) => !excludedGangIds.has(entry.gangId))
                   .map((entry) => {
                     const gang = availableGangs.find((g) => g.id === entry.gangId);
-                    const gangName = getGangName(entry.gangId);
-                    const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
-                    return {
-                      value: entry.gangId,
-                      label: owner ? (
-                        <span>
-                          <span>{gangName}</span>
-                          <span className="text-xs text-muted-foreground">{owner}</span>
-                        </span>
-                      ) : gangName,
-                      displayValue: `${gangName}${owner}`,
-                    };
+                    return buildGangComboboxOption({
+                      id: entry.gangId,
+                      name: getGangName(entry.gangId),
+                      gang_colour: gang?.gang_colour,
+                      owner_username: gang?.owner_username,
+                    });
                   });
 
                 const baseOptions = isFirstSlot
@@ -1065,18 +1047,12 @@ const CampaignBattleLogModal = ({
                         { value: "", label: "Select the claiming winner" },
                         ...activeWinners.map((gangId) => {
                           const gang = availableGangs.find((g) => g.id === gangId);
-                          const gangName = getGangName(gangId);
-                          const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
-                          return {
-                            value: gangId,
-                            label: owner ? (
-                              <span>
-                                <span>{gangName}</span>
-                                <span className="text-xs text-muted-foreground">{owner}</span>
-                              </span>
-                            ) : gangName,
-                            displayValue: `${gangName}${owner}`,
-                          };
+                          return buildGangComboboxOption({
+                            id: gangId,
+                            name: getGangName(gangId),
+                            gang_colour: gang?.gang_colour,
+                            owner_username: gang?.owner_username,
+                          });
                         }),
                       ]}
                     />
