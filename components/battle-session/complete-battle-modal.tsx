@@ -8,6 +8,7 @@ import { HiX } from 'react-icons/hi';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Textarea } from '@/components/ui/textarea';
 import {
   setSessionWinners,
@@ -66,7 +67,7 @@ export default function CompleteBattleModal({
   );
 
   const gangColourMap = useMemo(
-    () => new Map(session.participants.map((p) => [p.gang_id, p.gang?.gang_colour || '#000000'])),
+    () => new Map(session.participants.map((p) => [p.gang_id, p.gang?.gang_colour ?? null])),
     [session.participants]
   );
 
@@ -163,24 +164,12 @@ export default function CompleteBattleModal({
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const buildGangOption = (gangId: string) => {
-    const name = gangNameMap.get(gangId) ?? 'Unknown Gang';
-    const colour = gangColourMap.get(gangId) ?? '#000000';
-    return {
-      value: gangId,
-      label: (
-        <span className="flex items-center gap-2">
-          <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-            style={{ backgroundColor: colour }}
-            aria-hidden
-          />
-          <span>{name}</span>
-        </span>
-      ),
-      displayValue: name,
-    };
-  };
+  const buildGangOption = (gangId: string) =>
+    buildGangComboboxOption({
+      id: gangId,
+      name: gangNameMap.get(gangId) ?? 'Unknown Gang',
+      gang_colour: gangColourMap.get(gangId) ?? null,
+    });
 
   return createPortal(
     <Modal

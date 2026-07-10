@@ -14,6 +14,7 @@ import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 
 interface Fighter {
   id: string;
@@ -552,25 +553,7 @@ export function FighterActions({
                       options={campaignGangs
                         .slice()
                         .sort((a, b) => a.name.localeCompare(b.name))
-                        .map(g => {
-                          const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                          const colour = g.gang_colour || '#000000';
-                          return {
-                            value: g.id,
-                            label: (
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                                  style={{ backgroundColor: colour }}
-                                  aria-hidden
-                                />
-                                <span>{g.name}</span>
-                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                              </span>
-                            ),
-                            displayValue: `${g.name}${owner}`,
-                          };
-                        })
+                        .map(g => buildGangComboboxOption(g))
                       }
                       value={selectedCapturingGangId}
                       onValueChange={setSelectedCapturingGangId}

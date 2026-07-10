@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
@@ -106,12 +107,6 @@ const CampaignBattleLogModal = ({
     if (!gangId) return 'Unknown';
     const gang = availableGangs.find(g => g.id === gangId);
     return gang?.name || 'Unknown';
-  };
-
-  const getGangColour = (gangId: string | null | undefined) => {
-    if (!gangId) return '#000000';
-    const gang = availableGangs.find(g => g.id === gangId);
-    return gang?.gang_colour || '#888888';
   };
 
   // Helper to get territory name - supports both name and territory_name
@@ -844,26 +839,7 @@ const CampaignBattleLogModal = ({
                       placeholder="Select a Gang"
                       options={[
                         { value: "", label: "No gang selected" },
-                        ...availableGangsForThisEntry.map((gang) => {
-                          const owner = gang.owner_username ? ` • ${gang.owner_username}` : "";
-                          const colour = gang.gang_colour || '#000000';
-                          const displayValue = `${gang.name}${owner}`;
-                          return {
-                            value: gang.id,
-                            label: (
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                                  style={{ backgroundColor: colour }}
-                                  aria-hidden
-                                />
-                                <span>{gang.name}</span>
-                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                              </span>
-                            ),
-                            displayValue,
-                          };
-                        }),
+                        ...availableGangsForThisEntry.map(gang => buildGangComboboxOption(gang)),
                       ]}
                     />
 
@@ -954,24 +930,12 @@ const CampaignBattleLogModal = ({
                   .filter((entry) => !excludedGangIds.has(entry.gangId))
                   .map((entry) => {
                     const gang = availableGangs.find((g) => g.id === entry.gangId);
-                    const gangName = getGangName(entry.gangId);
-                    const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
-                    const colour = getGangColour(entry.gangId);
-                    return {
-                      value: entry.gangId,
-                      label: (
-                        <span className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                            style={{ backgroundColor: colour }}
-                            aria-hidden
-                          />
-                          <span>{gangName}</span>
-                          {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                        </span>
-                      ),
-                      displayValue: `${gangName}${owner}`,
-                    };
+                    return buildGangComboboxOption({
+                      id: entry.gangId,
+                      name: getGangName(entry.gangId),
+                      gang_colour: gang?.gang_colour,
+                      owner_username: gang?.owner_username,
+                    });
                   });
 
                 const baseOptions = isFirstSlot
@@ -1083,24 +1047,12 @@ const CampaignBattleLogModal = ({
                         { value: "", label: "Select the claiming winner" },
                         ...activeWinners.map((gangId) => {
                           const gang = availableGangs.find((g) => g.id === gangId);
-                          const gangName = getGangName(gangId);
-                          const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
-                          const colour = getGangColour(gangId);
-                          return {
-                            value: gangId,
-                            label: (
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                                  style={{ backgroundColor: colour }}
-                                  aria-hidden
-                                />
-                                <span>{gangName}</span>
-                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                              </span>
-                            ),
-                            displayValue: `${gangName}${owner}`,
-                          };
+                          return buildGangComboboxOption({
+                            id: gangId,
+                            name: getGangName(gangId),
+                            gang_colour: gang?.gang_colour,
+                            owner_username: gang?.owner_username,
+                          });
                         }),
                       ]}
                     />

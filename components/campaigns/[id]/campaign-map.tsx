@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import CampaignMapGangSummary from '@/components/campaigns/[id]/campaign-map-gang-summary';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { assignGangToTerritory } from '@/app/actions/campaigns/[id]/campaign-territories';
 import { toast } from 'sonner';
 
@@ -207,27 +208,7 @@ export default function CampaignMap({
               Assign <span className="font-bold">{selectedTerritory.playing_card ? `${selectedTerritory.playing_card} ` : ''}{selectedTerritory.territory_name}</span> to:
             </h3>
             <Combobox
-              options={allGangs.map(g => {
-                const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                const colour = g.gang_colour || '#000000';
-                return {
-                  value: g.id,
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                        style={{ backgroundColor: colour }}
-                        aria-hidden
-                      />
-                      <span>{g.name}</span>
-                      {g.owner_username && (
-                        <span className="text-xs text-muted-foreground">{owner}</span>
-                      )}
-                    </span>
-                  ),
-                  displayValue: `${g.name}${owner}`,
-                };
-              })}
+              options={allGangs.map(g => buildGangComboboxOption(g))}
               value={selectedTerritory.gang_id ?? ''}
               onValueChange={handleAssignGang}
               placeholder="Select a gang..."

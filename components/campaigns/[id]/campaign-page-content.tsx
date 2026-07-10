@@ -908,6 +908,7 @@ export default function CampaignPageContent({
                       .map((g) => ({
                         id: g.id,
                         name: g.name,
+                        gang_colour: g.gang_colour,
                         user_id: m.user_id,
                         owner_username: m.username,
                       }))

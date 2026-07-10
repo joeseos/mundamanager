@@ -9,6 +9,7 @@ import { HiX } from 'react-icons/hi';
 import { createBattleSession, addParticipant } from '@/app/actions/battle-sessions';
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Button } from '@/components/ui/button';
 import type { Scenario } from '@/types/campaign';
 
@@ -325,23 +326,7 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs.map((g) => {
-                const colour = g.gang_colour || '#000000';
-                return {
-                  value: g.id,
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                        style={{ backgroundColor: colour }}
-                        aria-hidden
-                      />
-                      <span>{g.name}</span>
-                    </span>
-                  ),
-                  displayValue: g.name,
-                };
-              })}
+              options={myGangs.map(g => buildGangComboboxOption(g))}
               value={selectedMyGangId}
               onValueChange={setSelectedMyGangId}
               placeholder="Select your gang..."
@@ -356,27 +341,7 @@ export default function CreateBattleModal({
               Opponent Gang
             </label>
             <Combobox
-              options={opponentCampaignGangs.map((g) => {
-                const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                const colour = g.gang_colour || '#000000';
-                return {
-                  value: g.id,
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                        style={{ backgroundColor: colour }}
-                        aria-hidden
-                      />
-                      <span>{g.name}</span>
-                      {g.owner_username && (
-                        <span className="text-xs text-muted-foreground">{owner}</span>
-                      )}
-                    </span>
-                  ),
-                  displayValue: `${g.name}${owner}`,
-                };
-              })}
+              options={opponentCampaignGangs.map(g => buildGangComboboxOption(g))}
               value=""
               onValueChange={addCampaignGang}
               placeholder="Select opponent gang..."

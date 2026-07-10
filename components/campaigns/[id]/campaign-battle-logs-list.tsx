@@ -19,6 +19,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
@@ -428,7 +429,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
               gangsMap.set(gangKey, {
                 id: gang.id,
                 name: gang.name,
-                // Store additional data for reference if needed
+                gang_colour: gang.gang_colour,
                 campaign_member_id: member.id || gang.campaign_member_id,
                 user_id: member.user_id,
                 owner_username: member.profile?.username || member.username || 'Unknown'
@@ -911,26 +912,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 { value: '', label: 'All Gangs' },
                 ...filterOptions.participatingGangIds.map(gangId => {
                   const gangInfo = getGangInfo(gangId);
-                  const hasOwner = !!gangInfo.owner_username;
-                  const owner = hasOwner ? ` • ${gangInfo.owner_username}` : '';
-                  const displayValue = `${gangInfo.name}${owner}`;
-                  const colour = getGangColour(gangId);
-
-                  return {
-                    value: gangId,
-                    label: (
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: colour }}
-                          aria-hidden
-                        />
-                        <span>{gangInfo.name}</span>
-                        {hasOwner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                      </span>
-                    ),
-                    displayValue,
-                  };
+                  const gang = availableGangs.find(g => g.id === gangId);
+                  return buildGangComboboxOption({
+                    id: gangId,
+                    name: gangInfo.name,
+                    gang_colour: gang?.gang_colour,
+                    owner_username: gangInfo.owner_username,
+                  });
                 })
               ]}
               value={filterParticipatingGang}
@@ -948,26 +936,13 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 { value: '', label: 'All Winners' },
                 ...filterOptions.winningGangIds.map(gangId => {
                   const gangInfo = getGangInfo(gangId);
-                  const hasOwner = !!gangInfo.owner_username;
-                  const owner = hasOwner ? ` • ${gangInfo.owner_username}` : '';
-                  const displayValue = `${gangInfo.name}${owner}`;
-                  const colour = getGangColour(gangId);
-
-                  return {
-                    value: gangId,
-                    label: (
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: colour }}
-                          aria-hidden
-                        />
-                        <span>{gangInfo.name}</span>
-                        {hasOwner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                      </span>
-                    ),
-                    displayValue,
-                  };
+                  const gang = availableGangs.find(g => g.id === gangId);
+                  return buildGangComboboxOption({
+                    id: gangId,
+                    name: gangInfo.name,
+                    gang_colour: gang?.gang_colour,
+                    owner_username: gangInfo.owner_username,
+                  });
                 })
               ]}
               value={filterWinningGang}

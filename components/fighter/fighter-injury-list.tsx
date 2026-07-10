@@ -22,6 +22,7 @@ import { lastingInjuryRank } from '@/utils/lastingInjuryRank';
 import { lastingInjuryCrewRank } from '@/utils/lastingInjuryCrewRank';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { Combobox } from '@/components/ui/combobox';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useMutation } from '@tanstack/react-query';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { hasKilledStatusFlag } from '@/utils/fighter-status';
@@ -1090,25 +1091,7 @@ export function InjuriesList({
               options={campaignGangs
                 .slice()
                 .sort((a, b) => a.name.localeCompare(b.name))
-                .map(g => {
-                  const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                  const colour = g.gang_colour || '#000000';
-                  return {
-                    value: g.id,
-                    label: (
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: colour }}
-                          aria-hidden
-                        />
-                        <span>{g.name}</span>
-                        {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                      </span>
-                    ),
-                    displayValue: `${g.name}${owner}`,
-                  };
-                })
+                .map(g => buildGangComboboxOption(g))
               }
               value={selectedCapturingGangId}
               onValueChange={setSelectedCapturingGangId}
@@ -1130,33 +1113,15 @@ export function InjuriesList({
               <p className="text-sm text-muted-foreground">Loading gangs...</p>
             ) : campaignGangs.length > 0 ? (
               <Combobox
-                options={campaignGangs
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map(g => {
-                    const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
-                    const colour = g.gang_colour || '#000000';
-                    return {
-                      value: g.id,
-                      label: (
-                        <span className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
-                            style={{ backgroundColor: colour }}
-                            aria-hidden
-                          />
-                          <span>{g.name}</span>
-                          {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
-                        </span>
-                      ),
-                      displayValue: `${g.name}${owner}`,
-                    };
-                  })
-                }
-                value={selectedBitterEnmityGangId}
-                onValueChange={setSelectedBitterEnmityGangId}
-                placeholder="Select enemy gang..."
-                clearable
+              options={campaignGangs
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(g => buildGangComboboxOption(g))
+              }
+              value={selectedBitterEnmityGangId}
+              onValueChange={setSelectedBitterEnmityGangId}
+              placeholder="Select enemy gang..."
+              clearable
               />
             ) : (
               <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
