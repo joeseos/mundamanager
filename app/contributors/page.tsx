@@ -7,8 +7,7 @@ import { getPatreonTierConfig } from '@/utils/patreon';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
   : "https://www.mundamanager.com";
@@ -67,7 +66,7 @@ export default async function ContributorsPage() {
     },
     ['global-patreon-supporters'],
     {
-      tags: [CACHE_TAGS.GLOBAL_PATREON_SUPPORTERS()]
+      tags: [TAGS.globalPatreonSupporters()]
     }
   );
 

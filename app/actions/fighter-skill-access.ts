@@ -4,8 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkPermissionCached } from '@/utils/user-permissions';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 // Types
 export interface SkillAccessOverride {
   skill_type_id: string;
@@ -80,8 +79,8 @@ export async function saveFighterSkillAccessOverrides(params: {
     }
 
     // Invalidate relevant caches
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id), { expire: 0 });
+    revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
+    revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
 
     return { success: true };
   } catch (error) {

@@ -4,7 +4,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { TAGS } from '@/utils/cache-tags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getWinnerIds, getExplicitClaimerGangId, enrichWinners } from '@/utils/battle-winners';
 import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds } from '@/utils/battle-participants';
@@ -280,12 +280,12 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     // Invalidate cache - battles and territories if claimed
     const { revalidateTag } = await import('next/cache');
     if (claimed_territories.length > 0 && claimerGangId) {
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
+      revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
       revalidateTag(`campaign-${campaignId}`, { expire: 0 });
     }
     // Invalidate every winner's campaign cache so their stats refresh.
     for (const winnerId of effectiveWinnerIds) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(winnerId), { expire: 0 });
+      revalidateTag(TAGS.gangCampaigns(winnerId), { expire: 0 });
     }
 
     return transformedBattle;
@@ -474,19 +474,19 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // Invalidate cache - battles and territories if claimed or released
     const { revalidateTag } = await import('next/cache');
     if (claimed_territories.length > 0 || existingBattle.campaign_territory_id) {
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
+      revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
       revalidateTag(`campaign-${campaignId}`, { expire: 0 });
       if (oldTerritoryGangId) {
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(oldTerritoryGangId), { expire: 0 });
+        revalidateTag(TAGS.gangCampaigns(oldTerritoryGangId), { expire: 0 });
       }
     }
     // Invalidate old winners so a removed gang's stats don't serve stale data.
     for (const oldId of oldWinnerIds) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(oldId), { expire: 0 });
+      revalidateTag(TAGS.gangCampaigns(oldId), { expire: 0 });
     }
     // Invalidate every (new) winner's campaign cache so their stats refresh.
     for (const winnerId of effectiveWinnerIds) {
-      revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(winnerId), { expire: 0 });
+      revalidateTag(TAGS.gangCampaigns(winnerId), { expire: 0 });
     }
 
     return transformedBattle;
@@ -554,10 +554,10 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
     // Invalidate battles cache and territory cache if needed
     const { revalidateTag } = await import('next/cache');
     if (existingBattle.campaign_territory_id) {
-      revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
+      revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
       revalidateTag(`campaign-${campaignId}`, { expire: 0 });
       if (releasedTerritoryGangId) {
-        revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(releasedTerritoryGangId), { expire: 0 });
+        revalidateTag(TAGS.gangCampaigns(releasedTerritoryGangId), { expire: 0 });
       }
     }
   } catch (error) {

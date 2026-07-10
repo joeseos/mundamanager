@@ -2,8 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserIdFromClaims, signInPath } from "@/utils/auth"
 import { revalidateTag } from 'next/cache'
-import { CACHE_TAGS } from '@/utils/cache-tags'
-
+import { TAGS } from '@/utils/cache-tags';
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
 
@@ -84,8 +83,8 @@ export async function GET(request: NextRequest) {
     console.log('[Discord Callback] DB update success — guildId:', guildId, 'campaignId:', campaignId)
 
     // Invalidate campaign cache
-    revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId), { expire: 0 })
-    revalidateTag(CACHE_TAGS.COMPOSITE_CAMPAIGN_OVERVIEW(campaignId), { expire: 0 })
+    revalidateTag(TAGS.campaign(campaignId), { expire: 0 })
+    revalidateTag(TAGS.campaign(campaignId), { expire: 0 })
 
     // Return self-closing HTML that notifies the opener window via postMessage
     const origin = new URL(request.url).origin

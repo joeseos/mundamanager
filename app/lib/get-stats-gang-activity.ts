@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 import { ActivityStats } from '@/types/stats';
 
@@ -10,7 +10,7 @@ export type { ActivityStats as GangActivityStats };
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_ACTIVITY(), { expire: 0 }) as needed
+ * - Manual: Call revalidateTag(TAGS.globalGangActivity(), { expire: 0 }) as needed
  *
  * @returns Counts per period, or null if service role key is not available
  */
@@ -48,7 +48,7 @@ const getCachedGangActivityStats = unstable_cache(
   },
   ['global-gang-activity'],
   {
-    tags: [CACHE_TAGS.GLOBAL_GANG_ACTIVITY()],
+    tags: [TAGS.globalGangActivity()],
     revalidate: 86400,
   }
 );

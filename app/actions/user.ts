@@ -1,8 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateUserProfile } from "@/utils/cache-tags";
-
+import { invalidateUser } from '@/utils/cache-tags';
 export const updateUsernameAction = async (userId: string, newUsername: string) => {
   const supabase = await createClient();
 
@@ -45,7 +44,7 @@ export const updateUsernameAction = async (userId: string, newUsername: string) 
       }
     }
 
-    invalidateUserProfile(userId);
+    invalidateUser(userId);
 
     return { success: "Username updated successfully" };
 

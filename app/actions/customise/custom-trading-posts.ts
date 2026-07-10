@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateUserCustomTradingPosts, invalidateUserCustomCollections } from '@/utils/cache-tags';
+import { TAGS, invalidateUserCustoms } from '@/utils/cache-tags';
 import { removeItemFromAllCollections } from './custom-collections';
 
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
@@ -49,7 +49,7 @@ export async function createCustomTradingPost(
       return { success: false, error: `Failed to create custom trading post: ${insertError.message}` };
     }
 
-    invalidateUserCustomTradingPosts(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: newTradingPost };
   } catch (error) {
     console.error('Error in createCustomTradingPost:', error);
@@ -101,8 +101,7 @@ export async function updateCustomTradingPost(
       return { success: false, error: `Failed to update custom trading post: ${updateError.message}` };
     }
 
-    invalidateUserCustomTradingPosts(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true, data: updated };
   } catch (error) {
     console.error('Error in updateCustomTradingPost:', error);
@@ -163,15 +162,14 @@ export async function deleteCustomTradingPost(
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaign.id), { expire: 0 });
+          revalidateTag(TAGS.campaign(campaign.id), { expire: 0 });
         }
       }
     }
 
     await removeItemFromAllCollections(supabase, user.id, [{ type: 'trading_post', id }]);
 
-    invalidateUserCustomTradingPosts(user.id);
-    invalidateUserCustomCollections(user.id);
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteCustomTradingPost:', error);

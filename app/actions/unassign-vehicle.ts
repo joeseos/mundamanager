@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData } from '@/utils/cache-tags';
+import { invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -126,7 +126,7 @@ export async function unassignVehicle(params: UnassignVehicleParams): Promise<Un
 
     // Invalidate cache for the fighter and gang
     if (previousFighterId) {
-      invalidateFighterVehicleData(previousFighterId, params.gangId);
+      invalidateFighter(previousFighterId, params.gangId); invalidateGangFinancials(params.gangId);
     }
 
     return {

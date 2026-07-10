@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 import { ActivityStats } from '@/types/stats';
 
@@ -10,7 +10,7 @@ export type { ActivityStats as CampaignActivityStats };
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_CAMPAIGN_ACTIVITY(), { expire: 0 }) as needed
+ * - Manual: Call revalidateTag(TAGS.globalCampaignActivity(), { expire: 0 }) as needed
  *
  * @returns Counts per period, or null if service role key is not available
  */
@@ -48,7 +48,7 @@ const getCachedCampaignActivityStats = unstable_cache(
   },
   ['global-campaign-activity'],
   {
-    tags: [CACHE_TAGS.GLOBAL_CAMPAIGN_ACTIVITY()],
+    tags: [TAGS.globalCampaignActivity()],
     revalidate: 86400,
   }
 );

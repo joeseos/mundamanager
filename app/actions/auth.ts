@@ -209,7 +209,6 @@ export const signOutAction = async () => {
   return redirect("/sign-in");
 };
 
-
 export const updatePasswordAction = async (formData: FormData) => {
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;

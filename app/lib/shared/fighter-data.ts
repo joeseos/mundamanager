@@ -1,6 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
 // =============================================================================
@@ -187,7 +186,7 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
     },
     [`fighter-basic-v2-${fighterId}`],
     {
-      tags: [CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId)],
+      tags: [TAGS.fighter(fighterId)],
       revalidate: false
     }
   )();

@@ -1,12 +1,12 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterData, invalidateGang } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter } from '@/utils/cache-tags';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterInjury, logFighterRecovery, logRolledFighterInjury } from './logs/gang-fighter-logs';
 import { logFighterAction } from './logs/fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+
 import { revalidateTag } from 'next/cache';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
@@ -258,8 +258,8 @@ export async function addFighterInjury(
           await updateGangRatingSimple(supabase, fighter.gang_id, -delta);
         }
 
-        invalidateFighterData(params.fighter_id, fighter.gang_id);
-        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+        invalidateFighter(params.fighter_id, fighter.gang_id);
+        revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
 
         return {
           success: false,
@@ -301,8 +301,8 @@ export async function addFighterInjury(
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
+    revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
 
     // The capturing gang's pages show this fighter as captured
     if (params.set_captured && params.captured_by_gang_id) {
@@ -311,7 +311,7 @@ export async function addFighterInjury(
 
     // If injury grants a skill, invalidate skills cache
     if (injuryData?.type_specific_data?.skill_id) {
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id), { expire: 0 });
+      revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     }
 
     return {
@@ -509,12 +509,12 @@ export async function deleteFighterInjury(
     }
 
     // Invalidate fighter cache
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+    invalidateFighter(params.fighter_id, fighter.gang_id);
+    revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
 
     // If injury had related skills, invalidate skills cache
     if (hasRelatedSkills) {
-      revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id), { expire: 0 });
+      revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     }
 
     return {

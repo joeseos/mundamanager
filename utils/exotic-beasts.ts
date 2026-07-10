@@ -1,12 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { 
-  invalidateEquipmentDeletion,
-  addBeastToGangCache,
-  invalidateFighterOwnedBeasts
-} from '@/utils/cache-tags';
-
+import { invalidateFighter } from '@/utils/cache-tags';
 export interface ExoticBeastCreationParams {
   equipmentId: string;
   ownerFighterId: string | null;  // null for stash purchases
@@ -111,7 +106,6 @@ export async function createExoticBeastsForEquipment(
     if (!beastConfigs || beastConfigs.length === 0) {
       return { success: true, createdBeasts: [] };
     }
-
 
     
     // Create beast fighters for each beast config
@@ -405,7 +399,6 @@ async function addDefaultSkillsToBeast(
   }
 }
 
-
 /**
  * Handles cache invalidation when beasts are created during equipment purchase
  */
@@ -419,11 +412,11 @@ export async function invalidateCacheForBeastCreation(params: {
   }
 
   // Update the owner's beast list
-  invalidateFighterOwnedBeasts(params.ownerFighterId, params.gangId);
+  invalidateFighter(params.ownerFighterId, params.gangId);
   
   // Add each beast to gang cache individually for optimal performance
   params.createdBeasts.forEach(beast => {
-    addBeastToGangCache(beast.id, params.gangId);
+    invalidateFighter(beast.id, params.gangId);
   });
 }
 
@@ -440,11 +433,7 @@ export async function invalidateCacheForBeastDeletion(params: {
   }
 
   // Use the optimized cache invalidation for equipment deletion
-  invalidateEquipmentDeletion({
-    fighterId: params.ownerFighterId,
-    gangId: params.gangId,
-    deletedBeastIds: params.deletedBeastIds
-  });
+  invalidateFighter(params.ownerFighterId, params.gangId);
 }
 
 /**

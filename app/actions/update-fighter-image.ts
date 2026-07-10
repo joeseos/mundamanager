@@ -2,8 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 export async function updateFighterImage(
   fighterId: string,
   gangId: string,
@@ -23,8 +22,8 @@ export async function updateFighterImage(
     }
 
     // Invalidate cache for fighter data
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(fighterId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId), { expire: 0 });
+    revalidateTag(TAGS.fighter(fighterId), { expire: 0 });
+    revalidateTag(TAGS.gang(gangId), { expire: 0 });
 
     return { success: true };
   } catch (error) {

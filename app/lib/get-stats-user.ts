@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 /**
  * Get cached user count for public display.
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_USER_COUNT(), { expire: 0 }) after user registration
+ * - Manual: Call revalidateTag(TAGS.globalUserCount(), { expire: 0 }) after user registration
  *
  * @returns The total number of users in the database
  */
@@ -31,7 +30,7 @@ const getCachedUserCount = unstable_cache(
   },
   ['global-user-count'],
   {
-    tags: [CACHE_TAGS.GLOBAL_USER_COUNT()],
+    tags: [TAGS.globalUserCount()],
     revalidate: 86400,
   }
 );

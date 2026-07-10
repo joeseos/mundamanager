@@ -3,8 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS, invalidateGangCount, invalidatePermissionForUser, invalidateCampaignMembership } from '@/utils/cache-tags';
-
+import { TAGS, invalidateCampaignGang, invalidateUser, invalidatePermission, invalidateGangCount } from '@/utils/cache-tags';
 export async function deleteGang(gangId: string) {
   console.log('[deleteGang] Starting:', gangId);
 
@@ -93,24 +92,18 @@ export async function deleteGang(gangId: string) {
     }
 
     // Invalidate user's gang cache
-    revalidateTag(CACHE_TAGS.USER_GANGS(gang.user_id), { expire: 0 });
-    revalidateTag(CACHE_TAGS.USER_DASHBOARD(gang.user_id), { expire: 0 });
+    revalidateTag(TAGS.user(gang.user_id), { expire: 0 });
+    revalidateTag(TAGS.user(gang.user_id), { expire: 0 });
 
     // Invalidate gang permissions cache
-    invalidatePermissionForUser({
-      userId: gang.user_id,
-      gangId: gangId
-    });
+    invalidatePermission(gang.user_id, gangId);
+    invalidateUser(gang.user_id);
 
     // Invalidate campaign membership caches if gang was in any campaigns (fetched before delete)
     if (campaigns && campaigns.length > 0) {
       campaigns.forEach(camp => {
-        invalidateCampaignMembership({
-          campaignId: camp.campaign_id,
-          gangId: gangId,
-          userId: camp.user_id,
-          action: 'leave'
-        });
+        invalidateCampaignGang(camp.campaign_id, gangId);
+        invalidateUser(camp.user_id);
       });
     }
 

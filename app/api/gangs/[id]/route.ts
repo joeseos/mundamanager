@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { CACHE_TAGS, invalidateGangCredits } from '@/utils/cache-tags';
+import { TAGS, invalidateGangFinancials } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { getUserIdFromClaims } from "@/utils/auth";
 
@@ -249,14 +249,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     // Invalidate credits cache if credits were changed
     if (creditsChanged) {
-      invalidateGangCredits(params.id);
+      invalidateGangFinancials(params.id);
     }
 
     // Invalidate gang basic data if name, alignment, color, alliance, or notes changed
     if (name !== undefined || alignment !== undefined || gang_colour !== undefined ||
         alliance_id !== undefined || notesChanged) {
-      revalidateTag(CACHE_TAGS.BASE_GANG_BASIC(params.id), { expire: 0 });
-      revalidateTag(CACHE_TAGS.SHARED_GANG_BASIC_INFO(params.id), { expire: 0 });
+      revalidateTag(TAGS.gang(params.id), { expire: 0 });
+      revalidateTag(TAGS.gangOverview(params.id), { expire: 0 });
     }
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags

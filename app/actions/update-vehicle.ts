@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateFighterVehicleData, invalidateVehicleEffects } from '@/utils/cache-tags';
+import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction } from './logs/vehicle-logs';
 
@@ -138,7 +138,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
           console.warn('No stat adjustments were applied');
         } else if (params.assignedFighterId) {
           // Invalidate vehicle effects cache when effects are successfully applied
-          invalidateVehicleEffects(params.assignedFighterId, params.gangId);
+          invalidateGang(params.gangId); if (params.assignedFighterId) invalidateFighter(params.assignedFighterId, params.gangId);
         }
       } catch (error) {
         console.error('Error applying stat adjustments:', error);
@@ -181,7 +181,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
 
     // Invalidate cache for the fighter and gang if the vehicle was assigned to a fighter
     if (params.assignedFighterId) {
-      invalidateFighterVehicleData(params.assignedFighterId, params.gangId);
+      invalidateFighter(params.assignedFighterId, params.gangId); invalidateGangFinancials(params.gangId);
     }
 
     return {

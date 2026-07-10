@@ -3,9 +3,7 @@
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import {
-  CACHE_TAGS,
-} from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { after } from 'next/server';
 import { updateGang } from '@/app/actions/update-gang';
 import type {
@@ -193,9 +191,9 @@ export async function createBattleSession(params: {
             }))
           );
         }
-        revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+        revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
         for (const g of gangs) {
-          revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(g.id), { expire: 0 });
+          revalidateTag(TAGS.gangBattleSessions(g.id), { expire: 0 });
         }
       }
     }
@@ -206,7 +204,6 @@ export async function createBattleSession(params: {
     return { success: false, error: 'Failed to create battle session' };
   }
 }
-
 
 export async function cancelBattleSession(
   sessionId: string
@@ -239,10 +236,10 @@ export async function cancelBattleSession(
 
     if (error) return { success: false, error: error.message };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     if (participants) {
       for (const p of participants) {
-        revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(p.gang_id), { expire: 0 });
+        revalidateTag(TAGS.gangBattleSessions(p.gang_id), { expire: 0 });
       }
     }
 
@@ -280,7 +277,7 @@ async function updateSessionAsManager(
 
   if (error) return { success: false, error: error.message };
 
-  revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+  revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
   return { success: true };
 }
 
@@ -375,7 +372,7 @@ export async function setSessionWinners(
       return { success: false, error: `Failed to update session: ${sessionUpdateError.message}` };
     }
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error setting session winners:', err);
@@ -497,7 +494,7 @@ export async function advanceRound(
       }
     }
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true, newRound: nextRound };
   } catch (err) {
     console.error('Error changing round:', err);
@@ -565,7 +562,7 @@ export async function toggleParticipantReady(
       }
     }
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true, battleStarted };
   } catch (err) {
     console.error('Error toggling ready:', err);
@@ -612,7 +609,7 @@ export async function changeSessionPhase(
       .update({ ready: false })
       .eq('battle_session_id', sessionId);
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error changing session phase:', err);
@@ -700,8 +697,8 @@ export async function addParticipant(params: {
       .update({ ready: false })
       .eq('battle_session_id', params.session_id);
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(params.session_id), { expire: 0 });
-    revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(params.gang_id), { expire: 0 });
+    revalidateTag(TAGS.battleSession(params.session_id), { expire: 0 });
+    revalidateTag(TAGS.gangBattleSessions(params.gang_id), { expire: 0 });
 
     // Send notification if adding someone else
     if (params.user_id !== currentUser.id) {
@@ -754,8 +751,8 @@ export async function removeParticipant(
 
     if (error) return { success: false, error: error.message };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
-    revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(participant.gang_id), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
+    revalidateTag(TAGS.gangBattleSessions(participant.gang_id), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error removing participant:', err);
@@ -802,7 +799,7 @@ export async function updateParticipantRole(
 
     if (error) return { success: false, error: error.message };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error updating participant role:', err);
@@ -846,7 +843,7 @@ export async function removeFighterFromSession(
     if (!deleted || deleted.length === 0)
       return { success: false, error: 'Fighter not found in your crew' };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error removing fighter:', err);
@@ -887,7 +884,7 @@ export async function updateFighterLoadout(
     if (!updated || updated.length === 0)
       return { success: false, error: 'Fighter not found in your crew' };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error updating fighter loadout:', err);
@@ -960,7 +957,7 @@ export async function bulkAddFightersToSession(params: {
 
     if (error) return { success: false, error: error.message };
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(params.session_id), { expire: 0 });
+    revalidateTag(TAGS.battleSession(params.session_id), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error bulk adding fighters:', err);
@@ -1008,7 +1005,7 @@ async function withSessionRecord(
 
   if (error) return { success: false, error: error.message };
 
-  revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(fighter.battle_session_id), { expire: 0 });
+  revalidateTag(TAGS.battleSession(fighter.battle_session_id), { expire: 0 });
   return { success: true };
 }
 
@@ -1142,7 +1139,7 @@ export async function updateGangOutcome(params: {
       .update({ updated_at: new Date().toISOString() })
       .eq('id', participant.battle_session_id);
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(participant.battle_session_id), { expire: 0 });
+    revalidateTag(TAGS.battleSession(participant.battle_session_id), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error updating gang outcome:', err);
@@ -1220,7 +1217,7 @@ export async function updateParticipantResources(params: {
       .update({ updated_at: new Date().toISOString() })
       .eq('id', participant.battle_session_id);
 
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(participant.battle_session_id), { expire: 0 });
+    revalidateTag(TAGS.battleSession(participant.battle_session_id), { expire: 0 });
     return { success: true };
   } catch (err) {
     console.error('Error updating participant resources:', err);
@@ -1373,7 +1370,7 @@ export async function completeBattleSession(
     }
 
     // Invalidate session cache so the client renders the completed state
-    revalidateTag(CACHE_TAGS.BASE_BATTLE_SESSION(sessionId), { expire: 0 });
+    revalidateTag(TAGS.battleSession(sessionId), { expire: 0 });
 
     // === Everything below runs AFTER the response is sent ===
     after(async () => {
@@ -1474,12 +1471,12 @@ export async function completeBattleSession(
 
         // Deferred cache invalidation
         for (const p of allParticipants) {
-          revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(p.gang_id), { expire: 0 });
+          revalidateTag(TAGS.gangBattleSessions(p.gang_id), { expire: 0 });
         }
         if (session.campaign_id) {
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(session.campaign_id), { expire: 0 });
+          revalidateTag(TAGS.campaign(session.campaign_id), { expire: 0 });
           for (const wid of effectiveWinnerIds) {
-            revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(wid), { expire: 0 });
+            revalidateTag(TAGS.gangCampaigns(wid), { expire: 0 });
           }
         }
       } catch (afterErr) {

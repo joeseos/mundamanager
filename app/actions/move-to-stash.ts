@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighterData, invalidateFighterDataWithFinancials, invalidateFighterEquipment, invalidateGangFinancials, invalidateFighterVehicleData, invalidateGangStash, invalidateFighterAdvancement, CACHE_TAGS, invalidateUserGangsList } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
@@ -17,8 +17,8 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .single();
 
   if (ownerData) {
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
+    invalidateFighter(ownerData.fighter_owner_id, gangId);
+    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -276,18 +276,14 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     // Invalidate appropriate caches - moving equipment to stash affects gang overview
     if (equipmentData.fighter_id) {
-      invalidateFighterEquipment(equipmentData.fighter_id, gangId);
+      invalidateFighter(equipmentData.fighter_id, gangId);
       // If there were associated effects removed, also invalidate fighter effects
       if ((associatedEffects?.length || 0) > 0) {
-        invalidateFighterAdvancement({
-          fighterId: equipmentData.fighter_id,
-          gangId,
-          advancementType: 'effect'
-        });
+        invalidateFighter(equipmentData.fighter_id, gangId);
       }
       // If moving exotic beast equipment to stash, invalidate beast costs cache for the owner
       if ((equipmentData.equipment as any)?.equipment_category?.toLowerCase() === 'status items: exotic beasts') {
-        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(equipmentData.fighter_id), { expire: 0 });
+        revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(equipmentData.fighter_id, gangId, supabase);
@@ -300,15 +296,11 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         .single();
       
       if (!vehicleError && vehicleData?.fighter_id) {
-        invalidateFighterEquipment(vehicleData.fighter_id, gangId);
-        invalidateFighterVehicleData(vehicleData.fighter_id, gangId);
+        invalidateFighter(vehicleData.fighter_id, gangId);
+        invalidateFighter(vehicleData.fighter_id, gangId); invalidateGangFinancials(gangId);
         // If there were associated effects removed, also invalidate fighter effects
         if ((associatedEffects?.length || 0) > 0) {
-          invalidateFighterAdvancement({
-            fighterId: vehicleData.fighter_id,
-            gangId,
-            advancementType: 'effect'
-          });
+          invalidateFighter(vehicleData.fighter_id, gangId);
         }
       }
       
@@ -357,14 +349,12 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     invalidateGangFinancials(gangId);
     
     // Also invalidate gang stash specifically
-    invalidateGangStash({
-      gangId: gangId,
-      userId: user.id
-    });
+    invalidateGangStash(gangId);
+    invalidateGang(gangId);
 
     // Home page gangs list cache (server-side, user-scoped)
     if (gangOwnerUserId) {
-      invalidateUserGangsList(gangOwnerUserId);
+      invalidateUser(gangOwnerUserId);
     }
 
     return {

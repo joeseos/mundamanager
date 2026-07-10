@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { createServiceRoleClient } from '@/utils/supabase/server';
 
 /**
@@ -7,7 +7,7 @@ import { createServiceRoleClient } from '@/utils/supabase/server';
  *
  * Revalidation strategies:
  * - Automatic: Every 86400 seconds (24 hours)
- * - Manual: Call revalidateTag(CACHE_TAGS.GLOBAL_GANG_COUNT(), { expire: 0 }) after gang creation/deletion
+ * - Manual: Call revalidateTag(TAGS.globalGangCount(), { expire: 0 }) after gang creation/deletion
  *
  * @returns The total number of gangs in the database, or null if service role key is not available
  */
@@ -32,7 +32,7 @@ const getCachedGangCount = unstable_cache(
   },
   ['global-gang-count'],
   {
-    tags: [CACHE_TAGS.GLOBAL_GANG_COUNT()],
+    tags: [TAGS.globalGangCount()],
     revalidate: 86400,
   }
 );

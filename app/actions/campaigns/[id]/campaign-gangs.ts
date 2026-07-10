@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { invalidateCampaignMembership, invalidateCampaignTerritory, invalidatePermissionForUser } from "@/utils/cache-tags";
+import { invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AddGangToCampaignDirectParams {
@@ -124,18 +124,12 @@ export async function addGangToCampaignDirect(params: AddGangToCampaignDirectPar
     if (insertError) throw insertError;
     
     // Use granular campaign membership invalidation
-    invalidateCampaignMembership({
-      campaignId: campaignId,
-      gangId: gangId,
-      userId: userId,
-      action: 'join'
-    });
+    invalidateCampaignGang(campaignId, gangId);
+    invalidateUser(userId);
 
     // Invalidate permission cache
-    invalidatePermissionForUser({
-      userId: userId,
-      gangId: gangId
-    });
+    invalidatePermission(userId, gangId);
+    invalidateUser(userId);
 
     // Also invalidate campaign gangs modal data
     revalidateTag(`campaign-${campaignId}`, { expire: 0 }); // Legacy compatibility
@@ -198,18 +192,12 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
     if (deleteError) throw deleteError;
     
     // Use granular campaign membership invalidation
-    invalidateCampaignMembership({
-      campaignId: campaignId,
-      gangId: gangId,
-      userId: gangData.user_id,
-      action: 'leave'
-    });
+    invalidateCampaignGang(campaignId, gangId);
+    invalidateUser(gangData.user_id);
 
     // Invalidate permission cache for gang owner
-    invalidatePermissionForUser({
-      userId: gangData.user_id,
-      gangId: gangId
-    });
+    invalidatePermission(gangData.user_id, gangId);
+    invalidateUser(gangData.user_id);
 
     // Also invalidate permissions for all campaign arbitrators (OWNER/ARBITRATOR)
     // They no longer have edit rights for this gang since it's removed
@@ -223,19 +211,14 @@ export async function removeGangFromCampaignDirect(params: RemoveGangFromCampaig
       for (const arbitrator of campaignArbitrators) {
         // Skip gang owner - already invalidated above
         if (arbitrator.user_id !== gangData.user_id) {
-          invalidatePermissionForUser({
-            userId: arbitrator.user_id,
-            gangId: gangId
-          });
+          invalidatePermission(arbitrator.user_id, gangId);
+          invalidateUser(arbitrator.user_id);
         }
       }
     }
 
     // Invalidate territory cache since we modified territories
-    invalidateCampaignTerritory({
-      campaignId: campaignId,
-      gangId: gangId
-    });
+    invalidateCampaignGang(campaignId, gangId);
     
     // Also invalidate campaign gangs modal data
     revalidateTag(`campaign-${campaignId}`, { expire: 0 }); // Legacy compatibility
@@ -313,17 +296,11 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
     if (updateError) throw updateError;
 
     // Invalidate caches
-    invalidateCampaignMembership({
-      campaignId: campaignId,
-      gangId: gangId,
-      userId: user.id,
-      action: 'join'
-    });
+    invalidateCampaignGang(campaignId, gangId);
+    invalidateUser(user.id);
 
-    invalidatePermissionForUser({
-      userId: user.id,
-      gangId: gangId
-    });
+    invalidatePermission(user.id, gangId);
+    invalidateUser(user.id);
 
     // Also invalidate permissions for all campaign arbitrators (OWNER/ARBITRATOR)
     // They now have edit rights for this gang since it's ACCEPTED
@@ -337,10 +314,8 @@ export async function acceptGangInvite(params: AcceptGangInviteParams) {
       for (const arbitrator of campaignArbitrators) {
         // Skip gang owner - already invalidated above
         if (arbitrator.user_id !== user.id) {
-          invalidatePermissionForUser({
-            userId: arbitrator.user_id,
-            gangId: gangId
-          });
+          invalidatePermission(arbitrator.user_id, gangId);
+          invalidateUser(arbitrator.user_id);
         }
       }
     }
@@ -395,12 +370,8 @@ export async function declineGangInvite(params: DeclineGangInviteParams) {
     if (deleteError) throw deleteError;
 
     // Invalidate caches - same as accept but with 'leave' action
-    invalidateCampaignMembership({
-      campaignId: campaignId,
-      gangId: gangId,
-      userId: user.id,
-      action: 'leave'
-    });
+    invalidateCampaignGang(campaignId, gangId);
+    invalidateUser(user.id);
     revalidateTag(`campaign-${campaignId}`, { expire: 0 });
 
     return {

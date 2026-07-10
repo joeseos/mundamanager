@@ -1,7 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@/utils/supabase/server';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 export async function getAcceptedFriends(userId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -72,7 +71,7 @@ export const getFriendsAndRequests = async (userId: string, supabase: any) => {
     },
     [`user-friends-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_FRIENDS(userId)],
+      tags: [TAGS.user(userId)],
       revalidate: false
     }
   )();

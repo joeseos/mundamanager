@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server';
-import { invalidateVehicleEffects } from '@/utils/cache-tags';
+import { invalidateGang, invalidateFighter } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logVehicleAction, logRolledVehicleDamage } from './logs/vehicle-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
@@ -152,7 +152,7 @@ export async function addVehicleDamage(params: AddVehicleDamageParams): Promise<
     }
 
     // Invalidate cache for vehicle effects
-    invalidateVehicleEffects(params.fighterId, params.gangId);
+    invalidateGang(params.gangId); if (params.fighterId) invalidateFighter(params.fighterId, params.gangId);
 
     return {
       success: true,

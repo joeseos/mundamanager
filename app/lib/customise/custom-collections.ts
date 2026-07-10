@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { TAGS } from '@/utils/cache-tags';
 import type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -93,7 +93,7 @@ export async function getUserCustomCollections(userId: string, supabase: Supabas
     },
     [`user-custom-collections-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CUSTOM_COLLECTIONS(userId)],
+      tags: [TAGS.customs(userId)],
       revalidate: false,
     }
   )();

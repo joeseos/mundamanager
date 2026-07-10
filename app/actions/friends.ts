@@ -3,8 +3,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { revalidateTag } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 export async function acceptFriendRequest(requester_id: string, addressee_id: string) {
   const supabase = await createClient();
 
@@ -19,8 +18,8 @@ export async function acceptFriendRequest(requester_id: string, addressee_id: st
     throw new Error(error.message);
   }
 
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(requester_id), { expire: 0 });
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(addressee_id), { expire: 0 });
+  revalidateTag(TAGS.user(requester_id), { expire: 0 });
+  revalidateTag(TAGS.user(addressee_id), { expire: 0 });
 
   return { success: true };
 }
@@ -39,8 +38,8 @@ export async function declineFriendRequest(requester_id: string, addressee_id: s
     throw new Error(error.message);
   }
 
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(requester_id), { expire: 0 });
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(addressee_id), { expire: 0 });
+  revalidateTag(TAGS.user(requester_id), { expire: 0 });
+  revalidateTag(TAGS.user(addressee_id), { expire: 0 });
 
   return { success: true };
 }
@@ -73,8 +72,8 @@ export async function sendFriendRequest(requesterId: string, addresseeId: string
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(requesterId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(addresseeId), { expire: 0 });
+  revalidateTag(TAGS.user(requesterId), { expire: 0 });
+  revalidateTag(TAGS.user(addresseeId), { expire: 0 });
 
   return { success: true };
 }
@@ -92,8 +91,8 @@ export async function deleteFriend(userId: string, friendId: string) {
     throw new Error(error.message);
   }
 
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(userId), { expire: 0 });
-  revalidateTag(CACHE_TAGS.USER_FRIENDS(friendId), { expire: 0 });
+  revalidateTag(TAGS.user(userId), { expire: 0 });
+  revalidateTag(TAGS.user(friendId), { expire: 0 });
 
   return { success: true };
 } 

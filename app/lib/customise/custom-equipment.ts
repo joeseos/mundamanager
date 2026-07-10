@@ -1,7 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from "@/utils/supabase/server";
 import { CustomEquipment } from "@/types/equipment";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { TAGS } from '@/utils/cache-tags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Re-export for backward compatibility
@@ -25,7 +25,7 @@ export async function getUserCustomEquipment(userId: string, supabase: SupabaseC
     },
     [`user-custom-equipment-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CUSTOM_EQUIPMENT(userId)],
+      tags: [TAGS.customs(userId)],
       revalidate: false,
     }
   )();

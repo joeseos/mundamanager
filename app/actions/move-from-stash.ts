@@ -3,16 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
-import {
-  invalidateFighterData,
-  invalidateFighterVehicleData,
-  invalidateFighterEquipment,
-  addBeastToGangCache,
-  invalidateGangStash,
-  invalidateFighterAdvancement,
-  CACHE_TAGS,
-  invalidateUserGangsList
-} from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
@@ -26,8 +17,8 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     .single();
 
   if (ownerData) {
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
+    invalidateFighter(ownerData.fighter_owner_id, gangId);
+    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -76,7 +67,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     }
 
     const user = await getAuthenticatedUser(supabase);
-
 
     // Fetch all stash items in one query
     const stashIds = params.items.map(i => i.stash_id);
@@ -534,16 +524,12 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     // Single cache invalidation pass
     if (params.fighter_id) {
-      invalidateFighterEquipment(params.fighter_id, gangId);
+      invalidateFighter(params.fighter_id, gangId);
       if (hasAppliedEffects) {
-        invalidateFighterAdvancement({
-          fighterId: params.fighter_id,
-          gangId,
-          advancementType: 'effect'
-        });
+        invalidateFighter(params.fighter_id, gangId);
       }
       if (hasExoticBeastEquipment) {
-        revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(params.fighter_id), { expire: 0 });
+        revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
       }
       await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
     }
@@ -556,19 +542,20 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .single();
 
       if (vehicle?.fighter_id) {
-        invalidateFighterVehicleData(vehicle.fighter_id, gangId);
+        invalidateFighter(vehicle.fighter_id, gangId); invalidateGangFinancials(gangId);
       }
     }
 
-    invalidateGangStash({ gangId, userId: user.id });
+    invalidateGangStash(gangId);
+    invalidateGang(gangId);
 
     if (fighterOwnerId) {
-      invalidateUserGangsList(fighterOwnerId);
+      invalidateUser(fighterOwnerId);
     }
 
     if (allAffectedBeastIds.length > 0) {
       allAffectedBeastIds.forEach(beastId => {
-        addBeastToGangCache(beastId, gangId);
+        invalidateFighter(beastId, gangId);
       });
     }
 

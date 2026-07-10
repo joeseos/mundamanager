@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS, TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 
 export type Gang = {
@@ -38,7 +38,7 @@ const getUserGangIdsCached = async (userId: string, supabase: any): Promise<stri
     },
     [`user-gang-ids-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_GANGS(userId)],
+      tags: [TAGS.user(userId)],
       revalidate: false
     }
   )();
@@ -151,7 +151,7 @@ export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
-        CACHE_TAGS.USER_GANGS(userId),
+        TAGS.user(userId),
         // Card fields: rating/credits/name via the financials choke point
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)

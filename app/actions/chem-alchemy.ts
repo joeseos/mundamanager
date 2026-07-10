@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateGangStash, invalidateGangCredits } from '@/utils/cache-tags';
+import { invalidateGang, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logEquipmentAction } from '@/app/actions/logs/equipment-logs';
 
@@ -131,13 +131,11 @@ export async function createChemAlchemy({
     console.log('Chem-alchemy created successfully, using granular cache invalidation');
     
     // Invalidate gang credits since we deducted credits
-    invalidateGangCredits(gangId);
+    invalidateGangFinancials(gangId);
     
     // Invalidate gang stash to show the new item
-    invalidateGangStash({
-      gangId: gangId,
-      userId: user.id
-    });
+    invalidateGangStash(gangId);
+    invalidateGang(gangId);
     
     return { 
       success: true, 

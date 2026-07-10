@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS, TAGS } from '@/utils/cache-tags';
+import { TAGS } from '@/utils/cache-tags';
 import { assembleGangFighters, assembleGangVehicles, type GangFightersBundle } from './gang-assembly';
 import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
 import { WeaponProps, WargearItem } from '@/types/fighter';
@@ -258,7 +258,7 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
     },
     [`gang-core-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.BASE_GANG_BASIC(gangId)],
+      tags: [TAGS.gang(gangId)],
       revalidate: false
     }
   )();
@@ -282,12 +282,11 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
     },
     [`gang-positioning-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.BASE_GANG_POSITIONING(gangId)],
+      tags: [TAGS.gangPositioning(gangId)],
       revalidate: false
     }
   )();
 };
-
 
 /**
  * Get gang stash equipment
@@ -336,7 +335,7 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
     },
     [`gang-stash-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.BASE_GANG_STASH(gangId)],
+      tags: [TAGS.gangStash(gangId)],
       revalidate: false
     }
   )();
@@ -366,7 +365,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
       },
       [`custom-gang-type-${gangBasic.custom_gang_type_id}`],
       {
-        tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
+        tags: [TAGS.globalGangTypes()],
         revalidate: 3600
       }
     )();
@@ -390,7 +389,7 @@ export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<
     },
     [`gang-type-${gangBasic.gang_type_id}`],
     {
-      tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
+      tags: [TAGS.globalGangTypes()],
       revalidate: 3600
     }
   )();
@@ -421,7 +420,7 @@ export const getGangVariants = async (gangVariantIds: string[], supabase: any): 
     },
     [`gang-variants-${gangVariantIds.join('-')}`],
     {
-      tags: [CACHE_TAGS.GLOBAL_GANG_TYPES()],
+      tags: [TAGS.globalGangTypes()],
       revalidate: 3600 // 1 hour - variants rarely change
     }
   )();
@@ -458,7 +457,7 @@ const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<
     },
     [`gang-campaign-ids-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId)],
+      tags: [TAGS.gangCampaigns(gangId)],
       revalidate: false
     }
   )();
@@ -772,7 +771,7 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
     [`gang-campaigns-v2-${gangId}`],
     {
       tags: [
-        CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId),
+        TAGS.gangCampaigns(gangId),
         ...campaignIdsForTags.map(id => TAGS.campaign(id))
       ],
       revalidate: false
@@ -805,7 +804,7 @@ export const getGangFighterCount = async (gangId: string, supabase: any): Promis
     },
     [`gang-fighter-count-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId)],
+      tags: [TAGS.gang(gangId)],
       revalidate: false
     }
   )();
@@ -833,7 +832,7 @@ export const getGangBeastCount = async (gangId: string, supabase: any): Promise<
     },
     [`gang-beast-count-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.COMPUTED_GANG_BEAST_COUNT(gangId)],
+      tags: [TAGS.gang(gangId)],
       revalidate: false
     }
   )();
@@ -1205,7 +1204,7 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
     },
     [`gang-fighters-bundle-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(gangId)],
+      tags: [TAGS.gang(gangId)],
       revalidate: false
     }
   )();
@@ -1257,7 +1256,7 @@ export const getUserProfile = async (userId: string, supabase: any): Promise<{
     },
     [`user-profile-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.BASE_USER_PROFILE(userId)],
+      tags: [TAGS.user(userId)],
       revalidate: false
     }
   )();
@@ -1332,7 +1331,7 @@ export const getGangFighterStats = async (
     },
     [`gang-fighter-stats-v2-${gangId}`],
     {
-      tags: [CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(gangId)],
+      tags: [TAGS.gang(gangId)],
       revalidate: false
     }
   )();

@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache';
 import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
-import { CACHE_TAGS } from "@/utils/cache-tags";
+import { TAGS } from '@/utils/cache-tags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function getUserCustomGangTypes(userId: string, supabase: SupabaseClient): Promise<CustomGangType[]> {
@@ -21,7 +21,7 @@ export async function getUserCustomGangTypes(userId: string, supabase: SupabaseC
     },
     [`user-custom-gang-types-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CUSTOM_GANG_TYPES(userId)],
+      tags: [TAGS.customs(userId)],
       revalidate: false,
     }
   )();

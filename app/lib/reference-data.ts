@@ -1,6 +1,5 @@
 import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
-
 /**
  * Cached global reference data. Invalidated by the admin routes that edit
  * these tables (plus a time-based fallback).

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
-import { invalidatePatreonSupporters, invalidateUserProfile } from '@/utils/cache-tags';
-
+import { invalidateUser, invalidatePatreonSupporters } from '@/utils/cache-tags';
 /**
  * TypeScript interfaces for Patreon API data structures
  */
@@ -178,7 +177,7 @@ async function updateUserPatreonData(userId: string, patreonData: DatabaseUserDa
     return false;
   }
 
-  invalidateUserProfile(userId);
+  invalidateUser(userId);
   return true;
 }
 
@@ -207,7 +206,7 @@ async function clearUserPatreonData(userId: string, patronStatus: string): Promi
     return false;
   }
 
-  invalidateUserProfile(userId);
+  invalidateUser(userId);
   return true;
 }
 
@@ -315,7 +314,7 @@ async function processMemberDeletion(patreonUserId: string): Promise<boolean> {
     return false;
   }
 
-  invalidateUserProfile(profile.id);
+  invalidateUser(profile.id);
   return true;
 }
 

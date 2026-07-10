@@ -2,8 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateFighterLoadouts } from '@/utils/cache-tags';
-
+import { invalidateFighter } from '@/utils/cache-tags';
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -93,10 +92,7 @@ export async function createLoadout(params: CreateLoadoutParams): Promise<Loadou
     }
 
     // Invalidate caches
-    invalidateFighterLoadouts({
-      fighterId: params.fighter_id,
-      gangId: params.gang_id
-    });
+    invalidateFighter(params.fighter_id, params.gang_id);
 
     return {
       success: true,
@@ -171,10 +167,7 @@ export async function updateLoadout(params: UpdateLoadoutParams): Promise<Loadou
     }
 
     // Invalidate caches
-    invalidateFighterLoadouts({
-      fighterId: params.fighter_id,
-      gangId: params.gang_id
-    });
+    invalidateFighter(params.fighter_id, params.gang_id);
 
     return {
       success: true,
@@ -217,10 +210,7 @@ export async function deleteLoadout(params: DeleteLoadoutParams): Promise<Loadou
     }
 
     // Invalidate caches
-    invalidateFighterLoadouts({
-      fighterId: params.fighter_id,
-      gangId: params.gang_id
-    });
+    invalidateFighter(params.fighter_id, params.gang_id);
 
     return { success: true };
   } catch (error) {
@@ -255,10 +245,7 @@ export async function setActiveLoadout(params: SetActiveLoadoutParams): Promise<
     }
 
     // Invalidate caches
-    invalidateFighterLoadouts({
-      fighterId: params.fighter_id,
-      gangId: params.gang_id
-    });
+    invalidateFighter(params.fighter_id, params.gang_id);
 
     return {
       success: true,

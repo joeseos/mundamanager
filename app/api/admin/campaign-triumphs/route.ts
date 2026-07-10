@@ -2,8 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
-import { TAGS } from "@/utils/cache-tags";
-
 export async function GET(request: Request) {
   const supabase = await createClient();
   

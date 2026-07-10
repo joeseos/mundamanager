@@ -1,6 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { CACHE_TAGS } from '@/utils/cache-tags';
-
+import { TAGS } from '@/utils/cache-tags';
 export type Campaign = {
   id: string;
   campaign_member_id: string;
@@ -142,7 +141,7 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
     },
     [`user-campaigns-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CAMPAIGNS(userId)],
+      tags: [TAGS.user(userId)],
       revalidate: false
     }
   )();
@@ -177,7 +176,7 @@ export const getUserShareCampaigns = async (
     },
     [`user-share-campaigns-v2-${userId}`],
     {
-      tags: [CACHE_TAGS.USER_CAMPAIGNS(userId)],
+      tags: [TAGS.user(userId)],
       revalidate: false
     }
   )();

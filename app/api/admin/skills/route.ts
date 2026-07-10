@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
-import { TAGS } from "@/utils/cache-tags";
-
+import { TAGS } from '@/utils/cache-tags';
 interface Skill {
   id: string;
   name: string;

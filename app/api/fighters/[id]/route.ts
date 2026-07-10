@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from 'next/headers';
-import { invalidateGangCredits } from '@/utils/cache-tags';
+import { invalidateGangFinancials } from '@/utils/cache-tags';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 
 // Add Edge Function configurations
@@ -66,7 +66,7 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
     }
 
     // Invalidate gang rating cache
-    invalidateGangCredits(fighter.gang_id);
+    invalidateGangFinancials(fighter.gang_id);
 
     return NextResponse.json({ message: 'Fighter deleted successfully' });
   } catch (error) {

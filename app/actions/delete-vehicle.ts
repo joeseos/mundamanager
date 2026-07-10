@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidateTag } from 'next/cache';
-import { invalidateFighterVehicleData, CACHE_TAGS } from '@/utils/cache-tags';
+import { TAGS, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -155,11 +155,11 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
 
     // Invalidate cache for the fighter and gang if the vehicle was assigned to a fighter
     if (params.assignedFighterId) {
-      invalidateFighterVehicleData(params.assignedFighterId, params.gangId);
+      invalidateFighter(params.assignedFighterId, params.gangId); invalidateGangFinancials(params.gangId);
     }
 
     // Always refresh the gang vehicles list (covers assigned and unassigned views)
-    revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(params.gangId), { expire: 0 });
+    revalidateTag(TAGS.gang(params.gangId), { expire: 0 });
 
     return {
       success: true

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
-import { invalidateFighterData, invalidateFighterAdvancement, invalidateGangCredits, CACHE_TAGS, invalidateGangRating, invalidateGang } from '@/utils/cache-tags';
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { revalidateTag } from 'next/cache';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -21,11 +21,11 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
     
   if (ownerData) {
     // Invalidate the owner's cache since their total cost changed
-    invalidateFighterData(ownerData.fighter_owner_id, gangId);
+    invalidateFighter(ownerData.fighter_owner_id, gangId);
 
     // Invalidate the owner's beast costs cache
     // Without this, the owner's cost calculation uses stale beast data
-    revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_BEAST_COSTS(ownerData.fighter_owner_id), { expire: 0 });
+    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -297,13 +297,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           ? await deleteKilledStatusEffects(supabase, params.fighter_id, gangId, fighter.fighter_name)
           : { removedCount: 0, removedSkillCount: 0 };
 
-        invalidateFighterData(params.fighter_id, gangId);
+        invalidateFighter(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
         if (removedKilledStatusEffects.removedCount > 0) {
-          revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+          revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         }
         if (removedKilledStatusEffects.removedSkillCount > 0) {
-          revalidateTag(CACHE_TAGS.BASE_FIGHTER_SKILLS(params.fighter_id), { expire: 0 });
+          revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         }
 
         // Log fighter status change
@@ -390,7 +390,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         if (updateError) throw updateError;
 
         const financialResult = await adjustRating(delta);
-        invalidateFighterData(params.fighter_id, gangId);
+        invalidateFighter(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter status change
@@ -476,8 +476,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           id: gangId,
           credits: financialResult.newValues?.credits ?? 0
         };
-        invalidateFighterData(params.fighter_id, gangId);
-        invalidateGangCredits(gangId);
+        invalidateFighter(params.fighter_id, gangId);
+        invalidateGangFinancials(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // Log fighter enslaved
@@ -560,7 +560,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Failed to log fighter release:', logError);
         }
 
-        invalidateFighterData(params.fighter_id, gangId);
+        invalidateFighter(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
@@ -679,10 +679,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             console.error('Failed to log fighter feeding:', logError);
           }
 
-          invalidateFighterData(params.fighter_id, gangId);
+          invalidateFighter(params.fighter_id, gangId);
           await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
-          revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_RESOURCES(campaignId), { expire: 0 });
-          revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(gangId), { expire: 0 });
+          revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
+          revalidateTag(TAGS.gangCampaigns(gangId), { expire: 0 });
 
           return {
             success: true,
@@ -714,7 +714,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
             console.error('Failed to log fighter starving:', logError);
           }
 
-          invalidateFighterData(params.fighter_id, gangId);
+          invalidateFighter(params.fighter_id, gangId);
           await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
           return {
@@ -746,7 +746,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           recovery_type: recoveryType
         });
 
-        invalidateFighterData(params.fighter_id, gangId);
+        invalidateFighter(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         return {
@@ -849,8 +849,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Failed to log fighter capture:', logError);
         }
 
-        invalidateFighterData(params.fighter_id, gangId);
-        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+        invalidateFighter(params.fighter_id, gangId);
+        revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
         // The capturing gang's pages show this fighter as captured
         if (params.captured_by_gang_id) {
@@ -934,8 +934,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           console.error('Failed to log fighter rescue from captivity:', logError);
         }
 
-        invalidateFighterData(params.fighter_id, gangId);
-        revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
+        invalidateFighter(params.fighter_id, gangId);
+        revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
         // The gang that held this fighter no longer shows it as captured
         if (fighter.captured_by_gang_id) {
@@ -1053,14 +1053,14 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           creditsDelta: refundAmount,
           stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
         });
-        invalidateFighterData(params.fighter_id, gangId);
-        revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_COUNT(gangId), { expire: 0 });
-        if (refundAmount) invalidateGangCredits(gangId);
+        invalidateFighter(params.fighter_id, gangId);
+        revalidateTag(TAGS.gang(gangId), { expire: 0 });
+        if (refundAmount) invalidateGangFinancials(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list
         if (vehicleData?.id) {
-          revalidateTag(CACHE_TAGS.BASE_GANG_VEHICLES(gangId), { expire: 0 });
+          revalidateTag(TAGS.gang(gangId), { expire: 0 });
         }
 
         // Log fighter removal
@@ -1150,8 +1150,8 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
     }
 
     // Invalidate cache - surgical XP-only invalidation
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id), { expire: 0 });
+    revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
+    revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -1251,10 +1251,10 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
     }
 
     // Invalidate cache - surgical XP-only invalidation
-    revalidateTag(CACHE_TAGS.BASE_FIGHTER_BASIC(params.fighter_id), { expire: 0 });
-    revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id), { expire: 0 });
+    revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
+    revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
     if (params.ooa_count && params.ooa_count > 0) {
-      revalidateTag(CACHE_TAGS.COMPUTED_GANG_FIGHTER_STATS(fighter.gang_id), { expire: 0 });
+      revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
     }
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
@@ -1322,7 +1322,6 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     if (params.note_backstory !== undefined) updateData.note_backstory = params.note_backstory;
     if (params.fighter_gang_legacy_id !== undefined) updateData.fighter_gang_legacy_id = params.fighter_gang_legacy_id;
     if (params.selected_archetype_id !== undefined) updateData.selected_archetype_id = params.selected_archetype_id;
-
 
     // Update fighter
     const { data: updatedFighter, error: updateError } = await supabase
@@ -1411,12 +1410,12 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
         // Invalidate caches only if effects actually changed
         if (effectsChanged) {
           // Use explicit cache tags for effect changes
-          revalidateTag(CACHE_TAGS.BASE_FIGHTER_EFFECTS(params.fighter_id), { expire: 0 });
-          revalidateTag(CACHE_TAGS.COMPUTED_FIGHTER_TOTAL_COST(params.fighter_id), { expire: 0 });
-          revalidateTag(CACHE_TAGS.COMPUTED_GANG_RATING(fighter.gang_id), { expire: 0 });
-          revalidateTag(CACHE_TAGS.SHARED_FIGHTER_COST(params.fighter_id), { expire: 0 });
-          revalidateTag(CACHE_TAGS.SHARED_GANG_RATING(fighter.gang_id), { expire: 0 });
-          revalidateTag(CACHE_TAGS.COMPOSITE_GANG_FIGHTERS_LIST(fighter.gang_id), { expire: 0 });
+          revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
+          revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
+          revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
+          revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
+          revalidateTag(TAGS.gangOverview(fighter.gang_id), { expire: 0 });
+          revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
         }
       } catch (e) {
         console.error('Failed to apply stat adjustments:', e);
@@ -1471,7 +1470,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
     }
 
     // Invalidate cache (already handles BASE_FIGHTER_BASIC and COMPOSITE_GANG_FIGHTERS_LIST)
-    invalidateFighterData(params.fighter_id, fighter.gang_id);
+    invalidateFighter(params.fighter_id, fighter.gang_id);
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     // If fighter name changed, invalidate ownership info for any beasts owned by this fighter
@@ -1485,7 +1484,7 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
       // Only invalidate if this fighter actually owns exotic beasts
       if (ownedBeasts && ownedBeasts.length > 0) {
         ownedBeasts.forEach(beast => {
-          revalidateTag(CACHE_TAGS.BASE_FIGHTER_EXOTIC_BEAST(beast.id), { expire: 0 });
+          revalidateTag(TAGS.fighter(beast.id), { expire: 0 });
         });
       }
     }
