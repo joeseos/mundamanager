@@ -1,8 +1,8 @@
 'use server';
 
+import { invalidateCampaign, invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
-import { TAGS, invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
+
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -283,8 +283,8 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
       });
     } else {
       // If no specific gangs, still invalidate campaign data
-      revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
-      revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
+      invalidateCampaign(campaignId);
+      invalidateCampaign(campaignId);
     }
 
     return { success: true };
@@ -462,8 +462,8 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     if (error) throw error;
 
     // Use targeted cache invalidation for member addition
-    revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
-    revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
 
     return { success: true, data };
   } catch (error) {
@@ -544,8 +544,8 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     invalidateUser(userId);
 
     // Use targeted cache invalidation for role update
-    revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
-    revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
+    invalidateCampaign(campaignId);
+    invalidateCampaign(campaignId);
 
     return { success: true };
   } catch (error) {

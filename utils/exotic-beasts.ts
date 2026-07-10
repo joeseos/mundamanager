@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from "@/utils/supabase/server";
 import { invalidateFighter } from '@/utils/cache-tags';
+import { createClient } from "@/utils/supabase/server";
+
 export interface ExoticBeastCreationParams {
   equipmentId: string;
   ownerFighterId: string | null;  // null for stash purchases

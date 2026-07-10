@@ -1,7 +1,8 @@
 'use server'
 
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaign } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
+
 import { revalidateTag } from 'next/cache';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -681,8 +682,8 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
           invalidateFighter(params.fighter_id, gangId);
           await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
-          revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
-          revalidateTag(TAGS.gangCampaigns(gangId), { expire: 0 });
+          invalidateCampaign(campaignId);
+          invalidateGangCampaignMembership(gangId);
 
           return {
             success: true,
@@ -850,7 +851,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         invalidateFighter(params.fighter_id, gangId);
-        revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
         // The capturing gang's pages show this fighter as captured
         if (params.captured_by_gang_id) {
@@ -935,7 +935,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         }
 
         invalidateFighter(params.fighter_id, gangId);
-        revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
         // The gang that held this fighter no longer shows it as captured
         if (fighter.captured_by_gang_id) {
@@ -1054,13 +1053,13 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           stashValueDelta: vehicleCost  // Add back vehicle cost to wealth (0 if no vehicle or inactive)
         });
         invalidateFighter(params.fighter_id, gangId);
-        revalidateTag(TAGS.gang(gangId), { expire: 0 });
+        invalidateGang(gangId);
         if (refundAmount) invalidateGangFinancials(gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase);
 
         // If fighter had a vehicle, invalidate gang vehicles cache so it appears in unassigned list
         if (vehicleData?.id) {
-          revalidateTag(TAGS.gang(gangId), { expire: 0 });
+          invalidateGang(gangId);
         }
 
         // Log fighter removal
@@ -1151,7 +1150,7 @@ export async function updateFighterXp(params: UpdateFighterXpParams): Promise<Ed
 
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-    revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
+    invalidateGang(fighter.gang_id);
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
     return {
@@ -1252,9 +1251,9 @@ export async function updateFighterXpWithOoa(params: UpdateFighterXpWithOoaParam
 
     // Invalidate cache - surgical XP-only invalidation
     revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-    revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
+    invalidateGang(fighter.gang_id);
     if (params.ooa_count && params.ooa_count > 0) {
-      revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
+      invalidateGang(fighter.gang_id);
     }
     await invalidateBeastOwnerCache(params.fighter_id, fighter.gang_id, supabase);
 
@@ -1412,10 +1411,10 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           // Use explicit cache tags for effect changes
           revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
           revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-          revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
+          invalidateGang(fighter.gang_id);
           revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-          revalidateTag(TAGS.gangOverview(fighter.gang_id), { expire: 0 });
-          revalidateTag(TAGS.gang(fighter.gang_id), { expire: 0 });
+          invalidateGangOverview(fighter.gang_id);
+          invalidateGang(fighter.gang_id);
         }
       } catch (e) {
         console.error('Failed to apply stat adjustments:', e);

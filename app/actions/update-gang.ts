@@ -1,8 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateGangOverview, invalidateGangCampaignMembership, invalidateGangFinancials, invalidateCampaign, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from 'next/cache';
-import { TAGS, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
@@ -338,8 +338,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         params.gang_colour !== undefined || params.alliance_id !== undefined ||
         params.gang_affiliation_id !== undefined || params.gang_origin_id !== undefined ||
         params.hidden !== undefined) {
-      revalidateTag(TAGS.gang(params.gang_id), { expire: 0 });
-      revalidateTag(TAGS.gangOverview(params.gang_id), { expire: 0 });
+      invalidateGang(params.gang_id);
+      invalidateGangOverview(params.gang_id);
     }
     
     // Invalidate credits if changed and update wealth
@@ -363,7 +363,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     
     // Invalidate reputation cache if changed
     if (params.reputation !== undefined && params.reputation_operation) {
-      revalidateTag(TAGS.gang(params.gang_id), { expire: 0 });
+      invalidateGang(params.gang_id);
     }
 
     // Invalidate campaign resources cache if resources were updated
@@ -376,17 +376,17 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         .single();
 
       if (campaignGang) {
-        revalidateTag(TAGS.campaign(campaignGang.campaign_id), { expire: 0 });
-        revalidateTag(TAGS.campaign(campaignGang.campaign_id), { expire: 0 });
+        invalidateCampaign(campaignGang.campaign_id);
+        invalidateCampaign(campaignGang.campaign_id);
       }
       
       // Invalidate gang's campaign data cache (includes resources for gang page)
-      revalidateTag(TAGS.gangCampaigns(params.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(params.gang_id);
     }
     
     // If gang variants were updated, invalidate basic gang data (variants are stored there)
     if (params.gang_variants !== undefined) {
-      revalidateTag(TAGS.gang(params.gang_id), { expire: 0 });
+      invalidateGang(params.gang_id);
     }
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses specific granular tags
@@ -399,9 +399,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     if (!campaignGangsError && campaignGangs && campaignGangs.length > 0) {
       for (const cg of campaignGangs) {
         const campaignId = cg.campaign_id;
-        revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
-        revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
-        revalidateTag(TAGS.campaign(campaignId), { expire: 0 });
+        invalidateCampaign(campaignId);
+        invalidateCampaign(campaignId);
+        invalidateCampaign(campaignId);
       }
     }
 

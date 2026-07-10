@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
+import { unstable_cache } from 'next/cache';
+
 // =============================================================================
 // TYPES - Shared interfaces for fighter data
 // =============================================================================
@@ -58,52 +59,6 @@ export interface FighterBasic {
     id: string;
     name: string;
   } | null;
-}
-
-export interface FighterType {
-  id: string;
-  fighter_type: string;
-  alliance_crew_name?: string;
-}
-
-export interface FighterSubType {
-  id: string;
-  sub_type_name: string;
-  fighter_sub_type: string;
-}
-
-export interface FighterEquipment {
-  fighter_equipment_id: string;
-  equipment_id?: string;
-  custom_equipment_id?: string;
-  equipment_name: string;
-  equipment_type: string;
-  equipment_category: string;
-  purchase_cost: number;
-  original_cost?: number;
-  is_master_crafted?: boolean;
-  weapon_profiles?: any[];
-  target_equipment_id?: string | null;
-  effect_names?: string[];
-  loadout_ids?: string[];
-  cost_resource?: { name: string; amount: number } | null;
-}
-
-// FighterLoadout imported from @/types/equipment
-
-export interface FighterSkill {
-  id: string;
-  name: string;
-  credits_increase: number;
-  xp_cost: number;
-  is_advance: boolean;
-  fighter_injury_id?: string;
-  injury_name?: string;
-  acquired_at: string;
-  custom_skill_id?: string;
-  bitter_enmity_target_gang_id?: string;
-  bitter_enmity_target_gang_name?: string;
-  bitter_enmity_target_gang_colour?: string | null;
 }
 
 // =============================================================================

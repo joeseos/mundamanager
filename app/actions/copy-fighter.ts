@@ -1,8 +1,9 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
 import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
-import { TAGS, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
+
 import {updateGangFinancials} from '@/utils/gang-rating-and-wealth';
 import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 import {revalidateTag} from 'next/cache';
@@ -915,7 +916,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     // Invalidate vehicle-related caches if vehicles were copied
     if (copiedVehicleCount > 0) {
-      revalidateTag(TAGS.gang(params.target_gang_id), { expire: 0 });
+      invalidateGang(params.target_gang_id);
     }
 
     await logFighterAction({

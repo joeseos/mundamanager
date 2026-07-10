@@ -1,6 +1,7 @@
+import { TAGS } from '@/utils/cache-tags';
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
-import { TAGS } from '@/utils/cache-tags';
+
 /**
  * Get cached user count for public display.
  *

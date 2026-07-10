@@ -1,7 +1,8 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { createClient } from "@/utils/supabase/server";
 import { CustomEquipment } from "@/types/equipment";
-import { TAGS } from '@/utils/cache-tags';
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Re-export for backward compatibility

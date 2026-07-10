@@ -1,7 +1,8 @@
+import { TAGS } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { TAGS } from '@/utils/cache-tags';
+
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
@@ -714,32 +715,6 @@ export const getCampaignTriumphs = async (campaignTypeId: string) => {
     }
   )();
 };
-
-// 🎯 CACHE TAG UTILITIES
-
-/**
- * Create campaign-specific cache tag
- * Usage: createCampaignTag('123', 'members') -> 'campaign-members-123'
- */
-export function createCampaignTag(campaignId: string, type: 'basic' | 'members' | 'territories' | 'battles'): string {
-  return `campaign-${type}-${campaignId}`;
-}
-
-/**
- * Create global campaign cache tag
- * Usage: createCampaignCacheTag('123') -> 'campaign-123'
- */
-export function createCampaignCacheTag(campaignId: string): string {
-  return `campaign-${campaignId}`;
-}
-
-/**
- * Create campaign type cache tag
- * Usage: createCampaignTypeTag('456') -> 'campaign-triumphs-456'
- */
-export function createCampaignTypeTag(campaignTypeId: string): string {
-  return `campaign-triumphs-${campaignTypeId}`;
-}
 
 // 🎯 REFERENCE DATA FUNCTIONS FOR TERRITORY MANAGEMENT
 

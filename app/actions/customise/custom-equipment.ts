@@ -1,11 +1,12 @@
 'use server';
 
+import { invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getUserCustomEquipmentByCategory } from "@/app/lib/customise/custom-equipment";
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
 import { removeItemFromAllCollections } from './custom-collections';
-import { invalidateUserCustoms } from '@/utils/cache-tags';
+
 export async function updateCustomEquipment(
   equipmentId: string,
   updates: {

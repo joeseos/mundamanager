@@ -1,7 +1,7 @@
+import { invalidateGang, invalidateGangOverview, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
-import { TAGS, invalidateGangFinancials } from '@/utils/cache-tags';
-import { revalidateTag } from 'next/cache';
+
 import { getUserIdFromClaims } from "@/utils/auth";
 
 enum GangAlignment {
@@ -255,8 +255,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     // Invalidate gang basic data if name, alignment, color, alliance, or notes changed
     if (name !== undefined || alignment !== undefined || gang_colour !== undefined ||
         alliance_id !== undefined || notesChanged) {
-      revalidateTag(TAGS.gang(params.id), { expire: 0 });
-      revalidateTag(TAGS.gangOverview(params.id), { expire: 0 });
+      invalidateGang(params.id);
+      invalidateGangOverview(params.id);
     }
 
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses granular tags

@@ -1,8 +1,9 @@
+import { TAGS } from '@/utils/cache-tags';
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
-import { TAGS } from '@/utils/cache-tags';
+
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;

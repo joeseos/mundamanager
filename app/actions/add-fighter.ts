@@ -1,12 +1,14 @@
 'use server'
 
+import { invalidateFighter, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { invalidateFighter, invalidateUser } from '@/utils/cache-tags';
+
 import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import {
+
   isArchetypeEligible,
   mapArchetypeSkillAccessToOverrides,
 } from '@/utils/archetypeEligibility';

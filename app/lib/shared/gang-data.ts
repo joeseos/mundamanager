@@ -1,10 +1,8 @@
-import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
-import { assembleGangFighters, assembleGangVehicles, type GangFightersBundle } from './gang-assembly';
-import { BITTER_ENMITY_EFFECT_NAME } from '@/utils/bitterEnmityDisplay';
+import { unstable_cache } from 'next/cache';
+
+import { assembleGangFighters, assembleGangVehicles, groupBy, type GangFightersBundle } from './gang-assembly';
 import { WeaponProps, WargearItem } from '@/types/fighter';
-import { WeaponProfile } from '@/types/equipment';
-import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
 
 // =============================================================================
@@ -427,21 +425,6 @@ export const getGangVariants = async (gangVariantIds: string[], supabase: any): 
 };
 
 /**
- * Helper function to group array items by a key
- */
-function groupBy<T extends Record<string, any>>(
-  array: T[],
-  key: string
-): Record<string, T[]> {
-  return array.reduce((acc, item) => {
-    const groupKey = String(item[key]);
-    if (!acc[groupKey]) acc[groupKey] = [];
-    acc[groupKey].push(item);
-    return acc;
-  }, {} as Record<string, T[]>);
-}
-
-/**
  * Cached list of campaign ids a gang belongs to. Exists so getGangCampaigns
  * can tag its entry with campaign-{id} per campaign (dynamic tags must be
  * known before the cached call). Busted on join/leave via gang-campaigns-{id}.
@@ -782,61 +765,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 // =============================================================================
 // COMPUTED DATA FUNCTIONS - Calculated values with proper cache tags
 // =============================================================================
-
-/**
- * Get gang fighter count
- * Cache: COMPUTED_GANG_FIGHTER_COUNT
- */
-export const getGangFighterCount = async (gangId: string, supabase: any): Promise<number> => {
-  return unstable_cache(
-    async () => {
-      const { count, error } = await supabase
-        .from('fighters')
-        .select('*', { count: 'exact', head: true })
-        .eq('gang_id', gangId)
-        .eq('killed', false)
-        .eq('retired', false)
-        .eq('enslaved', false)
-        .eq('captured', false);
-
-      if (error) throw error;
-      return count || 0;
-    },
-    [`gang-fighter-count-v2-${gangId}`],
-    {
-      tags: [TAGS.gang(gangId)],
-      revalidate: false
-    }
-  )();
-};
-
-/**
- * Get gang beast count
- * Cache: COMPUTED_GANG_BEAST_COUNT
- */
-export const getGangBeastCount = async (gangId: string, supabase: any): Promise<number> => {
-  return unstable_cache(
-    async () => {
-      const { count, error } = await supabase
-        .from('fighters')
-        .select('*', { count: 'exact', head: true })
-        .eq('gang_id', gangId)
-        .eq('fighter_class', 'exotic beast')
-        .eq('killed', false)
-        .eq('retired', false)
-        .eq('enslaved', false)
-        .eq('captured', false);
-
-      if (error) throw error;
-      return count || 0;
-    },
-    [`gang-beast-count-v2-${gangId}`],
-    {
-      tags: [TAGS.gang(gangId)],
-      revalidate: false
-    }
-  )();
-};
 
 // =============================================================================
 // COMPOSITE DATA FUNCTIONS - Multi-entity aggregated data

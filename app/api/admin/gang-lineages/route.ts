@@ -1,8 +1,9 @@
+import { TAGS } from '@/utils/cache-tags';
 import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { revalidateTag } from "next/cache";
-import { TAGS } from '@/utils/cache-tags';
+
 const VALID_TYPES = ['legacy', 'affiliation'] as const;
 type LineageType = typeof VALID_TYPES[number];
 

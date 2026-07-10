@@ -1,8 +1,8 @@
 'use server'
 
+import { invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
-import { revalidateTag } from 'next/cache';
+
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
@@ -23,7 +23,6 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighter(ownerData.fighter_owner_id, gangId);
-    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -748,7 +747,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     if (isResourcePurchase) {
-      revalidateTag(TAGS.gangCampaigns(params.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(params.gang_id);
     }
 
     // Optimized cache invalidation - use granular approach
@@ -1428,7 +1427,6 @@ export async function applySelfUpgradesToEquipment(params: {
     // Invalidate caches once at the end
     try {
       invalidateFighter(params.fighter_id, params.gang_id);
-      revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }
@@ -1515,7 +1513,6 @@ export async function deleteEquipmentEffect(
     // Invalidate caches
     try {
       invalidateFighter(params.fighter_id, params.gang_id);
-      revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     } catch (e) {
       console.error('Cache invalidation failed:', e);
     }

@@ -1,3 +1,4 @@
+import { TAGS } from '@/utils/cache-tags';
 import Link from 'next/link';
 import { Metadata } from 'next';
 import Script from 'next/script';
@@ -7,7 +8,7 @@ import { getPatreonTierConfig } from '@/utils/patreon';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { createClient } from '@supabase/supabase-js';
 import { unstable_cache } from 'next/cache';
-import { TAGS } from '@/utils/cache-tags';
+
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
   : "https://www.mundamanager.com";

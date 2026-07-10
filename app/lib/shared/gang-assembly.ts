@@ -31,7 +31,7 @@ export interface GangFightersBundle {
   capturedByGangs: any[];
 }
 
-function groupBy<T extends Record<string, any>>(array: T[], key: string): Record<string, T[]> {
+export function groupBy<T extends Record<string, any>>(array: T[], key: string): Record<string, T[]> {
   return array.reduce((groups: Record<string, T[]>, item: T) => {
     const groupKey = item[key];
     if (groupKey != null) {

@@ -141,7 +141,12 @@ export const invalidatePermission = (userId: string, gangId: string) => {
   bust(TAGS.permission(userId, gangId));
 };
 
-/** Battle session data changed for a gang. */
+/** A single battle session's data changed. */
+export const invalidateBattleSession = (sessionId: string) => {
+  bust(TAGS.battleSession(sessionId));
+};
+
+/** A gang's battle session list changed. */
 export const invalidateBattleSessions = (gangId: string) => {
   bust(TAGS.gangBattleSessions(gangId));
 };

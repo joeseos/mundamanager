@@ -1,9 +1,9 @@
 'use server'
 
+import { invalidateGangPositioning } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { revalidateTag } from "next/cache";
-import { TAGS } from '@/utils/cache-tags';
+
 interface UpdateGangPositioningParams {
   gangId: string;
   positions: Record<number, string>;
@@ -53,7 +53,7 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
 
     // Invalidate relevant cache tags
     // Positioning now has its own dedicated cache
-    revalidateTag(TAGS.gangPositioning(params.gangId), { expire: 0 });
+    invalidateGangPositioning(params.gangId);
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_GANG_POSITIONING
 
     return { success: true };

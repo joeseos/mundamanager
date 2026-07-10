@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
+import { unstable_cache } from 'next/cache';
+
 import { getGangFightersBundle } from '@/app/lib/shared/gang-data';
 
 async function _getAdvancementCategories(advancementType: 'characteristic' | 'skill', supabase: any) {

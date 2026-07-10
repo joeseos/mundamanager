@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
+import { unstable_cache } from 'next/cache';
+
 import type { CustomCollection, CollectionItem, CollectionItemType } from "@/app/actions/customise/custom-collections";
 import type { SupabaseClient } from '@supabase/supabase-js';
 

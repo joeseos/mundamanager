@@ -1,9 +1,10 @@
 'use server'
 
+import { invalidateGang, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { revalidateTag, revalidatePath } from "next/cache";
-import { TAGS, invalidateGangFinancials } from '@/utils/cache-tags';
+import { revalidatePath } from "next/cache";
+
 import { updateGangFinancials } from "@/utils/gang-rating-and-wealth";
 import { logVehicleAction } from "./logs/vehicle-logs";
 import { getAllowedLocomotionOptions } from "@/utils/vehicle-locomotion";
@@ -207,11 +208,11 @@ export async function addGangVehicle(params: AddGangVehicleParams): Promise<AddG
 
     // Invalidate relevant cache tags
     invalidateGangFinancials(params.gangId);
-    revalidateTag(TAGS.gang(params.gangId), { expire: 0 });
+    invalidateGang(params.gangId);
     // NOTE: No need to invalidate COMPOSITE_GANG_FIGHTERS_LIST - gang page uses BASE_GANG_VEHICLES
 
     // Also invalidate computed gang vehicle count
-    revalidateTag(TAGS.gang(params.gangId), { expire: 0 });
+    invalidateGang(params.gangId);
 
     const newCredits = financialResult.newValues?.credits ?? (gang.credits - vehicleCost);
     const newWealth = financialResult.newValues?.wealth;

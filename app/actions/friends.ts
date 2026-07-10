@@ -1,9 +1,9 @@
 'use server';
 
+import { invalidateUser } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
-import { TAGS } from '@/utils/cache-tags';
+
 export async function acceptFriendRequest(requester_id: string, addressee_id: string) {
   const supabase = await createClient();
 
@@ -18,8 +18,8 @@ export async function acceptFriendRequest(requester_id: string, addressee_id: st
     throw new Error(error.message);
   }
 
-  revalidateTag(TAGS.user(requester_id), { expire: 0 });
-  revalidateTag(TAGS.user(addressee_id), { expire: 0 });
+  invalidateUser(requester_id);
+  invalidateUser(addressee_id);
 
   return { success: true };
 }
@@ -38,8 +38,8 @@ export async function declineFriendRequest(requester_id: string, addressee_id: s
     throw new Error(error.message);
   }
 
-  revalidateTag(TAGS.user(requester_id), { expire: 0 });
-  revalidateTag(TAGS.user(addressee_id), { expire: 0 });
+  invalidateUser(requester_id);
+  invalidateUser(addressee_id);
 
   return { success: true };
 }
@@ -72,8 +72,8 @@ export async function sendFriendRequest(requesterId: string, addresseeId: string
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAGS.user(requesterId), { expire: 0 });
-  revalidateTag(TAGS.user(addresseeId), { expire: 0 });
+  invalidateUser(requesterId);
+  invalidateUser(addresseeId);
 
   return { success: true };
 }
@@ -91,8 +91,8 @@ export async function deleteFriend(userId: string, friendId: string) {
     throw new Error(error.message);
   }
 
-  revalidateTag(TAGS.user(userId), { expire: 0 });
-  revalidateTag(TAGS.user(friendId), { expire: 0 });
+  invalidateUser(userId);
+  invalidateUser(friendId);
 
   return { success: true };
 } 

@@ -1,8 +1,9 @@
 'use server'
 
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -21,7 +22,6 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighter(ownerData.fighter_owner_id, gangId);
-    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
@@ -292,7 +292,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     }
 
     if (isResourcePurchase) {
-      revalidateTag(TAGS.gangCampaigns(gangId), { expire: 0 });
+      invalidateGangCampaignMembership(gangId);
     }
 
     // Invalidate caches - selling equipment affects gang credits/rating and possibly effects
@@ -448,7 +448,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     }
 
     if (isResourcePurchaseStash) {
-      revalidateTag(TAGS.gangCampaigns(row.gang_id), { expire: 0 });
+      invalidateGangCampaignMembership(row.gang_id);
     }
 
     // Invalidate stash cache so UI refreshes

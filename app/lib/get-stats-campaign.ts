@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
+import { unstable_cache } from 'next/cache';
+
 import { createServiceRoleClient } from '@/utils/supabase/server';
 
 /**

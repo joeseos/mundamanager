@@ -1,5 +1,6 @@
-import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
+import { unstable_cache } from 'next/cache';
+
 export type Campaign = {
   id: string;
   campaign_member_id: string;
@@ -20,7 +21,6 @@ export type Campaign = {
 export const getUserCampaigns = async (userId: string, supabase: any): Promise<Campaign[]> => {
   return unstable_cache(
     async () => {
-      console.log("Server: Fetching user campaigns");
       try {
         const { data: campaignMembers, error: membersError } = await supabase
           .from('campaign_members')
@@ -33,7 +33,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         }
 
         if (!campaignMembers || campaignMembers.length === 0) {
-          console.log("Server: No campaign memberships found");
           return [];
         }
 
@@ -50,7 +49,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         }
 
         if (!campaigns || campaigns.length === 0) {
-          console.log("Server: No campaigns found");
           return [];
         }
 
@@ -64,8 +62,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           console.error('Error fetching campaign types:', typesError);
           throw typesError;
         }
-
-        console.log(`Server: Found ${campaigns.length} campaigns`);
 
         const campaignsWithDetails = campaigns.map((campaign: any) => {
           const memberData = campaignMembers.find((member: any) => member.campaign_id === campaign.id);
@@ -126,8 +122,6 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
         const sortedCampaigns = campaignsWithGangs.sort((a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
-
-        console.log(`Server: Processed ${sortedCampaigns.length} campaigns`);
         return sortedCampaigns;
       } catch (error) {
         console.error('Unexpected error in getUserCampaigns:', error);

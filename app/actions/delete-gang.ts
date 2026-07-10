@@ -1,9 +1,9 @@
 'use server';
 
+import { invalidateCampaignGang, invalidateUser, invalidatePermission, invalidateGangCount } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
-import { TAGS, invalidateCampaignGang, invalidateUser, invalidatePermission, invalidateGangCount } from '@/utils/cache-tags';
+
 export async function deleteGang(gangId: string) {
   console.log('[deleteGang] Starting:', gangId);
 
@@ -92,8 +92,8 @@ export async function deleteGang(gangId: string) {
     }
 
     // Invalidate user's gang cache
-    revalidateTag(TAGS.user(gang.user_id), { expire: 0 });
-    revalidateTag(TAGS.user(gang.user_id), { expire: 0 });
+    invalidateUser(gang.user_id);
+    invalidateUser(gang.user_id);
 
     // Invalidate gang permissions cache
     invalidatePermission(gang.user_id, gangId);

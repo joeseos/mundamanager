@@ -1,10 +1,11 @@
+import { TAGS } from '@/utils/cache-tags';
 import 'server-only';
 
 import { createClient } from '@/utils/supabase/server';
 import type { UserPermissions, CampaignPermissions } from '@/types/user-permissions';
 import type { CampaignRole } from '@/types/user-permissions';
 import { unstable_cache } from 'next/cache';
-import { TAGS } from '@/utils/cache-tags';
+
 export interface CheckPermissionResult {
   is_admin: boolean;
   campaign_role: CampaignRole | null;

@@ -1,6 +1,7 @@
+import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
-import { TAGS } from '@/utils/cache-tags';
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function getUserCustomTradingPosts(userId: string, supabase: SupabaseClient): Promise<CustomTradingPost[]> {

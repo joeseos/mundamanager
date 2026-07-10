@@ -1,9 +1,9 @@
 'use server'
 
+import { invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { revalidateTag } from 'next/cache';
-import { TAGS, invalidateCampaignCount } from '@/utils/cache-tags';
+
 interface CreateCampaignParams {
   name: string;
   campaignTypeId: string;
@@ -55,7 +55,7 @@ export async function createCampaign({ name, campaignTypeId, trading_posts }: Cr
     invalidateCampaignCount();
 
     // Invalidate user's campaigns list so the new campaign appears immediately
-    revalidateTag(TAGS.user(user.id), { expire: 0 });
+    invalidateUser(user.id);
 
     return {
       success: true,

@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server';
 import { invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
+import { createClient } from '@/utils/supabase/server';
+
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';

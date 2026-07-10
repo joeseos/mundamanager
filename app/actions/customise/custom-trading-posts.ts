@@ -1,9 +1,9 @@
 'use server';
 
+import { invalidateCampaign, invalidateUserCustoms } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { revalidateTag } from 'next/cache';
-import { TAGS, invalidateUserCustoms } from '@/utils/cache-tags';
+
 import { removeItemFromAllCollections } from './custom-collections';
 
 import { getCustomDescriptionLengthError, normalizeCustomDescription } from './custom-constants';
@@ -162,7 +162,7 @@ export async function deleteCustomTradingPost(
             .from('campaigns')
             .update({ custom_trading_posts: updated })
             .eq('id', campaign.id);
-          revalidateTag(TAGS.campaign(campaign.id), { expire: 0 });
+          invalidateCampaign(campaign.id);
         }
       }
     }

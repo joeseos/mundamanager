@@ -1,8 +1,9 @@
 'use server';
 
+import { invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from "next/cache";
-import { invalidateCampaignGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
+
 import { getAuthenticatedUser } from '@/utils/auth';
 
 export interface AddGangToCampaignDirectParams {

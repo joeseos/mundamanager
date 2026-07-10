@@ -1,9 +1,10 @@
 'use server'
 
+import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
-import { TAGS, invalidateGang, invalidateFighter, invalidateGangStash, invalidateGangFinancials, invalidateUser } from '@/utils/cache-tags';
+
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { insertEffectWithModifiers } from './equipment';
@@ -18,7 +19,6 @@ async function invalidateBeastOwnerCache(fighterId: string, gangId: string, supa
 
   if (ownerData) {
     invalidateFighter(ownerData.fighter_owner_id, gangId);
-    revalidateTag(TAGS.fighter(ownerData.fighter_owner_id), { expire: 0 });
   }
 }
 
