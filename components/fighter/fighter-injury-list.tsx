@@ -1113,15 +1113,15 @@ export function InjuriesList({
               <p className="text-sm text-muted-foreground">Loading gangs...</p>
             ) : campaignGangs.length > 0 ? (
               <Combobox
-              options={campaignGangs
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(g => buildGangComboboxOption(g))
-              }
-              value={selectedBitterEnmityGangId}
-              onValueChange={setSelectedBitterEnmityGangId}
-              placeholder="Select enemy gang..."
-              clearable
+                options={campaignGangs
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(g => buildGangComboboxOption(g))
+                }
+                value={selectedBitterEnmityGangId}
+                onValueChange={setSelectedBitterEnmityGangId}
+                placeholder="Select enemy gang..."
+                clearable
               />
             ) : (
               <p className="text-sm text-muted-foreground">No other gangs in campaign.</p>
