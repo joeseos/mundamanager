@@ -89,33 +89,34 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
           };
         }) as Campaign[];
 
+        // Batch the user's gangs across all campaigns (previously two awaited
+        // queries PER CAMPAIGN inside a for-loop) into two .in() queries.
         const userGangsByCampaign: Record<string, { id: string; name: string }[]> = {};
-        for (const campaign of campaignsWithDetails) {
-          const { data: campaignGangs, error: campaignGangsError } = await supabase
-            .from('campaign_gangs')
-            .select('gang_id')
-            .eq('campaign_id', campaign.id)
-            .eq('user_id', userId);
+        const { data: allCampaignGangs, error: campaignGangsError } = await supabase
+          .from('campaign_gangs')
+          .select('campaign_id, gang_id')
+          .in('campaign_id', campaignIds)
+          .eq('user_id', userId);
 
-          if (campaignGangsError) {
-            console.error('Error fetching campaign gangs:', campaignGangsError);
-            userGangsByCampaign[campaign.id] = [];
-            continue;
+        if (campaignGangsError) {
+          console.error('Error fetching campaign gangs:', campaignGangsError);
+        } else if (allCampaignGangs && allCampaignGangs.length > 0) {
+          const allGangIds = Array.from(new Set(allCampaignGangs.map((g: any) => g.gang_id)));
+          const { data: gangDetails, error: gangDetailsError } = await supabase
+            .from('gangs')
+            .select('id, name')
+            .in('id', allGangIds);
+
+          const gangById = new Map<string, { id: string; name: string }>();
+          if (!gangDetailsError && gangDetails) {
+            gangDetails.forEach((g: any) => gangById.set(g.id, g));
           }
 
-          const gangIds = campaignGangs.map((g: any) => g.gang_id);
-          let gangs: { id: string; name: string }[] = [];
-          if (gangIds.length > 0) {
-            const { data: gangDetails, error: gangDetailsError } = await supabase
-              .from('gangs')
-              .select('id, name')
-              .in('id', gangIds);
-
-            if (!gangDetailsError && gangDetails) {
-              gangs = gangDetails;
-            }
-          }
-          userGangsByCampaign[campaign.id] = gangs;
+          allCampaignGangs.forEach((cg: any) => {
+            const gang = gangById.get(cg.gang_id);
+            if (!gang) return;
+            (userGangsByCampaign[cg.campaign_id] ||= []).push(gang);
+          });
         }
 
         const campaignsWithGangs = campaignsWithDetails.map(campaign => ({
@@ -140,6 +141,41 @@ export const getUserCampaigns = async (userId: string, supabase: any): Promise<C
       }
     },
     [`user-campaigns-v2-${userId}`],
+    {
+      tags: [CACHE_TAGS.USER_CAMPAIGNS(userId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Campaigns where the user is OWNER/ARBITRATOR (custom-content share modal).
+ * Cache: user-{id} — fired by membership/role mutations.
+ */
+export const getUserShareCampaigns = async (
+  userId: string,
+  supabase: any
+): Promise<Array<{ id: string; campaign_name: string; status: string | null }>> => {
+  return unstable_cache(
+    async () => {
+      const { data: campaignMembers } = await supabase
+        .from('campaign_members')
+        .select('campaign_id')
+        .eq('user_id', userId)
+        .in('role', ['OWNER', 'ARBITRATOR']);
+
+      const campaignIds = (campaignMembers || []).map((cm: any) => cm.campaign_id);
+      if (campaignIds.length === 0) return [];
+
+      const { data: campaignsForShare } = await supabase
+        .from('campaigns')
+        .select('id, campaign_name, status')
+        .in('id', campaignIds)
+        .order('campaign_name');
+
+      return campaignsForShare || [];
+    },
+    [`user-share-campaigns-v2-${userId}`],
     {
       tags: [CACHE_TAGS.USER_CAMPAIGNS(userId)],
       revalidate: false

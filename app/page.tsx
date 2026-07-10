@@ -5,10 +5,12 @@ import { createClient } from "@/utils/supabase/server";
 import { CreateGangButton } from '@/components/create-gang-modal';
 import { CreateCampaignButton } from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
-import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
+import { getUserCampaigns, getUserShareCampaigns } from '@/app/lib/get-user-campaigns';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
+import { getCampaignTypes } from '@/app/lib/campaigns/[id]/get-campaign-data';
+import { getTradingPostTypesCached } from '@/app/lib/reference-data';
 import { GrHelpBook } from "react-icons/gr";
 import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
@@ -52,46 +54,13 @@ export default async function Home() {
     getUserCustomCollections(user.id, supabase)
   ]);
   
-  // Fetch campaign types and trading post types for the create campaign modal
-  const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
-    supabase
-      .from('campaign_types')
-      .select('id, campaign_type_name, trading_posts'),
-    supabase
-      .from('trading_post_types')
-      .select('id, trading_post_name')
-      .order('trading_post_name')
+  // Reference data for the create-campaign modal and the user's share-modal
+  // campaigns — all cached (campaign-types / global / user-{id} tags).
+  const [campaignTypes, tradingPostTypes, userCampaigns] = await Promise.all([
+    getCampaignTypes(),
+    getTradingPostTypesCached(supabase),
+    getUserShareCampaigns(user.id, supabase)
   ]);
-
-  const campaignTypes = campaignTypesResult.data;
-  const tradingPostTypes = tradingPostTypesResult.data;
-
-  // Fetch user's campaigns for sharing (where user is owner or arbitrator)
-  const { data: campaignMembers } = await supabase
-    .from('campaign_members')
-    .select('campaign_id')
-    .eq('user_id', user.id)
-    .in('role', ['OWNER', 'ARBITRATOR']);
-
-  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
-
-  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
-  if (campaignIds.length > 0) {
-    const { data: campaignsForShare } = await supabase
-      .from('campaigns')
-      .select('id, campaign_name, status')
-      .in('id', campaignIds)
-      .order('campaign_name');
-
-    userCampaigns = campaignsForShare || [];
-  }
-
-  if (campaignTypesResult.error) {
-    console.error('Error fetching campaign types:', campaignTypesResult.error);
-  }
-  if (tradingPostTypesResult.error) {
-    console.error('Error fetching trading post types:', tradingPostTypesResult.error);
-  }
 
   return (
     <main className="flex min-h-screen flex-col items-center">

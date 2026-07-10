@@ -1477,7 +1477,6 @@ export async function completeBattleSession(
           revalidateTag(CACHE_TAGS.GANG_BATTLE_SESSIONS(p.gang_id), { expire: 0 });
         }
         if (session.campaign_id) {
-          revalidateTag('campaign-battles', { expire: 0 });
           revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(session.campaign_id), { expire: 0 });
           for (const wid of effectiveWinnerIds) {
             revalidateTag(CACHE_TAGS.COMPOSITE_GANG_CAMPAIGNS(wid), { expire: 0 });

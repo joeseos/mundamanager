@@ -32,7 +32,6 @@ export const TAGS = {
   gangStash: (id: string) => `gang-stash-${id}`,
   fighter: (id: string) => `fighter-${id}`,
   campaign: (id: string) => `campaign-${id}`,
-  campaignBattleSessions: (id: string) => `campaign-battle-sessions-${id}`,
   user: (id: string) => `user-${id}`,
   customs: (userId: string) => `custom-${userId}`,
   permission: (userId: string, gangId: string) => `check-permission-${userId}-${gangId}`,
@@ -128,11 +127,8 @@ export const invalidatePermission = (userId: string, gangId: string) => {
 };
 
 /** Battle session data changed for a gang. */
-export const invalidateBattleSessions = (gangId: string, campaignId?: string) => {
+export const invalidateBattleSessions = (gangId: string) => {
   bust(TAGS.gangBattleSessions(gangId));
-  if (campaignId) {
-    bust(TAGS.campaignBattleSessions(campaignId));
-  }
 };
 
 // =============================================================================

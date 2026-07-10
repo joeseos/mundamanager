@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { CACHE_TAGS } from '@/utils/cache-tags';
+import { CACHE_TAGS, TAGS } from '@/utils/cache-tags';
 import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import { fetchCampaignResources } from '@/utils/campaigns/resources';
@@ -753,7 +753,7 @@ export const getCampaignTypes = async () => {
     async () => {
       const { data, error } = await supabase
         .from('campaign_types')
-        .select('id, campaign_type_name')
+        .select('id, campaign_type_name, trading_posts')
         .order('campaign_type_name');
       
       if (error) throw error;
@@ -890,6 +890,26 @@ export async function getCampaignAllegiances(campaignId: string, supabase: Supab
  */
 export async function getCampaignCaptives(campaignId: string, supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient ?? await createClient();
+  // Captives change on fighter capture/rescue, which fires gang-{id} for the
+  // capturing gang — so this entry subscribes to each member gang's tag in
+  // addition to campaign-{id}.
+  const gangIds = await getCampaignGangIds(campaignId, supabase);
+  return unstable_cache(
+    async () => {
+      return _getCampaignCaptives(campaignId, supabase);
+    },
+    [`campaign-captives-v2-${campaignId}`],
+    {
+      tags: [
+        CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId),
+        ...gangIds.map((id: string) => TAGS.gang(id))
+      ],
+      revalidate: false
+    }
+  )();
+}
+
+async function _getCampaignCaptives(campaignId: string, supabase: SupabaseClient) {
   const { data: campaignGangs, error: gangsError } = await supabase
     .from('campaign_gangs')
     .select('gang_id')
@@ -1056,3 +1076,30 @@ export const getCampaignMapWithObjects = async (
     }
   )();
 };
+
+/**
+ * Custom trading posts shared into a campaign (campaign page shop config).
+ * Cache: campaign-{id} — fired by the custom-share action.
+ */
+export async function getCampaignSharedTradingPosts(campaignId: string, supabaseClient?: SupabaseClient) {
+  const supabase = supabaseClient ?? await createClient();
+  return unstable_cache(
+    async () => {
+      const { data } = await supabase
+        .from('custom_shared')
+        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name)')
+        .eq('campaign_id', campaignId)
+        .not('custom_trading_post_id', 'is', null);
+
+      return (data || []).map((row: any) => ({
+        id: row.custom_trading_posts.id,
+        trading_post_name: row.custom_trading_posts.custom_trading_post_name,
+      }));
+    },
+    [`campaign-shared-trading-posts-v2-${campaignId}`],
+    {
+      tags: [CACHE_TAGS.BASE_CAMPAIGN_BASIC(campaignId)],
+      revalidate: false
+    }
+  )();
+}

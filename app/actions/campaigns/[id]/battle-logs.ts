@@ -279,7 +279,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 
     // Invalidate cache - battles and territories if claimed
     const { revalidateTag } = await import('next/cache');
-    revalidateTag('campaign-battles', { expire: 0 });
     if (claimed_territories.length > 0 && claimerGangId) {
       revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
       revalidateTag(`campaign-${campaignId}`, { expire: 0 });
@@ -474,7 +473,6 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     // Invalidate cache - battles and territories if claimed or released
     const { revalidateTag } = await import('next/cache');
-    revalidateTag('campaign-battles', { expire: 0 });
     if (claimed_territories.length > 0 || existingBattle.campaign_territory_id) {
       revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
       revalidateTag(`campaign-${campaignId}`, { expire: 0 });
@@ -555,7 +553,6 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
 
     // Invalidate battles cache and territory cache if needed
     const { revalidateTag } = await import('next/cache');
-    revalidateTag('campaign-battles', { expire: 0 });
     if (existingBattle.campaign_territory_id) {
       revalidateTag(CACHE_TAGS.BASE_CAMPAIGN_TERRITORIES(campaignId), { expire: 0 });
       revalidateTag(`campaign-${campaignId}`, { expire: 0 });
