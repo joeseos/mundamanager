@@ -324,10 +324,23 @@ export default function CreateBattleModal({
               Your Gang
             </label>
             <Combobox
-              options={myGangs.map((g) => ({
-                value: g.id,
-                label: g.name,
-              }))}
+              options={myGangs.map((g) => {
+                const colour = g.gang_colour || '#000000';
+                return {
+                  value: g.id,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                        style={{ backgroundColor: colour }}
+                        aria-hidden
+                      />
+                      <span>{g.name}</span>
+                    </span>
+                  ),
+                  displayValue: g.name,
+                };
+              })}
               value={selectedMyGangId}
               onValueChange={setSelectedMyGangId}
               placeholder="Select your gang..."
@@ -342,18 +355,27 @@ export default function CreateBattleModal({
               Opponent Gang
             </label>
             <Combobox
-              options={opponentCampaignGangs.map((g) => ({
-                value: g.id,
-                label: (
-                  <span>
-                    <span>{g.name}</span>
-                    {g.owner_username && (
-                      <span className="text-xs text-muted-foreground"> • {g.owner_username}</span>
-                    )}
-                  </span>
-                ),
-                displayValue: `${g.name} • ${g.owner_username}`,
-              }))}
+              options={opponentCampaignGangs.map((g) => {
+                const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                const colour = g.gang_colour || '#000000';
+                return {
+                  value: g.id,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                        style={{ backgroundColor: colour }}
+                        aria-hidden
+                      />
+                      <span>{g.name}</span>
+                      {g.owner_username && (
+                        <span className="text-xs text-muted-foreground">{owner}</span>
+                      )}
+                    </span>
+                  ),
+                  displayValue: `${g.name}${owner}`,
+                };
+              })}
               value=""
               onValueChange={addCampaignGang}
               placeholder="Select opponent gang..."

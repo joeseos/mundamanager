@@ -912,18 +912,23 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 ...filterOptions.participatingGangIds.map(gangId => {
                   const gangInfo = getGangInfo(gangId);
                   const hasOwner = !!gangInfo.owner_username;
-                  const displayValue = hasOwner
-                    ? `${gangInfo.name} • ${gangInfo.owner_username}`
-                    : gangInfo.name;
+                  const owner = hasOwner ? ` • ${gangInfo.owner_username}` : '';
+                  const displayValue = `${gangInfo.name}${owner}`;
+                  const colour = getGangColour(gangId);
 
                   return {
                     value: gangId,
-                    label: hasOwner ? (
-                      <span>
+                    label: (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                          style={{ backgroundColor: colour }}
+                          aria-hidden
+                        />
                         <span>{gangInfo.name}</span>
-                        <span className="text-xs text-muted-foreground"> • {gangInfo.owner_username}</span>
+                        {hasOwner && <span className="text-xs text-muted-foreground">{owner}</span>}
                       </span>
-                    ) : gangInfo.name,
+                    ),
                     displayValue,
                   };
                 })
@@ -944,18 +949,23 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                 ...filterOptions.winningGangIds.map(gangId => {
                   const gangInfo = getGangInfo(gangId);
                   const hasOwner = !!gangInfo.owner_username;
-                  const displayValue = hasOwner
-                    ? `${gangInfo.name} • ${gangInfo.owner_username}`
-                    : gangInfo.name;
+                  const owner = hasOwner ? ` • ${gangInfo.owner_username}` : '';
+                  const displayValue = `${gangInfo.name}${owner}`;
+                  const colour = getGangColour(gangId);
 
                   return {
                     value: gangId,
-                    label: hasOwner ? (
-                      <span className="flex items-center gap-1">
+                    label: (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                          style={{ backgroundColor: colour }}
+                          aria-hidden
+                        />
                         <span>{gangInfo.name}</span>
-                        <span className="text-xs text-muted-foreground">• {gangInfo.owner_username}</span>
+                        {hasOwner && <span className="text-xs text-muted-foreground">{owner}</span>}
                       </span>
-                    ) : gangInfo.name,
+                    ),
                     displayValue,
                   };
                 })

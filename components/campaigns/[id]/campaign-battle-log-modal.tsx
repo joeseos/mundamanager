@@ -108,6 +108,12 @@ const CampaignBattleLogModal = ({
     return gang?.name || 'Unknown';
   };
 
+  const getGangColour = (gangId: string | null | undefined) => {
+    if (!gangId) return '#000000';
+    const gang = availableGangs.find(g => g.id === gangId);
+    return gang?.gang_colour || '#888888';
+  };
+
   // Helper to get territory name - supports both name and territory_name
   const getTerritoryName = (territoryId: string) => {
     const territory = territories.find(t => t.id === territoryId);
@@ -840,15 +846,21 @@ const CampaignBattleLogModal = ({
                         { value: "", label: "No gang selected" },
                         ...availableGangsForThisEntry.map((gang) => {
                           const owner = gang.owner_username ? ` • ${gang.owner_username}` : "";
+                          const colour = gang.gang_colour || '#000000';
                           const displayValue = `${gang.name}${owner}`;
                           return {
                             value: gang.id,
-                            label: owner ? (
-                              <span>
+                            label: (
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                                  style={{ backgroundColor: colour }}
+                                  aria-hidden
+                                />
                                 <span>{gang.name}</span>
-                                <span className="text-xs text-muted-foreground">{owner}</span>
+                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
                               </span>
-                            ) : gang.name,
+                            ),
                             displayValue,
                           };
                         }),
@@ -944,14 +956,20 @@ const CampaignBattleLogModal = ({
                     const gang = availableGangs.find((g) => g.id === entry.gangId);
                     const gangName = getGangName(entry.gangId);
                     const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
+                    const colour = getGangColour(entry.gangId);
                     return {
                       value: entry.gangId,
-                      label: owner ? (
-                        <span>
+                      label: (
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                            style={{ backgroundColor: colour }}
+                            aria-hidden
+                          />
                           <span>{gangName}</span>
-                          <span className="text-xs text-muted-foreground">{owner}</span>
+                          {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
                         </span>
-                      ) : gangName,
+                      ),
                       displayValue: `${gangName}${owner}`,
                     };
                   });
@@ -1067,14 +1085,20 @@ const CampaignBattleLogModal = ({
                           const gang = availableGangs.find((g) => g.id === gangId);
                           const gangName = getGangName(gangId);
                           const owner = gang?.owner_username ? ` • ${gang.owner_username}` : "";
+                          const colour = getGangColour(gangId);
                           return {
                             value: gangId,
-                            label: owner ? (
-                              <span>
+                            label: (
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                                  style={{ backgroundColor: colour }}
+                                  aria-hidden
+                                />
                                 <span>{gangName}</span>
-                                <span className="text-xs text-muted-foreground">{owner}</span>
+                                {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
                               </span>
-                            ) : gangName,
+                            ),
                             displayValue: `${gangName}${owner}`,
                           };
                         }),

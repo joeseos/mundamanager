@@ -554,10 +554,16 @@ export function FighterActions({
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map(g => {
                           const owner = g.owner_username ? ` \u2022 ${g.owner_username}` : '';
+                          const colour = g.gang_colour || '#000000';
                           return {
                             value: g.id,
                             label: (
-                              <span>
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                                  style={{ backgroundColor: colour }}
+                                  aria-hidden
+                                />
                                 <span>{g.name}</span>
                                 {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
                               </span>

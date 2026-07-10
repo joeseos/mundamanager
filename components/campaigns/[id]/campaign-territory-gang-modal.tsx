@@ -88,10 +88,16 @@ export default function TerritoryGangModal({
               const alreadyAssigned = existingGangId === gang.id;
               const suffix = alreadyAssigned ? " (Already assigned)" : "";
               const displayValue = `${gang.name}${owner}${suffix}`;
+              const colour = gang.gang_colour || '#000000';
               return {
                 value: gang.id,
                 label: (
-                  <span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+                      style={{ backgroundColor: colour }}
+                      aria-hidden
+                    />
                     <span>{gang.name}</span>
                     {owner && <span className="text-xs text-muted-foreground">{owner}</span>}
                     {alreadyAssigned && <span className="text-xs text-muted-foreground">(Already assigned)</span>}
