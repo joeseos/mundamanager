@@ -528,14 +528,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     const updatedGangWealth = financialResult.newValues?.wealth;
 
-    // Single gang rating fetch
-    let updatedGangRating: number | undefined;
-    try {
-      const { getGangRating } = await import('@/app/lib/shared/gang-data');
-      updatedGangRating = await getGangRating(gangId, supabase);
-    } catch (error) {
-      // Silently continue
-    }
+    // Rating comes straight from the financials update (fresh by
+    // construction — no cache read mid-mutation)
+    const updatedGangRating: number | undefined = financialResult.newValues?.rating;
 
     // Single cache invalidation pass
     if (params.fighter_id) {

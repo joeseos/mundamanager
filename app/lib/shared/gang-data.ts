@@ -265,22 +265,6 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
 };
 
 /**
- * Get gang basic information — selector over getGangCore (same cache entry).
- */
-export const getGangBasic = async (gangId: string, supabase: any): Promise<GangBasic | null> => {
-  return getGangCore(gangId, supabase);
-};
-
-/**
- * Get gang credits only — selector over getGangCore (same cache entry).
- */
-export const getGangCredits = async (gangId: string, supabase: any): Promise<number> => {
-  const core = await getGangCore(gangId, supabase);
-  if (!core) throw new Error('Gang not found');
-  return core.credits;
-};
-
-/**
  * Get gang positioning data only
  * Cache: BASE_GANG_POSITIONING
  */
@@ -799,35 +783,6 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 // =============================================================================
 // COMPUTED DATA FUNCTIONS - Calculated values with proper cache tags
 // =============================================================================
-
-/**
- * Get stored gang rating and wealth — selector over getGangCore (same cache entry).
- */
-export const getGangRatingAndWealth = async (gangId: string, supabase: any): Promise<{ rating: number; wealth: number }> => {
-  const core = await getGangCore(gangId, supabase);
-  if (!core) throw new Error('Gang not found');
-  return { rating: core.rating, wealth: core.wealth };
-};
-
-/**
- * Get stored gang rating from column (gangs.rating)
- * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
- * @deprecated Use getGangRatingAndWealth() for better performance (single query)
- */
-export const getGangRating = async (gangId: string, supabase: any): Promise<number> => {
-  const { rating } = await getGangRatingAndWealth(gangId, supabase);
-  return rating;
-};
-
-/**
- * Get stored gang wealth from column (gangs.wealth)
- * Cache: COMPUTED_GANG_RATING + SHARED_GANG_RATING
- * @deprecated Use getGangRatingAndWealth() for better performance (single query)
- */
-export const getGangWealth = async (gangId: string, supabase: any): Promise<number> => {
-  const { wealth } = await getGangRatingAndWealth(gangId, supabase);
-  return wealth;
-};
 
 /**
  * Get gang fighter count

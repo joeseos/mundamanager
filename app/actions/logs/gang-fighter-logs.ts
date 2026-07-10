@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
-import { getGangRating } from "@/app/lib/shared/gang-data";
+
 import { formatRollOutcomeLine } from "@/utils/dice";
 
 // Advancement Logging Functions
@@ -91,13 +91,18 @@ interface FighterRecoveryLogParams {
   recovered_from?: string;
 }
 
-// Gang rating calculation now uses cached getGangRating function
-
+// Live read of the denormalized rating column — log entries are written
+// during mutations, where reading a cache entry risks a stale value.
 async function calculateGangRating(supabase: any, gangId: string): Promise<number> {
   try {
-    return await getGangRating(gangId, supabase);
+    const { data } = await supabase
+      .from('gangs')
+      .select('rating')
+      .eq('id', gangId)
+      .single();
+    return (data?.rating ?? 0) as number;
   } catch (error) {
-    console.error('Failed to get cached gang rating:', error);
+    console.error('Failed to read gang rating:', error);
     return 0;
   }
 }

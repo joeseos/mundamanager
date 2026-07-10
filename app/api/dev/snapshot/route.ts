@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/utils/supabase/server'
 import {
-  getGangBasic,
+  getGangCore,
   getGangPositioning,
-  getGangCredits,
-  getGangRatingAndWealth,
   getGangStash,
   getGangCampaigns,
   getGangFightersList,
@@ -33,12 +31,10 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceRoleClient()
 
-  const [basic, positioning, credits, ratingAndWealth, stash, campaigns, fighters, vehicles] =
+  const [core, positioning, stash, campaigns, fighters, vehicles] =
     await Promise.all([
-      getGangBasic(gangId, supabase),
+      getGangCore(gangId, supabase),
       getGangPositioning(gangId, supabase),
-      getGangCredits(gangId, supabase),
-      getGangRatingAndWealth(gangId, supabase),
       getGangStash(gangId, supabase),
       getGangCampaigns(gangId, supabase),
       getGangFightersList(gangId, supabase),
@@ -46,11 +42,14 @@ export async function GET(request: NextRequest) {
     ])
 
   // Stable key order + sorted collections so diffs are order-insensitive.
+  // basic/credits/ratingAndWealth keys are kept so snapshots stay diffable
+  // against branches that predate getGangCore.
+  const { credits, rating, wealth, alliance, ...basic } = core ?? ({} as any)
   const snapshot = {
     basic,
     positioning,
     credits,
-    ratingAndWealth,
+    ratingAndWealth: { rating, wealth },
     stash: sortById(stash),
     campaigns,
     fighters: sortById(fighters),
