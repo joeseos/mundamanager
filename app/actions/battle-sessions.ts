@@ -1301,6 +1301,7 @@ export async function completeBattleSession(
 
     // --- Campaign battle log (inline insert, no createBattleLog call) ---
     let campaign_battle_id: string | undefined;
+    let dispossessedGangId: string | null = null;
     if (session.campaign_id) {
       const battleParticipants = allParticipants.map((p) => ({
         role: p.role,
@@ -1334,6 +1335,16 @@ export async function completeBattleSession(
 
       // Claim territory in same flow
       if (options?.campaign_territory_id && claimerGangId) {
+        // Remember who held it so the dispossessed gang's campaign tab refreshes
+        const { data: previousHolder } = await supabase
+          .from('campaign_territories')
+          .select('gang_id')
+          .eq('id', options.campaign_territory_id)
+          .single();
+        if (previousHolder?.gang_id && previousHolder.gang_id !== claimerGangId) {
+          dispossessedGangId = previousHolder.gang_id;
+        }
+
         const { error: claimError } = await supabase
           .from('campaign_territories')
           .update({ gang_id: claimerGangId })
@@ -1477,6 +1488,9 @@ export async function completeBattleSession(
           invalidateCampaign(session.campaign_id);
           for (const wid of effectiveWinnerIds) {
             invalidateGangCampaignMembership(wid);
+          }
+          if (dispossessedGangId) {
+            invalidateGangCampaignMembership(dispossessedGangId);
           }
         }
       } catch (afterErr) {

@@ -1,6 +1,5 @@
 'use server'
 
-import { invalidateFighter } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
 export interface ExoticBeastCreationParams {
@@ -398,43 +397,6 @@ async function addDefaultSkillsToBeast(
     // Don't throw - this is not critical enough to fail the entire beast creation
     return [];
   }
-}
-
-/**
- * Handles cache invalidation when beasts are created during equipment purchase
- */
-export async function invalidateCacheForBeastCreation(params: {
-  ownerFighterId: string;
-  gangId: string;
-  createdBeasts: CreatedBeast[];
-}): Promise<void> {
-  if (params.createdBeasts.length === 0) {
-    return;
-  }
-
-  // Update the owner's beast list
-  invalidateFighter(params.ownerFighterId, params.gangId);
-  
-  // Add each beast to gang cache individually for optimal performance
-  params.createdBeasts.forEach(beast => {
-    invalidateFighter(beast.id, params.gangId);
-  });
-}
-
-/**
- * Handles cache invalidation when beasts are deleted during equipment deletion
- */
-export async function invalidateCacheForBeastDeletion(params: {
-  ownerFighterId: string;
-  gangId: string;
-  deletedBeastIds: string[];
-}): Promise<void> {
-  if (params.deletedBeastIds.length === 0) {
-    return;
-  }
-
-  // Use the optimized cache invalidation for equipment deletion
-  invalidateFighter(params.ownerFighterId, params.gangId);
 }
 
 /**

@@ -137,9 +137,6 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
 
         if (!effectsChanged) {
           console.warn('No stat adjustments were applied');
-        } else if (params.assignedFighterId) {
-          // Invalidate vehicle effects cache when effects are successfully applied
-          invalidateGang(params.gangId); if (params.assignedFighterId) invalidateFighter(params.assignedFighterId, params.gangId);
         }
       } catch (error) {
         console.error('Error applying stat adjustments:', error);
@@ -180,9 +177,14 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Update
       }
     }
 
-    // Invalidate cache for the fighter and gang if the vehicle was assigned to a fighter
+    // The vehicle lives in the gang bundle whether or not it is assigned to a
+    // fighter, so the gang cache always refreshes (previously unassigned
+    // vehicle edits invalidated nothing). Gang id comes from the vehicle row,
+    // not the caller. Stat-adjustment effects can carry credit costs, so the
+    // cross-page financial copies refresh too.
+    invalidateGangFinancials(currentVehicle.gang_id);
     if (params.assignedFighterId) {
-      invalidateFighter(params.assignedFighterId, params.gangId); invalidateGangFinancials(params.gangId);
+      invalidateFighter(params.assignedFighterId, currentVehicle.gang_id);
     }
 
     return {

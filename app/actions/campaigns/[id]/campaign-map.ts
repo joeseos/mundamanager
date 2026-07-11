@@ -2,7 +2,6 @@
 
 import { invalidateCampaign } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { revalidateTag } from "next/cache";
 
 import { getAuthenticatedUser } from '@/utils/auth';
 
@@ -69,7 +68,6 @@ async function verifyCampaignEditor(supabase: Awaited<ReturnType<typeof createCl
 }
 
 function invalidateMapCache(campaignId: string) {
-  revalidateTag(`campaign-map-${campaignId}`, { expire: 0 });
   invalidateCampaign(campaignId);
 }
 

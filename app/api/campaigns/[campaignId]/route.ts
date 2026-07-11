@@ -7,7 +7,7 @@ import {
   getCampaignBattles,
   getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { revalidateTag } from 'next/cache';
+import { invalidateCampaign } from '@/utils/cache-tags';
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
@@ -21,12 +21,9 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
   }
 
   try {
-    // Revalidate all relevant campaign cache tags for this campaign
-    revalidateTag(`campaign-basic-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-members-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-territories-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-battles-${campaignId}`, { expire: 0 });
-    revalidateTag(`campaign-${campaignId}`, { expire: 0 });
+    // Force-refresh endpoint: bust the campaign cache before re-reading so the
+    // client gets fresh data (all campaign entries share the campaign-{id} tag)
+    invalidateCampaign(campaignId);
     // Use the same cached functions as the page
     const [
       campaignBasic,

@@ -347,6 +347,7 @@ export async function addTPEquipmentBatch(
 
     if (insertError) throw insertError;
 
+    invalidateUserCustoms(user.id);
     return {
       success: true,
       data: (inserted ?? []).map(r => ({
@@ -392,6 +393,7 @@ export async function updateTPEquipment(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in updateTPEquipment:', error);
@@ -417,6 +419,7 @@ export async function removeTPEquipment(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in removeTPEquipment:', error);
@@ -523,6 +526,7 @@ export async function addAvailabilityRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in addAvailabilityRule:', error);
@@ -548,6 +552,7 @@ export async function deleteAvailabilityRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deleteAvailabilityRule:', error);
@@ -644,6 +649,7 @@ export async function addPricingRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in addPricingRule:', error);
@@ -669,6 +675,7 @@ export async function deletePricingRule(
       return { success: false, error: error.message };
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in deletePricingRule:', error);
@@ -755,6 +762,7 @@ export async function saveEquipmentRules(
       if (error) throw error;
     }
 
+    invalidateUserCustoms(user.id);
     return { success: true };
   } catch (error) {
     console.error('Error in saveEquipmentRules:', error);

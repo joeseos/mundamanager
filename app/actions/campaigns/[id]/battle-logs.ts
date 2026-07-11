@@ -278,12 +278,8 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       territory_claimer: claimerEnriched,
     };
 
-    // Invalidate cache - battles and territories if claimed
-    const { revalidateTag } = await import('next/cache');
-    if (claimed_territories.length > 0 && claimerGangId) {
-      invalidateCampaign(campaignId);
-      revalidateTag(`campaign-${campaignId}`, { expire: 0 });
-    }
+    // The campaign's battle list changed regardless of territory claims
+    invalidateCampaign(campaignId);
     // Invalidate every winner's campaign cache so their stats refresh.
     for (const winnerId of effectiveWinnerIds) {
       invalidateGangCampaignMembership(winnerId);
@@ -472,14 +468,10 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       territory_claimer: claimerEnriched,
     };
 
-    // Invalidate cache - battles and territories if claimed or released
-    const { revalidateTag } = await import('next/cache');
-    if (claimed_territories.length > 0 || existingBattle.campaign_territory_id) {
-      invalidateCampaign(campaignId);
-      revalidateTag(`campaign-${campaignId}`, { expire: 0 });
-      if (oldTerritoryGangId) {
-        invalidateGangCampaignMembership(oldTerritoryGangId);
-      }
+    // The campaign's battle list changed regardless of territory claims
+    invalidateCampaign(campaignId);
+    if (oldTerritoryGangId) {
+      invalidateGangCampaignMembership(oldTerritoryGangId);
     }
     // Invalidate old winners so a removed gang's stats don't serve stale data.
     for (const oldId of oldWinnerIds) {
@@ -552,14 +544,10 @@ export async function deleteBattleLog(campaignId: string, battleId: string): Pro
       throw deleteError;
     }
 
-    // Invalidate battles cache and territory cache if needed
-    const { revalidateTag } = await import('next/cache');
-    if (existingBattle.campaign_territory_id) {
-      invalidateCampaign(campaignId);
-      revalidateTag(`campaign-${campaignId}`, { expire: 0 });
-      if (releasedTerritoryGangId) {
-        invalidateGangCampaignMembership(releasedTerritoryGangId);
-      }
+    // The campaign's battle list changed regardless of territory claims
+    invalidateCampaign(campaignId);
+    if (releasedTerritoryGangId) {
+      invalidateGangCampaignMembership(releasedTerritoryGangId);
     }
   } catch (error) {
     console.error('Error deleting battle log:', error);

@@ -607,12 +607,7 @@ export const getCampaignBasic = async (campaignId: string, supabaseClient?: Supa
     },
     [`campaign-basic-v2-${campaignId}`],
     {
-      tags: [
-        TAGS.campaign(campaignId),
-        TAGS.campaign(campaignId),
-        // Keep legacy tag for backward compatibility during transition
-        `campaign-${campaignId}`
-      ],
+      tags: [TAGS.campaign(campaignId)],
       revalidate: false
     }
   )();
@@ -667,12 +662,7 @@ export const getCampaignTerritories = async (campaignId: string, supabaseClient?
     },
     [`campaign-territories-v2-${campaignId}`],
     {
-      tags: [
-        TAGS.campaign(campaignId),
-        TAGS.campaign(campaignId),
-        // Keep legacy tag for backward compatibility during transition
-        `campaign-${campaignId}`
-      ],
+      tags: [TAGS.campaign(campaignId)],
       revalidate: false
     }
   )();
@@ -710,7 +700,7 @@ export const getCampaignTriumphs = async (campaignTypeId: string) => {
     },
     [`campaign-triumphs-${campaignTypeId}`],
     {
-      tags: ['campaign-triumphs', `campaign-triumphs-${campaignTypeId}`],
+      tags: [TAGS.campaignTriumphsAll(), TAGS.campaignTriumphs(campaignTypeId)],
       revalidate: false
     }
   )();

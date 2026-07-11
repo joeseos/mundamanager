@@ -54,6 +54,7 @@ export const TAGS = {
   globalGangActivity: () => 'global-gang-activity',
   globalCampaignActivity: () => 'global-campaign-activity',
   campaignTypes: () => 'campaign-types',
+  campaignTriumphsAll: () => 'campaign-triumphs',
   campaignTriumphs: (campaignTypeId: string) => `campaign-triumphs-${campaignTypeId}`,
   advancementCategories: () => 'advancement-categories',
   availableSkills: () => 'available-skills',
