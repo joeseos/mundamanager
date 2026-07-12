@@ -124,7 +124,20 @@ export function SortableCampaignCard({ campaign, index, onToggleFavourite }: Sor
   }, [isDragging]);
 
   return (
-    <li ref={ref} style={{ position: 'relative', zIndex: isDragging ? 50 : undefined }}>
+    // Touch-suppression must sit on the sortable SOURCE element itself (not just
+    // a child) to make touch drag work on Android — this matches the working
+    // gang-page fighter cards, whose ref element carries the same properties.
+    <li
+      ref={ref}
+      style={{
+        position: 'relative',
+        zIndex: isDragging ? 50 : undefined,
+        touchAction: 'manipulation',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
+    >
       <CampaignCardContent
         campaign={campaign}
         onToggleFavourite={onToggleFavourite}
