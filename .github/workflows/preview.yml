@@ -27,6 +27,8 @@ jobs:
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull Vercel environment (preview)
@@ -35,9 +37,32 @@ jobs:
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy prebuilt to preview
         id: deploy
+        env:
+          GIT_REF:  ${{ github.event.pull_request.head.ref }}
+          GIT_SHA:  ${{ github.event.pull_request.head.sha }}
+          GIT_ORG:  ${{ github.repository_owner }}
+          GIT_REPO: ${{ github.event.repository.name }}
         run: |
-          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          MSG=$(git log -1 --pretty=%s)
+          AUTHOR=$(git log -1 --pretty=%an)
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} \
+            -m githubDeployment=1 \
+            -m githubCommitRef="$GIT_REF" \
+            -m githubCommitSha="$GIT_SHA" \
+            -m githubCommitMessage="$MSG" \
+            -m githubCommitAuthorName="$AUTHOR" \
+            -m githubCommitOrg="$GIT_ORG" \
+            -m githubCommitRepo="$GIT_REPO" \
+            -m githubOrg="$GIT_ORG" \
+            -m githubRepo="$GIT_REPO")
           echo "url=$url" >> "$GITHUB_OUTPUT"
+      # Uncomment and set the domain to pin an assigned preview domain to the
+      # latest push. Needed only if you rely on a branch-assigned domain in
+      # Vercel's Domains section — CLI deploys don't reliably auto-advance it.
+      # - name: Point branch domain at this deployment
+      #   run: |
+      #     vercel alias set "${{ steps.deploy.outputs.url }}" TODO-your-preview-domain.example.com \
+      #       --token=${{ secrets.VERCEL_TOKEN }} --scope="$VERCEL_ORG_ID"
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
         with:
