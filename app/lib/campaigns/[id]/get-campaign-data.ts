@@ -700,7 +700,7 @@ export const getCampaignTriumphs = async (campaignTypeId: string) => {
     },
     [`campaign-triumphs-${campaignTypeId}`],
     {
-      tags: [TAGS.campaignTriumphsAll(), TAGS.campaignTriumphs(campaignTypeId)],
+      tags: [TAGS.campaignTriumphs()],
       revalidate: false
     }
   )();
@@ -726,7 +726,7 @@ export const getCampaignTypes = async () => {
     },
     ['campaign-types'],
     {
-      tags: ['campaign-types'],
+      tags: [TAGS.campaignTypes()],
       revalidate: false
     }
   )();

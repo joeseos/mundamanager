@@ -183,7 +183,7 @@ function withReferenceInvalidation(
   return async (...args: any[]) => {
     const response = await handler(...args);
     if (response.ok) {
-      revalidateTag(TAGS.campaignTriumphsAll(), { expire: 0 });
+      revalidateTag(TAGS.campaignTriumphs(), { expire: 0 });
     }
     return response;
   };

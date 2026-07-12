@@ -53,8 +53,7 @@ export const TAGS = {
   globalGangActivity: () => 'global-gang-activity',
   globalCampaignActivity: () => 'global-campaign-activity',
   campaignTypes: () => 'campaign-types',
-  campaignTriumphsAll: () => 'campaign-triumphs',
-  campaignTriumphs: (campaignTypeId: string) => `campaign-triumphs-${campaignTypeId}`,
+  campaignTriumphs: () => 'campaign-triumphs',
 } as const;
 
 const bust = (tag: string) => revalidateTag(tag, { expire: 0 });

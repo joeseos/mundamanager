@@ -400,28 +400,6 @@ async function addDefaultSkillsToBeast(
 }
 
 /**
- * Gets beast IDs that would be deleted when equipment is removed
- * This is useful for cache invalidation when equipment is deleted
- */
-export async function getBeastIdsForEquipment(
-  fighterEquipmentId: string
-): Promise<string[]> {
-  try {
-    const supabase = await createClient();
-    
-    const { data: beastOwnership } = await supabase
-      .from('fighter_exotic_beasts')
-      .select('fighter_pet_id')
-      .eq('fighter_equipment_id', fighterEquipmentId);
-
-    return beastOwnership?.map(ownership => ownership.fighter_pet_id) || [];
-  } catch (error) {
-    console.error('Error getting beast IDs for equipment:', error);
-    return [];
-  }
-}
-
-/**
  * Checks if equipment can create exotic beasts
  */
 export async function canEquipmentCreateBeasts(equipmentId: string): Promise<boolean> {
