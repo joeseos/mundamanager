@@ -24,7 +24,8 @@ export function GangsTab({ gangs }: GangsTabProps) {
   // + revalidation round-trip resolves.
   useEffect(() => {
     if (!pendingReorder) return;
-    setPendingReorder(null);
+    // No reset needed: each drag sets a fresh array, so the effect fires
+    // exactly once per reorder via the dependency identity change
     reorderFavourites({ type: 'gang', ids: pendingReorder }).then(result => {
       if (!result.success) {
         toast.error(result.error || 'Failed to reorder favourites');
