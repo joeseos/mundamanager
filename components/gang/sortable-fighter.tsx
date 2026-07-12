@@ -45,7 +45,22 @@ export function SortableFighter({ fighter, index, viewMode = 'normal', userPermi
   return (
     <div
       ref={ref}
-      style={{ position: 'relative', zIndex: isDragging ? 50 : undefined }}
+      style={{
+        position: 'relative',
+        zIndex: isDragging ? 50 : undefined,
+        // iOS shows its native link long-press preview at ~500ms — before our
+        // 600ms drag delay — unless touch-callout/user-select compute to none
+        // AT THE ANCHOR. The card's <a> wraps the styled card body, so it
+        // inherits nothing from it; suppress from this ancestor instead.
+        ...(canEdit
+          ? {
+              touchAction: 'manipulation',
+              WebkitTouchCallout: 'none' as const,
+              WebkitUserSelect: 'none' as const,
+              userSelect: 'none' as const,
+            }
+          : {}),
+      }}
       className={viewMode !== 'normal' ? 'min-w-0 w-full' : undefined}
     >
       <FighterCard
