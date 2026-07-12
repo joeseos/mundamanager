@@ -43,7 +43,6 @@ export const TAGS = {
 
   // Global reference data
   globalGangTypes: () => 'global-gang-types',
-  globalFighterTypes: () => 'global-fighter-types',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
   globalTradingPostTypes: () => 'global-trading-post-types',
@@ -56,9 +55,6 @@ export const TAGS = {
   campaignTypes: () => 'campaign-types',
   campaignTriumphsAll: () => 'campaign-triumphs',
   campaignTriumphs: (campaignTypeId: string) => `campaign-triumphs-${campaignTypeId}`,
-  advancementCategories: () => 'advancement-categories',
-  availableSkills: () => 'available-skills',
-  availableInjuries: () => 'available-injuries',
 } as const;
 
 const bust = (tag: string) => revalidateTag(tag, { expire: 0 });
