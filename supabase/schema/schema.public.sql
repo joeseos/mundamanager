@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict U8XU5j9AEuDjYsKZJvo9M9UHIZBZGY6XMjrZz4JDsymQGEklQ2Hsn1N9BLveZ5e
+\restrict 4ybUbrTbdM3VUXV7pBBvQJgZLqyC8k6qtZWawwvkNBoD7GlVaJ2l16Sv8DV11am
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -2126,7 +2126,9 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
-        true AS fighter_type_equipment,
+        -- Custom equipment lives in the Trading Post; it is only on a fighter's
+        -- list when assigned to that fighter's custom fighter type ($3).
+        COALESCE(ftl.is_ftl, false) AS fighter_type_equipment,
         true AS equipment_tradingpost,
         true AS is_custom,
         COALESCE(
@@ -2209,10 +2211,27 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res2 ON cr_res2.id = custom_tp.cost_campaign_resource_id
+    -- Is this custom equipment on the current custom fighter type's equipment list?
+    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
+    LEFT JOIN LATERAL (
+        SELECT true AS is_ftl
+        FROM custom_fighter_type_equipment cfte
+        WHERE cfte.custom_equipment_id = ce.id
+          AND cfte.custom_fighter_type_id = $3
+        LIMIT 1
+    ) ftl ON true
     WHERE
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
+        -- Fighter list / trading post filter. Custom equipment is always a
+        -- trading-post item, and a fighter-list item only when assigned to the
+        -- fighter's custom type (ftl.is_ftl).
+        AND (
+            ($4 IS NULL AND $5 IS NULL)                              -- no filter
+            OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
+            OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
 $_$;
 
 
@@ -12025,5 +12044,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict U8XU5j9AEuDjYsKZJvo9M9UHIZBZGY6XMjrZz4JDsymQGEklQ2Hsn1N9BLveZ5e
+\unrestrict 4ybUbrTbdM3VUXV7pBBvQJgZLqyC8k6qtZWawwvkNBoD7GlVaJ2l16Sv8DV11am
 
