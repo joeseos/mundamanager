@@ -454,7 +454,9 @@ AS $$
         ce.equipment_category,
         ce.equipment_type,
         ce.created_at,
-        true AS fighter_type_equipment,
+        -- Custom equipment lives in the Trading Post; it is only on a fighter's
+        -- list when assigned to that fighter's custom fighter type ($3).
+        COALESCE(ftl.is_ftl, false) AS fighter_type_equipment,
         true AS equipment_tradingpost,
         true AS is_custom,
         COALESCE(
@@ -537,10 +539,27 @@ AS $$
     ) custom_tp ON custom_tp.custom_equipment_id = ce.id
     LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res2 ON cr_res2.id = custom_tp.cost_campaign_resource_id
+    -- Is this custom equipment on the current custom fighter type's equipment list?
+    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
+    LEFT JOIN LATERAL (
+        SELECT true AS is_ftl
+        FROM custom_fighter_type_equipment cfte
+        WHERE cfte.custom_equipment_id = ce.id
+          AND cfte.custom_fighter_type_id = $3
+        LIMIT 1
+    ) ftl ON true
     WHERE
         (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
         AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
         AND ($7 IS NULL OR ce.id = $7)
+        -- Fighter list / trading post filter. Custom equipment is always a
+        -- trading-post item, and a fighter-list item only when assigned to the
+        -- fighter's custom type (ftl.is_ftl).
+        AND (
+            ($4 IS NULL AND $5 IS NULL)                              -- no filter
+            OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
+            OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
+        )
 $$;
 
 REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM PUBLIC;
