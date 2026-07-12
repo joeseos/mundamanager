@@ -9,8 +9,7 @@ import { getUserCampaigns, getUserShareCampaigns } from '@/app/lib/get-user-camp
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
-import { getCampaignTypes } from '@/app/lib/campaigns/[id]/get-campaign-data';
-import { getTradingPostTypesCached } from '@/app/lib/reference-data';
+import { getCampaignTypes, getTradingPostTypesCached } from '@/app/lib/reference-data';
 import { GrHelpBook } from "react-icons/gr";
 import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';

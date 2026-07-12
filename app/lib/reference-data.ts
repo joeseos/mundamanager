@@ -1,9 +1,11 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { createClient } from '@/utils/supabase/server';
 
 /**
- * Cached global reference data. Invalidated by the admin routes that edit
- * these tables (plus a time-based fallback).
+ * Cached global reference data (admin-owned tables, not scoped to any
+ * gang/campaign instance). Invalidated by the admin routes that edit these
+ * tables (plus a time-based fallback where noted).
  */
 
 export interface Scenario {
@@ -51,6 +53,87 @@ export const getTradingPostTypesCached = async (supabase: any): Promise<TradingP
     {
       tags: [TAGS.globalTradingPostTypes()],
       revalidate: 3600
+    }
+  )();
+};
+
+/**
+ * Get all campaign types with persistent caching
+ */
+export const getCampaignTypes = async () => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('campaign_types')
+        .select('id, campaign_type_name, trading_posts')
+        .order('campaign_type_name');
+
+      if (error) throw error;
+      return data || [];
+    },
+    ['campaign-types'],
+    {
+      tags: [TAGS.campaignTypes()],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get all territories with persistent caching
+ * Used by territory selection components
+ */
+export const getAllTerritories = async () => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      const { data, error } = await supabase
+        .from('territories')
+        .select('id, territory_name, campaign_type_id, playing_card')
+        .order('territory_name');
+
+      if (error) throw error;
+      return (data || []).map(territory => ({
+        ...territory,
+        territory_id: territory.id
+      }));
+    },
+    ['territories-list'],
+    {
+      tags: [TAGS.globalTerritories()],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Get campaign triumphs for a campaign type with persistent caching
+ */
+export const getCampaignTriumphs = async (campaignTypeId: string) => {
+  const supabase = await createClient();
+  return unstable_cache(
+    async () => {
+      const { data: triumphs, error } = await supabase
+        .from('campaign_triumphs')
+        .select(`
+          id,
+          triumph,
+          criteria,
+          campaign_type_id,
+          created_at,
+          updated_at
+        `)
+        .eq('campaign_type_id', campaignTypeId)
+        .order('triumph', { ascending: true });
+
+      if (error) throw error;
+      return triumphs || [];
+    },
+    [`campaign-triumphs-${campaignTypeId}`],
+    {
+      tags: [TAGS.campaignTriumphs()],
+      revalidate: false
     }
   )();
 };

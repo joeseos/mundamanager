@@ -5,17 +5,19 @@ import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-bou
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { getTradingPostTypesCached } from "@/app/lib/reference-data";
-
-// Import the optimized functions with unstable_cache
-import { 
-  getCampaignBasic, 
-  getCampaignMembers, 
-  getCampaignTerritories, 
-  getCampaignBattles,
+import {
+  getTradingPostTypesCached,
   getCampaignTriumphs,
   getCampaignTypes,
-  getAllTerritories,
+  getAllTerritories
+} from "@/app/lib/reference-data";
+
+// Import the optimized functions with unstable_cache
+import {
+  getCampaignBasic,
+  getCampaignMembers,
+  getCampaignTerritories,
+  getCampaignBattles,
   getCampaignGangsForModal,
   getCampaignAllegiances,
   getCampaignResources,

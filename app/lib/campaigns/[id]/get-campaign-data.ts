@@ -551,25 +551,6 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
   }) || [];
 }
 
-async function _getCampaignTriumphs(campaignTypeId: string, supabase: SupabaseClient) {
-  const { data: triumphs, error } = await supabase
-    .from('campaign_triumphs')
-    .select(`
-      id,
-      triumph,
-      criteria,
-      campaign_type_id,
-      created_at,
-      updated_at
-    `)
-    .eq('campaign_type_id', campaignTypeId)
-    .order('triumph', { ascending: true });
-
-  if (error) throw error;
-
-  return triumphs || [];
-}
-
 // 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING unstable_cache()
 
 /**
@@ -682,78 +663,6 @@ export const getCampaignBattles = async (campaignId: string, limit = 100, supaba
     [`campaign-battles-v2-${campaignId}-${limit}`],
     {
       tags: [TAGS.campaign(campaignId)],
-      revalidate: false
-    }
-  )();
-};
-
-/**
- * Get campaign triumphs with persistent caching
- * Cache key: campaign-triumphs-{campaignTypeId}
- * Invalidation: Server actions only via revalidateTag()
- */
-export const getCampaignTriumphs = async (campaignTypeId: string) => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      return _getCampaignTriumphs(campaignTypeId, supabase);
-    },
-    [`campaign-triumphs-${campaignTypeId}`],
-    {
-      tags: [TAGS.campaignTriumphs()],
-      revalidate: false
-    }
-  )();
-};
-
-// 🎯 REFERENCE DATA FUNCTIONS FOR TERRITORY MANAGEMENT
-
-/**
- * Get all campaign types with persistent caching
- * Used by territory selection components
- */
-export const getCampaignTypes = async () => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('campaign_types')
-        .select('id, campaign_type_name, trading_posts')
-        .order('campaign_type_name');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    ['campaign-types'],
-    {
-      tags: [TAGS.campaignTypes()],
-      revalidate: false
-    }
-  )();
-};
-
-/**
- * Get all territories with persistent caching
- * Used by territory selection components
- */
-export const getAllTerritories = async () => {
-  const supabase = await createClient();
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('territories')
-        .select('id, territory_name, campaign_type_id, playing_card')
-        .order('territory_name');
-      
-      if (error) throw error;
-      return (data || []).map(territory => ({
-        ...territory,
-        territory_id: territory.id
-      }));
-    },
-    ['territories-list'],
-    {
-      tags: [TAGS.globalTerritories()],
       revalidate: false
     }
   )();
