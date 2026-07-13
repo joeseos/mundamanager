@@ -119,7 +119,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
   const [session, setSession] = useState<any>(null);
   const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
-    isStashMode || isCustomFighter ? "fighters-tradingpost" : "fighters-list"
+    isStashMode ? "fighters-tradingpost" : "fighters-list"
   );
   const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
@@ -263,7 +263,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       }
       if (equipmentListType === 'fighters-tradingpost') {
         // In Trading Post mode with fighter type, we want both trading post AND fighter's list items
-        if (resolvedTypeId && !isVehicleEquipment && !isCustomFighter) {
+        if (resolvedTypeId && !isVehicleEquipment) {
           // Pass both filters - SQL will use OR logic to return items in EITHER trading post OR fighter's list
           requestBody.equipment_tradingpost = true;
           requestBody.fighter_type_equipment = true;
@@ -330,7 +330,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
       // When in Trading Post mode with fighter type, mark items that are in fighter's list
       // The SQL returns computed fighter_type_equipment field for all items
-      if (equipmentListType === 'fighters-tradingpost' && resolvedTypeId && !isVehicleEquipment && !isCustomFighter) {
+      if (equipmentListType === 'fighters-tradingpost' && resolvedTypeId && !isVehicleEquipment) {
         formattedData = formattedData.map(item => ({
           ...item,
           from_fighters_list: item.fighter_type_equipment
@@ -592,7 +592,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
-              {!isStashMode && !isCustomFighter && (
+              {!isStashMode && (
                 <label className="flex text-sm text-muted-foreground cursor-pointer whitespace-nowrap leading-8">
                   <input
                     type="radio"
