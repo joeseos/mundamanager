@@ -309,6 +309,10 @@ export interface CustomFighterType {
     equipment_id: string;
     equipment_name: string;
   }[];
+  equipment_list?: {
+    equipment_id: string;
+    equipment_name: string;
+  }[];
   created_at: string;
   updated_at?: string;
 }

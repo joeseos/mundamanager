@@ -186,9 +186,9 @@ BEGIN
          (v_map_ft ->> fd.custom_fighter_type_id::text)::uuid, (v_map_eq ->> fd.custom_equipment_id::text)::uuid
   FROM public.fighter_defaults fd WHERE fd.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_fighter_type_equipment (id, created_at, equipment_id, custom_equipment_id,
+  INSERT INTO public.custom_fighter_type_equipment (id, created_at, user_id, equipment_id, custom_equipment_id,
                                                     custom_fighter_type_id)
-  SELECT gen_random_uuid(), now(), fe.equipment_id, (v_map_eq ->> fe.custom_equipment_id::text)::uuid,
+  SELECT gen_random_uuid(), now(), v_user, fe.equipment_id, (v_map_eq ->> fe.custom_equipment_id::text)::uuid,
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 

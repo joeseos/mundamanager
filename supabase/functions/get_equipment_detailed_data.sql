@@ -258,14 +258,8 @@ AS $$
         e.equipment_type,
         e.created_at,
 
-        -- Is in fighter's equipment list?
-        CASE
-            WHEN fte.fighter_type_id IS NOT NULL
-                 OR fte.vehicle_type_id IS NOT NULL
-                 OR ea_var.id IS NOT NULL
-                 OR ea_origin.id IS NOT NULL THEN true
-            ELSE false
-        END AS fighter_type_equipment,
+        -- Is in fighter's equipment list? (computed once in ftl_flag below)
+        ftl_flag.is_fighter_list AS fighter_type_equipment,
 
         -- Has trading post access?
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
@@ -385,6 +379,29 @@ AS $$
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
 
+    -- Is this system equipment on the current custom fighter type's equipment list?
+    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
+    LEFT JOIN LATERAL (
+        SELECT true AS is_ftl
+        FROM custom_fighter_type_equipment cfte_sys
+        WHERE cfte_sys.equipment_id = e.id
+          AND cfte_sys.custom_fighter_type_id = $3
+        LIMIT 1
+    ) cftl ON true
+
+    -- Single source of truth for "is this on the fighter's equipment list?"
+    -- Referenced by the output column and the fighter-list filter branches below,
+    -- so the predicate lives in exactly one place.
+    LEFT JOIN LATERAL (
+        SELECT (
+            fte.fighter_type_id IS NOT NULL
+            OR fte.vehicle_type_id IS NOT NULL
+            OR ea_var.id IS NOT NULL
+            OR ea_origin.id IS NOT NULL
+            OR cftl.is_ftl IS NOT NULL
+        ) AS is_fighter_list
+    ) ftl_flag ON true
+
     -- Pre-computed CTEs via simple LEFT JOINs
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
@@ -399,7 +416,7 @@ AS $$
         -- Core equipment gating
         AND (
             COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR $3 IS NULL))
+            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
         )
         -- Fighter list / trading post filter logic
         AND (
@@ -408,23 +425,13 @@ AS $$
             OR
             -- Both filters: items in EITHER fighter's list OR trading post
             ($4 IS NOT NULL AND $5 IS NOT NULL AND (
-                (CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL
-                         OR ea_var.id IS NOT NULL OR ea_origin.id IS NOT NULL THEN true
-                    ELSE false
-                END) = $4
+                ftl_flag.is_fighter_list = $4
                 OR
                 COALESCE(tp.has_access, false) = $5
             ))
             OR
             -- Fighter's list only
-            ($4 IS NOT NULL AND $5 IS NULL AND (
-                CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL
-                         OR ea_var.id IS NOT NULL OR ea_origin.id IS NOT NULL THEN true
-                    ELSE false
-                END
-            ) = $4)
+            ($4 IS NOT NULL AND $5 IS NULL AND ftl_flag.is_fighter_list = $4)
             OR
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
