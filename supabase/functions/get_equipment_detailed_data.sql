@@ -433,11 +433,8 @@ AS $$
             -- Fighter's list only
             ($4 IS NOT NULL AND $5 IS NULL AND ftl_flag.is_fighter_list = $4)
             OR
-            -- Trading post only. Custom fighters always land here (the UI sends only
-            -- equipment_tradingpost for them), so also surface their custom equipment-list
-            -- items. Uses cftl directly, NOT ftl_flag.is_fighter_list — the broader flag
-            -- would leak regular fte/vehicle/origin list items into stash & vehicle views.
-            ($4 IS NULL AND $5 IS NOT NULL AND (COALESCE(tp.has_access, false) = $5 OR cftl.is_ftl IS NOT NULL))
+            -- Trading post only
+            ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
 
     UNION ALL
