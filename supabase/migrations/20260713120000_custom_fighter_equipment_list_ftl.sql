@@ -1,3 +1,7 @@
+-- Patch get_equipment_detailed_data: surface SYSTEM equipment assigned to a
+-- custom fighter type via custom_fighter_type_equipment as a fighter-list item.
+-- (Custom equipment on the list was already handled; this covers equipment_id rows.)
+
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);

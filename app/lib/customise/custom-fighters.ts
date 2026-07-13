@@ -84,7 +84,36 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
           .not('custom_equipment_id', 'is', null)
       ]);
 
+      // Fetch equipment list for all custom fighter types (both regular and custom equipment)
+      const [equipmentListResult, customEquipmentListResult] = await Promise.all([
+        supabase
+          .from('custom_fighter_type_equipment')
+          .select(`
+            custom_fighter_type_id,
+            equipment_id,
+            equipment (
+              id,
+              equipment_name
+            )
+          `)
+          .in('custom_fighter_type_id', fighterIds)
+          .not('equipment_id', 'is', null),
+        supabase
+          .from('custom_fighter_type_equipment')
+          .select(`
+            custom_fighter_type_id,
+            custom_equipment_id,
+            custom_equipment (
+              id,
+              equipment_name
+            )
+          `)
+          .in('custom_fighter_type_id', fighterIds)
+          .not('custom_equipment_id', 'is', null)
+      ]);
+
       const defaultEquipmentError = defaultEquipmentResult.error || defaultCustomEquipmentResult.error;
+      const equipmentListError = equipmentListResult.error || customEquipmentListResult.error;
 
       if (skillAccessError) {
         console.error('Error fetching skill access:', skillAccessError);
@@ -99,6 +128,11 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
       if (defaultEquipmentError) {
         console.error('Error fetching default equipment:', defaultEquipmentError);
         throw new Error(`Failed to fetch default equipment: ${defaultEquipmentError.message}`);
+      }
+
+      if (equipmentListError) {
+        console.error('Error fetching equipment list:', equipmentListError);
+        throw new Error(`Failed to fetch equipment list: ${equipmentListError.message}`);
       }
 
       // Group skill access by custom fighter type ID
@@ -153,14 +187,40 @@ export async function getUserCustomFighterTypes(userId: string, supabase: Supaba
         });
       });
 
-      // Combine fighter data with skill access, default skills, and default equipment
+      // Group equipment list by custom fighter type ID (combine regular and custom equipment)
+      const equipmentListByFighter: Record<string, { equipment_id: string; equipment_name: string }[]> = {};
+
+      // Process regular equipment
+      (equipmentListResult.data || []).forEach((row) => {
+        if (!equipmentListByFighter[row.custom_fighter_type_id]) {
+          equipmentListByFighter[row.custom_fighter_type_id] = [];
+        }
+        equipmentListByFighter[row.custom_fighter_type_id].push({
+          equipment_id: row.equipment_id,
+          equipment_name: (row.equipment as any)?.equipment_name || 'Unknown'
+        });
+      });
+
+      // Process custom equipment (prefix ID to match API format)
+      (customEquipmentListResult.data || []).forEach((row) => {
+        if (!equipmentListByFighter[row.custom_fighter_type_id]) {
+          equipmentListByFighter[row.custom_fighter_type_id] = [];
+        }
+        equipmentListByFighter[row.custom_fighter_type_id].push({
+          equipment_id: `custom_${row.custom_equipment_id}`,
+          equipment_name: `${(row.custom_equipment as any)?.equipment_name || 'Unknown'} (Custom)`
+        });
+      });
+
+      // Combine fighter data with skill access, default skills, default equipment, and equipment list
       const fightersWithExtendedData = customFighterTypes.map(fighter => ({
         ...fighter,
         gang_type: (fighter.custom_gang_types as any)?.gang_type ?? fighter.gang_type,
         custom_gang_types: undefined,
         skill_access: skillAccessByFighter[fighter.id] || [],
         default_skills: defaultSkillsByFighter[fighter.id] || [],
-        default_equipment: defaultEquipmentByFighter[fighter.id] || []
+        default_equipment: defaultEquipmentByFighter[fighter.id] || [],
+        equipment_list: equipmentListByFighter[fighter.id] || []
       }));
 
       return fightersWithExtendedData;
