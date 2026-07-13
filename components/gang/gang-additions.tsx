@@ -1329,7 +1329,13 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
               if (selectedType?.is_dramatis_personae) {
                 setFighterName(selectedType.fighter_type);
               } else {
-                setFighterName('');
+                // Only clear the name if it was auto-filled by a previous Dramatis Personae
+                // selection. selectedGangAdditionTypeId still holds the previous value here
+                // because React batches the setState call above.
+                const previousType = gangAdditionTypes.find(t => t.id === selectedGangAdditionTypeId);
+                if (previousType?.is_dramatis_personae && fighterName === previousType.fighter_type) {
+                  setFighterName('');
+                }
               }
               const fighterTypeGroup = gangAdditionTypes.filter(t =>
                 t.fighter_type === selectedType?.fighter_type &&
