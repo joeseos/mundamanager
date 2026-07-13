@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 4ybUbrTbdM3VUXV7pBBvQJgZLqyC8k6qtZWawwvkNBoD7GlVaJ2l16Sv8DV11am
+\restrict 5b6hPXz2hjxKHg1Csw1vrcxLIjskPzbvqtgVBjJpw7hXwSaM0GH9AStXJKw1puk
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -7904,7 +7904,7 @@ ALTER TABLE ONLY public.custom_fighter_type_equipment
 --
 
 ALTER TABLE ONLY public.custom_fighter_type_equipment
-    ADD CONSTRAINT custom_fighter_type_equipment_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id);
+    ADD CONSTRAINT custom_fighter_type_equipment_custom_fighter_type_id_fkey FOREIGN KEY (custom_fighter_type_id) REFERENCES public.custom_fighter_types(id) ON DELETE CASCADE;
 
 
 --
@@ -8001,6 +8001,14 @@ ALTER TABLE ONLY public.custom_shared
 
 ALTER TABLE ONLY public.custom_shared
     ADD CONSTRAINT custom_shared_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_skill_types custom_skill_types_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skill_types
+    ADD CONSTRAINT custom_skill_types_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -12044,5 +12052,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 4ybUbrTbdM3VUXV7pBBvQJgZLqyC8k6qtZWawwvkNBoD7GlVaJ2l16Sv8DV11am
+\unrestrict 5b6hPXz2hjxKHg1Csw1vrcxLIjskPzbvqtgVBjJpw7hXwSaM0GH9AStXJKw1puk
 
