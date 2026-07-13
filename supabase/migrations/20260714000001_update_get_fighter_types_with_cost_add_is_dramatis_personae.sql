@@ -1,4 +1,4 @@
--- Drop previous versions
+﻿-- Drop previous versions
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid, boolean);
 DROP FUNCTION IF EXISTS get_fighter_types_with_cost(uuid);

@@ -281,6 +281,7 @@ export default function GangAdditions({
         equipment_selection: type.equipment_selection,
         sub_type: type.sub_type,
         fighter_sub_type_id: type.sub_type?.id,
+        is_dramatis_personae: type.is_dramatis_personae || false,
       }));
     },
     enabled: showModal,
@@ -1325,6 +1326,11 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
 
             if (typeId) {
               const selectedType = gangAdditionTypes.find(t => t.id === typeId);
+              if (selectedType?.is_dramatis_personae) {
+                setFighterName(selectedType.fighter_type);
+              } else {
+                setFighterName('');
+              }
               const fighterTypeGroup = gangAdditionTypes.filter(t =>
                 t.fighter_type === selectedType?.fighter_type &&
                 t.fighter_class === selectedType?.fighter_class
