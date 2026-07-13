@@ -1086,7 +1086,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         >
           <option value="">Select equipment to add</option>
           {equipment
-            .filter(eq => eq.equipment_category === selectedEquipmentListCategory)
+            .filter(eq => eq.equipment_category === selectedEquipmentListCategory && !selectedEquipmentList.includes(eq.id))
             .map((eq) => (
               <option key={eq.id} value={eq.id}>
                 {eq.equipment_name}
@@ -1457,7 +1457,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value) {
+                    if (value && !selectedEquipment.includes(value)) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1467,7 +1467,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory)
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
                     .map((eq) => (
                       <option key={eq.id} value={eq.id}>
                         {eq.equipment_name}
@@ -1842,7 +1842,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   value=""
                   onChange={(e) => {
                     const value = e.target.value;
-                    if (value) {
+                    if (value && !selectedEquipment.includes(value)) {
                       setSelectedEquipment([...selectedEquipment, value]);
                     }
                     e.target.value = "";
@@ -1852,7 +1852,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 >
                   <option value="">Select equipment to add</option>
                   {equipment
-                    .filter(eq => eq.equipment_category === selectedEquipmentCategory)
+                    .filter(eq => eq.equipment_category === selectedEquipmentCategory && !selectedEquipment.includes(eq.id))
                     .map((eq) => (
                       <option key={eq.id} value={eq.id}>
                         {eq.equipment_name}

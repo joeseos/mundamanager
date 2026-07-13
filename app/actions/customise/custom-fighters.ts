@@ -272,6 +272,7 @@ export async function createCustomFighter(data: CreateCustomFighterData): Promis
         const isCustomEquipment = equipmentId.startsWith('custom_');
 
         return {
+          user_id: user.id,
           custom_fighter_type_id: newCustomFighter.id,
           equipment_id: isCustomEquipment ? null : equipmentId,
           custom_equipment_id: isCustomEquipment ? equipmentId.replace('custom_', '') : null
@@ -516,6 +517,7 @@ export async function updateCustomFighter(id: string, data: CreateCustomFighterD
         const isCustomEquipment = equipmentId.startsWith('custom_');
 
         return {
+          user_id: user.id,
           custom_fighter_type_id: id,
           equipment_id: isCustomEquipment ? null : equipmentId,
           custom_equipment_id: isCustomEquipment ? equipmentId.replace('custom_', '') : null
