@@ -1283,12 +1283,10 @@ export default function Gang({
               setShowModal={setShowGangAdditionsModal}
               gangId={id}
               gangTypeId={gang_type_id}
-              customGangTypeId={custom_gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
               onFighterRollback={onFighterRollback}
               onFighterReconcile={onFighterReconcile}
-              gangVariants={gangVariants}
               gangAffiliationId={gangAffiliationId}
             />
           )}
