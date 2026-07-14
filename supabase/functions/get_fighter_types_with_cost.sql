@@ -40,7 +40,8 @@ RETURNS TABLE (
     total_cost numeric,
     sub_type jsonb,
     free_skill boolean,
-    delegation_cost numeric
+    delegation_cost numeric,
+    is_dramatis_personae boolean
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN QUERY
@@ -813,7 +814,8 @@ BEGIN
             ELSE NULL
         END AS sub_type,
         ft.free_skill,
-        ft.delegation_cost
+        ft.delegation_cost,
+        ft.is_dramatis_personae
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 

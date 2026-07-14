@@ -104,6 +104,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
+  const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
@@ -476,6 +477,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setSpecialSkills(data.special_rules?.join(', ') || '');
       setFreeSkill(!!data.free_skill);
       setIsGangAddition(!!data.is_gang_addition);
+      setIsDramatisPersonae(!!data.is_dramatis_personae);
       setIsSpyrer(!!data.is_spyrer);
       setAlignment(data.alignment || '');
       setSelectedEquipment(data.default_equipment || []);
@@ -1058,6 +1060,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         special_rules: specialRulesArray,
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
+        is_dramatis_personae: isDramatisPersonae,
         is_spyrer: isSpyrer,
         alignment: alignment || null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
@@ -1686,6 +1689,20 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     Gang Addition
+                  </label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="dramatis-personae"
+                    checked={isDramatisPersonae}
+                    onCheckedChange={(checked) => setIsDramatisPersonae(checked === true)}
+                  />
+                  <label
+                    htmlFor="dramatis-personae"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Dramatis Personae
                   </label>
                 </div>
 

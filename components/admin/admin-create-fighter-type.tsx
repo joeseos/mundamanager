@@ -67,6 +67,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
   const [specialSkills, setSpecialSkills] = useState('');
   const [freeSkill, setFreeSkill] = useState(false);
   const [isGangAddition, setIsGangAddition] = useState(false);
+  const [isDramatisPersonae, setIsDramatisPersonae] = useState(false);
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
@@ -233,6 +234,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
         special_rules: specialSkills.split(',').map(skill => skill.trim()).filter(Boolean),
         free_skill: freeSkill,
         is_gang_addition: isGangAddition,
+        is_dramatis_personae: isDramatisPersonae,
         is_spyrer: isSpyrer,
         alignment: alignment || null,
         delegation_cost: delegationCost ? parseInt(delegationCost) : null,
@@ -750,6 +752,20 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   Gang Addition
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="dramatis-personae"
+                  checked={isDramatisPersonae}
+                  onCheckedChange={(checked) => setIsDramatisPersonae(checked === true)}
+                />
+                <label
+                  htmlFor="dramatis-personae"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Dramatis Personae
                 </label>
               </div>
 
