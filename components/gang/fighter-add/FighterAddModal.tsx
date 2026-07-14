@@ -272,8 +272,9 @@ export default function FighterAddModal({
     setSelectedArchetypeId('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
-    setUseDelegationCost(false);
-    applyDefaultEquipmentAndCost(subTypeId || selectedFighterTypeId, false);
+    // Preserve the user's delegation-cost choice across sub-type switches (a
+    // sub-type is a variant of the same fighter type); recompute cost with it.
+    applyDefaultEquipmentAndCost(subTypeId || selectedFighterTypeId, useDelegationCost);
   };
 
   const buildOptimisticFighter = (tempId: string): FighterProps => {
