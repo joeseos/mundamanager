@@ -275,7 +275,7 @@ export async function GET(request: Request) {
     // includeAllTypes branch (matched by custom_gang_type_id). Running this block for a
     // custom gang would over-match, because gangTypeId is null and custom-gang fighters
     // also have gang_type_id === null (null === null matches every custom-gang fighter).
-    if (includeCustomFighters && !isGangAddition && !customGangTypeId) {
+    if (includeCustomFighters && !customGangTypeId) {
       try {
         const allCustomFighters = await getCombinedCustomFighters(supabase, userId);
 
