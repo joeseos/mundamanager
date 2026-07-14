@@ -92,6 +92,7 @@ export default async function ContributorsPage() {
     { name: "Zaoshu" },
     { name: "Steady" },
     { name: "T_H_E_S_E_U_S" },
+    { name: "Age" },
   ];
 
   const pastContributors: Contributor[] = [
