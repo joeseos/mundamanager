@@ -229,6 +229,7 @@ export default function GangAdditions({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [useBaseCostForRating, setUseBaseCostForRating] = useState<boolean>(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [includeCustomFighters, setIncludeCustomFighters] = useState(false);
   const [useDelegationCost, setUseDelegationCost] = useState(false);
   const [selectedSubTypeId, setSelectedSubTypeId] = useState('');
   const [availableSubTypes, setAvailableSubTypes] = useState<Array<{id: string, sub_type_name: string}>>([]);
@@ -237,11 +238,12 @@ export default function GangAdditions({
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
 
   const { data: gangAdditionTypes = [] } = useQuery<FighterType[]>({
-    queryKey: ['gang-addition-types', gangTypeId, gangAffiliationId],
+    queryKey: ['gang-addition-types', gangTypeId, gangAffiliationId, includeCustomFighters],
     queryFn: async () => {
       const affiliationParam = gangAffiliationId ? `&gang_affiliation_id=${gangAffiliationId}` : '';
       const gangTypeParam = gangTypeId ? `gang_type_id=${gangTypeId}&` : '';
-      const response = await fetch(`/api/fighter-types?${gangTypeParam}is_gang_addition=true${affiliationParam}`);
+      const customFightersParam = includeCustomFighters ? '&include_custom_fighters=true&include_all_gang_type=true' : '';
+      const response = await fetch(`/api/fighter-types?${gangTypeParam}is_gang_addition=true${affiliationParam}${customFightersParam}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -249,7 +251,12 @@ export default function GangAdditions({
 
       const data = await response.json();
 
-      return data.map((type: any) => ({
+      return data
+        // Only surface custom fighters whose class is one Gang Additions supports.
+        .filter((type: any) =>
+          !type.is_custom_fighter ||
+          gangAdditionRank[(type.fighter_class || '').toLowerCase()] !== undefined)
+        .map((type: any) => ({
         id: type.id,
         fighter_type_id: type.id,
         fighter_type: type.fighter_type,
@@ -1191,6 +1198,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
     setSelectedEquipment([]);  // Reset equipment with costs
     setUseBaseCostForRating(true);
     setUseDelegationCost(false);
+    setIncludeCustomFighters(false);
     setFetchError(null);
   };
 
@@ -1306,6 +1314,36 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
             Exotic Beasts should be acquired by adding them as Equipment to a fighter, which automatically creates their Fighter card. They are listed here to allow flexibility and house rules.
           </p>
         )}
+
+        {/* Checkbox: Include Custom Fighter Types */}
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="include-custom-gang-additions"
+            checked={includeCustomFighters}
+            onCheckedChange={(checked) => {
+              setIncludeCustomFighters(checked as boolean);
+              // Reset any in-progress selection since the type list is changing
+              setSelectedGangAdditionClass('');
+              setSelectedGangAdditionTypeId('');
+              setSelectedSubTypeId('');
+              setAvailableSubTypes([]);
+              setSelectedEquipmentIds([]);
+              setSelectedEquipment([]);
+            }}
+          />
+          <label
+            htmlFor="include-custom-gang-additions"
+            className="text-sm font-medium text-muted-foreground cursor-pointer"
+          >
+            Include Custom Fighter Types
+          </label>
+          <div className="relative group">
+            <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
+            <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
+              When enabled, your custom fighter types will be included, but only Hanger-on, Brute, Crew, Bounty Hunters. Only custom fighters matching this gang type will be shown.
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Fighter Type */}
