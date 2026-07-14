@@ -1340,7 +1340,7 @@ const filteredGangAdditionTypes = selectedGangAdditionClass
           <div className="relative group">
             <ImInfo tabIndex={0} className="outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded-sm" />
             <div className="absolute bottom-full mb-2 hidden group-hover:block group-focus-within:block bg-black text-white text-xs p-2 rounded-sm w-72 -left-36 z-50">
-              When enabled, your custom fighter types will be included, but only Hanger-on, Brute, Crew, Bounty Hunters. Only custom fighters matching this gang type will be shown.
+              When enabled, your custom fighter type gang additions will be included. Only custom fighters matching this gang type will be shown.
             </div>
           </div>
         </div>
