@@ -7,6 +7,7 @@ import { FighterType, EquipmentOption, DefaultEquipment, NormalizedEquipmentSele
 import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { fighterClassRank } from "@/utils/fighterClassRank";
+import { gangAdditionRank } from "@/utils/gangAdditionRank";
 import { fighterTypeRank } from "@/utils/fighterTypeRank";
 import { equipmentCategoryRank } from "@/utils/equipmentCategoryRank";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -270,7 +271,12 @@ export default function AddFighter({
 
       const data = await response.json();
 
-      return data.map((type: any) => ({
+      return data
+        // Custom gang-addition-class fighters live in the Gang Additions menu; exclude them here.
+        .filter((type: any) =>
+          !type.is_custom_fighter ||
+          gangAdditionRank[(type.fighter_class || '').toLowerCase()] === undefined)
+        .map((type: any) => ({
         id: type.id,
         fighter_type_id: type.id,
         fighter_type: type.fighter_type,
