@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 5b6hPXz2hjxKHg1Csw1vrcxLIjskPzbvqtgVBjJpw7hXwSaM0GH9AStXJKw1puk
+\restrict 1QSBsHw5WcOyBSfSbXg4PrHlWRRVoQnwaPmWtk7P2YyxxlbCY44YMW0SClOrdjC
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -706,9 +706,9 @@ BEGIN
          (v_map_ft ->> fd.custom_fighter_type_id::text)::uuid, (v_map_eq ->> fd.custom_equipment_id::text)::uuid
   FROM public.fighter_defaults fd WHERE fd.custom_fighter_type_id = ANY(v_ft);
 
-  INSERT INTO public.custom_fighter_type_equipment (id, created_at, equipment_id, custom_equipment_id,
+  INSERT INTO public.custom_fighter_type_equipment (id, created_at, user_id, equipment_id, custom_equipment_id,
                                                     custom_fighter_type_id)
-  SELECT gen_random_uuid(), now(), fe.equipment_id, (v_map_eq ->> fe.custom_equipment_id::text)::uuid,
+  SELECT gen_random_uuid(), now(), v_user, fe.equipment_id, (v_map_eq ->> fe.custom_equipment_id::text)::uuid,
          (v_map_ft ->> fe.custom_fighter_type_id::text)::uuid
   FROM public.custom_fighter_type_equipment fe WHERE fe.custom_fighter_type_id = ANY(v_ft);
 
@@ -1930,14 +1930,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         e.equipment_type,
         e.created_at,
 
-        -- Is in fighter's equipment list?
-        CASE
-            WHEN fte.fighter_type_id IS NOT NULL
-                 OR fte.vehicle_type_id IS NOT NULL
-                 OR ea_var.id IS NOT NULL
-                 OR ea_origin.id IS NOT NULL THEN true
-            ELSE false
-        END AS fighter_type_equipment,
+        -- Is in fighter's equipment list? (computed once in ftl_flag below)
+        ftl_flag.is_fighter_list AS fighter_type_equipment,
 
         -- Has trading post access?
         COALESCE(tp.has_access, false) AS equipment_tradingpost,
@@ -2057,6 +2051,29 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
         AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
 
+    -- Is this system equipment on the current custom fighter type's equipment list?
+    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
+    LEFT JOIN LATERAL (
+        SELECT true AS is_ftl
+        FROM custom_fighter_type_equipment cfte_sys
+        WHERE cfte_sys.equipment_id = e.id
+          AND cfte_sys.custom_fighter_type_id = $3
+        LIMIT 1
+    ) cftl ON true
+
+    -- Single source of truth for "is this on the fighter's equipment list?"
+    -- Referenced by the output column and the fighter-list filter branches below,
+    -- so the predicate lives in exactly one place.
+    LEFT JOIN LATERAL (
+        SELECT (
+            fte.fighter_type_id IS NOT NULL
+            OR fte.vehicle_type_id IS NOT NULL
+            OR ea_var.id IS NOT NULL
+            OR ea_origin.id IS NOT NULL
+            OR cftl.is_ftl IS NOT NULL
+        ) AS is_fighter_list
+    ) ftl_flag ON true
+
     -- Pre-computed CTEs via simple LEFT JOINs
     LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
     LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
@@ -2071,7 +2088,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         -- Core equipment gating
         AND (
             COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR $3 IS NULL))
+            OR (e.core_equipment = true AND (fte.fighter_type_id IS NOT NULL OR cftl.is_ftl IS NOT NULL OR $3 IS NULL))
         )
         -- Fighter list / trading post filter logic
         AND (
@@ -2080,23 +2097,13 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             OR
             -- Both filters: items in EITHER fighter's list OR trading post
             ($4 IS NOT NULL AND $5 IS NOT NULL AND (
-                (CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL
-                         OR ea_var.id IS NOT NULL OR ea_origin.id IS NOT NULL THEN true
-                    ELSE false
-                END) = $4
+                ftl_flag.is_fighter_list = $4
                 OR
                 COALESCE(tp.has_access, false) = $5
             ))
             OR
             -- Fighter's list only
-            ($4 IS NOT NULL AND $5 IS NULL AND (
-                CASE
-                    WHEN fte.fighter_type_id IS NOT NULL OR fte.vehicle_type_id IS NOT NULL
-                         OR ea_var.id IS NOT NULL OR ea_origin.id IS NOT NULL THEN true
-                    ELSE false
-                END
-            ) = $4)
+            ($4 IS NOT NULL AND $5 IS NULL AND ftl_flag.is_fighter_list = $4)
             OR
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
@@ -2433,7 +2440,7 @@ $$;
 -- Name: get_fighter_types_with_cost(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, free_skill boolean, delegation_cost numeric)
+CREATE FUNCTION public.get_fighter_types_with_cost(p_gang_type_id uuid DEFAULT NULL::uuid, p_gang_affiliation_id uuid DEFAULT NULL::uuid, p_is_gang_addition boolean DEFAULT NULL::boolean) RETURNS TABLE(id uuid, fighter_type text, fighter_class text, fighter_class_id uuid, gang_type text, cost numeric, gang_type_id uuid, special_rules text[], movement numeric, weapon_skill numeric, ballistic_skill numeric, strength numeric, toughness numeric, wounds numeric, initiative numeric, leadership numeric, cool numeric, willpower numeric, intelligence numeric, attacks numeric, limitation numeric, alignment public.alignment, is_gang_addition boolean, alliance_id uuid, alliance_crew_name text, default_equipment jsonb, equipment_selection jsonb, total_cost numeric, sub_type jsonb, available_legacies jsonb, free_skill boolean, delegation_cost numeric, is_dramatis_personae boolean)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -2443,6 +2450,7 @@ BEGIN
         ft.id,
         ft.fighter_type,
         fc.class_name,
+        ft.fighter_class_id,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
@@ -2473,7 +2481,8 @@ BEGIN
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
                     'cost', 0,
-                    'availability', e.availability
+                    'availability', e.availability,
+                    'is_editable', COALESCE(e.is_editable, false)
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd
@@ -3207,8 +3216,23 @@ BEGIN
                 )
             ELSE NULL
         END AS sub_type,
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', fgl.id,
+                        'name', fgl.name
+                    )
+                )
+                FROM fighter_type_gang_legacies ftgl
+                JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
+                WHERE ftgl.fighter_type_id = ft.id
+            ),
+            '[]'::jsonb
+        ) AS available_legacies,
         ft.free_skill,
-        ft.delegation_cost
+        ft.delegation_cost,
+        ft.is_dramatis_personae
     FROM fighter_types ft
     JOIN fighter_classes fc ON fc.id = ft.fighter_class_id
     LEFT JOIN fighter_type_gang_cost ftgc ON ftgc.fighter_type_id = ft.id 
@@ -3216,8 +3240,21 @@ BEGIN
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
     WHERE
-        -- Removed the gang_type_id restriction for gang additions
-        (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
+        CASE
+            -- Gang additions: cross-gang pool, filtered only by the flag
+            WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
+            -- Roster: fighters belonging to this gang type (plus affiliation-cost
+            -- overrides). Matches the previous get_add_fighter_details behaviour,
+            -- including this gang type's own gang-addition-flagged fighters.
+            WHEN p_is_gang_addition = false THEN (
+                ft.gang_type_id = p_gang_type_id
+                OR (ftgc.fighter_type_id IS NOT NULL
+                    AND ftgc.gang_affiliation_id IS NOT NULL
+                    AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+            )
+            -- Include-all (both params NULL): every fighter type
+            ELSE true
+        END;
 END;
 $$;
 
@@ -4742,7 +4779,8 @@ CREATE TABLE public.custom_fighter_type_equipment (
     updated_at timestamp with time zone,
     equipment_id uuid,
     custom_equipment_id uuid,
-    custom_fighter_type_id uuid
+    custom_fighter_type_id uuid,
+    user_id uuid
 );
 
 
@@ -5460,7 +5498,8 @@ CREATE TABLE public.fighter_types (
     alliance_id uuid,
     alliance_crew_name text,
     is_spyrer boolean DEFAULT false,
-    delegation_cost numeric
+    delegation_cost numeric,
+    is_dramatis_personae boolean DEFAULT false NOT NULL
 );
 
 
@@ -7193,6 +7232,20 @@ CREATE INDEX idx_campaign_type_resources_campaign_type_id ON public.campaign_typ
 
 
 --
+-- Name: idx_cfte_fighter_type_custom_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cfte_fighter_type_custom_equipment ON public.custom_fighter_type_equipment USING btree (custom_fighter_type_id, custom_equipment_id);
+
+
+--
+-- Name: idx_cfte_fighter_type_equipment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cfte_fighter_type_equipment ON public.custom_fighter_type_equipment USING btree (custom_fighter_type_id, equipment_id);
+
+
+--
 -- Name: idx_ctp_availability_equipment_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7913,6 +7966,14 @@ ALTER TABLE ONLY public.custom_fighter_type_equipment
 
 ALTER TABLE ONLY public.custom_fighter_type_equipment
     ADD CONSTRAINT custom_fighter_type_equipment_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_fighter_type_equipment custom_fighter_type_equipment_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_type_equipment
+    ADD CONSTRAINT custom_fighter_type_equipment_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -9062,6 +9123,13 @@ CREATE POLICY "Allow authenticated users to create custom equipment" ON public.c
 
 
 --
+-- Name: custom_fighter_type_equipment Allow authenticated users to create custom fighter type equip; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to create custom fighter type equip" ON public.custom_fighter_type_equipment FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
 -- Name: custom_fighter_types Allow authenticated users to create custom fighter types; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -9213,6 +9281,13 @@ CREATE POLICY "Allow authenticated users to view custom collections" ON public.c
 --
 
 CREATE POLICY "Allow authenticated users to view custom equipment" ON public.custom_equipment FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: custom_fighter_type_equipment Allow authenticated users to view custom fighter type equip; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view custom fighter type equip" ON public.custom_fighter_type_equipment FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -10418,6 +10493,20 @@ CREATE POLICY "Only custom equipment owner or admin can delete" ON public.custom
 --
 
 CREATE POLICY "Only custom equipment owner or admin can update" ON public.custom_equipment FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_fighter_type_equipment Only custom fighter type equipment owner or admin can delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom fighter type equipment owner or admin can delete" ON public.custom_fighter_type_equipment FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
+
+
+--
+-- Name: custom_fighter_type_equipment Only custom fighter type equipment owner or admin can update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only custom fighter type equipment owner or admin can update" ON public.custom_fighter_type_equipment FOR UPDATE TO authenticated USING (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin))) WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
 
 
 --
@@ -12052,5 +12141,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5b6hPXz2hjxKHg1Csw1vrcxLIjskPzbvqtgVBjJpw7hXwSaM0GH9AStXJKw1puk
+\unrestrict 1QSBsHw5WcOyBSfSbXg4PrHlWRRVoQnwaPmWtk7P2YyxxlbCY44YMW0SClOrdjC
 
