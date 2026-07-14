@@ -89,4 +89,5 @@ export interface FighterType {
   free_skill?: boolean;
   delegation_cost?: number | null;
   is_dramatis_personae?: boolean;
+  is_custom_fighter?: boolean;
 }
