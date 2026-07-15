@@ -5,19 +5,11 @@ import { createClient } from "@/utils/supabase/server";
 import { CreateGangButton } from '@/components/create-gang-modal';
 import { CreateCampaignButton } from '@/components/create-campaign';
 import { getUserGangs } from '@/app/lib/get-user-gangs';
-import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { GrHelpBook } from "react-icons/gr";
-import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
-import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
-import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
-import { getUserCustomSkills } from "@/app/lib/customise/custom-skills";
-import { getUserCustomGangTypes } from "@/app/lib/customise/custom-gang-types";
-import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-posts";
-import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -31,27 +23,10 @@ export default async function Home() {
     redirect(signInPath("/"));
   }
 
-  // Single invocation that gets gangs, campaigns, and customise data
-  const [
-    gangs,
-    campaigns,
-    customEquipment,
-    customFighterTypes,
-    customSkills,
-    customGangTypes,
-    customTradingPosts,
-    customCollections
-  ] = await Promise.all([
-    getUserGangs(user.id, supabase),
-    getUserCampaigns(user.id, supabase),
-    getUserCustomEquipment(user.id, supabase),
-    getUserCustomFighterTypes(user.id, supabase),
-    getUserCustomSkills(user.id, supabase),
-    getUserCustomGangTypes(user.id, supabase),
-    getUserCustomTradingPosts(user.id, supabase),
-    getUserCustomCollections(user.id, supabase)
-  ]);
-  
+  // Only the Gangs tab (the landing tab) is loaded upfront. Campaigns and Custom Assets
+  // are fetched on demand when the user opens those tabs (see components/home-tabs.tsx).
+  const gangs = await getUserGangs(user.id, supabase);
+
   // Fetch campaign types and trading post types for the create campaign modal
   const [campaignTypesResult, tradingPostTypesResult] = await Promise.all([
     supabase
@@ -65,26 +40,6 @@ export default async function Home() {
 
   const campaignTypes = campaignTypesResult.data;
   const tradingPostTypes = tradingPostTypesResult.data;
-
-  // Fetch user's campaigns for sharing (where user is owner or arbitrator)
-  const { data: campaignMembers } = await supabase
-    .from('campaign_members')
-    .select('campaign_id')
-    .eq('user_id', user.id)
-    .in('role', ['OWNER', 'ARBITRATOR']);
-
-  const campaignIds = campaignMembers?.map(cm => cm.campaign_id) || [];
-
-  let userCampaigns: Array<{ id: string; campaign_name: string; status: string | null }> = [];
-  if (campaignIds.length > 0) {
-    const { data: campaignsForShare } = await supabase
-      .from('campaigns')
-      .select('id, campaign_name, status')
-      .in('id', campaignIds)
-      .order('campaign_name');
-
-    userCampaigns = campaignsForShare || [];
-  }
 
   if (campaignTypesResult.error) {
     console.error('Error fetching campaign types:', campaignTypesResult.error);
@@ -135,15 +90,7 @@ export default async function Home() {
         
         <HomeTabs
           gangs={gangs}
-          campaigns={campaigns}
           userId={user.id}
-          customEquipment={customEquipment}
-          customFighterTypes={customFighterTypes}
-          customSkills={customSkills}
-          customGangTypes={customGangTypes}
-          customTradingPosts={customTradingPosts}
-          customCollections={customCollections}
-          userCampaigns={userCampaigns}
         />
       </div>
     </main>
