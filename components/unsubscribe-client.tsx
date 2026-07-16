@@ -9,7 +9,7 @@ import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
   type NotificationType,
-} from '@/utils/notifications/email-config';
+} from '@/utils/notifications';
 
 type State =
   | { status: 'confirm' }

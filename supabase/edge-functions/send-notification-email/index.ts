@@ -43,7 +43,7 @@ const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 25;
 const MASTER_PREF_KEY = "all";
 
-// Mirror of the email-eligible subset of utils/notifications/email-config.ts. Kept in
+// Mirror of the email-eligible subset of utils/notifications.ts. Kept in
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string }> = {
   invite: { defaultEnabled: true, subject: "You have a new invitation on Munda Manager" },

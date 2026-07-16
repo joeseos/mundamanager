@@ -8,7 +8,7 @@
 // files don't use), and the DB knows nothing about these types — the enqueue trigger gates
 // on a coarse capability list and the worker resolves preferences at send time.
 
-import { escapeHtml } from '../html';
+import { escapeHtml } from './html';
 
 export type NotificationType =
   | 'info'

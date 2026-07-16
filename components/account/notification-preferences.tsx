@@ -9,7 +9,7 @@ import {
   emailEligibleTypes,
   MASTER_PREF_KEY,
   type NotificationType,
-} from '@/utils/notifications/email-config';
+} from '@/utils/notifications';
 
 type PreferenceRow = { notification_type: string; enabled: boolean };
 

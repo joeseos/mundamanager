@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import type { NotificationType } from '@/utils/notifications/email-config';
+import type { NotificationType } from '@/utils/notifications';
 
 type Notification = {
   id: string;

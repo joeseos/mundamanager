@@ -5,7 +5,7 @@ import {
   MASTER_PREF_KEY,
   notificationEmailConfig,
   type NotificationType,
-} from "@/utils/notifications/email-config";
+} from "@/utils/notifications";
 
 // One-click unsubscribe target for optional notification emails. No session required —
 // the signed token (issued by the email worker) carries the user id + category, so a

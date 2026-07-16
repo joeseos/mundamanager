@@ -6,7 +6,7 @@ import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
   type NotificationType,
-} from "@/utils/notifications/email-config";
+} from "@/utils/notifications";
 
 /**
  * Upsert one email-notification preference for the current user.
