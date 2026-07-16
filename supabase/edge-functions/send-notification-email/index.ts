@@ -198,7 +198,7 @@ async function buildEmail(delivery: {
   // Human-facing footer link → the public, branded ISR confirmation page.
   const unsubscribePageUrl = `${APP_URL}/unsubscribe?token=${tokenParam}`;
   // RFC 8058 one-click (List-Unsubscribe-Post) target → the dynamic API route.
-  const unsubscribePostUrl = `${APP_URL}/api/notifications/unsubscribe?token=${tokenParam}`;
+  const unsubscribePostUrl = `${APP_URL}/api/email/unsubscribe?token=${tokenParam}`;
 
   const { html, text } = emailLayout({
     subject: cfg.subject,

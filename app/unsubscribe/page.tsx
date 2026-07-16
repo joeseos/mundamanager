@@ -5,7 +5,7 @@ import UnsubscribeClient from "@/components/unsubscribe-client";
 //
 // This page is statically generated (ISR), never server-rendered per request: the
 // unsubscribe token is read on the CLIENT (useSearchParams) and the actual mutation is
-// performed by the /api/notifications/unsubscribe route. That keeps the page session-less
+// performed by the /api/email/unsubscribe route. That keeps the page session-less
 // and cacheable while the write stays in a dynamic handler (a mutation can't be ISR).
 export const revalidate = 86400;
 

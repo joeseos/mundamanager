@@ -41,7 +41,7 @@ export default function UnsubscribeClient() {
     setState({ status: 'submitting' });
     try {
       const res = await fetch(
-        `/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
+        `/api/email/unsubscribe?token=${encodeURIComponent(token)}`,
         { method: 'POST' },
       );
       const data = await res.json().catch(() => ({}));
