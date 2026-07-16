@@ -194,7 +194,11 @@ async function buildEmail(delivery: {
     { u: delivery.user_id, t: notification.type, e: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
     UNSUBSCRIBE_SECRET,
   );
-  const unsubscribeUrl = `${APP_URL}/api/notifications/unsubscribe?token=${encodeURIComponent(token)}`;
+  const tokenParam = encodeURIComponent(token);
+  // Human-facing footer link → the public, branded ISR confirmation page.
+  const unsubscribePageUrl = `${APP_URL}/unsubscribe?token=${tokenParam}`;
+  // RFC 8058 one-click (List-Unsubscribe-Post) target → the dynamic API route.
+  const unsubscribePostUrl = `${APP_URL}/api/notifications/unsubscribe?token=${tokenParam}`;
 
   const { html, text } = emailLayout({
     subject: cfg.subject,
@@ -203,10 +207,16 @@ async function buildEmail(delivery: {
     ctaUrl: notification.link,
     appUrl: APP_URL,
     preferencesUrl: `${APP_URL}/account`,
-    unsubscribeUrl,
+    unsubscribeUrl: unsubscribePageUrl,
   });
 
-  return { to: authUser.email, subject: cfg.subject, html, text, unsubscribeUrl };
+  return {
+    to: authUser.email,
+    subject: cfg.subject,
+    html,
+    text,
+    unsubscribeUrl: unsubscribePostUrl,
+  };
 }
 
 Deno.serve(async (req) => {

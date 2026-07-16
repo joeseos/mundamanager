@@ -67,22 +67,18 @@ async function applyUnsubscribe(
   };
 }
 
-function confirmationPage(message: string, status: number) {
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Munda Manager</title></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:64px auto;padding:0 20px;color:#1f2937;"><h1 style="font-size:20px;">Munda Manager</h1><p style="font-size:15px;line-height:1.6;">${message}</p><p><a href="/account" style="color:#4f46e5;">Go to account settings</a></p></body></html>`;
-  return new NextResponse(html, {
-    status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
-// Browser click on the footer "Unsubscribe" link.
+// A browser GET (footer link, or a mail client that renders the List-Unsubscribe URL as
+// a plain link) is redirected to the public, branded /unsubscribe page, which performs
+// the mutation via POST below. The page — not this handler — is the confirmation UI.
 export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get("token");
-  const result = await applyUnsubscribe(token);
-  return confirmationPage(result.message, result.status);
+  const token = new URL(request.url).searchParams.get("token") ?? "";
+  return NextResponse.redirect(
+    new URL(`/unsubscribe?token=${encodeURIComponent(token)}`, request.url),
+  );
 }
 
-// RFC 8058 one-click unsubscribe (List-Unsubscribe-Post) — mail clients POST here.
+// The actual mutation. Called by the /unsubscribe page's client and by RFC 8058
+// one-click unsubscribe (List-Unsubscribe-Post). Returns JSON.
 export async function POST(request: Request) {
   const token = new URL(request.url).searchParams.get("token");
   const result = await applyUnsubscribe(token);
