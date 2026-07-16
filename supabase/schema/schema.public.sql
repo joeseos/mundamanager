@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict JynxQrIJbKoPgWi8pEAuIvKGsomQMlwAZZwHcIgybJmsKaHvaHuET2h6NPcHF7H
+\restrict YmvH6lSe1M5E3IZJcCbmelPZPhzbbJtuGyQ5TdqqshRxF7hi2hbCqCdFYppQWlK
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -523,6 +523,64 @@ $$;
 COMMENT ON FUNCTION public.check_permission(p_user_id uuid, p_campaign_id uuid, p_gang_id uuid) IS 'Returns { is_admin, campaign_role } for a user. Accepts campaign_id directly or resolves it from gang_id via campaign_gangs. Used for all app-level permission checks.';
 
 
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: email_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_deliveries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    notification_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    provider text,
+    provider_message_id text,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    next_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
+    locked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT email_deliveries_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'abandoned'::text])))
+);
+
+
+--
+-- Name: claim_email_deliveries(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.claim_email_deliveries(batch_size integer DEFAULT 25) RETURNS SETOF public.email_deliveries
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+   RETURN QUERY
+   WITH due AS (
+      SELECT id
+      FROM email_deliveries
+      WHERE status = 'pending'
+         OR (status = 'failed' AND attempts < 5 AND next_attempt_at <= now())
+         OR (status = 'processing' AND locked_at < now() - interval '10 minutes')
+      ORDER BY created_at
+      FOR UPDATE SKIP LOCKED
+      LIMIT batch_size
+   )
+   UPDATE email_deliveries d
+      SET status = 'processing',
+          attempts = d.attempts + 1,
+          locked_at = now(),
+          updated_at = now()
+     FROM due
+    WHERE d.id = due.id
+   RETURNING d.*;
+END;
+$$;
+
+
 --
 -- Name: copy_custom_collection(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -811,6 +869,26 @@ BEGIN
   event := jsonb_set(event, '{claims}', claims);
 
   RETURN event;
+END;
+$$;
+
+
+--
+-- Name: enqueue_notification_email(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+   IF NEW.type IN ('invite', 'gang_invite', 'friend_request') THEN
+      INSERT INTO email_deliveries (notification_id, user_id)
+      VALUES (NEW.id, NEW.receiver_id)
+      ON CONFLICT (notification_id) DO NOTHING;
+   END IF;
+
+   RETURN NEW;
 END;
 $$;
 
@@ -4301,10 +4379,6 @@ END;
 $$;
 
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
 --
 -- Name: OLDfighter_equipment_tradingpost; Type: TABLE; Schema: public; Owner: -
 --
@@ -5895,6 +5969,19 @@ CREATE TABLE public.trading_post_types (
 
 
 --
+-- Name: user_notification_preferences; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_notification_preferences (
+    user_id uuid NOT NULL,
+    notification_type text NOT NULL,
+    enabled boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: vehicle_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6303,6 +6390,22 @@ ALTER TABLE ONLY public.custom_trading_posts
 
 ALTER TABLE ONLY public.custom_weapon_profiles
     ADD CONSTRAINT custom_weapon_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_deliveries email_deliveries_notification_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_notification_id_key UNIQUE (notification_id);
+
+
+--
+-- Name: email_deliveries email_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_pkey PRIMARY KEY (id);
 
 
 --
@@ -6738,6 +6841,14 @@ ALTER TABLE ONLY public.fighter_equipment_selections
 
 
 --
+-- Name: user_notification_preferences user_notification_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_notification_preferences
+    ADD CONSTRAINT user_notification_preferences_pkey PRIMARY KEY (user_id, notification_type);
+
+
+--
 -- Name: vehicle_types vehicle_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6942,6 +7053,20 @@ CREATE INDEX custom_shared_custom_equipment_id_idx ON public.custom_shared USING
 --
 
 CREATE INDEX custom_weapon_profiles_weapon_group_id_idx ON public.custom_weapon_profiles USING btree (weapon_group_id);
+
+
+--
+-- Name: email_deliveries_due_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_deliveries_due_idx ON public.email_deliveries USING btree (next_attempt_at) WHERE (status = ANY (ARRAY['pending'::text, 'failed'::text]));
+
+
+--
+-- Name: email_deliveries_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX email_deliveries_user_id_idx ON public.email_deliveries USING btree (user_id);
 
 
 --
@@ -7658,6 +7783,13 @@ CREATE TRIGGER trigger_campaign_member_notification AFTER INSERT ON public.campa
 
 
 --
+-- Name: notifications trigger_enqueue_notification_email; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trigger_enqueue_notification_email AFTER INSERT ON public.notifications FOR EACH ROW EXECUTE FUNCTION public.enqueue_notification_email();
+
+
+--
 -- Name: friends trigger_friend_request_notification; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -8238,6 +8370,22 @@ ALTER TABLE ONLY public.custom_trading_posts
 
 ALTER TABLE ONLY public.custom_weapon_profiles
     ADD CONSTRAINT custom_weapon_profiles_custom_equipment_id_fkey FOREIGN KEY (custom_equipment_id) REFERENCES public.custom_equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: email_deliveries email_deliveries_notification_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES public.notifications(id) ON DELETE CASCADE;
+
+
+--
+-- Name: email_deliveries email_deliveries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -8982,6 +9130,14 @@ ALTER TABLE ONLY public.trading_post_equipment
 
 ALTER TABLE ONLY public.trading_post_equipment
     ADD CONSTRAINT trading_post_equipment_trading_post_type_id_fkey FOREIGN KEY (trading_post_type_id) REFERENCES public.trading_post_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_notification_preferences user_notification_preferences_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_notification_preferences
+    ADD CONSTRAINT user_notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -10912,6 +11068,13 @@ CREATE POLICY "Users can create skills for their own fighters" ON public.fighter
 
 
 --
+-- Name: user_notification_preferences Users can create their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can create their own notification preferences" ON public.user_notification_preferences FOR INSERT TO authenticated WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
 -- Name: fighter_equipment Users can delete equipment from their gang; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -10950,6 +11113,13 @@ CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.figh
 --
 
 CREATE POLICY "Users can delete their own friendships" ON public.friends FOR DELETE TO authenticated USING (((( SELECT auth.uid() AS uid) = requester_id) OR (( SELECT auth.uid() AS uid) = addressee_id)));
+
+
+--
+-- Name: user_notification_preferences Users can delete their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete their own notification preferences" ON public.user_notification_preferences FOR DELETE TO authenticated USING ((( SELECT auth.uid() AS uid) = user_id));
 
 
 --
@@ -11100,6 +11270,13 @@ CREATE POLICY "Users can update their own friendships" ON public.friends FOR UPD
 
 
 --
+-- Name: user_notification_preferences Users can update their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update their own notification preferences" ON public.user_notification_preferences FOR UPDATE TO authenticated USING ((( SELECT auth.uid() AS uid) = user_id)) WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
 -- Name: notifications Users can update their own notifications; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11122,6 +11299,13 @@ CREATE POLICY "Users can view logs for their gangs or campaigns they moderate" O
 --
 
 CREATE POLICY "Users can view their own friendships" ON public.friends FOR SELECT TO authenticated USING (((( SELECT auth.uid() AS uid) = requester_id) OR (( SELECT auth.uid() AS uid) = addressee_id)));
+
+
+--
+-- Name: user_notification_preferences Users can view their own notification preferences; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own notification preferences" ON public.user_notification_preferences FOR SELECT TO authenticated USING ((( SELECT auth.uid() AS uid) = user_id));
 
 
 --
@@ -11358,6 +11542,12 @@ ALTER TABLE public.custom_trading_posts ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.custom_weapon_profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: email_deliveries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.email_deliveries ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: equipment; Type: ROW SECURITY; Schema: public; Owner: -
@@ -12041,6 +12231,12 @@ ALTER TABLE public.trading_post_equipment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trading_post_types ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: user_notification_preferences; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_notification_preferences ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: vehicle_types; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12141,5 +12337,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JynxQrIJbKoPgWi8pEAuIvKGsomQMlwAZZwHcIgybJmsKaHvaHuET2h6NPcHF7H
+\unrestrict YmvH6lSe1M5E3IZJcCbmelPZPhzbbJtuGyQ5TdqqshRxF7hi2hbCqCdFYppQWlK
 
