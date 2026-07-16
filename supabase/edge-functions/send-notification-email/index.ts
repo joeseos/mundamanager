@@ -205,7 +205,6 @@ async function buildEmail(delivery: {
     bodyHtml: notificationTextToHtml(notification.text),
     bodyText: notificationTextToPlain(notification.text),
     ctaUrl: notification.link,
-    appUrl: APP_URL,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });

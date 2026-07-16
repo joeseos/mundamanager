@@ -1,9 +1,11 @@
 // @ts-nocheck
 //
 // Single source of styling for application emails sent via SES. This is NOT the
-// Supabase Dashboard email templates — those only style Auth emails (verify/reset),
-// which are untouched. Email clients strip <head>/external CSS and don't support
-// flex/grid, so this uses a table-based layout with inline styles only.
+// Supabase Dashboard email templates — those style the Auth emails (verify/reset). The
+// palette/structure below intentionally MIRRORS that Auth template (dark card, white
+// header wordmark, white button, community footer) so application emails look the same.
+// Email clients strip <head>/external CSS and don't support flex/grid, so this uses a
+// table-based layout with inline styles only.
 //
 // The notification-text renderers below mirror utils/notifications/render.ts (kept in
 // sync deliberately): Deno requires explicit .ts extensions on relative imports while
@@ -12,13 +14,15 @@
 
 const BRAND = {
   name: "Munda Manager",
-  headerBg: "#111827",
-  headerText: "#ffffff",
-  accent: "#4f46e5",
-  text: "#1f2937",
-  muted: "#6b7280",
-  border: "#e5e7eb",
-  bg: "#f3f4f6",
+  bg: "#0a0a0a", // page background
+  card: "#141414", // email card
+  border: "#262626",
+  heading: "#ffffff",
+  body: "#a1a1a1", // body copy
+  footer: "#525252", // footer copy
+  link: "#a1a1a1", // footer links
+  buttonBg: "#ffffff",
+  buttonText: "#0a0a0a",
   font:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 };
@@ -62,7 +66,6 @@ export interface EmailLayoutInput {
   bodyText: string;
   ctaUrl?: string | null;
   ctaLabel?: string;
-  appUrl: string;
   preferencesUrl: string;
   unsubscribeUrl: string;
 }
@@ -74,43 +77,65 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
     bodyText,
     ctaUrl,
     ctaLabel = "View in Munda Manager",
-    appUrl,
     preferencesUrl,
     unsubscribeUrl,
   } = input;
-  const logoUrl = `${appUrl}/images/favicon-192x192.png`;
 
   const safeCtaUrl = safeUrl(ctaUrl);
   const button = safeCtaUrl
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-         <tr><td style="border-radius:6px;background:${BRAND.accent};">
-           <a href="${safeCtaUrl}" style="display:inline-block;padding:12px 20px;font-family:${BRAND.font};font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">${escapeHtml(ctaLabel)}</a>
-         </td></tr>
-       </table>`
+    ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:8px;">
+                <tr>
+                  <td align="center" bgcolor="${BRAND.buttonBg}" style="border-radius:6px;">
+                    <a href="${safeCtaUrl}" target="_blank" style="background-color:${BRAND.buttonBg};border:1px solid ${BRAND.buttonBg};border-radius:6px;color:${BRAND.buttonText};display:inline-block;font-size:14px;font-weight:600;line-height:1;padding:14px 28px;text-decoration:none;font-family:sans-serif;">${escapeHtml(ctaLabel)}</a>
+                  </td>
+                </tr>
+              </table>`
     : "";
 
   const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(subject)}</title></head>
-<body style="margin:0;padding:0;background:${BRAND.bg};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid ${BRAND.border};border-radius:8px;overflow:hidden;">
-        <tr><td style="background:${BRAND.headerBg};padding:16px 24px;">
-          <img src="${logoUrl}" width="32" height="32" alt="${BRAND.name}" style="vertical-align:middle;border-radius:6px;">
-          <span style="font-family:${BRAND.font};font-size:18px;font-weight:700;color:${BRAND.headerText};vertical-align:middle;margin-left:10px;">${BRAND.name}</span>
-        </td></tr>
-        <tr><td style="padding:24px;font-family:${BRAND.font};font-size:15px;line-height:1.6;color:${BRAND.text};">
-          ${bodyHtml}
-          ${button}
-        </td></tr>
-        <tr><td style="padding:16px 24px;border-top:1px solid ${BRAND.border};font-family:${BRAND.font};font-size:12px;line-height:1.6;color:${BRAND.muted};">
-          You received this email because of your Munda Manager notification settings.<br />
-          <a href="${preferencesUrl}" style="color:${BRAND.muted};text-decoration:underline;">Manage email preferences</a>
-          &middot;
-          <a href="${unsubscribeUrl}" style="color:${BRAND.muted};text-decoration:underline;">Unsubscribe</a>
-        </td></tr>
-      </table>
-    </td></tr>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+</head>
+<body style="margin:0;padding:0;background-color:${BRAND.bg};font-family:${BRAND.font};-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${BRAND.bg};">
+    <tr>
+      <td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px;background-color:${BRAND.card};border-radius:12px;border:1px solid ${BRAND.border};">
+
+          <tr>
+            <td style="padding:32px 40px 24px;text-align:center;border-bottom:1px solid ${BRAND.border};">
+              <h1 style="margin:0;font-size:24px;font-weight:700;color:${BRAND.heading};letter-spacing:-0.5px;">${BRAND.name}</h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px;">
+              <h2 style="margin:0 0 16px;font-size:20px;font-weight:600;color:${BRAND.heading};">${escapeHtml(subject)}</h2>
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.body};">${bodyHtml}</p>
+              ${button}
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 40px;border-top:1px solid ${BRAND.border};text-align:center;">
+              <p style="margin:0 0 12px;font-size:12px;line-height:1.6;color:${BRAND.footer};">
+                You received this email because of your Munda Manager notification settings.<br>
+                <a href="${preferencesUrl}" style="color:${BRAND.link};text-decoration:underline;">Manage email preferences</a>
+                &middot;
+                <a href="${unsubscribeUrl}" style="color:${BRAND.link};text-decoration:underline;">Unsubscribe</a>
+              </p>
+              <p style="margin:0;font-size:12px;color:${BRAND.footer};">© Munda Manager · Built by the community</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
   </table>
 </body></html>`;
 
