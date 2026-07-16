@@ -13,8 +13,7 @@ import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { LuTrash2 } from "react-icons/lu";
-import type { NotificationType } from '@/utils/notifications/email-config';
-import { notificationTextToHtml } from '@/utils/notifications/render';
+import { notificationTextToHtml, type NotificationType } from '@/utils/notifications/email-config';
 
 type Notification = {
   id: string;

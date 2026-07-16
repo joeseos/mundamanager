@@ -1,14 +1,14 @@
-// Central definition of notification categories and their email behaviour.
+// Central definition of notification categories, their email behaviour, and the shared
+// notification-text renderer.
 //
-// SINGLE SOURCE OF TRUTH, shared by:
-//   * the account settings UI (Next.js) — labels + which categories are toggleable,
-//   * the email worker (Deno edge function) — which imports this file by RELATIVE path
-//     (../../../utils/notifications/email-config.ts) to decide eligibility/default/subject.
-//
-// Keep this file PURE DATA with no imports so both the Next bundler and the Deno
-// edge runtime can load it. The database intentionally knows nothing about these
-// types — the enqueue trigger writes a delivery row for every notification and the
-// worker filters using this config, so there is no DB/TS mapping to keep in sync.
+// This is the Next.js-side single source of truth: the account settings UI (labels +
+// which categories are toggleable), the preference server action, the unsubscribe route,
+// and the in-app notification list all read from here. The Deno email worker keeps a
+// small mirror of the email-eligible subset (Deno requires .ts import extensions the Next
+// files don't use), and the DB knows nothing about these types — the enqueue trigger gates
+// on a coarse capability list and the worker resolves preferences at send time.
+
+import { escapeHtml } from '../html';
 
 export type NotificationType =
   | 'info'
@@ -89,4 +89,12 @@ export function isEmailEnabled(
 
   const perType = prefs.find((p) => p.notification_type === type);
   return perType ? perType.enabled : cfg.defaultEnabled;
+}
+
+// Shared renderer for notification `text`: escapes HTML then applies the `**bold**`
+// convention. Used by the in-app notification list (the email worker keeps its own copy).
+// Line breaks are intentionally left as literal `\n` — the in-app list renders with the
+// CSS `whitespace-pre-line`; the worker converts `\n` → `<br>` itself for email HTML.
+export function notificationTextToHtml(text: string): string {
+  return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
