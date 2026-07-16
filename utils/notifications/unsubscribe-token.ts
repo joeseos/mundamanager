@@ -50,6 +50,25 @@ export async function signUnsubscribeToken(
   return `${body}.${sig}`;
 }
 
+/**
+ * Decode the category (`t`) from a token WITHOUT verifying the signature. Display only —
+ * used by the confirmation page to show which category is being unsubscribed. The real
+ * mutation still verifies the signature server-side, so a tampered token can at most show
+ * a misleading label; it can never change what is written.
+ */
+export function decodeUnsubscribeType(token: string): string | null {
+  const body = token.split('.')[0];
+  if (!body) return null;
+  try {
+    const payload = JSON.parse(
+      new TextDecoder().decode(fromBase64url(body)),
+    ) as Partial<UnsubscribePayload>;
+    return typeof payload.t === 'string' ? payload.t : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyUnsubscribeToken(
   token: string,
   secret: string,

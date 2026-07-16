@@ -32,6 +32,18 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+// Attribute-safe href: only allow http(s) or site-relative URLs (blocks javascript:,
+// data:, etc.), then escape for attribute context. Returns null for anything else so the
+// caller can drop the link rather than emit an unsafe href. Defence-in-depth: today
+// notification.link is only ever NULL or UUID-built, but this stops a future producer from
+// turning free text in `link` into an href-attribute breakout.
+function safeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("/")) return null;
+  return escapeHtml(trimmed);
+}
+
 // Mirrors notificationTextToHtml(text, { newlineToBr: true }).
 export function notificationTextToHtml(text: string): string {
   return escapeHtml(text)
@@ -68,10 +80,11 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
   } = input;
   const logoUrl = `${appUrl}/images/favicon-192x192.png`;
 
-  const button = ctaUrl
+  const safeCtaUrl = safeUrl(ctaUrl);
+  const button = safeCtaUrl
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
          <tr><td style="border-radius:6px;background:${BRAND.accent};">
-           <a href="${ctaUrl}" style="display:inline-block;padding:12px 20px;font-family:${BRAND.font};font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">${escapeHtml(ctaLabel)}</a>
+           <a href="${safeCtaUrl}" style="display:inline-block;padding:12px 20px;font-family:${BRAND.font};font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">${escapeHtml(ctaLabel)}</a>
          </td></tr>
        </table>`
     : "";
@@ -103,7 +116,8 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
 
   const text = [
     bodyText,
-    ctaUrl ? `\n${ctaLabel}: ${ctaUrl}` : "",
+    // Same scheme validation as the HTML button; keep the raw (unescaped) URL for text.
+    safeCtaUrl ? `\n${ctaLabel}: ${ctaUrl}` : "",
     `\n—\nManage email preferences: ${preferencesUrl}`,
     `Unsubscribe: ${unsubscribeUrl}`,
   ]
