@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { decodeUnsubscribeType } from '@/utils/notifications/unsubscribe-token';
+import { decodeUnsubscribeType } from '@/utils/unsubscribe-token';
 import {
   notificationEmailConfig,
   MASTER_PREF_KEY,

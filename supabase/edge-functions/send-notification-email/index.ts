@@ -63,7 +63,7 @@ function isEmailEnabled(
   return perType ? perType.enabled : cfg.defaultEnabled;
 }
 
-// Mirror of signUnsubscribeToken in utils/notifications/unsubscribe-token.ts.
+// Mirror of signUnsubscribeToken in utils/unsubscribe-token.ts.
 const encoder = new TextEncoder();
 function base64url(bytes: Uint8Array): string {
   let bin = "";

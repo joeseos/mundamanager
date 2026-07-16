@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/utils/supabase/server";
-import { verifyUnsubscribeToken } from "@/utils/notifications/unsubscribe-token";
+import { verifyUnsubscribeToken } from "@/utils/unsubscribe-token";
 import {
   MASTER_PREF_KEY,
   notificationEmailConfig,
