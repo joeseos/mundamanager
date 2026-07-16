@@ -2,16 +2,16 @@
 //
 // send-notification-email — SES worker for the notification email outbox.
 //
-// Invoked (a) immediately by a Database Webhook on notification_deliveries INSERT and
+// Invoked (a) immediately by a Database Webhook on email_deliveries INSERT and
 // (b) periodically by a recovery cron. Either way it self-claims a batch of due rows
-// from the outbox (claim_notification_deliveries RPC, FOR UPDATE SKIP LOCKED), resolves
+// from the outbox (claim_email_deliveries RPC, FOR UPDATE SKIP LOCKED), resolves
 // eligibility + recipient, renders via the shared layout, sends through Amazon SES
 // (SESv2 API, signed with aws4fetch), and records the outcome. Idempotent and safe to
 // run concurrently.
 //
 // Auth: verify_jwt=false; the WEBHOOK_SECRET header is the gate (same pattern as
 // discord-campaign-bot). Uses the service-role key to bypass RLS on the worker-only
-// notification_deliveries table.
+// email_deliveries table.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -148,7 +148,7 @@ async function sendViaSes(input: {
 
 async function markStatus(id: string, fields: Record<string, unknown>) {
   await supabase
-    .from("notification_deliveries")
+    .from("email_deliveries")
     .update({ ...fields, updated_at: new Date().toISOString() })
     .eq("id", id);
 }
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
   // template + recipient resolution can be inspected safely.
   if (dryRun) {
     const { data: due } = await supabase
-      .from("notification_deliveries")
+      .from("email_deliveries")
       .select("id, notification_id, user_id")
       .in("status", ["pending", "failed"])
       .order("created_at", { ascending: true })
@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
   }
 
   const { data: claimed, error: claimError } = await supabase.rpc(
-    "claim_notification_deliveries",
+    "claim_email_deliveries",
     { batch_size: BATCH_SIZE },
   );
   if (claimError) {

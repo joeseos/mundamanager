@@ -10,8 +10,8 @@
 --
 -- service_role only: the worker uses the service-role key; nothing else may claim work.
 
-CREATE OR REPLACE FUNCTION public.claim_notification_deliveries(batch_size integer DEFAULT 25)
-RETURNS SETOF public.notification_deliveries
+CREATE OR REPLACE FUNCTION public.claim_email_deliveries(batch_size integer DEFAULT 25)
+RETURNS SETOF public.email_deliveries
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public AS $$
@@ -19,16 +19,15 @@ BEGIN
    RETURN QUERY
    WITH due AS (
       SELECT id
-      FROM notification_deliveries
-      WHERE channel = 'email'
-        AND ( status = 'pending'
-           OR (status = 'failed' AND attempts < 5 AND next_attempt_at <= now())
-           OR (status = 'processing' AND locked_at < now() - interval '10 minutes') )
+      FROM email_deliveries
+      WHERE status = 'pending'
+         OR (status = 'failed' AND attempts < 5 AND next_attempt_at <= now())
+         OR (status = 'processing' AND locked_at < now() - interval '10 minutes')
       ORDER BY created_at
       FOR UPDATE SKIP LOCKED
       LIMIT batch_size
    )
-   UPDATE notification_deliveries d
+   UPDATE email_deliveries d
       SET status = 'processing',
           attempts = d.attempts + 1,
           locked_at = now(),
@@ -39,7 +38,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.claim_notification_deliveries(integer) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.claim_notification_deliveries(integer) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.claim_notification_deliveries(integer) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_notification_deliveries(integer) TO service_role;
+REVOKE ALL ON FUNCTION public.claim_email_deliveries(integer) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.claim_email_deliveries(integer) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.claim_email_deliveries(integer) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_email_deliveries(integer) TO service_role;

@@ -1,4 +1,4 @@
--- Database Webhook: notification_deliveries INSERT -> send-notification-email.
+-- Database Webhook: email_deliveries INSERT -> send-notification-email.
 --
 -- This is the IMMEDIATE delivery path. It fires the SES worker (fire-and-forget, via
 -- pg_net under supabase_functions.http_request) the moment a delivery row is enqueued,
@@ -19,10 +19,10 @@
 --     -v webhook_secret="$WEBHOOK_SECRET" \
 --     -f supabase/webhooks/send_notification_email.sql
 
-DROP TRIGGER IF EXISTS send_notification_email ON public.notification_deliveries;
+DROP TRIGGER IF EXISTS send_notification_email ON public.email_deliveries;
 
 CREATE TRIGGER send_notification_email
-   AFTER INSERT ON public.notification_deliveries
+   AFTER INSERT ON public.email_deliveries
    FOR EACH ROW
    EXECUTE FUNCTION supabase_functions.http_request(
       'https://iojoritxhpijprgkjfre.supabase.co/functions/v1/send-notification-email',

@@ -16,12 +16,12 @@ parameterized.
 ## `send_notification_email.sql`
 
 Fires the `send-notification-email` edge function immediately when a row is inserted into
-`public.notification_deliveries` (the email outbox). This is the low-latency delivery path.
+`public.email_deliveries` (the email outbox). This is the low-latency delivery path.
 
 ### Apply it
 
 **Dashboard:** Database → Webhooks → *Create a new hook*
-- Table: `public.notification_deliveries`, Events: `INSERT`
+- Table: `public.email_deliveries`, Events: `INSERT`
 - Type: *Supabase Edge Functions* → `send-notification-email`
 - HTTP Headers: `Authorization: <the WEBHOOK_SECRET value>`
 

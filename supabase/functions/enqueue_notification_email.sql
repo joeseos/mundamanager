@@ -1,7 +1,7 @@
 -- Enqueue an email delivery for email-capable notifications.
 --
 -- DEPLOY ORDER: apply migration 20260716120000_notification_email.sql (which creates
--- notification_deliveries) BEFORE this trigger goes live. Once active, this trigger runs
+-- email_deliveries) BEFORE this trigger goes live. Once active, this trigger runs
 -- on every notifications INSERT; if the delivery table did not exist, those inserts would
 -- fail. (Same convention as the other notify_* triggers: table in migrations, trigger
 -- here.)
@@ -21,7 +21,7 @@
 -- send time, so a preference change AFTER enqueue is still honored.
 --
 -- Keep this list in step with the supportsEmail:true entries in
--- utils/notifications/email-config.ts. The UNIQUE (notification_id, channel) constraint
+-- utils/notifications.ts. The UNIQUE (notification_id) constraint
 -- + ON CONFLICT DO NOTHING keeps it idempotent.
 
 CREATE OR REPLACE FUNCTION public.enqueue_notification_email()
@@ -31,9 +31,9 @@ SECURITY DEFINER
 SET search_path = public AS $$
 BEGIN
    IF NEW.type IN ('invite', 'gang_invite', 'friend_request') THEN
-      INSERT INTO notification_deliveries (notification_id, user_id, channel)
-      VALUES (NEW.id, NEW.receiver_id, 'email')
-      ON CONFLICT (notification_id, channel) DO NOTHING;
+      INSERT INTO email_deliveries (notification_id, user_id)
+      VALUES (NEW.id, NEW.receiver_id)
+      ON CONFLICT (notification_id) DO NOTHING;
    END IF;
 
    RETURN NEW;
