@@ -141,6 +141,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       action_type: log.action_type,
       description: log.description,
       fighter_id: log.fighter_id,
+      vehicle_id: log.vehicle_id,
       created_at: log.created_at,
       username: 'System' // Simplified for now
     }));
