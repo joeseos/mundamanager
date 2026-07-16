@@ -13,11 +13,12 @@ import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { LuTrash2 } from "react-icons/lu";
+import { notificationTextToHtml, type NotificationType } from '@/utils/notifications';
 
 type Notification = {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite';
+  type: NotificationType;
   created_at: string;
   dismissed: boolean;
   link: string | null;
@@ -175,18 +176,12 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     return `${months}mo ago`;
   };
 
-  // Render notification text with **bold** support (escapes HTML for XSS safety)
-  const renderNotificationText = (text: string) => {
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-    return escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  };
+  // Render notification text with **bold** support (escapes HTML for XSS safety).
+  // Shared with the email worker via utils/notifications/render so both channels match.
+  const renderNotificationText = (text: string) => notificationTextToHtml(text);
 
   // Get icon based on notification type
-  const getNotificationIcon = (type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite') => {
+  const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
       case 'error':
         return <LuOctagonX className="h-5 w-5 text-red-500" />;

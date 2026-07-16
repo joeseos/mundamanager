@@ -10,3 +10,7 @@ entrypoint = "./edge-functions/discord-campaign-bot/index.ts"
 
 [functions.users-images-cleanup-drafts]
 entrypoint = "./edge-functions/users-images-cleanup-drafts/index.ts"
+
+[functions.send-notification-email]
+entrypoint = "./edge-functions/send-notification-email/index.ts"
+verify_jwt = false

@@ -2,6 +2,57 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateUserProfile } from "@/utils/cache-tags";
+import {
+  notificationEmailConfig,
+  MASTER_PREF_KEY,
+  type NotificationType,
+} from "@/utils/notifications";
+
+/**
+ * Upsert one email-notification preference for the current user.
+ * `notificationType` is either the master switch (MASTER_PREF_KEY) or an
+ * email-eligible category. RLS additionally guarantees a user can only write
+ * their own rows.
+ */
+export const updateNotificationPreference = async (
+  notificationType: string,
+  enabled: boolean,
+) => {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  // Only the master switch or a genuinely email-eligible category may be stored.
+  const isMaster = notificationType === MASTER_PREF_KEY;
+  const cfg = notificationEmailConfig[notificationType as NotificationType];
+  if (!isMaster && (!cfg || !cfg.supportsEmail)) {
+    return { error: "Unknown notification category" };
+  }
+
+  const { error } = await supabase
+    .from("user_notification_preferences")
+    .upsert(
+      {
+        user_id: user.id,
+        notification_type: notificationType,
+        enabled,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,notification_type" },
+    );
+
+  if (error) {
+    console.error("Notification preference update error:", error);
+    return { error: "Failed to update preference" };
+  }
+
+  return { success: true };
+};
 
 export const updateUsernameAction = async (userId: string, newUsername: string) => {
   const supabase = await createClient();
