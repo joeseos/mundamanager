@@ -87,4 +87,10 @@ CREATE INDEX IF NOT EXISTS notification_deliveries_due_idx
     ON public.notification_deliveries (next_attempt_at)
     WHERE status IN ('pending', 'failed');
 
+-- Index the user_id foreign key (notification_id is already covered by the UNIQUE
+-- (notification_id, channel) index prefix). Keeps the auth.users ON DELETE CASCADE off a
+-- sequential scan and satisfies the "unindexed foreign key" performance advisor.
+CREATE INDEX IF NOT EXISTS notification_deliveries_user_id_idx
+    ON public.notification_deliveries (user_id);
+
 ALTER TABLE public.notification_deliveries ENABLE ROW LEVEL SECURITY;
