@@ -1,0 +1,35 @@
+name: Deploy Supabase Edge Functions
+
+# Deploys Deno edge functions when they change on main. The existing
+# deploy_supabase_functions.yml only handles SQL functions (supabase/functions/*.sql);
+# this covers supabase/edge-functions/**. verify_jwt and entrypoints come from
+# supabase/config.toml.
+#
+# Requires repo secrets:
+#   SUPABASE_ACCESS_TOKEN  — a Supabase personal access token
+#   SUPABASE_PROJECT_REF   — the project ref (iojoritxhpijprgkjfre)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'supabase/edge-functions/**'
+      - 'supabase/config.toml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy send-notification-email
+        run: supabase functions deploy send-notification-email --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import type { NotificationType } from '@/utils/notifications/email-config';
 
 type Notification = {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite' | 'friend_request' | 'gang_invite';
+  type: NotificationType;
   created_at: string;
   dismissed: boolean;
   link: string | null;
