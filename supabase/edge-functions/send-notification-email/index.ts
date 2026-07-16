@@ -9,9 +9,10 @@
 // (SESv2 API, signed with aws4fetch), and records the outcome. Idempotent and safe to
 // run concurrently.
 //
-// Auth: verify_jwt=false; the WEBHOOK_SECRET header is the gate (same pattern as
-// discord-campaign-bot). Uses the service-role key to bypass RLS on the worker-only
-// email_deliveries table.
+// Auth: verify_jwt=false; the shared WEBHOOK_SECRET gates the function, sent via the
+// x-supabase-webhook-source header (the Dashboard webhook UI locks Authorization to a
+// managed Bearer JWT), with a raw Authorization fallback for manual/cron callers. Uses
+// the service-role key to bypass RLS on the worker-only email_deliveries table.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -219,7 +220,15 @@ async function buildEmail(delivery: {
 }
 
 Deno.serve(async (req) => {
-  if (req.headers.get("Authorization") !== WEBHOOK_SECRET) {
+  // Auth (verify_jwt=false): the Dashboard webhook UI locks Authorization to a
+  // Supabase-managed "Bearer <JWT>", so the shared WEBHOOK_SECRET is sent via the custom
+  // x-supabase-webhook-source header instead. Prefer that; fall back to a raw Authorization
+  // header for manual/cron callers. When the source header is present the managed Bearer
+  // value is ignored.
+  const suppliedSecret =
+    req.headers.get("x-supabase-webhook-source") ??
+    req.headers.get("Authorization");
+  if (!suppliedSecret || suppliedSecret !== WEBHOOK_SECRET) {
     return new Response("Unauthorized", { status: 401 });
   }
 

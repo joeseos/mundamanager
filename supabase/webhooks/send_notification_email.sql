@@ -27,9 +27,12 @@ CREATE TRIGGER send_notification_email
    EXECUTE FUNCTION supabase_functions.http_request(
       'https://iojoritxhpijprgkjfre.supabase.co/functions/v1/send-notification-email',
       'POST',
-      -- Replace <WEBHOOK_SECRET> when applying via the Dashboard; or use the psql form:
-      -- format('{"Content-Type":"application/json","Authorization":"%s"}', :'webhook_secret')
-      '{"Content-Type":"application/json","Authorization":"<WEBHOOK_SECRET>"}',
+      -- The secret goes in x-supabase-webhook-source: the Dashboard webhook UI locks
+      -- Authorization to a Supabase-managed Bearer JWT (which the function ignores), so
+      -- this custom header is the standard channel for WEBHOOK_SECRET. Substitute the
+      -- value when applying, or use the psql form:
+      -- format('{"Content-Type":"application/json","x-supabase-webhook-source":"%s"}', :'webhook_secret')
+      '{"Content-Type":"application/json","x-supabase-webhook-source":"<WEBHOOK_SECRET>"}',
       '{}',
       '5000'
    );

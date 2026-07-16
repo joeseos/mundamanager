@@ -23,7 +23,10 @@ Fires the `send-notification-email` edge function immediately when a row is inse
 **Dashboard:** Database → Webhooks → *Create a new hook*
 - Table: `public.email_deliveries`, Events: `INSERT`
 - Type: *Supabase Edge Functions* → `send-notification-email`
-- HTTP Headers: `Authorization: <the WEBHOOK_SECRET value>`
+- HTTP Headers: add the custom header `x-supabase-webhook-source: <the WEBHOOK_SECRET value>`.
+  Leave the auto-generated `Authorization: Bearer …` header as-is — it is managed by
+  Supabase and the function ignores it. (The Dashboard locks that `Authorization` header, so
+  the shared secret must travel in `x-supabase-webhook-source`.)
 
 **Or via psql** (substitutes the secret from the environment):
 
@@ -49,7 +52,7 @@ select cron.schedule(
   $$
   select net.http_post(
     url    := 'https://iojoritxhpijprgkjfre.supabase.co/functions/v1/send-notification-email',
-    headers:= jsonb_build_object('Content-Type','application/json','Authorization', '<WEBHOOK_SECRET>')
+    headers:= jsonb_build_object('Content-Type','application/json','x-supabase-webhook-source', '<WEBHOOK_SECRET>')
   );
   $$
 );
@@ -67,7 +70,7 @@ AWS_ACCESS_KEY_ID       # least-privilege IAM identity, ses:SendEmail only
 AWS_SECRET_ACCESS_KEY
 AWS_REGION=us-east-1
 SES_FROM_EMAIL          # a verified SES sender
-WEBHOOK_SECRET          # shared secret in the webhook/schedule Authorization header
+WEBHOOK_SECRET          # shared secret sent via the x-supabase-webhook-source header (webhook + schedule)
 UNSUBSCRIBE_SECRET      # HMAC key for one-click unsubscribe tokens (same value in the Next app env)
 APP_URL=https://www.mundamanager.com
 ```
