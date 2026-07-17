@@ -68,7 +68,8 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       beastDataResult,
       ownershipDataResult,
       gangFighters,
-      loadouts
+      loadouts,
+      fighterTypeSourceGangTypeId
     ] = await Promise.all([
       // Gang data
       getGangBasic(fighterBasic.gang_id, supabase),
@@ -96,7 +97,17 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       // Gang fighters list
       getGangFighters(fighterBasic.gang_id, supabase),
       // Fighter loadouts
-      getFighterLoadouts(id, supabase)
+      getFighterLoadouts(id, supabase),
+      // Fighter type's source gang_type_id — direct query (not cached) so it is always fresh.
+      // This is needed to show the correct promotion options for fighters added from another house.
+      fighterBasic.fighter_type_id
+        ? supabase
+            .from('fighter_types')
+            .select('gang_type_id')
+            .eq('id', fighterBasic.fighter_type_id)
+            .single()
+            .then((r: any) => r.error ? null : (r.data?.gang_type_id ?? null))
+        : Promise.resolve(null)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -116,11 +127,12 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       .map((beast: any) => beast.fighter_pet_id)
       .filter(Boolean);
 
-    // Parallel batch: beast fighters, gang variants, and captured-by gang name (non-critical queries)
+    // Parallel batch: beast fighters, gang variants, captured-by gang name, and custom fighter type info
     const [
       beastFightersResult,
       gangVariantsResult,
-      capturedByGangResult
+      capturedByGangResult,
+      customFighterTypeResult
     ] = await Promise.all([
       // Beast fighters (only if needed)
       beastIds.length > 0
@@ -154,8 +166,19 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             .eq('id', fighterBasic.captured_by_gang_id)
             .single()
             .then((result: any) => result.error ? null : result.data?.name ?? null)
+        : Promise.resolve(null),
+      // Custom fighter type source gang info (needed to find correct promotion options)
+      fighterBasic.custom_fighter_type_id
+        ? supabase
+            .from('custom_fighter_types')
+            .select('gang_type_id, custom_gang_type_id')
+            .eq('id', fighterBasic.custom_fighter_type_id)
+            .single()
+            .then((result: any) => result.error ? null : result.data)
         : Promise.resolve(null)
     ]);
+
+    const customFighterTypeInfo = customFighterTypeResult;
 
     // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
 
@@ -278,7 +301,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
-          alliance_crew_name: fighterTypeData?.alliance_crew_name
+          alliance_crew_name: fighterTypeData?.alliance_crew_name,
+          gang_type_id: fighterTypeSourceGangTypeId || customFighterTypeInfo?.gang_type_id || null,
+          custom_gang_type_id: customFighterTypeInfo?.custom_gang_type_id || null,
         },
         fighter_sub_type: fighterSubTypeData ? {
           id: fighterSubTypeData.fighter_sub_type_id,

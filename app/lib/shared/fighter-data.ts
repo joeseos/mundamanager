@@ -1178,6 +1178,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
   fighter_type: string;
   alliance_crew_name?: string;
   is_spyrer?: boolean;
+  gang_type_id?: string | null;
 } | null> => {
   if (!fighterTypeId) return null;
 
@@ -1185,7 +1186,7 @@ export const getFighterTypeInfo = async (fighterTypeId: string | null, supabase:
     async () => {
       const { data, error } = await supabase
         .from('fighter_types')
-        .select('id, fighter_type, alliance_crew_name, is_spyrer')
+        .select('id, fighter_type, alliance_crew_name, is_spyrer, gang_type_id')
         .eq('id', fighterTypeId)
         .single();
 

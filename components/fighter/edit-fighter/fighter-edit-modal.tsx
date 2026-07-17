@@ -401,7 +401,7 @@ export function EditFighterModal({
         ...(submit.fighter_class ? { fighter_class: submit.fighter_class } : {}),
         ...(submit.fighter_type && (submit.fighter_type_id || submit.custom_fighter_type_id)
           ? {
-              fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null } as any,
+              fighter_type: { fighter_type: submit.fighter_type, fighter_type_id: submit.fighter_type_id ?? null, gang_type_id: (submit as any).gang_type_id ?? null } as any,
               custom_fighter_type_id: submit.custom_fighter_type_id ?? null,
               fighter_type_id: submit.fighter_type_id ?? null,
             }
@@ -889,6 +889,7 @@ export function EditFighterModal({
         } else {
           submitData.fighter_type_id = fighterTypeToUse.id;
           submitData.custom_fighter_type_id = null;
+          submitData.gang_type_id = fighterTypeToUse.gang_type_id ?? null;
           submitData.fighter_sub_type = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.fighter_sub_type : null;
           submitData.fighter_sub_type_id = selectedSubType && selectedSubType.fighter_sub_type !== 'Default' ? selectedSubType.id : null;
         }
