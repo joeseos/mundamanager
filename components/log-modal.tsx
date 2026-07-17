@@ -32,6 +32,9 @@ interface LogModalProps {
   vehicles?: Array<{ id: string; name: string }>;
 }
 
+// Mirrors the `.limit(100)` cap applied server-side in the logs API routes.
+const LOGS_FETCH_LIMIT = 100;
+
 export default function LogModal({
   fetchUrl,
   title = 'Activity Logs',
@@ -48,10 +51,27 @@ export default function LogModal({
   const [filterFighterId, setFilterFighterId] = useState('');
   const [filterVehicleId, setFilterVehicleId] = useState('');
 
+  // When a fighter/vehicle filter is selected, route the id(s) through the
+  // server-side `fighterId`/`vehicleId` query params (same as the fighter
+  // page's fetchUrl) rather than only slicing the gang-wide, already
+  // `.limit(100)`-capped response client-side. Otherwise selecting a less
+  // active fighter/vehicle could miss real history that fell outside the
+  // fetched window.
+  const effectiveFetchUrl = useMemo(() => {
+    if (!filterFighterId && !filterVehicleId) return fetchUrl;
+
+    const [base, existingQuery] = fetchUrl.split('?');
+    const params = new URLSearchParams(existingQuery);
+    if (filterFighterId) params.set('fighterId', filterFighterId);
+    if (filterVehicleId) params.set('vehicleId', filterVehicleId);
+
+    return `${base}?${params.toString()}`;
+  }, [fetchUrl, filterFighterId, filterVehicleId]);
+
   const { data: logs = [], isLoading } = useQuery<GangLog[]>({
-    queryKey: ['logs', fetchUrl],
+    queryKey: ['logs', effectiveFetchUrl],
     queryFn: async () => {
-      const response = await fetch(fetchUrl);
+      const response = await fetch(effectiveFetchUrl);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -176,6 +196,12 @@ export default function LogModal({
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Filters</h3>
         </div>
+        {logs.length >= LOGS_FETCH_LIMIT && (
+          <p className="text-xs text-muted-foreground italic mb-2">
+            Only the most recent {LOGS_FETCH_LIMIT} matching logs are fetched, so the Action Type filter may not
+            reflect older history.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {/* Action Type Filter */}
           <div className="space-y-1">
