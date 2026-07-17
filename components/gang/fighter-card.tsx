@@ -496,7 +496,7 @@ const FighterCard = memo(function FighterCard({
         </div>
       )}
       <div className={useTightLayoutWrapping ? 'absolute inset-0 overflow-hidden' : 'contents'}>
-      <div className={useTightLayoutWrapping ? 'pl-2 pr-2 min-w-0 w-full h-full' : 'pl-2 pr-2'} style={compactInnerScaleStyle}>
+      <div className={useTightLayoutWrapping ? 'pl-2 pr-2 min-w-0 w-full h-full' : isPrintAutoHeight ? 'pl-2 pr-2' : 'contents'} style={compactInnerScaleStyle}>
       <div className={`flex ${isNormalView ? 'mb-[80px]' : 'mb-[90px]'}`}>
         <div className="flex w-full">
           <div
