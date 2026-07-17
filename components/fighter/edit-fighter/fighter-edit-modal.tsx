@@ -711,6 +711,7 @@ export function EditFighterModal({
     const removed = new Set<string>();
     if (fighter.effects) {
       Object.values(fighter.effects).flat().forEach((effect: any) => {
+        if (!effect) return;
         const tsd = typeof effect.type_specific_data === 'object' && effect.type_specific_data
           ? effect.type_specific_data : null;
         if (tsd) {
