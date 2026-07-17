@@ -64,6 +64,11 @@ export default function LogModal({
     const params = new URLSearchParams(existingQuery);
     if (filterFighterId) params.set('fighterId', filterFighterId);
     if (filterVehicleId) params.set('vehicleId', filterVehicleId);
+    // These are independent, user-selected filters, so require both to match
+    // the same log row (AND) rather than the route's default OR behaviour —
+    // otherwise the true intersection could be pushed out of the `.limit(100)`
+    // window by unrelated rows matching only one side.
+    if (filterFighterId && filterVehicleId) params.set('combine', 'and');
 
     return `${base}?${params.toString()}`;
   }, [fetchUrl, filterFighterId, filterVehicleId]);

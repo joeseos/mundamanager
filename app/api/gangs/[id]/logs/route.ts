@@ -97,6 +97,11 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     const url = new URL(request.url);
     const fighterId = url.searchParams.get('fighterId');
     const vehicleId = url.searchParams.get('vehicleId');
+    // Defaults to OR (used by the fighter page to combine a Crew fighter with
+    // their own vehicle). Pass `combine=and` to require both ids on the same
+    // row instead (used by the gang-wide log filters, where fighter and
+    // vehicle are independent, user-selected narrowing criteria).
+    const combine = url.searchParams.get('combine');
 
     // Fetch gang logs - simplified query without join for now
     let query = supabase
@@ -104,8 +109,12 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       .select('*')
       .eq('gang_id', params.id);
 
-    // If both fighterId and vehicleId are provided, use OR filter (for Crew fighters with vehicles)
-    if (fighterId && vehicleId) {
+    if (fighterId && vehicleId && combine === 'and') {
+      // Both ids must match the same log row (e.g. a specific fighter + a specific vehicle)
+      console.log('Filtering logs for fighter:', fighterId, 'and vehicle:', vehicleId);
+      query = query.eq('fighter_id', fighterId).eq('vehicle_id', vehicleId);
+    } else if (fighterId && vehicleId) {
+      // Either id may match (for Crew fighters with vehicles)
       console.log('Filtering logs for fighter:', fighterId, 'or vehicle:', vehicleId);
       query = query.or(`fighter_id.eq.${fighterId},vehicle_id.eq.${vehicleId}`);
     } else if (fighterId) {
