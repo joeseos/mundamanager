@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict YmvH6lSe1M5E3IZJcCbmelPZPhzbbJtuGyQ5TdqqshRxF7hi2hbCqCdFYppQWlK
+\restrict xUegLbcvsi6bcWSBNnPlDQiRZ452NxGhWbhqkAzmVsrOXfzWLUNUM7BIIJBkIev
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -882,7 +882,7 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN ('invite', 'gang_invite', 'friend_request') THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
@@ -4272,7 +4272,7 @@ BEGIN
    ) VALUES (
        NEW.user_id,
        NEW.invited_by,
-       'invite',
+       'campaign_invite',
        'You have been invited to the campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '". Click this notification to go to the campaign.',
        'https://www.mundamanager.com/campaigns/' || NEW.campaign_id,
        false
@@ -5845,7 +5845,7 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
@@ -7773,6 +7773,12 @@ CREATE INDEX weapon_profiles_weapon_id_idx ON public.weapon_profiles USING btree
 --
 
 CREATE TRIGGER on_gang_invite AFTER INSERT ON public.campaign_gangs FOR EACH ROW EXECUTE FUNCTION public.notify_gang_invite();
+
+
+--
+-- Name: email_deliveries send-notification-email; Type: TRIGGER; Schema: public; Owner: -
+--
+
 
 
 --
@@ -12337,5 +12343,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict YmvH6lSe1M5E3IZJcCbmelPZPhzbbJtuGyQ5TdqqshRxF7hi2hbCqCdFYppQWlK
+\unrestrict xUegLbcvsi6bcWSBNnPlDQiRZ452NxGhWbhqkAzmVsrOXfzWLUNUM7BIIJBkIev
 
