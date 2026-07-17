@@ -25,7 +25,7 @@ BEGIN
    ) VALUES (
        NEW.user_id,
        NEW.invited_by,
-       'invite',
+       'campaign_invite',
        'You have been invited to the campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '". Click this notification to go to the campaign.',
        'https://www.mundamanager.com/campaigns/' || NEW.campaign_id,
        false

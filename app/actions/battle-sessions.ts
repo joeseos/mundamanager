@@ -186,7 +186,7 @@ export async function createBattleSession(params: {
             otherGangs.map((g) => ({
               receiver_id: g.user_id,
               sender_id: user.id,
-              type: 'invite',
+              type: 'battle_invite',
               text: `${senderName} added you to a battle session.`,
               link: `/gang/${g.id}/battle-session/${sessionId}`,
               dismissed: false,
@@ -708,7 +708,7 @@ export async function addParticipant(params: {
       await supabase.from('notifications').insert({
         receiver_id: params.user_id,
         sender_id: currentUser.id,
-        type: 'invite',
+        type: 'battle_invite',
         text: `${senderName} invited you to a battle session.`,
         link: `/gang/${params.gang_id}/battle-session/${params.session_id}`,
         dismissed: false,

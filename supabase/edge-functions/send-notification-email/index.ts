@@ -47,7 +47,7 @@ const MASTER_PREF_KEY = "all";
 // Mirror of the email-eligible subset of utils/notifications.ts. Kept in
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string }> = {
-  invite: { defaultEnabled: true, subject: "You have a new invitation on Munda Manager" },
+  campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
   gang_invite: { defaultEnabled: true, subject: "Someone wants to add your gang to a campaign" },
   friend_request: { defaultEnabled: true, subject: "You have a new friend request on Munda Manager" },
 };
