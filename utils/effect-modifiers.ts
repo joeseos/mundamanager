@@ -341,6 +341,7 @@ export function applyWeaponModifiers(
       .filter(Boolean);
 
     effects.forEach((eff) => {
+      if (!eff) return;
       const tsd = typeof eff.type_specific_data === 'object' ? eff.type_specific_data || {} : {};
       const toRemove: string[] = tsd.traits_to_remove || [];
       const toAdd: string[] = tsd.traits_to_add || [];
@@ -372,6 +373,7 @@ export function applySpecialRulesModifiers(
 
   let rules = [...baseRules];
   for (const eff of effects) {
+    if (!eff) continue;
     const tsd = typeof eff.type_specific_data === 'object' && eff.type_specific_data
       ? eff.type_specific_data
       : null;
