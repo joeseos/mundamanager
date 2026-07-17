@@ -59,6 +59,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   vehicle?: Vehicle;
   disableLink?: boolean;
   viewMode?: GangViewMode;
+  scaleToContent?: boolean;
   owner_name?: string;  // Name of the fighter who owns this fighter (for exotic beasts)
   captured_by_gang_name?: string;
   image_url?: string;
@@ -160,6 +161,7 @@ const FighterCard = memo(function FighterCard({
   vehicle,
   disableLink = false,
   viewMode = 'normal',
+  scaleToContent = false,
   owner_name,
   captured_by_gang_name,
   image_url,
@@ -189,7 +191,9 @@ const FighterCard = memo(function FighterCard({
   // View Mode card size — width comes from the parent grid column (4 / 3 / 2 cols)
   const cardAspectRatio = 'aspect-[1.448/1]';
   const compactCardSize = `w-full min-w-0 ${cardAspectRatio}`;
-  const printCardSize = 'w-[630px] h-[435px] shrink-0';
+  const isPrintAutoHeight = isPrintView && scaleToContent;
+  const printCardSize = isPrintAutoHeight ? 'w-[630px] h-auto shrink-0' : 'w-[630px] h-[435px] shrink-0';
+  const useTightLayoutWrapping = isTightLayoutView && !isPrintAutoHeight;
 
   const viewportWidth = useViewportWidth();
 
@@ -491,8 +495,8 @@ const FighterCard = memo(function FighterCard({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground" />
         </div>
       )}
-      <div className={isTightLayoutView ? 'absolute inset-0 overflow-hidden' : 'contents'}>
-      <div className={isTightLayoutView ? 'pl-2 pr-2 min-w-0 w-full h-full' : 'contents'} style={compactInnerScaleStyle}>
+      <div className={useTightLayoutWrapping ? 'absolute inset-0 overflow-hidden' : 'contents'}>
+      <div className={useTightLayoutWrapping ? 'pl-2 pr-2 min-w-0 w-full h-full' : 'contents'} style={compactInnerScaleStyle}>
       <div className={`flex ${isNormalView ? 'mb-[80px]' : 'mb-[90px]'}`}>
         <div className="flex w-full">
           <div
