@@ -55,6 +55,8 @@ interface Fighter {
   fighter_type: {
     fighter_type: string;
     fighter_type_id: string;
+    gang_type_id?: string | null;
+    custom_gang_type_id?: string | null;
   };
   fighter_sub_type?: {
     fighter_sub_type: string;
@@ -318,7 +320,9 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
       fighter_class: fighterData.fighter.fighter_class,
       fighter_type: {
         fighter_type: fighterData.fighter.fighter_type.fighter_type,
-        fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id
+        fighter_type_id: fighterData.fighter.fighter_type.fighter_type_id,
+        gang_type_id: fighterData.fighter.fighter_type.gang_type_id ?? null,
+        custom_gang_type_id: fighterData.fighter.fighter_type.custom_gang_type_id ?? null,
       },
       fighter_sub_type: fighterData.fighter.fighter_sub_type ? {
         fighter_sub_type: fighterData.fighter.fighter_sub_type.fighter_sub_type,
@@ -815,8 +819,8 @@ export default function FighterPage({
             skills={fighterData.fighter?.skills || {}}
             userPermissions={userPermissions}
             gangId={fighterData.gang?.id || ''}
-            gangTypeId={fighterData.gang?.gang_type_id || ''}
-            customGangTypeId={fighterData.gang?.custom_gang_type_id || ''}
+            gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
+            customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
@@ -833,7 +837,9 @@ export default function FighterPage({
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {
                               fighter_type: patch.fighter_type,
-                              fighter_type_id: patch.fighter_type_id
+                              fighter_type_id: patch.fighter_type_id,
+                              gang_type_id: prev.fighter.fighter_type?.gang_type_id ?? null,
+                              custom_gang_type_id: prev.fighter.fighter_type?.custom_gang_type_id ?? null,
                             }
                           : prev.fighter.fighter_type,
                       fighter_sub_type:
@@ -1273,8 +1279,8 @@ export default function FighterPage({
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
               gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.gang?.gang_type_id}
-              customGangTypeId={fighterData.gang?.custom_gang_type_id}
+              gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id}
+              customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {

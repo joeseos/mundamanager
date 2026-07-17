@@ -116,7 +116,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       .map((beast: any) => beast.fighter_pet_id)
       .filter(Boolean);
 
-    // Parallel batch: beast fighters, gang variants, and captured-by gang name (non-critical queries)
+    // Parallel batch: beast fighters, gang variants, and captured-by gang name
     const [
       beastFightersResult,
       gangVariantsResult,
@@ -156,6 +156,9 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
             .then((result: any) => result.error ? null : result.data?.name ?? null)
         : Promise.resolve(null)
     ]);
+
+    // Custom fighter type gang info is embedded in fighterBasic via the FK join
+    const customFighterTypeInfo = fighterBasic.custom_fighter_type ?? null;
 
     // Campaign data already includes trading_post_names from getGangCampaigns, no processing needed
 
@@ -278,7 +281,16 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
         fighter_type: {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
-          alliance_crew_name: fighterTypeData?.alliance_crew_name
+          alliance_crew_name: fighterTypeData?.alliance_crew_name,
+          // Prefer the fighter type's own gang association; fall back to the owning gang's type
+          // so the promotion dropdown is never silently empty (e.g. when a custom gang type was deleted).
+          gang_type_id: fighterTypeData?.gang_type_id
+            || customFighterTypeInfo?.gang_type_id
+            || gangBasic.gang_type_id
+            || null,
+          custom_gang_type_id: customFighterTypeInfo?.custom_gang_type_id
+            || gangBasic.custom_gang_type_id
+            || null,
         },
         fighter_sub_type: fighterSubTypeData ? {
           id: fighterSubTypeData.fighter_sub_type_id,
