@@ -193,17 +193,20 @@ export async function GET(request: Request) {
       
       data = result;
     } else {
-      // Use get_add_fighter_details for regular fighters (same as server action)
-      const { data: result, error } = await supabase.rpc('get_add_fighter_details', {
+      // Use the unified catalog function for regular (roster) fighters.
+      // p_is_gang_addition=false reproduces the old get_add_fighter_details filter:
+      // fighters of this gang type (incl. its gang-addition-flagged fighters).
+      const { data: result, error } = await supabase.rpc('get_fighter_types_with_cost', {
         p_gang_type_id: gangTypeId,
-        p_gang_affiliation_id: gangAffiliationId || null
+        p_gang_affiliation_id: gangAffiliationId || null,
+        p_is_gang_addition: false
       });
-      
+
       if (error) {
         console.error('Supabase RPC error:', error);
         throw error;
       }
-      
+
       data = result;
     }
 
@@ -253,8 +256,10 @@ export async function GET(request: Request) {
           }
 
           // Fetch variant-specific fighter types and merge
-          const { data: variantData, error: variantError } = await supabase.rpc('get_add_fighter_details', {
-            p_gang_type_id: variantModifier.variantGangTypeId
+          const { data: variantData, error: variantError } = await supabase.rpc('get_fighter_types_with_cost', {
+            p_gang_type_id: variantModifier.variantGangTypeId,
+            p_gang_affiliation_id: null,
+            p_is_gang_addition: false
           });
           
           if (!variantError && variantData) {

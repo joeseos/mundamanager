@@ -14,6 +14,7 @@ RETURNS TABLE (
     id uuid,
     fighter_type text,
     fighter_class text,
+    fighter_class_id uuid,
     gang_type text,
     cost numeric,
     gang_type_id uuid,
@@ -39,6 +40,7 @@ RETURNS TABLE (
     equipment_selection jsonb,
     total_cost numeric,
     sub_type jsonb,
+    available_legacies jsonb,
     free_skill boolean,
     delegation_cost numeric,
     is_dramatis_personae boolean
@@ -49,6 +51,7 @@ BEGIN
         ft.id,
         ft.fighter_type,
         fc.class_name,
+        ft.fighter_class_id,
         ft.gang_type,
         -- Use adjusted_cost if available, otherwise use original cost
         COALESCE(ftgc.adjusted_cost, ft.cost) as cost,
@@ -79,7 +82,8 @@ BEGIN
                     'equipment_type', e.equipment_type,
                     'equipment_category', e.equipment_category,
                     'cost', 0,
-                    'availability', e.availability
+                    'availability', e.availability,
+                    'is_editable', COALESCE(e.is_editable, false)
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd
@@ -813,6 +817,20 @@ BEGIN
                 )
             ELSE NULL
         END AS sub_type,
+        COALESCE(
+            (
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'id', fgl.id,
+                        'name', fgl.name
+                    )
+                )
+                FROM fighter_type_gang_legacies ftgl
+                JOIN fighter_gang_legacy fgl ON fgl.id = ftgl.fighter_gang_legacy_id
+                WHERE ftgl.fighter_type_id = ft.id
+            ),
+            '[]'::jsonb
+        ) AS available_legacies,
         ft.free_skill,
         ft.delegation_cost,
         ft.is_dramatis_personae
@@ -823,8 +841,21 @@ BEGIN
         AND (ftgc.gang_affiliation_id IS NULL OR ftgc.gang_affiliation_id = p_gang_affiliation_id)
     LEFT JOIN fighter_sub_types fsub ON fsub.id = ft.fighter_sub_type_id
     WHERE
-        -- Removed the gang_type_id restriction for gang additions
-        (p_is_gang_addition IS NULL OR ft.is_gang_addition = p_is_gang_addition);
+        CASE
+            -- Gang additions: cross-gang pool, filtered only by the flag
+            WHEN p_is_gang_addition = true THEN ft.is_gang_addition = true
+            -- Roster: fighters belonging to this gang type (plus affiliation-cost
+            -- overrides). Matches the previous get_add_fighter_details behaviour,
+            -- including this gang type's own gang-addition-flagged fighters.
+            WHEN p_is_gang_addition = false THEN (
+                ft.gang_type_id = p_gang_type_id
+                OR (ftgc.fighter_type_id IS NOT NULL
+                    AND ftgc.gang_affiliation_id IS NOT NULL
+                    AND ftgc.gang_affiliation_id = p_gang_affiliation_id)
+            )
+            -- Include-all (both params NULL): every fighter type
+            ELSE true
+        END;
 END;
 $$;
 

@@ -11,8 +11,7 @@ import { VehicleProps } from '@/types/vehicle';
 import Image from 'next/image';
 import { DraggableFighters } from './draggable-fighters';
 import { GiAncientRuins } from "react-icons/gi";
-import AddFighter from './add-fighter';
-import GangAdditions from './gang-additions';
+import FighterAddModal from './fighter-add/FighterAddModal';
 import AddVehicle from './add-vehicle';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { AiFillEyeInvisible } from "react-icons/ai";
@@ -1265,7 +1264,8 @@ export default function Gang({
           />
 
           {showAddFighterModal && (
-            <AddFighter
+            <FighterAddModal
+              catalog="roster"
               showModal={showAddFighterModal}
               setShowModal={setShowAddFighterModal}
               gangId={id}
@@ -1297,13 +1297,16 @@ export default function Gang({
           )}
 
           {showGangAdditionsModal && (
-            <GangAdditions
+            <FighterAddModal
+              catalog="additions"
               showModal={showGangAdditionsModal}
               setShowModal={setShowGangAdditionsModal}
               gangId={id}
               gangTypeId={gang_type_id}
               initialCredits={credits}
               onFighterAdded={handleFighterAdded}
+              onFighterRollback={onFighterRollback}
+              onFighterReconcile={onFighterReconcile}
               gangAffiliationId={gangAffiliationId}
             />
           )}
