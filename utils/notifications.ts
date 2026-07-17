@@ -15,6 +15,7 @@ export type NotificationType =
   | 'warning'
   | 'error'
   | 'invite'
+  | 'campaign_invite'
   | 'friend_request'
   | 'battle_invite'
   | 'gang_invite';
@@ -31,12 +32,12 @@ export interface NotificationEmailConfig {
 }
 
 export const notificationEmailConfig: Record<NotificationType, NotificationEmailConfig> = {
-  // Campaign-member and battle-session invites (both use type 'invite' today).
-  invite: {
-    label: 'Campaign & battle invitations',
+  // Campaign-member invitations.
+  campaign_invite: {
+    label: 'Campaign invitations',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'You have a new invitation on Munda Manager',
+    subject: "You've been invited to a campaign",
   },
   // Gang-into-campaign invitations (PENDING) — the gang owner is asked to accept.
   gang_invite: {
@@ -55,7 +56,12 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
   warning: { label: 'Warnings', supportsEmail: false, defaultEnabled: false, subject: '' },
   error: { label: 'Errors', supportsEmail: false, defaultEnabled: false, subject: '' },
-  battle_invite: { label: 'Battle invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // Battle-session invitations — in-app only (deliberately not emailed).
+  battle_invite: { label: 'Battle session invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // Legacy type: campaign AND battle invites both used 'invite' before they were split
+  // into campaign_invite / battle_invite. Retained (in-app only) so historical rows still
+  // render; no new producer emits it. Safe to remove once all such rows have expired.
+  invite: { label: 'Invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
 };
 
 /**

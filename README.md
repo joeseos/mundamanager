@@ -524,7 +524,7 @@ The notification system provides real-time notifications to users for various ap
 interface Notification {
   id: string;
   text: string;
-  type: 'info' | 'warning' | 'error' | 'invite';
+  type: 'info' | 'warning' | 'error' | 'invite' | 'campaign_invite' | 'friend_request' | 'battle_invite' | 'gang_invite';
   created_at: string;
   dismissed: boolean;
   link: string | null;

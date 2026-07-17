@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { LuOctagonX, LuUserPlus, LuTriangleAlert } from "react-icons/lu";
+import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
@@ -187,8 +187,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuOctagonX className="h-5 w-5 text-red-500" />;
       case 'warning':
         return <LuTriangleAlert className="h-5 w-5 text-amber-500" />;
-      case 'invite':
+      case 'invite': // legacy: pre-split campaign/battle invites
+      case 'campaign_invite':
         return <LuUserPlus className="h-5 w-5 text-indigo-500" />;
+      case 'battle_invite':
+        return <LuSwords className="h-5 w-5 text-rose-500" />;
       case 'friend_request':
         return <LuUserPlus className="h-5 w-5 text-green-500" />;
       case 'gang_invite':
