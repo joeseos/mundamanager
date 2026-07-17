@@ -62,8 +62,11 @@ export function SellConfirmModal({
               </button>
               {lastRoll !== null && (
                 <div className="text-sm">
-                  Roll {lastRoll}: -{lastRoll * 10} → {Math.max(5, initialCost - lastRoll * 10)} credits
+                  Roll {lastRoll}: {initialCost}-{lastRoll * 10} → {Math.max(5, initialCost - lastRoll * 10)} credits
                 </div>
+              )}
+              {shouldShowMinimumHint && (
+                <p className="text-sm text-muted-foreground">(Minimum 5 credits)</p>
               )}
             </div>
           )}
@@ -78,9 +81,6 @@ export function SellConfirmModal({
                 onChange={(e) => setManualCost(Number(e.target.value))}
                 min={0}
               />
-              {shouldShowMinimumHint && (
-                <p className="text-xs text-muted-foreground mt-1">Minimum 5 credits</p>
-              )}
             </div>
           </div>
           {description && (
