@@ -294,6 +294,11 @@ export function applyWeaponModifiers(
     return profiles;
   }
 
+  // Guard against stray falsy entries (e.g. from Object.values(effects).flat()
+  // where a category was set to undefined instead of an empty array)
+  const validEffects = effects.filter(Boolean);
+  if (validEffects.length === 0) return profiles;
+
   return profiles.map((profile) => {
     // Work on a copy
     const modified = { ...profile };
@@ -307,7 +312,7 @@ export function applyWeaponModifiers(
 
       // Collect all modifiers for this field
       const fieldModifiers: EffectModifier[] = [];
-      effects.forEach(eff => {
+      validEffects.forEach(eff => {
         (eff.fighter_effect_modifiers || []).forEach(m => {
           if (m.stat_name === fieldName) {
             fieldModifiers.push(m);
@@ -340,8 +345,7 @@ export function applyWeaponModifiers(
       .map((t: string) => t.trim())
       .filter(Boolean);
 
-    effects.forEach((eff) => {
-      if (!eff) return;
+    validEffects.forEach((eff) => {
       const tsd = typeof eff.type_specific_data === 'object' ? eff.type_specific_data || {} : {};
       const toRemove: string[] = tsd.traits_to_remove || [];
       const toAdd: string[] = tsd.traits_to_add || [];
