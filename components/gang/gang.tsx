@@ -283,6 +283,26 @@ export default function Gang({
     }, 0);
   }, [vehicles]);
 
+  // All fighters for the activity log filter (includes killed/retired so their historical logs remain filterable)
+  const allFightersForLogs = useMemo(
+    () => fighters.map(f => ({ id: f.id, name: f.fighter_name })),
+    [fighters]
+  );
+
+  // All vehicles for the activity log filter (unassigned + vehicles assigned to fighters)
+  const allVehiclesForLogs = useMemo(() => {
+    const unassigned = (vehicles ?? []).map(v => ({ id: v.id, name: v.vehicle_name }));
+    const assigned = fighters.flatMap(f =>
+      (f.vehicles ?? []).map(v => ({ id: v.id, name: v.vehicle_name }))
+    );
+    const seen = new Set<string>();
+    return [...unassigned, ...assigned].filter(v => {
+      if (seen.has(v.id)) return false;
+      seen.add(v.id);
+      return true;
+    });
+  }, [vehicles, fighters]);
+
   // Calculate the total value of the Stash
   const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
 
@@ -1292,6 +1312,8 @@ export default function Gang({
             fetchUrl={`/api/gangs/${id}/logs`}
             isOpen={showLogsModal}
             onClose={() => setShowLogsModal(false)}
+            fighters={allFightersForLogs}
+            vehicles={allVehiclesForLogs}
           />
           <CopyGangModal
             gangId={id}
