@@ -68,8 +68,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       beastDataResult,
       ownershipDataResult,
       gangFighters,
-      loadouts,
-      fighterTypeSourceGangTypeId
+      loadouts
     ] = await Promise.all([
       // Gang data
       getGangBasic(fighterBasic.gang_id, supabase),
@@ -97,17 +96,7 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
       // Gang fighters list
       getGangFighters(fighterBasic.gang_id, supabase),
       // Fighter loadouts
-      getFighterLoadouts(id, supabase),
-      // Fighter type's source gang_type_id — direct query (not cached) so it is always fresh.
-      // This is needed to show the correct promotion options for fighters added from another house.
-      fighterBasic.fighter_type_id
-        ? supabase
-            .from('fighter_types')
-            .select('gang_type_id')
-            .eq('id', fighterBasic.fighter_type_id)
-            .single()
-            .then((r: any) => r.error ? null : (r.data?.gang_type_id ?? null))
-        : Promise.resolve(null)
+      getFighterLoadouts(id, supabase)
     ]);
 
     // Check if gang exists (shouldn't happen but handle gracefully)
@@ -302,8 +291,15 @@ export default async function FighterPageServer({ params }: FighterPageProps) {
           fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
           fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
           alliance_crew_name: fighterTypeData?.alliance_crew_name,
-          gang_type_id: fighterTypeSourceGangTypeId || customFighterTypeInfo?.gang_type_id || null,
-          custom_gang_type_id: customFighterTypeInfo?.custom_gang_type_id || null,
+          // Prefer the fighter type's own gang association; fall back to the owning gang's type
+          // so the promotion dropdown is never silently empty (e.g. when a custom gang type was deleted).
+          gang_type_id: fighterTypeData?.gang_type_id
+            || customFighterTypeInfo?.gang_type_id
+            || gangBasic.gang_type_id
+            || null,
+          custom_gang_type_id: customFighterTypeInfo?.custom_gang_type_id
+            || gangBasic.custom_gang_type_id
+            || null,
         },
         fighter_sub_type: fighterSubTypeData ? {
           id: fighterSubTypeData.fighter_sub_type_id,

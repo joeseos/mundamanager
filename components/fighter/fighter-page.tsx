@@ -1279,8 +1279,8 @@ export default function FighterPage({
                 costAdjustment: String(fighterData.fighter.cost_adjustment || 0)
               }}
               gangId={fighterData.gang?.id || ''}
-              gangTypeId={fighterData.gang?.gang_type_id}
-              customGangTypeId={fighterData.gang?.custom_gang_type_id}
+              gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id}
+              customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {

@@ -58,6 +58,7 @@ function transformCustomFighter(cf: any) {
     gang_type: cf.gang_type,
     cost: cf.cost,
     gang_type_id: cf.gang_type_id,
+    custom_gang_type_id: cf.custom_gang_type_id ?? null,
     special_rules: cf.special_rules || [],
     total_cost: cf.cost,
     movement: cf.movement,
