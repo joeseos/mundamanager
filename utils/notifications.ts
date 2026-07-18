@@ -104,3 +104,68 @@ export function isEmailEnabled(
 export function notificationTextToHtml(text: string): string {
   return escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
+
+const APP_HOSTNAMES = new Set(['www.mundamanager.com', 'mundamanager.com', 'localhost']);
+
+export function hasNotificationLink(link: string | null | undefined): boolean {
+  return typeof link === 'string' && link.trim().length > 0;
+}
+
+export function resolveNotificationLink(link: string): { href: string; isExternal: boolean } {
+  const trimmed = link.trim();
+
+  if (trimmed.startsWith('/')) {
+    return { href: trimmed, isExternal: false };
+  }
+
+  try {
+    const url = new URL(trimmed);
+
+    if (APP_HOSTNAMES.has(url.hostname)) {
+      return {
+        href: `${url.pathname}${url.search}${url.hash}`,
+        isExternal: false,
+      };
+    }
+
+    return { href: trimmed, isExternal: true };
+  } catch {
+    return { href: trimmed.startsWith('/') ? trimmed : `/${trimmed}`, isExternal: false };
+  }
+}
+
+export function getNotificationLinkLabel(link: string): string {
+  const { href } = resolveNotificationLink(link);
+  const pathname = href.split('?')[0];
+
+  if (/^\/campaigns\/[^/]+$/.test(pathname)) {
+    return 'View campaign';
+  }
+
+  if (pathname.includes('/battle-session/')) {
+    return 'View battle session';
+  }
+
+  if (pathname.startsWith('/gang/')) {
+    return 'View gang';
+  }
+
+  if (pathname.startsWith('/account')) {
+    return 'View account';
+  }
+
+  if (href.startsWith('http')) {
+    try {
+      return new URL(href).hostname;
+    } catch {
+      return 'Open link';
+    }
+  }
+
+  return 'Open link';
+}
+
+export function getNotificationLinkDescription(link: string): string {
+  const { href } = resolveNotificationLink(link);
+  return href;
+}
