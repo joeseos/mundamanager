@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { checkAdmin } from '@/utils/auth'
+import { isSafeNotificationLink } from '@/utils/notifications'
 
 const ALLOWED_TYPES = ['info', 'warning', 'error'] as const
 type NotificationType = (typeof ALLOWED_TYPES)[number]
@@ -13,6 +14,7 @@ type RequestBody = {
   expiresInDays?: unknown
   audience?: unknown
   userIds?: unknown
+  resumeFrom?: unknown
 }
 
 export async function POST(request: Request) {
@@ -20,7 +22,7 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const isAdmin = await checkAdmin(supabase)
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = (await request.json()) as RequestBody
@@ -39,6 +41,13 @@ export async function POST(request: Request) {
     const type = body.type as NotificationType
 
     const link = typeof body.link === 'string' ? body.link.trim() : ''
+    if (link && !isSafeNotificationLink(link)) {
+      return NextResponse.json(
+        { error: 'Link must be a relative path or http(s) URL' },
+        { status: 400 }
+      )
+    }
+
     const expiresInDays =
       typeof body.expiresInDays === 'number' && Number.isFinite(body.expiresInDays)
         ? Math.floor(body.expiresInDays)
@@ -59,6 +68,11 @@ export async function POST(request: Request) {
       )
     }
 
+    const resumeFrom =
+      typeof body.resumeFrom === 'number' && Number.isFinite(body.resumeFrom)
+        ? Math.max(0, Math.floor(body.resumeFrom))
+        : 0
+
     const serviceClient = createServiceRoleClient()
     let receiverIds: string[] = []
 
@@ -70,6 +84,7 @@ export async function POST(request: Request) {
         const { data: profiles, error: profilesError } = await serviceClient
           .from('profiles')
           .select('id')
+          .order('id', { ascending: true })
           .range(from, from + pageSize - 1)
 
         if (profilesError) {
@@ -111,6 +126,7 @@ export async function POST(request: Request) {
         .from('profiles')
         .select('id')
         .in('id', uniqueIds)
+        .order('id', { ascending: true })
 
       if (profilesError) {
         console.error('Failed to verify users for notifications:', profilesError)
@@ -118,18 +134,21 @@ export async function POST(request: Request) {
       }
 
       receiverIds = (profiles || []).map((profile) => profile.id)
-
-      if (receiverIds.length === 0) {
-        return NextResponse.json({ error: 'No matching users found' }, { status: 400 })
-      }
     }
 
     if (receiverIds.length === 0) {
       return NextResponse.json({ error: 'No recipients found' }, { status: 400 })
     }
 
+    if (resumeFrom >= receiverIds.length) {
+      return NextResponse.json(
+        { error: 'Resume offset is beyond the recipient list' },
+        { status: 400 }
+      )
+    }
+
     const expiresAt = new Date(Date.now() + expiresInDays * 86400000).toISOString()
-    const rows = receiverIds.map((receiverId) => ({
+    const rows = receiverIds.slice(resumeFrom).map((receiverId) => ({
       text,
       type,
       sender_id: null,
@@ -150,8 +169,9 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error: 'Failed to send notifications',
-            count: insertedCount,
-            partial: insertedCount > 0,
+            count: resumeFrom + insertedCount,
+            partial: insertedCount > 0 || resumeFrom > 0,
+            resumeFrom: resumeFrom + insertedCount,
           },
           { status: 500 }
         )
@@ -160,7 +180,11 @@ export async function POST(request: Request) {
       insertedCount += batch.length
     }
 
-    return NextResponse.json({ success: true, count: insertedCount })
+    return NextResponse.json({
+      success: true,
+      count: resumeFrom + insertedCount,
+      insertedThisRequest: insertedCount,
+    })
   } catch (error) {
     console.error('Admin notifications error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

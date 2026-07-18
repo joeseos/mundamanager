@@ -26,6 +26,7 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
   const [text, setText] = useState('')
   const [link, setLink] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
+  const [resumeFrom, setResumeFrom] = useState(0)
 
   const canSend =
     text.trim().length > 0 &&
@@ -61,15 +62,24 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
           expiresInDays,
           audience,
           userIds: audience === 'users' ? selectedUsers.map((user) => user.id) : undefined,
+          resumeFrom: resumeFrom > 0 ? resumeFrom : undefined,
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
+        if (data.partial && typeof data.resumeFrom === 'number') {
+          setResumeFrom(data.resumeFrom)
+          throw new Error(
+            `Partially sent to ${data.count} users. Send again to continue from recipient ${data.resumeFrom + 1}.`
+          )
+        }
+
         throw new Error(data.error || 'Failed to send notifications')
       }
 
+      setResumeFrom(0)
       toast.success(
         `Notification sent to ${data.count} ${data.count === 1 ? 'user' : 'users'}`
       )

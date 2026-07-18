@@ -106,12 +106,53 @@ export function notificationTextToHtml(text: string): string {
 }
 
 const APP_HOSTNAMES = new Set(['www.mundamanager.com', 'mundamanager.com', 'localhost']);
+const UNSAFE_LINK_SCHEME = /^(javascript|data|vbscript|file):/i;
 
-export function hasNotificationLink(link: string | null | undefined): boolean {
-  return typeof link === 'string' && link.trim().length > 0;
+export function isSafeNotificationLink(link: string | null | undefined): link is string {
+  if (typeof link !== 'string') {
+    return false;
+  }
+
+  const trimmed = link.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (UNSAFE_LINK_SCHEME.test(trimmed)) {
+    return false;
+  }
+
+  if (trimmed.startsWith('//')) {
+    return false;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return true;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    if (trimmed.includes(':')) {
+      return false;
+    }
+
+    return true;
+  }
 }
 
-export function resolveNotificationLink(link: string): { href: string; isExternal: boolean } {
+export function hasNotificationLink(link: string | null | undefined): link is string {
+  return isSafeNotificationLink(link);
+}
+
+export function resolveNotificationLink(
+  link: string
+): { href: string; isExternal: boolean } | null {
+  if (!isSafeNotificationLink(link)) {
+    return null;
+  }
+
   const trimmed = link.trim();
 
   if (trimmed.startsWith('/')) {
@@ -120,6 +161,10 @@ export function resolveNotificationLink(link: string): { href: string; isExterna
 
   try {
     const url = new URL(trimmed);
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null;
+    }
 
     if (APP_HOSTNAMES.has(url.hostname)) {
       return {
@@ -130,12 +175,21 @@ export function resolveNotificationLink(link: string): { href: string; isExterna
 
     return { href: trimmed, isExternal: true };
   } catch {
-    return { href: trimmed.startsWith('/') ? trimmed : `/${trimmed}`, isExternal: false };
+    if (trimmed.includes(':')) {
+      return null;
+    }
+
+    return { href: `/${trimmed}`, isExternal: false };
   }
 }
 
 export function getNotificationLinkLabel(link: string): string {
-  const { href } = resolveNotificationLink(link);
+  const resolved = resolveNotificationLink(link);
+  if (!resolved) {
+    return 'Open link';
+  }
+
+  const { href } = resolved;
   const pathname = href.split('?')[0];
 
   if (/^\/campaigns\/[^/]+$/.test(pathname)) {
@@ -166,6 +220,6 @@ export function getNotificationLinkLabel(link: string): string {
 }
 
 export function getNotificationLinkDescription(link: string): string {
-  const { href } = resolveNotificationLink(link);
-  return href;
+  const resolved = resolveNotificationLink(link);
+  return resolved?.href ?? link.trim();
 }
