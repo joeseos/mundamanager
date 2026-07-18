@@ -142,7 +142,14 @@ export function isSafeNotificationLink(link: string | null | undefined): link is
   }
 }
 
-export function hasNotificationLink(link: string | null | undefined): link is string {
+export function shouldShowNotificationLinkAttachment(
+  type: NotificationType,
+  link: string | null | undefined
+): link is string {
+  if (type === 'friend_request' || type === 'gang_invite') {
+    return false;
+  }
+
   return isSafeNotificationLink(link);
 }
 
