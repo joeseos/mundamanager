@@ -105,12 +105,8 @@ export function CustomiseTradingPosts({
     onSuccess: (result, { id }, context) => {
       if (result.success && result.data) {
         setTradingPosts(prev => prev.map(tp => (tp.id === id ? result.data! : tp)));
-        setEditModalData(null);
-        resetForm();
-        toast.success('Custom trading post updated successfully');
       } else {
         if (context?.previous) setTradingPosts(context.previous);
-        toast.error(result.error || 'Failed to update custom trading post');
       }
     },
     onError: (error: Error, _, context) => {
@@ -234,103 +230,61 @@ export function CustomiseTradingPosts({
   const handleEditConfirm = async () => {
     if (!editModalData || !isFormValid()) return false;
 
+    const tradingPostId = editModalData.id;
     const overridesToSave = new Map(pendingOverrides);
     const additionsToSave = [...pendingAdditions];
     const removalsToSave = new Set(pendingRemovals);
-    updateMutation.mutate(
-      { id: editModalData.id, data: formData },
-      {
-        onSuccess: async (result) => {
-          if (!result.success) return;
-          const hasChanges = overridesToSave.size > 0 || additionsToSave.length > 0 || removalsToSave.size > 0;
-          if (!hasChanges) return;
 
-          const pendingAdditionTempIds = new Set(additionsToSave.map(e => e.id));
+    try {
+      const result = await updateMutation.mutateAsync({ id: tradingPostId, data: formData });
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to update custom trading post');
+        return false;
+      }
 
-          if (additionsToSave.length > 0) {
-            const batchResult = await addTPEquipmentBatch(
-              editModalData.id,
-              additionsToSave.map(equip => {
-                const override = overridesToSave.get(equip.id);
-                return {
-                  equipmentId: equip.is_custom ? equip.original_id! : equip.id,
-                  isCustom: equip.is_custom,
-                  costOverride: override?.costOverride,
-                  availabilityOverride: override?.availabilityOverride,
-                };
+      const hasEquipmentChanges =
+        overridesToSave.size > 0 || additionsToSave.length > 0 || removalsToSave.size > 0;
+
+      if (hasEquipmentChanges) {
+        let equipmentSaveFailed = false;
+        const pendingAdditionTempIds = new Set(additionsToSave.map(e => e.id));
+
+        if (additionsToSave.length > 0) {
+          const batchResult = await addTPEquipmentBatch(
+            tradingPostId,
+            additionsToSave.map(equip => {
+              const override = overridesToSave.get(equip.id);
+              return {
+                equipmentId: equip.is_custom ? equip.original_id! : equip.id,
+                isCustom: equip.is_custom,
+                costOverride: override?.costOverride,
+                costTypeResourceId: override?.costTypeResourceId,
+                costCampaignResourceId: override?.costCampaignResourceId,
+                costReputation: override?.costReputation,
+                costResourceAmount: override?.costResourceAmount,
+                availabilityOverride: override?.availabilityOverride,
+                banned: override?.banned,
+              };
+            })
+          );
+          if (!batchResult.success) {
+            toast.error(batchResult.error || 'Failed to add equipment');
+            equipmentSaveFailed = true;
+          } else if (batchResult.data) {
+            const pendingRulesSaves = additionsToSave
+              .map((equip) => {
+                const realRow = batchResult.data!.find(r =>
+                  equip.is_custom
+                    ? r.custom_equipment_id === equip.original_id
+                    : r.equipment_id === equip.id
+                );
+                return { tempId: equip.id, realId: realRow?.id };
               })
-            );
-            if (!batchResult.success) {
-              toast.error(batchResult.error || 'Failed to add equipment');
-            } else if (batchResult.data) {
-              const pendingRulesSaves = additionsToSave
-                .map((equip) => {
-                  const realRow = batchResult.data!.find(r =>
-                    equip.is_custom
-                      ? r.custom_equipment_id === equip.original_id
-                      : r.equipment_id === equip.id
-                  );
-                  return { tempId: equip.id, realId: realRow?.id };
-                })
-                .filter(({ tempId, realId }) => !!realId && overridesToSave.get(tempId)?.rulesModified)
-                .map(async ({ tempId, realId }) => {
-                  const changes = overridesToSave.get(tempId)!;
-                  const rulesResult = await saveEquipmentRules(
-                    realId!,
-                    changes.availRules.map(r => ({
-                      gang_type_id: r.gang_type_id,
-                      custom_gang_type_id: r.custom_gang_type_id,
-                      gang_origin_id: r.gang_origin_id,
-                      gang_variant_id: r.gang_variant_id,
-                      campaign_type_allegiance_id: r.campaign_type_allegiance_id,
-                      alignment: r.alignment,
-                      availability: r.availability,
-                    })),
-                    changes.pricingRules.map(r => ({
-                      gang_type_id: r.gang_type_id,
-                      custom_gang_type_id: r.custom_gang_type_id,
-                      gang_origin_id: r.gang_origin_id,
-                      fighter_type_id: r.fighter_type_id,
-                      adjusted_cost: r.adjusted_cost,
-                    }))
-                  );
-                  if (!rulesResult.success) {
-                    toast.error(rulesResult.error || 'Failed to save equipment rules');
-                  }
-                });
-              await Promise.all(pendingRulesSaves);
-            }
-          }
-
-          if (removalsToSave.size > 0) {
-            await Promise.all(
-              Array.from(removalsToSave).map(async (id) => {
-                const res = await removeTPEquipment(id);
-                if (!res.success) toast.error(res.error || 'Failed to remove equipment');
-              })
-            );
-          }
-
-          const equipmentSaves = Array.from(overridesToSave.entries())
-            .filter(([itemId]) => !pendingAdditionTempIds.has(itemId))
-            .map(
-            async ([itemId, changes]) => {
-              const overridesResult = await updateTPEquipment(itemId, {
-                cost_override: changes.costOverride,
-                cost_type_resource_id: changes.costTypeResourceId,
-                cost_campaign_resource_id: changes.costCampaignResourceId,
-                cost_reputation: changes.costReputation,
-                cost_resource_amount: changes.costResourceAmount,
-                availability_override: changes.availabilityOverride,
-                banned: changes.banned,
-              });
-              if (!overridesResult.success) {
-                toast.error(overridesResult.error || 'Failed to save equipment overrides');
-                return;
-              }
-              if (changes.rulesModified) {
+              .filter(({ tempId, realId }) => !!realId && overridesToSave.get(tempId)?.rulesModified)
+              .map(async ({ tempId, realId }) => {
+                const changes = overridesToSave.get(tempId)!;
                 const rulesResult = await saveEquipmentRules(
-                  itemId,
+                  realId!,
                   changes.availRules.map(r => ({
                     gang_type_id: r.gang_type_id,
                     custom_gang_type_id: r.custom_gang_type_id,
@@ -350,21 +304,90 @@ export function CustomiseTradingPosts({
                 );
                 if (!rulesResult.success) {
                   toast.error(rulesResult.error || 'Failed to save equipment rules');
+                  equipmentSaveFailed = true;
                 }
+              });
+            await Promise.all(pendingRulesSaves);
+          }
+        }
+
+        if (removalsToSave.size > 0) {
+          await Promise.all(
+            Array.from(removalsToSave).map(async (id) => {
+              const res = await removeTPEquipment(id);
+              if (!res.success) {
+                toast.error(res.error || 'Failed to remove equipment');
+                equipmentSaveFailed = true;
+              }
+            })
+          );
+        }
+
+        const equipmentSaves = Array.from(overridesToSave.entries())
+          .filter(([itemId]) => !pendingAdditionTempIds.has(itemId))
+          .map(async ([itemId, changes]) => {
+            const overridesResult = await updateTPEquipment(itemId, {
+              cost_override: changes.costOverride,
+              cost_type_resource_id: changes.costTypeResourceId,
+              cost_campaign_resource_id: changes.costCampaignResourceId,
+              cost_reputation: changes.costReputation,
+              cost_resource_amount: changes.costResourceAmount,
+              availability_override: changes.availabilityOverride,
+              banned: changes.banned,
+            });
+            if (!overridesResult.success) {
+              toast.error(overridesResult.error || 'Failed to save equipment overrides');
+              equipmentSaveFailed = true;
+              return;
+            }
+            if (changes.rulesModified) {
+              const rulesResult = await saveEquipmentRules(
+                itemId,
+                changes.availRules.map(r => ({
+                  gang_type_id: r.gang_type_id,
+                  custom_gang_type_id: r.custom_gang_type_id,
+                  gang_origin_id: r.gang_origin_id,
+                  gang_variant_id: r.gang_variant_id,
+                  campaign_type_allegiance_id: r.campaign_type_allegiance_id,
+                  alignment: r.alignment,
+                  availability: r.availability,
+                })),
+                changes.pricingRules.map(r => ({
+                  gang_type_id: r.gang_type_id,
+                  custom_gang_type_id: r.custom_gang_type_id,
+                  gang_origin_id: r.gang_origin_id,
+                  fighter_type_id: r.fighter_type_id,
+                  adjusted_cost: r.adjusted_cost,
+                }))
+              );
+              if (!rulesResult.success) {
+                toast.error(rulesResult.error || 'Failed to save equipment rules');
+                equipmentSaveFailed = true;
               }
             }
-          );
-          await Promise.all(equipmentSaves);
-
-          queryClient.invalidateQueries({ queryKey: ['tpEquipment', editModalData.id] });
-          overridesToSave.forEach((_, itemId) => {
-            queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] });
-            queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] });
           });
-        },
+        await Promise.all(equipmentSaves);
+
+        await queryClient.invalidateQueries({ queryKey: ['tpEquipment', tradingPostId] });
+        await Promise.all(
+          Array.from(overridesToSave.keys()).map((itemId) =>
+            Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['tpAvailabilityRules', itemId] }),
+              queryClient.invalidateQueries({ queryKey: ['tpPricingRules', itemId] }),
+            ])
+          )
+        );
+
+        if (equipmentSaveFailed) {
+          return false;
+        }
       }
-    );
-    return true;
+
+      toast.success('Custom trading post updated successfully');
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const handleDeleteConfirm = async () => {
