@@ -76,7 +76,7 @@ export async function PATCH(request: Request) {
         receiver_id: userId,
         sender_id: requesterId,
         type: 'info',
-        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add custom resources and allegiances\n• Add new players and gangs\n\nClick this notification to go to the campaign.`,
+        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add custom resources and allegiances\n• Add new players and gangs\n\nClick the link below to access the campaign.`,
         link: `${baseUrl}/campaigns/${campaignId}`,
         dismissed: false
       });
