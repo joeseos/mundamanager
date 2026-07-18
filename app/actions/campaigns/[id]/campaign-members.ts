@@ -535,7 +535,7 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
         receiver_id: userId,
         sender_id: user.id,
         type: 'info',
-        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add new players and gangs\n• Edit player gangs\n• Manage Territories and Battle Logs\n• Add custom resources\n• Share your custom assets with the campaign (fighters, equipment, and more)\n\nClick the link attached to this notification to go to the campaign.`,
+        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add new players and gangs\n• Edit player gangs\n• Manage Territories and Battle Logs\n• Add custom resources\n• Share your custom assets with the campaign (fighters, equipment, and more)\n\nClick the link below to go to the campaign.`,
         link: `${baseUrl}/campaigns/${campaignId}`,
         dismissed: false
       });
