@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xUegLbcvsi6bcWSBNnPlDQiRZ452NxGhWbhqkAzmVsrOXfzWLUNUM7BIIJBkIev
+\restrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -4273,7 +4273,7 @@ BEGIN
        NEW.user_id,
        NEW.invited_by,
        'campaign_invite',
-       'You have been invited to the campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '". Click this notification to go to the campaign.',
+       'You have been invited to the campaign "' || COALESCE(campaign_name_var, 'Unknown Campaign') || '". Click the link below to access the campaign.',
        'https://www.mundamanager.com/campaigns/' || NEW.campaign_id,
        false
    );
@@ -12343,5 +12343,5 @@ CREATE POLICY weapon_profiles_admin_update_policy ON public.weapon_profiles FOR 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xUegLbcvsi6bcWSBNnPlDQiRZ452NxGhWbhqkAzmVsrOXfzWLUNUM7BIIJBkIev
+\unrestrict sOMbG54n4jsWBJX4l3wyHd4ObiyyDDdWZMWdojS83TUJZv5zhcIlIOsxzEjiYTx
 
