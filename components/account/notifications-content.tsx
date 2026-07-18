@@ -191,7 +191,12 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       return;
     }
 
-    const { href, isExternal } = resolveNotificationLink(notification.link!);
+    const resolved = resolveNotificationLink(notification.link);
+    if (!resolved) {
+      return;
+    }
+
+    const { href, isExternal } = resolved;
 
     if (isExternal) {
       window.open(href, '_blank', 'noopener,noreferrer');
@@ -209,9 +214,14 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       return null;
     }
 
-    const { href, isExternal } = resolveNotificationLink(notification.link!);
-    const label = getNotificationLinkLabel(notification.link!);
-    const description = getNotificationLinkDescription(notification.link!);
+    const resolved = resolveNotificationLink(notification.link);
+    if (!resolved) {
+      return null;
+    }
+
+    const { href, isExternal } = resolved;
+    const label = getNotificationLinkLabel(notification.link);
+    const description = getNotificationLinkDescription(notification.link);
 
     const attachmentContent = (
       <>
