@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,11 @@ export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProp
   const [link, setLink] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
   const [resumeFrom, setResumeFrom] = useState(0)
+  const selectedUserIds = selectedUsers.map((user) => user.id).join(',')
+
+  useEffect(() => {
+    setResumeFrom(0)
+  }, [audience, selectedUserIds, text, type, link])
 
   const canSend =
     text.trim().length > 0 &&

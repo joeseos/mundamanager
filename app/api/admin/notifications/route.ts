@@ -77,6 +77,8 @@ export async function POST(request: Request) {
     let receiverIds: string[] = []
 
     if (audience === 'all') {
+      // Re-fetched on every request. resumeFrom is index-based; new signups between a
+      // failed attempt and a retry can shift indices and skip or duplicate a recipient.
       const pageSize = 1000
       let from = 0
 
