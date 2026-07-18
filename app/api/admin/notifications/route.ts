@@ -94,11 +94,11 @@ export async function POST(request: Request) {
         )
       }
 
-      const uniqueIds = [
-        ...new Set(
+      const uniqueIds = Array.from(
+        new Set(
           body.userIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-        ),
-      ]
+        )
+      )
 
       if (uniqueIds.length === 0) {
         return NextResponse.json(
