@@ -14,7 +14,6 @@ type RequestBody = {
   expiresInDays?: unknown
   audience?: unknown
   userIds?: unknown
-  resumeFrom?: unknown
 }
 
 export async function POST(request: Request) {
@@ -68,17 +67,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const resumeFrom =
-      typeof body.resumeFrom === 'number' && Number.isFinite(body.resumeFrom)
-        ? Math.max(0, Math.floor(body.resumeFrom))
-        : 0
-
     const serviceClient = createServiceRoleClient()
     let receiverIds: string[] = []
 
     if (audience === 'all') {
-      // Re-fetched on every request. resumeFrom is index-based; new signups between a
-      // failed attempt and a retry can shift indices and skip or duplicate a recipient.
       const pageSize = 1000
       let from = 0
 
@@ -142,15 +134,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No recipients found' }, { status: 400 })
     }
 
-    if (resumeFrom >= receiverIds.length) {
-      return NextResponse.json(
-        { error: 'Resume offset is beyond the recipient list' },
-        { status: 400 }
-      )
-    }
-
     const expiresAt = new Date(Date.now() + expiresInDays * 86400000).toISOString()
-    const rows = receiverIds.slice(resumeFrom).map((receiverId) => ({
+    const rows = receiverIds.map((receiverId) => ({
       text,
       type,
       sender_id: null,
@@ -170,10 +155,12 @@ export async function POST(request: Request) {
         console.error('Failed to insert notification batch:', insertError)
         return NextResponse.json(
           {
-            error: 'Failed to send notifications',
-            count: resumeFrom + insertedCount,
-            partial: insertedCount > 0 || resumeFrom > 0,
-            resumeFrom: resumeFrom + insertedCount,
+            error:
+              insertedCount > 0
+                ? `Failed after sending to ${insertedCount} users. Some recipients may already have received this notification — check before retrying.`
+                : 'Failed to send notifications',
+            count: insertedCount,
+            partial: insertedCount > 0,
           },
           { status: 500 }
         )
@@ -182,11 +169,7 @@ export async function POST(request: Request) {
       insertedCount += batch.length
     }
 
-    return NextResponse.json({
-      success: true,
-      count: resumeFrom + insertedCount,
-      insertedThisRequest: insertedCount,
-    })
+    return NextResponse.json({ success: true, count: insertedCount })
   } catch (error) {
     console.error('Admin notifications error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

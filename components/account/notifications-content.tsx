@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends';
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { LuTrash2 } from "react-icons/lu";
-import { notificationTextToHtml, type NotificationType, hasNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
+import { notificationTextToHtml, type NotificationType, shouldShowNotificationLinkAttachment, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 
 type Notification = {
   id: string;
@@ -187,7 +187,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   ) => {
     event.stopPropagation();
 
-    if (!hasNotificationLink(notification.link)) {
+    if (!shouldShowNotificationLinkAttachment(notification.type, notification.link)) {
       return;
     }
 
@@ -210,7 +210,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   };
 
   const renderNotificationLinkAttachment = (notification: Notification) => {
-    if (!hasNotificationLink(notification.link)) {
+    if (!shouldShowNotificationLinkAttachment(notification.type, notification.link)) {
       return null;
     }
 
@@ -394,7 +394,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     </Button>
                   )}
                 </div>
-                {hasNotificationLink(notification.link) && (
+                {shouldShowNotificationLinkAttachment(notification.type, notification.link) && (
                   <div className="mt-3 ml-8 border-t border-border/60 pt-3">
                     {renderNotificationLinkAttachment(notification)}
                   </div>

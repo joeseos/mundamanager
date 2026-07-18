@@ -292,7 +292,6 @@ export default function AdminPage() {
         {showNotifications && (
           <AdminNotificationsModal
             onClose={() => setShowNotifications(false)}
-            onSubmit={() => setShowNotifications(false)}
           />
         )}
       </main>
